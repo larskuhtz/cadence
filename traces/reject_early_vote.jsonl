@@ -1,0 +1,3 @@
+// Negative fixture: voting is guarded by `require phase ≠ pre_deadline`, but the
+// initial phase is pre_deadline and no advance precedes this. Expected: NOT ACCEPTED.
+{"action": "vote", "args": [1]}

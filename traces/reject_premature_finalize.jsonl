@@ -1,0 +1,4 @@
+// Negative fixture: `finalize_commit` requires every proposer's entry to be
+// locally committed (`∀J is_proposer J → committed_pos ∨ committed_neg`), but
+// from the initial state node 0 has committed nothing. Expected: NOT ACCEPTED.
+{"action": "finalize_commit", "args": [0]}

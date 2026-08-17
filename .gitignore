@@ -1,0 +1,13 @@
+# Lake build tree: oleans, the fetched dependencies, and the Veil proof cache
+# (.lake/build/veilcache/ — safe to delete at any time; it only ever skips
+# proof *search*, never checking).
+.lake/
+
+# The protocol paper is a separate, access-restricted repository. Nothing here
+# needs it to build; clone it into papers/cadence if you have access (see
+# README.md) and it stays out of this repository's history.
+/papers/
+
+# Editor / OS noise
+.vscode/
+.DS_Store

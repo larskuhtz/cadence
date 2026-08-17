@@ -1,0 +1,36 @@
+// Chorus fast-path finalization — hand-written POSITIVE path, n = 3f+1 = 4, f = 1.
+// Instance: empty Byzantine set (all honest), proposer = node 0, single root m = 0.
+// Honest quorum = {0,1,2}. Complements the impl-emitted negative trace by
+// exercising the positive fast-path guards (the impl's stubbed DA never yields
+// a positive verdict).
+//
+// OBSERVABLE actions only: the model's internal `commit_sign_pos` (part of
+// casting) and `commit_assign_pos` (part of finalizing) are NOT listed — the
+// monitor inserts them (Stage-B saturation). Expected verdict: ACCEPTED.
+//
+// --- Phase I: proposer dissemination (pre_deadline) ---
+{"action": "propose", "args": [0, 0]}
+{"action": "deliver_chunk_assigned", "args": [0, 0, 0]}
+{"action": "deliver_chunk_assigned", "args": [1, 0, 0]}
+{"action": "deliver_chunk_assigned", "args": [2, 0, 0]}
+{"action": "record_chunk", "args": [0, 0, 0]}
+{"action": "record_chunk", "args": [1, 0, 0]}
+{"action": "record_chunk", "args": [2, 0, 0]}
+// --- advance past the deadline ---
+{"action": "advance_to_deadline"}
+// --- Phase II: voting ---
+{"action": "vote", "args": [0]}
+{"action": "vote", "args": [1]}
+{"action": "vote", "args": [2]}
+// --- Phase III fast path: FastQC aggregation, fast-commit cast, commitQC ---
+{"action": "aggregate_fastqc_pos", "args": [0, 0, 0, [0, 1, 2]]}
+{"action": "aggregate_fastqc_pos", "args": [1, 0, 0, [0, 1, 2]]}
+{"action": "aggregate_fastqc_pos", "args": [2, 0, 0, [0, 1, 2]]}
+{"action": "cast_fast_commit", "args": [0]}
+{"action": "cast_fast_commit", "args": [1]}
+{"action": "cast_fast_commit", "args": [2]}
+{"action": "broadcast_commitqc_pos", "args": [0, 0, [0, 1, 2]]}
+// --- Finalization ---
+{"action": "finalize_commit", "args": [0]}
+{"action": "finalize_commit", "args": [1]}
+{"action": "finalize_commit", "args": [2]}

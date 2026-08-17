@@ -1,0 +1,19 @@
+// emitted by monad-mcp-chorus-sim (slot 0, n=4, negative fast path; observed network + finalization events)
+{"action": "advance_to_deadline"}
+{"action": "vote", "args": [0]}
+{"action": "vote", "args": [1]}
+{"action": "vote", "args": [2]}
+{"action": "vote", "args": [3]}
+{"action": "aggregate_fastqc_neg", "args": [0, 0, [0, 1, 2]]}
+{"action": "cast_fast_commit", "args": [0]}
+{"action": "aggregate_fastqc_neg", "args": [1, 0, [0, 1, 2]]}
+{"action": "cast_fast_commit", "args": [1]}
+{"action": "aggregate_fastqc_neg", "args": [2, 0, [0, 1, 2]]}
+{"action": "cast_fast_commit", "args": [2]}
+{"action": "aggregate_fastqc_neg", "args": [3, 0, [0, 1, 2]]}
+{"action": "cast_fast_commit", "args": [3]}
+{"action": "broadcast_commitqc_neg", "args": [0, [0, 1, 2]]}
+{"action": "finalize_commit", "args": [0]}
+{"action": "finalize_commit", "args": [1]}
+{"action": "finalize_commit", "args": [2]}
+{"action": "finalize_commit", "args": [3]}
