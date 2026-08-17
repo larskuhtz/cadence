@@ -216,59 +216,70 @@ error: ❌ Violation: safety_failure (violates: prefix_valid_by_construction)
     carried_neg = []
     carried_pos = []
     proposed = false
-  State 1 (via deliver_entry_neg(p=0, r=1)):
+  State 1 (via deliver_entry_pos(m=0, p=0, r=1)):
     accepted = []
     carried_equiv = []
     carried_fastqc = []
-    carried_neg = [[1, 0]]
-    carried_pos = []
+    carried_neg = []
+    carried_pos = [[1, [0, 0]]]
     proposed = false
-  State 2 (via deliver_entry_equiv(p=0, r=0)):
+  State 2 (via deliver_entry_neg(p=0, r=2)):
+    accepted = []
+    carried_equiv = []
+    carried_fastqc = []
+    carried_neg = [[2, 0]]
+    carried_pos = [[1, [0, 0]]]
+    proposed = false
+  State 3 (via deliver_entry_equiv(p=0, r=0)):
     accepted = []
     carried_equiv = [[0, 0]]
     carried_fastqc = []
-    carried_neg = [[1, 0]]
-    carried_pos = []
+    carried_neg = [[2, 0]]
+    carried_pos = [[1, [0, 0]]]
     proposed = false
-  State 3 (via accept_vote(r=0)):
+  State 4 (via accept_vote(r=0)):
     accepted = [0]
     carried_equiv = [[0, 0]]
     carried_fastqc = []
-    carried_neg = [[1, 0]]
-    carried_pos = []
+    carried_neg = [[2, 0]]
+    carried_pos = [[1, [0, 0]]]
     proposed = false
-  State 4 (via deliver_entry_pos(m=0, p=0, r=3)):
-    accepted = [0]
+  State 5 (via accept_vote(r=1)):
+    accepted = [0, 1]
     carried_equiv = [[0, 0]]
     carried_fastqc = []
-    carried_neg = [[1, 0]]
-    carried_pos = [[3, [0, 0]]]
+    carried_neg = [[2, 0]]
+    carried_pos = [[1, [0, 0]]]
     proposed = false
-  State 5 (via accept_vote(r=3)):
-    accepted = [0, 3]
+  State 6 (via accept_vote(r=2)):
+    accepted = [0, 1, 2]
     carried_equiv = [[0, 0]]
     carried_fastqc = []
-    carried_neg = [[1, 0]]
-    carried_pos = [[3, [0, 0]]]
+    carried_neg = [[2, 0]]
+    carried_pos = [[1, [0, 0]]]
     proposed = false
-  State 6 (via accept_vote(r=1)):
-    accepted = [0, 1, 3]
+  State 7 (via propose(q=[0, 1, 2])):
+    accepted = [0, 1, 2]
     carried_equiv = [[0, 0]]
     carried_fastqc = []
-    carried_neg = [[1, 0]]
-    carried_pos = [[3, [0, 0]]]
-    proposed = false
-  State 7 (via propose(q=[0, 1, 3])):
-    accepted = [0, 1, 3]
-    carried_equiv = [[0, 0]]
-    carried_fastqc = []
-    carried_neg = [[1, 0]]
-    carried_pos = [[3, [0, 0]]]
+    carried_neg = [[2, 0]]
+    carried_pos = [[1, [0, 0]]]
     proposed = true
 -/
 #guard_msgs in
+/- `sequential := true` is load-bearing for the pin above, not a performance
+choice. By default `#model_check` splits the BFS frontier into `numSubTasks`
+parallel sub-tasks and that count defaults to the machine's **core count**, so
+*which* of the many reachable violating states is reported first depends on the
+hardware: measured on this model, 4, 8, 12 and 14 cores each yield a different
+(equally valid) counterexample, as does a different OS. The claim being pinned
+is "a reachable state violates `prefix_valid_by_construction`" — the witness is
+evidence, not the claim — but `#guard_msgs` compares the whole message, so the
+pin would break on any machine but the one that recorded it. The sequential
+search is deterministic, and verified identical on macOS/arm64 and Linux/arm64
+at 4, 8 and 12 cores. -/
 #model_check interpreted
   { node := Fin (3 * 1 + 1), nodeset := ByzNSet (3 * 1 + 1),
-    proposer := Fin 1, merkle_root := Fin 2 } {}
+    proposer := Fin 1, merkle_root := Fin 2 } {} (sequential := true)
 
 end FallbackReceiptPreFix

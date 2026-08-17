@@ -178,7 +178,12 @@ is a change to what this project *claims*, not a refactor.
   the ones you expect.
 * **The pre-fix refutation keeps failing.** `FallbackReceipt/PreFix.lean`
   builds only while the model checker still finds the documented
-  counterexample.
+  counterexample. Its `#model_check` **must** keep `(sequential := true)`:
+  the parallel search splits the frontier into `numSubTasks` chunks and that
+  defaults to the machine's *core count*, so which of the many violating
+  states is reported first is hardware-dependent — 4, 8, 12 and 14 cores each
+  produce a different, equally valid witness, and the pin would then only hold
+  on the machine that recorded it. The reasoning is in the file.
 * Headline results stay readable by non-FV reviewers: named `safety`
   declarations in the models, corollaries and contract instances in the
   composition files, and one index page in `Cadence.lean`.
