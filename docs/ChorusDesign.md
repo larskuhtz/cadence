@@ -23,11 +23,6 @@ module specification in `src/p2_mvba.tex`. Pseudocode is cited by its stable
 LaTeX anchors (e.g. `line:fb-pathvote-guard`), never by line numbers, which
 drift.
 
-The MCP execution-layer specification (transaction economics, translation,
-reserve balances) is a further, separate document. It is orthogonal to the
-consensus layer modelled here; only its optional in-band certification variant
-would touch the voting layer, and that is not modelled.
-
 For each slot `s` Chorus runs an independent agreement instance among a
 set `Π` of `n = 3f + 1` validators with `k` concurrent *proposers*
 `Ps ⊆ Π`. The protocol has three time landmarks per slot:

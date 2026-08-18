@@ -37,9 +37,7 @@ chapter is `src/p2_chorus.tex`, with pseudocode in `src/alg_proposer.tex`,
 `src/alg_voting.tex`, `src/alg_fast.tex`, `src/alg_fallback.tex`,
 `src/alg_da.tex`, and the MVBA module specification in `src/p2_mvba.tex`.
 Pseudocode is cited by its stable LaTeX anchors (e.g.
-`line:fb-pathvote-guard`), never by line numbers. The MCP execution-layer
-specification (economics, translation) is a further, separate document, and
-is orthogonal to the consensus layer modelled here.
+`line:fb-pathvote-guard`), never by line numbers.
 
 ## Property coverage
 

@@ -432,7 +432,3 @@ are structural (`page.12`, `section.4`) and none carry a label name; arXiv's HTM
 rendering uses LaTeXML-generated ids instead. Anchors here are therefore precise
 identifiers for grepping the source, not hyperlinks. Read the PDF, grep the
 source.
-
-The MCP execution-layer specification is a separate document, not yet public. It
-is orthogonal to the consensus layer modelled here and nothing in this repository
-depends on it.
