@@ -1,0 +1,56 @@
+{
+  // Cadence — machine-checked verification.
+  //
+  // Opening this folder in a container gives you a working Lean environment
+  // with Mathlib, Loom, lean-smt and Veil already built, and without the macOS
+  // limitation that otherwise blocks a first build there (see ../Containerfile).
+  //
+  // Requires a Docker-compatible runtime. Podman works: set
+  //   "dev.containers.dockerPath": "podman"
+  // in your VS Code settings and start a machine with enough memory, e.g.
+  //   podman machine init --cpus 12 --memory 20480 --disk-size 120
+  // Apple's `container` cannot back a devcontainer — it exposes no Docker
+  // socket or CLI — so use ../scripts/container.sh with that runtime instead.
+  "name": "Cadence verification",
+
+  // Builds the `dev` stage locally. Once an image is published, replace this
+  // whole "build" object with, e.g.:
+  //   "image": "ghcr.io/<org>/cadence-dev:<tag>"
+  // and readers need no build at all.
+  "build": {
+    "dockerfile": "../Containerfile",
+    "target": "dev",
+    "context": ".."
+  },
+
+  // MUST match the workspace path baked into the image: lake records absolute
+  // paths in its trace files, so the prebuilt dependency tree is only reusable
+  // at the path it was built at. Changing this silently forces a full rebuild.
+  "workspaceFolder": "/workspaces/cadence",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/cadence,type=bind",
+
+  // `.lake` lives in a named volume, not in the bind mount: it is ~17 GB of
+  // oleans, dependency build tree and proof cache, and build I/O on a
+  // virtiofs-shared host directory is far slower than on the VM's own disk.
+  // Mounting it also stops the bind mount from shadowing the image's copy.
+  "mounts": [
+    "source=cadence-lake-${devcontainerId},target=/workspaces/cadence/.lake,type=volume"
+  ],
+
+  // No seeding step: Docker and podman initialise a fresh named volume from
+  // the image's content at the mount point, so the prebuilt dependency tree
+  // lands in the volume by itself the first time the container is created.
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["leanprover.lean4"],
+      "settings": {
+        // Open any Veil file without the language server running solvers; every
+        // command it skips says so with a visible warning, so "no errors" in
+        // this mode can never be mistaken for "verified". Remove this to have
+        // the editor verify as it elaborates.
+        "lean4.serverEnv": { "VEIL_NO_VERIFY": "1" }
+      }
+    }
+  }
+}

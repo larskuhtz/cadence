@@ -8,6 +8,10 @@
 # README.md) and it stays out of this repository's history.
 /papers/
 
+# Transient proof-cache seed, staged into the container build context by
+# scripts/container.sh when building the `verified` image.
+/.veilcache-seed/
+
 # Editor / OS noise
 .vscode/
 .DS_Store

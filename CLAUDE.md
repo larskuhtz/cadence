@@ -105,16 +105,29 @@ A green build is not a silent build. These are known and harmless — do not
 Anything else — and in particular any `❌`, `💥`, `⏱`, or a `sorry` warning
 from a `Cadence/` file — is real.
 
-### Known macOS build wall
+### Building in a container (and the macOS wall it avoids)
 
-A **cold** build has to link Mathlib's shared library, and that link line is
-~7 650 objects long. On macOS the exec argument limit is 1 MiB, which this
-overruns by a few kilobytes when the checkout path is longer than ~35
-characters — each character of the absolute path costs ~7.6 KB. The symptom is
-`could not execute external process '.../clang'` on `Mathlib:shared`. Build
-from a shorter path (or on Linux, whose limit is far higher). This is a
-property of Veil's `precompileModules` plus Mathlib's size, not of this
-project; see [docs/Dependencies.md](./docs/Dependencies.md).
+A **cold** build has to link Mathlib's shared library, ~7 650 objects on one
+command line. macOS caps exec arguments at 1 MiB and this overruns it by a few
+kilobytes once the checkout path exceeds ~35 characters (each character costs
+~7.6 KB); the symptom is `could not execute external process '.../clang'` on
+`Mathlib:shared`. On Linux the limit is 2 MiB and the link takes 0.8 s.
+
+So: **`RUNTIME=podman scripts/container.sh {build,verify,check,shell}`**, or the
+devcontainer. Full detail, measurements and the audit ladder:
+[docs/Container.md](./docs/Container.md). Two rules worth memorising:
+
+* **Build images with podman or docker; run them with anything.** Apple's
+  `container` cannot build the ~12 GB `deps` layer on a 36 GB machine (its
+  builder VM OOMs holding the layer plus the elaboration), and it cannot back a
+  devcontainer either (no Docker socket). It runs the images fine.
+* **One volume per image.** A named volume is initialised from whichever image
+  first mounts it and is sticky after that, so `dev` (dependencies only) and
+  `verified` (+ this project's oleans) must not share one. The script derives
+  the name from the image; do not override `VOLUME` without thinking.
+
+Failing all that, a native macOS build works from a checkout path of ≲35
+characters; see [docs/Dependencies.md](./docs/Dependencies.md).
 
 ## Hard rules (each has bitten before)
 
