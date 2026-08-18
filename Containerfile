@@ -12,11 +12,14 @@
 #     │           rebuild, and the reason the stack exists.
 #     ├─ dev    + development conveniences; the devcontainer base. Source is
 #     │           mounted; .lake comes from a volume seeded off this image.
-#     └─ verified
-#               + this project's own oleans and proof cache: a reader can
-#                 kernel-re-check every proof in ~4 minutes without running a
-#                 solver, elaborating anything, or building for 15 minutes.
-#                 See docs/Container.md for what that does and does not prove.
+#     ├─ verified
+#     │         + this project's own oleans (no proof cache): a reader can
+#     │           kernel-re-check every proof in ~4 minutes without running a
+#     │           solver, elaborating anything, or building at all.
+#     │           See docs/Container.md for what that does and does not prove.
+#     └─ verified-cache
+#               + Veil's proof cache (+4.1 GB). Only needed to re-elaborate the
+#                 project without re-solving every verification condition.
 #
 # BUILD THIS WITH PODMAN OR DOCKER. Apple's `container` runs these images fine,
 # but its image builder is a separate memory-limited VM that cannot produce the
@@ -110,7 +113,12 @@ RUN mkdir -p Cadence \
  && lake build Cadence \
  && rm -f Cadence.lean \
  && rmdir Cadence \
- && rm -rf .lake/build/lib/lean/Cadence.* /root/.cache/mathlib
+ && rm -rf .lake/build/lib/lean/Cadence.* /root/.cache/mathlib \
+ # Reclaimed in THIS layer, because a delete in a later one frees nothing.
+ # The widget's node_modules and npm's cache are build inputs only — lake still
+ # considers everything up to date without them (verified by probe). If the
+ # widget is ever invalidated, `npm clean-install` re-runs and needs network.
+ && rm -rf .lake/packages/veil/widget/node_modules /root/.npm
 
 # NOTE on how `.lake` survives a source mount. A bind mount of the project
 # sources over the workspace would shadow `.lake`, so both entry points mount a
@@ -128,22 +136,42 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 # ----------------------------------------------------------------- verified --
-# The project built: its own oleans plus the Veil proof cache. Intended for
-# readers and auditors — `scripts/container.sh check` kernel-re-checks every
-# proof in ~4 minutes from here, with no solver and no elaboration.
-#
-# If a directory `.veilcache-seed/` exists in the build context it is used to
-# seed the proof cache, and the build replays those proofs (each hit is
-# kernel-checked before use) instead of re-solving ~4 000 verification
-# conditions from scratch. Without it this stage is honest but slow: budget
-# ~85 CPU-minutes of cvc5. Either way the oleans in the image are
-# kernel-checked, because that is what `lake build` does.
+# The project built: this repository's own oleans on top of the dependency tree.
+# This is the image for readers and auditors — `scripts/container.sh check`
+# kernel-re-checks every proof from here in ~4 minutes, with no solver and no
+# elaboration. It deliberately does NOT contain Veil's proof cache: nothing in
+# tier 1 or tier 2a needs it (verified by probe), and it is 4.1 GB.
 FROM deps AS verified
-COPY . /workspaces/cadence
-RUN if [ -d .veilcache-seed ]; then \
-      mkdir -p .lake/build/veilcache && cp -a .veilcache-seed/. .lake/build/veilcache/ ; \
-      echo "seeded proof cache: $(ls .lake/build/veilcache | wc -l) entries" ; \
-    else echo "no proof-cache seed in the build context — solving from scratch" ; fi \
- && rm -rf .veilcache-seed \
+
+# An explicit list, not `COPY . .`: the context also holds .veilcache-seed, and
+# copying that here would store the proof cache in a layer that a later `rm`
+# cannot reclaim. (.containerignore keeps a developer's local .lake out too.)
+COPY Cadence.lean lakefile.lean lake-manifest.json lean-toolchain README.md CLAUDE.md ./
+COPY Cadence ./Cadence
+COPY scripts ./scripts
+COPY traces ./traces
+COPY docs ./docs
+
+# The proof cache arrives as a build-time bind mount, so it never enters a
+# layer: without it this stage re-solves ~4 000 verification conditions with
+# cvc5 (~90 min); with it they are replayed and kernel-checked (~11 min).
+# Requires BuildKit-style mounts — podman >= 4 and docker with buildx have them.
+# `scripts/container.sh build verified` fills .veilcache-seed for you.
+RUN --mount=type=bind,source=.veilcache-seed,target=/seed \
+    if [ -n "$(ls -A /seed 2>/dev/null | grep -v '^\.keep$')" ]; then \
+      mkdir -p .lake/build/veilcache \
+      && cp -a /seed/. .lake/build/veilcache/ \
+      && rm -f .lake/build/veilcache/.keep \
+      && echo "seeded proof cache: $(ls .lake/build/veilcache | wc -l) entries" ; \
+    else echo "no proof-cache seed — cvc5 will solve every VC from scratch" ; fi \
  && bash scripts/revalidate.sh /tmp \
- && rm -rf /root/.cache/mathlib
+ && rm -rf .lake/build/veilcache /root/.cache/mathlib
+
+# ----------------------------------------------------------- verified-cache --
+# `verified` plus Veil's proof cache (+4.1 GB). Only needed to re-elaborate the
+# project without re-solving — tier 2b and tier 3 of docs/Container.md. Pull
+# `verified` instead if you just want to check the proofs.
+FROM verified AS verified-cache
+COPY .veilcache-seed/ /workspaces/cadence/.lake/build/veilcache/
+RUN rm -f /workspaces/cadence/.lake/build/veilcache/.keep \
+ && echo "proof cache: $(ls /workspaces/cadence/.lake/build/veilcache | wc -l) entries"

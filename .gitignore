@@ -8,9 +8,11 @@
 # README.md) and it stays out of this repository's history.
 /papers/
 
-# Transient proof-cache seed, staged into the container build context by
-# scripts/container.sh when building the `verified` image.
-/.veilcache-seed/
+# Staging area for the container build context's proof-cache seed: the
+# directory and its .keep are tracked (so an unseeded `podman build` works),
+# the ~4 GB of cache entries scripts/container.sh puts there are not.
+/.veilcache-seed/*
+!/.veilcache-seed/.keep
 
 # Editor / OS noise
 .vscode/

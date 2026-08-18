@@ -82,10 +82,11 @@ with that runtime.
 
 | stage | contains | size | for |
 |---|---|---|---|
-| `toolchain` | OS, clang + version-matched libc++, Node, elan, the pinned Lean toolchain | ~2 GB | base layer |
+| `toolchain` | OS, clang + version-matched libc++, Node, elan, the pinned Lean toolchain | 3.5 GB | base layer |
 | `deps` | + **the whole dependency tree built**: Mathlib, Loom, lean-smt, auto, cvc5, Veil | 12.4 GB | nobody should rebuild this |
 | `dev` | + ripgrep, jq, … — the devcontainer base; sources mounted | 12.4 GB | development |
-| `verified` | + this project's own oleans and proof cache | 22 GB | reading and auditing |
+| `verified` | + this project's own oleans — **no proof cache** | **13.1 GB** | reading and auditing (tiers 1, 2a) |
+| `verified-cache` | + Veil's proof cache | 17.5 GB | re-elaborating without re-solving (tiers 2b, 3) |
 
 Measured with podman on arm64: `deps` builds in **11 min 13 s**, `verified` in a
 further **10 min 32 s** with a seeded proof cache. The `verified` build runs the
@@ -103,12 +104,45 @@ Two things about `deps` that are easy to get wrong:
   points therefore keep `.lake` in a volume and seed it once from
   `/opt/cadence-lake-seed` inside the image.
 
-`verified` builds the project inside the image. If a `.veilcache-seed/`
-directory is present in the build context — `scripts/container.sh build
-verified` puts one there from your local cache automatically — the build
-*replays* those proofs instead of re-solving, which takes it from ~90 minutes
-to ~15. Replay is not a shortcut around checking: every cache hit is
-kernel-checked before use.
+`verified` builds the project inside the image. Veil's proof cache reaches it as
+a **build-time bind mount** (`RUN --mount=type=bind,source=.veilcache-seed`), so
+it is used during the build without ever entering a layer; `scripts/container.sh
+build verified` fills that directory from your local cache. With the seed the
+stage takes ~11 minutes because proofs are replayed; without it, ~90, because
+cvc5 solves every verification condition. Replay is not a shortcut around
+checking — every cache hit is kernel-checked before use — so the oleans are
+equally trustworthy either way, and the build prints `ALL STAGES GREEN` from
+inside the image in both cases.
+
+Pull `verified`, not `verified-cache`, unless you intend to re-elaborate the
+project: nothing in tier 1 or 2a reads the cache.
+
+### Why the images are the size they are
+
+They are close to irreducible, and it is worth knowing why before trying to
+shrink them. Measured by asking `lake build --no-build` — which reports whether
+anything is out of date without doing the work — after removing each candidate:
+
+| candidate | size | can it go? |
+|---|---|---|
+| `lib/lean` in the Lean toolchain | 2.5 GB | **no** — 1.1 GB of `*.olean.private`, 331 MB of `*.olean`, 226 MB of shared libraries. This is just Lean 4.28 on arm64 |
+| installed clang-18 + libc++ + Node | 722 MB | **no** — the cvc5 binding's FFI shim hardcodes `clang -std=c++17 -stdlib=libc++`, and Veil's widget target needs `npm` |
+| Mathlib's `.olean` tree | 5.6 GB | **no** — this is what you are here for |
+| generated `.c` files | 485 MB | **no** — a declared lake output; removing it makes every module out of date |
+| native objects (`.c.o.export`) | 374 MB | **no** — likewise |
+| `.ilean` editor metadata | 259 MB | **no** — likewise (lake tracks it per module) |
+| dependency `.git` checkouts | 544 MB | **no**, and dangerously so: lake re-resolves a git dependency whose `.git` is missing and *deletes the checkout* to re-clone it |
+| toolchain static archives (`libLean.a` …) | 363 MB | prunable, but not *reclaimable*: they live in the `toolchain` layer, where `deps` still needs them to link Mathlib's `cache` executable, and a delete in a later layer frees nothing |
+| widget `node_modules` + npm cache | 113 MB | **yes** — removed in the same layer that creates them |
+
+The one genuinely large saving was a bug rather than fat: the proof cache used to
+be stored **twice** — once by `COPY .`, once by the `RUN` that installed it —
+because a `rm` in a later layer reclaims nothing. Fixing that plus splitting the
+cache into `verified-cache` took the audit image from 22 GB to 13.1 GB.
+
+A `.containerignore` keeps the build context to the sources. Without it `COPY .`
+would ship a developer's local `.lake` — up to 17 GB — *over* the image's
+prebuilt dependency tree, quietly producing a broken image.
 
 ## 3. What an olean does and does not establish
 
@@ -141,8 +175,8 @@ Apple-Silicon machine.
 | 0 | nothing — you read the sources and trust the image | — | — |
 | 1 | every stored proof is well-typed, and every axiom footprint is as claimed | `scripts/container.sh check` | **4 min 08 s** |
 | 2a | tier 1, **plus** that the image's oleans correspond to these sources — on lake's source hashing | `scripts/container.sh verify` | **1 min** |
-| 2b | as 2a, but the elaborator actually redoes the project rather than trusting a trace file | delete the project oleans, then re-verify (below) | **9 min 12 s** |
-| 3 | as 2b with no cached proof reused: every verification condition re-solved by cvc5 and re-reconstructed | also delete `.lake/build/veilcache` | ~90 min |
+| 2b | as 2a, but the elaborator actually redoes the project rather than trusting a trace file | delete the project oleans, then re-verify (below) — needs `verified-cache` | **9 min 12 s** |
+| 3 | as 2b with no cached proof reused: every verification condition re-solved by cvc5 and re-reconstructed | as 2b from `verified`, whose image has no cache | ~90 min |
 
 Tier 1 is what makes a published image worth having: Lean's kernel over all 66
 modules — the 3 808 reconstructed Chorus proofs included — in four minutes, with

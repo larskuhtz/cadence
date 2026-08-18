@@ -4,7 +4,7 @@
 # This script only dispatches to a container runtime; the image itself is a
 # plain multi-stage OCI build (../Containerfile) with no runtime assumptions.
 #
-#   scripts/container.sh build [toolchain|deps|dev|verified]
+#   scripts/container.sh build [toolchain|deps|dev|verified|verified-cache]
 #   scripts/container.sh verify        staged verification against your sources
 #                                     (tier 2, ~9 min; IMAGE=cadence-dev for a
 #                                     cold build that re-solves everything)
@@ -135,13 +135,23 @@ do_build() {
   local extra=()
   # An optional proof-cache seed makes the `verified` image ~15 min instead of
   # ~90: without it every verification condition is re-solved from scratch.
+  # The verified* stages read .veilcache-seed from the build context: as a
+  # build-time mount (`verified`, so it never enters a layer) and as a COPY
+  # (`verified-cache`, where it is the point). Seeding it turns ~90 minutes of
+  # cvc5 into ~11 minutes of kernel-checked replay. A tracked .keep keeps the
+  # unseeded path working, so this is an optimisation, never a requirement.
   local seed="${VEILCACHE:-$REPO/.lake/build/veilcache}"
-  if [ "$target" = verified ] && [ -d "$seed" ]; then
-    echo "==> seeding the proof cache from $seed into the build context"
-    rm -rf "$REPO/.veilcache-seed"
-    cp -a "$seed" "$REPO/.veilcache-seed"
-    trap 'rm -rf "$REPO/.veilcache-seed"' EXIT
-  fi
+  case "$target" in verified|verified-cache)
+    if [ -d "$seed" ] && [ -n "$(ls -A "$seed" 2>/dev/null)" ]; then
+      echo "==> seeding the proof cache from $seed ($(ls "$seed" | wc -l | tr -d ' ') entries)"
+      find "$REPO/.veilcache-seed" -mindepth 1 ! -name .keep -delete 2>/dev/null
+      cp -a "$seed"/. "$REPO/.veilcache-seed"/
+      # Leave the context clean afterwards, whatever happens.
+      trap 'find "$REPO/.veilcache-seed" -mindepth 1 ! -name .keep -delete 2>/dev/null' EXIT
+    else
+      echo "==> no proof cache at $seed — the build will solve every VC (~90 min)"
+    fi ;;
+  esac
   ( cd "$REPO" && "$RUNTIME" build --target "$target" --tag "$tag" "${extra[@]}" . )
 }
 

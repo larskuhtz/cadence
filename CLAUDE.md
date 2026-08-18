@@ -125,6 +125,15 @@ devcontainer. Full detail, measurements and the audit ladder:
   first mounts it and is sticky after that, so `dev` (dependencies only) and
   `verified` (+ this project's oleans) must not share one. The script derives
   the name from the image; do not override `VOLUME` without thinking.
+* **Do not try to slim the images by deleting build artefacts.** Measured: the
+  generated `.c`, the `.c.o.export` objects and the `.ilean` files are all
+  *declared lake outputs*, so removing any of them makes every module out of
+  date; and removing a dependency's `.git` makes lake re-resolve it and **delete
+  the checkout**. Only the widget's `node_modules` and npm's cache are free, and
+  they are already removed in the layer that creates them. The size analysis,
+  with what was measured and how, is
+  [docs/Container.md](./docs/Container.md) § "Why the images are the size they
+  are".
 
 Failing all that, a native macOS build works from a checkout path of ≲35
 characters; see [docs/Dependencies.md](./docs/Dependencies.md).

@@ -1,0 +1,6 @@
+# Build context hygiene. Without this, `COPY` would ship whatever is in the
+# developer's tree — including a local .lake, which is up to 17 GB and would be
+# copied OVER the image's prebuilt dependency tree, producing a broken image.
+.lake/
+.git/
+papers/

@@ -1,0 +1,10 @@
+Placeholder so that `podman build --target verified` works without a seed.
+
+The `verified` stage consumes this directory as a build-time bind mount to
+pre-populate Veil's proof cache, which lets the in-image verification replay
+proofs (each hit kernel-checked) instead of re-solving ~4 000 verification
+conditions with cvc5 — about 11 minutes instead of 90. Empty is fine and
+honest; it just costs the solver time.
+
+`scripts/container.sh build verified` fills this from $VEILCACHE (default
+.lake/build/veilcache) and empties it again afterwards.
