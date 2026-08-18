@@ -125,6 +125,10 @@ devcontainer. Full detail, measurements and the audit ladder:
   first mounts it and is sticky after that, so `dev` (dependencies only) and
   `verified` (+ this project's oleans) must not share one. The script derives
   the name from the image; do not override `VOLUME` without thinking.
+* **Build every image target in one pass before pushing.** Layer sharing —
+  which is what makes the second image a 21–251 MiB pull instead of ~4 GiB —
+  only holds if the images came from the same Containerfile state. A tag left
+  one build stale silently costs GiBs, and both images still work.
 * **Do not try to slim the images by deleting build artefacts.** Measured: the
   generated `.c`, the `.c.o.export` objects and the `.ilean` files are all
   *declared lake outputs*, so removing any of them makes every module out of

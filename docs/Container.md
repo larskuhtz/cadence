@@ -117,6 +117,48 @@ inside the image in both cases.
 Pull `verified`, not `verified-cache`, unless you intend to re-elaborate the
 project: nothing in tier 1 or 2a reads the cache.
 
+### What actually crosses the wire
+
+The sizes above are uncompressed, on-disk. A registry stores and transfers
+*compressed* layers, so a pull is roughly a third of that. Measured by pushing
+to a local `registry:2` and reading the resulting manifests, which record exact
+compressed layer sizes:
+
+| image | on disk | first pull (gzip) | ratio |
+|---|---|---|---|
+| `deps` | 12.4 GB | 3.71 GiB | 3.3× |
+| `dev` | 12.3 GB | 3.73 GiB | 3.3× |
+| **`verified`** | 13.1 GB | **3.96 GiB** | 3.3× |
+| `verified-cache` | 17.5 GB | 5.30 GiB | 3.3× |
+
+So **an auditor pulls about 4 GiB**, not 13 GB. Publishing the whole set costs
+**5.32 GiB** of registry storage, not the 55 GB the four on-disk figures suggest,
+because the shared layers are stored once.
+
+Where `verified`'s 3.96 GiB goes: Ubuntu base 29 MiB · clang/libc++/Node
+201 MiB · elan 5 MiB · Lean toolchain 740 MiB · the whole dependency tree
+2825 MiB · this project's oleans 251 MiB.
+
+Because layers are shared, the second image is nearly free:
+
+| you already have | pulling | costs |
+|---|---|---|
+| `deps` | `dev` | 21 MiB |
+| `deps` or `dev` | `verified` | 251 MiB |
+| `verified` | `verified-cache` | 1371 MiB |
+
+**Build every target in one pass before pushing.** Layer sharing only happens
+when the images were built from the same Containerfile state. While preparing
+this I left a `deps` tag one build stale, and it cost an extra 2.8 GiB of
+registry storage and turned that 251 MiB pull into a 3 GiB one — with nothing to
+warn you, since both images work fine.
+
+zstd instead of gzip saves about 9 % (`verified` 3.59 GiB, `verified-cache`
+4.75 GiB) and compresses a little slower. It is not obviously worth it here:
+gzip is pullable by every client, whereas zstd layers need a recent one (podman
+4+, or docker with the containerd image store). Use `--compression-format zstd`
+if you know your consumers.
+
 ### Why the images are the size they are
 
 They are close to irreducible, and it is worth knowing why before trying to
@@ -245,15 +287,24 @@ No CI publishes these images yet. To do it by hand:
 
 ```bash
 REG=ghcr.io/<org>
-for t in deps dev verified; do
+TAG=$(git rev-parse --short HEAD)
+
+# Build every target first, in one pass, so they share layers (see above).
+for t in deps dev verified verified-cache; do
   RUNTIME=podman scripts/container.sh build $t
-  podman tag cadence-$t $REG/cadence-$t:$(git rev-parse --short HEAD)
-  podman push          $REG/cadence-$t:$(git rev-parse --short HEAD)
+done
+
+for t in deps dev verified verified-cache; do
+  podman tag  cadence-$t $REG/cadence-$t:$TAG
+  podman push --compression-format gzip $REG/cadence-$t:$TAG
 done
 ```
 
+That uploads 5.32 GiB in total. Most consumers only ever want `verified`
+(3.96 GiB), so consider tagging that one `:latest` as well.
+
 Tag images by the **commit they were built from** — an image whose provenance is
 unclear is worth nothing for tier 1, since the whole claim is "these oleans came
-from that source". Note that `deps` (~13 GB) and `verified` (~18 GB) are large
-enough to matter for registry quotas; `deps` only changes when
-`lake-manifest.json` or the toolchain does.
+from that source". `deps` only changes when `lake-manifest.json` or the toolchain
+does, so re-publishing after a source change costs just the 251 MiB project
+layer.

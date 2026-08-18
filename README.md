@@ -126,7 +126,8 @@ The image ships Mathlib, Loom, lean-smt and Veil already built:
 
 ```bash
 RUNTIME=podman scripts/container.sh build verified  # once: dependencies + this
-                                                   # project, ~22 min, 13.1 GB
+                                                   # project, ~22 min (a published
+                                                   # image is a ~4 GiB pull)
 RUNTIME=podman scripts/container.sh check           # kernel-re-check every proof
                                                    # — 4 min, no solver at all
 RUNTIME=podman scripts/container.sh verify          # re-verify against your sources
