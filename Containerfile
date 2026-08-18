@@ -131,8 +131,12 @@ RUN mkdir -p Cadence \
 # The devcontainer base and the target scripts/container.sh uses.
 FROM deps AS dev
 ARG DEBIAN_FRONTEND=noninteractive
+# `vim`, not `vim-tiny` (which is `-eval` and has no syntax highlighting) and not
+# `vim-nox` (18 MB over 21 packages for perl/lua/ruby/tcl bindings): the plain
+# package is 11 MB over 6 and already `+eval +python3 +syntax`. It also provides
+# `vi`. `--no-install-recommends` throughout.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ripgrep fd-find less nano jq python3 \
+      ripgrep fd-find less vim jq python3 \
  && rm -rf /var/lib/apt/lists/*
 
 # ----------------------------------------------------------------- verified --

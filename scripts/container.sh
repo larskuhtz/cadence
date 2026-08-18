@@ -130,8 +130,10 @@ do_build() {
   fi
   ensure_builder
   local target="${1:-dev}"
-  local tag="cadence-${target}"
-  [ "$target" = dev ] && tag="$IMAGE"
+  # Tag by target. $IMAGE is a per-command *run* default (see the dispatch at
+  # the bottom) and is empty here unless the caller set it explicitly, so it
+  # must not be used unguarded — doing so produced an untagged image.
+  local tag="${IMAGE:-cadence-${target}}"
   local extra=()
   # An optional proof-cache seed makes the `verified` image ~15 min instead of
   # ~90: without it every verification condition is re-solved from scratch.
