@@ -16,7 +16,9 @@ composition-layer models.*
 
 ## 1. What is being verified
 
-The Cadence protocol (`papers/cadence`) is a BFT consensus design with
+The Cadence protocol (`arXiv:2607.02275v2`; see the root
+[README.md](../README.md) for the full citation and how the paper is cited
+here) is a BFT consensus design with
 three layers, and the formalization mirrors that decomposition
 one-to-one:
 
@@ -36,8 +38,9 @@ corners: the **fallback receipt/propose layer**
 ([Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) and companions), which
 mechanizes the per-validator layer where a real liveness bug was found
 and fixed (see §5), and the *pre-fix* variant — the paper's receipt
-rules as they stood **before** that bug fix (§5; "pre-fix" is used in
-this sense throughout) — kept as a machine-checked refutation.
+rules as they stood **before** that bug fix, i.e. as published in
+`arXiv:2607.02275v1` (§5; "pre-fix" is used in this sense throughout) —
+kept as a machine-checked refutation.
 
 ## 2. The methods
 
@@ -210,8 +213,13 @@ was found by a **parallel formal-verification effort using Rocq**
 (an external report, 2026-07-06), independently confirmed against the
 paper sources here, and fixed upstream on 2026-07-07 (receipt
 restriction + atomic build; full record:
-[ChorusDesign.md](./ChorusDesign.md) §7.2). The episode drove two
-permanent artefacts in *this* formalization:
+[ChorusDesign.md](./ChorusDesign.md) §7.2).
+
+Both sides of that are now citable against public artefacts: the buggy
+rules are those published in **`arXiv:2607.02275v1`** and the corrected
+design is **v2**, so "pre-fix" and "fixed" name immutable documents
+rather than an internal commit range. The episode drove two permanent
+artefacts in *this* formalization:
 
 * the **fallback commit round** and the tightened wire format are
   modelled faithfully in `Cadence/Chorus.lean` rather than documented away, and

@@ -379,19 +379,60 @@ Design, scope, the emitter contract and the full flag reference:
 | The liveness approach: what is safety-shaped and machine-checked, what stays temporal | [docs/Liveness.md](./docs/Liveness.md), [docs/LivenessNotes.md](./docs/LivenessNotes.md) |
 | The project's goal and horizon: the human-edits-model / agents-maintain-proofs workflow and the audit model | [docs/Scenario.md](./docs/Scenario.md) |
 | Protocol vocabulary | [docs/Glossary.md](./docs/Glossary.md) |
+| The paper itself, and how it is cited | [§ The protocol paper](#the-protocol-paper) — arXiv:2607.02275v2 |
 | Open items | [docs/TODO.md](./docs/TODO.md), and [docs/ChorusDesign.md](./docs/ChorusDesign.md) §9 |
 | History: how the verification reached this state | [docs/History.md](./docs/History.md), [docs/ConductorPlan.md](./docs/ConductorPlan.md) |
 | How to *work on* the models (workflow, gotchas) | [CLAUDE.md](./CLAUDE.md) |
 
 ## The protocol paper
 
-The models are verified against the Cadence paper. Its sources are a separate
-(access-restricted) repository and are **not** required to build or check
-anything here; documentation cites it by stable LaTeX anchors
-(`lemma:chorus-agreement`, `line:fb-pathvote-guard`, …) rather than by page or
-line number. If you have access, clone it into `papers/cadence/` and the
-`papers/cadence/src/*.tex` paths used throughout the docs resolve:
+The models are verified against the Cadence preprint, which is public:
+
+> Kushal Babel, Fatima Elsheimy, Lioba Heimbach, Mohammad Mussadiq Jalalzai,
+> Tobias Klenze, Jovan Komatovic, Jason Milionis, Mike Setrin, Victor Shoup.
+> **Cadence: Extreme Pipelining with Multiple Concurrent Proposers.**
+> arXiv:[2607.02275](https://arxiv.org/abs/2607.02275) \[cs.DC], 65 pages.
+> · [PDF](https://arxiv.org/pdf/2607.02275v2)
+> · [LaTeX source](https://arxiv.org/e-print/2607.02275v2)
+
+**This development verifies v2** (2026-07-07). The version matters, and pleasantly
+so: v1 (2026-07-02) contains the fallback receipt bug described below, and v2 is
+the corrected design. So both directions of that story are checkable against
+public, immutable artefacts —
+[`Cadence/FallbackReceipt/PreFix.lean`](./Cadence/FallbackReceipt/PreFix.lean)
+mechanically refutes the rules as published in **v1**, and
+[`Cadence/FallbackReceipt.lean`](./Cadence/FallbackReceipt.lean) verifies **v2**.
+
+### How the paper is cited here
+
+Not by page or line number — those move with every revision. The sources and
+documentation cite the paper's own **LaTeX `\label` names**: `lemma:chorus-agreement`,
+`alg:fallback`, `mod:slotconsensus`, `line:fb-pathvote-guard`, and so on. There
+are 483 such citations to 128 distinct anchors, concentrated in the model headers
+and [docs/ChorusDesign.md](./docs/ChorusDesign.md).
+
+To follow one, fetch the paper's source — it is public, and its file layout is
+exactly what the references name (`src/p2_chorus.tex`, `src/alg_fallback.tex`,
+`src/p2_conductor_proofs.tex`, …):
 
 ```bash
-git clone <cadence-paper-remote> papers/cadence
+mkdir -p papers/cadence && curl -sL https://arxiv.org/e-print/2607.02275v2 \
+  | tar -xz -C papers/cadence
+grep -rn 'label{lemma:chorus-agreement}' papers/cadence/src/
 ```
+
+Of the 128 anchors, 124 are `\label`s in v2. The other four are cited *because*
+they changed: three (`line:fb-commit-broadcast2`, `line:fb-finalize1`,
+`line:da-rebroadcast`) exist only in v1, and `docs/ChorusDesign.md` names them
+when recording what the fix removed.
+
+One caveat if you were hoping to deep-link the PDF: **you cannot.** The paper is
+compiled with `hyperref`'s `hypertexnames=false`, so its 581 named destinations
+are structural (`page.12`, `section.4`) and none carry a label name; arXiv's HTML
+rendering uses LaTeXML-generated ids instead. Anchors here are therefore precise
+identifiers for grepping the source, not hyperlinks. Read the PDF, grep the
+source.
+
+The MCP execution-layer specification is a separate document, not yet public. It
+is orthogonal to the consensus layer modelled here and nothing in this repository
+depends on it.

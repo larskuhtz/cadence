@@ -6,7 +6,12 @@ import Cadence.Tooling
 Companion to [`FallbackReceipt.lean`](../FallbackReceipt.lean) (read its
 header first): the *pre-fix* fallback receipt/propose layer — the rules
 `alg:fallback` carried **before** the 2026-07-07 fix — with the §7.2
-finding (`docs/ChorusDesign.md` §7.2) reproduced mechanically: the paper's claim
+finding (`docs/ChorusDesign.md` §7.2) reproduced mechanically. "Pre-fix" now has
+a public referent: these are the receipt rules as published in **`arXiv:2607.02275v1`**
+(2026-07-02), whose `alg_fallback.tex` harvests `Ev(pid)` only from received
+FastQCs and FallbackQCs — a received EquivCert passes the validity check and is
+dropped. `arXiv:2607.02275v2` (2026-07-07) is the corrected design, and is what
+`Cadence/FallbackReceipt.lean` verifies. The paper's claim
 "by the rules above, every `Ev(pid)` is a FastQC, FallbackQC, or
 EquivCert" is stated as the invariant `prefix_valid_by_construction`,
 and the concrete model checker **refutes it** with a reachable

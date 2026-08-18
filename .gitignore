@@ -3,9 +3,9 @@
 # proof *search*, never checking).
 .lake/
 
-# The protocol paper is a separate, access-restricted repository. Nothing here
-# needs it to build; clone it into papers/cadence if you have access (see
-# README.md) and it stays out of this repository's history.
+# Optional local copy of the paper's LaTeX source, for resolving the `\label`
+# anchors the docs cite. It is public (arXiv:2607.02275) and not needed to build
+# anything; README.md has the fetch command. Kept out of history either way.
 /papers/
 
 # Staging area for the container build context's proof-cache seed: the

@@ -222,7 +222,14 @@ is a change to what this project *claims*, not a refactor.
   Veil-internal plan documents, option-level design notes, or tool
   measurements into `docs/` — a pointer plus the reason is the right amount.
 * Cite the paper by **stable LaTeX anchors** (`lemma:chorus-agreement`,
-  `line:fb-pathvote-guard`), never by page or line number.
+  `line:fb-pathvote-guard`), never by page or line number. The paper is public —
+  `arXiv:2607.02275`, **v2 is what this development verifies**, v1 is the
+  pre-fix version `FallbackReceipt/PreFix.lean` refutes — and so is its LaTeX
+  source, whose `src/*.tex` layout is exactly what the citations name. Before
+  adding an anchor, check it exists:
+  `curl -sL https://arxiv.org/e-print/2607.02275v2 | tar -xz -C papers/cadence`
+  then grep for `\label{…}`. Neither the PDF (`hypertexnames=false`) nor arXiv's
+  HTML exposes label anchors, so they are grep targets, not links.
 * [docs/History.md](./docs/History.md) is a historical ledger and says so at
   the top. When something in it becomes false, mark it superseded rather than
   quietly editing history.

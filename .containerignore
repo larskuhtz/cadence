@@ -3,4 +3,4 @@
 # copied OVER the image's prebuilt dependency tree, producing a broken image.
 .lake/
 .git/
-papers/
+papers/          # optional local copy of the paper source; see README.md

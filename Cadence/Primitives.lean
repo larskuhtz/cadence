@@ -6,8 +6,9 @@ This file collects type-class abstractions for the cryptographic and agreement
 primitives the Chorus sub-protocol depends on. They serve two purposes:
 
 1. Documentation: each class states the *signatures* and *properties* of the
-   primitive that Chorus relies on, lifted from the MCP-3 whitepaper
-   (§Cryptographic Primitives `appendix:crypto`, and `def:mvba` in `p2_mvba.tex`).
+   primitive that Chorus relies on, lifted from the Cadence paper
+   (`arXiv:2607.02275v2`): §Cryptographic Primitives `appendix:crypto`, and
+   `mod:mvba` in `src/p2_mvba.tex`.
 2. Targets for instantiation: a concrete implementation of Chorus would
    discharge each class by an actual scheme. For verification we only use the
    algebraic properties stated here.
@@ -193,7 +194,7 @@ class MerkleTree (leaf : Type) (root : Type) (proof : Type) where
 /-! ## Multi-Value Byzantine Agreement (MVBA)
 
 The MVBA primitive is invoked by the fallback path of Chorus. We encapsulate
-its specification (`def:mvba` in MCP-3, `p2_mvba.tex`) abstractly: each correct party
+its specification (`mod:mvba` in `src/p2_mvba.tex`) abstractly: each correct party
 `p` invokes `input p v` with an input value satisfying the publicly
 verifiable `Valid` predicate; eventually each correct party outputs the same
 value via `output p v'`.

@@ -29,10 +29,11 @@ once; it was dropped as redundant. The `slot` type below is retained only as a
 placeholder for a possible multi-slot extension — see the `is_proposer` TODO,
 which also notes that cross-slot independence is not guaranteed in practice.)
 
-The reference document is the Cadence paper, whose sources are a separate
-repository (see the root `README.md`; nothing here needs them to build). If
-you have it checked out at `papers/cadence`, the Chorus chapter is
-`src/p2_chorus.tex`, with pseudocode in `src/alg_proposer.tex`,
+The reference document is the Cadence paper, `arXiv:2607.02275v2` — public,
+and nothing here needs it to build. Its LaTeX source is public too
+(`arxiv.org/e-print/2607.02275v2`) and unpacks to exactly the layout the
+citations below name; the root `README.md` has the one-line fetch. The Chorus
+chapter is `src/p2_chorus.tex`, with pseudocode in `src/alg_proposer.tex`,
 `src/alg_voting.tex`, `src/alg_fast.tex`, `src/alg_fallback.tex`,
 `src/alg_da.tex`, and the MVBA module specification in `src/p2_mvba.tex`.
 Pseudocode is cited by its stable LaTeX anchors (e.g.

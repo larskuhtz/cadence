@@ -13,9 +13,10 @@ abstractions impose on the kind of properties we can hope to prove.
 ## 1. Scope
 
 Chorus is the inner *per-slot one-shot* BFT consensus layer of Cadence.
-The reference sources are separate repositories; nothing here needs them to
-build (see the root [`README.md`](../README.md)). If the Cadence paper is
-checked out at `papers/cadence`, the Chorus chapter is `src/p2_chorus.tex`,
+The reference is the Cadence paper, `arXiv:2607.02275v2` — public, and not
+needed to build anything here (the root [`README.md`](../README.md) has the
+citation and a one-line fetch of its equally public LaTeX source). Unpacked at
+`papers/cadence`, the Chorus chapter is `src/p2_chorus.tex`,
 with pseudocode in `src/alg_proposer.tex`, `src/alg_voting.tex`,
 `src/alg_fast.tex`, `src/alg_fallback.tex`, `src/alg_da.tex`, and the MVBA
 module specification in `src/p2_mvba.tex`. Pseudocode is cited by its stable
@@ -877,8 +878,11 @@ received EquivCerts, and (ii) guard the propose rule on every `Ev(pid)`
 being certified — (ii) also removing the upgrade/propose simultaneity
 race when the `(2f+1)`-th vote arrives.
 
-**Resolution (2026-07-07).** Fixed upstream in `papers/cadence`
-(commits `4eb2030` → `c609022`), by a redesign cleaner than (i)+(ii):
+**Resolution (2026-07-07).** Fixed upstream (`papers/cadence` commits
+`4eb2030` → `c609022`), and published as **`arXiv:2607.02275v2`** — so the
+before/after is a public diff: `arxiv.org/e-print/2607.02275v1` against `…v2`,
+where `alg_fallback.tex` carries both changes below. The redesign is cleaner
+than (i)+(ii):
 
 * *Receipt restriction* (`line:fb-accept`): a fallback vote is accepted
   only if every carried entry is a valid FastQC or the **sender's own**
