@@ -10,7 +10,7 @@ The monitor answers it for a concrete recorded execution. It replays a
 projected implementation trace against the model and reports whether the model
 **accepts** (simulates) it.
 
-It is emphatically **not** model checking — there is no state-space
+It is **not** model checking — there is no state-space
 exploration — and it is not a re-proof. It runs the model's *own* action
 bodies, one trace label at a time, and a failed `require` (guard) means the
 implementation diverged from the model at that step.
@@ -23,10 +23,10 @@ implementation diverged from the model at that step.
   of the model (that would be a refinement proof, not a check), nor anything
   about liveness. The monitor is a refinement/**safety** check.
 
-It earns its keep as a *test oracle*: because the acceptance criterion is the
-model's own guards, it catches ordering and prerequisite bugs that
-hand-written assertions in the implementation's test suite would not — and it
-catches them in the vocabulary of the proven properties.
+Its practical value is as a *test oracle*: because the acceptance criterion is
+the model's own guards, it catches ordering and prerequisite bugs that
+hand-written assertions in an implementation test suite would not, and it
+reports them in the vocabulary of the proven properties.
 
 ## 2. How the pieces fit together
 
@@ -137,7 +137,7 @@ One JSON object per line, positional arguments:
 (`Fin 4` / `Fin 2`); a node set is a JSON array of integers. Blank lines and
 lines starting with `//` or `#` are ignored.
 
-## 6. Does the monitor actually catch bugs?
+## 6. Validation: mutation testing
 
 `scripts/test-monitor-divergence.sh` starts from a model-ACCEPTED trace (by
 default the one emitted from a real run), applies each mutation in
@@ -154,8 +154,9 @@ reorder-vote   → NOT ACCEPTED at aggregate_fastqc_neg  (QC before its evidence
 dup-finalize   → NOT ACCEPTED at finalize_commit       (double finalization)
 ```
 
-Each mutation models a class of implementation divergence, and each names the
-guard that rejects it — so a *silent* pass would itself be a red flag. Because
+Each mutation models a class of implementation divergence and names the guard
+that rejects it, so a mutation that passed silently would itself be a failure
+signal. Because
 the mutations operate on the trace rather than on the model or the
 implementation, this suite keeps working, and grows in coverage, as the
 implementation lands more behaviour and the emitted traces get richer.
@@ -206,8 +207,8 @@ Why a concrete instance is not a soundness compromise: the model's safety
 theorems are proven **universally** (every `n = 3f+1`, every Byzantine set of
 size ≤ f), so no instantiation is required for the properties to transfer —
 the instance only fixes which run is being checked. The trace additionally
-pins essentially all of the relevant nondeterminism at the monitored
-components' boundary. See [ChorusDesign.md](./ChorusDesign.md) §3 and
+pins the nondeterminism at the monitored components' boundary. See
+[ChorusDesign.md](./ChorusDesign.md) §3 and
 [Architecture.md](./Architecture.md) §4.
 
 Future scope, in rough order: positive-path emission; finer per-message

@@ -53,9 +53,10 @@ Reading order for context: [README.md](./README.md) →
 [docs/Architecture.md](./docs/Architecture.md) (methods, trust bases, and §4,
 the meta-assumption inventory) → [docs/ChorusDesign.md](./docs/ChorusDesign.md)
 (Chorus modelling choices, the network abstraction and its soundness contract,
-the bug record §7.2, open items §9). The Cadence/Conductor design docs are the
-long module headers of those files. History:
-[docs/History.md](./docs/History.md).
+the bug record §7.2, open items §9) →
+[docs/ConductorDesign.md](./docs/ConductorDesign.md) (the module decomposition
+behind Cadence/Conductor; those two models' own headers carry the detail).
+History: [docs/History.md](./docs/History.md).
 
 ## Build
 

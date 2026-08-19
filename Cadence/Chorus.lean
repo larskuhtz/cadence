@@ -23,28 +23,22 @@ fallback path (one extra round of voting, an invocation of MVBA, and a
 final round of commit votes on the decided entries).
 This file specifies the Chorus protocol as a Veil transition system for a
 *single* slot instance: state and messages are not slot-parameterised, since
-the per-slot agreement instances are independent. (An earlier revision carried
-an explicit `slot` parameter on every relation to track all in-flight slots at
-once; it was dropped as redundant. The `slot` type below is retained only as a
-placeholder for a possible multi-slot extension — see the `is_proposer` TODO,
-which also notes that cross-slot independence is not guaranteed in practice.)
+the per-slot agreement instances are independent. The `slot` type below is
+retained only as a placeholder for a possible multi-slot extension — see the
+`is_proposer` TODO, which also notes that cross-slot independence is not
+guaranteed in practice.
 
-The reference document is the Cadence paper, `arXiv:2607.02275v2` — public,
-and nothing here needs it to build. Its LaTeX source is public too
-(`arxiv.org/e-print/2607.02275v2`) and unpacks to exactly the layout the
-citations below name; the root `README.md` has the one-line fetch. The Chorus
+The reference document is the Cadence paper, `arXiv:2607.02275v2`; the root
+`README.md` gives the citation and how to resolve the LaTeX label names used
+throughout (e.g. `line:fb-pathvote-guard`). In the paper source, the Chorus
 chapter is `src/p2_chorus.tex`, with pseudocode in `src/alg_proposer.tex`,
 `src/alg_voting.tex`, `src/alg_fast.tex`, `src/alg_fallback.tex`,
 `src/alg_da.tex`, and the MVBA module specification in `src/p2_mvba.tex`.
-Pseudocode is cited by its stable LaTeX anchors (e.g.
-`line:fb-pathvote-guard`), never by line numbers.
 
 ## Property coverage
 
 The paper establishes six slot-consensus properties for Chorus
-(`p2_chorus.tex` §`subsection:proof_sketches`; Quiescence joined the list
-with the 2026-07-07 revision's participation convention); their status in
-this model:
+(`p2_chorus.tex` §`subsection:proof_sketches`); their status in this model:
 
 * **Agreement** (`lemma:chorus-agreement`) — `safety [agreement_pos]`,
   `[agreement_pos_neg]`, proven for the paper's *full-finality* commit rule
@@ -1771,7 +1765,7 @@ model, indexed by the action's category:
   since the 2026-07-07 revision is twofold: (i) *all correct validators
   propose* — the per-validator implementability of which is exactly the
   receipt/propose-layer content behind the §7.2 finding (`docs/ChorusDesign.md`
-  §7.2, §9 item 6: the model's premise is network-global evidence, and
+  §7.2: the model's premise is network-global evidence, and
   the bridge from global evidence to every correct validator assembling
   a valid proposal is the atomic-build argument, mechanised separately);
   and (ii) *no correct validator abandons before the bound* — moot in
@@ -1792,11 +1786,10 @@ finite. Every mutable relation is monotone (actions only add tuples — the
 audit is in `docs/ChorusDesign.md` §3.1) and the phase advances in one direction. The
 residual count of unset tuples is therefore a well-founded ranking that
 every *helpful* firing strictly decreases; this is structural in Veil's
-monotone-update semantics and needs no per-action SMT discharge. (The
-earlier revision carried explicit `decrease_*` invariants for this; they
-were tautologies of the form `… ∧ ¬X → ¬X` and have been removed — the
-(D) obligation of the verification diagram is discharged by the
-monotonicity audit, not by SMT.)
+monotone-update semantics and needs no per-action SMT discharge. The (D)
+obligation of the verification diagram is therefore discharged by the
+monotonicity audit, not by SMT: stating it as `decrease_*` invariants
+yields only tautologies of the form `… ∧ ¬X → ¬X`, so do not add them.
 
 **(3) Fair progress (safety, SMT-discharged here).** Under (1) and (2), the
 temporal claim reduces to: in every reachable state in which some honest
@@ -1938,10 +1931,10 @@ invariant [fastqc_complete_implies_mvba_evidence]
     ∀ J, is_proposer J →
       (∃ M, vote_quorum_pos J M) ∨ vote_quorum_neg J
 
-/-! ### Commit completeness (C4 support)
+/-! ### Commit completeness (composition support)
 
 A committed validator holds a decision for *every* proposer — the
-persisted form of `finalize_commit`'s precondition. Needed by the C4
+persisted form of `finalize_commit`'s precondition. Needed by the
 composition layer (`Chorus/Compose.lean`): the `SlotConsensus` instance
 theorem assembles a committed validator's per-proposer decisions into a
 total proposal vector, which requires this completeness fact about
@@ -2040,43 +2033,31 @@ motivates the per-action factoring of the WP normalisation. Captured at
 discharger creation, i.e. file-level like the `veil.smt.*` options. -/
 set_option veil.report.witnessSizes true
 
-/- Proof reconstruction (P8, permanent since 2026-07-10): every cvc5 `unsat`
-verdict is reconstructed and kernel-checked in Lean — cvc5 is not in the
-trust base of the verification. In this file the option now governs only
-the background `doesNotThrow` dischargers (the invariant proofs live in
-the proof-file family, which sets it itself); the historical sweep-scale
-numbers: 3822/3822 reconstruct green at ~650 s module wall (vs ~525 s
-trusted), ~2.2× CPU, 15.7 GB peak RSS (P8 step-1 probe, 2026-07-10).
-File-level so the dischargers capture it at `#gen_spec` (solver options are
-captured there, not at the command). -/
+/- Proof reconstruction: every cvc5 `unsat` verdict is reconstructed and
+kernel-checked in Lean — cvc5 is not in the trust base of the
+verification. In this file the option governs only the background
+`doesNotThrow` dischargers; the invariant proofs live in the proof-file
+family, which sets it itself. File-level so the dischargers capture it at
+`#gen_spec` (solver options are captured there, not at the command). -/
 set_option veil.smt.trust false
 
-/- Theorem persistence (retired 2026-07-13):
-this file persists NO per-VC theorems. Builds #14–#19 ran `#gen_theorems`
-here under statement-only persistence (`veil.gen.statementOnlyTheorems`):
-3 822 `sorryAx` stubs whose correct reading — statement-only persistence of
-a kernel-checked sweep, NOT unproven claims — required a trust-note chain
-across three files. The stubs' one consumer was the slices' `#reprove`
-statement lookup, which was retired in turn by the proof-file family;
-nothing in this architecture looks proven-but-isn't: a VC is either
-registry data (claim-free by construction) or a real, kernel-checked
-theorem in a `Chorus/Proofs/` olean. Real-proof persistence in THIS file
-stays impossible on the 32 GB reference machine (the environment must
-hold ~3.8 K reconstructed witnesses until olean serialization); the
-per-action proof files are the answer to
-that, not stubs. -/
+/- This file persists NO per-VC theorems, and cannot: real-proof
+persistence here would need the environment to hold ~3.8 K reconstructed
+witnesses until olean serialization, which does not fit the 32 GB
+reference machine. The per-action proof files under `Chorus/Proofs/` are
+the answer to that. So a VC in this development is either registry data
+(claim-free by construction) or a real, kernel-checked theorem in a
+`Chorus/Proofs/` olean — nothing here is proven-but-isn't. -/
 
 /- VC registry (`docs/Dependencies.md` §1): `#gen_spec`
 persists every VC's statement (as an `Expr`) plus its action/property/
 style metadata into the olean, enabling the cross-file commands
 (`#check_action Chorus <action>`, `#check_vc Chorus <action> <prop>`,
-`#prove_action Chorus <action>`) in importing files. Solve-free; the
-statements are elaborated eagerly here (measured free at FallbackReceipt
-scale and ≈ free at this file's scale — Build #19's attribution probe:
-1 065 s on vs 1 082 s off, same day). Since M6 (2026-07-13) this registry
-is the proof-file family's entire statement source: the `#prove_action`s
-under `Chorus/Proofs/` re-create every VC from it, and this file persists
-no theorems at all. -/
+`#prove_action Chorus <action>`) in importing files. Solve-free, and the
+eager statement elaboration it does here measures as ≈ free at this
+file's scale. The registry is the proof-file family's entire statement
+source: the `#prove_action`s under `Chorus/Proofs/` re-create every VC
+from it. -/
 set_option veil.gen.vcRegistry true
 
 /- Proof cache (`docs/Dependencies.md` §2): consult the
@@ -2094,17 +2075,16 @@ finite-model-find ON), deliberately not overridden.
 
 IMPORTANT: in-file dischargers capture solver options at `#gen_spec` (VC
 generation), NOT at check commands — options set only around a check
-command silently do not apply to solving (Veil warns about this since
-2026-07-07); on the cross-file path the proof files read solver options
-at tactic runtime, so `set_option` there works as written. The
-`set_option veil.smt.timeout 300/900 in #check_invariants` lines this
-file carried through Builds #10–#11 were therefore inert: every green sweep on record actually ran at the 60 s
-default with fmf on (452–549 s wall, ~13 GB peak). Running the *nominal*
-config for real (900 s, fmf off; tried 2026-07-07) was strictly worse:
-divergent queries e-match for the full 900 s while accumulating
-instantiations in-process — the sweep exceeded 17 CPU-hours and 50 GB
-(swap thrash) before being killed. So the defaults are the validated
-configuration; seed-luck timeouts are healed by `veil.smt.retries`
+command silently do not apply to solving, and Veil warns about it; on the
+cross-file path the proof files read solver options at tactic runtime, so
+`set_option` there works as written.
+
+Do not "improve" the budget: a sweep at 900 s with fmf off was measured
+strictly worse than the 60 s/fmf-on default — divergent queries e-match
+for the full 900 s while accumulating instantiations in-process, and the
+sweep exceeded 17 CPU-hours and 50 GB (swap thrash) before being killed.
+The defaults are the validated configuration; seed-luck timeouts are
+healed by `veil.smt.retries`
 (retry with a perturbed seed, reported as "(retry k, seed k)"), with the
 TR-form fallback behind that; the 14 cells SMT cannot solve at all are
 preproven manual theorems in their actions' proof files. -/

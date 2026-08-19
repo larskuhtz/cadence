@@ -6,13 +6,13 @@ content of the liveness argument — are machine-checked like every other
 invariant, and the temporal glue (fair scheduling ⇒ eventual firing) is a
 named meta-assumption. See [`Architecture.md`](./Architecture.md) §4 items 2
 and 4 for exactly which assumptions that leaves, and
-[`LivenessNotes.md`](./LivenessNotes.md) for what the Chorus encoding does.
-Closing the gap for real is the largest single reduction of §4 available, and
-this is the design sketch for it.*
+[`ChorusDesign.md`](./ChorusDesign.md) §7 for what the Chorus encoding does.
+Closing that gap would be the largest single reduction of §4 available; this
+document sketches how.*
 
-The sketch: a path to extending Veil with deductive liveness reasoning,
-accompanying [`ChorusDesign.md`](./ChorusDesign.md) §10.3. It is intentionally narrower than full
-LTL: most distributed-systems liveness obligations are naturally
+The proposal is a path to extending Veil with deductive liveness reasoning,
+accompanying [`ChorusDesign.md`](./ChorusDesign.md) §10.3. It is deliberately
+narrower than full LTL: most distributed-systems liveness obligations are naturally
 expressible as ω-acceptance conditions on a labelled transition system
 (LTS), and can be discharged by a **liveness-to-safety (L2S)**
 reduction that reuses the existing safety-VC machinery.
@@ -54,10 +54,10 @@ response [eventual_commit]
 
 LTL operators beyond `□`, `◇`, `↝`, and `infinitely_often` are
 deferred. They are convenient but not load-bearing for the kinds of
-properties Cadence-style protocols generate. As the user observed,
-even a *block-counter monotonically advances* property is naturally
-captured as "the action that increments the counter fires infinitely
-often, and each occurrence strictly changes the counter".
+properties Cadence-style protocols generate. Even a *block-counter
+monotonically advances* property is naturally captured as "the action
+that increments the counter fires infinitely often, and each occurrence
+strictly changes the counter".
 
 ## 3. Discharge via liveness-to-safety (L2S)
 

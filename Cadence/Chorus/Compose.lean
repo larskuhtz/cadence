@@ -1,11 +1,10 @@
 import Cadence.Chorus.Certify
 import Cadence.Interfaces
 
-/-! # ChorusCompose — C4: `Chorus ⊨ SlotConsensus`
+/-! # ChorusCompose — `Chorus ⊨ SlotConsensus`
 
-The final leg of the C4 composition layer (`docs/ConductorPlan.md` §5.2),
-unblocked 2026-07-07 by trusted statement-only `#gen_theorems`
-persistence (Build #14): from any reachable state of the Chorus
+The final leg of the composition layer (`docs/ConductorDesign.md` §5.2):
+from any reachable state of the Chorus
 transition system, the per-proposer commit decisions of a committed
 validator assemble into a *proposal vector*, and the result is a
 `SlotConsensus` structure ([`Interfaces.lean`](../Interfaces.lean)) whose
@@ -41,8 +40,8 @@ no claim about them.
 
 Trust base: `[propext, Classical.choice, Quot.sound]` — the standard Lean
 trio, nothing else — pinned by the `#guard_msgs` axiom check at the end of
-this file. Since 2026-07-13 (M6) the composition consumes the proof-file
-family (`Chorus/Proofs/`, via `Chorus/Certify.lean`'s `#gen_composition`):
+this file. The composition consumes the proof-file family
+(`Chorus/Proofs/`, via `Chorus/Certify.lean`'s `#gen_composition`):
 every VC statement re-created from the persistent registry, solved as a
 fresh kernel-checked reconstruction, assembled per action into a
 preservation lemma, and composed — kernel-checked at every `addDecl` —
@@ -98,7 +97,7 @@ noncomputable def decisionVector (i : node) : node → Option merkle_root :=
 
 set_option maxHeartbeats 1000000 in
 /-- **`Chorus ⊨ SlotConsensus`** — any reachable Chorus state induces a
-`SlotConsensus` contract instance (`docs/ConductorPlan.md` §5.2): validators'
+`SlotConsensus` contract instance (`docs/ConductorDesign.md` §5.2): validators'
 finalization outputs are their decision vectors, and the contract's three
 formal fields are Chorus's proven safety properties, projected out of
 `invariants_of_reachable`. -/
@@ -170,8 +169,8 @@ The instance rests on the standard Lean trio and nothing else — in
 particular, **no `sorryAx`**: no trusted-SMT step and no statement stub
 anywhere in the chain. The Chorus model persists no per-VC theorems (its
 VC *statements* are carried claim-free by the persistent VC registry);
-the composition consumes the **proof-file family** (`Chorus/Proofs/`,
-M6 2026-07-13): one file per action, each re-proving its action's
+the composition consumes the **proof-file family** (`Chorus/Proofs/`):
+one file per action, each re-proving its action's
 registered VC statements from scratch as fresh kernel-checked
 reconstructions (`veil.smt.trust false`), persisted as real proofs in
 small per-file oleans and assembled into one preservation lemma. A

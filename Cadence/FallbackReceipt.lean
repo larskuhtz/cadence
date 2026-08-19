@@ -13,8 +13,8 @@ reachability certificate by
 this file in an editor costs the model elaboration plus the (cheap)
 background `doesNotThrow` checks and the bounded model check.*
 
-Mechanization of the layer behind the §7.2 finding (`docs/ChorusDesign.md` §7.2, §9
-item 6): the per-validator receipt of `FallbackVote`s and the once-only
+Mechanisation of the layer behind the bug record in `docs/ChorusDesign.md`
+§7.2: the per-validator receipt of `FallbackVote`s and the once-only
 MVBA propose with the atomic per-proposer build, exactly as the paper
 *shipped* it on 2026-07-07 (`alg:fallback`) — the receipt restriction at
 `line:fb-accept` (a vote is accepted only if every entry is a valid
@@ -90,7 +90,7 @@ proposes a valid meta-block. The seam is meta-level (documented, not a
 Lean composition) pending VC persistence for *Chorus*
 (`docs/Architecture.md` §6) — within *this* module the chain is closed
 in Lean end-to-end (`build_totality_of_reachable` in the totality
-file), matching the integration mode pinned in `docs/ChorusDesign.md` §9 item 6.
+file).
 
 ## Locality regime — deliberately different from `Chorus.lean`
 

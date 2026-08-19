@@ -8,20 +8,17 @@ the methods, the trust bases and the meta-assumption inventory — is
 This document explains the modelling choices in
 [`Cadence/Chorus.lean`](../Cadence/Chorus.lean) and [`Cadence/Primitives.lean`](../Cadence/Primitives.lean):
 what is in scope, what is abstracted, and what limitations the chosen
-abstractions impose on the kind of properties we can hope to prove.
+abstractions impose on the kind of properties that can be proven.
 
 ## 1. Scope
 
-Chorus is the inner *per-slot one-shot* BFT consensus layer of Cadence.
-The reference is the Cadence paper, `arXiv:2607.02275v2` — public, and not
-needed to build anything here (the root [`README.md`](../README.md) has the
-citation and a one-line fetch of its equally public LaTeX source). Unpacked at
-`papers/cadence`, the Chorus chapter is `src/p2_chorus.tex`,
-with pseudocode in `src/alg_proposer.tex`, `src/alg_voting.tex`,
-`src/alg_fast.tex`, `src/alg_fallback.tex`, `src/alg_da.tex`, and the MVBA
-module specification in `src/p2_mvba.tex`. Pseudocode is cited by its stable
-LaTeX anchors (e.g. `line:fb-pathvote-guard`), never by line numbers, which
-drift.
+Chorus is the inner *per-slot one-shot* BFT consensus layer of Cadence. The
+reference is the Cadence paper, `arXiv:2607.02275v2`; the root
+[`README.md`](../README.md) gives the citation and how to resolve the label
+names used below. With the source unpacked at `papers/cadence`, the Chorus
+chapter is `src/p2_chorus.tex`, with pseudocode in `src/alg_proposer.tex`,
+`src/alg_voting.tex`, `src/alg_fast.tex`, `src/alg_fallback.tex`,
+`src/alg_da.tex`, and the MVBA module specification in `src/p2_mvba.tex`.
 
 For each slot `s` Chorus runs an independent agreement instance among a
 set `Π` of `n = 3f + 1` validators with `k` concurrent *proposers*
@@ -192,8 +189,8 @@ should never disable an action nor change its update behaviour —
 except for `fb_sign_neg`, where a larger pre-state can disable the
 action for a given `qv` exactly as more received votes can in the real
 protocol. When adding or modifying an action, audit it against this
-contract. A future improvement (tracked in [`History.md`](./History.md))
-is an automated syntactic check.
+contract. A future improvement (tracked in [`TODO.md`](./TODO.md) § Soundness
+and as §9 item 3 below) is an automated syntactic check.
 
 ### 3.2 Why this is sound for safety
 
@@ -280,7 +277,7 @@ establish, and prove the protocol consequence asynchronously:
   are modelled separately in [`Cadence/Conductor.lean`](../Cadence/Conductor.lean) and
   [`Cadence/Cadence.lean`](../Cadence/Cadence.lean) against the module contracts of
   [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) (see
-  [`ConductorPlan.md`](./ConductorPlan.md) and those files' headers).
+  [`ConductorDesign.md`](./ConductorDesign.md) and those files' headers).
 * **`FastBlock` dissemination/adoption** (`alg:fast-path-certification`,
   FastBlock handler) — the paper broadcasts a formed fast meta-block so
   peers can adopt `Ev(pid) ← B(pid)` without re-aggregating. In the
@@ -314,7 +311,7 @@ exist. Naming convention: `msg_*`.
 | Relation | Paper analogue |
 |---|---|
 | `msg_proposer_signed j m` | outer chunk-header signature `σ` on `⟨s, j, mroot⟩` (`alg:proposer-dissemination`). |
-| `msg_chunk_received i j m` | the chunk **assigned to validator `i`** has reached `i` (proposer unicast, vote-carried, fallback re-dissemination `line:fb-redisseminate`, or commit-round broadcast `line:fb-commit-wait`; the old receive-time rebroadcast `line:da-rebroadcast` was removed in the 2026-07-07 paper revision — chunk redistribution is now vote-carried, matching this model's `vote_pos_sig_chunk` chain). The **only** per-recipient network relation — see §3.5.1. |
+| `msg_chunk_received i j m` | the chunk **assigned to validator `i`** has reached `i` (proposer unicast, vote-carried, fallback re-dissemination `line:fb-redisseminate`, or commit-round broadcast `line:fb-commit-wait`; the receive-time rebroadcast `line:da-rebroadcast`, a v1 rule, was removed in v2 — chunk redistribution is now vote-carried, matching this model's `vote_pos_sig_chunk` chain). The **only** per-recipient network relation — see §3.5.1. |
 | `msg_vote_pos_sig r j m`, `msg_vote_neg_sig r j` | per-proposer signed entries of the `Vote` broadcast (`alg:voting`). |
 | `msg_vote_cast r` | `r` has broadcast its `Vote` (`line:vote-broadcast`). Receivers discard votes without an entry per proposer, so a cast vote implies per-proposer signatures (`vote_cast_entries`). |
 | `msg_fb_pos_sig r j m`, `msg_fb_neg_sig r j` | per-proposer signed fallback entries in the `FallbackVote` broadcast (`alg:fallback`). |
@@ -541,15 +538,15 @@ messages that could never influence an honest participant.
 
 ### Per-relation actions, not a monolithic transition
 
-An earlier version used a single `transition byz_step` with a
-per-relation "pin honest"/"monotone Byzantine" body; at ~30 relations
-its elaboration exceeded Lean's heartbeat budget. The adversary is now
-a family of per-relation actions — one per adversarial capability —
-each requiring `is_byz` and assigning one tuple; Veil's frame condition
-covers the rest. Semantically equivalent (any combined change
-decomposes into a sequence), except that Byzantine validators' own
-local state now only grows monotonically — unobservable by honest
-invariants.
+The adversary is a family of per-relation actions — one per
+adversarial capability — rather than a single `transition byz_step`
+with a per-relation "pin honest"/"monotone Byzantine" body. That is not
+a stylistic choice: at ~30 relations the monolithic form's elaboration
+exceeds Lean's heartbeat budget. Each action requires `is_byz` and
+assigns one tuple; Veil's frame condition covers the rest. The two
+forms are semantically equivalent (any combined change decomposes into
+a sequence), except that Byzantine validators' own local state only
+grows monotonically — unobservable by honest invariants.
 
 ### Quorum axioms
 
@@ -735,17 +732,18 @@ layer is stated as meta-axioms:
   (i) *all correct validators propose* — the per-validator
   implementability content behind the §7.2 finding, bridged from this
   model's network-global evidence premise by the atomic-build argument
-  (mechanised separately, §9 item 6) — and (ii) *no correct validator
+  (mechanised separately in the receipt layer, `Architecture.md` §5) — and
+  (ii) *no correct validator
   abandons before the bound* — moot in this single-slot model (no
   `abandon()`), discharged within Cadence by Conductor totality
   (`cor:chorus-correctness-within-cadence`).
 
 The well-founded ranking is structural: per-slot state is finite and
 all relations are monotone, so the residual count of unset tuples
-decreases with every helpful firing. (An earlier revision stated
-`decrease_*` invariants for this; they were tautologies of the form
-`… ∧ ¬X → ¬X` and have been removed — the (D) obligation is discharged
-by the monotonicity audit, not by SMT.)
+decreases with every helpful firing. The (D) obligation of the
+verification diagram is therefore discharged by the monotonicity audit,
+not by SMT; stating it as invariants yields only tautologies of the
+form `… ∧ ¬X → ¬X`, so do not add them back.
 
 **Case split** on the number `x` of honest validators that cast a fast
 commit vote:
@@ -793,7 +791,7 @@ two roots — whose backing vote quorums pin two proposer-signed roots,
 i.e. `equiv_evidence`. This split-counting partitions a quorum by the
 value its members signed, which is outside the `ByzNodeSet` language
 (no set comprehension); it remains the one meta-level step of the
-fair-progress argument. **Update (2026-07-07): mechanized.**
+fair-progress argument. **Update (2026-07-07): mechanised.**
 `Chorus.evidence_pigeonhole_of_reachable`
 ([`Cadence/Chorus/Pigeonhole.lean`](../Cadence/Chorus/Pigeonhole.lean)) proves exactly
 this split-counting over reachable states, for every `n = 3f+1` and
@@ -811,11 +809,17 @@ next substantive `Cadence/Chorus.lean` edit.
 
 ### 7.1 Limitations of the current encoding
 
-Unchanged in kind from the previous revision: the temporal/fairness
-layer (fair executions, the ranking recursion) is not encoded inside
-Veil. Phase markers never *must* advance; the network has no GST
-marker; MVBA termination is an oracle. The discharged invariants are
-the safety content only. A future extension would internalise the
+The temporal/fairness layer (fair executions, the ranking recursion)
+is not encoded inside Veil. Phase markers never *must* advance; the
+network has no GST marker; MVBA termination is an oracle. The
+discharged invariants are the safety content only.
+
+Nor is *aggregation enablement* invariant-checked: `aggregate_fastqc_*`
+and the other aggregation actions enable on the existence of `2f+1`
+honest signatures, and whether such a quorum ever accumulates is a
+quorum-availability question about participation and partial synchrony.
+(A-mvba) absorbs it — assuming quorum availability the MVBA terminates,
+and `mvba_complete_per_proposer` closes the chain to `committed I S`. A future extension would internalise the
 meta-axioms via an L2S desugaring (sketched in
 [`Liveness.md`](./Liveness.md)) or a verification-diagram tactic
 family. Safety properties are unaffected by all of this: they hold in
@@ -868,16 +872,10 @@ closing the argument per-validator requires counting the Byzantine
 votes' entries too, i.e. harvesting carried certificates *including
 EquivCerts*.
 
-**Status at time of finding.** The recommended repair was: (i) harvest
-received EquivCerts, and (ii) guard the propose rule on every `Ev(pid)`
-being certified — (ii) also removing the upgrade/propose simultaneity
-race when the `(2f+1)`-th vote arrives.
-
-**Resolution (2026-07-07).** Fixed upstream (`papers/cadence` commits
-`4eb2030` → `c609022`), and published as **`arXiv:2607.02275v2`** — so the
-before/after is a public diff: `arxiv.org/e-print/2607.02275v1` against `…v2`,
-where `alg_fallback.tex` carries both changes below. The redesign is cleaner
-than (i)+(ii):
+**Resolution (2026-07-07).** Fixed upstream and published as
+**`arXiv:2607.02275v2`**, so the before/after is a public diff:
+`arxiv.org/e-print/2607.02275v1` against `…v2`, where `alg_fallback.tex`
+carries both changes below.
 
 * *Receipt restriction* (`line:fb-accept`): a fallback vote is accepted
   only if every carried entry is a valid FastQC or the **sender's own**
@@ -897,20 +895,20 @@ than (i)+(ii):
   the paper (§`subsection:fallback_path`, meta-block paragraph) and
   spelled out in the `M+3Δ` step of `prop:chorus-finalization-time`.
 
-Re-verified against the updated sources (2026-07-07): the
-counterexample above is dead (the EquivCert-carrying vote is rejected
-at `line:fb-accept`; every variant of D's own entry feeds one of the
-three build cases), the counting argument is sound, and the
-upgrade/propose race is structurally eliminated (no standing upgrade
-rules remain). "`B` is valid by construction" is now a proved
-statement. One trajectory note: the first fix commit (`4eb2030`,
-atomic build alone) still *accepted* carried EquivCerts without
-counting them, leaving a residual counting hole; the receipt
-restriction (`c60230e`) is what closes it. The algorithm description
-in the paragraphs above refers to the pre-fix revision and is retained
+Against v2 the counterexample above is dead — the EquivCert-carrying
+vote is rejected at `line:fb-accept`, every variant of D's own entry
+feeds one of the three build cases, and the upgrade/propose race is
+structurally eliminated (no standing upgrade rules remain). "`B` is
+valid by construction" is a proved statement.
+
+**Which half of the fix is load-bearing:** the atomic build alone is
+not enough. Without the receipt restriction a validator still *accepts*
+carried EquivCerts without counting them, leaving the counting hole
+open; it is the restriction at `line:fb-accept` that closes it. The
+algorithm description in the paragraphs above is the v1 one, retained
 as the record of the finding.
 
-**Mechanized (2026-07-07, §9 item 6):**
+**Mechanised:**
 [`Cadence/FallbackReceipt/PreFix.lean`](../Cadence/FallbackReceipt/PreFix.lean)
 reproduces the counterexample above mechanically (a model-checker
 violation at `n = 4, f = 1` whose trace is exactly this scenario), and
@@ -918,23 +916,16 @@ violation at `n = 4, f = 1` whose trace is exactly this scenario), and
 design ("valid by construction" by SMT for all `n`; the per-validator
 counting argument exhaustively at `n = 4, f = 1`).
 
-The same paper revision also reshaped the surrounding machinery — the
-MVBA module interface, a new fallback commit round, and an explicit
-participation convention; see item 7 of §9 for the fidelity re-audit
-this requires. No proven safety invariant of this model is
-contradicted by any of it (checked 2026-07-07 against
-`4eb2030 → c609022`). Re-checked the same day at the newer paper HEAD
-`3efdbfe`: the only substantive post-`c609022` delta (commits
-`fc1424b`/`3efdbfe`, `\tobiaschange`-marked) tightens Alg 4's
-vote-acceptance guard — a positive vote is accepted only if it carries
-its *sender's assigned* chunk — which **matches an assumption this
-model already made** (`byz_sign_vote_pos` requires
-`msg_chunk_received r j m`) and is what makes
-`vote_pos_quorum_implies_decodable`'s reading of `isDecoded` honest
-(f+1 accepted positive votes pin f+1 *distinct* chunks); no model
-change needed. The finalization-route over-approximation originally
-flagged here was closed the same day by modelling the fallback commit
-round (§9 item 7(b)).
+The v2 revision that fixed this also reshaped the surrounding
+machinery — the MVBA module interface (§`mod:mvba`), the fallback
+commit round (§6.7), and an explicit participation convention. The
+model tracks all three, and no proven safety invariant of it is
+contradicted by any of them. One v2 guard is worth naming because the
+model depends on it: a positive vote is accepted only if it carries its
+*sender's assigned* chunk (`byz_sign_vote_pos` requires
+`msg_chunk_received r j m`), which is what makes
+`vote_pos_quorum_implies_decodable`'s reading of `isDecoded` honest —
+f+1 accepted positive votes pin f+1 *distinct* chunks.
 
 ## 8. Abstractions worth flagging for review
 
@@ -1006,215 +997,23 @@ round (§9 item 7(b)).
 
 ## 9. What is left for the next iteration
 
-*(Session ledger: the 2026-07-07 sessions — Veil perf P1–P3, the
-fidelity closure incl. the fallback commit round and the
-receipt/propose-layer models of items 6–7 below, the `#gen_theorems`
-scalability fix P4, and the C4 `Chorus ⊨ SlotConsensus` composition —
-are all **complete**; per-build records in [`History.md`](./History.md),
-plan status in [`ConductorPlan.md`](./ConductorPlan.md). Items 6 and 7 are
-kept below, with their outcomes inline, because files and notes cite them by
-number. The open items are 1–3, 5 and §§10.1–10.3; the verification-pipeline
-work referenced from here as "P5/P7/P8" is all done — Chorus is
-kernel-checked at `veil.smt.trust false`, see
-[`Dependencies.md`](./Dependencies.md).)*
+These are places the model could go further. Nothing here is a gap in what
+the development *claims* — see [`TODO.md`](./TODO.md) for the cross-cutting
+list, and §§10.1–10.3 below for the bigger lifts.
 
-1. Keep the full verification suite green — the model + per-action
-   proof-file family + certificates, `scripts/revalidate.sh`
-   (see [`History.md`](./History.md) for the running tally).
-2. Instantiate the abstract classes of `Cadence/Primitives.lean` (e.g. an
+1. Instantiate the abstract classes of `Cadence/Primitives.lean` (e.g. an
    example `ByzNodeSet` model instantiation of the whole module) to
    demonstrate satisfiability of the axioms end-to-end.
-3. Move the explicit `is_proposer` immutable relation to a derivation
+
+2. Move the explicit `is_proposer` immutable relation to a derivation
    from a VRF-output relation, once a `VRF` primitive class exists in
-   `Cadence/Primitives.lean`.
-4. ~~Lift the model from one-shot per-slot to the Conductor pipelining
-   layer and prove the paper's Cadence-level composition theorems.~~
-   Done at the module level ([`Cadence/Conductor.lean`](../Cadence/Conductor.lean),
-   [`Cadence/Cadence.lean`](../Cadence/Cadence.lean), 2026-07-03); ~~the remaining piece
-   is the plan's optional C4 — Lean instance theorems formally
-   connecting Chorus's proven invariants to the `SlotConsensus` class
-   fields, and the positional-log safety corollary.~~ **C4 complete
-   2026-07-07**: the positional-log corollary in `Cadence/Composition.lean`
-   (2026-07-06) and the `Chorus ⊨ SlotConsensus` instance in
-   [`Cadence/Chorus/Compose.lean`](../Cadence/Chorus/Compose.lean) (+ the generated
-   `ChorusComposeGen.lean` induction over the Build #14 persisted VC
-   theorems; that generated file has since been replaced by
-   [`Cadence/Chorus/Certify.lean`](../Cadence/Chorus/Certify.lean)'s
-   `#gen_composition`). Epochs / proposer rotation
-   remain out of scope (outside the papers' consensus-layer treatment).
-5. An automated syntactic audit of the §3.1.1 positive-position
+   `Cadence/Primitives.lean`. Epochs and proposer rotation stay out of
+   scope (outside the papers' consensus-layer treatment).
+
+3. An automated syntactic audit of the §3.1.1 positive-position
    contract.
-6. **Mechanize the §7.2 finding**: a small *dedicated* Veil model of
-   the fallback receipt/propose layer, targeting the design the paper
-   *shipped* on 2026-07-07 (§7.2 resolution) — per-validator
-   fallback-vote receipt (`M_i`, one entry per sender per proposer,
-   FastQC-or-own-signed-entry), a once-only propose action performing
-   the atomic per-proposer selection — with the safety property "the
-   selection at `line:fb-build-entry`–`line:fb-formqc` always succeeds
-   and yields a certified entry" (the paper's counting argument, i.e.
-   the per-validator pigeonhole). This is *simpler* than the
-   pre-fix mechanization sketch (no `Ev` evidence lattice needed — the
-   shipped chain is `⊥ →` own entry `→ FastQC`); as a bonus, the
-   *pre-fix* rules can be modelled alongside and refuted (SMT
-   counterexample, or the concrete model checker at n = 4, f = 1),
-   mechanically reproducing the §7.2 finding. The known crux is
-   unchanged: `ByzNodeSet` cannot partition a quorum by signed value,
-   so the two-class counting step needs either new counting axioms or
-   the concrete instance.
 
-   *Integration mode:* the module slots into the liveness
-   meta-argument at a named seam — it discharges the implementability
-   of (A-mvba)'s premise (network-global evidence → every correct
-   validator proposes a valid meta-block). Its interface: *assumes*
-   facts that are already-proven Chorus invariants over shared
-   relation vocabulary (`progress_fallback_signing`, the certificate
-   ghosts); *guarantees* the certified-propose property above. This is
-   the same (meta-argument) level at which all liveness content
-   integrates today; upgrading the seam to a formal Lean composition
-   is gated on VC persistence / witness retention
-   (see [`Architecture.md`](./Architecture.md) §6), so the pinned interface is
-   forward-compatible with that upgrade. *Sequencing* (decided
-   2026-07-06, unchanged now that the fix has landed): the Veil
-   performance work stays first in priority, as it is also the
-   prerequisite for the formal upgrade.
-
-   ✅ **Done 2026-07-07**
-   ([`Cadence/FallbackReceipt.lean`](../Cadence/FallbackReceipt.lean) +
-   [`Cadence/FallbackReceipt/PreFix.lean`](../Cadence/FallbackReceipt/PreFix.lean) +
-   [`Cadence/FallbackReceipt/Totality.lean`](../Cadence/FallbackReceipt/Totality.lean);
-   see the Notes.md module table). The shipped design verifies:
-   `certified_propose` ("B is valid by construction") by SMT for all
-   `n`, and **build totality (the per-validator pigeonhole) as a
-   kernel-checked Lean theorem for every `n = 3f+1`**
-   (`build_totality_of_reachable`) — the crux resolved exactly as
-   anticipated: the two-class counting is not expressible abstractly
-   (set comprehension; a module `assumption` cannot mention mutable
-   relations; the abstract statement fails in non-standard models of
-   the axioms), so the concrete instance *family* `byzNodeSetFin n f`
-   carries it. The chain is: a `List`-level two-cover pigeonhole
-   (`two_cover`) → a state-level theorem from the single SMT-proven
-   invariant `accepted_entries_complete` → an `invariants_of_reachable`
-   induction over the `#gen_theorems`-persisted VC theorems (the
-   `Cadence/Composition.lean` pattern — feasible here, unlike for Chorus,
-   because the module has only ~220 VCs). The module's sweep runs with
-   `veil.smt.trust false` (proof reconstruction), so the final theorem
-   depends on exactly `propext`/`Classical.choice`/`Quot.sound` —
-   **no trusted-SMT step anywhere** — pinned by a `#guard_msgs` axiom
-   check. The `#model_check` at `n = 4, f = 1` (23 975 states) remains
-   as a fast exhaustive regression. The *pre-fix* rules are refuted as
-   planned: the model checker finds a reachable violation of the
-   paper's "valid by construction" claim, and its counterexample trace
-   **is** the §7.2 scenario (one bare positive, one bare negative, one
-   Byzantine EquivCert-carrying vote, propose at `2f+1`), pinned by
-   `#guard_msgs`. The meta-seam wiring is documented in the module
-   header and in (A-mvba)'s wording (§7).
-
-7. **Fidelity re-audit against the 2026-07-07 paper revision.** The
-   revision that fixed §7.2 also restructured the surrounding
-   machinery. Checked 2026-07-07: **no proven invariant of this model
-   is contradicted** — the drift is in the correspondence story and in
-   `Cadence/Chorus.lean`'s comments. **All four deltas below worked through
-   2026-07-07 (Session B, Build #13); statuses inline.** The deltas:
-
-   a. **MVBA module reshaped** (`mod:mvba`): interface is now
-      `propose(B)` (starts participation) / `abandon()` / `decide(B)`
-      — no certificate output and no `Certifies`; properties are
-      Agreement, Integrity, External validity, `ℓ_MVBA`-Termination
-      *conditioned on no correct validator abandoning before the
-      bound*, and a new *Quiescence* property. The oracle's shape here
-      (decide relations gated on evidence + agreement) remains a sound
-      abstraction, but the comments in the "MVBA oracle" and "Commit
-      decision" sections of `Cadence/Chorus.lean` describe the old
-      certificate-based spec, and (A-mvba)'s wording should absorb the
-      abandonment condition (moot for this single-shot model — no
-      abandon action — but that should be *said*). ✅ **Done
-      2026-07-07**: both `Cadence/Chorus.lean` sections rewritten against
-      `mod:mvba` (full interface mapping, Integrity, Quiescence);
-      (A-mvba) wording updated in §7 here and in `Cadence/Chorus.lean`'s
-      liveness section (both premises stated).
-
-   b. **Fallback commit round** (`alg:fallback`,
-      `line:fb-mvba-decide`–`line:fb-finalize`): an MVBA decision no
-      longer finalizes; deciders wait for their assigned chunk under
-      each positive FallbackQC root (a built-in DA attestation), cast
-      `FallbackCommitVote`s, and finalization happens only on the
-      resulting transferable `fbCommitQC`. This model's
-      `commit_assign_*` fires on `mvba_decided_*` directly — now an
-      **over-approximation** of the paper's finalization: every paper
-      finalization implies a model one (an `fbCommitQC` carries `f+1`
-      honest commit-voters who decided the same entries), while the
-      model commits earlier and without the round. Safety-sound
-      (invariants are checked over a superset of commit states).
-      **Decision (2026-07-07): model the round** (new
-      `msg_fbcommit_sig` relation + honest cast / Byzantine sign
-      actions + `fbcommitqc` ghost; switch `commit_assign_*` to
-      `msg_commitqc_* ∨ fbcommitqc`; add the round's fair-progress
-      bridges) rather than documenting the over-approximation —
-      faithful modelling of exactly such corners is the point (see the
-      Session B rationale above). Gated on Session A headroom.
-      The paper's agreement proof now runs through
-      `fbCommitQC`/`commitQC` quorum intersections + MVBA Integrity
-      (`prop:agreement-entries`, restructured) — the model's baked-in
-      oracle agreement abstracts the same content, but the
-      justification mapping in §6 should be re-told. ✅ **Done
-      2026-07-07 (Build #13)**, with two deliberate refinements over
-      the sketch above: `commit_assign_*` requires
-      `msg_commitqc_* ∨ (fbcommitqc ∧ mvba_decided_*)` — the
-      conjunction, since the certificate's entries *are* the decided
-      vector (`msg_fbcommit_sig`'s implicit-entries abstraction, §8) —
-      and an honest `redisseminate_chunk` action carries the round's
-      DA-wait liveness (`line:fb-redisseminate` /
-      `line:fb-commit-wait`; without it the wait can starve for a
-      Byzantine proposer's decided root). Fair-progress bridges: the
-      appended invariant block in `Cadence/Chorus.lean` + the "Commit-round
-      epilogue" in §7. §6 re-telling: the correspondence note under
-      "How agreement is proven" + §6.7.
-
-   c. **Participation convention and conditioned termination**: a
-      standing convention (§`subsection:chorus-protocol-overview`)
-      gates every message-*sending* rule on active participation, with
-      blocked messages buffered; termination is now conditioned on
-      *Δ-synchronized participation*
-      (`def:delta-synchronized-participation`), discharged within
-      Cadence by Conductor totality
-      (`cor:chorus-correctness-within-cadence`, with
-      `thm:conductor-correctness` as the Conductor-side epilogue).
-      This is the paper-side analogue of the C0–C4 composition layer —
-      check `Cadence/Interfaces.lean` / `Cadence/Composition.lean` /
-      `ConductorPlan.md` against the new theorem/corollary structure
-      (the `SlotConsensus` ℓ-termination field's premise now has an
-      exact paper name). Totality (`prop:chorus-totality`) is now `Δ`
-      (was `2Δ`) and conditioned; the headline
-      `ℓ = 5Δ + ℓ_MVBA` is unchanged. Quiescence
-      (`lemma:chorus-quiescence`) joins the slot-consensus property
-      list (the property-coverage list in `Cadence/Chorus.lean`'s header
-      predates it). ✅ **Done 2026-07-07**: `Cadence/Interfaces.lean` obligation
-      table names the premise (`def:delta-synchronized-participation`,
-      discharged via `cor:chorus-correctness-within-cadence`), gains a
-      Quiescence row, and states `d_tot = Δ` conditioned;
-      `Cadence/Chorus.lean`'s header covers Quiescence and the conditioned
-      termination; all `Cadence/Conductor.lean`/`ConductorPlan.md` paper
-      anchors verified live against the revision (`Cadence/Composition.lean`
-      names none).
-
-   d. **Stale anchors and comments in `Cadence/Chorus.lean`**:
-      `line:fb-finalize1`–`3` → single `line:fb-finalize`;
-      `line:fb-commit-broadcast2` gone; `line:fb-mvba-decide` now
-      labels the decide handler; `line:fb-formqc` now labels the
-      build-time FallbackQC aggregation (no standing formation rule);
-      the vote-level evidence precedence
-      `FastQC ≻ EquivCert ≻ FallbackQC ≻ fallback signed entry` no
-      longer exists (votes carry FastQC-or-own-entry; the `≻` order
-      survives only inside the build rule); `Certifies` references.
-      **Batch these comment-only fixes with the next substantive
-      `Cadence/Chorus.lean` edit** — touching the file forces a full
-      re-elaboration on the next build, not
-      worth it for comments alone. ✅ **Done 2026-07-07**: batched into
-      the Build #13 edit (7(b)), including the two corrupted comment
-      splices around the `modelCheckScaffolding` `set_option` and the
-      "Run the full sweep" note. (`Certifies` /
-      `line:fb-commit-broadcast2` had no remaining occurrences;
-      `line:fb-formqc` citations were already build-rule-correct.)
+## 10. Bigger lifts — what would need new machinery
 
 ### 10.1 Making the network assumption explicit and proven
 

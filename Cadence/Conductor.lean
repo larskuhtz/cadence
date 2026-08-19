@@ -7,8 +7,8 @@ import Cadence.Tooling
 
 *Note: opening this file in a Lean-enabled editor re-runs its verification
 sweep in the language server (~1 min, one SMT solve per VC). Prefer
-`lake build Cadence.Conductor`; see `README.md` § "Before you
-open these files in an editor".*
+`lake build Cadence.Conductor`; see `README.md` § "Opening the files in an
+editor".*
 
 Veil model of the Conductor, the orchestrator instantiation of the Cadence
 extreme-pipelining framework. Reference:
@@ -16,7 +16,7 @@ extreme-pipelining framework. Reference:
 **ACS-based formal version** (windows over `mod:acs`), which is the one the
 paper proves; the prose chapter `p2_conductor.tex` describes a not-yet-
 reconciled deadline-MVBA variant (divergence flagged —
-`docs/ConductorPlan.md` §1/§8). Plan: `docs/ConductorPlan.md`
+`docs/ConductorDesign.md` §1/§7). Design: `docs/ConductorDesign.md`
 §3; contracts: [`Interfaces.lean`](./Interfaces.lean) (`Orchestrator`,
 `ACS`); support theory: [`Windows.lean`](./Windows.lean).
 
@@ -34,7 +34,7 @@ window's first slot is the **median** of the decided proposals
 its `W` slots (`line:open-foreach`), each opening at its starting time
 (`line:conductor-wait-for-open`).
 
-## What is modelled vs. meta (per `docs/ConductorPlan.md` §3)
+## What is modelled vs. meta (per `docs/ConductorDesign.md` §3)
 
 SMT-checked here (the safety-shaped content):
 * window-entry order (`lemma:window-entry`) — `[entered_prefix]`;
@@ -108,7 +108,7 @@ opening may stay unfired while the clock advances. Two consequences:
 ## Adversary
 
 Conductor has **no Byzantine message surface beyond ACS**
-(`docs/ConductorPlan.md` §3): its only inputs are local `completed(s)`
+(`docs/ConductorDesign.md` §3): its only inputs are local `completed(s)`
 callbacks and ACS decisions. Byzantine influence enters as (i) Byzantine
 validators' own ACS proposals — the free-input action `byz_acs_propose` —
 and (ii) up to `f` Byzantine pairs inside the decided core set, captured
@@ -307,8 +307,8 @@ plus the median extraction:
   share it; global-state encoding, like `mvba_decided_*` in Chorus);
 * *median range validity, lower half* — the decided first slot is at
   least some correct validator's proposal (`r1/s1`, passed as **explicit
-  witnesses** — Build #10 lesson: witnesses at the assembly action, not
-  `∃`-ghosts in consumers). Justified by the quantitative half of ACS
+  witnesses** — the standing discipline here: witnesses at the assembly
+  action, not `∃`-ghosts in consumers). Justified by the quantitative half of ACS
   validity (≥ `2f+1` pairs, ≤ `f` Byzantine) through `Windows.lean`
   `lowerMedian_between_correct`. This subsumes the qualitative validity
   (`ACS.validity_genuine` — the witness *is* a genuine correct proposal)
@@ -340,7 +340,7 @@ action acs_decide (w0 : window) (w : window)
   -- whose ACS has not decided. Derivable ([entered_has_bounds] + the
   -- uniqueness require + `w ≠ zero`) — stated explicitly because the
   -- SMT search for `bounded_tail` at this action diverges re-deriving
-  -- it (a Build #10-style witness materialisation, in require form).
+  -- it (witness materialisation, in require form).
   require ∀ (i : node), ¬ is_byz i → ¬ entered i w
   -- Predecessor window and its (already fixed) bounds.
   require win_ord.next w0 w
@@ -463,7 +463,7 @@ scheduled-but-uncompleted slot lies strictly above `boundary(ω−1)` —
 within the scheduled intervals that region is the last `W − p` slots of
 window `ω−1` plus the (at most `W`) slots of window `ω`, so at most
 `2W − p` slots are open-but-uncompleted; the numeric bound is that
-one-line meta corollary, per the plan's interval-formulation directive.
+one-line meta corollary: the model states intervals, never cardinalities.
 (For `ω` = window 1 the paper's `k ≤ W ≤ 2W − p` base case needs no
 statement — window 1 has no predecessor.) -/
 safety [bounded_tail]
@@ -645,20 +645,15 @@ set_option synthInstance.maxHeartbeats 2000000
 set_option synthInstance.maxSize 4096
 set_option maxRecDepth 8192
 
-/- Proof reconstruction ON (P8, 2026-07-10). History: tried 2026-07-07
-and REVERTED for two reasons, both since resolved. (1) One attempt
-diverges under the reconstruction encoding — `trust false` also flips
-`embedBool`, changing the SMT query — timing out at both 60 s and 120 s
-while the VC stays ✅ via its alternative form; that remains true and is
-fine. (2) A Veil reporting issue then failed the otherwise-green build:
-the tolerated attempt failure leaked an error-severity message
-positioned at `#gen_spec`. Fixed 2026-07-10 — attempt-level diagnostics
-in discharger snapshots are demoted to information severity (the VC's
-effective status, reported by the results display, is the error channel).
-With both resolved, the sweep and the
-persisted VC theorems below carry no trusted-SMT step, which upgrades
-`Composition.lean`'s theorems (`Conductor ⊨ Orchestrator`, positional
-MCP Safety) to kernel-checked (axiom-pinned there). -/
+/- Proof reconstruction ON: the sweep and the persisted VC theorems below
+carry no trusted-SMT step, which is what makes `Composition.lean`'s
+theorems (`Conductor ⊨ Orchestrator`, positional MCP Safety)
+kernel-checked (axiom-pinned there).
+
+Expect one tolerated attempt failure: `trust false` also flips
+`embedBool`, changing the SMT query, and one attempt diverges under the
+reconstruction encoding — it times out at 60 s and at 120 s while the VC
+stays ✅ via its alternative form. That is fine and needs no budget. -/
 set_option veil.smt.trust false
 
 /- Streaming theorem persistence (pairs with `trust false`; cf. the same
@@ -681,17 +676,14 @@ set_option veil.cache.proofs true
 
 #gen_spec
 
-/- The sweep runs at Veil's solver defaults — the `set_option ... in` pair
-this command used to carry was inert (dischargers capture solver options
-at `#gen_spec`); see the note in `Cadence.lean`. -/
+/- The sweep runs at Veil's solver defaults. Do not try to override them
+around this command: dischargers capture solver options at `#gen_spec`,
+so a `set_option ... in` here is silently inert. -/
 #check_invariants
 
-/- Persist the discharged VCs as environment theorems for the C4
+/- Persist the discharged VCs as environment theorems for the
 composition layer. With `veil.gen.streamTheorems` above, the retained
-witnesses are persisted incrementally — no re-elaboration, so the
-solver-option headroom this command used to carry (for the serial
-lazy-regen path) is no longer needed (cf. the same note in
-`Cadence.lean`). -/
+witnesses are persisted incrementally, with no re-elaboration. -/
 #gen_theorems
 
 /-! ## Reachability sanity checks

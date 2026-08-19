@@ -197,11 +197,8 @@ assembled `Invariants` clump — this is the module-generic
 per-action preservation lemmas of the proof-file family
 ([`FallbackReceipt/Proofs/`](./Proofs)) — applied here at
 the concrete instance family, and closed under layer 2 into build
-totality. The script-generated induction and its `fvc%`/`triple_of_meets`
-scaffolding that used to live in this file died with the move to the
-verified-module file family (`docs/Architecture.md` §6): the composition is
-emitted, and
-kernel-checked, inside Veil. -/
+totality. The induction is emitted, and kernel-checked, inside Veil —
+this file writes none of it by hand. -/
 
 namespace FallbackReceipt
 

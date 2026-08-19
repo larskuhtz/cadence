@@ -21,7 +21,8 @@ import Cadence.FallbackReceipt.PreFix
 # Cadence — the audit root
 
 This module is the entry point for auditing the formal verification of the
-**Cadence** BFT consensus protocol. It imports every finished result of the
+**Cadence** BFT consensus protocol (<https://www.category.xyz/cadence>;
+`arXiv:2607.02275v2`). It imports every finished result of the
 development and, for each one, re-derives its **axiom footprint** as a
 build-checked pin. If any end theorem ever came to depend on an extra axiom
 — a `sorry` (`sorryAx`), a trusted solver verdict standing in as an axiom, a
@@ -57,8 +58,8 @@ their form is not an axiom footprint:
   "nothing here is stubbed", as a command rather than as prose.
 * **The pre-fix receipt rules are broken.**
   `Cadence/FallbackReceipt/PreFix.lean` pins the model checker's
-  *counterexample* to the paper's pre-2026-07-07 receipt rules. That file
-  builds only if the bug is still found, verbatim.
+  *counterexample* to the receipt rules as published in `arXiv:2607.02275v1`.
+  That file builds only if the bug is still found, verbatim.
 
 ## What this module does not import
 
@@ -83,7 +84,7 @@ Anyone can re-derive them by hand: drop the `#guard_msgs in` line and run
 
 Note what these pins do *and do not* say. They say: the theorem's proof term
 is complete and kernel-checked from Lean's axioms. They do **not** say that
-the *statement* is the right one — that the model faithfully formalizes the
+the *statement* is the right one — that the model faithfully formalises the
 protocol, and that the assumptions the statements are conditioned on are
 sound, is the part an auditor has to read, and it is inventoried in
 [docs/Architecture.md](./docs/Architecture.md) §4.

@@ -48,10 +48,8 @@ automatically: `vote` preserves `fb_neg_no_pos_quorum`. The proof applies
 witness quorum (`local_fb_neg_qv`) and the claimed post-state vote
 supermajority — and closes with `fb_neg_qv_no_pos_quorum`; against `vote`'s
 bulk signature update, cvc5's e-matching diverges instead of finding this
-single instantiation. Stated verbatim as the canonical VC statement (originally a stub from
-Veil's "insert theorem stubs" suggestion; pre-M6 an `@[veil]` interactive
-discharger for the in-file sweep — now a preproven cell the
-`#prove_action` below consumes as-is after a statement check). The conjunct indices (14/17/78/80/81) in the `hinv.2.…` projections follow the
+single instantiation. Stated verbatim as the canonical VC statement, so the
+`#prove_action` below consumes it as-is after a statement check. The conjunct indices (14/17/78/80/81) in the `hinv.2.…` projections follow the
 declaration order of the safety properties and invariants in this file —
 adjust them when adding or reordering declarations before this point. -/
 theorem vote_fb_neg_no_pos_quorum (ρ : Type) (σ : Type) (slot : Type) [slot_dec_eq : DecidableEq.{1} slot]

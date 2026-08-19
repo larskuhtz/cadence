@@ -1,11 +1,11 @@
 import Cadence.Cadence
 import Cadence.Conductor
 
-/-! # Composition layer (plan phase C4)
+/-! # Composition layer
 
 Plain-Lean theorems connecting the verified Veil modules to the module
 contracts of [`Interfaces.lean`](./Interfaces.lean), per
-`docs/ConductorPlan.md` §5.2. Everything here consumes the
+`docs/ConductorDesign.md` §5.2. Everything here consumes the
 per-VC theorems persisted by the `#gen_theorems` commands in the module
 files (named `<Module>.<action>_<property>` / `<Module>.initializer_<property>`)
 and composes them, by ordinary induction over the generated
@@ -666,7 +666,7 @@ theorem invariants_of_reachable
 
 /-! ### Conductor ⊨ Orchestrator
 
-The instance theorem of `docs/ConductorPlan.md` §5.2: from any reachable
+The instance theorem of `docs/ConductorDesign.md` §5.2: from any reachable
 Conductor state, the data the Cadence glue consumes — who is correct,
 which slots each validator has opened/completed — forms an `Orchestrator`
 structure (`Interfaces.lean`), with the one formal contract field,
@@ -724,9 +724,9 @@ end Conductor
 
 /-! ## The pinned trust base
 
-Both composition artefacts rest on the standard Lean trio alone (P8,
-2026-07-10): the persisted VC theorems this file composes are
-kernel-checked reconstructed proofs, with **no `sorryAx`**. A regression
+Both composition artefacts rest on the standard Lean trio alone: the
+persisted VC theorems this file composes are kernel-checked reconstructed
+proofs, with **no `sorryAx`**. A regression
 that reintroduces trusted SMT anywhere below these theorems (e.g. a module
 sweep silently falling back to `veil.smt.trust true`) fails these guards. -/
 

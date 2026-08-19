@@ -1,12 +1,12 @@
 # The scenario this project is built for
 
 *Why the repository is arranged the way it is: who edits what, who maintains
-the proofs, and what an auditor is being asked to trust. This is a statement of
-intent and of the target workflow — some of it is realised today (the model /
-proof-file split, the machine-derived audit pins), some is the direction of
-travel. For what is actually proven, read [`../README.md`](../README.md).*
+the proofs, and what an auditor is being asked to trust. This describes a target
+workflow. Parts of it are realised today — the model / proof-file split, the
+machine-derived audit pins — and parts are not yet. For what is proven, read
+[`../README.md`](../README.md).*
 
-## TL;DR
+## Summary
 
 1. Model and top level properties must be human comprehensible and editable.
 2. After the initial setup, users are more likely to change the model than the properties.
@@ -91,7 +91,7 @@ A common workflow is as follows:
       copy-and-pasting and no correspondence check by any tool other than
       Lean itself: auditors verify that the declared property says what they
       mean, and the kernel checks the rest.
-   3. Completeness is obtained by internalization, not by tooling: the top
+   3. Completeness is obtained by internalisation, not by tooling: the top
       level property is one declared proposition (e.g. `model ⊨ properties`),
       so a single theorem stating it forces every lower-level obligation to
       exist — a missing case is a type error, not a silent gap. The same
@@ -120,7 +120,7 @@ optimized for this scenario.
 
 In order for the system to be scalable, modular reasoning should be supported
 when monolithic proofs are expensive or not feasible. A common approach is to
-abstract/axiomatize sub-protocols and primitives via type classes and to prove
+abstract/axiomatise sub-protocols and primitives via type classes and to prove
 instances of these classes separately. Components can then establish theorems
 relative to these abstractions. Top level properties are established by
 composing theorems about concrete instantiations of all components.

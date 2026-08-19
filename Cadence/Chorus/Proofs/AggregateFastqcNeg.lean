@@ -32,12 +32,12 @@ set_option linter.unusedTactic false
 
 namespace Chorus.Proofs
 
-/-! ### Build #11 manual discharges
+/-! ### Manual discharges
 
-Three VCs that were SMT-green in Build #10 fell into e-matching divergence
-when the `Invariants` clump grew to 92 conjuncts (run-to-run: different
-subsets of the three time out at any budget — 300 s/400 s/900 s all
-observed). Each proof is short and mirrors an existing template above:
+Three VCs that SMT cannot solve at this clump size: they fall into
+e-matching divergence, and run-to-run different subsets of the three time
+out at any budget (300 s, 400 s and 900 s all observed), so no budget
+fixes them. Each proof is short and mirrors an existing template above:
 
 * `broadcast_commitqc_pos × progress_fallback_signing` — pure frame: the
   action touches only `msg_commitqc_pos`, which the invariant never

@@ -23,18 +23,17 @@ They play the same two roles as the cryptographic classes in
    (b) the discharging artefact — a proven Veil invariant of the
    implementing module, or a named meta-axiom for genuinely temporal
    properties.
-2. **Targets for instantiation**: the C4 composition layer (see
-   `docs/ConductorPlan.md` §5) instantiates the
+2. **Targets for instantiation**: the composition layer (see
+   `docs/ConductorDesign.md` §5) instantiates the
    safety-shaped fields from the implementing modules' `#gen_spec`-generated
    reachable-state theorems.
 
-The classes live in this separate file (rather than `Primitives.lean`, where
-`docs/ConductorPlan.md` §2 originally placed them) **deliberately**:
-`Chorus.lean` imports `Primitives.lean`, so extending that file would
-invalidate Chorus's compiled artefact and force a full ~45-minute
-re-verification sweep. Keeping the module contracts here preserves the
-build modularity the plan calls for — `Chorus` is finished and its oleans
-stay valid; only the new modules (`Cadence`, `Conductor`) import this file.
+The classes live in this separate file rather than in `Primitives.lean`,
+**deliberately**: `Chorus.lean` imports `Primitives.lean`, so extending
+that file would invalidate Chorus's compiled artefact and force a full
+re-verification sweep. Keeping the module contracts here is what makes
+editing the small models cheap — Chorus's oleans stay valid, and only
+`Cadence` and `Conductor` import this file. Do not move them.
 
 ## Formalisation convention: safety fields vs. temporal obligations
 
@@ -76,7 +75,7 @@ instance's sole output is the finalization of a single *proposal vector* `V`
 Chorus finalizes a proposal vector *per-proposer* (relations
 `local_committed_pos i j m` / `local_committed_neg i j`); the abstract
 `pvector` of this class corresponds to the total per-proposer map a
-validator holds when `local_committed i` is set. The C4 instance theorem
+validator holds when `local_committed i` is set. The instance theorem
 constructs `finalized`/`includes` from those relations.
 
 ### On `correct`
@@ -141,7 +140,7 @@ through `Φ_oc = ℓ_chorus + d_tot`); orchestrators built on a slot consensus
 without this property do not achieve the paper's `d_tot`-totality. The
 property is temporal, so this class adds no formal fields — it is a marker
 carrying the documented obligation, kept separate so that `SlotConsensus`
-remains exactly the paper's module (`docs/ConductorPlan.md` §2).
+remains exactly the paper's module (`docs/ConductorDesign.md` §2).
 
 Discharge: meta-level, from Chorus's totality argument (a finalizing
 validator's commitment proof — a commitQC or, since the 2026-07-07
@@ -215,7 +214,7 @@ single output: `open(s)` (a slot never opened is implicitly *skipped*).
 
 ### Obligation table
 
-| Property (paper, `mod:orchestrator_2`) | Kind | Discharged by (Conductor, C3) |
+| Property (paper, `mod:orchestrator_2`) | Kind | Discharged by (`Conductor.lean`) |
 |---|---|---|
 | Totality (eventual) | documented, **(A-orch-totality)** | meta: per-window induction `lemma:conductor-totality` (strengthened to `d_tot`-totality when run within Cadence) |
 | Integrity, "at most once" | documented (event counting is not state-visible) | Conductor window-entry integrity (`lemma:window-entry`: windows entered once; each window opens each of its slots once) |

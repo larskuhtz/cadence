@@ -19,7 +19,7 @@ come first.
   [`Architecture.md`](./Architecture.md) §4. `MVBA` and `ThresholdIBE` are
   still axiomatic classes with no model instance: producing one would
   demonstrate the axiom set is satisfiable rather than accidentally
-  contradictory. `ChorusDesign.md` §9 item 2.
+  contradictory. `ChorusDesign.md` §9 item 1.
 * **Non-vacuity of the safety claims.** Each model carries `sat trace`
   reachability witnesses so that the properties are not vacuously true (if
   finalization were unreachable, agreement would hold trivially). The receipt
@@ -33,13 +33,13 @@ come first.
   A small Lean meta-program that walks each action's syntax and flags negative
   occurrences of a relation declared "network" would turn the top item of
   [`Architecture.md`](./Architecture.md) §4 into a machine check.
-  `ChorusDesign.md` §9 item 5.
+  `ChorusDesign.md` §9 item 3.
 
 ## Liveness
 
 The fair-progress *safety content* is machine-checked; the temporal glue is
-not (see [`Liveness.md`](./Liveness.md) for the approach and
-[`LivenessNotes.md`](./LivenessNotes.md) for what the Chorus encoding does).
+not ([`ChorusDesign.md`](./ChorusDesign.md) §7 is what the Chorus encoding
+does, [`Liveness.md`](./Liveness.md) the approach to closing the gap).
 Remaining:
 
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
@@ -51,15 +51,69 @@ Remaining:
 * Reachability-directed trace generation, so that non-vacuity witnesses for
   the *progress* invariants can be produced mechanically rather than written
   by hand.
+* Decompose (A-mvba). It currently collapses MVBA termination, partial
+  synchrony and quorum availability into one black-box assumption; splitting
+  it into a GST phase marker, per-action quorum-availability premises, and
+  the probability-1 argument as a separate paper proof would make the
+  model-to-reality gap legible item by item.
 
 ## Model hygiene
 
 * Retire remaining cryptic abbreviations in state and action names; keep the
   `msg_` prefix convention on every network relation (it is what makes the
   monotonicity audit above tractable by grep).
-* Prune comments describing superseded versions of the model — they are the
-  main source of stale reading in the big files.
+* Keep comments describing the model as it *is*. A comment that explains a
+  superseded version reads as current to anyone who does not already know
+  the history, which is the most expensive kind of documentation error here.
 * Format the sources consistently against the Lean 4 style guide.
+
+## Model structure — refactors explored and deferred
+
+### Atomic-action candidates
+
+The atomic-action pattern was applied successfully to `vote`. Four
+analogous candidates were *not* applied:
+
+| Candidate | Status | Reason |
+|---|---|---|
+| `cast_commit` = `commit_sign_pos` + `commit_sign_neg` + `cast_fast_commit` | Deferred | A/B `#check_vc cast_commit agreement_pos` ran in 1420 s wall / 245 s user CPU. Most likely the wall-time blowup was discharger-scheduler contention rather than genuine SMT cost (245 s of CPU against 1 420 s of wall). With the two new `commit_pos_sig_unique` / `commit_pos_sig_neg_excl` lemmas now stated explicitly, a re-test via `#check_action cast_commit` (bundles VCs under one awaiter — less contention surface) is the right next experiment. If that's clean, integrate. |
+| `fb_vote` = `fb_sign_pos` + `fb_sign_neg` + `cast_fallback_vote` | Not attempted | Bulk update body is more complex than vote/cast_commit because each per-proposer fb-sign decision depends on an *existential* quorum witness (`∃ q : nodeset, …`). Plausibly tractable as an atomic action but the quantifier shape is genuinely different. Worth its own A/B. |
+| `commit` = `commit_assign_pos` + `commit_assign_neg` + `finalize_commit` | Not attempted | Same shape as `cast_commit`; touches `agreement_pos` directly. If the `cast_commit` re-test goes well after the lemma additions, this is the natural next candidate. |
+| `mvba` = `mvba_decide_pos` + `mvba_decide_neg` + `mvba_terminate` | Not attempted | The MVBA per-proposer decisions are gated by certificate-evidence preconditions (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, etc., post-Build-#10) — combining into one atomic action means the precondition becomes "every proposer has *some* evidence", which is the `mvba_terminate` precondition today. Should compose cleanly. |
+
+The pattern for each is the same as `vote`/`cast_commit`: replace the
+three actions with one atomic action whose body has universally-quantified
+bulk updates on the per-proposer signature relations, with auxiliary
+uniqueness/exclusion invariants stated explicitly so cvc5 has direct
+hypotheses instead of multi-step chains.
+
+### Measuring a candidate
+
+Read the A/B numbers above with care: they were taken when every `#check_vc`
+build still paid the module's full DSL elaboration, and concurrent check
+commands contended for one discharger scheduler, so fixed cost dominates them.
+
+The recipe now is to put `#prove_vc Chorus <action> <property> by …` cells in
+a scratch file importing `Cadence.Chorus` — seconds per cell, since the model
+elaborates once and the proof cache makes a statement-unchanged rebuild a
+kernel replay. Prefer bundled measurement (`#check_action <action>`, many
+invariants under one awaiter) over per-VC checks: it is closer to how the
+action behaves in a full build.
+
+### Other ideas not pursued
+
+* **Payload-carrying pos/neg pairs** (`local_entry_*`, `committed_*`,
+  `mvba_decided_*`, `fastqc_*`, `fallbackqc_*`, `msg_*_sig`): would need
+  a Lean inductive (`inductive Outcome | none | pos (m : merkle_root) | neg`)
+  as the codomain of a `function`, since Veil's `enum` can't hold the
+  merkle_root payload. Plausibly correct but unclear whether the SMT
+  cost stays manageable — the per-VC cost change measured for the
+  payload-free `phase`/`path` enums was within noise, but those have a
+  qualitatively different encoding signature from payload-carrying
+  inductives. Not pursued.
+* **`procedure` for inductive decomposition**: investigated, but Veil
+  `procedure`s inline at WP elaboration — same transition relation as
+  inlining. They don't help SMT.
 
 ## Scope extensions
 
@@ -68,7 +122,7 @@ Remaining:
   placeholder. `ChorusDesign.md` §3.4 and §9.
 * **Epochs and proposer rotation**, and deriving `is_proposer` from a VRF
   rather than taking it as immutable configuration. `ChorusDesign.md` §9
-  item 3.
+  item 2.
 * **Monitor coverage** — positive-path emission, per-message emission at the
   network boundary, multi-slot (Conductor) traces, Byzantine
   validate-vs-admit tagging. [`Monitor.md`](./Monitor.md) §8.

@@ -453,7 +453,7 @@ Tool-level observations are not tracked here — see
   ghost-relation-heavy invariant clump.
 * Instantiate the whole module against concrete finite types (via
   `byzNodeSetFin`) to demonstrate end-to-end satisfiability of the
-  axiom set (tracked as [`ChorusDesign.md`](./ChorusDesign.md) §9 item 2; also
+  axiom set (tracked as [`ChorusDesign.md`](./ChorusDesign.md) §9 item 1; also
   guards against a vacuous safety claim — [`TODO.md`](./TODO.md),
   "Soundness"). Still open, and still the highest-value remaining item.
 
@@ -482,64 +482,3 @@ a proof term that Lean's kernel re-checks, so a ✅ means "kernel-checked".
 The cost of that switch — roughly 2× the CPU of a trusted sweep, and a
 reconstruction proof term per VC that has to be persisted somewhere — is what
 drove the per-action file layout (Build #18) and the proof cache (#19–#24).
-
-## Next steps (for a follow-up session)
-
-### Refactors explored, deferred
-
-The atomic-action pattern was applied successfully to `vote`. Four
-analogous candidates were *not* applied:
-
-| Candidate | Status | Reason |
-|---|---|---|
-| `cast_commit` = `commit_sign_pos` + `commit_sign_neg` + `cast_fast_commit` | Deferred | A/B `#check_vc cast_commit agreement_pos` ran in 1420 s wall / 245 s user CPU. Most likely the wall-time blowup was discharger-scheduler contention rather than genuine SMT cost (245 s of CPU against 1 420 s of wall). With the two new `commit_pos_sig_unique` / `commit_pos_sig_neg_excl` lemmas now stated explicitly, a re-test via `#check_action cast_commit` (bundles VCs under one awaiter — less contention surface) is the right next experiment. If that's clean, integrate. |
-| `fb_vote` = `fb_sign_pos` + `fb_sign_neg` + `cast_fallback_vote` | Not attempted | Bulk update body is more complex than vote/cast_commit because each per-proposer fb-sign decision depends on an *existential* quorum witness (`∃ q : nodeset, …`). Plausibly tractable as an atomic action but the quantifier shape is genuinely different. Worth its own A/B. |
-| `commit` = `commit_assign_pos` + `commit_assign_neg` + `finalize_commit` | Not attempted | Same shape as `cast_commit`; touches `agreement_pos` directly. If the `cast_commit` re-test goes well after the lemma additions, this is the natural next candidate. |
-| `mvba` = `mvba_decide_pos` + `mvba_decide_neg` + `mvba_terminate` | Not attempted | The MVBA per-proposer decisions are gated by certificate-evidence preconditions (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, etc., post-Build-#10) — combining into one atomic action means the precondition becomes "every proposer has *some* evidence", which is the `mvba_terminate` precondition today. Should compose cleanly. |
-
-The pattern for each is the same as `vote`/`cast_commit`: replace the
-three actions with one atomic action whose body has universally-quantified
-bulk updates on the per-proposer signature relations, with auxiliary
-uniqueness/exclusion invariants stated explicitly so cvc5 has direct
-hypotheses instead of multi-step chains.
-
-### Measuring a refactor candidate
-
-The A/B numbers above were dominated by fixed cost: every `#check_vc` build
-paid the module's DSL elaboration whatever the solver did, and concurrent
-check commands contended for one discharger scheduler. Two things changed
-since: the model file no longer runs a sweep (so it elaborates in ~90 s and
-cells are proven in small importing files), and the proof cache makes a
-statement-unchanged rebuild a kernel replay. The practical recipe today is to
-put `#prove_vc Chorus <action> <property> by …` cells in a scratch file
-importing `Cadence.Chorus` — seconds per cell — and to prefer bundled
-measurement (`#check_action <action>`, many invariants under one awaiter) over
-per-VC checks when judging an atomic-action refactor, since the bundled form
-is closer to how the action behaves in a full build.
-
-### Other ideas not pursued
-
-* **Payload-carrying pos/neg pairs** (`local_entry_*`, `committed_*`,
-  `mvba_decided_*`, `fastqc_*`, `fallbackqc_*`, `msg_*_sig`): would need
-  a Lean inductive (`inductive Outcome | none | pos (m : merkle_root) | neg`)
-  as the codomain of a `function`, since Veil's `enum` can't hold the
-  merkle_root payload. Plausibly correct but unclear whether the SMT
-  cost stays manageable — the per-VC cost change measured for the
-  payload-free `phase`/`path` enums was within noise, but those have a
-  qualitatively different encoding signature from payload-carrying
-  inductives. Not pursued.
-* **`procedure` for inductive decomposition**: investigated, but Veil
-  `procedure`s inline at WP elaboration — same transition relation as
-  inlining. They don't help SMT.
-
-### Bookmarks
-
-* The atomic vote action: search for `action vote (i : node) {` in
-  [`Cadence/Chorus.lean`](../Cadence/Chorus.lean).
-* The derived certificates (ghost relations) sit directly after
-  `#gen_state`; the conditional-property hypotheses (`no_equivocation`,
-  `all_honest_recorded`) directly after them.
-* The commitQC-based finalization: `action commit_assign_pos` and the
-  `commitqc_pos` ghost.
-* Phase + path enums: `enum Phase = …` and `enum PathChoice = …` near
-  the top of the file.

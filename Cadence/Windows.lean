@@ -1,24 +1,23 @@
 import Veil
 
-/-! # Slot/window theory and the ACS median lemma (plan phase C2)
+/-! # Slot/window theory and the ACS median lemma
 
 Support theory for the Conductor orchestrator model
 ([`Conductor.lean`](./Conductor.lean)): the ordered slot/window structure
 and the order-statistics lemma justifying the median-range `require` of the
 Conductor's ACS-decide oracle action. Reference:
-`docs/ConductorPlan.md` §3 (new modelling ingredients 1–2)
+`docs/ConductorDesign.md` §3 (new modelling ingredients 1–2)
 and `papers/cadence/src/p2_conductor_proofs.tex` (`algorithm:conductor`,
 `line:median-compute`; median range validity is used in
 `prop:acs-nonoverlap` and `prop:window-open-time`).
 
-## How the plan's "ordered slot/window theory" resolved
+## Why the slot/window theory splits static from dynamic
 
-`docs/ConductorPlan.md` §3 proposed static uninterpreted functions
-(`win_of : slot → window`, `win_first/win_last : window → slot`) with Horn
-axioms. Working the design out against `algorithm:conductor` showed the
-window→interval assignment **cannot be static theory**: a window's first
-slot is decided *at runtime* by `ACS[ω]` (`line:median-compute`), so the
-assignment is execution-dependent state. The design therefore splits:
+The window→interval assignment **cannot be static theory** (uninterpreted
+`win_of : slot → window`, `win_first/win_last : window → slot` with Horn
+axioms, the obvious first encoding): a window's first slot is decided *at
+runtime* by `ACS[ω]` (`line:median-compute`), so the assignment is
+execution-dependent state. The design therefore splits:
 
 * **Static** — only the *index* structures:
   - `slot` gets `TotalOrderWithMinimum` (Veil `Frontend/Std.lean`): a total
@@ -31,15 +30,15 @@ assignment is execution-dependent state. The design therefore splits:
   Both classes come with proven `Fin (n+1)` instances in
   `Veil/Frontend/Std.lean`, so the axiom sets are demonstrably satisfiable
   — the instance discipline established for `ByzNodeSet` — and **no new
-  axioms are introduced by C2 at all**.
+  axioms are introduced at all**.
 * **Dynamic** — the window *intervals* `[first(ω), last(ω)]` (and the
   readiness boundary, the paper's "first `p` slots of the window") are
   *oracle state* in `Conductor.lean`: relations populated by the ACS-decide
   oracle action, unique per window by its `require`s (= ACS agreement).
   Cardinality facts ("exactly `W` slots wide", `prop:open-count-window`)
-  stay meta, per the plan's interval-formulation directive.
+  stay meta: the model states intervals, never cardinalities.
 
-This also disposes of the plan's flagged technical risk ("SMT behavior of
+This also disposes of the one real risk in the encoding ("SMT behavior of
 the ordered-type theory"): the only background theory the Conductor's VCs
 carry is two `TotalOrderWithMinimum` instances and one `TotalOrder` (for
 the abstract clock), each a small Horn axiom set of the shape Veil's
@@ -53,8 +52,8 @@ argument (stated after `lemma:window-entry`): the decided set contains at
 least `2f + 1` pairs of which at most `f` are Byzantine, so the median
 lies between two *correct* proposals. The Conductor model imports exactly
 this consequence as a `require` on its ACS-decide oracle action, with the
-two correct bracketing proposals as explicit action parameters (witnesses,
-per the Build #10 certificate-materialisation lesson). This file proves
+two correct bracketing proposals as explicit action parameters — witness
+materialisation, the discipline described below. This file proves
 the justifying lemma, in two layers:
 
 1. `IsMedian` — the abstract order-statistics property ("at least half the
@@ -63,7 +62,7 @@ the justifying lemma, in two layers:
    ≤ `f` are Byzantine-attributed is bracketed by two correct values.
    Stated over an abstract correctness predicate, *not* over cardinality
    of node sets — per the stake-weighting design rule of
-   `docs/ConductorPlan.md` §7 (a weighted instance re-proves `IsMedian`
+   `docs/ConductorDesign.md` §6 (a weighted instance re-proves `IsMedian`
    membership for its weighted median and inherits the bracketing).
 2. `lowerMedian` — the deterministic sorted-middle median an
    implementation computes — and `lowerMedian_isMedian`, the instance

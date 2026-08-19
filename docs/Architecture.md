@@ -1,26 +1,25 @@
 # Cadence verification — architecture
 
-*Top-level design document for this formalization. For orientation, build
+*Top-level design document for this formalisation. For orientation, build
 instructions, and the evidence-auditing guide, start at
 [README.md](../README.md); for the end theorems and their trust base on
 one page, [`Cadence.lean`](../Cadence.lean). This file explains how the
-formalization is structured, what each part establishes and by what
+formalisation is structured, what each part establishes and by what
 method, and exactly where its trust boundaries and meta-theoretic seams
 lie — **§4 is the audit checklist**: everything the machine does not
 establish, in one place. The per-model design rationale lives one level
-down: [ChorusDesign.md](./ChorusDesign.md) for the Chorus model, and the
-long module headers of
-[Cadence/Cadence.lean](../Cadence/Cadence.lean) /
+down: [ChorusDesign.md](./ChorusDesign.md) for the Chorus model, and
+[ConductorDesign.md](./ConductorDesign.md) plus the module headers of
+[Cadence/Cadence.lean](../Cadence/Cadence.lean) and
 [Cadence/Conductor.lean](../Cadence/Conductor.lean) for the
 composition-layer models.*
 
 ## 1. What is being verified
 
-The Cadence protocol (`arXiv:2607.02275v2`; see the root
-[README.md](../README.md) for the full citation and how the paper is cited
-here) is a BFT consensus design with
-three layers, and the formalization mirrors that decomposition
-one-to-one:
+[Cadence](https://www.category.xyz/cadence) (`arXiv:2607.02275v2`; see the
+root [README.md](../README.md) for the citation and how to resolve the label
+names used here) is a BFT consensus design with three layers, and the
+formalisation mirrors that decomposition one-to-one:
 
 * **Chorus** (`p2_chorus.tex`, `alg_*.tex`) — the per-slot one-shot
   consensus: `k` concurrent proposers, a two-round fast path, and a
@@ -33,10 +32,10 @@ one-to-one:
   runs one slot-consensus instance per slot under the orchestrator and
   assembles the MCP log. Modelled in [Cadence/Cadence.lean](../Cadence/Cadence.lean).
 
-Two auxiliary models exist because protocol bugs concentrate in dark
-corners: the **fallback receipt/propose layer**
+Two auxiliary models cover the layer where the protocol's per-validator
+reasoning is most intricate: the **fallback receipt/propose layer**
 ([Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) and companions), which
-mechanizes the per-validator layer where a real liveness bug was found
+mechanises the per-validator layer where a real liveness bug was found
 and fixed (see §5), and the *pre-fix* variant — the paper's receipt
 rules as they stood **before** that bug fix, i.e. as published in
 `arXiv:2607.02275v1` (§5; "pre-fix" is used in this sense throughout) —
@@ -109,8 +108,9 @@ instantiated:
   every `n = 3f+1` — [Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)
   (`evidence_pigeonhole_of_reachable`): a supermajority of honest
   fallback entries always yields certified per-proposer evidence
-  (FallbackQC or EquivCert) — formerly the liveness argument's one
-  deliberately meta-level counting step.
+  (FallbackQC or EquivCert). This is the counting step at the centre of
+  the fair-progress argument, and it is a theorem rather than an
+  assumption.
 
 **Method 4 — documented meta-theory.** What is deliberately *not*
 inside Lean is stated as named assumptions and audited by hand (§4).
@@ -126,7 +126,7 @@ The paper's headline properties and their formal counterparts:
 | Chorus Agreement (`lemma:chorus-agreement`) | `safety [agreement_pos]`, `[agreement_pos_neg]`; instance field `agreement` in `Cadence/Chorus/Compose.lean` | sweep + composition |
 | Chorus integrity | `safety [integrity_pos]`, `[integrity_pos_neg]` | sweep |
 | Proposal inclusion / censorship resistance (`lemma:chorus-proposal-inclusion`) | `safety [proposal_inclusion]`, `[proposal_inclusion_no_neg]` (premise `all_honest_recorded`); instance field `proposal_inclusion` | sweep + composition |
-| Hiding until the deadline (`lemma:chorus-hiding`) | protocol half: `safety [hiding_until_deadline]`; crypto half axiomatized (`ThresholdIBE`, [Cadence/Primitives.lean](../Cadence/Primitives.lean)) | sweep + axiom |
+| Hiding until the deadline (`lemma:chorus-hiding`) | protocol half: `safety [hiding_until_deadline]`; crypto half axiomatised (`ThresholdIBE`, [Cadence/Primitives.lean](../Cadence/Primitives.lean)) | sweep + axiom |
 | Speculative-finality revertibility claim | `safety [speculative_agreement_pos]`, `[..._pos_neg]` (conditional on `no_equivocation`) | sweep |
 | Chorus termination (`lemma:chorus-termination`) | fair-progress invariant layer + (F-\*)/(A-mvba) meta-axioms; untimed (no `ℓ` bound) | sweep + meta (§4) |
 | "Fallback meta-block valid by construction" (`alg:fallback` build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
@@ -169,8 +169,8 @@ relations, and it takes a human to confirm each use is positive.
    firing) is not encoded. (A-mvba)'s per-validator implementability
    premise is discharged by the receipt-layer models (§5) at the same
    meta seam. The argument's one counting step — the *evidence
-   pigeonhole* (`ChorusDesign.md` §7, x = 0 branch) — is **no longer
-   meta**: `Chorus.evidence_pigeonhole_of_reachable`
+   pigeonhole* (`ChorusDesign.md` §7, x = 0 branch) — is **not on this
+   list**: `Chorus.evidence_pigeonhole_of_reachable`
    ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)) proves it over
    reachable states for every `n = 3f+1`, from the `two_cover`
    pigeonhole and the named reachability projections.
@@ -219,17 +219,17 @@ Both sides of that are now citable against public artefacts: the buggy
 rules are those published in **`arXiv:2607.02275v1`** and the corrected
 design is **v2**, so "pre-fix" and "fixed" name immutable documents
 rather than an internal commit range. The episode drove two permanent
-artefacts in *this* formalization:
+artefacts in *this* formalisation:
 
 * the **fallback commit round** and the tightened wire format are
   modelled faithfully in `Cadence/Chorus.lean` rather than documented away, and
-* the receipt/propose layer itself is mechanized both ways:
+* the receipt/propose layer itself is mechanised both ways:
   the *shipped* design verified (including the counting argument, for
   every `n = 3f+1`, kernel-checked), and the *pre-fix* design refuted
   by exhaustive model checking, with the found counterexample — which
   is exactly the reported scenario — pinned in the build.
 
-This is the concrete sense in which the formalization "provides
+This is the concrete sense in which the formalisation "provides
 evidence the paper has no bugs": the one bug found so far was found by
 exactly this kind of formal scrutiny (by the Rocq effort), and this
 project's contribution is to keep both directions machine-checked
@@ -312,7 +312,7 @@ the next structural lever.
 ## 8. History
 
 Decision history and per-build records intentionally live outside this
-document: [History.md](./History.md) (build history, per-module status),
-[ConductorPlan.md](./ConductorPlan.md) (the completed C0–C4 plan and its
-deviations), [ChorusDesign.md](./ChorusDesign.md) §7.2/§9 (the bug record
-and the open-items ledger), and the git log.
+document: [History.md](./History.md) (build history, per-module status) and
+the git log. [ChorusDesign.md](./ChorusDesign.md) §7.2 carries the one
+protocol bug found so far, because that record is a result rather than a
+build log.

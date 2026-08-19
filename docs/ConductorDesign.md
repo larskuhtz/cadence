@@ -1,112 +1,14 @@
-# Conductor & Cadence composition — feasibility study and plan
+# Conductor & Cadence — module decomposition and design record
 
-*Historical. Written 2026-07-03, after the Chorus Build #10 paper-alignment
-refactor, as the working plan for extending the verification from the Chorus
-slot consensus to the Conductor orchestrator and the Cadence composition.
-**All phases C0–C4 are complete**; the plan is kept because its §2 (the
-module decomposition against the paper), §3 (what is safety-shaped versus what
-stays meta) and §5.2 (how "Chorus ⊨ SlotConsensus" is discharged) are still
-the rationale for how the code is arranged, and because other files cite it by
-section. For the current state read [`../README.md`](../README.md) and
-[`Architecture.md`](./Architecture.md); where the implementation deviated from
-this plan, the Status section below says so.*
-
-## Status (updated 2026-07-03, same-day implementation session)
-
-**C0–C3 are implemented and green.** See `History.md` ("Conductor & Cadence
-composition — verification status") for the build inventory. Deviations
-from the plan as written, each deliberate:
-
-* **C0** — the contract classes live in a new file
-  [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean), *not* `Cadence/Primitives.lean` as §2
-  says: `Cadence/Chorus.lean` imports `Cadence/Primitives.lean`, so extending it would
-  invalidate Chorus's olean and force a full re-sweep (~9 min). Obligation
-  tables are in the class docstrings as planned.
-* **C1** — [`Cadence/Cadence.lean`](../Cadence/Cadence.lean) (replaces the pre-Chorus
-  scaffolding that file held). One decomposition: the paper's bulk
-  implicit-skip recording is a separate per-slot `record_skip` action
-  (bulk order-conditioned updates need `decide`d order predicates, which
-  the trace pipeline cannot translate).
-* **C2** — [`Cadence/Windows.lean`](../Cadence/Windows.lean). The static
-  `win_of`/`win_first`/`win_last` theory of §3 turned out wrong in kind:
-  window intervals are ACS-*decided at runtime*, so they are oracle
-  state in the Conductor, and the static side reduces to the existing
-  `TotalOrderWithMinimum` (no new axioms at all). The median lemma is
-  fully proven in Lean (`lowerMedian_between_correct`), stated over an
-  abstract correctness predicate per §7's stake-weighting rule.
-* **C3** — [`Cadence/Conductor.lean`](../Cadence/Conductor.lean). The §3 invariant set is
-  discharged fully automatically (no manual `@[veil]` theorems needed —
-  the witness-materialisation discipline was applied up front: the
-  ACS-decide oracle takes the predecessor window and the lower median
-  witness as parameters). Boundedness is stated as the persisted
-  readiness residue (contrapositive of §3's tail-interval form — more
-  inductive). The upper median bracket is documented but not modelled
-  (only recovery timing consumes it, which is meta).
-* **C4** — done for Cadence/Conductor; Chorus leg **unblocked
-  2026-07-07** (was tooling-blocked 2026-07-06). Mechanism:
-  `#gen_theorems` in each module persists the discharged VCs as
-  environment theorems; [`Cadence/Composition.lean`](../Cadence/Composition.lean)
-  composes them by induction over the generated `reachable` relation
-  into `<Module>.invariants_of_reachable`, then projects. Done: Cadence
-  + Conductor inductions, the `Conductor ⊨ Orchestrator` instance
-  (`orchestrator_instance`), and **the paper's positional MCP Safety**
-  (`positional_log_safety` — `def:safety` over ordered logs, via the
-  generic `sorted_prefix_agreement` list lemma). The former blocker —
-  `#gen_theorems` on Chorus did not scale (witness retention → >40 GB;
-  lazy mode → a serial second sweep; see [`Architecture.md`](./Architecture.md)
-  §6) — was
-  removed by Veil's trusted statement-only persistence
-  (`veil.gen.trustedTheoremStubs`, Veil `2d889743`): Chorus now runs
-  `#gen_theorems` at no measurable cost (Build #14, 3 784 theorems,
-  +7.5 MB olean). Everything Chorus-side that the instance needs is in
-  place (the `[local_committed_complete]` invariant, green; persisted
-  theorems verified consumable) and the construction is worked out
-  (per-proposer decision maps as proposal vectors; agreement via
-  `agreement_pos`/`agreement_pos_neg` + completeness; inclusion via
-  `proposal_inclusion`/`_no_neg`). ✅ **C4 COMPLETE 2026-07-07**: a
-  generated composition module (the 97-declaration × 39-case
-  `invariants_of_reachable` induction over the Build #14 persisted theorems,
-  one bounded lemma per action case, **plus a named reachability projection
-  `Chorus.reachable_<property>` per declaration**, ending positional-index
-  consumption — since superseded by Veil's own `#gen_composition` in
-  [`Cadence/Chorus/Certify.lean`](../Cadence/Chorus/Certify.lean), and the
-  generator scripts deleted) and
-  [`Cadence/Chorus/Compose.lean`](../Cadence/Chorus/Compose.lean)
-  (`Chorus.slotConsensus_instance` — decision vectors gated on
-  `is_proposer`, the three formal `SlotConsensus` fields discharged;
-  trust base pinned by a `#guard_msgs` axiom check to exactly the
-  sweep's own `sorryAx` + the standard trio). Elaboration is a
-  non-event: 19 s for the generated file, 6 s for the instance.
-
-The §1 divergence flag (prose deadline-MVBA Conductor vs. proven
-slot-ACS Conductor) stands and is recorded in `Cadence/Conductor.lean`'s header;
-it still needs to be raised with the paper authors.
-
-## 0. TL;DR
-
-* **Feasibility: high** for everything that was in scope for Chorus
-  (safety proven in Veil; timing/liveness as documented meta-axioms plus
-  SMT-checked fair-progress). No Veil core changes required; all Build #10
-  techniques (oracle sub-protocols, certificate materialisation, history
-  variables, stub dischargers) carry over.
-* **Architecture: three Veil modules + a class layer**, mirroring the
-  paper exactly: `Chorus` (done) ⊨ SlotConsensus; new `Conductor` ⊨
-  Orchestrator (with ACS as an oracle); new `Cadence` glue module (the
-  paper's `algorithm:cadence`) consuming *both* primitives as oracles and
-  carrying the top-level MCP safety properties in slot-indexed form.
-* **Where the top-level properties live** (the open question): neither
-  "inside Conductor" nor "all in plain Lean". Conductor proves only the
-  orchestrator contract — it never sees finalized values, so it *cannot*
-  express log agreement. The MCP properties live in the thin `Cadence`
-  glue module (slot-indexed forms, SMT-checked), with the positional-log
-  and real-time-parameterised formulations (Def. safety over prefixes,
-  ℓ-liveness, c-censorship-resistance) derived on top in plain Lean /
-  meta — because those quantify over list positions and wall-clock time,
-  which the Veil layer deliberately abstracts.
-* **Effort estimate: ~4–8 focused sessions** to a green
-  Conductor + Cadence-glue with documented meta layer; +1–2 optional
-  sessions for Lean-level instance theorems connecting the layers
-  formally. Detailed phasing in §6.
+*The design rationale for the two smaller Veil models and the composition
+layer that joins them to Chorus: §1 how the paper describes the Conductor,
+§2 the module decomposition and the class layer, §3 what is safety-shaped in
+the Conductor versus what stays meta, §4 the Cadence glue module and where
+the top-level properties live, §5 how "Chorus ⊨ SlotConsensus" is discharged.
+Lean sources cite these sections by number. For what is proven read
+[`../README.md`](../README.md) and [`Architecture.md`](./Architecture.md); the
+models' own headers ([`../Cadence/Conductor.lean`](../Cadence/Conductor.lean),
+[`../Cadence/Cadence.lean`](../Cadence/Cadence.lean)) carry the detail.*
 
 ## 1. Source map (what to read)
 
@@ -157,7 +59,7 @@ four properties) is `p2_problem_definition.tex`.
               consumes  │ SlotConsensus oracle     │ Orchestrator oracle
                         │ (finalize per slot)      │ (open per slot)
         ┌───────────────┴───────────┐  ┌───────────┴───────────────┐
-        │ Chorus (done, Build #10)  │  │ Conductor (new)           │
+        │ Chorus                    │  │ Conductor                 │
         │ ⊨ SlotConsensus           │  │ ⊨ Orchestrator            │
         │ (MVBA as oracle)          │  │ (ACS as oracle)           │
         └───────────────────────────┘  └───────────────────────────┘
@@ -168,11 +70,16 @@ Chorus; and it is how Veil abstracts sub-routines generally): the
 consumed primitive's *safety* properties become `require` clauses of
 oracle actions (then lifted to invariants), its *liveness* properties
 become named meta-axioms ((A-mvba)-style), and the class in
-`Cadence/Primitives.lean` documents the full contract that an implementation
+`Cadence/Interfaces.lean` documents the full contract that an implementation
 must discharge. Each module is verified independently against the
-oracle contract — exactly the modularity requested.
+oracle contract.
 
-### Classes to add to `Cadence/Primitives.lean`
+### The class layer (`Cadence/Interfaces.lean`)
+
+The contracts live in their own file rather than in
+`Cadence/Primitives.lean`, deliberately: `Cadence/Chorus.lean` imports
+`Primitives`, so extending it would invalidate Chorus's olean and force a
+full re-sweep. Obligation tables are in the class docstrings.
 
 * `SlotConsensus` — agreement, slot safety, proposal inclusion
   (conditional on the synchrony premise), ℓ-termination, **and
@@ -232,27 +139,25 @@ Exactly the Chorus doctrine:
   arithmetic side conditions on constants — state them as documented
   assumptions; they only feed the timing lemmas.
 
-### New modeling ingredients (the actual technical risk)
+### Modelling ingredients beyond Chorus's
 
 1. **Ordered slot/window theory.** Chorus deliberately avoided
-   arithmetic. Conductor needs slot numbers with order and *window
-   structure*. Recommended encoding (keeps EPR-friendliness, follows the
-   NOPaxos `seq_t`/TotalOrder precedent): an uninterpreted `slot` type
-   with a total order, plus uninterpreted functions
-   `win_of : slot → window`, `win_first/win_last : window → slot`,
-   `win_next : window → window`, with Horn axioms tying them together
-   (first ≤ last, slots of a window form the interval, next-window
-   intervals are above, sync-boundary slot between first and last).
-   Prove the axioms satisfiable with a concrete ℕ instance (same
-   discipline the user set for ByzNodeSet: new axioms come with instance
-   proofs). Avoid raw `+W` arithmetic in the SMT layer.
+   arithmetic; Conductor needs slot numbers with order and *window
+   structure*. The window→interval assignment **cannot** be static
+   uninterpreted theory (`win_of`, `win_first/win_last` with Horn
+   axioms): a window's first slot is decided at runtime by `ACS[ω]`
+   (`line:median-compute`), so the assignment is execution-dependent
+   state. The encoding therefore splits — static order structure only
+   (`TotalOrderWithMinimum` on `slot` and `window`, no `+W` arithmetic in
+   the SMT layer), with the intervals themselves as oracle state in the
+   Conductor. That split introduces **no new axioms**; the details are in
+   [`../Cadence/Windows.lean`](../Cadence/Windows.lean).
 2. **Median / range validity.** The median of the decided ACS set lies
    between two correct proposals (≤ f faulty among ≥ 2f+1). This is
    order-statistics counting — same species as the ByzNodeSet counting
    axioms. Fold it into the window-decision oracle action as a `require`
    (`∃ honest r1 r2: proposal r1 ≤ s* ≤ proposal r2`), justified by a
-   Lean-proven median lemma for the concrete instance (small, ~the size
-   of the Build #10 ByzNodeSet additions).
+   Lean-proven median lemma for the concrete instance.
 3. **Abstract clock.** A monotone global `now` (ordered type, advanced
    by a nondeterministic tick action) with guards like
    `require start_time s ≤ now` on `open`. Timing *properties* stay
@@ -325,7 +230,7 @@ Model `algorithm:cadence` as its own small Veil module:
   recovery axioms and live at the meta layer, exactly like Chorus's
   ℓ-termination does today.
 * Hiding: the paper's composition lemma is one line (proposals only
-  flow through per-slot instances); at our abstraction the glue module
+  flow through per-slot instances); at this abstraction the glue module
   simply has no other channel — document, and keep the protocol-level
   share-gating theorem in Chorus (`hiding_until_deadline`).
 
@@ -340,62 +245,31 @@ which is the property that keeps the model reviewable against it.
 
 ## 5. Connecting the layers (how "Chorus ⊨ SlotConsensus" becomes real)
 
-Two levels, do the first now and treat the second as a stretch goal:
+Two levels, both in place.
 
-1. **Contract-mirroring (cheap, do in C1/C2):** the glue module's oracle
-   `require`s are stated to be *syntactically* the class properties, and
-   each class field carries a doc pointer to the discharging theorem
-   (`Chorus.agreement_pos`, `Chorus.proposal_inclusion`,
-   `Chorus.hiding_until_deadline`, meta-axiom names for
-   termination/totality). An obligation table in the class docstring
-   keeps this auditable.
-2. **Lean instance theorems (stretch, C4):** state the class over an
-   abstract "finalization predicate" and prove
-   `Chorus ⊨ SlotConsensus.safety-fields` by instantiating with Chorus's
-   committed-relations and citing the `#gen_spec`-generated
-   reachable-state theorems (the safety fields are precisely Chorus's
-   proven invariants, so the proofs are `exact`-level). A full
-   trace/refinement treatment is the ChorusDesign.md §10.1 research item —
-   explicitly out of scope here.
+### 5.1 Contract-mirroring
 
-## 6. Phased plan with effort estimates
+The glue module's oracle `require`s are stated to be *syntactically* the
+class properties, and each class field carries a doc pointer to the
+discharging theorem (`Chorus.agreement_pos`, `Chorus.proposal_inclusion`,
+`Chorus.hiding_until_deadline`, meta-axiom names for
+termination/totality). An obligation table in the class docstring keeps
+this auditable.
 
-Calibration: the Chorus paper-alignment refactor (Build #10) took one
-long session including all verification-engineering battles; the
-patterns discovered there (the "editing gotchas" of [`../CLAUDE.md`](../CLAUDE.md)) transfer.
+### 5.2 Lean instance theorems
 
-* **C0 — Classes + doc scaffolding (~½ session).**
-  `SlotConsensus`, `ACS`, `Orchestrator` classes in `Cadence/Primitives.lean`
-  with obligation tables; reconcile naming with `mod:*` anchors. Flag
-  the two-Conductor-versions divergence to the paper authors.
-* **C1 — Cadence glue module (~1–2 sessions).** Small state machine +
-  two oracles; slot-indexed MCP safety invariants; fair-progress
-  scaffolding for the append chain. Lowest-risk phase; all hard
-  consensus content is behind oracles. Deliverable: green sweep.
-* **C2 — Slot/window theory + median lemma (~1 session).** The ordered
-  `slot`/`window` classes with Horn axioms + ℕ instance proofs; the
-  median range-validity lemma (ByzNodeSet-style, with instance proof).
-* **C3 — Conductor module (~2–4 sessions).** State machine per
-  `algorithm:conductor` with ACS as oracle and the abstract clock;
-  safety invariants from §3; fair-progress + (A-acs)/(A-slot-consensus)
-  meta-axioms mirroring the paper's per-window induction. Risk: SMT
-  behavior of the ordered-type theory (mitigations: Horn-only axioms,
-  interval formulations instead of cardinalities, Build #10 stub
-  workflow for stragglers). Deliverable: green sweep + updated
-  Design/Notes docs.
-* **C4 — Lean composition layer (optional, ~1–2 sessions).** Instance
-  theorems (§5.2) + the positional-log safety corollary as a plain-Lean
-  theorem. Independent of C1–C3 being useful.
+The class is stated over an abstract "finalization predicate" and
+`Chorus ⊨ SlotConsensus`'s safety fields are proven by instantiating with
+Chorus's committed-relations and citing the persisted reachable-state
+theorems — the safety fields are precisely Chorus's proven invariants, so
+the proofs are `exact`-level
+([`../Cadence/Chorus/Compose.lean`](../Cadence/Chorus/Compose.lean)). A
+full trace/refinement treatment is the `ChorusDesign.md` §10.1 research
+item — out of scope here.
 
-Total: **4–8 sessions** for C0–C3; C4 optional on top. Nothing requires
-changes to Veil itself (unlike Build #10's `modelCheckScaffolding`
-option, none is currently foreseen — the one candidate would be better
-support for background arithmetic types if the Horn-axiom encoding
-disappoints).
+## 6. Stake weighting
 
-## 7. Stake weighting (parked, by request)
-
-The door is already open: every quorum argument in Chorus goes through
+Out of scope, but not precluded: every quorum argument in Chorus goes through
 the `ByzNodeSet` *predicates* (`supermajority`, `greater_than_third`)
 and its counting axioms — never through explicit cardinalities. A
 stake-weighted deployment is a different *instance* of the same class
@@ -416,19 +290,16 @@ the f+1-of-n decode threshold) and does not block the consensus-layer
 model; Chorus's chunk quorums would follow whatever quorum predicate the
 weighted instance provides.
 
-## 8. Known gaps / items to flag
+## 7. Scope notes
 
 * The prose Conductor (`p2_conductor.tex`) and the formal Conductor
-  (`§section:conductor-formal`) disagree (deadline-MVBA vs. slot-ACS);
-  the formal one is proven — model it, and surface the divergence.
-* `mod:orchestrator_2`'s R-Recovery ("opens s *at* its starting time")
-  vs. the Conductor-module draft's weaker "Liveness" — the proofs
-  establish (2Wτ)-recovery in the strong sense; use the strong form.
-* Validator-set changes / epochs / proposer rotation
-  (`papers/specification` §rotation) are outside both papers'
-  consensus-layer treatment — keep `s.proposers` an immutable per-slot
-  relation for now (generalizing Chorus's single-slot `is_proposer`).
+  (`§section:conductor-formal`) disagree (deadline-MVBA vs. slot-ACS).
+  The formal one is what the paper proves, and it is what the model
+  follows.
+* Validator-set changes, epochs and proposer rotation are outside the
+  paper's consensus-layer treatment: `s.proposers` is an immutable
+  per-slot relation (generalizing Chorus's single-slot `is_proposer`).
 * Chorus's `participate()/abandon()` conformance (the glue calls
   abandon only after finalize) is currently a documented scope note in
   Chorus; the glue module makes it checkable structurally (abandon
-  action gated on finalize) — a small faithfulness win of C1.
+  action gated on finalize) — the glue module makes it structural.

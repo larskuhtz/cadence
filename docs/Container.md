@@ -43,7 +43,7 @@ most memory-hungry thing in this project. Two traps:
 * Apple's `container` builds images inside a **separate builder VM** whose
   resources are independent of `container run`, defaulting to **2 CPUs / 2 GB**.
   That is far too small: the dependency layer stalls part-way through Veil with
-  no error message at all. `scripts/container.sh` resizes it for you
+  no error message at all. `scripts/container.sh` resizes it automatically
   (`BUILDER_CPUS`, `BUILDER_MEMORY`, default 8 / 24G); by hand it is
   `container builder stop && container builder start --cpus 8 --memory 24G`.
   Podman and docker build inside their normal machine, so size that instead.
@@ -148,28 +148,27 @@ Because layers are shared, the second image is nearly free:
 | `verified` | `verified-cache` | 1371 MiB |
 
 **Build every target in one pass before pushing.** Layer sharing only happens
-when the images were built from the same Containerfile state. While preparing
-this I left a `deps` tag one build stale, and it cost an extra 2.8 GiB of
-registry storage and turned that 251 MiB pull into a 3 GiB one — with nothing to
-warn you, since both images work fine.
+when the images were built from the same Containerfile state. Leaving one tag a
+build stale costs about 2.8 GiB of registry storage and turns the 251 MiB pull
+above into a 3 GiB one. Nothing warns about it, because both images still work.
 
 zstd instead of gzip saves about 9 % (`verified` 3.59 GiB, `verified-cache`
-4.75 GiB) and compresses a little slower. It is not obviously worth it here:
-gzip is pullable by every client, whereas zstd layers need a recent one (podman
-4+, or docker with the containerd image store). Use `--compression-format zstd`
-if you know your consumers.
+4.75 GiB) and compresses a little slower — a poor trade by default, since gzip
+is pullable by every client whereas zstd layers need a recent one (podman 4+, or
+docker with the containerd image store). Use `--compression-format zstd` if the
+consumers are known.
 
 ### Why the images are the size they are
 
-They are close to irreducible, and it is worth knowing why before trying to
-shrink them. Measured by asking `lake build --no-build` — which reports whether
-anything is out of date without doing the work — after removing each candidate:
+They are close to irreducible. Each candidate below was measured by removing
+it and asking `lake build --no-build`, which reports whether anything is out of
+date without doing the work:
 
 | candidate | size | can it go? |
 |---|---|---|
 | `lib/lean` in the Lean toolchain | 2.5 GB | **no** — 1.1 GB of `*.olean.private`, 331 MB of `*.olean`, 226 MB of shared libraries. This is just Lean 4.28 on arm64 |
 | installed clang-18 + libc++ + Node | 722 MB | **no** — the cvc5 binding's FFI shim hardcodes `clang -std=c++17 -stdlib=libc++`, and Veil's widget target needs `npm` |
-| Mathlib's `.olean` tree | 5.6 GB | **no** — this is what you are here for |
+| Mathlib's `.olean` tree | 5.6 GB | **no** — the prebuilt dependency the images exist to ship |
 | generated `.c` files | 485 MB | **no** — a declared lake output; removing it makes every module out of date |
 | native objects (`.c.o.export`) | 374 MB | **no** — likewise |
 | `.ilean` editor metadata | 259 MB | **no** — likewise (lake tracks it per module) |
@@ -177,10 +176,10 @@ anything is out of date without doing the work — after removing each candidate
 | toolchain static archives (`libLean.a` …) | 363 MB | prunable, but not *reclaimable*: they live in the `toolchain` layer, where `deps` still needs them to link Mathlib's `cache` executable, and a delete in a later layer frees nothing |
 | widget `node_modules` + npm cache | 113 MB | **yes** — removed in the same layer that creates them |
 
-The one genuinely large saving was a bug rather than fat: the proof cache used to
-be stored **twice** — once by `COPY .`, once by the `RUN` that installed it —
-because a `rm` in a later layer reclaims nothing. Fixing that plus splitting the
-cache into `verified-cache` took the audit image from 22 GB to 13.1 GB.
+The general rule behind the table: a `rm` in a later layer reclaims nothing, so
+anything copied in must be consumed or deleted **in the same layer**. Storing
+the proof cache once, in the layer that installs it, and splitting it out into
+`verified-cache` is what keeps the audit image at 13.1 GB rather than 22 GB.
 
 A `.containerignore` keeps the build context to the sources. Without it `COPY .`
 would ship a developer's local `.lake` — up to 17 GB — *over* the image's
@@ -188,8 +187,8 @@ prebuilt dependency tree, quietly producing a broken image.
 
 ## 3. What an olean does and does not establish
 
-This is the part worth reading slowly, because it decides what a published
-`verified` image is worth.
+This section decides what a published `verified` image is worth, so it is the
+part an auditor should read closely.
 
 * **`import` never re-typechecks.** An `.olean` is a serialized image of a
   module's environment; importing it memory-maps the file and merges the

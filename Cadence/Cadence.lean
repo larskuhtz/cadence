@@ -6,8 +6,8 @@ import Cadence.Tooling
 
 *Note: opening this file in a Lean-enabled editor re-runs its verification
 sweep in the language server (~1 min, one SMT solve per VC). Prefer
-`lake build Cadence.Cadence`; see `README.md` § "Before you open
-these files in an editor".*
+`lake build Cadence.Cadence`; see `README.md` § "Opening the files in an
+editor".*
 
 This module is the paper's `algorithm:cadence`: the thin layer that wires a
 single **Orchestrator** instance `O` and one **SlotConsensus** instance
@@ -18,7 +18,7 @@ single **Orchestrator** instance `O` and one **SlotConsensus** instance
 class fields of [`Interfaces.lean`](./Interfaces.lean) — and those requires
 are lifted to invariants. The module is verified against the contracts
 only; `Chorus` (⊨ `SlotConsensus`) and `Conductor` (⊨ `Orchestrator`)
-discharge them independently. See `docs/ConductorPlan.md`
+discharge them independently. See `docs/ConductorDesign.md`
 §2 and §4 for the architecture and
 `papers/cadence/src/p2_framework.tex` for the reference
 (`mod:slotconsensus`, `mod:orchestrator_2`, `algorithm:cadence`,
@@ -29,7 +29,7 @@ discharge them independently. See `docs/ConductorPlan.md`
 The MCP properties (`p2_problem_definition.tex` / the commented preamble of
 `p2_framework.tex`) live here in **slot-indexed** form; the positional-log
 and wall-clock-parameterised formulations are derived on top at the
-plain-Lean / meta layer (C4 of the plan), never inside SMT:
+plain-Lean / meta layer ([`Composition.lean`](./Composition.lean)), never inside SMT:
 
 * **Safety** (`def:safety`, prefix consistency of local logs;
   `lemma:cadence-safety`) — decomposed exactly as the paper's two proof
@@ -40,7 +40,7 @@ plain-Lean / meta layer (C4 of the plan), never inside SMT:
   open-prefix agreement). The positional statement (`local_log(p,t)`
   prefix consistency as ordered lists) follows from these two by the
   paper's own case split — a list lemma over the slot-indexed relations,
-  deferred to the C4 layer because list positions are arithmetic the Veil
+  deferred to the composition layer because list positions are arithmetic the Veil
   layer deliberately avoids.
 * **ℓ-Liveness** (`def:liveness`, `lemma:cadence-liveness`) — genuinely
   temporal (GST, `R`-recovery, ℓ-termination); meta-level, see the
@@ -97,7 +97,7 @@ exclusively through the two oracles, and the oracle contracts (all
 `require`s below) constrain only *honest* validators' events, quantifying
 over honest peers only. Byzantine rows of the local relations simply stay
 empty; no honest action or invariant reads them. (Rationale:
-`docs/ConductorPlan.md` §3 "Adversary"; the same argument the paper makes by
+`docs/ConductorDesign.md` §3 "Adversary"; the same argument the paper makes by
 stating every module property for correct validators only.) Consequently
 this module needs no quorum machinery and no `ByzNodeSet` — faithful to
 the paper's remark that the framework imposes no resilience threshold of
@@ -109,7 +109,7 @@ its own (`p2_framework.tex`, "On the generality of the framework"): the
 The `finalized` relation is indexed by the slot: `sc_finalize i s v` is
 the event "`S[s]` finalizes `v` at `i`". A finalized vector's slot field
 equalling `s` (`mod:slotconsensus` slot safety, `SlotConsensus.slot_safety`)
-is thereby definitional here; the C4 instance theorem re-establishes the
+is thereby definitional here; the composition instance theorem re-establishes the
 connection explicitly when constructing the slot-indexed relation from
 Chorus's per-instance state.
 -/
@@ -119,7 +119,7 @@ veil module Cadence
 /-! ## Types -/
 
 -- Slot identifiers, totally ordered by slot number (`s.number`; we never
--- need the number itself, only the order — cf. `docs/ConductorPlan.md` §3 on
+-- need the number itself, only the order — cf. `docs/ConductorDesign.md` §3 on
 -- keeping arithmetic out of the SMT layer).
 type slot
 -- Validator identity.
@@ -140,7 +140,7 @@ instantiate slot_ord : TotalOrder slot
 immutable relation is_byz (i : node)
 -- `j ∈ s.proposers`. Immutable per-slot proposer assignment (generalises
 -- Chorus's single-slot `is_proposer`; validator-set changes / rotation are
--- out of scope — `docs/ConductorPlan.md` §8).
+-- out of scope — `docs/ConductorDesign.md` §7).
 immutable relation is_proposer (j : node) (s : slot)
 -- `V[j] = P`: proposal vector `v` maps proposer `j` to proposal `p`. A
 -- vector's content is fixed data, hence immutable.
@@ -167,8 +167,9 @@ relation skipped (i : node) (s : slot)
 -- (the two disjuncts of `ready_to_append`, `line:func-ready-to-append-return`).
 -- Kept as a real relation updated alongside `skipped`/`appended` so the
 -- append guard is a single positive quantifier-free-per-instance lookup
--- instead of a `∀∃` alternation (the Build #10 materialisation lesson —
--- `docs/History.md` "Verification engineering").
+-- instead of a `∀∃` alternation: materialising the marker keeps the deep
+-- reasoning at the action that establishes it, rather than making every
+-- consumer re-derive it.
 relation resolved (i : node) (s : slot)
 -- Finalize events: `S[s]` finalized `v` at `i` (`line:upon-finalize`).
 -- The paper's `pending_i` is the ghost difference `finalized ∧ ¬ appended`
@@ -178,7 +179,7 @@ relation finalized (i : node) (s : slot) (v : pvector)
 -- `i` has invoked `O.complete(s)` (`line:complete`).
 relation completed (i : node) (s : slot)
 -- `i`'s local log, as a slot-indexed relation (`line:append`). The
--- ordered-list view is recovered from slot order at the C4 layer.
+-- ordered-list view is recovered from slot order at the composition layer.
 relation appended (i : node) (s : slot) (v : pvector)
 -- `i` has invoked `S[s].propose(·)` (`line:propose`).
 relation proposed (i : node) (s : slot)
@@ -252,11 +253,11 @@ state-level rendering per `Interfaces.lean`:
   validator skips past `s`, the contract forbids `s` from ever being
   opened — else totality would be violated).
 * integrity's clock half ("not before the starting time") needs a clock
-  and lives in the Conductor module (C3), where it is a guard on the
+  and lives in the Conductor module, where it is a guard on the
   open-scheduling action; it has no residue at this untimed layer.
 
 Discharge pointers: (a)/(b) ↦ Conductor `[open_prefix_agreement]`-family
-invariants (C3), from ACS window-assignment agreement
+invariants, from ACS window-assignment agreement
 (`prop:window-agreement`) + in-window scheduling order (`prop:fate-order`);
 integrity ↦ Conductor window-entry integrity (`lemma:window-entry`). -/
 action orch_open (i : node) (s : slot) {
@@ -380,7 +381,7 @@ safety [log_agreement]
 `V₁.slot ≠ V₂.slot`): no slot is opened by one honest validator and
 skipped by another — the state-level content of "the two validators
 resolved all preceding slots identically". With `[log_agreement]` this
-yields prefix consistency of the ordered logs (the C4 list lemma). -/
+yields prefix consistency of the ordered logs (the composition layer's list lemma). -/
 safety [skip_agreement]
   ∀ (i j : node) (s : slot),
     ¬ is_byz i ∧ ¬ is_byz j ∧ opened i s → ¬ skipped j s
@@ -490,7 +491,7 @@ invariant [sc_abandoned_iff_completed]
   ∀ (i : node) (s : slot),
     ¬ is_byz i → (sc_abandoned i s ↔ completed i s)
 
-/- The Chorus conformance note made structural (`docs/ConductorPlan.md` §8):
+/- The Chorus conformance note made structural (`docs/ConductorDesign.md` §7):
 the glue abandons a slot-consensus instance only after finalizing it. -/
 invariant [abandoned_after_finalize]
   ∀ (i : node) (s : slot),
@@ -524,7 +525,7 @@ meta-axioms, safety content SMT-discharged. The claim mirrored is
 * **(A-orch-totality)**, **(A-orch-recovery)** — the orchestrator oracle
   eventually opens, at every honest validator, every slot any honest
   validator opened (totality), and — from `GST + R` on — every upcoming
-  slot (recovery). Discharge: Conductor C3 meta layer
+  slot (recovery). Discharge: the Conductor module's meta layer
   (`lemma:conductor-totality`, `(2Wτ)`-recovery).
 * **(A-sc-termination)** — once every honest validator has started
   participating in `S[s]`, the finalize oracle eventually fires at every
@@ -557,7 +558,7 @@ invariant [pending_append_enabled]
   ∀ (i : node) (s : slot) (v : pvector),
     ¬ is_byz i ∧ pending i s v → ∀ v', ¬ appended i s v'
 
-/- Proof reconstruction ON (2026-07-07): the module is small enough
+/- Proof reconstruction ON: the module is small enough
 (115 VCs, all sub-second) that Lean re-checks every cvc5 proof — the
 sweep and the persisted VC theorems below then carry **no** trusted-SMT
 step, which makes the downstream `Composition.lean` theorems
@@ -565,7 +566,7 @@ kernel-checked (axiom-pinned there). Captured at `#gen_spec` like all
 `veil.smt.*` options. -/
 set_option veil.smt.trust false
 
-/- Streaming theorem persistence (2026-07-10, pairs with `trust false`):
+/- Streaming theorem persistence (pairs with `trust false`):
 dischargers retain their reconstructed witnesses and `#gen_theorems`
 persists each proven VC incrementally, releasing witnesses as it goes —
 instead of re-running every reconstruction serially at `#gen_theorems`
@@ -590,24 +591,19 @@ set_option veil.cache.proofs true
 #gen_spec
 
 /- The sweep runs at Veil's solver defaults (60 s, finite-model-find on).
-The `set_option veil.smt.* ... in` pair this command used to carry was
-inert: dischargers capture solver options at `#gen_spec`, so every green
-sweep on record already ran at the defaults (Veil warns about such
-mismatches since 2026-07-07; see the "Solver configuration" note in
-`Chorus.lean`). -/
+Do not try to override them around this command: dischargers capture
+solver options at `#gen_spec`, so a `set_option veil.smt.* ... in` here is
+silently inert (Veil warns about the mismatch; see the "Solver
+configuration" note in `Chorus.lean`). -/
 #check_invariants
 
 /- Persist the discharged VCs as theorems in the environment (named
-`Cadence.<action>_<property>` / `Cadence.<init>_…`), so the C4
+`Cadence.<action>_<property>` / `Cadence.<init>_…`), so the
 composition layer ([`Composition.lean`](./Composition.lean)) can cite
 them in plain-Lean proofs about reachable states. With
-`veil.smt.trust = false` above, the persisted theorems are real,
-reconstructed proofs (no `sorryAx`); see `docs/History.md` "SMT trust mode".
-With `veil.gen.streamTheorems` above, the witnesses were retained by the
-sweep and are persisted here incrementally — no re-elaboration, so the
-solver-option headroom this command used to carry
-(`set_option veil.smt.timeout 300 in …`, for the serial lazy-regen path)
-is no longer needed. -/
+`veil.smt.trust = false` above, these are real reconstructed proofs, no
+`sorryAx`. With `veil.gen.streamTheorems` above, the witnesses retained
+by the sweep are persisted here incrementally, with no re-elaboration. -/
 #gen_theorems
 
 /-! ## Reachability sanity checks

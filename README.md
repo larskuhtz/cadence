@@ -1,8 +1,9 @@
 # Cadence — machine-checked verification (Veil / Lean 4)
 
-A formal verification of the **Cadence** BFT consensus protocol: the per-slot
-consensus **Chorus**, the window-based orchestrator **Conductor**, the
-pipelining **Cadence** layer that composes them, and the fallback
+A formal verification of the [**Cadence**](https://www.category.xyz/cadence)
+BFT consensus protocol (see [§ The protocol paper](#the-protocol-paper)): the
+per-slot consensus **Chorus**, the window-based orchestrator **Conductor**,
+the pipelining **Cadence** layer that composes them, and the fallback
 receipt/propose layer where a real protocol bug was found and fixed.
 
 Written in [Veil](https://github.com/larskuhtz/veil) on Lean 4. Veil is an
@@ -41,7 +42,7 @@ is a build failure.
 | Every stated theorem has a **complete proof**, checked by Lean's kernel | the build; plus the axiom pins in [`Cadence.lean`](./Cadence.lean) — a `sorry` anywhere shows up as the axiom `sorryAx` and fails the pin |
 | The trust base has not drifted (no extra axiom crept in) | `#guard_msgs in #print axioms <thm>` for all seven end theorems, in [`Cadence.lean`](./Cadence.lean) and at each result's own site |
 | **cvc5's verdicts are not believed.** Every solver discharge is reconstructed as a Lean proof term and re-checked by the kernel | all models elaborate with `veil.smt.trust false`; if a proof cannot be reconstructed, the cell fails |
-| **Nothing is stubbed.** Every single one of the 3 822 Chorus verification conditions (3 783 action × property obligations + 39 does-not-throw checks), and all 220 of the receipt layer's, has a real, statement-matching, kernel-checked theorem in scope | the pinned `#veil_status` lines in `Cadence/Chorus/Certify.lean` and `Cadence/FallbackReceipt/Certify.lean` — `3822/3822 real` and `220/220 real`, with the axiom union over all of them |
+| **Nothing is stubbed.** All 3 822 Chorus verification conditions (3 783 action × property obligations + 39 does-not-throw checks), and all 220 of the receipt layer's, have a real, statement-matching, kernel-checked theorem in scope | the pinned `#veil_status` lines in `Cadence/Chorus/Certify.lean` and `Cadence/FallbackReceipt/Certify.lean` — `3822/3822 real` and `220/220 real`, with the axiom union over all of them |
 | The verification conditions are the ones the model states — they are not re-typed by hand anywhere | the proof files read their statements out of the model's own persisted registry; identity is by construction |
 | The receipt-layer bug found in 2026-07 **is** a bug in the pre-fix rules | `Cadence/FallbackReceipt/PreFix.lean` pins the model checker's counterexample; the file builds only if the bug is still found, verbatim |
 
@@ -101,7 +102,7 @@ is item 1 of the inventory and a standing rule in
 |---|---|---|
 | **Agreement** — correct validators never finalize conflicting proposal vectors | `Cadence/Chorus.lean` (`agreement_pos`, `agreement_pos_neg`) → `Chorus.slotConsensus_instance` | 3 822 inductive-invariant verification conditions (cvc5, **proof-reconstructed — kernel-checked**), proved per action under `Cadence/Chorus/Proofs/`, plus plain-Lean reachability composition — kernel-checked end to end, axiom-pinned, per-VC audit pinned |
 | **Proposal inclusion** (censorship resistance, under the paper's synchrony premise) | `Cadence/Chorus.lean` → instance field | same |
-| **Hiding until the deadline** (protocol half) | `Cadence/Chorus.lean` (`hiding_until_deadline`) | reconstructed VCs; the cryptographic half is axiomatized (`Cadence/Primitives.lean`) |
+| **Hiding until the deadline** (protocol half) | `Cadence/Chorus.lean` (`hiding_until_deadline`) | reconstructed VCs; the cryptographic half is axiomatised (`Cadence/Primitives.lean`) |
 | **Speculative-finality revertibility** ("reverted only under equivocation") | `Cadence/Chorus.lean` (`speculative_agreement_*`) | reconstructed VCs, conditional on `no_equivocation` |
 | **Fair-progress liveness content** (no livelock of fair actions — strictly stronger than deadlock-freedom) | `Cadence/Chorus.lean`, liveness section | reconstructed VCs + named meta-axioms ([docs/Architecture.md](./docs/Architecture.md) §4) |
 | **Evidence pigeonhole** — `2f+1` honest fallback entries always yield certified per-proposer evidence (the counting step of the fallback liveness branch), for **every** `n = 3f+1` | `Cadence/Chorus/Pigeonhole.lean` (`evidence_pigeonhole_of_reachable`) | plain Lean over reachable states, axiom-pinned |
@@ -187,14 +188,13 @@ counterexample, `💥` solver crash, `⏱` timeout, and `♻` proof-cache replay
 
 **Two timing regimes.** Discharged proofs are cached on disk under
 `.lake/build/veilcache/` and replayed (kernel-checked) on later builds, so a
-*re-validation* is much cheaper than a first build. A first build re-solves
-all ~4 000 verification conditions and reconstructs every proof — budget
-around 85 CPU-minutes for the Chorus family. A warm re-validation replays them
-instead; measured on a 14-core Apple-Silicon machine, `scripts/revalidate.sh`
-end to end: **3 min 35 s**, 843 ✅ / 0 ❌ / 0 💥 / 0 ⏱ / 16 118 ♻, peak
-resident memory 18.8 GB (that peak is the *cold* proof-file stage; a fully warm
-re-run is far lighter). The cache is a build artefact, not shipped, and safe to
-delete at any time — it only ever skips proof *search*, never checking.
+re-validation is much cheaper than a first build. A first build re-solves all
+~4 000 verification conditions and reconstructs every proof: budget around 85
+CPU-minutes for the Chorus family. A warm re-validation replays them instead —
+on a 14-core Apple-Silicon machine, `scripts/revalidate.sh` end to end takes
+under 4 minutes, with a peak of 18.8 GB resident during the cold proof-file
+stage. The cache is a build artefact, not shipped, and safe to delete at any
+time: it only ever skips proof *search*, never checking.
 
 Do not run other heavy jobs concurrently with a *cold* proof-file build: some
 verification conditions sit close to the solver time budget, and stolen cores
@@ -215,18 +215,17 @@ error: external command '.../bin/clang' exited with code 255
 That is ~16 KB over the limit, and every character of the checkout's absolute
 path costs ~7.6 KB across the object list. **Fix: build in the container**
 (`scripts/container.sh verify`), where the limit is 2 MiB and the same link
-takes under a second — measured, that phase is also ~6× faster than macOS
-manages before failing. Failing that, check the repository out at a path of
+takes under a second. Failing that, check the repository out at a path of
 about 35 characters or fewer. Nothing else needs to change; once
 `Mathlib:shared` is linked, the rest of the build is unaffected, and later
 builds never redo it.
 
 This is a property of Mathlib's size plus Veil's `precompileModules`, not of
-this project — see [docs/Dependencies.md](./docs/Dependencies.md). Workarounds
-that do *not* help, in case you are tempted: wrapping the compiler to use a
-response file (the wrapper's own `exec` is what overruns), trimming the
-environment (worth only ~2.5 KB), and building through a symlinked short path
-(the build tool resolves it to the real one).
+this project — see [docs/Dependencies.md](./docs/Dependencies.md). Three
+apparent workarounds do not help: wrapping the compiler to use a response file
+(the wrapper's own `exec` is what overruns), trimming the environment (worth
+only ~2.5 KB), and building through a symlinked short path (the build tool
+resolves it to the real one).
 
 ### Opening the files in an editor
 
@@ -236,9 +235,9 @@ does-not-throw checks (a couple of minutes); a `Cadence/Chorus/Proofs/` file
 re-proves one action's cells (seconds with a warm cache, minutes cold). The
 consumer files elaborate in seconds from prebuilt `.olean`s.
 
-Belt and braces: set `VEIL_NO_VERIFY=1` in your *editor's* environment (e.g.
-VS Code `lean4.serverEnv` — **not** in your shell profile, since `lake build`
-must still verify) and any Veil file elaborates with zero solving. Every
+To suppress solving entirely while editing, set `VEIL_NO_VERIFY=1` in the
+*editor's* environment (e.g. VS Code `lean4.serverEnv` — **not** in a shell
+profile, since `lake build` must still verify). Every
 skipped command reports a visible `⏭ skipped (veil.noVerify)` warning, so "no
 errors" in this mode never means "verified".
 
@@ -371,64 +370,50 @@ Design, scope, the emitter contract and the full flag reference:
 | The end theorems and the trust base on one page | [`Cadence.lean`](./Cadence.lean) |
 | The verification architecture: methods, trust bases, and the complete meta-assumption inventory | [docs/Architecture.md](./docs/Architecture.md) |
 | The Chorus model's design rationale (network abstraction and its soundness contract, property coverage, the liveness meta-argument, the bug record §7.2, open items §9) | [docs/ChorusDesign.md](./docs/ChorusDesign.md) |
-| The Cadence / Conductor model designs | the module headers of [`Cadence/Cadence.lean`](./Cadence/Cadence.lean) and [`Cadence/Conductor.lean`](./Cadence/Conductor.lean) |
+| The Cadence / Conductor model designs | [docs/ConductorDesign.md](./docs/ConductorDesign.md) (module decomposition, the class layer, where the top-level properties live), then the module headers of [`Cadence/Cadence.lean`](./Cadence/Cadence.lean) and [`Cadence/Conductor.lean`](./Cadence/Conductor.lean) |
 | The module contracts and their obligation tables | [`Cadence/Interfaces.lean`](./Cadence/Interfaces.lean) |
 | What the two forked dependencies provide, and why | [docs/Dependencies.md](./docs/Dependencies.md) |
 | Building in a container; **what a prebuilt `.olean` proves**, and the audit ladder | [docs/Container.md](./docs/Container.md) |
 | The model-conformance monitor | [docs/Monitor.md](./docs/Monitor.md) |
-| The liveness approach: what is safety-shaped and machine-checked, what stays temporal | [docs/Liveness.md](./docs/Liveness.md), [docs/LivenessNotes.md](./docs/LivenessNotes.md) |
+| The liveness approach: what is safety-shaped and machine-checked, what stays temporal | [docs/ChorusDesign.md](./docs/ChorusDesign.md) §7 (what the model encodes), [docs/Liveness.md](./docs/Liveness.md) (the proposal to close the gap) |
 | The project's goal and horizon: the human-edits-model / agents-maintain-proofs workflow and the audit model | [docs/Scenario.md](./docs/Scenario.md) |
-| Protocol vocabulary | [docs/Glossary.md](./docs/Glossary.md) |
+| The paper's notation, and which model relation each term stands for | [docs/ChorusDesign.md](./docs/ChorusDesign.md) §2 (types) and §3.5 (the state-locality contract, with a paper-analogue column per relation) |
 | The paper itself, and how it is cited | [§ The protocol paper](#the-protocol-paper) — arXiv:2607.02275v2 |
 | Open items | [docs/TODO.md](./docs/TODO.md), and [docs/ChorusDesign.md](./docs/ChorusDesign.md) §9 |
-| History: how the verification reached this state | [docs/History.md](./docs/History.md), [docs/ConductorPlan.md](./docs/ConductorPlan.md) |
+| History: how the verification reached this state | [docs/History.md](./docs/History.md) |
 | How to *work on* the models (workflow, gotchas) | [CLAUDE.md](./CLAUDE.md) |
 
 ## The protocol paper
 
-The models are verified against the Cadence preprint, which is public:
+The models are verified against the Cadence preprint:
 
 > Kushal Babel, Fatima Elsheimy, Lioba Heimbach, Mohammad Mussadiq Jalalzai,
 > Tobias Klenze, Jovan Komatovic, Jason Milionis, Mike Setrin, Victor Shoup.
 > **Cadence: Extreme Pipelining with Multiple Concurrent Proposers.**
-> arXiv:[2607.02275](https://arxiv.org/abs/2607.02275) \[cs.DC], 65 pages.
-> · [PDF](https://arxiv.org/pdf/2607.02275v2)
-> · [LaTeX source](https://arxiv.org/e-print/2607.02275v2)
+> arXiv:[2607.02275](https://arxiv.org/abs/2607.02275) \[cs.DC].
 
-**This development verifies v2** (2026-07-07). The version matters, and pleasantly
-so: v1 (2026-07-02) contains the fallback receipt bug described below, and v2 is
-the corrected design. So both directions of that story are checkable against
-public, immutable artefacts —
+This development verifies **v2** (2026-07-07). v1 (2026-07-02) contained a
+liveness bug in the fallback receipt rules, corrected in v2. Both versions are
+modelled: [`Cadence/FallbackReceipt.lean`](./Cadence/FallbackReceipt.lean)
+verifies the v2 design, and
 [`Cadence/FallbackReceipt/PreFix.lean`](./Cadence/FallbackReceipt/PreFix.lean)
-mechanically refutes the rules as published in **v1**, and
-[`Cadence/FallbackReceipt.lean`](./Cadence/FallbackReceipt.lean) verifies **v2**.
+mechanically refutes the v1 rules.
 
-### How the paper is cited here
+### Resolving a citation
 
-Not by page or line number — those move with every revision. The sources and
-documentation cite the paper's own **LaTeX `\label` names**: `lemma:chorus-agreement`,
-`alg:fallback`, `mod:slotconsensus`, `line:fb-pathvote-guard`, and so on. There
-are 483 such citations to 128 distinct anchors, concentrated in the model headers
-and [docs/ChorusDesign.md](./docs/ChorusDesign.md).
+The sources and documentation cite the paper by its LaTeX `\label` names —
+`lemma:chorus-agreement`, `alg:fallback`, `mod:slotconsensus`,
+`line:fb-pathvote-guard`. Citations are to v2 unless the surrounding text says
+otherwise.
 
-To follow one, fetch the paper's source — it is public, and its file layout is
-exactly what the references name (`src/p2_chorus.tex`, `src/alg_fallback.tex`,
-`src/p2_conductor_proofs.tex`, …):
+These labels are grep targets rather than hyperlinks: the PDF is compiled with
+`hypertexnames=false` and carries no label-named destinations, and arXiv's HTML
+rendering substitutes its own generated ids. To resolve one, fetch the paper
+source, whose file layout is what the references name (`src/p2_chorus.tex`,
+`src/alg_fallback.tex`, `src/p2_conductor_proofs.tex`, …):
 
 ```bash
 mkdir -p papers/cadence && curl -sL https://arxiv.org/e-print/2607.02275v2 \
   | tar -xz -C papers/cadence
 grep -rn 'label{lemma:chorus-agreement}' papers/cadence/src/
 ```
-
-Of the 128 anchors, 124 are `\label`s in v2. The other four are cited *because*
-they changed: three (`line:fb-commit-broadcast2`, `line:fb-finalize1`,
-`line:da-rebroadcast`) exist only in v1, and `docs/ChorusDesign.md` names them
-when recording what the fix removed.
-
-One caveat if you were hoping to deep-link the PDF: **you cannot.** The paper is
-compiled with `hyperref`'s `hypertexnames=false`, so its 581 named destinations
-are structural (`page.12`, `section.4`) and none carry a label name; arXiv's HTML
-rendering uses LaTeXML-generated ids instead. Anchors here are therefore precise
-identifiers for grepping the source, not hyperlinks. Read the PDF, grep the
-source.
