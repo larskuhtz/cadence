@@ -277,7 +277,7 @@ jobs:
                 --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
           vc=$(docker image inspect "${IMAGE_BASE}-verified-cache:latest" \
                 --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
-          # Output names avoid '-': the ${{ }} context cannot address a
+          # Output names avoid '-': an expression context cannot address a
           # hyphenated key with dot syntax.
           echo "verified_digest=$v"        >> "$GITHUB_OUTPUT"
           echo "verified_cache_digest=$vc" >> "$GITHUB_OUTPUT"
