@@ -310,6 +310,35 @@ seeds from the previous `verified-cache` image, which carries the cache at
 without depending on the Actions cache, whose 10 GB budget and weekly eviction
 suit it poorly.
 
+**Architecture.** CI runs on `ubuntu-24.04-arm`, so the published images are
+`linux/arm64` — matching a local build on Apple Silicon, which is what allows
+the registry to be seeded from an existing local build rather than a cold one,
+and what lets a CI failure be reproduced on the same machine. An x86 stage
+cannot be layered onto an arm64 base, so a single image cannot mix the two.
+Publishing both architectures means building each on its own runner, pushing
+arch-suffixed tags, and combining them into a manifest list with
+`docker buildx imagetools create`; the workflow header says what that changes.
+
+**Seeding the registry from a local build.** The first publish does not have to
+be a cold CI build. If the four images already exist locally — and share their
+layers, which `scripts/container.sh build` in one pass guarantees — pushing
+them *is* the bootstrap, and every later CI run seeds its proof cache from the
+`verified-cache` image it finds there:
+
+```bash
+REG=ghcr.io/<owner>
+printenv CR_PAT | podman login ghcr.io -u <owner> --password-stdin
+for t in deps dev verified verified-cache; do   # deps first: later pushes then
+  podman tag  cadence-$t $REG/cadence-$t:latest # skip the layers it already has
+  podman push $REG/cadence-$t:latest
+done
+```
+
+The `verified` image this publishes is only as current as the sources it was
+built from, so let CI rebuild it on the next push; the point of the exercise is
+the cache, which is content-addressed and stays valid across any change that
+does not alter a verification condition.
+
 **Resource notes**, none of them verified on a hosted runner yet: a standard
 runner has ~14 GB free disk against a job that needs ~25 GB, so both workflows
 reclaim the preinstalled toolchains first; and the dependency build has been
