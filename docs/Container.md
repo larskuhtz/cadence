@@ -282,7 +282,43 @@ invocations.
 
 ## 6. Publishing
 
-No CI publishes these images yet. To do it by hand:
+Two GitHub Actions workflows do this, in
+[`../.github/workflows`](../.github/workflows):
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `verify.yml` | every push to the default branch, every pull request | pulls the published `verified` image and re-runs the staged verification against the commit's sources — the per-commit gate. It builds no images |
+| `publish-images.yml` | push to the default branch; manual | rebuilds and publishes `verified` + `verified-cache`. `deps`/`dev` are rebuilt only when `lakefile.lean`, `lake-manifest.json`, `lean-toolchain` or the `Containerfile` changes, or on request |
+
+The split matters because the two halves cost very different amounts: `deps` is
+the whole dependency tree, `verified` is this project on top of it.
+
+**How the layer-sharing rule is enforced.** Rather than trusting that the tags
+were built in one pass, `publish-images.yml` resolves the published `deps` to
+its **digest** and passes it as the `DEPS_IMAGE` build argument, so `verified`
+is layered onto exactly the image already in the registry. A later step then
+asserts that the two share every base layer and fails the run if they do not —
+without it the drift is invisible, because both images work perfectly either
+way. The default of that argument is the in-file `deps` stage, so a local
+`scripts/container.sh build verified` is unaffected.
+
+**Bootstrap.** The first run must be a manual `publish-images` with
+`rebuild_deps: true`. Its `verified` stage has no published proof cache to seed
+from, so it re-solves every verification condition (slow). Every run after that
+seeds from the previous `verified-cache` image, which carries the cache at
+`/workspaces/cadence/.lake/build/veilcache` — so the cache sustains itself
+without depending on the Actions cache, whose 10 GB budget and weekly eviction
+suit it poorly.
+
+**Resource notes**, none of them verified on a hosted runner yet: a standard
+runner has ~14 GB free disk against a job that needs ~25 GB, so both workflows
+reclaim the preinstalled toolchains first; and the dependency build has been
+measured to OOM at 12 CPUs / 20 GB, against a runner's 16 GB. Fewer cores means
+fewer concurrent Lean processes and a lower peak, which is the only lever
+available. If `deps` will not build on a standard runner, that job needs a
+larger one.
+
+To publish by hand instead:
 
 ```bash
 REG=ghcr.io/<org>

@@ -1,0 +1,299 @@
+# Publish the container images to GHCR.
+#
+# Two paths, because the halves of the image stack change at very different
+# rates and cost very different amounts to rebuild:
+#
+#   deps     — the whole dependency tree (Mathlib, Loom, lean-smt, cvc5, Veil).
+#              Its only inputs are lakefile.lean, lake-manifest.json,
+#              lean-toolchain and the Containerfile. Rebuilt only when one of
+#              those changes, or on request.
+#   verified — this project, built and verified *inside* the image, layered onto
+#              the published `deps` image **pinned by digest** (the DEPS_IMAGE
+#              ARG in the Containerfile) so the two always share their base
+#              layers. Rebuilt on every push to the default branch.
+#
+# The `verified` stage runs scripts/revalidate.sh during the build, so a failed
+# verification condition fails the image build: a published `verified` image is
+# always one that printed ALL STAGES GREEN.
+#
+# Bootstrap: the first run must be a workflow_dispatch with `rebuild_deps:
+# true`, and its `verified` build takes the slow path (cvc5 solves every
+# verification condition) because there is no published proof cache to seed
+# from yet. Every later run seeds from the previous `verified-cache` image.
+name: publish-images
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      rebuild_deps:
+        description: 'Rebuild and republish the deps/dev images too'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Never publish two image sets at once: the second would race the first's tags.
+# Queue rather than cancel — a half-finished push is worse than a wait.
+concurrency:
+  group: publish-images
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/cadence
+  DOCKER_BUILDKIT: '1'          # the verified stage needs RUN --mount
+
+jobs:
+  # Decide whether the expensive half has to run at all.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      deps: ${{ steps.decide.outputs.deps }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Decide whether deps must be rebuilt
+        id: decide
+        env:
+          # Event data is read through the environment, never interpolated into
+          # the script body, so crafted event data cannot inject shell.
+          REQUESTED: ${{ inputs.rebuild_deps }}
+        run: |
+          set -euo pipefail
+          if [ "${REQUESTED:-}" = true ]; then
+            echo 'deps=true' >> "$GITHUB_OUTPUT"
+            echo 'deps rebuild requested'
+            exit 0
+          fi
+          # This job only runs on the default branch or on dispatch, so the
+          # previous commit is the previously published state.
+          if git rev-parse HEAD~1 >/dev/null 2>&1 && \
+             git diff --name-only HEAD~1 HEAD -- \
+               lakefile.lean lake-manifest.json lean-toolchain Containerfile \
+             | grep -q .; then
+            echo 'deps=true' >> "$GITHUB_OUTPUT"
+            echo 'dependency-defining files changed'
+          else
+            echo 'deps=false' >> "$GITHUB_OUTPUT"
+            echo 'deps unchanged — reusing the published image'
+          fi
+
+  build-deps:
+    needs: changes
+    if: needs.changes.outputs.deps == 'true'
+    runs-on: ubuntu-latest
+    # The dependency elaboration is the heaviest thing in the project. Give it
+    # room, but not the 6 h cap: if it is not done by now it is stuck.
+    timeout-minutes: 300
+    permissions:
+      contents: read
+      packages: write
+      id-token: write          # OIDC, for build provenance
+      attestations: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: Reclaim disk space
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /usr/local/lib/node_modules \
+                      /opt/hostedtoolcache "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printenv REGISTRY_TOKEN \
+            | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+
+      # Both targets from one Containerfile state, in one step, so `dev` shares
+      # every `deps` layer — docs/Container.md § "What actually crosses the
+      # wire".
+      - name: Build deps and dev
+        run: |
+          set -euo pipefail
+          docker build --target deps --tag "${IMAGE_BASE}-deps:latest" .
+          docker build --target dev  --tag "${IMAGE_BASE}-dev:latest"  .
+
+      - name: Push, and record the deps digest
+        id: push
+        run: |
+          set -euo pipefail
+          docker push "${IMAGE_BASE}-deps:latest"
+          docker push "${IMAGE_BASE}-dev:latest"
+          digest=$(docker image inspect "${IMAGE_BASE}-deps:latest" \
+                     --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "deps published at $digest"
+
+      - name: Attest build provenance (deps)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE_BASE }}-deps
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  build-project:
+    needs: [changes, build-deps]
+    # `always()` is required because a *skipped* dependency would otherwise skip
+    # this job too; the guards keep it from layering onto a failed deps build.
+    if: >-
+      always()
+      && needs.build-deps.result != 'failure'
+      && needs.build-deps.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Reclaim disk space
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /usr/local/lib/node_modules \
+                      /opt/hostedtoolcache "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printenv REGISTRY_TOKEN \
+            | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+
+      # Pin the base by digest, and pull it here so the layer-sharing assertion
+      # below can compare against the very image that was published. Resolving
+      # the tag once, now, also stops the build being affected by the tag moving
+      # underneath it mid-run.
+      - name: Resolve and fetch the deps base image
+        id: base
+        env:
+          FRESH_DIGEST: ${{ needs.build-deps.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [ -n "${FRESH_DIGEST:-}" ]; then
+            digest="$FRESH_DIGEST"
+          else
+            docker pull "${IMAGE_BASE}-deps:latest"
+            digest=$(docker image inspect "${IMAGE_BASE}-deps:latest" \
+                       --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
+          fi
+          ref="${IMAGE_BASE}-deps@sha256:${digest#sha256:}"
+          docker pull "$ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "building on $ref"
+
+      # The proof cache ships inside the previously published `verified-cache`
+      # image, so it seeds itself from run to run with no dependency on the
+      # Actions cache (10 GB per repository, evicted after a week). Best effort:
+      # on the first run there is nothing to copy and the build falls back to
+      # solving every verification condition.
+      - name: Seed the proof cache from the last published image
+        run: |
+          set -euo pipefail
+          if docker pull "${IMAGE_BASE}-verified-cache:latest"; then
+            c=$(docker create "${IMAGE_BASE}-verified-cache:latest")
+            trap 'docker rm -f "$c" >/dev/null 2>&1 || true' EXIT
+            docker cp "$c:/workspaces/cadence/.lake/build/veilcache/." \
+                      .veilcache-seed/ || true
+            n=$(find .veilcache-seed -type f ! -name .keep | wc -l)
+            echo "seeded $n cache entries"
+            # A silently empty seed turns an 11-minute build into a 90-minute
+            # one. Say so rather than leaving it to be inferred from the timing.
+            [ "$n" -gt 0 ] || echo "::warning::the published cache image held no entries"
+          else
+            echo "::notice::no published verified-cache yet — this build solves every VC"
+          fi
+
+      - name: Build verified and verified-cache
+        env:
+          DEPS_REF: ${{ steps.base.outputs.ref }}
+        run: |
+          set -euo pipefail
+          docker build --target verified \
+            --build-arg "DEPS_IMAGE=${DEPS_REF}" \
+            --tag "${IMAGE_BASE}-verified:latest" .
+          docker build --target verified-cache \
+            --build-arg "DEPS_IMAGE=${DEPS_REF}" \
+            --tag "${IMAGE_BASE}-verified-cache:latest" .
+
+      # The point of pinning the base by digest: assert that what is about to be
+      # published really does share every layer of the published deps, so an
+      # auditor holding deps pulls ~251 MiB rather than ~3 GiB. Nothing else
+      # would catch a regression here — both images work either way.
+      - name: Assert layer sharing with the published deps
+        env:
+          DEPS_REF: ${{ steps.base.outputs.ref }}
+        run: |
+          set -euo pipefail
+          docker image inspect "$DEPS_REF" \
+            --format '{{range .RootFS.Layers}}{{println .}}{{end}}' > deps.layers
+          docker image inspect "${IMAGE_BASE}-verified:latest" \
+            --format '{{range .RootFS.Layers}}{{println .}}{{end}}' > verified.layers
+          n=$(grep -c . deps.layers)
+          if ! diff <(grep . deps.layers) <(grep . verified.layers | head -n "$n"); then
+            echo "::error::verified does not share the published deps base layers"
+            exit 1
+          fi
+          echo "verified shares all $n deps layers"
+
+      - name: Push
+        id: push
+        run: |
+          set -euo pipefail
+          docker push "${IMAGE_BASE}-verified:latest"
+          docker push "${IMAGE_BASE}-verified-cache:latest"
+          v=$(docker image inspect "${IMAGE_BASE}-verified:latest" \
+                --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
+          vc=$(docker image inspect "${IMAGE_BASE}-verified-cache:latest" \
+                --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
+          # Output names avoid '-': the ${{ }} context cannot address a
+          # hyphenated key with dot syntax.
+          echo "verified_digest=$v"        >> "$GITHUB_OUTPUT"
+          echo "verified_cache_digest=$vc" >> "$GITHUB_OUTPUT"
+          echo "verified published at $v"
+          echo "verified-cache published at $vc"
+
+      - name: Attest build provenance (verified)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE_BASE }}-verified
+          subject-digest: ${{ steps.push.outputs.verified_digest }}
+          push-to-registry: true
+
+      - name: Attest build provenance (verified-cache)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE_BASE }}-verified-cache
+          subject-digest: ${{ steps.push.outputs.verified_cache_digest }}
+          push-to-registry: true

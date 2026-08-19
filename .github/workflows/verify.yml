@@ -1,0 +1,140 @@
+# Re-verify the development against the sources in this commit.
+#
+# This is the cheap per-commit gate: it does NOT build the world. It pulls the
+# published `cadence-verified` image — which already carries the dependency
+# tree and this project's oleans — and re-runs the staged verification against
+# the checked-out sources, exactly as `scripts/container.sh verify` does
+# locally. A failed verification condition, a missing proof, a drifted axiom
+# pin or a broken `#guard_msgs` fails the job.
+#
+# Requires the images to exist: run `publish-images.yml` once (with
+# `rebuild_deps: true`) before this workflow can pass. See docs/Container.md.
+name: verify
+
+on:
+  # Only the default branch on push; every other branch is covered by its pull
+  # request, so this does not run twice for the same commit.
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege: read the repository, read the published image. Nothing here
+# writes anything. A pull request from a fork gets a read-only token, which is
+# sufficient, and no secret is needed at all while the packages are public.
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  REGISTRY: ghcr.io
+  # Derived from the repository owner, never from attacker-controllable event
+  # data such as a branch name or pull-request title.
+  IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/cadence
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      # The runner ships with ~14 GB free and this job needs roughly 25 GB: the
+      # image (13.1 GB on disk) plus the named volume, which the runtime
+      # initialises with a copy of the image's `.lake`. Reclaim the preinstalled
+      # toolchains inline rather than via a third-party action — it is a handful
+      # of paths, and it keeps the supply chain to first-party actions only.
+      - name: Reclaim disk space
+        run: |
+          set -euo pipefail
+          before=$(df --output=avail -BG / | tail -1)
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /usr/local/lib/node_modules \
+                      /opt/hostedtoolcache "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker image prune --all --force || true
+          echo "free before:${before} after:$(df --output=avail -BG / | tail -1)"
+          df -h /
+
+      - name: Check out the sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing here uses git credentials; leaving them in .git/config for
+          # the rest of the job would be a needless token exposure.
+          persist-credentials: false
+
+      # Authenticating even for public packages avoids anonymous pull limits.
+      # The token reaches docker on stdin via the environment, so it is never an
+      # argument (visible in `ps`) and never interpolated into the script body.
+      - name: Log in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printenv REGISTRY_TOKEN \
+            | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+
+      # `scripts/container.sh` resolves the image by its local tag and derives
+      # the volume name from it, so retag rather than pointing IMAGE at a
+      # registry path — that contains `/` and `:`, which is not a legal volume
+      # name.
+      - name: Pull the verified image
+        run: |
+          set -euo pipefail
+          docker pull "${IMAGE_BASE}-verified:latest"
+          docker tag  "${IMAGE_BASE}-verified:latest" cadence-verified
+          docker image inspect cadence-verified \
+            --format 'pulled {{index .RepoDigests 0}}'
+
+      # CPUS/MEMORY must fit the runner: the script's defaults (12 CPUs, 20 GB)
+      # are sized for a workstation. Memory is set below physical so the
+      # container hits its own limit rather than the kernel OOM killer.
+      - name: Re-verify against these sources
+        env:
+          RUNTIME: docker
+          CPUS: '4'
+          MEMORY: 13G
+        run: |
+          set -euo pipefail
+          scripts/container.sh verify 2>&1 | tee verify.log
+
+      # Defence in depth. The script already exits non-zero on a failed stage,
+      # but this project's rule is to count all four markers: grepping only for
+      # ❌ hides timeouts and solver crashes. A `sorry` reaching a Cadence
+      # module would be a silent regression of the trust base.
+      - name: Assert the verification markers
+        run: |
+          set -euo pipefail
+          fail=0
+          for m in '❌' '💥' '⏱'; do
+            n=$(grep -c -- "$m" verify.log || true)
+            if [ "$n" != 0 ]; then
+              echo "::error::found $n occurrence(s) of $m"; fail=1
+            fi
+          done
+          if grep -nE 'Cadence/.*declaration uses .sorry.' verify.log; then
+            echo "::error::a Cadence module depends on sorry"; fail=1
+          fi
+          if ! grep -q 'ALL STAGES GREEN' verify.log; then
+            echo "::error::the staged verification did not report ALL STAGES GREEN"
+            fail=1
+          fi
+          printf 'proven   %s\nreplayed %s\n' \
+            "$(grep -c -- '✅' verify.log || true)" \
+            "$(grep -c -- '♻'  verify.log || true)"
+          exit "$fail"
+
+      - name: Upload the verification log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verify-log-${{ github.run_id }}
+          path: verify.log
+          retention-days: 14

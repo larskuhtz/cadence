@@ -33,6 +33,18 @@
 # checkout path is very short. Linux allows RLIMIT_STACK/4 (2 MiB), where the
 # same link takes under a second.
 
+# The base of the `verified` stage. Defaults to the `deps` stage in this file,
+# which is what a local `scripts/container.sh build verified` uses. CI overrides
+# it with a published image *pinned by digest*, so that `verified` is layered
+# onto exactly the `deps` image already in the registry rather than onto a
+# freshly re-executed stage. Container builds are not bit-reproducible (apt
+# resolves versions at build time, files carry timestamps), so re-executing
+# `deps` yields different layer digests for the same logical content — and two
+# images that no longer share a base cost several GiB of extra registry storage
+# and turn a 251 MiB pull into a ~3 GiB one, with nothing failing to warn you.
+# Overriding this ARG makes that sharing structural instead of a discipline.
+ARG DEPS_IMAGE=deps
+
 # ---------------------------------------------------------------- toolchain --
 FROM ubuntu:24.04 AS toolchain
 
@@ -145,7 +157,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # kernel-re-checks every proof from here in ~4 minutes, with no solver and no
 # elaboration. It deliberately does NOT contain Veil's proof cache: nothing in
 # tier 1 or tier 2a needs it (verified by probe), and it is 4.1 GB.
-FROM deps AS verified
+FROM ${DEPS_IMAGE} AS verified
 
 # An explicit list, not `COPY . .`: the context also holds .veilcache-seed, and
 # copying that here would store the proof cache in a layer that a later `rm`

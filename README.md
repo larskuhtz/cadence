@@ -332,6 +332,7 @@ Cadence/
     TraceMutate.lean               corrupt a valid trace, to model implementation bugs
 Containerfile                      multi-stage OCI image: toolchain / deps / dev / verified
 .devcontainer/                     opens the dev image in VS Code
+.github/workflows/                 CI: re-verify every commit; publish the images
 scripts/                           staged build, container dispatch, monitor suites
 traces/                            JSONL trace fixtures for the monitor
 docs/                              see the reading guide below
