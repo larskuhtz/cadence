@@ -88,8 +88,16 @@ jobs:
       - name: Pull the verified image
         run: |
           set -euo pipefail
-          docker pull "${IMAGE_BASE}-verified:latest"
-          docker tag  "${IMAGE_BASE}-verified:latest" cadence-verified
+          if ! docker pull "${IMAGE_BASE}-verified:latest"; then
+            # Deliberately fatal rather than skipped: a verification gate that
+            # passes when it could not verify anything is worse than a red run.
+            echo "::error::cannot pull ${IMAGE_BASE}-verified:latest — run the" \
+                 "publish-images workflow first (its images are what this job" \
+                 "verifies against), and check the package is readable by this" \
+                 "repository."
+            exit 1
+          fi
+          docker tag "${IMAGE_BASE}-verified:latest" cadence-verified
           docker image inspect cadence-verified \
             --format 'pulled {{index .RepoDigests 0}}'
 
