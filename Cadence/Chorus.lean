@@ -147,6 +147,19 @@ relation. -/
 
 immutable relation is_proposer (j : node)
 
+/- Whether the chunk set committed under root `m` forms a valid erasure
+encoding — decoding any `f+1` of its chunks and re-encoding reproduces `m`
+(`alg:da` `line:da-reencode`). Validity is a property of the whole committed
+set the root binds, identical at every validator
+(`prop:recovery-consistency`), hence immutable configuration. Honest
+proposers only commit well-encoded roots (`propose` requires it — the
+paper's recovery guarantee (ii) premise); a Byzantine proposer may sign a
+root that is not well-encoded and disseminate individually-valid chunks for
+it — the paper's "invalidly encoded root" culprit case
+(`subsection:chorus-proof`, closing parenthetical), which the fallback
+signing rules below consult. -/
+immutable relation well_encoded (m : merkle_root)
+
 /-! ## Abstract phase
 
 Chorus is naturally an event-driven protocol with three time landmarks per
@@ -438,15 +451,30 @@ ghost relation no_equivocation :=
   (∀ r j m, ¬ (msg_vote_pos_sig r j m ∧ msg_vote_neg_sig r j)) ∧
   (∀ j m1 m2, msg_proposer_signed j m1 ∧ msg_proposer_signed j m2 → m1 = m2)
 
+-- No proposer has committed to an invalidly encoded root: every
+-- proposer-signed root is well-encoded. Together with `no_equivocation`
+-- this is exactly the paper's "proposer is the culprit" set for
+-- speculative finality (`subsection:chorus-proof`, closing parenthetical:
+-- "committing to an invalidly encoded root or disseminating several
+-- distinct proposals"). Anti-monotone like `no_equivocation` (signatures
+-- only accrue and `well_encoded` is immutable), so invariants conditioned
+-- on it remain inductive.
+ghost relation no_invalid_encoding :=
+  ∀ j m, msg_proposer_signed j m → well_encoded m
+
 -- The protocol-level shadow of the paper's proposal-inclusion premise
 -- (`prop:honest-positive-entry`): a correct proposer `j` disseminated its
 -- proposal `m` on time under synchrony, so *every* honest validator
 -- recorded the positive entry `⟨s, j, m⟩` before the deadline. The timing
 -- content ("`s.deadline − Δ ≥ GST` and dissemination at the slot's starting
 -- time") is exactly what makes this premise true in the real protocol; the
--- model takes the premise itself as the hypothesis.
+-- model takes the premise itself as the hypothesis. The `well_encoded`
+-- conjunct is the premise's encoding half: a correct proposer encodes the
+-- ciphertext into a valid erasure encoding (the paper's recovery
+-- guarantee (ii)), so its root always passes the re-encode check.
 ghost relation all_honest_recorded (j : node) (m : merkle_root) :=
-  ¬ is_byz j ∧ is_proposer j ∧ (∀ i, ¬ is_byz i → local_entry_pos i j m)
+  ¬ is_byz j ∧ is_proposer j ∧ (∀ i, ¬ is_byz i → local_entry_pos i j m) ∧
+  well_encoded m
 
 /-! ## Initial state -/
 
@@ -536,6 +564,10 @@ validator's `local_entry_pos`) is the action that enforces the
 action propose (j : node) (m : merkle_root) {
   require ¬ is_byz j
   require is_proposer j
+  -- A correct proposer encodes the ciphertext into a valid erasure
+  -- encoding (recovery guarantee (ii)); only Byzantine proposers
+  -- (`byz_sign_proposer`) can commit to an ill-encoded root.
+  require well_encoded m
   require phase = pre_deadline
   require ∀ m2, msg_proposer_signed j m2 → m2 = m
   msg_proposer_signed j m := true
@@ -705,13 +737,18 @@ contain f+1 honest ones, which pin an on-time honest proposer's entry. -/
 
 /- Per-proposer fallback signing, positive case (`line:fb-positive-entry`).
 Per the paper an honest validator's fallback signed entry for proposer `j`
-is positive `⟨s, j, m⟩` iff *both* of:
+is positive `⟨s, j, m⟩` iff *all* of:
 
   (b) it collected `f+1` valid positive votes for `(j, m)`;
   (c) the data is reconstructible — `alg:da.isDecoded(m)` — i.e. `f+1`
       chunks for `(j, m)` are available (delivered somewhere on the
       network, in the monotone chunk-delivery abstraction of
-      `docs/ChorusDesign.md` §3.5.2).
+      `docs/ChorusDesign.md` §3.5.2);
+  (d) the reconstructed data re-encodes to `m` (`alg:da`
+      `line:da-reencode`; the paper's proof sketch: an honest validator
+      casts fallback-yes only after reconstructing the proposal and
+      checking that it re-encodes to the root) — the model's
+      `well_encoded m`.
 
 The signer needs no positive entry of its own (`local_entry_pos i j m`): a
 validator that missed its assigned chunk before the deadline may still
@@ -741,17 +778,27 @@ action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q qc : nodeset) {
   -- (c) Data-availability threshold (`isDecoded`): f+1 chunks for (j, m).
   require nset.greater_than_third qc
   require ∀ r, nset.member r qc → msg_chunk_received r j m
+  -- (d) Re-encode consistency: the decoded data reproduces `m`.
+  require well_encoded m
   msg_fb_pos_sig i j m := true
 }
 
 /- Per-proposer fallback signing, negative case. The paper's validator signs
 negative for `j` iff, *among the ≥ 2f+1 votes it received*, no root has
-f+1 positive votes with decodable data. The witnessed quorum `qv` of
-broadcast votes stands for the votes the validator has received; the
-complement condition is stated relative to `qv`. (A validator may have
-received more than `qv`; behaviours in which it negative-signs although a
-positive quorum exists outside `qv` are deliberately retained — they are
-real under asynchrony.) -/
+f+1 positive votes with decodable data that re-encodes to the root. The
+witnessed quorum `qv` of broadcast votes stands for the votes the validator
+has received; the complement condition is stated relative to `qv`. (A
+validator may have received more than `qv`; behaviours in which it
+negative-signs although a positive quorum exists outside `qv` are
+deliberately retained — they are real under asynchrony.)
+
+The `well_encoded M` conjunct inside the negation admits the paper's
+re-encode-failure case (`subsection:chorus-proof`, closing parenthetical):
+an honest validator that gathers `f+1` yes votes on a root whose chunks
+fail to re-encode marks the root invalid and signs negative anyway. This
+is the culprit case that involves no equivocation — only an invalidly
+encoded root — which is why the speculative-finality properties below take
+`no_invalid_encoding` alongside `no_equivocation`. -/
 action fb_sign_neg (i : node) (j : node) (qv : nodeset) {
   require ¬ is_byz i
   require phase = post_fb_arm ∨ phase = post_mvba_arm
@@ -763,11 +810,14 @@ action fb_sign_neg (i : node) (j : node) (qv : nodeset) {
   require nset.supermajority qv
   require ∀ r, nset.member r qv → msg_vote_cast r
   -- Negative iff no root has, within the received votes, an f+1 positive
-  -- quorum with decodable data (the `else` branch of `line:fb-cast-entry`).
+  -- quorum with decodable data that re-encodes to the root (the `else`
+  -- branch of `line:fb-cast-entry`, with `line:da-reencode` marking
+  -- ill-encoded roots invalid).
   require ∀ M q qc, ¬ (nset.greater_than_third q ∧
     (∀ r, nset.member r q → nset.member r qv ∧ msg_vote_pos_sig r j M) ∧
     nset.greater_than_third qc ∧
-    (∀ r, nset.member r qc → msg_chunk_received r j M))
+    (∀ r, nset.member r qc → msg_chunk_received r j M) ∧
+    well_encoded M)
   msg_fb_neg_sig i j := true
   local_fb_neg_qv i j qv := true
 }
@@ -1091,7 +1141,10 @@ action byz_cast_vote (r : node) {
 action byz_sign_fb_pos (r : node) (j : node) (m : merkle_root) {
   require is_byz r
   -- A positive fallback signed entry carries the proposer's signature σ_p
-  -- on ⟨s, j, m⟩; receivers verify it.
+  -- on ⟨s, j, m⟩; receivers verify it. Re-encode validity is deliberately
+  -- NOT required here: it is the caster's local computation over the
+  -- reconstructed data, which a receiver cannot re-check at receipt time,
+  -- so a Byzantine caster may fallback-yes an ill-encoded root.
   require msg_proposer_signed j m
   msg_fb_pos_sig r j m := true
 }
@@ -1199,35 +1252,32 @@ safety [proposal_inclusion_no_neg]
 /-! ### Speculative finality (`p1_informal.tex`, speculative commit)
 
 A validator holding FastQCs for every proposer may speculatively commit
-before the commitQC forms. The paper claims a speculative commit "may be
-reverted ... only if some validator equivocated". Checked here: in any
+before the commitQC forms. The paper's headline claim is that a
+speculative commit "may be reverted ... only if some validator
+equivocated"; the proof sketch's closing parenthetical
+(`subsection:chorus-proof`) widens the culprit set to the proposer
+*committing to an invalidly encoded root*: an honest validator that
+gathers `f+1` yes votes on a root whose chunks fail to re-encode casts
+fallback-no with no equivocation anywhere — "either way the proposer is
+the culprit". Checked here against exactly that culprit set: in any
 reachable state free of vote and proposer equivocation
-(`no_equivocation`), a validator's own positive FastQC — its speculative
-value — agrees with every finalized commit.
-
-Scope caveat (the DA re-encode abstraction, `docs/ChorusDesign.md`
-§3.4): the paper's proof sketch (`subsection:chorus-proof`, closing
-parenthetical) admits one further honest fallback-no — cast after
-gathering `f+1` yes votes on a root whose chunks fail to re-encode — a
-culprit case with **no equivocation**, only an invalidly encoded root.
-That case cannot arise in this model (invalid encodings do not exist
-with `merkle_root` opaque, so `fb_sign_neg`'s guard forbids the
-negative entry), which is what lets `no_equivocation` alone suffice
-here. Transported to the real protocol, these two properties hold under
-the paper's full "proposer is the culprit" hypothesis — no equivocation
-*and* no invalidly encoded root — not under `no_equivocation` alone.
-Closing the gap at the model level is `docs/ChorusDesign.md` §9 item 4;
-surfaced by the 2026-08 external audit (Finding 1). -/
+(`no_equivocation`) in which no proposer has committed to an
+invalidly encoded root (`no_invalid_encoding`), a validator's own
+positive FastQC — its speculative value — agrees with every finalized
+commit. (Formerly stated under `no_equivocation` alone, which sufficed
+only while the DA re-encode check was unmodelled — the 2026-08 external
+audit's Finding 1; `fb_sign_neg` now admits the re-encode-failure case
+and the hypothesis matches the paper's.) -/
 
 safety [speculative_agreement_pos]
-  no_equivocation →
+  no_equivocation → no_invalid_encoding →
   ∀ (I1 I2 : node) (J : node) (M1 M2 : merkle_root),
     ¬ is_byz I1 ∧ ¬ is_byz I2 ∧
     local_fastqc_pos I1 J M1 ∧ local_committed_pos I2 J M2 →
     M1 = M2
 
 safety [speculative_agreement_pos_neg]
-  no_equivocation →
+  no_equivocation → no_invalid_encoding →
   ∀ (I1 I2 : node) (J : node) (M : merkle_root),
     ¬ is_byz I1 ∧ ¬ is_byz I2 ∧ local_fastqc_pos I1 J M →
     ¬ local_committed_neg I2 J
@@ -1673,18 +1723,24 @@ invariant [inclusion_mvba_pos_unique]
 /-! ### Speculative finality — inductive support
 
 The paper's claim is temporal ("reverted only if ..."); its state-level
-content is: while no equivocation has occurred, nothing that contradicts
-an existing FastQC can be certified. The one non-obvious step is the
-negative fallback entry: an honest validator signs negative for `J` only
-against a witnessed 2f+1-vote quorum `qv` in which no root had an f+1
-positive sub-quorum. `qv` is recorded as the
-auxiliary history variable `local_fb_neg_qv`, and under
+content is: while no proposer misbehaviour has occurred, nothing that
+contradicts an existing FastQC can be certified. The one non-obvious step
+is the negative fallback entry: an honest validator signs negative for `J`
+only against a witnessed 2f+1-vote quorum `qv` in which no root had an f+1
+positive sub-quorum with decodable, well-encoded data. `qv` is recorded as
+the auxiliary history variable `local_fb_neg_qv`, and under
 `no_equivocation` its content is pinned: every member of `qv` had cast a
 complete vote, votes are monotone, and a signer has at most one entry per
 proposer — so the absence of a positive sub-quorum *within qv* persists
-(`fb_neg_qv_no_pos_quorum`). Intersecting `qv` with any later positive
-vote supermajority (`supermajorities_intersect_in_greater_than_third`)
-then yields an f+1 positive sub-quorum of `qv` — contradiction. -/
+(`fb_neg_qv_no_pos_quorum`). `no_invalid_encoding` closes the re-encode
+leg: an f+1 positive sub-quorum contains an honest voter, whose entry pins
+the proposer's signature on the root (`vote_pos_from_local` →
+`local_entry_pos_signed`), so the root is well-encoded and its chunks are
+on the network (`vote_pos_quorum_implies_decodable`) — the guard's negated
+conjunction is then fully witnessed. Intersecting `qv` with any later
+positive vote supermajority
+(`supermajorities_intersect_in_greater_than_third`) yields an f+1 positive
+sub-quorum of `qv` — contradiction. -/
 
 invariant [fb_neg_sig_has_witness]
   ∀ (R J : node),
@@ -1700,7 +1756,7 @@ invariant [fb_neg_qv_backed]
     nset.supermajority QV ∧ (∀ r, nset.member r QV → msg_vote_cast r)
 
 invariant [fb_neg_qv_no_pos_quorum]
-  no_equivocation →
+  no_equivocation → no_invalid_encoding →
   ∀ (R J : node) (QV q : nodeset) (M : merkle_root),
     ¬ is_byz R ∧ local_fb_neg_qv R J QV →
     ¬ (nset.greater_than_third q ∧
@@ -1712,17 +1768,17 @@ proposer, absent equivocation. From `fb_neg_sig_has_witness` +
 `supermajorities_intersect_in_greater_than_third` (intersect `qv` with
 the supermajority) + `fb_neg_qv_no_pos_quorum`. -/
 invariant [fb_neg_no_pos_quorum]
-  no_equivocation →
+  no_equivocation → no_invalid_encoding →
   ∀ (R J : node) (M : merkle_root),
     ¬ is_byz R ∧ msg_fb_neg_sig R J → ¬ vote_quorum_pos J M
 
 invariant [spec_fastqc_pos_no_mvba_neg]
-  no_equivocation →
+  no_equivocation → no_invalid_encoding →
   ∀ (I J : node) (M : merkle_root),
     ¬ is_byz I ∧ local_fastqc_pos I J M → ¬ mvba_decided_neg J
 
 invariant [spec_fastqc_pos_mvba_pos_unique]
-  no_equivocation →
+  no_equivocation → no_invalid_encoding →
   ∀ (I J : node) (M M' : merkle_root),
     ¬ is_byz I ∧ local_fastqc_pos I J M ∧ mvba_decided_pos J M' → M = M'
 
@@ -1903,18 +1959,22 @@ invariant [progress_voting]
 Once some 2f+1 validators have broadcast votes, an honest validator on the
 fallback path can always cast its per-proposer fallback entry: for any
 witnessed quorum `qv`, either some root has an f+1 positive sub-quorum
-within `qv` — then `fb_sign_pos` is enabled (its chunk threshold (c) is
-implied at the network level, `vote_pos_quorum_implies_decodable`) — or no
-root has one, which is `fb_sign_neg`'s guard for `qv`. -/
+within `qv` with decodable (`chunk_quorum`; implied at the network level,
+`vote_pos_quorum_implies_decodable`), well-encoded data — then
+`fb_sign_pos` is enabled — or no root has all three, which is
+`fb_sign_neg`'s guard for `qv` (its `qc` witness is the `chunk_quorum`
+witness). Excluded middle over the guard's evidence shape, stated to make
+the case analysis explicit. -/
 invariant [progress_fallback_signing]
   ∀ (I J : node) (qv : nodeset),
     ¬ is_byz I ∧ is_proposer J ∧
     nset.supermajority qv ∧ (∀ r, nset.member r qv → msg_vote_cast r) →
     (∃ (M : merkle_root) (q : nodeset), nset.greater_than_third q ∧
       (∀ r, nset.member r q → nset.member r qv ∧ msg_vote_pos_sig r J M) ∧
-      chunk_quorum J M) ∨
+      chunk_quorum J M ∧ well_encoded M) ∨
     (∀ (M : merkle_root) (q : nodeset), ¬ (nset.greater_than_third q ∧
-      (∀ r, nset.member r q → nset.member r qv ∧ msg_vote_pos_sig r J M)))
+      (∀ r, nset.member r q → nset.member r qv ∧ msg_vote_pos_sig r J M) ∧
+      chunk_quorum J M ∧ well_encoded M))
 
 /-! ### Path-fast implies the validator's own FastQCs for every proposer
 
@@ -2102,8 +2162,10 @@ sweep exceeded 17 CPU-hours and 50 GB (swap thrash) before being killed.
 The defaults are the validated configuration; seed-luck timeouts are
 healed by `veil.smt.retries`
 (retry with a perturbed seed, reported as "(retry k, seed k)"), with the
-TR-form fallback behind that; the 14 cells SMT cannot solve at all are
-preproven manual theorems in their actions' proof files. -/
+TR-form fallback behind that; the 11 cells SMT cannot solve at all are
+preproven manual theorems in their actions' proof files (14 until
+2026-08-19 — the `well_encoded` refactor made the three `fb_sign_neg`
+cells SMT-tractable; see `Chorus/Proofs/FbSignNeg.lean`). -/
 
 #gen_spec
 
@@ -2120,7 +2182,7 @@ checks. The 3 783 invariant VCs are proven cross-file:
   from the registry statement (identical to what an in-file sweep would
   check, by construction), solved with proof reconstruction, persisted as
   a kernel-checked theorem, and assembled into the per-action
-  preservation lemma `step_<action>`. The 14 manual quorum-intersection
+  preservation lemma `step_<action>`. The 11 manual quorum-intersection
   cells (SMT's e-matching diverges on them) live in their actions' proof
   files as preproven theorems the command consumes as-is after a
   statement check.

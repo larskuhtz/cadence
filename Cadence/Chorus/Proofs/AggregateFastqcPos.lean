@@ -83,7 +83,7 @@ theorem aggregate_fastqc_pos_spec_fastqc_pos_mvba_pos_unique (ρ : Type) (σ : T
           χ_rep_lawful σ_sub ρ_sub) :=
   by
   unveil
-  intro hbyz_i hsup_q hq_sigs hne1 hne2 hne3 I J M M' hbyz_I hfq hmv
+  intro hbyz_i hsup_q hq_sigs hne1 hne2 hne3 hnie I J M M' hbyz_I hfq hmv
   by_cases hnew : i = I ∧ j = J ∧ m = M
   · obtain ⟨rfl, rfl, rfl⟩ := hnew
     rcases hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 j M' hmv with ⟨Q2, hQ2_sup, hQ2⟩ | ⟨⟨qf, hqf_gtt, hqf⟩, -⟩
@@ -95,7 +95,7 @@ theorem aggregate_fastqc_pos_spec_fastqc_pos_mvba_pos_unique (ρ : Type) (σ : T
       obtain ⟨b, hb1, hb2⟩ := nset.supermajority_greater_than_third_intersect q qv2 hsup_q hqv2_gtt
       exact hne1 b j m M' (hq_sigs b (by simpa using hb1)) (hqv2 b (by simpa using hb2))
   · have hold : st.local_fastqc_pos I J M = true := hfq (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩)
-    exact hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 hne1 hne2 hne3 I J M M' hbyz_I hold hmv
+    exact hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 hne1 hne2 hne3 hnie I J M M' hbyz_I hold hmv
 
 #prove_action Chorus aggregate_fastqc_pos
 

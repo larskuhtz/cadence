@@ -141,7 +141,7 @@ theorem mvba_decide_neg_inclusion_no_mvba_neg (ρ : Type) (σ : Type) (slot : Ty
           χ_rep_lawful σ_sub ρ_sub) :=
   by
   unveil
-  intro hphase hcompl hprop hinvoked hev hnodec J M hbyzJ hpropJ hall
+  intro hphase hcompl hprop hinvoked hev hnodec J M hbyzJ hpropJ hall hwe
   refine ⟨?_, ?_⟩
   · intro hjJ
     subst hjJ
@@ -149,17 +149,17 @@ theorem mvba_decide_neg_inclusion_no_mvba_neg (ρ : Type) (σ : Type) (slot : Ty
     · have hQn_gtt := nset.supermajority_greater_than_third Qn hQn_sup
       obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest Qn hQn_gtt
       have ha_hon' : ByzNodeSet.is_byz a = false := by simpa using ha_hon
-      have hx := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 j a M hbyzJ hpropJ hall ha_hon'
+      have hx := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 j a M hbyzJ hpropJ hall hwe ha_hon'
       have hy := hQn a (by simpa using ha_mem)
       rw [hx] at hy; simp at hy
     · rcases harm with ⟨qn, hqn_gtt, hqn⟩ | ⟨m1, m2, hm12, hp1, hp2⟩
       · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qn hqn_gtt
         have ha_hon' : ByzNodeSet.is_byz a = false := by simpa using ha_hon
-        have hx := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 j a M hbyzJ hpropJ hall ha_hon'
+        have hx := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 j a M hbyzJ hpropJ hall hwe ha_hon'
         have hy := hqn a (by simpa using ha_mem)
         rw [hx] at hy; simp at hy
       · exact hm12 (hinv.2.2.2.2.2.2.2.2.2.1 j m1 m2 hbyzJ hp1 hp2)
-  · exact hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 J M hbyzJ hpropJ hall
+  · exact hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 J M hbyzJ hpropJ hall hwe
 
 #prove_action Chorus mvba_decide_neg
 

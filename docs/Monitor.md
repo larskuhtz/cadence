@@ -213,7 +213,10 @@ on the same mechanism.
 
 `n = 3f+1 = 4`, `f = 1`, a single slot, **empty** Byzantine set (all four
 nodes honest — the deployment the all-honest sim exercises), proposal index 0
-mapped to model proposer node 0. The sim's data-availability layer is stubbed,
+mapped to model proposer node 0, and every root well-encoded
+(`well_encoded := fun _ => true` in the `Theory` instantiation — the
+fixtures' proposals are honestly encoded; an invalid-encoding trace would
+instantiate it `false` at the offending root). The sim's data-availability layer is stubbed,
 so every node votes negative and finalization runs the **negative fast path**;
 the emitter emits the observable actions of that path.
 `traces/fast_path_positive.jsonl` additionally exercises the positive guards

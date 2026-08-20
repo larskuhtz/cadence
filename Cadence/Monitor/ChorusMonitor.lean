@@ -58,8 +58,10 @@ def emptyByz4 : ByzNodeSet ND NS :=
 
 /-- Node 0 is the sole proposer.  Proposal index 0 in the implementation maps to
     model proposer node 0 (the impl indexes proposals `0..num_proposals`,
-    decoupled from node identity; here `num_proposals = 1`). -/
-def chThy : Th := Chorus.Theory.mk (fun j => j == 0)
+    decoupled from node identity; here `num_proposals = 1`).  Every root is
+    well-encoded (second field): the fixtures' proposals are honestly
+    encoded, and the sim's DA layer produces no invalid encodings. -/
+def chThy : Th := Chorus.Theory.mk (fun j => j == 0) (fun _ => true)
 
 /-- Explicit specialized Inhabited seed — avoids the pathological `Inhabited St`
     search (this is what `#model_check` does via `inhabσ`). -/

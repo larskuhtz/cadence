@@ -92,7 +92,7 @@ theorem vote_fb_neg_no_pos_quorum (ρ : Type) (σ : Type) (slot : Type) [slot_de
           χ_rep_lawful σ_sub ρ_sub) :=
   by
   unveil
-  intro hbyz_i hphase hvoted hne1 hne2 hne3 R J M hbyz_R hfbneg x hsup
+  intro hbyz_i hphase hvoted hne1 hne2 hne3 hnie R J M hbyz_R hfbneg x hsup
   have h14 := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
   have h17 := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
   have h71 := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
@@ -144,7 +144,10 @@ theorem vote_fb_neg_no_pos_quorum (ρ : Type) (σ : Type) (slot : Type) [slot_de
   obtain ⟨t, ht_gtt, ht_mem⟩ :=
     nset.supermajorities_intersect_in_greater_than_third qv x hqv_sup hsup
   -- The witness invariant yields a member of `t` with no pre-state signature.
-  obtain ⟨a, ha_t, ha_nosig⟩ := h74 hne1' hne2' hne3 R J qv t M hbyz_R hqv ht_gtt
+  -- `no_invalid_encoding` passes through unadapted: `vote` leaves the
+  -- proposer-signature relation untouched, so the post-state hypothesis is
+  -- already the pre-state fact.
+  obtain ⟨a, ha_t, ha_nosig⟩ := h74 hne1' hne2' hne3 hnie R J qv t M hbyz_R hqv ht_gtt
   obtain ⟨ha_qv, ha_x⟩ := ht_mem a ha_t
   have ha_sig_false : st.msg_vote_pos_sig a J M = false := ha_nosig ha_qv
   -- `a ≠ i` (it is in `qv`), so its post-state row equals its pre-state row.

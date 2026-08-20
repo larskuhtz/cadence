@@ -95,8 +95,6 @@ History: [docs/History.md](./docs/History.md).
 A green build is not a silent build. These are known and harmless — do not
 "fix" them by changing working proofs:
 
-* `Cadence/Chorus/Proofs/FbSignNeg.lean` — two `Try this: intro …`
-  suggestions from the tactic linter.
 * `Cadence/Composition.lean:161–162` — two `try 'simp' instead of 'simpa'`
   suggestions.
 * Dependency-side: one `declaration uses 'sorry'` in `lean-smt`'s

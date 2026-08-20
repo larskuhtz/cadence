@@ -56,7 +56,7 @@ Current state, all green:
 
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
-| `Cadence/Chorus.lean` | 38 | 9 safety + 88 invariants | 3 822 | cvc5, **proof-reconstructed** (kernel-checked), + 14 manual Lean proofs for e-matching-divergent cells |
+| `Cadence/Chorus.lean` | 38 | 9 safety + 88 invariants | 3 822 | cvc5, **proof-reconstructed** (kernel-checked), + 11 manual Lean proofs for e-matching-divergent cells |
 | `Cadence/Cadence.lean` | 4 | 4 safety + 18 invariants | 115 | cvc5, **proof-reconstructed** (kernel-checked) |
 | `Cadence/Conductor.lean` | 7 | 5 safety + 14 invariants | 160 | cvc5, **proof-reconstructed** (kernel-checked; one encoding-divergent attempt covered by its alternative form) |
 | `Cadence/FallbackReceipt.lean` | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |

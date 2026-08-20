@@ -32,7 +32,7 @@ def emptyByz4 : ByzNodeSet (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1)) :=
 #gen_monitor Chorus into ChorusGen
   sorts (Fin 1), (Fin (3 * 1 + 1)), (ByzNSet (3 * 1 + 1)), (Fin 2),
         Chorus.Phase_IndT, Chorus.PathChoice_IndT
-  theory (Chorus.Theory.mk (fun j => j == 0))
+  theory (Chorus.Theory.mk (fun j => j == 0) (fun _ => true))
   byz emptyByz4
 -- ▲▲▲ emits ChorusGen.{Th,St,Lbl,chThy,stInhab,cnext,cinit,initStates,step} ▲▲▲
 

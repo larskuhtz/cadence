@@ -308,8 +308,11 @@ establish, and prove the protocol consequence asynchronously:
   (`all_honest_recorded j m`) as the hypothesis and proves that no
   conflicting entry can ever be certified or committed.
 * **Speculative safety** — the paper's claim "a speculative commit is
-  reverted only under equivocation" is stated relative to the
-  `no_equivocation` state predicate.
+  reverted only if the proposer is the culprit" is stated relative to
+  the `no_equivocation` and `no_invalid_encoding` state predicates —
+  the culprit set of the paper's proof sketch
+  (`subsection:chorus-proof`, closing parenthetical): equivocation, or
+  committing to an invalidly encoded root.
 
 ### 3.4 What is omitted
 
@@ -334,41 +337,36 @@ establish, and prove the protocol consequence asynchronously:
   adoption and re-aggregation coincide: `aggregate_fastqc_*` covers
   both.
 * **DA re-encode consistency check** (`alg:da` `line:da-reencode`) —
-  after decoding `f+1` chunks the paper re-encodes and compares the
-  root, marking inconsistent roots `invalid`. With `merkle_root` opaque
-  we cannot model this, so "`f+1` chunks for root `m`" is taken as
-  decodable. A Byzantine proposer can thus deliver `f+1`
-  mutually-inconsistent chunks the real DA would reject. This weakens
-  the DA-decodability auxiliaries (`*_decodable`) but not agreement
-  (the paper's `prop:recovery-consistency` guarantees all honest
-  validators reach the *same* verdict on such a root, which is the part
-  agreement needs; the model inherits it through root-opacity), and not
-  proposal inclusion (an on-time honest proposer's proposal is
-  correctly encoded, so its re-encode check always passes — the paper's
-  `prop:honest-positive-entry` argument says exactly this).
+  modelled **abstractly**, by its verdict rather than its arithmetic.
+  The paper decodes `f+1` chunks, re-encodes, and compares the root;
+  with `merkle_root` opaque the model cannot compute this, so the
+  check's verdict is the immutable predicate `well_encoded m` — sound
+  because encoding validity is a property of the whole committed set
+  the root binds, identical at every validator
+  (`prop:recovery-consistency`). Honest `propose` requires it (recovery
+  guarantee (ii): a correct proposer encodes validly), `fb_sign_pos`
+  requires it (the paper's fallback-yes caster reconstructs and
+  re-encode-checks), and `fb_sign_neg`'s guard admits the
+  re-encode-failure fallback-no — the culprit case of the paper's proof
+  sketch (`subsection:chorus-proof`, closing parenthetical) that
+  involves no equivocation, only an invalidly encoded root. The
+  erasure arithmetic itself stays unmodelled: "`f+1` chunks for root
+  `m`" is still taken as decodable (`chunk_quorum` reads `isDecoded` at
+  the chunk-count threshold), and a Byzantine proposer can still
+  deliver `f+1` mutually-inconsistent chunks — but the fallback layer
+  now sees the verdict the real DA would reach on them. Agreement and
+  proposal inclusion never depended on the check (agreement rests on
+  quorum intersection over root-opaque certificates; an on-time honest
+  proposer's root passes the check by the `all_honest_recorded`
+  premise's encoding half).
 
-  The abstraction **is load-bearing for the speculative-finality
-  properties** (`speculative_agreement_pos`,
-  `speculative_agreement_pos_neg`), and this is a *scope* caveat on
-  what those two theorems mean. The paper admits an honest fallback-no
-  cast after gathering `f+1` yes votes on a root whose chunks fail to
-  re-encode (the parenthetical closing the "Safety of speculative
-  finalization" paragraph, `subsection:chorus-proof`) — a culprit case
-  that involves **no equivocation**, only an invalidly encoded root. In
-  the model that case cannot arise: `fb_sign_neg`'s guard forbids a
-  negative entry whenever an `f+1` positive sub-quorum with decodable
-  data exists within the witnessed quorum, which — via
-  `vote_pos_quorum_implies_decodable` — collapses to "no `f+1` positive
-  sub-quorum", the fact `fb_neg_qv_no_pos_quorum` and the keystone
-  `fb_neg_no_pos_quorum` record and the speculative properties consume.
-  Transported to the real protocol, the speculative properties
-  therefore hold under the paper's full "proposer is the culprit"
-  hypothesis — no equivocation **and** no invalidly encoded root — not
-  under `no_equivocation` alone. Closing this at the model level (a
-  `well_encoded` predicate on roots, required by honest `propose` and
-  consulted by `fb_sign_pos`/`fb_sign_neg`, with the speculative
-  hypothesis extended to match) is §9 item 4. Surfaced by the 2026-08
-  external audit (Finding 1).
+  History: until 2026-08-19 the check was wholly unmodelled, which made
+  the omission silently load-bearing for the speculative-finality
+  properties — they were provable under `no_equivocation` alone only
+  because invalid encodings could not exist. Found by the 2026-08
+  external audit (Finding 1); the properties now take the paper's full
+  culprit set (`no_equivocation` + `no_invalid_encoding`), closing that
+  finding at the model level.
 
 ## 3.5 State locality contract
 
@@ -408,8 +406,8 @@ on two distinct roots), `fbcert` (FBCert), `commitqc_pos/neg`
 votes, `line:fb-formcommitqc`), `chunk_quorum` (`isDecoded`),
 `slot_key_released` (f+1 extraction shares),
 `complete_fast_metablock` / `mvba_invoked` (MVBA proposal triggers),
-plus the hypothesis predicates `no_equivocation` and
-`all_honest_recorded`. A certificate "exists"
+plus the hypothesis predicates `no_equivocation`,
+`no_invalid_encoding` and `all_honest_recorded`. A certificate "exists"
 iff its aggregated signatures are observable — which matches the
 protocol, where any holder of the signatures (honest or Byzantine)
 can assemble the certificate and any receiver can verify it. Nothing
@@ -662,7 +660,7 @@ Grouped by purpose. See `Cadence/Chorus.lean` for the statements; this is a map.
 | `integrity_pos`, `integrity_pos_neg` | per-validator commit integrity. |
 | `hiding_until_deadline` | Hiding (`lemma:chorus-hiding`), protocol layer: the slot key is not reconstructible pre-deadline. |
 | `proposal_inclusion`, `proposal_inclusion_no_neg` | Proposal inclusion (`lemma:chorus-proposal-inclusion`), relative to the premise `all_honest_recorded`. |
-| `speculative_agreement_pos`, `speculative_agreement_pos_neg` | the speculative-finality claim (`p1_informal.tex`), relative to `no_equivocation`. |
+| `speculative_agreement_pos`, `speculative_agreement_pos_neg` | the speculative-finality claim (`p1_informal.tex`), relative to `no_equivocation` + `no_invalid_encoding` — the paper's full "proposer is the culprit" set (`subsection:chorus-proof`). |
 
 Slot safety (`lemma:chorus-slot-safety`) is trivial in the single-slot
 model; termination is §7.
@@ -763,11 +761,12 @@ Proposal inclusion (all relative to `all_honest_recorded`):
 `inclusion_no_mvba_neg`, `inclusion_mvba_pos_unique`.
 
 Speculative safety: `fb_neg_sig_has_witness`, `fb_neg_qv_is_proposer`,
-`fb_neg_qv_backed`, and (relative to `no_equivocation`)
-`fb_neg_qv_no_pos_quorum` — together the persistent residue of
-`fb_sign_neg`'s witnessed-quorum guard, anchored on the
-`local_fb_neg_qv` history variable — plus `fb_neg_no_pos_quorum`,
-`spec_fastqc_pos_no_mvba_neg`, `spec_fastqc_pos_mvba_pos_unique`.
+`fb_neg_qv_backed`, and (relative to `no_equivocation` +
+`no_invalid_encoding`) `fb_neg_qv_no_pos_quorum` — together the
+persistent residue of `fb_sign_neg`'s witnessed-quorum guard, anchored
+on the `local_fb_neg_qv` history variable — plus `fb_neg_no_pos_quorum`,
+`spec_fastqc_pos_no_mvba_neg`, `spec_fastqc_pos_mvba_pos_unique` (same
+two hypotheses).
 
 ### 6.7 Fallback commit round (added 2026-07-07)
 
@@ -1023,7 +1022,8 @@ f+1 accepted positive votes pin f+1 *distinct* chunks.
   proofs. A complete set of own FastQCs — the paper's speculative
   commit — deliberately does not finalize; its safety is captured
   separately by the `speculative_agreement_*` properties, conditional
-  on `no_equivocation`, matching the paper's revertibility claim.
+  on `no_equivocation` + `no_invalid_encoding`, matching the paper's
+  revertibility claim at its proof sketch's full culprit set.
 
 * **TIBE / encrypted payload.** Payload bytes are not modelled.
   `msg_decrypt_share` and the `slot_key_released` ghost capture the
@@ -1089,15 +1089,7 @@ list, and §§10.1–10.3 below for the bigger lifts.
    occurrences (positive / self-row / documented exception) rather than
    merely reject — see §3.1.1.
 
-4. Model the DA re-encode consistency check: an immutable
-   `well_encoded` predicate on roots, required by honest `propose`
-   (and, per the paper, by `fb_sign_pos`) and consulted by
-   `fb_sign_neg`, with the speculative-finality hypothesis extended
-   from `no_equivocation` to the paper's full culprit set ("no
-   equivocation and no invalidly encoded root") — see §3.4. Until then
-   the speculative properties carry the §3.4 scope caveat.
-
-5. An in-build reachability witness (`sat trace`) for Chorus. Blocked
+4. An in-build reachability witness (`sat trace`) for Chorus. Blocked
    twice over today: the trace pipeline needs the model-check
    scaffolding's label enumeration, which this model disables for its
    O(n^k) elaboration cost over ~38 actions, and `vote`'s bulk update

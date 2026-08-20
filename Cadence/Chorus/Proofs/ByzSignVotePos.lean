@@ -71,7 +71,7 @@ theorem byz_sign_vote_pos_fb_neg_no_pos_quorum (ρ : Type) (σ : Type) (slot : T
           χ_rep_lawful σ_sub ρ_sub) :=
   by
   unveil
-  intro hbyz_r hchunk hne1 hne2 hne3 R J M hbyzR hfb x hsup_x
+  intro hbyz_r hchunk hne1 hne2 hne3 hnie R J M hbyzR hfb x hsup_x
   -- Pre-state no-equivocation from the post-state hypotheses (pre-state
   -- signatures persist into the post state).
   have hne1' : ∀ a b c1 c2, st.msg_vote_pos_sig a b c1 = true →
@@ -87,7 +87,9 @@ theorem byz_sign_vote_pos_fb_neg_no_pos_quorum (ρ : Type) (σ : Type) (slot : T
   have hpropJ := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 R J qv hbyzR hqv
   obtain ⟨t, ht_gtt, ht⟩ :=
     nset.supermajorities_intersect_in_greater_than_third qv x hqv_sup hsup_x
-  obtain ⟨b, hb_t, hb_nosig⟩ := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 hne1' hne2' hne3 R J qv t M hbyzR hqv ht_gtt
+  -- `no_invalid_encoding` passes through unadapted: this action leaves the
+  -- proposer-signature relation untouched.
+  obtain ⟨b, hb_t, hb_nosig⟩ := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 hne1' hne2' hne3 hnie R J qv t M hbyzR hqv ht_gtt
   obtain ⟨hb_qv, hb_x⟩ := ht b (by simpa using hb_t)
   have hb_qv' : ByzNodeSet.member b qv = true := by simpa using hb_qv
   have hb_sig_false : st.msg_vote_pos_sig b J M = false := hb_nosig hb_qv'
