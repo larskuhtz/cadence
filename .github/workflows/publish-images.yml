@@ -144,8 +144,10 @@ jobs:
       - name: Build deps and dev
         run: |
           set -euo pipefail
-          docker build --target deps --tag "${IMAGE_BASE}-deps:latest" .
-          docker build --target dev  --tag "${IMAGE_BASE}-dev:latest"  .
+          docker build --file Containerfile \
+            --target deps --tag "${IMAGE_BASE}-deps:latest" .
+          docker build --file Containerfile \
+            --target dev  --tag "${IMAGE_BASE}-dev:latest"  .
 
       - name: Push, and record the deps digest
         id: push
@@ -221,7 +223,17 @@ jobs:
           if [ -n "${FRESH_DIGEST:-}" ]; then
             digest="$FRESH_DIGEST"
           else
-            docker pull "${IMAGE_BASE}-deps:latest"
+            if ! docker pull "${IMAGE_BASE}-deps:latest"; then
+              # 'manifest unknown' here means the registry was never
+              # bootstrapped: nothing has published a deps image yet, so there
+              # is nothing to layer onto and this job cannot succeed.
+              echo "::error::cannot pull ${IMAGE_BASE}-deps:latest — the" \
+                   "registry holds no published deps image. Bootstrap it:" \
+                   "dispatch this workflow with rebuild_deps: true, or push a" \
+                   "local build (docs/Container.md § 'Seeding the registry" \
+                   "from a local build')."
+              exit 1
+            fi
             digest=$(docker image inspect "${IMAGE_BASE}-deps:latest" \
                        --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
           fi
@@ -257,10 +269,10 @@ jobs:
           DEPS_REF: ${{ steps.base.outputs.ref }}
         run: |
           set -euo pipefail
-          docker build --target verified \
+          docker build --file Containerfile --target verified \
             --build-arg "DEPS_IMAGE=${DEPS_REF}" \
             --tag "${IMAGE_BASE}-verified:latest" .
-          docker build --target verified-cache \
+          docker build --file Containerfile --target verified-cache \
             --build-arg "DEPS_IMAGE=${DEPS_REF}" \
             --tag "${IMAGE_BASE}-verified-cache:latest" .
 
