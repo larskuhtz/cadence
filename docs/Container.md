@@ -311,7 +311,7 @@ Two GitHub Actions workflows do this, in
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `verify.yml` | every push to the default branch, every pull request | pulls the published `verified` image and re-runs the staged verification against the commit's sources — the per-commit gate. It builds no images |
-| `publish-images.yml` | push to the default branch; manual | rebuilds and publishes `verified` + `verified-cache`. `deps`/`dev` are rebuilt only when `lakefile.lean`, `lake-manifest.json`, `lean-toolchain` or the `Containerfile` changes, or on request |
+| `publish-images.yml` | push to the default branch; manual | rebuilds and publishes `verified` + `verified-cache` for both architectures and combines the `:latest` manifest lists. `deps`/`dev` are rebuilt only when `lakefile.lean`, `lake-manifest.json`, `lean-toolchain` or the `Containerfile` changes, or on request |
 
 The split matters because the two halves cost very different amounts: `deps` is
 the whole dependency tree, `verified` is this project on top of it.
@@ -333,14 +333,22 @@ seeds from the previous `verified-cache` image, which carries the cache at
 without depending on the Actions cache, whose 10 GB budget and weekly eviction
 suit it poorly.
 
-**Architecture.** CI runs on `ubuntu-24.04-arm`, so the published images are
-`linux/arm64` — matching a local build on Apple Silicon, which is what allows
-the registry to be seeded from an existing local build rather than a cold one,
-and what lets a CI failure be reproduced on the same machine. An x86 stage
-cannot be layered onto an arm64 base, so a single image cannot mix the two.
-Publishing both architectures means building each on its own runner, pushing
-arch-suffixed tags, and combining them into a manifest list with
-`docker buildx imagetools create`; the workflow header says what that changes.
+**Architecture.** The published `:latest` tags are manifest lists covering
+`linux/arm64` and `linux/amd64`. An x86 stage cannot be layered onto an arm64
+base — and a cross-build under qemu makes Lean elaboration 10–20× slower — so
+`publish-images.yml` builds each architecture natively on its own runner
+(`ubuntu-24.04-arm` / `ubuntu-24.04`), pushes arch-suffixed tags
+(`:latest-arm64`, `:latest-amd64`), and combines each pair into the `:latest`
+list with `docker buildx imagetools create` in a final job. Everything
+per-architecture — the `DEPS_IMAGE` digest pin, the layer-sharing assertion,
+the attestations — runs inside a matrix leg against that leg's own arch tag;
+nothing ever pins the list. Consumers just pull `:latest` and get their
+platform's entry. The proof cache is architecture-portable (its key is the
+closed goal statement), so the two legs seed from each other's
+`verified-cache` when their own is missing; only `verify.yml` stays
+single-architecture (arm64, matching a local Apple Silicon build), because the
+proofs are architecture-independent and the amd64 image verifies inside its
+own build.
 
 **Seeding the registry from a local build.** The first publish does not have to
 be a cold CI build. If the four images already exist locally — and share their
@@ -350,25 +358,31 @@ them *is* the bootstrap, and every later CI run seeds its proof cache from the
 
 ```bash
 REG=ghcr.io/<owner>
+ARCH=$(uname -m | sed 's/aarch64/arm64/; s/x86_64/amd64/')
 printenv CR_PAT | podman login ghcr.io -u <owner> --password-stdin
-for t in deps dev verified verified-cache; do   # deps first: later pushes then
-  podman tag  cadence-$t $REG/cadence-$t:latest # skip the layers it already has
-  podman push $REG/cadence-$t:latest
+for t in deps dev verified verified-cache; do        # deps first: later pushes
+  podman tag  cadence-$t $REG/cadence-$t:latest-$ARCH # then skip the layers it
+  podman push $REG/cadence-$t:latest-$ARCH            # already has
 done
 ```
 
-The `verified` image this publishes is only as current as the sources it was
-built from, so let CI rebuild it on the next push; the point of the exercise is
-the cache, which is content-addressed and stays valid across any change that
-does not alter a verification condition.
+Seed the arch-suffixed tag, not `:latest`: the workflow's per-architecture
+legs pull `latest-<arch>`, and `:latest` is the manifest list its `combine`
+job assembles from the two — a plain image pushed over it would break the
+other architecture's consumers until the next publish. The `verified` image
+this publishes is only as current as the sources it was built from, so let CI
+rebuild it on the next push; the point of the exercise is the cache, which is
+content-addressed, architecture-portable, and stays valid across any change
+that does not alter a verification condition — a single seeded architecture
+warms both legs.
 
-**Resource notes**, none of them verified on a hosted runner yet: a standard
-runner has ~14 GB free disk against a job that needs ~25 GB, so both workflows
-reclaim the preinstalled toolchains first; and the dependency build has been
-measured to OOM at 12 CPUs / 20 GB, against a runner's 16 GB. Fewer cores means
-fewer concurrent Lean processes and a lower peak, which is the only lever
-available. If `deps` will not build on a standard runner, that job needs a
-larger one.
+**Resource notes.** A standard runner has ~14 GB free disk against a job that
+needs ~25 GB, so both workflows reclaim the preinstalled toolchains first; and
+the dependency build has been measured to OOM at 12 CPUs / 20 GB, against a
+runner's 16 GB — but a hosted runner's 4 vCPUs mean fewer concurrent Lean
+processes and a lower peak, and the 2026-08 bootstrap run confirmed the whole
+pipeline, `deps` build included, fits a standard runner. If a future
+dependency tree will not, that job needs a larger runner.
 
 To publish by hand instead:
 
