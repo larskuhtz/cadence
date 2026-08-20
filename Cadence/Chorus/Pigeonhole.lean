@@ -47,12 +47,7 @@ content of that argument is only the temporal glue
 `[propext, Classical.choice, Quot.sound]` (pinned below) — the reachability
 projections consume the proof-file family's re-proved VC theorems
 (`Chorus/Proofs/`, via `Chorus/Certify.lean`), and the counting is
-kernel-checked outright.
-
-NOTE (comment batching): the corresponding prose in `Chorus.lean`'s
-liveness section ("Evidence pigeonhole (meta-level)") still calls this
-step meta; per the comment-batching rule that touch-up rides with the
-next substantive `Chorus.lean` edit. `docs/ChorusDesign.md` §7 is updated. -/
+kernel-checked outright. -/
 
 namespace Chorus
 open Classical ByzNodeSet

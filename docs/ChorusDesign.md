@@ -106,8 +106,10 @@ network relations. Auditing Chorus, the property split is:
 
 | Relation | M-update | M-frame |
 |---|:-:|:-:|
-| `msg_proposer_signed`, `msg_chunk_received` | ✓ | ✓ |
-| `msg_vote_*_sig`, `msg_vote_cast`, `msg_fb_*_sig`, `msg_fallback_sig`, `msg_commit_*_sig`, `msg_commit_cast`, `msg_decrypt_share`, `msg_fbcommit_sig` | ✓ | ✓ (but see the note on `fb_sign_neg` below) |
+| `msg_chunk_received` | ✓ | ✓ |
+| `msg_proposer_signed` | ✓ | ✗ — one self-row read: `propose j` guards on its **own** row (see "Self-row negative reads" below) |
+| `msg_vote_*_sig`, `msg_vote_cast`, `msg_fb_*_sig`, `msg_fallback_sig`, `msg_commit_*_sig`, `msg_decrypt_share`, `msg_fbcommit_sig` | ✓ | ✓ (but see the note on `fb_sign_neg` below) |
+| `msg_commit_cast` | ✓ | ✗ — six self-row reads: `¬ msg_commit_cast i` for the acting validator `i` (see "Self-row negative reads" below) |
 | `local_fastqc_*` | ✓ | ✗ (negative observations of own state) |
 | `mvba_decided_*`, `mvba_complete` | ✓ | ✓ for honest actions' network-style reads; the oracle-internal agreement guards and `cast_fb_commit`'s post-freeze read are scoped exceptions (see below) |
 | `phase : Phase` enum | (forward-only, see below) | ✓ |
@@ -148,6 +150,36 @@ oracle's own agreement/integrity guards in `mvba_decide_*` likewise
 consult prior decisions negatively; both are oracle-internal semantics,
 not honest observations of network absence.)
 
+**Self-row negative reads (`msg_proposer_signed`, `msg_commit_cast`).**
+Seven guards read a network relation negatively where the row consulted
+is indexed by the **acting validator itself** and written by no one
+else:
+
+* `propose j` requires `∀ m2, msg_proposer_signed j m2 → m2 = m` — "I
+  have not already signed a different root". For honest `j` the row
+  `msg_proposer_signed j` is written only by `propose j` itself: the
+  only other writer, `byz_sign_proposer j`, requires `is_byz j`, and
+  `is_byz` is immutable configuration.
+* `commit_sign_pos`, `commit_sign_neg`, `cast_fast_commit`,
+  `fb_sign_pos`, `fb_sign_neg`, and `cast_fallback_vote` require
+  `¬ msg_commit_cast i` — "I have not already cast my fast commit
+  vote". For honest `i` the row `msg_commit_cast i` is written only by
+  `cast_fast_commit i` (the only other writer, `byz_cast_commit i`,
+  requires `is_byz i`).
+
+These reads are **sound**, for a reason distinct from the two
+exceptions above: under the §3.2 simulation the global monotone value
+of a self-row coincides with the acting validator's local knowledge in
+the asynchronous run — the row records the validator's own *production*
+history, not delivery, so no adversarial scheduling can make the
+monotone read differ from what the real validator observes about
+itself. Semantically these are the local checks "I have not already
+proposed / already cast" that any real validator performs on its own
+state. Network tuples produced by *other* participants can never
+disable these guards. (Recorded explicitly after the 2026-08 external
+audit, whose re-run of this hand audit found the two relations
+previously mis-tabled as pure (M-frame) ✓.)
+
 The network relations satisfy **both** properties elsewhere. The
 per-validator local state relations satisfy only (M-update): they appear
 in negative position in some preconditions — e.g., `commit_assign_neg`
@@ -176,21 +208,38 @@ Therefore the following is a **contract**, not a documentation aid:
 
 > Actions in `Cadence/Chorus.lean` must consult the **network relations**
 > listed in §3.1 only in positive position, both in preconditions and
-> in update right-hand sides — with the one documented exception of
-> `fb_sign_neg`'s witnessed-quorum guard, whose negation is scoped to
-> the action's own `qv` parameter (it observes the *absence of a
-> quorum within a set the validator has received*, which a real
-> validator can observe). The **per-validator local relations** are
-> exempt — negative observations of one's own local state are sound.
+> in update right-hand sides — with two documented exception
+> categories: (i) `fb_sign_neg`'s witnessed-quorum guard, whose
+> negation is scoped to the action's own `qv` parameter (it observes
+> the *absence of a quorum within a set the validator has received*,
+> which a real validator can observe); and (ii) the seven **self-row
+> reads** enumerated in §3.1 — a negative read of a relation row that
+> is indexed by the acting validator and written only by that
+> validator's own actions. Any new self-row read must satisfy the same
+> writer condition (audit every writer of the row, honest and
+> Byzantine) and be added to the §3.1 enumeration. The
+> **per-validator local relations** are exempt — negative observations
+> of one's own local state are sound.
 
-The robust semantic formulation is *action monotonicity w.r.t. the
-network relations*: adding more network tuples to the pre-state
-should never disable an action nor change its update behaviour —
-except for `fb_sign_neg`, where a larger pre-state can disable the
-action for a given `qv` exactly as more received votes can in the real
-protocol. When adding or modifying an action, audit it against this
-contract. A future improvement (tracked in [`TODO.md`](./TODO.md) § Soundness
-and as §9 item 3 below) is an automated syntactic check.
+(The hand audit's third carve-out — `cast_fb_commit`'s frozen
+decided-vector read, listed alongside these two in `Architecture.md`
+§4 item 1 — consults *oracle* state, not a network relation, so it
+sits outside this contract's scope; §3.1 documents it.)
+
+The robust semantic formulation is *action monotonicity w.r.t. network
+tuples produced by other participants*: adding such tuples to the
+pre-state should never disable an action nor change its update
+behaviour. The self-row reads satisfy this through the writer
+condition — only the acting validator's own firing adds the tuple the
+guard consults — and `fb_sign_neg` deviates knowingly: a larger
+pre-state can disable the action for a given `qv` exactly as more
+received votes can in the real protocol. When adding or modifying an
+action, audit it against this contract. A future improvement (tracked
+in [`TODO.md`](./TODO.md) § Soundness and as §9 item 3 below) is an
+automated syntactic check — one that *classifies* every occurrence
+(positive / self-row / documented exception) rather than merely
+rejects, so that reads like the seven above are reported and
+acknowledged explicitly instead of slipping past a reject-only lint.
 
 ### 3.2 Why this is sound for safety
 
@@ -289,11 +338,37 @@ establish, and prove the protocol consequence asynchronously:
   root, marking inconsistent roots `invalid`. With `merkle_root` opaque
   we cannot model this, so "`f+1` chunks for root `m`" is taken as
   decodable. A Byzantine proposer can thus deliver `f+1`
-  mutually-inconsistent chunks the real DA would reject — this weakens
-  only the DA-decodability auxiliaries (`*_decodable`), not agreement
+  mutually-inconsistent chunks the real DA would reject. This weakens
+  the DA-decodability auxiliaries (`*_decodable`) but not agreement
   (the paper's `prop:recovery-consistency` guarantees all honest
   validators reach the *same* verdict on such a root, which is the part
-  agreement needs; the model inherits it through root-opacity).
+  agreement needs; the model inherits it through root-opacity), and not
+  proposal inclusion (an on-time honest proposer's proposal is
+  correctly encoded, so its re-encode check always passes — the paper's
+  `prop:honest-positive-entry` argument says exactly this).
+
+  The abstraction **is load-bearing for the speculative-finality
+  properties** (`speculative_agreement_pos`,
+  `speculative_agreement_pos_neg`), and this is a *scope* caveat on
+  what those two theorems mean. The paper admits an honest fallback-no
+  cast after gathering `f+1` yes votes on a root whose chunks fail to
+  re-encode (the parenthetical closing the "Safety of speculative
+  finalization" paragraph, `subsection:chorus-proof`) — a culprit case
+  that involves **no equivocation**, only an invalidly encoded root. In
+  the model that case cannot arise: `fb_sign_neg`'s guard forbids a
+  negative entry whenever an `f+1` positive sub-quorum with decodable
+  data exists within the witnessed quorum, which — via
+  `vote_pos_quorum_implies_decodable` — collapses to "no `f+1` positive
+  sub-quorum", the fact `fb_neg_qv_no_pos_quorum` and the keystone
+  `fb_neg_no_pos_quorum` record and the speculative properties consume.
+  Transported to the real protocol, the speculative properties
+  therefore hold under the paper's full "proposer is the culprit"
+  hypothesis — no equivocation **and** no invalidly encoded root — not
+  under `no_equivocation` alone. Closing this at the model level (a
+  `well_encoded` predicate on roots, required by honest `propose` and
+  consulted by `fb_sign_pos`/`fb_sign_neg`, with the speculative
+  hypothesis extended to match) is §9 item 4. Surfaced by the 2026-08
+  external audit (Finding 1).
 
 ## 3.5 State locality contract
 
@@ -783,29 +858,27 @@ population is a supermajority — the same meta-level counting step the
 over the `commit_assign_*` preconditions exactly as in the pre-round
 argument.
 
-**Evidence pigeonhole (deliberately meta-level).** In the `x = 0`
+**Evidence pigeonhole (mechanised 2026-07-07).** In the `x = 0`
 branch, the `2f+1` honest fallback entries for a proposer split as: an
 f+1 negative sub-quorum (a negative FallbackQC), or an f+1 positive
 sub-quorum on one root (a positive FallbackQC), or positive entries on
 two roots — whose backing vote quorums pin two proposer-signed roots,
 i.e. `equiv_evidence`. This split-counting partitions a quorum by the
 value its members signed, which is outside the `ByzNodeSet` language
-(no set comprehension); it remains the one meta-level step of the
-fair-progress argument. **Update (2026-07-07): mechanised.**
+(no set comprehension), so it is not SMT-discharged in the invariant
+clump — but it is no longer a meta step: the theorem
 `Chorus.evidence_pigeonhole_of_reachable`
 ([`Cadence/Chorus/Pigeonhole.lean`](../Cadence/Chorus/Pigeonhole.lean)) proves exactly
 this split-counting over reachable states, for every `n = 3f+1` and
 any Byzantine set of size `≤ f` (the concrete instance family — the
 abstract `ByzNodeSet` axioms cannot express the counting, which is why
-the step was meta): from a supermajority of honest per-proposer
+the step used to be meta): from a supermajority of honest per-proposer
 fallback entries, `fb_quorum_pos`/`fb_quorum_neg`/`equiv_evidence`
 follows, via the `two_cover` pigeonhole and the
 `msg_fb_pos_sig_backed → vote_pos_from_local → local_entry_pos_signed`
 chain over the named reachability projections. The remaining meta
 content of the fair-progress argument is only the temporal glue
-((F-justice)/(F-byz)/(A-mvba)); the prose above and the corresponding
-`Cadence/Chorus.lean` comment predate this and their touch-up rides with the
-next substantive `Cadence/Chorus.lean` edit.
+((F-justice)/(F-byz)/(A-mvba)).
 
 ### 7.1 Limitations of the current encoding
 
@@ -992,8 +1065,9 @@ f+1 accepted positive votes pin f+1 *distinct* chunks.
   proposer deliver any chunk attributed to itself to any recipient,
   capturing chunk equivocation (§5).
 
-* **`fb_sign_neg`'s witnessed quorum.** The one scoped exception to
-  the positive-position contract — see §3.1.1.
+* **`fb_sign_neg`'s witnessed quorum.** A scoped exception to the
+  positive-position contract, alongside the seven self-row reads of
+  `msg_proposer_signed`/`msg_commit_cast` — see §3.1 and §3.1.1.
 
 ## 9. What is left for the next iteration
 
@@ -1011,7 +1085,26 @@ list, and §§10.1–10.3 below for the bigger lifts.
    scope (outside the papers' consensus-layer treatment).
 
 3. An automated syntactic audit of the §3.1.1 positive-position
-   contract.
+   contract. Per the 2026-08 external audit: it should *classify*
+   occurrences (positive / self-row / documented exception) rather than
+   merely reject — see §3.1.1.
+
+4. Model the DA re-encode consistency check: an immutable
+   `well_encoded` predicate on roots, required by honest `propose`
+   (and, per the paper, by `fb_sign_pos`) and consulted by
+   `fb_sign_neg`, with the speculative-finality hypothesis extended
+   from `no_equivocation` to the paper's full culprit set ("no
+   equivocation and no invalidly encoded root") — see §3.4. Until then
+   the speculative properties carry the §3.4 scope caveat.
+
+5. An in-build reachability witness (`sat trace`) for Chorus. Blocked
+   twice over today: the trace pipeline needs the model-check
+   scaffolding's label enumeration, which this model disables for its
+   O(n^k) elaboration cost over ~38 actions, and `vote`'s bulk update
+   uses `decide (…)`, which the trace pipeline cannot translate. Until
+   a refactor clears both, the non-vacuity witness is the monitor
+   fixture run in CI — [`TODO.md`](./TODO.md) § Soundness has the full
+   record, [`Monitor.md`](./Monitor.md) the mechanism.
 
 ## 10. Bigger lifts — what would need new machinery
 

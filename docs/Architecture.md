@@ -159,9 +159,12 @@ relations, and it takes a human to confirm each use is positive.
    ([ChorusDesign.md](./ChorusDesign.md) §3.1–§3.3): safety in the
    monotone model implies safety under asynchrony only if network
    relations are consulted positively. Veil does not enforce (M-frame);
-   it is audited by hand, with two documented scoped exceptions
-   (`fb_sign_neg`'s witnessed quorum; `cast_fb_commit`'s frozen
-   decided-vector read).
+   it is audited by hand, with three documented scoped exception
+   categories (`fb_sign_neg`'s witnessed quorum; `cast_fb_commit`'s
+   frozen decided-vector read; and seven *self-row* reads — a guard
+   consulting a row of `msg_proposer_signed`/`msg_commit_cast`
+   negatively, where the row is indexed by, and writable only by, the
+   acting validator itself — enumerated in ChorusDesign.md §3.1).
 2. **Fairness and oracle-termination axioms** (Chorus liveness section;
    [ChorusDesign.md](./ChorusDesign.md) §7): (F-justice), (F-byz),
    (A-mvba). The SMT-discharged fair-progress invariants carry the

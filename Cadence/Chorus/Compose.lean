@@ -141,6 +141,11 @@ noncomputable def slotConsensus_instance
           · exact (reachable_agreement_pos_neg h j i J M ⟨hcj, hci, hcj_com, hci_com, hM⟩) hneg
         rw [dif_neg hi, dif_neg hj']
     · rw [if_neg hp, if_neg hp]
+  -- Discharged definitionally: the single-slot model sets
+  -- `inst_slot := default` and `slot_of _ := default` (there is no other
+  -- slot to confuse a vector with), so this field carries no verified
+  -- content here — `agreement` and `proposal_inclusion` carry the
+  -- instance's whole weight. See the obligation table in the header.
   slot_safety := by
     intro _ _ _ _
     rfl

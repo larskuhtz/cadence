@@ -1203,7 +1203,21 @@ before the commitQC forms. The paper claims a speculative commit "may be
 reverted ... only if some validator equivocated". Checked here: in any
 reachable state free of vote and proposer equivocation
 (`no_equivocation`), a validator's own positive FastQC — its speculative
-value — agrees with every finalized commit. -/
+value — agrees with every finalized commit.
+
+Scope caveat (the DA re-encode abstraction, `docs/ChorusDesign.md`
+§3.4): the paper's proof sketch (`subsection:chorus-proof`, closing
+parenthetical) admits one further honest fallback-no — cast after
+gathering `f+1` yes votes on a root whose chunks fail to re-encode — a
+culprit case with **no equivocation**, only an invalidly encoded root.
+That case cannot arise in this model (invalid encodings do not exist
+with `merkle_root` opaque, so `fb_sign_neg`'s guard forbids the
+negative entry), which is what lets `no_equivocation` alone suffice
+here. Transported to the real protocol, these two properties hold under
+the paper's full "proposer is the culprit" hypothesis — no equivocation
+*and* no invalidly encoded root — not under `no_equivocation` alone.
+Closing the gap at the model level is `docs/ChorusDesign.md` §9 item 4;
+surfaced by the 2026-08 external audit (Finding 1). -/
 
 safety [speculative_agreement_pos]
   no_equivocation →
@@ -1831,18 +1845,20 @@ Let `x` be the number of honest validators that cast a fast commit vote.
   formation is the pigeonhole below; decisions then reach finalization
   through the commit round exactly as in the mixed branch.
 
-**Evidence pigeonhole (meta-level).** In the `x = 0` branch, the `2f+1`
+**Evidence pigeonhole (mechanised).** In the `x = 0` branch, the `2f+1`
 honest fallback entries for a proposer `j` split as: `f+1` negative (→ a
 negative FallbackQC certificate), or `f+1` positive on one root (→ a
 positive FallbackQC), or positive entries on ≥ 2 roots — each backed by an
 f+1 vote quorum containing an honest voter whose entry pins a
 proposer-signed root, so two distinct roots are proposer-signed and
-`equiv_evidence` holds. This split-counting is **not** SMT-discharged: the
-`ByzNodeSet` abstraction cannot partition a quorum by the value its
-members signed (set comprehension is outside its language). It is the one
-deliberately meta-level step of the fair-progress argument; the
-`ByzNodeSet` counting axioms added for this model shrink but do not close
-it.
+`equiv_evidence` holds. This split-counting is not SMT-discharged in the
+invariant clump — the `ByzNodeSet` abstraction cannot partition a quorum
+by the value its members signed (set comprehension is outside its
+language) — but it is no longer a meta step either: it is the Lean
+theorem `Chorus.evidence_pigeonhole_of_reachable`
+(`Cadence/Chorus/Pigeonhole.lean`), proved over reachable states for the
+concrete instance family at every `n = 3f+1` and removed from the
+assumption inventory (`docs/Architecture.md` §4).
 
 ### What is not encoded inside Veil
 

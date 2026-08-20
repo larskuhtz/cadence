@@ -413,6 +413,16 @@ only — the model-level rendering of "no positive quorum among the
 votes this validator received", which a real validator can observe.
 See `ChorusDesign.md` §3.1.1 for why this preserves the simulation.
 
+> **Superseded (2026-08-19).** The 2026-08 external audit re-ran this
+> hand audit and found its enumeration incomplete: seven further
+> negative reads exist (`propose`'s guard on its own
+> `msg_proposer_signed` row, and `¬ msg_commit_cast i` in six actions),
+> all sound for a *third* reason the documentation did not then name —
+> **self-row reads**, of a row indexed by and writable only by the
+> acting validator. The contract's conclusion stood; the audit table
+> and the §3.1.1 exception set in `ChorusDesign.md` now record all
+> three categories.
+
 A useful future addition is an **automated syntactic audit** — a small
 Lean meta-program or external script that walks each action's AST and
 flags negative occurrences of any relation declared as "network". This
