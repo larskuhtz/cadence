@@ -159,7 +159,10 @@ do_build() {
       echo "==> no proof cache at $seed — the build will solve every VC (~90 min)"
     fi ;;
   esac
-  ( cd "$REPO" && "$RUNTIME" build --target "$target" --tag "$tag" "${extra[@]}" . )
+  # `--file` spelled out because only podman looks for a `Containerfile` on its
+  # own — docker (and Apple's container) look for `Dockerfile` and fail.
+  ( cd "$REPO" && "$RUNTIME" build --file Containerfile \
+      --target "$target" --tag "$tag" "${extra[@]}" . )
 }
 
 # Run a script inside the workspace.
