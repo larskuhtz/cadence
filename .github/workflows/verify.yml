@@ -151,10 +151,31 @@ jobs:
             "$(grep -c -- '♻'  verify.log || true)"
           exit "$fail"
 
-      - name: Upload the verification log
+      # The model-conformance monitor (docs/Monitor.md). Not part of any
+      # theorem's trust base — but the fixture run doubles as the build's
+      # non-vacuity witness for Chorus: traces/fast_path_positive.jsonl drives
+      # three honest validators through the full fast path to finalize_commit,
+      # executed step by step against the model's extracted actions, so a
+      # change that made finalization unreachable turns this step red even
+      # though every safety property would still (vacuously) verify. Chorus
+      # cannot carry an in-build `sat trace` (see docs/TODO.md § Soundness),
+      # which is why this runs here. Reuses the volume the verify step above
+      # just refreshed, so the oleans match these sources.
+      - name: Run the model-conformance monitor
+        env:
+          RUNTIME: docker
+          CPUS: '4'
+          MEMORY: 13G
+        run: |
+          set -euo pipefail
+          scripts/container.sh monitor 2>&1 | tee monitor.log
+
+      - name: Upload the verification logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: verify-log-${{ github.run_id }}
-          path: verify.log
+          path: |
+            verify.log
+            monitor.log
           retention-days: 14

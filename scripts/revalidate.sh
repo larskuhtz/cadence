@@ -13,12 +13,24 @@
 # Writes an RSS sample log (total resident memory of all `lean` processes,
 # every 15 s) to $logdir. Exits non-zero on the first failed stage.
 #
+# BATCH controls how many proof files build concurrently per stage (default
+# 6 for the Chorus family, capped at 5 for FallbackReceipt). The default is
+# tuned for a large workstation; on a core-poor machine (≤ 8 cores) the
+# concurrent dischargers contend for wall-clock and near-limit VCs can time
+# out spuriously — VCs that pass comfortably when the file builds alone
+# (measured by the 2026-08 external audit: 21 s alone vs > 60 s in a batch
+# of 6 on 8 cores). Use BATCH=1 there.
+#
 # When reading the output, count all four verification markers — ✅ proven,
 # ❌ counterexample, 💥 solver crash, ⏱ timeout — plus ♻ (proof-cache
 # replay, kernel-checked). A healthy run has only ✅ and ♻.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 LOGDIR=${1:-/tmp}
+BATCH="${BATCH:-6}"
+case "$BATCH" in (*[!0-9]*|'') echo "BATCH must be a positive integer" >&2; exit 2 ;; esac
+[ "$BATCH" -ge 1 ] || { echo "BATCH must be ≥ 1" >&2; exit 2; }
+FB_BATCH=$(( BATCH < 5 ? BATCH : 5 ))
 RSSLOG="$LOGDIR/cadence_revalidate_rss.log"
 : > "$RSSLOG"
 
@@ -54,22 +66,22 @@ PROOFS=()
 for f in Cadence/Chorus/Proofs/*.lean; do
   PROOFS+=("Cadence.Chorus.Proofs.$(basename "$f" .lean)")
 done
-echo "=== ${#PROOFS[@]} Chorus proof files, batches of 6"
+echo "=== ${#PROOFS[@]} Chorus proof files, batches of $BATCH"
 i=0
 while [ $i -lt ${#PROOFS[@]} ]; do
-  stage "${PROOFS[@]:$i:6}"
-  i=$(( i + 6 ))
+  stage "${PROOFS[@]:$i:$BATCH}"
+  i=$(( i + BATCH ))
 done
 
 FPROOFS=()
 for f in Cadence/FallbackReceipt/Proofs/*.lean; do
   FPROOFS+=("Cadence.FallbackReceipt.Proofs.$(basename "$f" .lean)")
 done
-echo "=== ${#FPROOFS[@]} FallbackReceipt proof files, batches of 5"
+echo "=== ${#FPROOFS[@]} FallbackReceipt proof files, batches of $FB_BATCH"
 i=0
 while [ $i -lt ${#FPROOFS[@]} ]; do
-  stage "${FPROOFS[@]:$i:5}"
-  i=$(( i + 5 ))
+  stage "${FPROOFS[@]:$i:$FB_BATCH}"
+  i=$(( i + FB_BATCH ))
 done
 
 # Composition certificates (#gen_composition + the #veil_status audit pins).

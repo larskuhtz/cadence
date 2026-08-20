@@ -28,6 +28,18 @@ the model's own guards, it catches ordering and prerequisite bugs that
 hand-written assertions in an implementation test suite would not, and it
 reports them in the vocabulary of the proven properties.
 
+It carries one further load since the 2026-08 external audit (its
+Finding 4): the fixture run is the build's **non-vacuity witness for
+Chorus**. `Cadence.lean` and `Conductor.lean` carry in-build `sat trace`
+witnesses; Chorus cannot ([`TODO.md`](./TODO.md) § Soundness has the two
+blockers), so `traces/fast_path_positive.jsonl` — which drives three honest
+validators through the full fast path to `finalize_commit`, executed
+against the model's extracted actions — is what shows the Chorus safety
+properties are not vacuously true. CI runs the monitor suites on every
+commit (`scripts/container.sh monitor`, in
+[`.github/workflows/verify.yml`](../.github/workflows/verify.yml)); an edit
+that made finalization unreachable turns that step red.
+
 ## 2. How the pieces fit together
 
 ```
@@ -168,6 +180,10 @@ scripts/test-chorus-monitor.sh       # acceptance: both monitors on every fixtur
 scripts/test-monitor-divergence.sh   # negative: every mutated trace must be REJECTED
 scripts/test-single-node-monitor.sh  # the single-node projection mode of §7
 ```
+
+All three run on every commit via `scripts/container.sh monitor` (the
+`verify` workflow's monitor step) — against the `verified` image, over
+oleans the verification stage has just rebuilt from the same sources.
 
 ## 7. Single-node projection mode (`--node i`)
 

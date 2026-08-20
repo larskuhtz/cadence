@@ -11,9 +11,12 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
 export PATH="$HOME/.elan/bin:$PATH"
-TC="$HOME/.elan/toolchains/leanprover--lean4---v4.28.0"
-export LD_LIBRARY_PATH="$TC/lib/lean:$TC/lib:${LD_LIBRARY_PATH:-}"
 cd "$REPO"
+# Toolchain-root resolution as in run-chorus-monitor.sh: host elan or the
+# container image's plain toolchain (docs/Container.md §4).
+TC="$(lean --print-prefix 2>/dev/null || true)"
+[ -n "$TC" ] || TC="$HOME/.elan/toolchains/leanprover--lean4---v4.28.0"
+export LD_LIBRARY_PATH="$TC/lib/lean:$TC/lib:${LD_LIBRARY_PATH:-}"
 
 BASE="${1:-traces/fast_path_negative.jsonl}"
 MUT=Cadence/Monitor/TraceMutate.lean

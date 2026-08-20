@@ -16,9 +16,14 @@
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="$HOME/.elan/bin:$PATH"
-TC="$HOME/.elan/toolchains/leanprover--lean4---v4.28.0"
-export LD_LIBRARY_PATH="$TC/lib/lean:$TC/lib:${LD_LIBRARY_PATH:-}"
 cd "$REPO"
+# Resolve the toolchain root wherever it lives (elan on a host, a plain
+# toolchain inside the container image) and point the loader at its
+# libraries — without this, `lean --run` can fail to load
+# libLake_shared.so (docs/Container.md §4).
+TC="$(lean --print-prefix 2>/dev/null || true)"
+[ -n "$TC" ] || TC="$HOME/.elan/toolchains/leanprover--lean4---v4.28.0"
+export LD_LIBRARY_PATH="$TC/lib/lean:$TC/lib:${LD_LIBRARY_PATH:-}"
 # Default to the hand-written monitor (the test oracle); set CHORUS_MONITOR to
 # Cadence/Monitor/ChorusMonitorGen.lean to run the #gen_monitor-generated one.
 MON="${CHORUS_MONITOR:-Cadence/Monitor/ChorusMonitor.lean}"

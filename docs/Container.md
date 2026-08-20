@@ -237,6 +237,14 @@ rm -rf .lake/build/lib/lean/Cadence .lake/build/lib/lean/Cadence.*
 bash scripts/revalidate.sh /tmp        # 9 min 12 s, proof cache retained
 ```
 
+On few cores, set `BATCH=1` (it passes through `scripts/container.sh` into
+`revalidate.sh`): the default batch of 6 proof files makes concurrent
+dischargers contend for wall-clock, and near-limit verification conditions
+then time out spuriously — VCs that pass comfortably built alone. Measured
+by the 2026-08 external audit on 8 cores: 21 s alone against a 60 s budget,
+versus a timeout inside a batch of 6. This matters only when VCs are
+actually re-solved (tier 3, or edited files); cache replays do not contend.
+
 Tier 3 additionally throws away the proof cache, so cvc5 re-derives every
 verification condition and Lean re-reconstructs every proof term. That is the
 strongest thing you can do short of auditing Veil itself, and it is what
@@ -250,6 +258,21 @@ worth shipping: it makes tier 2 fifteen minutes rather than an hour and a half.
 
 For the complementary question — what the *statements* mean, and what is
 assumed rather than proven — see [Architecture.md](./Architecture.md) §4.
+
+**Reproduction note — `libLake_shared.so` (auditing outside these
+images).** In a fresh Linux environment that is not one of the images
+above (an auditor's own container, say), the Veil frontend can fail to
+load with `error loading library, libLake_shared.so: cannot open shared
+object file`. The library ships with the Lean toolchain; export
+
+```bash
+TC="$HOME/.elan/toolchains/<toolchain>"
+export LD_LIBRARY_PATH="$TC/lib/lean:$TC/lib:${LD_LIBRARY_PATH:-}"
+```
+
+before `lake build` (this is exactly what `scripts/run-chorus-monitor.sh`
+does for the interpreter). The published images and the devcontainer do
+not need this. Reported by the 2026-08 external audit.
 
 ## 5. Why a container at all
 

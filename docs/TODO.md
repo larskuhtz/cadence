@@ -20,12 +20,34 @@ come first.
   still axiomatic classes with no model instance: producing one would
   demonstrate the axiom set is satisfiable rather than accidentally
   contradictory. `ChorusDesign.md` §9 item 1.
-* **Non-vacuity of the safety claims.** Each model carries `sat trace`
-  reachability witnesses so that the properties are not vacuously true (if
-  finalization were unreachable, agreement would hold trivially). The receipt
-  layer additionally has an exhaustive `#model_check` whose explored graph is
-  checked to contain proposing runs. Extending the same discipline to every
-  new property is a standing rule, not a one-off task.
+* **Non-vacuity of the safety claims.** `Cadence.lean` and `Conductor.lean`
+  carry in-build `sat trace` reachability witnesses so that the properties
+  are not vacuously true (if finalization were unreachable, agreement would
+  hold trivially). The receipt layer additionally has an exhaustive
+  `#model_check` whose explored graph is checked to contain proposing runs.
+  Extending the same discipline to every new property is a standing rule,
+  not a one-off task.
+
+  **Chorus is the exception** (2026-08 external audit, Finding 4): it cannot
+  carry an in-build `sat trace` today, for two documented reasons. (i) The
+  trace pipeline needs the model-check scaffolding's label enumeration
+  (`ActionTag_EnumClass` — see the Conductor's scaffolding note), which
+  `Chorus.lean` deliberately disables (`veil.gen.modelCheckScaffolding
+  false`): the derived `FinEncodableInjOnly` instances are O(n^k) in its
+  ~38 actions and blow Lean's whnf heartbeat budget. (ii) Every
+  finalization trace passes through `vote`, whose bulk update uses
+  `decide (∀ M, ¬ local_entry_pos …)` — `Classical.propDecidable`, which
+  the trace pipeline cannot translate (the known failure mode behind the
+  "no `decide` in update right-hand sides" rule; `Cadence.lean`'s
+  `record_skip` decomposition is the workaround pattern). Unblocking either
+  is a model refactor, not a trace addition. The standing witness is
+  instead the **monitor fixture run in CI** (`scripts/container.sh
+  monitor`, run by `.github/workflows/verify.yml` after the verification
+  stage): `traces/fast_path_positive.jsonl` drives three honest validators
+  through the full fast path to `finalize_commit`, executed step by step
+  against the model's extracted actions, so an edit that made finalization
+  unreachable turns CI red. Reachability-directed trace generation
+  (§ Liveness below) would supersede this.
 * **Syntactic audit of the monotone-network contract.** The (M-frame) half of
   the network abstraction — network relations consulted in positive position
   only — is checked by hand today and *not* enforced by the tool; a violation
@@ -33,7 +55,13 @@ come first.
   A small Lean meta-program that walks each action's syntax and flags negative
   occurrences of a relation declared "network" would turn the top item of
   [`Architecture.md`](./Architecture.md) §4 into a machine check.
-  `ChorusDesign.md` §9 item 3.
+  `ChorusDesign.md` §9 item 3. **Priority raised by the 2026-08 external
+  audit** (its Finding 2): the hand audit's own record had mis-tabled two
+  relations, which is exactly the failure mode a machine check removes. Design
+  requirement from the same finding: the check must *classify* every
+  occurrence (positive / self-row / documented exception — the categories of
+  `ChorusDesign.md` §3.1.1) rather than merely reject, so sound negative reads
+  are reported and acknowledged instead of slipping past a reject-only lint.
 
 ## Liveness
 

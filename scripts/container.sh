@@ -9,6 +9,9 @@
 #                                     (tier 2, ~9 min; IMAGE=cadence-dev for a
 #                                     cold build that re-solves everything)
 #   scripts/container.sh check         kernel-re-check every proof (~4 min, no solver)
+#   scripts/container.sh monitor       model-conformance monitor suites over the
+#                                     trace fixtures (docs/Monitor.md; needs a
+#                                     `verify` first after any source edit)
 #   scripts/container.sh shell         interactive shell in the workspace
 #
 # Runtime selection, in order: $RUNTIME, then whichever of container / podman /
@@ -16,6 +19,8 @@
 #   RUNTIME=podman scripts/container.sh verify
 #
 # Resources:  CPUS (default 12)   MEMORY (default 20G)
+#             BATCH (proof-file batch width for verify's revalidate.sh; use
+#             BATCH=1 on few cores — see scripts/revalidate.sh)
 # Persistence: a named volume ($VOLUME, default cadence-lake) holds .lake —
 # oleans, the dependency tree and the proof cache. Sources are bind-mounted
 # read-only and copied in, so the container never writes to your checkout.
@@ -181,6 +186,9 @@ run_in_container() {
     printf '%s\n' 'set -uo pipefail'
     printf 'WORKSPACE=%q\n' "$WORKSPACE"
     [ -n "${LEAN_NUM_THREADS:-}" ] && printf 'export LEAN_NUM_THREADS=%q\n' "$LEAN_NUM_THREADS"
+    # Proof-file batch width for scripts/revalidate.sh (see its header);
+    # BATCH=1 avoids spurious discharger-contention timeouts on few cores.
+    [ -n "${BATCH:-}" ] && printf 'export BATCH=%q\n' "$BATCH"
     cat <<'PREAMBLE'
 # Docker and podman initialise a fresh named volume from the image's content at
 # the mount point, so the prebuilt dependency tree arrives by itself. If it did
@@ -218,6 +226,23 @@ case "${1:-verify}" in
     IMAGE="${IMAGE:-cadence-verified}"
     run_in_container <<'PAYLOAD' ;;
 bash scripts/revalidate.sh /tmp
+PAYLOAD
+  monitor)
+    # Run the model-conformance monitor suites (docs/Monitor.md): every trace
+    # fixture through both the hand-written and the generated monitor (they
+    # must agree with the expectation and each other), then the divergence
+    # harness (every TraceMutate mutation must be rejected). The monitor runs
+    # on the interpreter over the project's OWN oleans, so this needs the
+    # `verified` image — and, after an edit, a `verify` run first so the
+    # oleans in the volume match the sources.
+    IMAGE="${IMAGE:-cadence-verified}"
+    run_in_container <<'PAYLOAD' ;;
+fail=0
+bash scripts/test-chorus-monitor.sh        || fail=1
+bash scripts/test-monitor-divergence.sh    || fail=1
+bash scripts/test-single-node-monitor.sh   || fail=1
+if [ "$fail" -eq 0 ]; then echo "=== MONITOR SUITES GREEN"; else echo "=== MONITOR SUITES FAILED" >&2; fi
+exit "$fail"
 PAYLOAD
   check)
     # Kernel-re-check every stored proof: no solver, no tactic execution, no
