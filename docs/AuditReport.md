@@ -1,3 +1,5 @@
+*The report in this document was created by [Aristotle (Harmonic)](https://aristotle.harmonic.fun).*
+
 # Independent audit — Cadence BFT formalization (Veil / Lean 4)
 
 *Audit of the artefact in this repository against
