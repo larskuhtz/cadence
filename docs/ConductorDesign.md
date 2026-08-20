@@ -12,26 +12,36 @@ models' own headers ([`../Cadence/Conductor.lean`](../Cadence/Conductor.lean),
 
 ## 1. Source map (what to read)
 
-The Conductor exists in the paper in **two not-yet-reconciled versions**:
+The rendered paper describes the Conductor twice, **consistently on ACS**:
 
-* `p2_conductor.tex` (prose §"Conductor"): windows with a *deadline
-  agreement* (median MVBA over proposed first-slot deadlines). Contains a
-  reviewer comment flagging the API mismatch ("Not compatible with API.
-  It assumes MVBA").
+* `p1_informal.tex` `§section:conductor-overview` (the rendered
+  overview): validators propose first-slot *deadlines* for the next
+  window, feed them into an off-the-shelf **ACS**, and take the
+  **median** of the decided vector as the agreed deadline.
 * `p2_conductor_proofs.tex` `§section:conductor-formal` (active lines
   ~285–1260; the rest of the file is commented-out older drafts): windows
   over **ACS** (`mod:acs`) — each validator proposes the next window's
-  *first slot*, ACS decides a set of ≥ 2f+1 (validator, slot) pairs, and
-  everyone opens the window starting at the **median** of the decided
-  slot numbers. This is the version the proofs cover
-  (`algorithm:conductor`, Lemmas Integrity / Monotonicity /
-  (2W−p)-Boundedness / Totality / (2Wτ)-Recovery).
+  *first slot* (deadlines are fixed, read-only data), ACS decides a set
+  of ≥ 2f+1 (validator, slot) pairs, and everyone opens the window
+  starting at the **median** of the decided slot numbers. This is the
+  version the proofs cover (`algorithm:conductor`, Lemmas Integrity /
+  Monotonicity / (2W−p)-Boundedness / Totality / (2Wτ)-Recovery).
 
-**Model the ACS version** — it is what is proven. Flag the divergence to
-the paper authors; the prose version's "deadline agreement" and the
-formal version's "slot selection" are the same idea under the two
-equivalent views (moving deadlines ↔ skipping slots,
+**Model the formal version** — it is what is proven. The one
+informal↔formal difference is deliberate (confirmed by the paper's
+authors, 2026-08-20): the overview agrees on the first slot's *deadline*,
+the formal part on the first *slot* over read-only deadlines — the same
+idea under the two equivalent views (moving deadlines ↔ skipping slots,
 `p2_framework.tex` §orchestrator).
+
+A source-tree trap worth recording: the Overleaf tree also carries
+`p2_conductor.tex` (+ `p2_conductor_alg.tex`, `p2_conductor_module.tex`),
+an older **deadline-MVBA** draft with a leftover reviewer comment ("Not
+compatible with API. It assumes MVBA"). These files are **not** input by
+`main.tex` and are not part of the paper — both this document (in an
+earlier revision) and the 2026-08 external audit (Finding 5) mistook them
+for the paper's prose. When citing, check the anchor's file is actually
+rendered.
 
 The composition lives in `p2_framework.tex`: `mod:slotconsensus` (the
 interface Chorus implements), `mod:orchestrator_2` (the interface
@@ -292,10 +302,12 @@ weighted instance provides.
 
 ## 7. Scope notes
 
-* The prose Conductor (`p2_conductor.tex`) and the formal Conductor
-  (`§section:conductor-formal`) disagree (deadline-MVBA vs. slot-ACS).
-  The formal one is what the paper proves, and it is what the model
-  follows.
+* The rendered paper's two Conductor descriptions agree on ACS; the
+  deliberate overview↔formal difference (agree on the first slot's
+  *deadline* vs. on the first *slot* over read-only deadlines) is the
+  deadline↔slot equivalence of §1. The model follows the formal
+  version. (`p2_conductor.tex`'s deadline-MVBA variant is an unrendered
+  draft — see the §1 source-tree note.)
 * Validator-set changes, epochs and proposer rotation are outside the
   paper's consensus-layer treatment: `s.proposers` is an immutable
   per-slot relation (generalizing Chorus's single-slot `is_proposer`).

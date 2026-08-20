@@ -14,9 +14,13 @@ Veil model of the Conductor, the orchestrator instantiation of the Cadence
 extreme-pipelining framework. Reference:
 `papers/cadence/src/p2_conductor_proofs.tex` `§section:conductor-formal` — the
 **ACS-based formal version** (windows over `mod:acs`), which is the one the
-paper proves; the prose chapter `p2_conductor.tex` describes a not-yet-
-reconciled deadline-MVBA variant (divergence flagged —
-`docs/ConductorDesign.md` §1/§7). Design: `docs/ConductorDesign.md`
+paper proves. The rendered overview (`p1_informal.tex`
+`§section:conductor-overview`) uses the same ACS + median mechanism; its
+one deliberate difference — agreeing on the first slot's *deadline* rather
+than on the first *slot* over read-only deadlines — is the deadline↔slot
+equivalence of `docs/ConductorDesign.md` §1. (The source tree's
+`p2_conductor*.tex` deadline-MVBA files are unrendered drafts, not the
+paper — see that section's source-tree note.) Design: `docs/ConductorDesign.md`
 §3; contracts: [`Interfaces.lean`](./Interfaces.lean) (`Orchestrator`,
 `ACS`); support theory: [`Windows.lean`](./Windows.lean).
 
