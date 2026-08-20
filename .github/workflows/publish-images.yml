@@ -50,17 +50,16 @@ env:
   IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/cadence
   DOCKER_BUILDKIT: '1'          # the verified stage needs RUN --mount
 
-# Runner architecture: arm64, matching the images built locally on Apple
-# Silicon — which is what makes the registry bootstrappable from an existing
-# local build, and what lets a failure here be reproduced on the maintainer's
-# machine. GitHub's `ubuntu-latest` is x86_64, and an x86 stage cannot be
-# layered onto an arm64 base, so the two cannot be mixed within one image.
-#
-# To publish BOTH architectures later: build each on its own runner, push them
-# under arch-suffixed tags (`:latest-arm64`, `:latest-amd64`), and combine them
-# with `docker buildx imagetools create -t <tag> <tag>-arm64 <tag>-amd64` into a
-# manifest list. The DEPS_IMAGE digest pinning below then has to select the
-# per-architecture manifest, not the list.
+# Architecture: each half is built natively for linux/arm64 and linux/amd64 by
+# a two-leg matrix — `ubuntu-24.04-arm` (matching a local build on Apple
+# Silicon) and `ubuntu-24.04` — because an x86 stage cannot be layered onto an
+# arm64 base, and a cross-build under qemu makes Lean elaboration 10–20×
+# slower than native. The legs push arch-suffixed tags (`:latest-arm64`,
+# `:latest-amd64`); the final `combine` job assembles each pair into the
+# `:latest` manifest list consumers actually pull. Everything that must be
+# per-architecture — the DEPS_IMAGE digest pin, the layer-sharing assertion,
+# the provenance attestations — happens inside a leg against that leg's own
+# arch-suffixed tag; nothing ever pins the manifest list.
 
 jobs:
   # Decide whether the expensive half has to run at all.
@@ -104,7 +103,18 @@ jobs:
   build-deps:
     needs: changes
     if: needs.changes.outputs.deps == 'true'
-    runs-on: ubuntu-24.04-arm
+    strategy:
+      # One architecture failing must not cancel the other mid-push. Nothing
+      # inconsistent gets published either way: `combine` below needs every
+      # leg, so a half-failed run never moves a `:latest` list.
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: amd64
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     # The dependency elaboration is the heaviest thing in the project. Give it
     # room, but not the 6 h cap: if it is not done by now it is stuck.
     timeout-minutes: 300
@@ -113,8 +123,6 @@ jobs:
       packages: write
       id-token: write          # OIDC, for build provenance
       attestations: write
-    outputs:
-      digest: ${{ steps.push.outputs.digest }}
     steps:
       - name: Reclaim disk space
         run: |
@@ -142,23 +150,27 @@ jobs:
       # every `deps` layer — docs/Container.md § "What actually crosses the
       # wire".
       - name: Build deps and dev
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
           docker build --file Containerfile \
-            --target deps --tag "${IMAGE_BASE}-deps:latest" .
+            --target deps --tag "${IMAGE_BASE}-deps:latest-${ARCH}" .
           docker build --file Containerfile \
-            --target dev  --tag "${IMAGE_BASE}-dev:latest"  .
+            --target dev  --tag "${IMAGE_BASE}-dev:latest-${ARCH}"  .
 
       - name: Push, and record the deps digest
         id: push
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          docker push "${IMAGE_BASE}-deps:latest"
-          docker push "${IMAGE_BASE}-dev:latest"
-          digest=$(docker image inspect "${IMAGE_BASE}-deps:latest" \
+          docker push "${IMAGE_BASE}-deps:latest-${ARCH}"
+          docker push "${IMAGE_BASE}-dev:latest-${ARCH}"
+          digest=$(docker image inspect "${IMAGE_BASE}-deps:latest-${ARCH}" \
                      --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "deps published at $digest"
+          echo "deps (${ARCH}) published at $digest"
 
       # Artifact attestations are available on Free/Pro/Team plans only for
       # PUBLIC repositories; a private repo needs GitHub Enterprise Cloud. Skip
@@ -175,12 +187,23 @@ jobs:
   build-project:
     needs: [changes, build-deps]
     # `always()` is required because a *skipped* dependency would otherwise skip
-    # this job too; the guards keep it from layering onto a failed deps build.
+    # this job too; the guards keep it from layering onto a failed deps build
+    # (with a matrix, `failure` means any leg failed).
     if: >-
       always()
       && needs.build-deps.result != 'failure'
       && needs.build-deps.result != 'cancelled'
-    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            other: amd64
+            runner: ubuntu-24.04-arm
+          - arch: amd64
+            other: arm64
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 300
     permissions:
       contents: read
@@ -211,52 +234,66 @@ jobs:
             | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
 
       # Pin the base by digest, and pull it here so the layer-sharing assertion
-      # below can compare against the very image that was published. Resolving
-      # the tag once, now, also stops the build being affected by the tag moving
-      # underneath it mid-run.
+      # below can compare against the very image that was published. The digest
+      # is resolved from this leg's arch-suffixed tag rather than handed over
+      # from build-deps: matrix legs overwrite one another's job outputs (a
+      # known Actions wart), and the workflow-level concurrency group already
+      # guarantees no other run can move the tag mid-run. `latest-<arch>` is a
+      # plain per-arch manifest, so the digest recorded here is exactly the
+      # per-architecture manifest — never the `:latest` list.
       - name: Resolve and fetch the deps base image
         id: base
         env:
-          FRESH_DIGEST: ${{ needs.build-deps.outputs.digest }}
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          if [ -n "${FRESH_DIGEST:-}" ]; then
-            digest="$FRESH_DIGEST"
-          else
-            if ! docker pull "${IMAGE_BASE}-deps:latest"; then
-              # 'manifest unknown' here means the registry was never
-              # bootstrapped: nothing has published a deps image yet, so there
-              # is nothing to layer onto and this job cannot succeed.
-              echo "::error::cannot pull ${IMAGE_BASE}-deps:latest — the" \
-                   "registry holds no published deps image. Bootstrap it:" \
-                   "dispatch this workflow with rebuild_deps: true, or push a" \
-                   "local build (docs/Container.md § 'Seeding the registry" \
-                   "from a local build')."
-              exit 1
-            fi
-            digest=$(docker image inspect "${IMAGE_BASE}-deps:latest" \
-                       --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
+          if ! docker pull "${IMAGE_BASE}-deps:latest-${ARCH}"; then
+            # 'manifest unknown' here means the registry was never
+            # bootstrapped for this architecture: nothing has published a
+            # deps image under this tag, so there is nothing to layer onto
+            # and this job cannot succeed.
+            echo "::error::cannot pull ${IMAGE_BASE}-deps:latest-${ARCH} —" \
+                 "the registry holds no published deps image for ${ARCH}." \
+                 "Bootstrap it: dispatch this workflow with rebuild_deps:" \
+                 "true, or push a local build (docs/Container.md § 'Seeding" \
+                 "the registry from a local build')."
+            exit 1
           fi
+          digest=$(docker image inspect "${IMAGE_BASE}-deps:latest-${ARCH}" \
+                     --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
           ref="${IMAGE_BASE}-deps@sha256:${digest#sha256:}"
-          docker pull "$ref"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "building on $ref"
 
       # The proof cache ships inside the previously published `verified-cache`
       # image, so it seeds itself from run to run with no dependency on the
-      # Actions cache (10 GB per repository, evicted after a week). Best effort:
-      # on the first run there is nothing to copy and the build falls back to
-      # solving every verification condition.
+      # Actions cache (10 GB per repository, evicted after a week). The cache
+      # is architecture-portable — its key is the closed goal statement, and
+      # the goals are identical on both architectures — so a leg whose own
+      # arch has no published cache yet borrows the other's (pulling a
+      # foreign-arch image is fine here: its files are extracted, never
+      # executed). Best effort: on the first run there is nothing to copy and
+      # the build falls back to solving every verification condition.
       - name: Seed the proof cache from the last published image
+        env:
+          ARCH: ${{ matrix.arch }}
+          OTHER: ${{ matrix.other }}
         run: |
           set -euo pipefail
-          if docker pull "${IMAGE_BASE}-verified-cache:latest"; then
-            c=$(docker create "${IMAGE_BASE}-verified-cache:latest")
+          src=""
+          for a in "$ARCH" "$OTHER"; do
+            if docker pull "${IMAGE_BASE}-verified-cache:latest-${a}"; then
+              src="${IMAGE_BASE}-verified-cache:latest-${a}"
+              break
+            fi
+          done
+          if [ -n "$src" ]; then
+            c=$(docker create "$src")
             trap 'docker rm -f "$c" >/dev/null 2>&1 || true' EXIT
             docker cp "$c:/workspaces/cadence/.lake/build/veilcache/." \
                       .veilcache-seed/ || true
             n=$(find .veilcache-seed -type f ! -name .keep | wc -l)
-            echo "seeded $n cache entries"
+            echo "seeded $n cache entries from $src"
             # A silently empty seed turns an 11-minute build into a 90-minute
             # one. Say so rather than leaving it to be inferred from the timing.
             [ "$n" -gt 0 ] || echo "::warning::the published cache image held no entries"
@@ -267,14 +304,15 @@ jobs:
       - name: Build verified and verified-cache
         env:
           DEPS_REF: ${{ steps.base.outputs.ref }}
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
           docker build --file Containerfile --target verified \
             --build-arg "DEPS_IMAGE=${DEPS_REF}" \
-            --tag "${IMAGE_BASE}-verified:latest" .
+            --tag "${IMAGE_BASE}-verified:latest-${ARCH}" .
           docker build --file Containerfile --target verified-cache \
             --build-arg "DEPS_IMAGE=${DEPS_REF}" \
-            --tag "${IMAGE_BASE}-verified-cache:latest" .
+            --tag "${IMAGE_BASE}-verified-cache:latest-${ARCH}" .
 
       # The point of pinning the base by digest: assert that what is about to be
       # published really does share every layer of the published deps, so an
@@ -283,11 +321,12 @@ jobs:
       - name: Assert layer sharing with the published deps
         env:
           DEPS_REF: ${{ steps.base.outputs.ref }}
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
           docker image inspect "$DEPS_REF" \
             --format '{{range .RootFS.Layers}}{{println .}}{{end}}' > deps.layers
-          docker image inspect "${IMAGE_BASE}-verified:latest" \
+          docker image inspect "${IMAGE_BASE}-verified:latest-${ARCH}" \
             --format '{{range .RootFS.Layers}}{{println .}}{{end}}' > verified.layers
           n=$(grep -c . deps.layers)
           if ! diff <(grep . deps.layers) <(grep . verified.layers | head -n "$n"); then
@@ -298,20 +337,22 @@ jobs:
 
       - name: Push
         id: push
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          docker push "${IMAGE_BASE}-verified:latest"
-          docker push "${IMAGE_BASE}-verified-cache:latest"
-          v=$(docker image inspect "${IMAGE_BASE}-verified:latest" \
+          docker push "${IMAGE_BASE}-verified:latest-${ARCH}"
+          docker push "${IMAGE_BASE}-verified-cache:latest-${ARCH}"
+          v=$(docker image inspect "${IMAGE_BASE}-verified:latest-${ARCH}" \
                 --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
-          vc=$(docker image inspect "${IMAGE_BASE}-verified-cache:latest" \
+          vc=$(docker image inspect "${IMAGE_BASE}-verified-cache:latest-${ARCH}" \
                 --format '{{index .RepoDigests 0}}' | cut -d@ -f2)
           # Output names avoid '-': an expression context cannot address a
           # hyphenated key with dot syntax.
           echo "verified_digest=$v"        >> "$GITHUB_OUTPUT"
           echo "verified_cache_digest=$vc" >> "$GITHUB_OUTPUT"
-          echo "verified published at $v"
-          echo "verified-cache published at $vc"
+          echo "verified (${ARCH}) published at $v"
+          echo "verified-cache (${ARCH}) published at $vc"
 
       - name: Attest build provenance (verified)
         if: ${{ github.event.repository.private == false }}
@@ -328,3 +369,40 @@ jobs:
           subject-name: ${{ env.IMAGE_BASE }}-verified-cache
           subject-digest: ${{ steps.push.outputs.verified_cache_digest }}
           push-to-registry: true
+
+  # Assemble the `:latest` manifest lists consumers actually pull. Runs only
+  # when every build-project leg succeeded, and covers all four images
+  # unconditionally: `imagetools create` is a server-side operation on
+  # manifests already in the registry, recreating an unchanged list is a
+  # no-op with the same digest, and doing all four keeps every `:latest`
+  # pointing at a both-arch list even on runs where the deps half was reused
+  # rather than rebuilt.
+  combine:
+    needs: [changes, build-project]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printenv REGISTRY_TOKEN \
+            | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+
+      - name: Create the multi-arch manifest lists
+        run: |
+          set -euo pipefail
+          for t in deps dev verified verified-cache; do
+            docker buildx imagetools create \
+              -t "${IMAGE_BASE}-${t}:latest" \
+                 "${IMAGE_BASE}-${t}:latest-arm64" \
+                 "${IMAGE_BASE}-${t}:latest-amd64"
+            digest=$(docker buildx imagetools inspect \
+                       "${IMAGE_BASE}-${t}:latest" --format '{{.Manifest.Digest}}')
+            echo "${t}:latest -> ${digest}"
+          done

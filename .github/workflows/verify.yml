@@ -40,17 +40,13 @@ env:
   # data such as a branch name or pull-request title.
   IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/cadence
 
-# Runner architecture: arm64, matching the images built locally on Apple
-# Silicon — which is what makes the registry bootstrappable from an existing
-# local build, and what lets a failure here be reproduced on the maintainer's
-# machine. GitHub's `ubuntu-latest` is x86_64, and an x86 stage cannot be
-# layered onto an arm64 base, so the two cannot be mixed within one image.
-#
-# To publish BOTH architectures later: build each on its own runner, push them
-# under arch-suffixed tags (`:latest-arm64`, `:latest-amd64`), and combine them
-# with `docker buildx imagetools create -t <tag> <tag>-arm64 <tag>-amd64` into a
-# manifest list. The DEPS_IMAGE digest pinning below then has to select the
-# per-architecture manifest, not the list.
+# Runner architecture: arm64. The published images are dual-architecture
+# manifest lists (publish-images.yml builds each arch natively and combines
+# them), so the pull below resolves to the arm64 entry — matching the images
+# built locally on Apple Silicon, which is what lets a failure here be
+# reproduced on the maintainer's machine. One architecture suffices for this
+# gate: the proofs are architecture-independent, and the amd64 image runs the
+# same staged verification inside its own build before it can be published.
 
 jobs:
   verify:
