@@ -45,7 +45,7 @@ is a build failure.
 
 In short: `lake build` succeeding is the claim. You can re-derive any pin
 yourself — drop a `#guard_msgs in` line, or run `#print axioms <name>` in a
-scratch file (see [Building](#building) below).
+scratch file (see [Working on the models](#working-on-the-models) below).
 
 The script `scripts/container.sh check` re-runs **Lean's kernel over every
 declaration in the development** — all 3 808 reconstructed Chorus proofs
