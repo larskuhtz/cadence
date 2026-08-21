@@ -282,25 +282,36 @@ jobs:
           set -euo pipefail
           src=""
           for a in "$ARCH" "$OTHER"; do
-            if docker pull "${IMAGE_BASE}-verified-cache:latest-${a}"; then
-              src="${IMAGE_BASE}-verified-cache:latest-${a}"
-              break
-            fi
-          done
-          if [ -n "$src" ]; then
-            c=$(docker create "$src")
-            trap 'docker rm -f "$c" >/dev/null 2>&1 || true' EXIT
+            img="${IMAGE_BASE}-verified-cache:latest-${a}"
+            docker pull "$img" || continue
+            c=$(docker create "$img")
             docker cp "$c:/workspaces/cadence/.lake/build/veilcache/." \
                       .veilcache-seed/ || true
+            docker rm -f "$c" >/dev/null 2>&1 || true
             n=$(find .veilcache-seed -type f ! -name .keep | wc -l)
-            echo "seeded $n cache entries from $src"
-            # A silently empty seed turns an 11-minute build into a 90-minute
-            # one. Say so rather than leaving it to be inferred from the timing.
-            [ "$n" -gt 0 ] || echo "::warning::the published cache image held no entries"
-          else
-            echo "::notice::no published verified-cache yet — this build solves every VC"
-          fi
+            if [ "$n" -gt 0 ]; then
+              echo "seeded $n cache entries from $img"
+              src="$img"
+              break
+            fi
+            # An empty cache image is a broken link in the seed chain (the
+            # pre-fix verified-cache stage shipped its input seed instead of
+            # the cache the build produced, so images published by it hold
+            # nothing). A pullable-but-empty candidate must not shadow a
+            # usable one: skip it and try the other architecture — the cache
+            # is arch-portable.
+            echo "::warning::$img holds no cache entries — skipping it"
+          done
+          # A silently missing seed turns an 11-minute build into hours of
+          # cvc5. Say so rather than leaving it to be inferred from timing.
+          [ -n "$src" ] || echo "::notice::no usable verified-cache published yet — this build solves every VC"
 
+      # BATCH=1: revalidate.sh's default batch width of 6 is sized for a
+      # workstation; on a 4-vCPU runner the concurrent dischargers contend and
+      # near-limit VCs time out spuriously, and a *cold* run at width 6 peaks
+      # ~30 GB against the runner's 16 (see the script's header). Width 1
+      # costs ~nothing warm (replay is serial anyway) and keeps a cold leg
+      # inside the runner.
       - name: Build verified and verified-cache
         env:
           DEPS_REF: ${{ steps.base.outputs.ref }}
@@ -309,9 +320,11 @@ jobs:
           set -euo pipefail
           docker build --file Containerfile --target verified \
             --build-arg "DEPS_IMAGE=${DEPS_REF}" \
+            --build-arg "BATCH=1" \
             --tag "${IMAGE_BASE}-verified:latest-${ARCH}" .
           docker build --file Containerfile --target verified-cache \
             --build-arg "DEPS_IMAGE=${DEPS_REF}" \
+            --build-arg "BATCH=1" \
             --tag "${IMAGE_BASE}-verified-cache:latest-${ARCH}" .
 
       # The point of pinning the base by digest: assert that what is about to be
