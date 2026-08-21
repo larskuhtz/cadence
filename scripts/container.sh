@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Build and verify Cadence inside a Linux container.
+# Verify and develop Cadence inside a Linux container.
 #
-# This script only dispatches to a container runtime; the image itself is a
-# plain multi-stage OCI build (../Containerfile) with no runtime assumptions.
+# The images are published to GHCR for linux/arm64 and linux/amd64, built and
+# verified by CI. Commands pull the image they need on first use — nothing has
+# to be built:
 #
-#   scripts/container.sh build [toolchain|deps|dev|verified|verified-cache]
 #   scripts/container.sh verify        staged verification against your sources
 #                                     (tier 2, ~9 min; IMAGE=cadence-dev for a
 #                                     cold build that re-solves everything)
@@ -13,6 +13,13 @@
 #                                     trace fixtures (docs/Monitor.md; needs a
 #                                     `verify` first after any source edit)
 #   scripts/container.sh shell         interactive shell in the workspace
+#   scripts/container.sh pull [image ...]
+#                                      fetch or refresh published images
+#                                      (default: verified)
+#   scripts/container.sh build [toolchain|deps|dev|verified|verified-cache]
+#                                      build an image locally instead of pulling
+#                                      — needed only when the dependency tree
+#                                      changes (docs/Images.md)
 #
 # Runtime selection, in order: $RUNTIME, then whichever of container / podman /
 # docker is found first.
@@ -21,9 +28,12 @@
 # Resources:  CPUS (default 12)   MEMORY (default 20G)
 #             BATCH (proof-file batch width for verify's revalidate.sh; use
 #             BATCH=1 on few cores — see scripts/revalidate.sh)
-# Persistence: a named volume ($VOLUME, default cadence-lake) holds .lake —
-# oleans, the dependency tree and the proof cache. Sources are bind-mounted
-# read-only and copied in, so the container never writes to your checkout.
+# Images:     pulled from ${IMAGE_REPO}-<name>:latest (default
+#             ghcr.io/larskuhtz/cadence); PULL=never disables pulling.
+# Persistence: a named volume ($VOLUME, default cadence-lake-<image>) holds
+# .lake — oleans, the dependency tree and the proof cache. Sources are
+# bind-mounted read-only and copied in, so the container never writes to your
+# checkout. After pulling a newer image, remove the volume to re-seed it.
 #
 # Why a container: see the header of ../Containerfile and docs/Container.md.
 set -uo pipefail
@@ -35,6 +45,10 @@ VOLUME="${VOLUME:-}"                   # defaults to cadence-lake-<image>, see b
 CPUS="${CPUS:-12}"
 MEMORY="${MEMORY:-20G}"
 VOLUME_SIZE="${VOLUME_SIZE:-80G}"
+# Where published images come from. The :latest tags are multi-arch manifest
+# lists (linux/arm64 + linux/amd64); a pull resolves this machine's platform.
+IMAGE_REPO="${IMAGE_REPO:-ghcr.io/larskuhtz/cadence}"
+PULL="${PULL:-auto}"                   # auto | never
 
 die() { echo "error: $*" >&2; exit 2; }
 
@@ -109,16 +123,32 @@ ensure_volume() {
   fi
 }
 
+# Pull the published image behind a local tag (cadence-<name>) and retag it.
+# `image pull` / `image tag` are the spellings all three runtimes share.
+try_pull() {
+  [ "$PULL" = never ] && return 1
+  local ref="${IMAGE_REPO}-${1#cadence-}:latest"
+  echo "==> pulling $ref (a first pull is ~4 GiB; refreshes fetch only changed layers)"
+  "$RUNTIME" image pull "$ref" || return 1
+  "$RUNTIME" image tag "$ref" "$1"
+}
+
 ensure_image() {
   "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1 && return 0
+  # Prefer the published image: nobody should have to build the dependency
+  # tree to check a proof.
+  try_pull "$IMAGE" && return 0
   case "$IMAGE" in
     cadence-verified)
-      die "image $IMAGE not present. Build it first:
+      die "image $IMAGE is not present and could not be pulled from
+    ${IMAGE_REPO}-verified:latest
+  (offline, PULL=never, or a registry problem — try '$RUNTIME login ghcr.io').
+  To build it locally instead (docs/Images.md):
     RUNTIME=$RUNTIME scripts/container.sh build verified
   That builds this project inside the image: ~15 min with a proof-cache seed,
   ~90 min without. Point VEILCACHE=<dir> at an existing cache to seed it." ;;
     *)
-      echo "==> image $IMAGE not present; building it (slow the first time)"
+      echo "==> could not pull; building $IMAGE locally (slow the first time)"
       do_build dev ;;
   esac
 }
@@ -222,6 +252,18 @@ PREAMBLE
 
 case "${1:-verify}" in
   build)  ensure_runtime; do_build "${2:-dev}" ;;
+  pull)
+    ensure_runtime
+    shift
+    [ "$#" -gt 0 ] || set -- verified
+    for t in "$@"; do
+      case "$t" in
+        toolchain|deps|dev|verified|verified-cache) ;;
+        *) die "unknown image: $t (toolchain|deps|dev|verified|verified-cache)" ;;
+      esac
+      PULL=auto try_pull "cadence-$t" \
+        || die "could not pull ${IMAGE_REPO}-$t:latest"
+    done ;;
   verify)
     # Runs against the `verified` image, so the dependency tree AND the proof
     # cache are already there: this is a re-validation of the project against

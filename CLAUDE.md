@@ -112,9 +112,13 @@ kilobytes once the checkout path exceeds ~35 characters (each character costs
 ~7.6 KB); the symptom is `could not execute external process '.../clang'` on
 `Mathlib:shared`. On Linux the limit is 2 MiB and the link takes 0.8 s.
 
-So: **`RUNTIME=podman scripts/container.sh {build,verify,check,shell}`**, or the
-devcontainer. Full detail, measurements and the audit ladder:
-[docs/Container.md](./docs/Container.md). Two rules worth memorising:
+So: **`RUNTIME=podman scripts/container.sh {verify,check,shell}`**, or the
+devcontainer. Both pull the published images
+(`ghcr.io/larskuhtz/cadence-*:latest`, multi-arch) on first use, so nothing
+has to be built; `container.sh build` exists for changes to the dependency
+tree and is documented in [docs/Images.md](./docs/Images.md). Usage,
+measurements and the audit ladder:
+[docs/Container.md](./docs/Container.md). Rules worth memorising:
 
 * **Build images with podman or docker; run them with anything.** Apple's
   `container` cannot build the ~12 GB `deps` layer on a 36 GB machine (its
@@ -135,8 +139,7 @@ devcontainer. Full detail, measurements and the audit ladder:
   the checkout**. Only the widget's `node_modules` and npm's cache are free, and
   they are already removed in the layer that creates them. The size analysis,
   with what was measured and how, is
-  [docs/Container.md](./docs/Container.md) § "Why the images are the size they
-  are".
+  [docs/Images.md](./docs/Images.md) § "Why the images are the size they are".
 
 Failing all that, a native macOS build works from a checkout path of ≲35
 characters; see [docs/Dependencies.md](./docs/Dependencies.md).

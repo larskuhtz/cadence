@@ -13,15 +13,12 @@
   // socket or CLI — so use ../scripts/container.sh with that runtime instead.
   "name": "Cadence verification",
 
-  // Builds the `dev` stage locally. Once an image is published, replace this
-  // whole "build" object with, e.g.:
-  //   "image": "ghcr.io/<org>/cadence-dev:<tag>"
-  // and readers need no build at all.
-  "build": {
-    "dockerfile": "../Containerfile",
-    "target": "dev",
-    "context": ".."
-  },
+  // The published `dev` image: dependencies prebuilt, nothing to build, for
+  // both linux/arm64 and linux/amd64. To build the stage locally instead
+  // (offline, or when changing the dependency tree — see ../docs/Images.md),
+  // replace "image" with:
+  //   "build": { "dockerfile": "../Containerfile", "target": "dev", "context": ".." }
+  "image": "ghcr.io/larskuhtz/cadence-dev:latest",
 
   // MUST match the workspace path baked into the image: lake records absolute
   // paths in its trace files, so the prebuilt dependency tree is only reusable

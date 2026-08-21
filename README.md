@@ -120,28 +120,50 @@ the monotone-network soundness contract — is the named assumption inventory in
 
 ---
 
-## Building
+## Checking the proofs
 
-**The easiest path is a container**, and on macOS currently the only turnkey one
-(§ [Known issue](#known-issue-the-first-build-on-macos-at-a-long-checkout-path)).
-The image ships Mathlib, Loom, lean-smt and Veil already built:
+Prebuilt images — this project already built and verified inside the image —
+are published for `linux/arm64` and `linux/amd64`.
+[`scripts/container.sh`](./scripts/container.sh) pulls what it needs on first
+use (~4 GiB, once); nothing has to be built:
 
 ```bash
-RUNTIME=podman scripts/container.sh build verified  # once: dependencies + this
-                                                   # project, ~22 min (a published
-                                                   # image is a ~4 GiB pull)
-RUNTIME=podman scripts/container.sh check           # kernel-re-check every proof
-                                                   # — 4 min, no solver at all
-RUNTIME=podman scripts/container.sh verify          # re-verify against your sources
+RUNTIME=podman scripts/container.sh check    # kernel-re-check every proof — 4 min, no solver
+RUNTIME=podman scripts/container.sh verify   # re-verify against the checkout's sources
 ```
 
-It dispatches on `RUNTIME=container|podman|docker`, and
-[`.devcontainer/`](./.devcontainer) opens the same environment in VS Code.
-Build the images with podman or docker; Apple's `container` runs them fine but
-cannot build the large layers. **If you only want to check the proofs rather
-than build them, read [docs/Container.md](./docs/Container.md) §3–§4 first** —
-it explains what a prebuilt `.olean` does establish. I describes a four-tier
-audit ladder from "read and trust" to "re-solve every verification condition".
+`RUNTIME` selects `podman`, `docker`, or Apple's `container`. The two commands
+are tiers 1 and 2 of an audit ladder that ends at "re-solve every verification
+condition from scratch". What each tier does and does not establish — in
+particular, what a prebuilt `.olean` proves — is
+[docs/Container.md](./docs/Container.md) §3–§4.
+
+## Working on the models
+
+The `dev` image is the same environment with the sources mounted. Open the
+folder in VS Code with the **Dev Containers** extension —
+[`.devcontainer/`](./.devcontainer) uses the published image — or work from a
+terminal:
+
+```bash
+RUNTIME=podman scripts/container.sh shell    # interactive shell in the workspace
+RUNTIME=podman scripts/container.sh verify   # staged re-verification, after an edit
+```
+
+Opening a file costs what it elaborates: `Cadence/Chorus.lean` runs no
+invariant sweep but elaborates the model plus its background does-not-throw
+checks (a couple of minutes); a `Cadence/Chorus/Proofs/` file re-proves one
+action's cells (seconds with a warm cache, minutes cold); the consumer files
+load prebuilt `.olean`s in seconds. To suppress solving entirely while
+editing, set `VEIL_NO_VERIFY=1` in the *editor's* environment — the
+devcontainer already does; never set it in a shell profile, since `lake build`
+must still verify. Every skipped command reports a visible
+`⏭ skipped (veil.noVerify)` warning, so "no errors" in this mode never means
+"verified".
+
+The development workflow and the model-specific rules are in
+[CLAUDE.md](./CLAUDE.md). Building the images yourself — needed only when the
+dependency tree changes — is [docs/Images.md](./docs/Images.md).
 
 ### Building natively
 
@@ -200,46 +222,13 @@ Do not run other heavy jobs concurrently with a *cold* proof-file build: some
 verification conditions sit close to the solver time budget, and stolen cores
 turn them into spurious timeouts.
 
-### Known issue: the first build on macOS, at a long checkout path
-
-A *first* build has to link Mathlib as a shared library — Veil precompiles its
-own library, which requires that — and the link command lists **7 649** object
-files, about 987 KB of command line. macOS caps a process's arguments plus
-environment at 1 MiB, so the link fails with
-
-```
-could not execute external process '.../bin/clang'
-error: external command '.../bin/clang' exited with code 255
-```
-
-That is ~16 KB over the limit, and every character of the checkout's absolute
-path costs ~7.6 KB across the object list. **Fix: build in the container**
-(`scripts/container.sh verify`), where the limit is 2 MiB and the same link
-takes under a second. Failing that, check the repository out at a path of
-about 35 characters or fewer. Nothing else needs to change; once
-`Mathlib:shared` is linked, the rest of the build is unaffected, and later
-builds never redo it.
-
-This is a property of Mathlib's size plus Veil's `precompileModules`, not of
-this project — see [docs/Dependencies.md](./docs/Dependencies.md). Three
-apparent workarounds do not help: wrapping the compiler to use a response file
-(the wrapper's own `exec` is what overruns), trimming the environment (worth
-only ~2.5 KB), and building through a symlinked short path (the build tool
-resolves it to the real one).
-
-### Opening the files in an editor
-
-The two large model files run no invariant sweep, so opening
-`Cadence/Chorus.lean` costs the model elaboration plus its background
-does-not-throw checks (a couple of minutes); a `Cadence/Chorus/Proofs/` file
-re-proves one action's cells (seconds with a warm cache, minutes cold). The
-consumer files elaborate in seconds from prebuilt `.olean`s.
-
-To suppress solving entirely while editing, set `VEIL_NO_VERIFY=1` in the
-*editor's* environment (e.g. VS Code `lean4.serverEnv` — **not** in a shell
-profile, since `lake build` must still verify). Every
-skipped command reports a visible `⏭ skipped (veil.noVerify)` warning, so "no
-errors" in this mode never means "verified".
+**macOS.** A *first* native build links Mathlib as a shared library — 7 649
+object files, ~987 KB of command line — and macOS caps a process's arguments
+at 1 MiB, so the link fails (`could not execute external process '…/clang'`)
+unless the checkout's absolute path is about 35 characters or fewer. The
+container path avoids this entirely. The details, and the workarounds that do
+not help, are in [docs/Container.md](./docs/Container.md) §5 and
+[docs/Dependencies.md](./docs/Dependencies.md).
 
 ---
 
@@ -330,7 +319,8 @@ Cadence/
     ChorusMonitor.lean             model-conformance monitor (hand-written oracle) + CLI
     ChorusMonitorGen.lean          same monitor, instantiation generated by #gen_monitor
     TraceMutate.lean               corrupt a valid trace, to model implementation bugs
-Containerfile                      multi-stage OCI image: toolchain / deps / dev / verified
+Containerfile                      multi-stage OCI image: toolchain / deps / dev /
+                                    build / verified / verified-cache
 .devcontainer/                     opens the dev image in VS Code
 .github/workflows/                 CI: re-verify every commit; publish the images
 scripts/                           staged build, container dispatch, monitor suites
@@ -374,7 +364,8 @@ Design, scope, the emitter contract and the full flag reference:
 | The Cadence / Conductor model designs | [docs/ConductorDesign.md](./docs/ConductorDesign.md) (module decomposition, the class layer, where the top-level properties live), then the module headers of [`Cadence/Cadence.lean`](./Cadence/Cadence.lean) and [`Cadence/Conductor.lean`](./Cadence/Conductor.lean) |
 | The module contracts and their obligation tables | [`Cadence/Interfaces.lean`](./Cadence/Interfaces.lean) |
 | What the two forked dependencies provide, and why | [docs/Dependencies.md](./docs/Dependencies.md) |
-| Building in a container; **what a prebuilt `.olean` proves**, and the audit ladder | [docs/Container.md](./docs/Container.md) |
+| Using the published images; **what a prebuilt `.olean` proves**, and the audit ladder | [docs/Container.md](./docs/Container.md) |
+| Building and publishing the images (maintainers) | [docs/Images.md](./docs/Images.md) |
 | The model-conformance monitor | [docs/Monitor.md](./docs/Monitor.md) |
 | The liveness approach: what is safety-shaped and machine-checked, what stays temporal | [docs/ChorusDesign.md](./docs/ChorusDesign.md) §7 (what the model encodes), [docs/Liveness.md](./docs/Liveness.md) (the proposal to close the gap) |
 | The project's goal and horizon: the human-edits-model / agents-maintain-proofs workflow and the audit model | [docs/Scenario.md](./docs/Scenario.md) |
