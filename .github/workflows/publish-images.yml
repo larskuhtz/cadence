@@ -147,8 +147,8 @@ jobs:
             | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
 
       # Both targets from one Containerfile state, in one step, so `dev` shares
-      # every `deps` layer — docs/Container.md § "What actually crosses the
-      # wire".
+      # every `deps` layer — docs/Images.md § "Layer sharing, and what crosses
+      # the wire".
       - name: Build deps and dev
         env:
           ARCH: ${{ matrix.arch }}
@@ -255,7 +255,7 @@ jobs:
             echo "::error::cannot pull ${IMAGE_BASE}-deps:latest-${ARCH} —" \
                  "the registry holds no published deps image for ${ARCH}." \
                  "Bootstrap it: dispatch this workflow with rebuild_deps:" \
-                 "true, or push a local build (docs/Container.md § 'Seeding" \
+                 "true, or push a local build (docs/Images.md § 'Seeding" \
                  "the registry from a local build')."
             exit 1
           fi

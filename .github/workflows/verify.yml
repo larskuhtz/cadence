@@ -8,7 +8,7 @@
 # pin or a broken `#guard_msgs` fails the job.
 #
 # Requires the images to exist: run `publish-images.yml` once (with
-# `rebuild_deps: true`) before this workflow can pass. See docs/Container.md.
+# `rebuild_deps: true`) before this workflow can pass. See docs/Images.md.
 name: verify
 
 on:
