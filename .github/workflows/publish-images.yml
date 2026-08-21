@@ -392,6 +392,14 @@ jobs:
   # rather than rebuilt.
   combine:
     needs: [changes, build-project]
+    # `always()` for the same reason build-project carries it: a *skipped* job
+    # anywhere in the dependency chain skips a dependent with no condition —
+    # and on the common path (deps unchanged) build-deps IS skipped, which
+    # would silently leave the `:latest` lists stale on every normal push.
+    # The guard still requires every build-project leg to have succeeded.
+    if: >-
+      always()
+      && needs.build-project.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
