@@ -326,12 +326,19 @@ way. The default of that argument is the in-file `deps` stage, so a local
 `scripts/container.sh build verified` is unaffected.
 
 **Bootstrap.** The first run must be a manual `publish-images` with
-`rebuild_deps: true`. Its `verified` stage has no published proof cache to seed
-from, so it re-solves every verification condition (slow). Every run after that
-seeds from the previous `verified-cache` image, which carries the cache at
-`/workspaces/cadence/.lake/build/veilcache` — so the cache sustains itself
-without depending on the Actions cache, whose 10 GB budget and weekly eviction
-suit it poorly.
+`rebuild_deps: true`. Its `verified` build has no published proof cache to seed
+from, so it re-solves every verification condition (slow — hours on a hosted
+runner, which the workflow keeps inside its memory by passing `BATCH=1`).
+Every run after that seeds from the previous `verified-cache` image, which
+carries **the cache that build produced** — the seed plus everything solved
+fresh, at `/workspaces/cadence/.lake/build/veilcache`; the `verified-cache`
+stage refuses to build with an empty cache, and the workflow's seed step skips
+an empty candidate in favour of the other architecture's, since the cache is
+architecture-portable. So the cache sustains and refreshes itself without
+depending on the Actions cache, whose 10 GB budget and weekly eviction suit it
+poorly. If one architecture's cold leg fails during bootstrap, re-run the
+failed jobs once the other's cache is published — the re-run seeds across
+architectures and runs warm.
 
 **Architecture.** The published `:latest` tags are manifest lists covering
 `linux/arm64` and `linux/amd64`. An x86 stage cannot be layered onto an arm64

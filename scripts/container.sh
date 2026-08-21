@@ -142,11 +142,13 @@ do_build() {
   local extra=()
   # An optional proof-cache seed makes the `verified` image ~15 min instead of
   # ~90: without it every verification condition is re-solved from scratch.
-  # The verified* stages read .veilcache-seed from the build context: as a
-  # build-time mount (`verified`, so it never enters a layer) and as a COPY
-  # (`verified-cache`, where it is the point). Seeding it turns ~90 minutes of
-  # cvc5 into ~11 minutes of kernel-checked replay. A tracked .keep keeps the
-  # unseeded path working, so this is an optimisation, never a requirement.
+  # The `build` stage reads .veilcache-seed from the build context as a
+  # build-time bind mount (it never enters a layer); `verified-cache` ships
+  # the cache that stage *produced* — the seed plus everything solved fresh —
+  # so the published cache stays current rather than frozen at the seed.
+  # Seeding turns ~90 minutes of cvc5 into ~11 minutes of kernel-checked
+  # replay. A tracked .keep keeps the unseeded path working, so this is an
+  # optimisation, never a requirement.
   local seed="${VEILCACHE:-$REPO/.lake/build/veilcache}"
   case "$target" in verified|verified-cache)
     if [ -d "$seed" ] && [ -n "$(ls -A "$seed" 2>/dev/null)" ]; then

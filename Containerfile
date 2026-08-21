@@ -12,14 +12,18 @@
 #     │           rebuild, and the reason the stack exists.
 #     ├─ dev    + development conveniences; the devcontainer base. Source is
 #     │           mounted; .lake comes from a volume seeded off this image.
+#     ├─ build  + the staged verification run, with the proof cache it
+#     │           produced. Never published; the two images below are carved
+#     │           out of it.
 #     ├─ verified
 #     │         + this project's own oleans (no proof cache): a reader can
 #     │           kernel-re-check every proof in ~4 minutes without running a
 #     │           solver, elaborating anything, or building at all.
 #     │           See docs/Container.md for what that does and does not prove.
 #     └─ verified-cache
-#               + Veil's proof cache (+4.1 GB). Only needed to re-elaborate the
-#                 project without re-solving every verification condition.
+#               + the proof cache `build` produced (+4.1 GB). Only needed to
+#                 re-elaborate the project without re-solving every
+#                 verification condition.
 #
 # BUILD THIS WITH PODMAN OR DOCKER. Apple's `container` runs these images fine,
 # but its image builder is a separate memory-limited VM that cannot produce the
@@ -151,28 +155,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ripgrep fd-find less vim jq python3 \
  && rm -rf /var/lib/apt/lists/*
 
-# ----------------------------------------------------------------- verified --
-# The project built: this repository's own oleans on top of the dependency tree.
-# This is the image for readers and auditors — `scripts/container.sh check`
-# kernel-re-checks every proof from here in ~4 minutes, with no solver and no
-# elaboration. It deliberately does NOT contain Veil's proof cache: nothing in
-# tier 1 or tier 2a needs it (verified by probe), and it is 4.1 GB.
-FROM ${DEPS_IMAGE} AS verified
+# -------------------------------------------------------------------- build --
+# Runs the staged verification against the sources and KEEPS the proof cache it
+# produces — the seed's entries plus every VC solved fresh this build. Never
+# published: `verified` below takes this workspace minus the cache, and
+# `verified-cache` re-adds exactly this stage's cache. That is what keeps the
+# published cache *current*. (Shipping the seed instead is the bug this layout
+# replaces: `verified-cache` used to COPY `.veilcache-seed`, so a cold build —
+# no local cache, as on any fresh clone or the CI bootstrap — published an
+# EMPTY cache image, and the CI seed chain silently never warmed up.)
+FROM ${DEPS_IMAGE} AS build
 
 # An explicit list, not `COPY . .`: the context also holds .veilcache-seed, and
-# copying that here would store the proof cache in a layer that a later `rm`
-# cannot reclaim. (.containerignore keeps a developer's local .lake out too.)
+# copying that here would defeat mounting it below. (.containerignore keeps a
+# developer's local .lake out too.)
 COPY Cadence.lean lakefile.lean lake-manifest.json lean-toolchain README.md CLAUDE.md ./
 COPY Cadence ./Cadence
 COPY scripts ./scripts
 COPY traces ./traces
 COPY docs ./docs
 
-# The proof cache arrives as a build-time bind mount, so it never enters a
+# The proof-cache seed arrives as a build-time bind mount, so it never enters a
 # layer: without it this stage re-solves ~4 000 verification conditions with
-# cvc5 (~90 min); with it they are replayed and kernel-checked (~11 min).
-# Requires BuildKit-style mounts — podman >= 4 and docker with buildx have them.
-# `scripts/container.sh build verified` fills .veilcache-seed for you.
+# cvc5 (~90 min on a workstation); with it they are replayed and kernel-checked
+# (~11 min). Requires BuildKit-style mounts — podman >= 4 and docker with
+# buildx have them. `scripts/container.sh build verified` fills .veilcache-seed
+# for you.
+#
+# BATCH is scripts/revalidate.sh's proof-file batch width (see its header),
+# reaching it through the environment ARG provides. The default suits a large
+# workstation; a builder with few cores must lower it — near-limit VCs time out
+# spuriously under discharger contention, and a cold run at width 6 peaks
+# ~30 GB. CI passes BATCH=1 for its 4-vCPU runners. The trailing mkdir keeps
+# the cache directory present even if caching were disabled, so the COPYs
+# below fail with the guard's clear message instead of a missing-path error.
+ARG BATCH=6
 RUN --mount=type=bind,source=.veilcache-seed,target=/seed \
     if [ -n "$(ls -A /seed 2>/dev/null | grep -v '^\.keep$')" ]; then \
       mkdir -p .lake/build/veilcache \
@@ -181,13 +198,43 @@ RUN --mount=type=bind,source=.veilcache-seed,target=/seed \
       && echo "seeded proof cache: $(ls .lake/build/veilcache | wc -l) entries" ; \
     else echo "no proof-cache seed — cvc5 will solve every VC from scratch" ; fi \
  && bash scripts/revalidate.sh /tmp \
- && rm -rf .lake/build/veilcache /root/.cache/mathlib
+ && mkdir -p .lake/build/veilcache \
+ && rm -rf /root/.cache/mathlib
+
+# ----------------------------------------------------------------- verified --
+# The project built: this repository's own oleans on top of the dependency tree.
+# This is the image for readers and auditors — `scripts/container.sh check`
+# kernel-re-checks every proof from here in ~4 minutes, with no solver and no
+# elaboration. It deliberately does NOT contain Veil's proof cache: nothing in
+# tier 1 or tier 2a needs it (verified by probe), and it is 4.1 GB.
+#
+# The sources are COPY'd with the same instructions as in `build` (same base,
+# same content — the layers deduplicate); the build outputs arrive from that
+# stage, with the cache stripped in the SAME layer that copies them, because a
+# delete in a later layer reclaims nothing.
+FROM ${DEPS_IMAGE} AS verified
+COPY Cadence.lean lakefile.lean lake-manifest.json lean-toolchain README.md CLAUDE.md ./
+COPY Cadence ./Cadence
+COPY scripts ./scripts
+COPY traces ./traces
+COPY docs ./docs
+# tar with an exclude rather than cp-then-rm: the cache is ~4 GB, and copying
+# it into the layer just to delete it would cost that much transient disk on
+# an already-tight CI runner.
+RUN --mount=type=bind,from=build,source=/workspaces/cadence/.lake/build,target=/built \
+    mkdir -p .lake/build \
+ && tar -C /built --exclude='./veilcache' -cf - . | tar -C .lake/build -xf -
 
 # ----------------------------------------------------------- verified-cache --
-# `verified` plus Veil's proof cache (+4.1 GB). Only needed to re-elaborate the
-# project without re-solving — tier 2b and tier 3 of docs/Container.md. Pull
-# `verified` instead if you just want to check the proofs.
+# `verified` plus the proof cache the `build` stage produced (+4.1 GB) — the
+# seed plus everything solved fresh, so consumers of this image (and the CI
+# runs that seed from it) always get the cache matching these sources. Only
+# needed to re-elaborate the project without re-solving — tier 2b and tier 3
+# of docs/Container.md. Pull `verified` instead if you just want to check the
+# proofs.
 FROM verified AS verified-cache
-COPY .veilcache-seed/ /workspaces/cadence/.lake/build/veilcache/
-RUN rm -f /workspaces/cadence/.lake/build/veilcache/.keep \
- && echo "proof cache: $(ls /workspaces/cadence/.lake/build/veilcache | wc -l) entries"
+COPY --from=build /workspaces/cadence/.lake/build/veilcache/ /workspaces/cadence/.lake/build/veilcache/
+# An empty cache means a broken seed chain downstream: refuse to publish one.
+RUN n=$(ls /workspaces/cadence/.lake/build/veilcache | grep -vc '^\.keep$') ; \
+    echo "proof cache: $n entries" ; \
+    [ "$n" -gt 0 ]
