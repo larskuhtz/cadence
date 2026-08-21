@@ -2,9 +2,9 @@
 
 A formal verification of the [**Cadence**](https://www.category.xyz/cadence)
 BFT consensus protocol (see [§ The protocol paper](#the-protocol-paper)): the
-per-slot consensus **Chorus**, the window-based orchestrator **Conductor**,
-the pipelining **Cadence** layer that composes them, and the fallback
-receipt/propose layer where a real protocol bug was found and fixed.
+per-slot consensus **Chorus**, the window-based orchestrator **Conductor**, the
+pipelining **Cadence** layer that composes them, and the fallback
+receipt/propose layer.
 
 Written in [Veil](https://github.com/larskuhtz/veil) on Lean 4. Veil is an
 embedded DSL: a `.lean` file *is* the model, and elaborating the file *runs*
@@ -17,24 +17,21 @@ them fails, the build fails**.
 > `Classical.choice` / `Quot.sound` — Lean's three standard axioms; no
 > `sorry`, no trusted solver verdict. Every automated proof is re-checked by
 > Lean's kernel, and every proof the final theorems rest on is persisted as a
-> real, checked term. The receipt layer additionally keeps the *pre-fix* bug
-> as a machine-checked refutation.
+> real, checked term. The receipt layer additionally keeps a bug from an
+> earlier version of the paper as a machine-checked refutation.
 
 **Start here:** [`Cadence.lean`](./Cadence.lean) — the audit root. It imports
-every finished result and re-derives each one's axiom footprint as a
-build-checked pin. One page, seven theorems, one trust base.
+every finished result and re-derives each axiom's footprint as a build-checked
+pin: seven theorems, one trust base.
 
 ---
 
-## For an auditor: what to check, and what you may take for granted
+## Audit Guide
 
-This section is the point of the whole repository. The claims split cleanly
-in two.
+### A. Machine-checked
 
-### A. Machine-checked — no audit needed
-
-You do not need to read Lean, or trust this project's authors, for any of the
-following. They are re-derived by the machine on every build, and a violation
+You do not need to trust this project's authors, for any of the
+following claims. They are re-derived by the machine on every build, and a violation
 is a build failure.
 
 | What is guaranteed | How it is enforced |
@@ -50,17 +47,17 @@ In short: `lake build` succeeding is the claim. You can re-derive any pin
 yourself — drop a `#guard_msgs in` line, or run `#print axioms <name>` in a
 scratch file (see [Building](#building) below).
 
-You do not have to take the build's word for it either. `scripts/container.sh
-check` re-runs **Lean's kernel over every declaration in the development** — all
-3 808 reconstructed Chorus proofs included — in **4 minutes**, with no SMT
-solver, no tactic execution and no elaboration. Forcing the elaborator to redo
-the whole project from source on top of that is a further 9 minutes; re-solving
-every verification condition with cvc5 from scratch, about 90. What each of those does and
-does not establish — and how both differ from simply *importing* prebuilt
-`.olean` files, which are trusted rather than re-checked — is the audit ladder in
+The script `scripts/container.sh check` re-runs **Lean's kernel over every
+declaration in the development** — all 3 808 reconstructed Chorus proofs
+included — in **4 minutes**, with no SMT solver, no tactic execution and no
+elaboration. Forcing the elaborator to redo the whole project from source on
+top of that is a further 9 minutes; re-solving every verification condition
+with cvc5 from scratch, about 90 minutes. What each of those does and does not
+establish — and how both differ from simply *importing* prebuilt `.olean`
+files, which are trusted rather than re-checked — is the audit ladder in
 [docs/Container.md](./docs/Container.md) §3–§4.
 
-### B. Needs a human — this is what an audit is for
+### B. To be checked by an auditor
 
 Machine checking says the proofs are complete. It cannot say the *statements*
 are the right ones. Three things need eyes:
@@ -86,13 +83,17 @@ are the right ones. Three things need eyes:
    complete inventory**: [docs/Architecture.md](./docs/Architecture.md) §4.
    That inventory is the audit checklist. It is short on purpose.
 
-A useful property of the split: item 3 lists assumptions *by name*, and the
-fairness and oracle axioms appear verbatim in the Lean sources where they are
-consumed — `grep -rn '(A-' Cadence/` enumerates them — so the inventory's
-completeness is itself checkable rather than something to take on faith. The
+Item 3 lists assumptions *by name*, and the fairness and oracle axioms appear
+verbatim in the Lean sources where they are consumed — `grep -rn '(A-'
+Cadence/` enumerates them — so the inventory's completeness is checkable. The
 one assumption without that property is the network contract, which is why it
-is item 1 of the inventory and a standing rule in
-[CLAUDE.md](./CLAUDE.md): a violation of it would not fail the build.
+is item 1 of the inventory and a standing rule in [CLAUDE.md](./CLAUDE.md): a
+violation of it would not fail the build.
+
+*The file [docs/AuditReport.md](./docs/AuditReport.md) contains an audit report
+that was created by by [Aristotle (Harmonic)](https://aristotle.harmonic.fun) for
+the revision bfeee8c of this project against the version 2 of the Cadence
+paper published on arxiv.*
 
 ---
 
@@ -135,12 +136,11 @@ RUNTIME=podman scripts/container.sh verify          # re-verify against your sou
 ```
 
 It dispatches on `RUNTIME=container|podman|docker`, and
-[`.devcontainer/`](./.devcontainer) opens the same environment in VS Code. Build
-the images with podman or docker; Apple's `container` runs them fine but cannot
-build the large layers.
-**If you only want to check the proofs rather than build them, read
-[docs/Container.md](./docs/Container.md) §3–§4 first** — it explains exactly
-what a prebuilt `.olean` does and does not establish, and gives a four-tier
+[`.devcontainer/`](./.devcontainer) opens the same environment in VS Code.
+Build the images with podman or docker; Apple's `container` runs them fine but
+cannot build the large layers. **If you only want to check the proofs rather
+than build them, read [docs/Container.md](./docs/Container.md) §3–§4 first** —
+it explains what a prebuilt `.olean` does establish. I describes a four-tier
 audit ladder from "read and trust" to "re-solve every verification condition".
 
 ### Building natively

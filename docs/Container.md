@@ -4,10 +4,9 @@ Everything in this repository can be built and re-checked inside a Linux
 container, and for most readers that is the easiest path — on macOS it is
 currently the *only* turnkey path (see [§5](#5-why-a-container-at-all)).
 
-The image is a plain multi-stage OCI build, [`../Containerfile`](../Containerfile).
-It assumes no particular runtime: build it with Apple's `container`, with
-podman, or with docker. [`../scripts/container.sh`](../scripts/container.sh)
-only dispatches.
+The image is a multi-stage OCI build, [`../Containerfile`](../Containerfile),
+that builds with Apple's `container`, `podman`, or `docker`.
+[`../scripts/container.sh`](../scripts/container.sh) only dispatches.
 
 ## 1. Quick start
 
@@ -20,8 +19,8 @@ RUNTIME=podman scripts/container.sh shell           # interactive shell
 ```
 
 **Build the images with podman or docker.** Apple's `container` runs them
-perfectly well, but it cannot *build* them on a machine this size — see
-[§ Sizing the image build](#sizing-the-image-build).
+perfectly well, but it cannot *build* them if the machine does provide enough
+memory — see [§ Sizing the image build](#sizing-the-image-build).
 
 Runtime and resources are environment variables:
 
@@ -32,21 +31,21 @@ CPUS=8 MEMORY=16G scripts/container.sh verify
 
 Sources are bind-mounted **read-only** and copied in, so a container never
 writes to your checkout. `.lake` — the dependency tree, the oleans and the
-proof cache, ~17 GB — lives in a named volume, which is also what keeps build
-I/O off the (much slower) host-shared filesystem.
+proof cache, ~17 GB — lives in a named volume, which keeps build I/O off the
+(slower, in case of macos) host-shared filesystem.
 
 ### Sizing the image build
 
-Building the `deps` layer elaborates the whole dependency tree, and that is the
-most memory-hungry thing in this project. Two traps:
+Building the `deps` layer elaborates the whole dependency tree, which is the
+most memory-hungry thing in this project.
 
-* Apple's `container` builds images inside a **separate builder VM** whose
-  resources are independent of `container run`, defaulting to **2 CPUs / 2 GB**.
-  That is far too small: the dependency layer stalls part-way through Veil with
-  no error message at all. `scripts/container.sh` resizes it automatically
-  (`BUILDER_CPUS`, `BUILDER_MEMORY`, default 8 / 24G); by hand it is
-  `container builder stop && container builder start --cpus 8 --memory 24G`.
-  Podman and docker build inside their normal machine, so size that instead.
+* Apple's `container` builds images inside a **separate builder VM**. With the
+  default settings of **2 CPUs** and  **2 GB** the dependency layer stalls
+  part-way through Veil with no error message at all. `scripts/container.sh`
+  resizes it automatically (`BUILDER_CPUS`, `BUILDER_MEMORY`, default 8 / 24G);
+  by hand it is `container builder stop && container builder start --cpus 8
+  --memory 24G`. Podman and docker build inside their normal machine, so size
+  that instead.
 * **Lake has no job-limit flag**, so the only lever on peak memory is the VM's
   CPU count — fewer CPUs, fewer concurrent Lean processes. Measured: 12 CPUs
   with 20 GB runs out of memory in `Auto.Embedding.LamPrep`; 8 CPUs with 24 GB
