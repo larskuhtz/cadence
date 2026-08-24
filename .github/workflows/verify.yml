@@ -7,6 +7,17 @@
 # locally. A failed verification condition, a missing proof, a drifted axiom
 # pin or a broken `#guard_msgs` fails the job.
 #
+# Cheap for the common commit because the image's oleans already match the
+# sources and nothing re-elaborates. A commit that touches a model or a proof
+# file re-solves the affected VCs COLD — the `verified` image deliberately
+# ships no proof cache — and that is a feature, not an omission: it
+# re-exercises the whole derivation path, including the manual `#prove_vc`
+# tactics that a warm cache would consume without elaborating (the
+# cache-discipline rule in CLAUDE.md § Build). The job timeout and BATCH=1
+# below are sized for those rare cold runs; after merging one, run
+# `publish-images.yml` so the published oleans catch up and the gate is cheap
+# again.
+#
 # Requires the images to exist: run `publish-images.yml` once (with
 # `rebuild_deps: true`) before this workflow can pass. See docs/Images.md.
 name: verify
@@ -51,7 +62,10 @@ env:
 jobs:
   verify:
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 90
+    # Sized for a cold run (model or proof files touched): the whole suite
+    # re-solves at 4 CPUs with the proof files built one at a time. A warm
+    # run finishes in a fraction of this.
+    timeout-minutes: 180
 
     steps:
       # The runner ships with ~14 GB free and this job needs roughly 25 GB: the
@@ -112,11 +126,16 @@ jobs:
       # CPUS/MEMORY must fit the runner: the script's defaults (12 CPUs, 20 GB)
       # are sized for a workstation. Memory is set below physical so the
       # container hits its own limit rather than the kernel OOM killer.
+      # BATCH=1 because this is a 4-core machine: at the default batch of 6,
+      # concurrent dischargers contend for wall-clock and near-limit VCs time
+      # out spuriously (measured — see scripts/revalidate.sh's header), and
+      # the marker assertion below rightly treats any ⏱ as a failure.
       - name: Re-verify against these sources
         env:
           RUNTIME: docker
           CPUS: '4'
           MEMORY: 13G
+          BATCH: '1'
         run: |
           set -euo pipefail
           scripts/container.sh verify 2>&1 | tee verify.log
