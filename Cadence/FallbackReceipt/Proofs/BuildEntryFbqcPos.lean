@@ -1,4 +1,5 @@
 import Cadence.FallbackReceipt
+import Cadence.ProofPrelude
 
 /-! # `FallbackReceipt` proofs — action `build_entry_fbqc_pos`
 
@@ -11,19 +12,18 @@ file's olean, and emits the per-action preservation lemma consumed by
 Manual cells go on `#prove_vc FallbackReceipt build_entry_fbqc_pos <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
-`#gen_spec` capture applies on the cross-file path). -/
+`#gen_spec` capture applies on the cross-file path); `veil.smt.trust
+false` is written out below, and the shared block from
+`Cadence/ProofPrelude.lean` record what each of the other options is
+for. -/
 
 open Veil FallbackReceipt
 
+-- The no-trusted-solver rule (README.md) stays written out per proof file so
+-- it remains greppable; the shared block below is defined and documented in
+-- `Cadence/ProofPrelude.lean`.
 set_option veil.smt.trust false
--- Proof cache: consume entries earlier solves stored (kernel-replayed on
--- hit, `veil.cache.kernelReplay`); store fresh solves for the next rebuild.
-set_option veil.cache.proofs true
--- A kernel-replay hit consumes a manual `#prove_vc … by <tac>` cell at the
--- command level and never elaborates the `by` suffix; the unreachable-/
--- unused-tactic linters would flag that (by design here).
-set_option linter.unreachableTactic false
-set_option linter.unusedTactic false
+veil_proof_options
 
 namespace FallbackReceipt.Proofs
 

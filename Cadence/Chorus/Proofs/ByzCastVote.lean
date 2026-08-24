@@ -1,4 +1,5 @@
 import Cadence.Chorus
+import Cadence.ProofPrelude
 
 /-! # `Chorus` proofs — action `byz_cast_vote`
 
@@ -11,24 +12,19 @@ file's olean, and emits the per-action preservation lemma consumed by
 Manual cells go on `#prove_vc Chorus byz_cast_vote <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
-`#gen_spec` capture applies on the cross-file path). -/
+`#gen_spec` capture applies on the cross-file path); `veil.smt.trust
+false` is written out below, and the shared blocks from
+`Cadence/ProofPrelude.lean` record what each of the other options is
+for. -/
 
 open Veil Chorus
 
+-- The no-trusted-solver rule (README.md) stays written out per proof file so
+-- it remains greppable; the shared blocks below are defined and documented
+-- in `Cadence/ProofPrelude.lean`.
 set_option veil.smt.trust false
--- Mirror Chorus.lean's elaboration budgets (the 97-conjunct clump needs them).
-set_option synthInstance.maxHeartbeats 2000000
-set_option synthInstance.maxSize 4096
-set_option maxRecDepth 8192
-set_option maxHeartbeats 1000000
--- Proof cache: consume entries earlier solves stored (kernel-replayed on
--- hit, `veil.cache.kernelReplay`); store fresh solves for the next rebuild.
-set_option veil.cache.proofs true
--- A kernel-replay hit consumes a manual `#prove_vc … by <tac>` cell at the
--- command level and never elaborates the `by` suffix; the unreachable-/
--- unused-tactic linters would flag that (by design here).
-set_option linter.unreachableTactic false
-set_option linter.unusedTactic false
+veil_proof_options
+veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
