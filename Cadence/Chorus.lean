@@ -2016,11 +2016,11 @@ theorem assembles a committed validator's per-proposer decisions into a
 total proposal vector, which requires this completeness fact about
 reachable states.
 
-NOTE: new `safety`/`invariant` declarations must be **appended** after
-the last existing one — the manual preproven cells in `Chorus/Proofs/`
-project the assembled `Invariants` clump by declaration order
-(`hinv.2.….1` indices), and appending (rather than inserting) keeps
-them valid. -/
+NOTE: the manual cells in `Chorus/Proofs/` project the assembled
+`Invariants` clump *by declaration name* (`inv_have`,
+`Cadence/ProofPrelude.lean`), so new `safety`/`invariant` declarations
+may go wherever they read best — the lookup re-derives every index at
+elaboration time and fails loudly if a name disappears. -/
 invariant [local_committed_complete]
   ∀ (I : node),
     ¬ is_byz I ∧ local_committed I →
@@ -2163,9 +2163,9 @@ The defaults are the validated configuration; seed-luck timeouts are
 healed by `veil.smt.retries`
 (retry with a perturbed seed, reported as "(retry k, seed k)"), with the
 TR-form fallback behind that; the 11 cells SMT cannot solve at all are
-preproven manual theorems in their actions' proof files (14 until
-2026-08-19 — the `well_encoded` refactor made the three `fb_sign_neg`
-cells SMT-tractable; see `Chorus/Proofs/FbSignNeg.lean`). -/
+manual `#prove_vc … by <tactic>` cells in their actions' proof files
+(14 until 2026-08-19 — the `well_encoded` refactor made the three
+`fb_sign_neg` cells SMT-tractable; see `Chorus/Proofs/FbSignNeg.lean`). -/
 
 #gen_spec
 
@@ -2184,8 +2184,8 @@ checks. The 3 783 invariant VCs are proven cross-file:
   a kernel-checked theorem, and assembled into the per-action
   preservation lemma `step_<action>`. The 11 manual quorum-intersection
   cells (SMT's e-matching diverges on them) live in their actions' proof
-  files as preproven theorems the command consumes as-is after a
-  statement check.
+  files as `#prove_vc … by <tactic>` cells the command consumes as-is
+  after a statement check.
 * [`Chorus/Certify.lean`](./Chorus/Certify.lean) composes the
   preservation lemmas into `Chorus.invariants_of_reachable` + named
   `reachable_<property>` projections (`#gen_composition`), at the

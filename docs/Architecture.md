@@ -274,9 +274,12 @@ construction — discharges them (cvc5 + reconstruction), persists every
 proof as a kernel-checked theorem in its own small olean, and exports
 one "this action preserves the invariants" lemma; keeping each action's
 proofs in their own process/olean is what bounds memory (~5 GB per file
-cold). The 14 quorum-intersection cells that SMT cannot find are plain
-manual theorems in their actions' proof files, consumed after a
-statement check. `<Model>/Certify.lean` composes the per-action lemmas
+cold). The 11 quorum-intersection cells that SMT cannot find are manual
+`#prove_vc … by <tactic>` cells in their actions' proof files, consumed
+after a statement check — the statement itself always comes from the
+registry, and the tactics project invariant conjuncts by name
+(`Cadence/ProofPrelude.lean`), so nothing in a proof file restates or
+hand-indexes what the model declares. `<Model>/Certify.lean` composes the per-action lemmas
 (`#gen_composition`) into `invariants_of_reachable` plus named
 per-property projections, pins the axiom base, and re-audits the whole
 set with a pinned `#veil_status` line — per VC, a real,

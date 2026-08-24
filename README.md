@@ -239,7 +239,7 @@ not help, are in [docs/Container.md](./docs/Container.md) §5 and
 | Command | What it does |
 |---|---|
 | `veil module …` / `#gen_spec` (in the model files) | turns the declared state, actions and invariants into a transition system, and prepares one *verification condition* (VC) per action × property — "if the invariants hold and this action fires, this property still holds" — plus a does-not-throw VC per action |
-| `#prove_action <Module> <action>` (one per file under `<Model>/Proofs/`) | re-creates every VC of one action from the module's persisted registry, discharges it with cvc5, **reconstructs** each `unsat` verdict as a Lean proof term that the kernel re-checks — the solver's word is never taken — persists the theorems, and emits the action's preservation lemma. Cells SMT cannot find are plain hand-written theorems in the same file, consumed after a statement check |
+| `#prove_action <Module> <action>` (one per file under `<Model>/Proofs/`) | re-creates every VC of one action from the module's persisted registry, discharges it with cvc5, **reconstructs** each `unsat` verdict as a Lean proof term that the kernel re-checks — the solver's word is never taken — persists the theorems, and emits the action's preservation lemma. Cells SMT cannot find carry a hand-written *tactic* in the same file (`#prove_vc … by <tactic>`) — the statement still comes from the registry — and are consumed after a statement check |
 | `#gen_composition <Module>` (in `<Model>/Certify.lean`) | composes the per-action preservation lemmas into `<Module>.invariants_of_reachable` — every reachable state satisfies every invariant — plus one named `reachable_<property>` projection per property; kernel-checked at every step |
 | `#veil_status <Module>` (pinned in `<Model>/Certify.lean`) | the audit command: walks the module's VC registry against the environment and reports, per VC, whether a real, statement-matching, kernel-checked theorem is in scope, and the axiom union over all of them. `#veil_status <Module> table` prints the full per-VC table |
 | `#model_check` (receipt layer) | exhaustively explores a small concrete instance (`n = 4`, `f = 1`) — an independent, solver-free check over the same properties |
@@ -258,7 +258,7 @@ Cadence/Chorus.lean          the MODEL: state, actions, invariants. Elaborating 
 Cadence/Chorus/Proofs/*.lean one file per action (39): #prove_action re-proves every
    │                         registered VC statement of that action → real
    │                         kernel-checked proofs, plus one exported preservation
-   │                         lemma ("this action preserves all invariants"). The 14
+   │                         lemma ("this action preserves all invariants"). The 11
    │                         manual quorum-intersection proofs live here too
    ▼ imported by
 Cadence/Chorus/Certify.lean  #gen_composition: induction over all reachable states —

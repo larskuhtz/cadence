@@ -80,6 +80,15 @@ History: [docs/History.md](./docs/History.md).
   after 14 days. **Every hit is kernel-checked** — the cache skips search, not
   checking. A warm re-validation of the whole suite is ~10–15 min; a cold one
   re-solves ~4 000 VCs (~85 CPU-min for the Chorus family alone).
+* **The cache hides derivation drift.** Entries are keyed by VC statement,
+  not by proof script: a kernel-replay hit consumes a `#prove_vc … by <tac>`
+  cell *without elaborating the tactic*, so a warm green build proves the
+  theorems without testing an edited script. After any statement-preserving
+  change to a manual cell, to solver options, or to the discharge pipeline,
+  solve the affected cells cold once — a scratch run with `set_option
+  veil.cache.proofs false`, or delete their entries — before trusting the
+  script. Statement-changing edits need no discipline: they miss the cache
+  by construction.
 * Scratch iteration (the fast loop): put `#prove_vc Chorus <action>
   <property> by <tac>` cells in a scratch file importing `Cadence.Chorus` and
   run `lake env lean <file>`. Seconds per cell once the model is built. Probe
@@ -157,12 +166,17 @@ characters; see [docs/Dependencies.md](./docs/Dependencies.md).
   adding or modifying an action. Two scoped exceptions are documented there;
   do not add a third without updating that section and
   [docs/Architecture.md](./docs/Architecture.md) §4.
-* **Invariants live in the model; proofs live in the proof files.** Append new
-  invariants at the **end** of the model. The manual cells' `hinv.2.….1`
-  projections index the invariant clump by *declaration order*, so adding,
-  removing or reordering a `safety`/`invariant` requires re-indexing them
-  (the index list is reproducible with
-  `grep -nE '^(safety|invariant) \[' Cadence/Chorus.lean`).
+* **Invariants live in the model; proofs live in the proof files.** Manual
+  cells do not index the invariant clump by hand: `inv_have h := <invariant>`
+  / `inv% hinv <invariant>`
+  ([`Cadence/ProofPrelude.lean`](./Cadence/ProofPrelude.lean)) look the
+  conjunct up *by name*, deriving its position from the model's own
+  `Invariants` at elaboration time and checking that the clump and the
+  invariant list still have the same length. Adding, removing or reordering
+  a `safety`/`invariant` therefore needs no re-indexing in the proof files
+  (it still changes every VC statement, so the family still re-solves), and
+  a stale name is an elaboration error rather than a silently wrong
+  conjunct.
 * **Keep the `set_option synthInstance.* / maxRecDepth` block** before
   `#gen_spec` in `Chorus.lean`. Without it the pre-simplification of the large
   invariant clump fails — as a *warning*, not an error — and every VC
@@ -186,9 +200,12 @@ characters; see [docs/Dependencies.md](./docs/Dependencies.md).
   Classical`, VC theorems applied through the explicit-instance macros — or
   elaboration dies in `whnf` timeouts with no useful error. Read the header of
   `Cadence/Composition.lean` first.
-* **A model change invalidates the manual theorems' statements.** Rebuild them
-  from fresh stubs (Veil prints ready-made statement stubs when a cell fails)
-  rather than patching types by hand.
+* **Manual cells are `#prove_vc <Module> <action> <property> by <tac>`
+  lines** before the file's `#prove_action`, which consumes them after a
+  statement check. The statement comes from the model's VC registry, never
+  from the file, so a model change cannot leave a stale hand-written type
+  behind; what it can break is the tactic, which fails loudly on the next
+  cold solve of that cell (see the cache-discipline rule under Build).
 
 ## Verification-status invariants (keep true)
 

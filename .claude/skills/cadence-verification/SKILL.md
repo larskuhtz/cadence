@@ -77,31 +77,39 @@ cache options at the top.
 ## 3. The fast loop
 
 1. Build the model: `lake build Cadence.Chorus` (~90 s — it runs no sweep).
-2. Open a scratch file importing `Cadence.Chorus` (and `open Veil Chorus`),
-   mirroring a proof file's `set_option` block.
+2. Open a scratch file mirroring a proof file's head: `import Cadence.Chorus`,
+   `import Cadence.ProofPrelude`, `open Veil Chorus Veil.InvProjection`,
+   `set_option veil.smt.trust false`, `veil_proof_options`,
+   `veil_large_clump_budgets`.
 3. Put `#prove_vc Chorus <action> <property> by <tac>` cells in it and run
    `lake env lean <scratch>`. Seconds per cell.
 4. To see what you are proving, end the tactic after the `obtain`s and read
    the unsolved-goals dump.
-5. Move the finished theorem into the action's proof file, under the canonical
-   cell name, **before** that file's `#prove_action`.
+5. Move the finished cell into the action's proof file, **before** that
+   file's `#prove_action`.
 
 Cells proven in scratch land in the proof cache, so the real proof file
-replays them instead of re-solving.
+replays them instead of re-solving. The flip side: a warm entry consumes a
+cell *without elaborating its tactic* (entries are keyed by VC statement,
+not proof script), so after editing a committed cell, solve it cold once —
+a scratch run with `set_option veil.cache.proofs false`, or delete its
+entry — before trusting the script.
 
 ## 4. Manual cells
 
-14 Chorus cells (the quorum-intersection ones) cannot be found by the solver
-and are plain Lean theorems in their actions' proof files. When a cell fails,
-Veil prints a ready-made statement stub — start from that, never from a
-hand-written type.
+11 Chorus cells (the quorum-intersection ones) cannot be found by the solver
+and are `#prove_vc Chorus <action> <property> by <tac>` lines in their
+actions' proof files, before the `#prove_action` that consumes them after a
+statement check. The statement always comes from the model's registry —
+never write one by hand.
 
-* They are stated under the **canonical cell name** before the
-  `#prove_action`, which consumes them as-is after a statement check.
-* Their `hinv.2.….1` projections index the assembled invariant clump by
-  **declaration order**. Adding, removing or reordering a `safety`/`invariant`
-  re-indexes all of them:
-  `grep -nE '^(safety|invariant) \[' Cadence/Chorus.lean`.
+* Open a cell with `unveil_local` (`Cadence/ProofPrelude.lean`), not
+  `unveil`: same goal shape, ~0.4 s instead of ~22 s, because it leaves the
+  invariant clump unsimplified. Project the conjuncts the proof needs with
+  `inv_have h := <invariant>` — by name, no `.2` chains; a model change
+  that invalidates the lookup fails loudly at elaboration. If a cell's VC
+  is not in local-WP form (`veil_apply_local_wp` fails), fall back to
+  `unveil`.
 * A failing cell in a proof file already retries through the built-in ladder
   (perturbed solver seeds, then the alternative two-state encoding) before it
   is reported. Only write a manual proof once that ladder has genuinely failed
@@ -109,8 +117,10 @@ hand-written type.
 
 ## 5. Adding or changing an invariant
 
-1. Append it at the **end** of the model's invariant list. Appending keeps
-   existing manual-cell projections valid; inserting does not.
+1. Put it where it reads best — position in the model is thematic, not
+   load-bearing: the manual cells project conjuncts by name (`inv_have`),
+   so inserting or reordering re-indexes nothing, and any change to the
+   clump changes every VC statement either way.
 2. Rebuild the model, then the proof family. Statement-changing edits
    re-solve honestly — the cache gives no hits on changed statements.
 3. Expect the clump to get harder: growing it has previously tipped

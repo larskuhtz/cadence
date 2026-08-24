@@ -668,8 +668,10 @@ model; termination is §7.
 **Verification note.** Most obligations discharge automatically; eleven
 VCs — those needing one or two explicit `ByzNodeSet` counting-axiom
 instantiations against witnessed quorums, at actions with bulk or
-quorum-completing updates — are discharged by manual `@[veil]` theorems
-at the end of `Cadence/Chorus.lean` (Veil's interactive-discharger mechanism).
+quorum-completing updates — are discharged by manual `#prove_vc … by
+<tactic>` cells in their actions' proof files
+(`Cadence/Chorus/Proofs/<Action>.lean`), consumed by `#prove_action` after
+a statement check against the model's VC registry.
 
 **How agreement is proven (the paper's `prop:agreement-entries`).**
 `local_committed_pos_backed` reduces every honest commit to a
