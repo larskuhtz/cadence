@@ -104,13 +104,19 @@ instantiated:
 * build totality of the receipt layer for **every** `n = 3f+1` —
   [Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean),
   kernel-checked end-to-end;
-* the **evidence pigeonhole** of Chorus's fair-progress argument, for
-  every `n = 3f+1` — [Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)
-  (`evidence_pigeonhole_of_reachable`): a supermajority of honest
+* the **counting steps** of Chorus's fair-progress argument, for every
+  `n = 3f+1` — theorems rather than assumptions. The *evidence
+  pigeonhole* ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean),
+  `evidence_pigeonhole_of_reachable`): a supermajority of honest
   fallback entries always yields certified per-proposer evidence
-  (FallbackQC or EquivCert). This is the counting step at the centre of
-  the fair-progress argument, and it is a theorem rather than an
-  assumption.
+  (FallbackQC or EquivCert). And *certificate formation*
+  ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)):
+  `FBCert`/`fbCommitQC` exist once every honest validator has cast the
+  corresponding vote (the honest population is itself the quorum,
+  `honest_supermajority`), and a supermajority of honest fast commit
+  votes yields a per-proposer commitQC from honest votes alone. With
+  these, every counting step of the case split in
+  [ChorusDesign.md](./ChorusDesign.md) §7 is mechanised.
 
 **Method 4 — documented meta-theory.** What is deliberately *not*
 inside Lean is stated as named assumptions and audited by hand (§4).
@@ -131,6 +137,7 @@ The paper's headline properties and their formal counterparts:
 | Chorus termination (`lemma:chorus-termination`) | fair-progress invariant layer + (F-\*)/(A-mvba) meta-axioms; untimed (no `ℓ` bound) | sweep + meta (§4) |
 | "Fallback meta-block valid by construction" (`alg:fallback` build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
 | Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of `lemma:chorus-termination`'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
+| Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of `lemma:chorus-termination`'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
 | The pre-fix receipt rules are broken (the §7.2 finding) | pinned model-checker violation, [Cadence/FallbackReceipt/PreFix.lean](../Cadence/FallbackReceipt/PreFix.lean) | model check |
 | Conductor open-prefix agreement, boundedness residues | Conductor sweep + `orchestrator_instance` | sweep + composition |
 | MCP Safety, positional form (`def:safety`) | `positional_log_safety` in `Cadence/Composition.lean` | composition |
@@ -171,12 +178,16 @@ relations, and it takes a human to confirm each use is positive.
    safety content; the temporal glue (fair scheduling → eventual
    firing) is not encoded. (A-mvba)'s per-validator implementability
    premise is discharged by the receipt-layer models (§5) at the same
-   meta seam. The argument's one counting step — the *evidence
-   pigeonhole* (`ChorusDesign.md` §7, x = 0 branch) — is **not on this
-   list**: `Chorus.evidence_pigeonhole_of_reachable`
-   ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)) proves it over
-   reachable states for every `n = 3f+1`, from the `two_cover`
-   pigeonhole and the named reachability projections.
+   meta seam. The argument's counting steps are **not on this list** —
+   they are theorems for every `n = 3f+1`: the *evidence pigeonhole*
+   (`ChorusDesign.md` §7, x = 0 branch) is
+   `Chorus.evidence_pigeonhole_of_reachable`
+   ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), and
+   *certificate formation* — `FBCert`/`fbCommitQC` from all-honest
+   participation, the fast-dominant commitQC — is
+   [Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean). What this
+   item assumes is purely temporal: fair scheduling ⇒ the honest
+   populations those theorems quantify over eventually act.
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive) and
    the `MVBA` / `ACS` module contracts

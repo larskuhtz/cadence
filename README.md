@@ -22,7 +22,7 @@ them fails, the build fails**.
 
 **Start here:** [`Cadence.lean`](./Cadence.lean) — the audit root. It imports
 every finished result and re-derives each axiom's footprint as a build-checked
-pin: seven theorems, one trust base.
+pin — one trust base for every end theorem.
 
 ---
 
@@ -37,7 +37,7 @@ is a build failure.
 | What is guaranteed | How it is enforced |
 |---|---|
 | Every stated theorem has a **complete proof**, checked by Lean's kernel | the build; plus the axiom pins in [`Cadence.lean`](./Cadence.lean) — a `sorry` anywhere shows up as the axiom `sorryAx` and fails the pin |
-| The trust base has not drifted (no extra axiom crept in) | `#guard_msgs in #print axioms <thm>` for all seven end theorems, in [`Cadence.lean`](./Cadence.lean) and at each result's own site |
+| The trust base has not drifted (no extra axiom crept in) | `#guard_msgs in #print axioms <thm>` for every end theorem, in [`Cadence.lean`](./Cadence.lean) and at each result's own site |
 | **cvc5's verdicts are not believed.** Every solver discharge is reconstructed as a Lean proof term and re-checked by the kernel | all models elaborate with `veil.smt.trust false`; if a proof cannot be reconstructed, the cell fails |
 | **Nothing is stubbed.** All 3 822 Chorus verification conditions (3 783 action × property obligations + 39 does-not-throw checks), and all 220 of the receipt layer's, have a real, statement-matching, kernel-checked theorem in scope | the pinned `#veil_status` lines in `Cadence/Chorus/Certify.lean` and `Cadence/FallbackReceipt/Certify.lean` — `3822/3822 real` and `220/220 real`, with the axiom union over all of them |
 | The verification conditions are the ones the model states — they are not re-typed by hand anywhere | the proof files read their statements out of the model's own persisted registry; identity is by construction |
@@ -70,7 +70,7 @@ are the right ones. Three things need eyes:
    indices, erasure coding, payload bytes, single slot for Chorus) are listed
    in [docs/Architecture.md](./docs/Architecture.md) §4 item 5 and
    [docs/ChorusDesign.md](./docs/ChorusDesign.md) §3.4 and §8.
-2. **Are the top-level properties the right properties?** The seven end
+2. **Are the top-level properties the right properties?** The end
    theorems, in the paper's own vocabulary, are tabulated in
    [`Cadence.lean`](./Cadence.lean) and in [What is proven](#what-is-proven)
    below. The paper's *module contracts* — the interfaces the layers are
@@ -107,6 +107,7 @@ paper published on arxiv.*
 | **Speculative-finality revertibility** ("reverted only if the proposer is the culprit") | `Cadence/Chorus.lean` (`speculative_agreement_*`) | reconstructed VCs, conditional on `no_equivocation` + `no_invalid_encoding` — the paper's full culprit set: equivocation, or committing to an invalidly encoded root |
 | **Fair-progress liveness content** (no livelock of fair actions — strictly stronger than deadlock-freedom) | `Cadence/Chorus.lean`, liveness section | reconstructed VCs + named meta-axioms ([docs/Architecture.md](./docs/Architecture.md) §4) |
 | **Evidence pigeonhole** — `2f+1` honest fallback entries always yield certified per-proposer evidence (the counting step of the fallback liveness branch), for **every** `n = 3f+1` | `Cadence/Chorus/Pigeonhole.lean` (`evidence_pigeonhole_of_reachable`) | plain Lean over reachable states, axiom-pinned |
+| **Certificate formation** — `FBCert` / `fbCommitQC` exist once every honest validator has cast the corresponding vote, and a supermajority of honest fast commit votes yields a per-proposer commitQC from honest votes alone (the counting steps of the remaining liveness branches), for **every** `n = 3f+1` | `Cadence/Chorus/Counting.lean` (three theorems) | plain Lean (the commitQC leg over reachable states), axiom-pinned |
 | **MCP Safety, positional form** | `Cadence/Composition.lean` (`positional_log_safety`) | Cadence/Conductor sweeps (reconstructed) + plain-Lean composition — kernel-checked, axiom-pinned |
 | **`Conductor ⊨ Orchestrator`**, **`Chorus ⊨ SlotConsensus`** (the paper's module contracts) | `Cadence/Composition.lean`, `Cadence/Chorus/Compose.lean` | plain Lean over persisted VC theorems — kernel-checked, axiom-pinned |
 | **Fallback meta-block "valid by construction"**, including the counting argument, for **every** `n = 3f+1` | `Cadence/FallbackReceipt.lean` + `Cadence/FallbackReceipt/Totality.lean` | reconstructed SMT + kernel-checked Lean — **no trusted step**, axiom-pinned |

@@ -216,7 +216,7 @@ is a change to what this project *claims*, not a refactor.
 * **No trusted solver step.** Every module elaborates with
   `veil.smt.trust false`; every discharge is reconstructed and kernel-checked.
 * **No `sorryAx` anywhere.** Every axiom pin stays at exactly
-  `[propext, Classical.choice, Quot.sound]`, in the seven per-result pins and
+  `[propext, Classical.choice, Quot.sound]`, in every per-result pin and
   in [`Cadence.lean`](./Cadence.lean).
 * **The audit pins stay complete**: `#veil_status Chorus` at `3822/3822 real`
   and `#veil_status FallbackReceipt` at `220/220 real`. If an invariant is

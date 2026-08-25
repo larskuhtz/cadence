@@ -1880,7 +1880,8 @@ Let `x` be the number of honest validators that cast a fast commit vote.
 
 * **`x ≥ 2f+1` (fast-dominant).** The honest commit votes agree per
   proposer (`local_fastqc_pos_cross_unique`), so a commitQC forms from
-  honest votes alone; every honest validator then commits via
+  honest votes alone (mechanised: `commitqc_of_honest_fast_dominant`,
+  `Chorus/Counting.lean`); every honest validator then commits via
   `commit_assign_*` (whose precondition is the commitQC certificate) and
   `finalize_commit`. No MVBA needed.
 * **`1 ≤ x ≤ 2f` (mixed).** Neither certificate is guaranteed from honest
@@ -1900,8 +1901,9 @@ Let `x` be the number of honest validators that cast a fast commit vote.
   the fair-progress notes at the "Fallback commit round" invariant block.
 * **`x = 0` (fallback).** All `≥ 2f+1` honest validators eventually cast
   fallback votes (per-proposer fallback signing is always enabled one way
-  or the other — see `progress_fallback_signing`), so `FBCert` forms and
-  `mvba_invoked` holds via the fallback trigger. Per-proposer evidence
+  or the other — see `progress_fallback_signing`), so `FBCert` forms
+  (mechanised: `fbcert_of_honest_fallback_votes`, `Chorus/Counting.lean`)
+  and `mvba_invoked` holds via the fallback trigger. Per-proposer evidence
   formation is the pigeonhole below; decisions then reach finalization
   through the commit round exactly as in the mixed branch.
 
@@ -2045,7 +2047,8 @@ materialised by three enabledness facts for `redisseminate_chunk` —
 above) and `mvba_decided_pos_proposer_signed` (below) — plus the phase
 confinement `mvba_complete_phase`. (F-justice) on `redisseminate_chunk`
 and `cast_fb_commit` then yields `2f+1` honest commit votes, i.e.
-`fbcommitqc`; `fbcommitqc_implies_mvba_complete` +
+`fbcommitqc` (the counting is `fbcommitqc_of_honest_commit_votes`,
+`Chorus/Counting.lean`); `fbcommitqc_implies_mvba_complete` +
 `mvba_complete_per_proposer` hand the per-proposer `commit_assign_*`
 preconditions over, exactly as in the pre-round argument. -/
 

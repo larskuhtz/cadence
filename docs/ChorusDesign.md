@@ -825,7 +825,9 @@ form `… ∧ ¬X → ¬X`, so do not add them back.
 commit vote:
 
 * `x ≥ 2f+1`: honest commit votes agree per proposer (FastQC
-  cross-uniqueness), so a commitQC forms from honest votes alone;
+  cross-uniqueness), so a commitQC forms from honest votes alone
+  (mechanised: `Chorus.commitqc_of_honest_fast_dominant`,
+  [`Cadence/Chorus/Counting.lean`](../Cadence/Chorus/Counting.lean));
   everyone commits via `commit_assign_*` (F-justice).
 * `1 ≤ x ≤ 2f` (mixed): neither commitQC nor FBCert is guaranteed
   (Byzantine help is unfair; only `2f+1 − x` honest validators can
@@ -838,7 +840,8 @@ commit vote:
   (A-mvba) delivers the complete decision vector.
 * `x = 0`: all `≥ 2f+1` honest validators eventually cast fallback
   votes (per-proposer fallback signing is always enabled one way or the
-  other — `progress_fallback_signing`), `fbcert` forms, and (A-mvba)
+  other — `progress_fallback_signing`), `fbcert` forms (mechanised:
+  `Chorus.fbcert_of_honest_fallback_votes`, same file), and (A-mvba)
   delivers the decisions, given per-proposer evidence — see the
   pigeonhole below.
 
@@ -853,8 +856,8 @@ for every decided-positive root (`mvba_decided_is_proposer` +
 and delivers each honest validator's assigned chunks (F-justice), after
 which `cast_fb_commit` is enabled (`mvba_complete_phase` closes the
 phase leg); `2f+1` honest commit votes form `fbcommitqc` (the honest
-population is a supermajority — the same meta-level counting step the
-`FBCert` formation in the `x = 0` branch already uses), and
+population is itself the quorum — mechanised as
+`Chorus.fbcommitqc_of_honest_commit_votes`, no longer a meta step), and
 `fbcommitqc_implies_mvba_complete` + `mvba_complete_per_proposer` hand
 over the `commit_assign_*` preconditions exactly as in the pre-round
 argument.
@@ -877,9 +880,23 @@ the step used to be meta): from a supermajority of honest per-proposer
 fallback entries, `fb_quorum_pos`/`fb_quorum_neg`/`equiv_evidence`
 follows, via the `two_cover` pigeonhole and the
 `msg_fb_pos_sig_backed → vote_pos_from_local → local_entry_pos_signed`
-chain over the named reachability projections. The remaining meta
-content of the fair-progress argument is only the temporal glue
-((F-justice)/(F-byz)/(A-mvba)).
+chain over the named reachability projections.
+
+**Certificate formation (mechanised 2026-08-25).** The case split's
+other counting steps are theorems in
+[`Cadence/Chorus/Counting.lean`](../Cadence/Chorus/Counting.lean), over
+the same instance family: the honest population is itself a
+supermajority-sized node set (`honest_supermajority` — `n = 3f+1` minus
+`≤ f` Byzantine leaves `≥ 2f+1`), so once every honest validator has
+cast its fallback (resp. fallback commit) vote, `fbcert`
+(resp. `fbcommitqc`) holds outright; and in the fast-dominant branch,
+any supermajority of honest cast fast commit votes yields a per-proposer
+commitQC from honest votes alone, the polarity/root agreement coming
+from `commit_*_sig_from_local_fastqc` + `local_fastqc_pos_cross_unique`
+/ `local_fastqc_pos_neg_excl` over the reachability projections. The
+remaining meta content of the fair-progress argument is only the
+temporal glue ((F-justice)/(F-byz)/(A-mvba)): fair scheduling ⇒ the
+honest populations these theorems quantify over eventually act.
 
 ### 7.1 Limitations of the current encoding
 

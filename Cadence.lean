@@ -8,6 +8,7 @@ documentation follows the imports below.)
 import Cadence.Chorus.Certify
 import Cadence.Chorus.Compose
 import Cadence.Chorus.Pigeonhole
+import Cadence.Chorus.Counting
 
 -- The orchestration / pipelining leg.
 import Cadence.Composition
@@ -41,6 +42,8 @@ complete inventory of what is **not** in Lean is
 | `Chorus.invariants_of_reachable` | `Cadence/Chorus/Certify.lean` | every reachable state of the per-slot consensus satisfies all 97 declared safety properties and invariants |
 | `Chorus.slotConsensus_instance` | `Cadence/Chorus/Compose.lean` | Chorus ⊨ `SlotConsensus` — the paper's per-slot module contract (agreement, slot safety, proposal inclusion) |
 | `Chorus.evidence_pigeonhole_of_reachable` | `Cadence/Chorus/Pigeonhole.lean` | `2f+1` honest fallback entries always yield certified per-proposer evidence, for **every** `n = 3f+1` (the counting step of the fallback liveness branch) |
+| `Chorus.fbcert_of_honest_fallback_votes`, `Chorus.fbcommitqc_of_honest_commit_votes` | `Cadence/Chorus/Counting.lean` | certificate formation: once every honest validator has cast its fallback (resp. fallback commit) vote, `FBCert` (resp. `fbCommitQC`) exists — the honest population is itself the quorum, for **every** `n = 3f+1` |
+| `Chorus.commitqc_of_honest_fast_dominant` | `Cadence/Chorus/Counting.lean` | a supermajority of honest fast commit votes yields, per proposer, a commitQC from honest votes alone (the counting step of the fast-dominant liveness branch), for **every** `n = 3f+1` |
 | `Conductor.orchestrator_instance` | `Cadence/Composition.lean` | Conductor ⊨ `Orchestrator` — the paper's slot-scheduling module contract |
 | `Cadence.positional_log_safety` | `Cadence/Composition.lean` | MCP Safety in the paper's positional form: two correct validators never disagree on the log entry at a given position |
 | `FallbackReceipt.invariants_of_reachable` | `Cadence/FallbackReceipt/Certify.lean` | every reachable state of the fallback receipt/propose layer satisfies its declared invariants |
@@ -107,6 +110,24 @@ info: 'Chorus.evidence_pigeonhole_of_reachable' depends on axioms: [propext, Cla
 -/
 #guard_msgs in
 #print axioms Chorus.evidence_pigeonhole_of_reachable
+
+/--
+info: 'Chorus.fbcert_of_honest_fallback_votes' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.fbcert_of_honest_fallback_votes
+
+/--
+info: 'Chorus.fbcommitqc_of_honest_commit_votes' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.fbcommitqc_of_honest_commit_votes
+
+/--
+info: 'Chorus.commitqc_of_honest_fast_dominant' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.commitqc_of_honest_fast_dominant
 
 /--
 info: 'Conductor.orchestrator_instance' depends on axioms: [propext, Classical.choice, Quot.sound]
