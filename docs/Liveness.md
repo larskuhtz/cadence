@@ -1,11 +1,17 @@
 # Liveness — what is proven, what is assumed, what would close the gap
 
-*What **is** proven about liveness today: the fair-progress invariants —
-the safety content of the liveness argument — are machine-checked like
-every other invariant, and the temporal glue (fair scheduling ⇒ eventual
-firing) is a named meta-assumption. See [`Architecture.md`](./Architecture.md)
-§4 items 2 and 4 for exactly which assumptions that leaves, and
-[`ChorusDesign.md`](./ChorusDesign.md) §7 for what the Chorus encoding does.
+*What **is** proven about liveness today: the fair-progress invariants are
+machine-checked like every other invariant, and the argument's entire
+state-level content — counting steps and case analysis included — is the
+theorem `Chorus.progress_dichotomy_of_saturation`
+([`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean)): in any
+reachable state where every honest validator has cast its path vote,
+commitQCs exist for every proposer from honest votes alone, or the MVBA
+stands invoked with per-proposer decide evidence. Only the temporal glue
+(fair scheduling ⇒ eventual firing) is a named meta-assumption. See
+[`Architecture.md`](./Architecture.md) §4 items 2 and 4 for exactly which
+assumptions that leaves, and [`ChorusDesign.md`](./ChorusDesign.md) §7 for
+what the Chorus encoding does.
 This document records the assumption structure on the Cadence side and what
 a tool extension would reduce it to; the extension's design itself is tool
 work and lives in the Veil fork (see §1).*

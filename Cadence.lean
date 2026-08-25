@@ -9,6 +9,7 @@ import Cadence.Chorus.Certify
 import Cadence.Chorus.Compose
 import Cadence.Chorus.Pigeonhole
 import Cadence.Chorus.Counting
+import Cadence.Chorus.Progress
 
 -- The orchestration / pipelining leg.
 import Cadence.Composition
@@ -44,6 +45,7 @@ complete inventory of what is **not** in Lean is
 | `Chorus.evidence_pigeonhole_of_reachable` | `Cadence/Chorus/Pigeonhole.lean` | `2f+1` honest fallback entries always yield certified per-proposer evidence, for **every** `n = 3f+1` (the counting step of the fallback liveness branch) |
 | `Chorus.fbcert_of_honest_fallback_votes`, `Chorus.fbcommitqc_of_honest_commit_votes` | `Cadence/Chorus/Counting.lean` | certificate formation: once every honest validator has cast its fallback (resp. fallback commit) vote, `FBCert` (resp. `fbCommitQC`) exists — the honest population is itself the quorum, for **every** `n = 3f+1` |
 | `Chorus.commitqc_of_honest_fast_dominant` | `Cadence/Chorus/Counting.lean` | a supermajority of honest fast commit votes yields, per proposer, a commitQC from honest votes alone (the counting step of the fast-dominant liveness branch), for **every** `n = 3f+1` |
+| `Chorus.progress_dichotomy_of_saturation` | `Cadence/Chorus/Progress.lean` | the liveness case split as **one theorem**: in any reachable state where every honest validator has cast its path vote, either commitQCs exist for every proposer from honest votes alone, or the MVBA stands invoked with decide-enabling evidence for every proposer (verbatim the `mvba_decide_*` guards), for **every** `n = 3f+1` |
 | `Conductor.orchestrator_instance` | `Cadence/Composition.lean` | Conductor ⊨ `Orchestrator` — the paper's slot-scheduling module contract |
 | `Cadence.positional_log_safety` | `Cadence/Composition.lean` | MCP Safety in the paper's positional form: two correct validators never disagree on the log entry at a given position |
 | `FallbackReceipt.invariants_of_reachable` | `Cadence/FallbackReceipt/Certify.lean` | every reachable state of the fallback receipt/propose layer satisfies its declared invariants |
@@ -128,6 +130,12 @@ info: 'Chorus.commitqc_of_honest_fast_dominant' depends on axioms: [propext, Cla
 -/
 #guard_msgs in
 #print axioms Chorus.commitqc_of_honest_fast_dominant
+
+/--
+info: 'Chorus.progress_dichotomy_of_saturation' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.progress_dichotomy_of_saturation
 
 /--
 info: 'Conductor.orchestrator_instance' depends on axioms: [propext, Classical.choice, Quot.sound]

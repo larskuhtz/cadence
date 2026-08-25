@@ -89,7 +89,7 @@ stage Cadence.Chorus.Certify Cadence.FallbackReceipt.Certify
 
 # End theorems, the pre-fix refutation, and the monitor.
 stage Cadence.Chorus.Compose Cadence.Chorus.Pigeonhole \
-      Cadence.Chorus.Counting \
+      Cadence.Chorus.Counting Cadence.Chorus.Progress \
       Cadence.Composition \
       Cadence.FallbackReceipt.Totality \
       Cadence.FallbackReceipt.PreFix

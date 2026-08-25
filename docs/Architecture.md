@@ -116,7 +116,15 @@ instantiated:
   `honest_supermajority`), and a supermajority of honest fast commit
   votes yields a per-proposer commitQC from honest votes alone. With
   these, every counting step of the case split in
-  [ChorusDesign.md](./ChorusDesign.md) §7 is mechanised.
+  [ChorusDesign.md](./ChorusDesign.md) §7 is mechanised — and the case
+  split itself is **one theorem**,
+  `Chorus.progress_dichotomy_of_saturation`
+  ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)): in any
+  reachable state where every honest validator has cast its path vote,
+  either commitQCs exist for every proposer from honest votes alone, or
+  the MVBA stands invoked with decide-enabling evidence for every
+  proposer, the evidence stated verbatim as `mvba_decide_pos` /
+  `mvba_decide_neg`'s external-validity guards.
 
 **Method 4 — documented meta-theory.** What is deliberately *not*
 inside Lean is stated as named assumptions and audited by hand (§4).
@@ -138,6 +146,7 @@ The paper's headline properties and their formal counterparts:
 | "Fallback meta-block valid by construction" (`alg:fallback` build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
 | Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of `lemma:chorus-termination`'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
 | Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of `lemma:chorus-termination`'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
+| Progress dichotomy (`lemma:chorus-termination`'s case split as one statement: saturated reachable state ⇒ per-proposer commitQCs from honest votes alone, or MVBA invoked with per-proposer decide evidence) | `progress_dichotomy_of_saturation` ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)), all `n = 3f+1` | sweep + Lean |
 | The pre-fix receipt rules are broken (the §7.2 finding) | pinned model-checker violation, [Cadence/FallbackReceipt/PreFix.lean](../Cadence/FallbackReceipt/PreFix.lean) | model check |
 | Conductor open-prefix agreement, boundedness residues | Conductor sweep + `orchestrator_instance` | sweep + composition |
 | MCP Safety, positional form (`def:safety`) | `positional_log_safety` in `Cadence/Composition.lean` | composition |
@@ -178,16 +187,19 @@ relations, and it takes a human to confirm each use is positive.
    safety content; the temporal glue (fair scheduling → eventual
    firing) is not encoded. (A-mvba)'s per-validator implementability
    premise is discharged by the receipt-layer models (§5) at the same
-   meta seam. The argument's counting steps are **not on this list** —
-   they are theorems for every `n = 3f+1`: the *evidence pigeonhole*
-   (`ChorusDesign.md` §7, x = 0 branch) is
-   `Chorus.evidence_pigeonhole_of_reachable`
-   ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), and
-   *certificate formation* — `FBCert`/`fbCommitQC` from all-honest
-   participation, the fast-dominant commitQC — is
-   [Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean). What this
-   item assumes is purely temporal: fair scheduling ⇒ the honest
-   populations those theorems quantify over eventually act.
+   meta seam. The argument's case analysis is **not on this list** — it
+   is a theorem for every `n = 3f+1`:
+   `Chorus.progress_dichotomy_of_saturation`
+   ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)), built
+   from the counting theorems
+   ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)) and the
+   evidence pigeonhole
+   ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)).
+   What this item assumes is purely temporal, and exactly two steps:
+   (F-justice) drives every honest validator to the theorem's saturation
+   hypothesis (its path vote is cast), and (A-mvba) consumes the
+   theorem's conclusion (invocation + per-proposer decide evidence, in
+   the model's own guard form).
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive) and
    the `MVBA` / `ACS` module contracts

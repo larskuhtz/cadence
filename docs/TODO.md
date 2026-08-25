@@ -65,10 +65,13 @@ come first.
 
 ## Liveness
 
-The fair-progress *safety content* is machine-checked; the temporal glue is
-not ([`ChorusDesign.md`](./ChorusDesign.md) §7 is what the Chorus encoding
-does, [`Liveness.md`](./Liveness.md) the approach to closing the gap).
-Remaining:
+The fair-progress *safety content* is machine-checked, and the case split
+is one theorem — `progress_dichotomy_of_saturation`,
+`Cadence/Chorus/Progress.lean` — leaving exactly two temporal steps
+outside Lean: (F-justice) delivers its saturation hypothesis, (A-mvba)
+consumes its conclusion ([`ChorusDesign.md`](./ChorusDesign.md) §7 is what
+the Chorus encoding does, [`Liveness.md`](./Liveness.md) the approach to
+closing the rest). Remaining:
 
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
   meta-axioms become premises of a Lean theorem rather than named

@@ -1877,6 +1877,12 @@ progress.
 ### Case split over the honest fast-path population
 
 Let `x` be the number of honest validators that cast a fast commit vote.
+The whole split is a single theorem over reachable states —
+`progress_dichotomy_of_saturation` (`Chorus/Progress.lean`): once every
+honest validator has cast its path vote, either commitQCs exist for every
+proposer from honest votes alone, or `mvba_invoked` holds with
+per-proposer evidence in exactly the `mvba_decide_*` guard form. The
+bullets below narrate its three branches.
 
 * **`x ≥ 2f+1` (fast-dominant).** The honest commit votes agree per
   proposer (`local_fastqc_pos_cross_unique`), so a commitQC forms from

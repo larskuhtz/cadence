@@ -893,10 +893,20 @@ cast its fallback (resp. fallback commit) vote, `fbcert`
 any supermajority of honest cast fast commit votes yields a per-proposer
 commitQC from honest votes alone, the polarity/root agreement coming
 from `commit_*_sig_from_local_fastqc` + `local_fastqc_pos_cross_unique`
-/ `local_fastqc_pos_neg_excl` over the reachability projections. The
-remaining meta content of the fair-progress argument is only the
-temporal glue ((F-justice)/(F-byz)/(A-mvba)): fair scheduling ⇒ the
-honest populations these theorems quantify over eventually act.
+/ `local_fastqc_pos_neg_excl` over the reachability projections.
+
+**The case split, composed (2026-08-25).** The whole case analysis above
+is a single theorem, `Chorus.progress_dichotomy_of_saturation`
+([`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean)): in
+any reachable *saturated* state — every honest validator has cast its
+path vote, fast or fallback, with the per-proposer entries cast
+required — either a commitQC exists for every proposer from honest
+votes alone, or `mvba_invoked` holds together with per-proposer
+evidence stated verbatim as `mvba_decide_pos` / `mvba_decide_neg`'s
+external-validity guards. The remaining meta content of the
+fair-progress argument is therefore exactly two temporal steps:
+(F-justice) delivers the saturation hypothesis, and (A-mvba) consumes
+the conclusion.
 
 ### 7.1 Limitations of the current encoding
 
