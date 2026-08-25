@@ -6,6 +6,12 @@
 [`paper/2607.02275v2.pdf`](../paper/2607.02275v2.pdf) (authoritative;
 v1 is included only as the source of the deliberately-refuted bug).*
 
+*Maintainers' note (2026-08-25): this report is frozen at the revision it
+audited (`bfeee8c`), as is that revision itself. The only post-audit edits
+are the blockquoted **Resolution note** lines under individual findings,
+recording what has since been closed and by which commit; the report text is
+otherwise verbatim.*
+
 Three questions were asked:
 
 1. Does the model **faithfully implement** the protocol as described in the paper?
@@ -420,6 +426,13 @@ as the assumption most worth decomposing, and I agree.
 
 ### Finding 1 — the DA re-encode abstraction is load-bearing for the speculative-finality properties (severity: medium; documentation + scope)
 
+> **Resolution note (2026-08-25).** Closed at the model level by `3395fa9`
+> (2026-08-19): the re-encode check is now modelled by its verdict predicate
+> `well_encoded`, and the speculative-finality properties take the paper's
+> full culprit hypothesis `no_equivocation → no_invalid_encoding → …`. The
+> `docs/History.md` entry records the change (and a bonus: the manual-cell
+> surface shrank 14 → 11).
+
 **What the docs say.** `docs/ChorusDesign.md` §3.4 records that the DA
 re-encode consistency check (`alg:da` `line:da-reencode`) is not modelled —
 with `merkle_root` opaque, "`f+1` chunks for root `m`" is simply taken as
@@ -477,6 +490,15 @@ section recording that the paper's third culprit case is abstracted away.
 
 ### Finding 2 — the (M-frame) audit table in `ChorusDesign.md` §3.1 has two incorrect ✓ entries (severity: low–medium; documentation of the top checklist item)
 
+> **Resolution note (2026-08-25).** Closed by `fa4276f` (2026-08-19): the
+> §3.1 table was corrected, and the seven *self-row* reads became their own
+> documented exception category with the writer-condition justification;
+> `742cf53` reconciled the exception count elsewhere (CLAUDE.md still said
+> "two"). The Lean line numbers cited below are as of `bfeee8c` and have
+> drifted since; the action names and the count (seven) remain exact. The
+> recommended machine classification is open work — `docs/TODO.md`
+> § Soundness.
+
 `docs/ChorusDesign.md` §3.1 carries the hand-audit result as a table of which
 relations satisfy (M-update) and (M-frame). Two rows claim **(M-frame) ✓** for
 relations that are in fact read negatively:
@@ -532,6 +554,12 @@ No action needed beyond what the docs already say; recorded so a reader does
 not over-read `safety [proposal_inclusion]`.
 
 ### Finding 4 — Chorus has no in-build non-vacuity witness (severity: low; assurance)
+
+> **Resolution note (2026-08-25).** The recommendation was taken by
+> `bead354`: the monitor suites now run in CI after the verification stage
+> (`.github/workflows/verify.yml`), making the fixture run the standing
+> non-vacuity witness. The two blockers for an in-build `sat trace` stand,
+> recorded in `docs/TODO.md` § Soundness.
 
 `Cadence.lean` and `Conductor.lean` carry `sat trace` checks; Chorus — by far
 the largest and most property-dense model — does not. Its non-vacuity rests on
@@ -606,6 +634,10 @@ save a future reader the check.
 
 ### Finding 7 — `Chorus.lean` prose lags the Pigeonhole promotion (severity: trivial)
 
+> **Resolution note (2026-08-25).** Closed by `fa4276f`: the model's liveness
+> section now states the pigeonhole is mechanised, and the acknowledging
+> `NOTE` in `Chorus/Pigeonhole.lean` was removed.
+
 The liveness section of `Cadence/Chorus.lean` still describes the evidence
 pigeonhole as a meta step, although `Chorus.evidence_pigeonhole_of_reachable`
 now proves it in Lean; `docs/Architecture.md` §4 item 2 and
@@ -618,6 +650,11 @@ meets the stale wording first, and `docs/TODO.md` itself calls stale comments
 "the most expensive kind of documentation error here".
 
 ### Finding 8 — reproduction friction on a fresh, core-poor machine (severity: trivial; tooling)
+
+> **Resolution note (2026-08-25).** Closed by `bead354`:
+> `scripts/revalidate.sh` and `scripts/container.sh` take `BATCH` (with the
+> `BATCH=1` few-cores guidance in the script header), and the
+> `LD_LIBRARY_PATH` workaround is recorded in `docs/Container.md`.
 
 Both items are detailed in §3.1 and neither affects the artefact's claims:
 
