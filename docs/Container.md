@@ -133,7 +133,7 @@ Apple-Silicon machine.
 | 3 | as 2b with no cached proof reused: every verification condition re-solved by cvc5 and re-reconstructed | as 2b from `verified`, whose image has no cache | ~90 min |
 
 Tier 1 is what makes a published image worth having: Lean's kernel over all 66
-modules — the 3 811 reconstructed Chorus proofs included — in four minutes, with
+modules — every reconstructed Chorus proof included — in four minutes, with
 **no** SMT solver, no tactic execution and no elaboration. Silence is success.
 
 Tier 2 comes in two strengths, and the difference is worth understanding.
@@ -189,13 +189,12 @@ not need this. Reported by the 2026-08 external audit.
 
 ## 5. Why a container at all
 
-Veil's library is built with `precompileModules`, which forces a shared-library
-link of all of Mathlib: ~7 650 object files, about 987 KB of command line. macOS
-caps a process's arguments plus environment at 1 MiB, and each character of the
-checkout's absolute path costs ~7.6 KB across that object list — so on macOS the
-link fails unless the checkout path is around 35 characters or shorter. On Linux
-the limit is `RLIMIT_STACK/4`, 2 MiB by default, and the same link takes **under
-a second**.
+Veil's library is built with `precompileModules`, which forces a
+shared-library link of all of Mathlib — the link that fails on macOS once
+the checkout's absolute path exceeds ~35 characters, and takes **under a
+second** on Linux. The arithmetic, and the workarounds that do not help,
+are in [Dependencies.md](./Dependencies.md) § "Consequence: the native
+precompile path, and the macOS link wall".
 
 Measured, container (Apple `container`, 12 vCPU/24 GB) against the macOS host
 (14 cores), same seeded proof cache:

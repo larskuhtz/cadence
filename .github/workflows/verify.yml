@@ -168,14 +168,10 @@ jobs:
 
       # The model-conformance monitor (docs/Monitor.md). Not part of any
       # theorem's trust base — but the fixture run doubles as the build's
-      # non-vacuity witness for Chorus: traces/fast_path_positive.jsonl drives
-      # three honest validators through the full fast path to finalize_commit,
-      # executed step by step against the model's extracted actions, so a
-      # change that made finalization unreachable turns this step red even
-      # though every safety property would still (vacuously) verify. Chorus
-      # cannot carry an in-build `sat trace` (see docs/TODO.md § Soundness),
-      # which is why this runs here. Reuses the volume the verify step above
-      # just refreshed, so the oleans match these sources.
+      # non-vacuity witness for Chorus, which cannot carry an in-build
+      # `sat trace` (docs/TODO.md § Soundness has the record). Reuses the
+      # volume the verify step above just refreshed, so the oleans match
+      # these sources.
       - name: Run the model-conformance monitor
         env:
           RUNTIME: docker

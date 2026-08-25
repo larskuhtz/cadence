@@ -115,11 +115,11 @@ from a `Cadence/` file — is real.
 
 ### Building in a container (and the macOS wall it avoids)
 
-A **cold** build has to link Mathlib's shared library, ~7 650 objects on one
-command line. macOS caps exec arguments at 1 MiB and this overruns it by a few
-kilobytes once the checkout path exceeds ~35 characters (each character costs
-~7.6 KB); the symptom is `could not execute external process '.../clang'` on
-`Mathlib:shared`. On Linux the limit is 2 MiB and the link takes 0.8 s.
+A **cold** build fails on macOS at `Mathlib:shared` — `could not execute
+external process '.../clang'` — once the checkout's absolute path exceeds
+~35 characters: the link's command line overruns the 1 MiB argument cap.
+Linux is unaffected. The arithmetic, and the workarounds that do not help:
+[docs/Dependencies.md](./docs/Dependencies.md).
 
 So: **`RUNTIME=podman scripts/container.sh {verify,check,shell}`**, or the
 devcontainer. Both pull the published images
@@ -258,3 +258,11 @@ is a change to what this project *claims*, not a refactor.
   quietly editing history.
 * Relative links in `docs/` and in Lean doc comments are repo-root-relative
   paths in backticks; keep them checkable (a broken link is a small lie).
+* **Every repeated fact has one home.** A count or measurement lives in its
+  canonical place — a machine-checked pin where one exists (`#veil_status`,
+  `#guard_msgs`), else the tables in
+  [docs/Architecture.md](./docs/Architecture.md), else the doc that owns the
+  measurement — and every other mention stays qualitative with a pointer.
+  Before writing a number into prose, find where it already lives. (The
+  2026-08 "14 manual cells" drift happened because one number was spelled
+  out in six files; a 2026-08-25 audit swept the stragglers.)

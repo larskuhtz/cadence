@@ -97,7 +97,7 @@ entry — before trusting the script.
 
 ## 4. Manual cells
 
-11 Chorus cells (the quorum-intersection ones) cannot be found by the solver
+A few Chorus cells (the quorum-intersection ones) cannot be found by the solver
 and are `#prove_vc Chorus <action> <property> by <tac>` lines in their
 actions' proof files, before the `#prove_action` that consumes them after a
 statement check. The statement always comes from the model's registry —

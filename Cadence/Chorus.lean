@@ -2166,10 +2166,11 @@ sweep exceeded 17 CPU-hours and 50 GB (swap thrash) before being killed.
 The defaults are the validated configuration; seed-luck timeouts are
 healed by `veil.smt.retries`
 (retry with a perturbed seed, reported as "(retry k, seed k)"), with the
-TR-form fallback behind that; the 11 cells SMT cannot solve at all are
+TR-form fallback behind that; the cells SMT cannot solve at all are
 manual `#prove_vc … by <tactic>` cells in their actions' proof files
-(14 until 2026-08-19 — the `well_encoded` refactor made the three
-`fb_sign_neg` cells SMT-tractable; see `Chorus/Proofs/FbSignNeg.lean`). -/
+(`Chorus/Proofs/FbSignNeg.lean` records three the `well_encoded` refactor
+made tractable; the current count is pinned by `#veil_status` and tabled
+in `docs/Architecture.md`). -/
 
 #gen_spec
 
@@ -2186,7 +2187,7 @@ checks. The 3 783 invariant VCs are proven cross-file:
   from the registry statement (identical to what an in-file sweep would
   check, by construction), solved with proof reconstruction, persisted as
   a kernel-checked theorem, and assembled into the per-action
-  preservation lemma `step_<action>`. The 11 manual quorum-intersection
+  preservation lemma `step_<action>`. The manual quorum-intersection
   cells (SMT's e-matching diverges on them) live in their actions' proof
   files as `#prove_vc … by <tactic>` cells the command consumes as-is
   after a statement check.

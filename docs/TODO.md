@@ -43,11 +43,11 @@ come first.
   is a model refactor, not a trace addition. The standing witness is
   instead the **monitor fixture run in CI** (`scripts/container.sh
   monitor`, run by `.github/workflows/verify.yml` after the verification
-  stage): `traces/fast_path_positive.jsonl` drives three honest validators
-  through the full fast path to `finalize_commit`, executed step by step
-  against the model's extracted actions, so an edit that made finalization
-  unreachable turns CI red. Reachability-directed trace generation
-  (§ Liveness below) would supersede this.
+  stage): the fast-path fixture reaches `finalize_commit` against the
+  model's extracted actions, so an edit that made finalization unreachable
+  turns CI red — [`Monitor.md`](./Monitor.md) has the mechanism.
+  Reachability-directed trace generation (§ Liveness below) would
+  supersede this.
 * **Syntactic audit of the monotone-network contract.** The (M-frame) half of
   the network abstraction — network relations consulted in positive position
   only — is checked by hand today and *not* enforced by the tool; a violation

@@ -48,7 +48,7 @@ yourself — drop a `#guard_msgs in` line, or run `#print axioms <name>` in a
 scratch file (see [Working on the models](#working-on-the-models) below).
 
 The script `scripts/container.sh check` re-runs **Lean's kernel over every
-declaration in the development** — all 3 811 reconstructed Chorus proofs
+declaration in the development** — every reconstructed Chorus proof
 included — in **4 minutes**, with no SMT solver, no tactic execution and no
 elaboration. Forcing the elaborator to redo the whole project from source on
 top of that is a further 9 minutes; re-solving every verification condition
@@ -222,12 +222,11 @@ Do not run other heavy jobs concurrently with a *cold* proof-file build: some
 verification conditions sit close to the solver time budget, and stolen cores
 turn them into spurious timeouts.
 
-**macOS.** A *first* native build links Mathlib as a shared library — 7 649
-object files, ~987 KB of command line — and macOS caps a process's arguments
-at 1 MiB, so the link fails (`could not execute external process '…/clang'`)
-unless the checkout's absolute path is about 35 characters or fewer. The
-container path avoids this entirely. The details, and the workarounds that do
-not help, are in [docs/Container.md](./docs/Container.md) §5 and
+**macOS.** A *first* native build fails at the Mathlib shared-library link
+(`could not execute external process '…/clang'`) unless the checkout's
+absolute path is about 35 characters or fewer — the link's command line
+overruns macOS's 1 MiB argument cap. The container path avoids this
+entirely; the analysis, and the workarounds that do not help, are in
 [docs/Dependencies.md](./docs/Dependencies.md).
 
 ---
@@ -258,7 +257,7 @@ Cadence/Chorus.lean          the MODEL: state, actions, invariants. Elaborating 
 Cadence/Chorus/Proofs/*.lean one file per action (39): #prove_action re-proves every
    │                         registered VC statement of that action → real
    │                         kernel-checked proofs, plus one exported preservation
-   │                         lemma ("this action preserves all invariants"). The 11
+   │                         lemma ("this action preserves all invariants"). The
    │                         manual quorum-intersection proofs live here too
    ▼ imported by
 Cadence/Chorus/Certify.lean  #gen_composition: induction over all reachable states —

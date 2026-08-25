@@ -665,7 +665,7 @@ Grouped by purpose. See `Cadence/Chorus.lean` for the statements; this is a map.
 Slot safety (`lemma:chorus-slot-safety`) is trivial in the single-slot
 model; termination is §7.
 
-**Verification note.** Most obligations discharge automatically; eleven
+**Verification note.** Most obligations discharge automatically; a few
 VCs — those needing one or two explicit `ByzNodeSet` counting-axiom
 instantiations against witnessed quorums, at actions with bulk or
 quorum-completing updates — are discharged by manual `#prove_vc … by
@@ -1092,13 +1092,11 @@ list, and §§10.1–10.3 below for the bigger lifts.
    merely reject — see §3.1.1.
 
 4. An in-build reachability witness (`sat trace`) for Chorus. Blocked
-   twice over today: the trace pipeline needs the model-check
-   scaffolding's label enumeration, which this model disables for its
-   O(n^k) elaboration cost over ~38 actions, and `vote`'s bulk update
-   uses `decide (…)`, which the trace pipeline cannot translate. Until
-   a refactor clears both, the non-vacuity witness is the monitor
-   fixture run in CI — [`TODO.md`](./TODO.md) § Soundness has the full
-   record, [`Monitor.md`](./Monitor.md) the mechanism.
+   twice over today (the disabled model-check scaffolding; `decide` in
+   `vote`'s bulk update); until a refactor clears both, the non-vacuity
+   witness is the monitor fixture run in CI — [`TODO.md`](./TODO.md)
+   § Soundness has the full record, [`Monitor.md`](./Monitor.md) the
+   mechanism.
 
 ## 10. Bigger lifts — what would need new machinery
 
