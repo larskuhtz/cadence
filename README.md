@@ -366,7 +366,7 @@ Design, scope, the emitter contract and the full flag reference:
 | Using the published images; **what a prebuilt `.olean` proves**, and the audit ladder | [docs/Container.md](./docs/Container.md) |
 | Building and publishing the images (maintainers) | [docs/Images.md](./docs/Images.md) |
 | The model-conformance monitor | [docs/Monitor.md](./docs/Monitor.md) |
-| The liveness approach: what is safety-shaped and machine-checked, what stays temporal | [docs/ChorusDesign.md](./docs/ChorusDesign.md) §7 (what the model encodes), [docs/Liveness.md](./docs/Liveness.md) (the proposal to close the gap) |
+| The liveness approach: what is safety-shaped and machine-checked, what stays temporal | [docs/ChorusDesign.md](./docs/ChorusDesign.md) §7 (what the model encodes), [docs/Liveness.md](./docs/Liveness.md) (the assumption structure, and what would close the gap — the tool design lives in the Veil fork) |
 | The project's goal and horizon: the human-edits-model / agents-maintain-proofs workflow and the audit model | [docs/Scenario.md](./docs/Scenario.md) |
 | The paper's notation, and which model relation each term stands for | [docs/ChorusDesign.md](./docs/ChorusDesign.md) §2 (types) and §3.5 (the state-locality contract, with a paper-analogue column per relation) |
 | The paper itself, and how it is cited | [§ The protocol paper](#the-protocol-paper) — arXiv:2607.02275v2 |

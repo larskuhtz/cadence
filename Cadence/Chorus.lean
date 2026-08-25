@@ -1847,7 +1847,7 @@ model, indexed by the action's category:
   discharged by Conductor totality
   (`cor:chorus-correctness-within-cadence`). The probability-1
   termination of the underlying randomised primitive remains a
-  paper-level argument; see `docs/Liveness.md` §4 and `docs/ChorusDesign.md` §7.
+  paper-level argument; see `docs/Liveness.md` and `docs/ChorusDesign.md` §7.
 
   (A-mvba) is **not** unconditional: whether the invocation trigger and the
   per-proposer evidence ever materialise is handled by the case split in

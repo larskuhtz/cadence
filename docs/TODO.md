@@ -75,7 +75,8 @@ Remaining:
   assumptions. This is the single largest reduction of
   [`Architecture.md`](./Architecture.md) §4 available.
 * Actions are annotated with their fairness class in prose only; Veil has no
-  surface syntax for it. `Liveness.md` §2 sketches what that syntax should be.
+  surface syntax for it. The fork's liveness design doc sketches what that
+  syntax should be ([`Liveness.md`](./Liveness.md) §1 points to it).
 * Reachability-directed trace generation, so that non-vacuity witnesses for
   the *progress* invariants can be produced mechanically rather than written
   by hand.
