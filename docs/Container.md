@@ -133,7 +133,7 @@ Apple-Silicon machine.
 | 3 | as 2b with no cached proof reused: every verification condition re-solved by cvc5 and re-reconstructed | as 2b from `verified`, whose image has no cache | ~90 min |
 
 Tier 1 is what makes a published image worth having: Lean's kernel over all 66
-modules — the 3 808 reconstructed Chorus proofs included — in four minutes, with
+modules — the 3 811 reconstructed Chorus proofs included — in four minutes, with
 **no** SMT solver, no tactic execution and no elaboration. Silence is success.
 
 Tier 2 comes in two strengths, and the difference is worth understanding.

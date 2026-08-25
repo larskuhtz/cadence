@@ -8,7 +8,10 @@ the top-level properties live, §5 how "Chorus ⊨ SlotConsensus" is discharged.
 Lean sources cite these sections by number. For what is proven read
 [`../README.md`](../README.md) and [`Architecture.md`](./Architecture.md); the
 models' own headers ([`../Cadence/Conductor.lean`](../Cadence/Conductor.lean),
-[`../Cadence/Cadence.lean`](../Cadence/Cadence.lean)) carry the detail.*
+[`../Cadence/Cadence.lean`](../Cadence/Cadence.lean)) carry the detail.
+A register note: this document was written as the design plan and keeps that
+voice — every "model X as …" below **is implemented**; where the prose and a
+model disagree, the model headers are authoritative.*
 
 ## 1. Source map (what to read)
 
@@ -314,4 +317,4 @@ weighted instance provides.
 * Chorus's `participate()/abandon()` conformance (the glue calls
   abandon only after finalize) is currently a documented scope note in
   Chorus; the glue module makes it checkable structurally (abandon
-  action gated on finalize) — the glue module makes it structural.
+  action gated on finalize).

@@ -65,7 +65,7 @@ History: [docs/History.md](./docs/History.md).
   files at once and a *cold* proof file peaks ~5 GB (lake has no job cap):
   on <64 GB use `scripts/revalidate.sh`, which stages the same targets.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
-  only, ~90 s), `Cadence.Chorus.Proofs.Vote` (one action's ~96 cells),
+  only, ~90 s), `Cadence.Chorus.Proofs.Vote` (one action's ~98 cells),
   `Cadence.Chorus.Certify` (composition + the 3 822-cell audit pin, ~40 s).
 * Run **one** expensive build at a time and kill stale `lean` processes first.
   Near-timeout VCs are noisy under load: a cell that times out in a full build
@@ -163,9 +163,10 @@ characters; see [docs/Dependencies.md](./docs/Dependencies.md).
   relations (`msg_*`) may be consulted in **positive position only**.
   Violations do not fail the build — they silently void the async-safety
   claim. Read [docs/ChorusDesign.md](./docs/ChorusDesign.md) §3.1.1 before
-  adding or modifying an action. Two scoped exceptions are documented there;
-  do not add a third without updating that section and
-  [docs/Architecture.md](./docs/Architecture.md) §4.
+  adding or modifying an action. Three scoped exception categories are
+  documented there (the third — the seven *self-row* reads — was added by the
+  2026-08 audit response); do not add a fourth without updating that section
+  and [docs/Architecture.md](./docs/Architecture.md) §4.
 * **Invariants live in the model; proofs live in the proof files.** Manual
   cells do not index the invariant clump by hand: `inv_have h := <invariant>`
   / `inv% hinv <invariant>`
@@ -246,9 +247,12 @@ is a change to what this project *claims*, not a refactor.
   pre-fix version `FallbackReceipt/PreFix.lean` refutes — and so is its LaTeX
   source, whose `src/*.tex` layout is exactly what the citations name. Before
   adding an anchor, check it exists:
-  `curl -sL https://arxiv.org/e-print/2607.02275v2 | tar -xz -C papers/cadence`
+  `mkdir -p papers/cadence && curl -sL https://arxiv.org/e-print/2607.02275v2 | tar -xz -C papers/cadence`
   then grep for `\label{…}`. Neither the PDF (`hypertexnames=false`) nor arXiv's
-  HTML exposes label anchors, so they are grep targets, not links.
+  HTML exposes label anchors, so they are grep targets, not links. The same
+  rule applies inward: cite Lean code by declaration name, never by line
+  number — the 2026-08 audit report's Lean line citations had all drifted
+  within a week.
 * [docs/History.md](./docs/History.md) is a historical ledger and says so at
   the top. When something in it becomes false, mark it superseded rather than
   quietly editing history.

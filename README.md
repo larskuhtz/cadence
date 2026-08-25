@@ -48,7 +48,7 @@ yourself — drop a `#guard_msgs in` line, or run `#print axioms <name>` in a
 scratch file (see [Working on the models](#working-on-the-models) below).
 
 The script `scripts/container.sh check` re-runs **Lean's kernel over every
-declaration in the development** — all 3 808 reconstructed Chorus proofs
+declaration in the development** — all 3 811 reconstructed Chorus proofs
 included — in **4 minutes**, with no SMT solver, no tactic execution and no
 elaboration. Forcing the elaborator to redo the whole project from source on
 top of that is a further 9 minutes; re-solving every verification condition
@@ -91,7 +91,7 @@ is item 1 of the inventory and a standing rule in [CLAUDE.md](./CLAUDE.md): a
 violation of it would not fail the build.
 
 *The file [docs/AuditReport.md](./docs/AuditReport.md) contains an audit report
-that was created by by [Aristotle (Harmonic)](https://aristotle.harmonic.fun) for
+that was created by [Aristotle (Harmonic)](https://aristotle.harmonic.fun) for
 the revision bfeee8c of this project against the version 2 of the Cadence
 paper published on arxiv.*
 
@@ -196,7 +196,7 @@ Individual pieces, for iteration:
 
 ```bash
 lake build Cadence.Chorus                    # the per-slot consensus MODEL (no sweep) — ~90 s
-lake build Cadence.Chorus.Proofs.Vote        # one action's ~96 proof cells
+lake build Cadence.Chorus.Proofs.Vote        # one action's ~98 proof cells
 lake build Cadence.Chorus.Certify            # composition certificate + the 3 822-cell audit pin
 lake build Cadence.Cadence Cadence.Conductor # the two small models, sweeps included
 lake build Cadence.FallbackReceipt           # receipt model + its n=4 exhaustive model check
@@ -372,6 +372,7 @@ Design, scope, the emitter contract and the full flag reference:
 | The paper's notation, and which model relation each term stands for | [docs/ChorusDesign.md](./docs/ChorusDesign.md) §2 (types) and §3.5 (the state-locality contract, with a paper-analogue column per relation) |
 | The paper itself, and how it is cited | [§ The protocol paper](#the-protocol-paper) — arXiv:2607.02275v2 |
 | Open items | [docs/TODO.md](./docs/TODO.md), and [docs/ChorusDesign.md](./docs/ChorusDesign.md) §9 |
+| The 2026-08 external audit of this artefact | [docs/AuditReport.md](./docs/AuditReport.md) — frozen at the revision it audited (`bfeee8c`); inline resolution notes mark what has since been closed |
 | History: how the verification reached this state | [docs/History.md](./docs/History.md) |
 | How to *work on* the models (workflow, gotchas) | [CLAUDE.md](./CLAUDE.md) |
 
@@ -409,3 +410,7 @@ mkdir -p papers/cadence && curl -sL https://arxiv.org/e-print/2607.02275v2 \
   | tar -xz -C papers/cadence
 grep -rn 'label{lemma:chorus-agreement}' papers/cadence/src/
 ```
+
+The compiled PDFs of both versions are checked in under [`paper/`](./paper);
+the unpacked source tree `papers/cadence/` is deliberately gitignored and
+exists only after this fetch.

@@ -81,11 +81,15 @@ The paper establishes six slot-consensus properties for Chorus
 
 Additionally, `safety [speculative_agreement_pos]` / `[..._pos_neg]` check
 the paper's speculative-finality claim (`p1_informal.tex`: a speculative
-commit "may be reverted ... only if some validator equivocated"): in any
-state free of vote or proposer equivocation, a validator's speculative value
-(its own FastQC) agrees with every final commit.
+commit "may be reverted ... only if some validator equivocated" — widened by
+the proof sketch's closing parenthetical, `subsection:chorus-proof`, to a
+proposer committing to an invalidly encoded root): in any state free of vote
+or proposer equivocation (`no_equivocation`) in which no proposer has
+committed to an invalidly encoded root (`no_invalid_encoding`), a
+validator's speculative value (its own FastQC) agrees with every final
+commit.
 
-See `docs/ChorusDesign.md` in this directory for a higher-level discussion of the
+See `docs/ChorusDesign.md` for a higher-level discussion of the
 modelling choices, the abstractions made over the cryptographic primitives,
 and the limitations of the model with respect to liveness.
 -/
@@ -2190,7 +2194,7 @@ checks. The 3 783 invariant VCs are proven cross-file:
   preservation lemmas into `Chorus.invariants_of_reachable` + named
   `reachable_<property>` projections (`#gen_composition`), at the
   standard `propext`/`Classical.choice`/`Quot.sound` trust base — pinned
-  there and consumed by `Chorus/Compose.lean`/`ChorusPigeonhole.lean`.
+  there and consumed by `Chorus/Compose.lean`/`Chorus/Pigeonhole.lean`.
 
 Interactive spot checks: `#check_vc Chorus <action> <property>` (or
 `#check_action Chorus <action>`) in any importing scratch file — one at a

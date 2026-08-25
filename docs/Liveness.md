@@ -78,8 +78,9 @@ The crucial property for Veil: the resulting verification obligation
 is a **standard inductive-invariant problem on an augmented state
 space**. Every piece of existing Veil machinery (`#gen_state`,
 `#gen_spec`, the per-action induction VCs, the SMT discharge
-pipeline, the auxiliary-invariant patterns documented for
-`ReliableBroadcast.lean` and `Cadence/Chorus.lean`) applies verbatim. No new
+pipeline, the auxiliary-invariant patterns documented for Veil's own
+`Examples/Ivy/ReliableBroadcast.lean` and for `Cadence/Chorus.lean`) applies
+verbatim. No new
 SMT theory for well-founded orders is required; no new tactic family
 is required. The user authors *auxiliary invariants for the
 augmented system* — a skill they already exercise for safety.
@@ -93,8 +94,8 @@ assumptions belong in the framework's meta-theory and should be
 documented prominently:
 
 * They are **scheduling** assumptions about *honest* actions — the
-  Byzantine-adversary transition (`byz_step` in `Cadence/Chorus.lean`) is
-  *not* subject to fairness.
+  Byzantine-adversary actions (the `byz_*` family in `Cadence/Chorus.lean`)
+  are *not* subject to fairness.
 * They are **distinct from** network-level eventual-delivery
   assumptions. Cadence-style liveness needs *both* a fair-scheduling
   assumption on the validator's local actions *and* a network-level
