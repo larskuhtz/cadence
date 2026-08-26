@@ -105,10 +105,8 @@ paper published on arxiv.*
 | **Proposal inclusion** (censorship resistance, under the paper's synchrony premise) | `Cadence/Chorus.lean` → instance field | same |
 | **Hiding until the deadline** (protocol half) | `Cadence/Chorus.lean` (`hiding_until_deadline`) | reconstructed VCs; the cryptographic half is axiomatised (`Cadence/Primitives.lean`) |
 | **Speculative-finality revertibility** ("reverted only if the proposer is the culprit") | `Cadence/Chorus.lean` (`speculative_agreement_*`) | reconstructed VCs, conditional on `no_equivocation` + `no_invalid_encoding` — the paper's full culprit set: equivocation, or committing to an invalidly encoded root |
-| **Fair-progress liveness content** (no livelock of fair actions — strictly stronger than deadlock-freedom) | `Cadence/Chorus.lean`, liveness section | reconstructed VCs + named meta-axioms ([docs/Architecture.md](./docs/Architecture.md) §4) |
-| **Evidence pigeonhole** — `2f+1` honest fallback entries always yield certified per-proposer evidence (the counting step of the fallback liveness branch), for **every** `n = 3f+1` | `Cadence/Chorus/Pigeonhole.lean` (`evidence_pigeonhole_of_reachable`) | plain Lean over reachable states, axiom-pinned |
-| **Certificate formation** — `FBCert` / `fbCommitQC` exist once every honest validator has cast the corresponding vote, and a supermajority of honest fast commit votes yields a per-proposer commitQC from honest votes alone (the counting steps of the remaining liveness branches), for **every** `n = 3f+1` | `Cadence/Chorus/Counting.lean` (three theorems) | plain Lean (the commitQC leg over reachable states), axiom-pinned |
-| **Progress dichotomy** — the liveness case split as one theorem: in any reachable state where every honest validator has cast its path vote, either commitQCs exist for every proposer from honest votes alone, or the MVBA stands invoked with decide-enabling evidence for every proposer, for **every** `n = 3f+1` | `Cadence/Chorus/Progress.lean` (`progress_dichotomy_of_saturation`) | plain Lean over reachable states, axiom-pinned |
+| **Fair-progress liveness content** (no livelock of fair actions — strictly stronger than deadlock-freedom) | `Cadence/Chorus.lean`, liveness section | reconstructed VCs + the named temporal assumptions ([docs/Liveness.md](./docs/Liveness.md)) |
+| **Progress dichotomy** — the liveness case split as one theorem: in any reachable state where every honest validator has cast its path vote, either commitQCs exist for every proposer from honest votes alone, or the MVBA stands invoked with decide-enabling evidence for every proposer, for **every** `n = 3f+1` | `Cadence/Chorus/Progress.lean` (`progress_dichotomy_of_saturation`); its counting inputs — the evidence pigeonhole and certificate formation — are separately stated and pinned in `Cadence/Chorus/Pigeonhole.lean` and `Cadence/Chorus/Counting.lean` | plain Lean over reachable states, axiom-pinned |
 | **Network-level build totality** — any supermajority of accepted receipts (Byzantine members included) yields a buildable fallback meta-block entry per proposer: the state-level half of "every correct validator can propose", for **every** `n = 3f+1` | `Cadence/Chorus/Counting.lean` (`build_totality_of_reachable`) | plain Lean over reachable states, axiom-pinned |
 | **MCP Safety, positional form** | `Cadence/Composition.lean` (`positional_log_safety`) | Cadence/Conductor sweeps (reconstructed) + plain-Lean composition — kernel-checked, axiom-pinned |
 | **`Conductor ⊨ Orchestrator`**, **`Chorus ⊨ SlotConsensus`** (the paper's module contracts) | `Cadence/Composition.lean`, `Cadence/Chorus/Compose.lean` | plain Lean over persisted VC theorems — kernel-checked, axiom-pinned |
@@ -116,8 +114,9 @@ paper published on arxiv.*
 | **The pre-fix receipt rules are broken** ("pre-fix" = the paper's rules *before* the 2026-07-07 bug fix; the bug, mechanically reproduced) | `Cadence/FallbackReceipt/PreFix.lean` | exhaustive model check; the counterexample trace is pinned in the build |
 
 What is *not* proven in Lean — timing bounds, the scheduling (fairness)
-assumptions and the fairness-to-liveness reduction (the fair-progress *safety
-content* of liveness **is** machine-checked), the cryptographic primitives,
+assumptions and the fairness-to-liveness reduction (the liveness argument's
+entire *state-level* content **is** machine-checked —
+[docs/Liveness.md](./docs/Liveness.md)), the cryptographic primitives,
 the monotone-network soundness contract — is the named assumption inventory in
 [docs/Architecture.md](./docs/Architecture.md) §4.
 

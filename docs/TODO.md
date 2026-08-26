@@ -79,17 +79,14 @@ closing the rest). Remaining:
   [`Architecture.md`](./Architecture.md) §4 available.
 * Actions are annotated with their fairness class in prose only; Veil has no
   surface syntax for it. The fork's liveness design doc sketches what that
-  syntax should be ([`Liveness.md`](./Liveness.md) §1 points to it).
+  syntax should be ([`Liveness.md`](./Liveness.md) §3 points to it).
 * Reachability-directed trace generation, so that non-vacuity witnesses for
   the *progress* invariants can be produced mechanically rather than written
   by hand.
 * The timing content of a concrete MVBA instantiation (a GST phase
-  marker). This is the residue of the old "decompose (A-mvba)" item — the
-  rest landed 2026-08-25: quorum availability and proposal buildability
-  are theorems (`progress_dichotomy_of_saturation`,
-  `build_totality_of_reachable`), and (A-mvba) now names only the
-  primitive's own termination. Timing stays out of scope while the models
-  are untimed ([`Architecture.md`](./Architecture.md) §4 item 4).
+  marker): (A-mvba) names the primitive's untimed termination only, and
+  the models are untimed throughout — no artefact claims a latency bound
+  ([`Architecture.md`](./Architecture.md) §4 item 4).
 
 ## Model hygiene
 

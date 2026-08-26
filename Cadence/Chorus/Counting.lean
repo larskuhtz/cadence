@@ -20,8 +20,7 @@ case split is mechanised, and what remains meta in the liveness argument is
    (resp. fallback commit vote), the certificate exists: the honest
    population is the quorum. These discharge the "`FBCert` forms" step of
    the `x = 0` branch and the "`2f+1` honest commit votes form
-   `fbCommitQC`" step of the commit-round epilogue — previously the two
-   places `docs/ChorusDesign.md` §7 called a meta-level counting step.
+   `fbCommitQC`" step of the commit round (`docs/ChorusDesign.md` §7).
    State-level and reachability-free: the certificates are existential
    statements the honest quorum witnesses directly.
 3. `commitqc_of_honest_fast_dominant` — the `x ≥ 2f+1` branch: any

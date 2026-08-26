@@ -1845,15 +1845,15 @@ model, indexed by the action's category:
   (F-justice) suffices.
 * **(F-byz)** — Byzantine actions (`byz_*`) carry no scheduling preference;
   they are unfair.
-* **(A-mvba)** — the MVBA primitive's own liveness, and *only* that: once
-  `mvba_invoked` holds and certificate evidence exists for every
+* **(A-mvba)** — the MVBA primitive's own liveness, and nothing else:
+  once `mvba_invoked` holds and certificate evidence exists for every
   proposer, the oracle eventually fires `mvba_decide_pos` /
   `mvba_decide_neg` for every proposer and subsequently
   `mvba_terminate`. This stands in for the paper's `ℓ_MVBA`-Termination
   (`mod:mvba`, `p2_mvba.tex`); the probability-1 termination of the
-  underlying randomised primitive remains a paper-level argument
-  (`docs/Liveness.md`). Everything the assumption once bundled beyond
-  the primitive is a theorem:
+  underlying randomised primitive is a paper-level argument
+  (`docs/Liveness.md`). The assumption's protocol-side surroundings are
+  theorems:
 
   * its premise — the invocation trigger plus per-proposer evidence in
     the decide actions' own guard form — is the conclusion of
@@ -1910,7 +1910,7 @@ bullets below narrate its three branches.
 
 * **`x ≥ 2f+1` (fast-dominant).** The honest commit votes agree per
   proposer (`local_fastqc_pos_cross_unique`), so a commitQC forms from
-  honest votes alone (mechanised: `commitqc_of_honest_fast_dominant`,
+  honest votes alone (`commitqc_of_honest_fast_dominant`,
   `Chorus/Counting.lean`); every honest validator then commits via
   `commit_assign_*` (whose precondition is the commitQC certificate) and
   `finalize_commit`. No MVBA needed.
@@ -1932,25 +1932,21 @@ bullets below narrate its three branches.
 * **`x = 0` (fallback).** All `≥ 2f+1` honest validators eventually cast
   fallback votes (per-proposer fallback signing is always enabled one way
   or the other — see `progress_fallback_signing`), so `FBCert` forms
-  (mechanised: `fbcert_of_honest_fallback_votes`, `Chorus/Counting.lean`)
-  and `mvba_invoked` holds via the fallback trigger. Per-proposer evidence
+  (`fbcert_of_honest_fallback_votes`, `Chorus/Counting.lean`) and
+  `mvba_invoked` holds via the fallback trigger. Per-proposer evidence
   formation is the pigeonhole below; decisions then reach finalization
   through the commit round exactly as in the mixed branch.
 
-**Evidence pigeonhole (mechanised).** In the `x = 0` branch, the `2f+1`
-honest fallback entries for a proposer `j` split as: `f+1` negative (→ a
-negative FallbackQC certificate), or `f+1` positive on one root (→ a
-positive FallbackQC), or positive entries on ≥ 2 roots — each backed by an
-f+1 vote quorum containing an honest voter whose entry pins a
-proposer-signed root, so two distinct roots are proposer-signed and
-`equiv_evidence` holds. This split-counting is not SMT-discharged in the
-invariant clump — the `ByzNodeSet` abstraction cannot partition a quorum
-by the value its members signed (set comprehension is outside its
-language) — but it is no longer a meta step either: it is the Lean
-theorem `Chorus.evidence_pigeonhole_of_reachable`
-(`Cadence/Chorus/Pigeonhole.lean`), proved over reachable states for the
-concrete instance family at every `n = 3f+1` and removed from the
-assumption inventory (`docs/Architecture.md` §4).
+**Evidence pigeonhole.** In the `x = 0` branch, the per-proposer evidence
+is the theorem `Chorus.evidence_pigeonhole_of_reachable`
+(`Cadence/Chorus/Pigeonhole.lean`): the `2f+1` honest fallback entries for
+a proposer `j` split as `f+1` negative (a negative FallbackQC), `f+1`
+positive on one root (a positive FallbackQC), or positive entries on two
+roots — each pinning a proposer-signed root, i.e. `equiv_evidence`. This
+split-counting partitions a quorum by the value its members signed — set
+comprehension, outside the abstract `ByzNodeSet` language — which is why
+it is plain Lean over the concrete instance family at every `n = 3f+1`
+rather than an SMT-discharged invariant.
 
 ### What is not encoded inside Veil
 
@@ -2066,8 +2062,7 @@ invariant [local_committed_complete]
 /-! ### Fallback commit round — backing, confinement, and fair progress
 
 Support for the fallback commit round (`line:fb-mvba-decide`–
-`line:fb-finalize`; appended 2026-07-07 with the round's modelling —
-see the append-only NOTE above).
+`line:fb-finalize`).
 
 The fair-progress leg for the round needs no dedicated `progress_*`
 case-analysis invariant: once `mvba_complete` holds, `cast_fb_commit i`'s

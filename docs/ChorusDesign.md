@@ -785,151 +785,139 @@ comment in `Cadence/Chorus.lean`.
 
 ## 7. Liveness
 
-The *fair-progress layer* in [`Cadence/Chorus.lean`](../Cadence/Chorus.lean) (section
-"Liveness — meta-argument and fair-progress invariants") encodes the
-safety content of the classical verification-diagram liveness argument
-(cf. McMillan, *"Toward Liveness Proofs at Scale"*, CAV 2024): in every
-reachable non-terminal state, some **fairly-scheduled** action is
-enabled — strictly stronger than deadlock freedom, since Byzantine
-actions are unfair and cannot satisfy the obligation. The temporal
-layer is stated as meta-axioms:
+> **(Liveness)** Under (F-justice), (F-byz) and (A-mvba) below, every
+> honest validator eventually commits every slot.
+
+The argument follows the classical verification-diagram method for
+deductive liveness (cf. McMillan, *"Toward Liveness Proofs at Scale"*,
+CAV 2024): every state-level step is a kernel-checked theorem, and the
+three named assumptions contribute only *temporal* content — finitely
+many instances of the single rule "*a continuously enabled fair action
+eventually fires*", plus the MVBA primitive's own termination. The
+model-side encoding is the "Liveness" section of
+[`Cadence/Chorus.lean`](../Cadence/Chorus.lean); the theorems live in
+[`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean),
+[`Cadence/Chorus/Counting.lean`](../Cadence/Chorus/Counting.lean) and
+[`Cadence/Chorus/Pigeonhole.lean`](../Cadence/Chorus/Pigeonhole.lean).
+
+**The chain** — how theorems and temporal steps alternate:
+
+1. *(temporal — (F-justice).)* Every honest validator reaches
+   **saturation**: it casts its path vote, fast or fallback, carrying
+   the per-proposer entries that cast requires. Each constituent action
+   is continuously enabled once its case applies (`progress_voting` /
+   `progress_fallback_signing` state the per-proposer case analyses),
+   and in the monotone model enabledness never reverts, so weak
+   fairness fires it.
+2. *(theorem.)* `Chorus.progress_dichotomy_of_saturation`: in any
+   reachable saturated state, either a commitQC exists for **every**
+   proposer from honest votes alone, or `mvba_invoked` holds together
+   with per-proposer evidence stated verbatim as `mvba_decide_pos` /
+   `mvba_decide_neg`'s external-validity guards. Its proof is the case
+   split below.
+3. *(temporal, commit route — (F-justice).)* Certificates become
+   broadcast certificates and commits: `broadcast_commitqc_*`'s guard
+   is the commitQC itself, `commit_assign_*`'s the broadcast
+   certificate, `finalize_commit`'s the per-proposer completeness
+   (`local_committed_complete`).
+4. *(temporal, MVBA route — (A-mvba).)* The primitive, invoked with
+   evidence, eventually decides every proposer and terminates
+   (`mvba_complete`). Its real-world premise — *all correct validators
+   propose* — is state-level buildable: a fallback meta-block entry
+   from **any** supermajority of accepted receipts, Byzantine members
+   included (`Chorus.build_totality_of_reachable`), and a fast
+   meta-block by aggregation, whose guard witness is *definitionally*
+   the dichotomy's vote-quorum evidence (`vote_quorum_pos`'s definition
+   and `aggregate_fastqc_pos`'s requires are the same two lines).
+5. *(theorem + temporal.)* The fallback commit round
+   (`line:fb-mvba-decide`–`line:fb-finalize`) carries decisions to
+   finalization: once `mvba_complete` holds, `redisseminate_chunk` is
+   enabled for every decided-positive root (`mvba_decided_is_proposer`
+   + `mvba_decided_pos_chunks_decodable` +
+   `mvba_decided_pos_proposer_signed`) and (F-justice) delivers each
+   honest validator's assigned chunks; `cast_fb_commit` is then enabled
+   (`mvba_complete_phase` closes the phase leg); the `2f+1` honest
+   commit votes are a certificate outright
+   (`Chorus.fbcommitqc_of_honest_commit_votes` — the honest population
+   is itself the quorum), and `fbcommitqc_implies_mvba_complete` +
+   `mvba_complete_per_proposer` hand over the `commit_assign_*`
+   preconditions as on the commit route.
+
+**The assumptions:**
 
 * **(F-justice)** — phase advancement, aggregation, and per-validator
-  honest actions are weakly fair. (Strong fairness — (F-compassion) —
-  is reserved vocabulary for the non-monotone implementation; in the
-  monotone model enabledness is itself monotone, so weak fairness
-  suffices.)
-* **(F-byz)** — Byzantine actions are unfair.
-* **(A-mvba)** — the MVBA primitive's own liveness, and (since
-  2026-08-25) *only* that: once `mvba_invoked` holds and certificate
-  evidence exists per proposer, the MVBA eventually decides every
-  proposer and terminates (probability-1 termination of the randomised
-  primitive is a paper-level argument). It stands in for `mod:mvba`'s
-  `ℓ_MVBA`-Termination; what the assumption once bundled beyond the
-  primitive is now theorems: its premise is
-  `progress_dichotomy_of_saturation`'s conclusion, premise (i) — *all
-  correct validators propose* — is `build_totality_of_reachable`
-  (a buildable meta-block entry from **any** accepted receipt
-  supermajority, Byzantine members included; the per-validator
-  implementation refinement stays the receipt layer, §7.2 /
-  `Architecture.md` §5) together with the definitional aggregation
-  witness on the fast side, and premise (ii) — *no correct validator
-  abandons before the bound* — is moot in this single-slot model (no
-  `abandon()`), discharged within Cadence by Conductor totality
-  (`cor:chorus-correctness-within-cadence`).
+  honest actions are weakly fair. Weak fairness suffices *because* the
+  model is monotone: enabledness itself is monotone, so the
+  enable/disable flicker that strong fairness exists for cannot occur.
+  ((F-compassion) — strong fairness — is reserved vocabulary for the
+  non-monotone implementation and is never invoked.)
+* **(F-byz)** — Byzantine actions are unfair: no progress obligation is
+  satisfied by adversarial help, which makes the discharged content
+  strictly stronger than deadlock freedom.
+* **(A-mvba)** — the MVBA primitive's own liveness: once `mvba_invoked`
+  holds and certificate evidence exists per proposer, the MVBA
+  eventually decides every proposer and terminates. It stands in for
+  `mod:mvba`'s `ℓ_MVBA`-Termination; the probability-1 termination of
+  the randomised primitive is a paper-level argument
+  ([`Liveness.md`](./Liveness.md)). Both of `ℓ_MVBA`-Termination's
+  protocol-side premises are covered: (i) *all correct validators
+  propose* is chain step 4 (the per-validator implementation refinement
+  of the build step is the receipt layer — §7.2,
+  [`Architecture.md`](./Architecture.md) §5); (ii) *no correct
+  validator abandons before the bound* is moot in this single-slot
+  model (no `abandon()`), discharged within Cadence by Conductor
+  totality (`cor:chorus-correctness-within-cadence`).
 
-The well-founded ranking is structural: per-slot state is finite and
-all relations are monotone, so the residual count of unset tuples
-decreases with every helpful firing. The (D) obligation of the
-verification diagram is therefore discharged by the monotonicity audit,
-not by SMT; stating it as invariants yields only tautologies of the
-form `… ∧ ¬X → ¬X`, so do not add them back.
+**The ranking is structural.** Per-slot state is finite and all
+relations are monotone, so the residual count of unset tuples strictly
+decreases with every helpful firing — a fair run cannot stall before
+any chain step. The (D) obligation of the verification diagram is
+discharged by the monotonicity audit (§3.1), not by SMT; stating it as
+invariants yields only tautologies of the form `… ∧ ¬X → ¬X`, so do
+not add them.
 
-**Case split** on the number `x` of honest validators that cast a fast
-commit vote:
+**The case split** (the dichotomy's proof, on the number `x` of honest
+validators that cast a fast commit vote):
 
 * `x ≥ 2f+1`: honest commit votes agree per proposer (FastQC
-  cross-uniqueness), so a commitQC forms from honest votes alone
-  (mechanised: `Chorus.commitqc_of_honest_fast_dominant`,
-  [`Cadence/Chorus/Counting.lean`](../Cadence/Chorus/Counting.lean));
-  everyone commits via `commit_assign_*` (F-justice).
+  cross-uniqueness), so any `2f+1` of them are a commitQC
+  (`Chorus.commitqc_of_honest_fast_dominant`) — no MVBA involved.
 * `1 ≤ x ≤ 2f` (mixed): neither commitQC nor FBCert is guaranteed
   (Byzantine help is unfair; only `2f+1 − x` honest validators can
-  still fallback-vote). The paper's case-(a) MVBA trigger closes this
+  still fallback-vote). The paper's case-(a) MVBA trigger closes the
   regime: any fast-path validator's FastQCs are backed by
   network-visible vote supermajorities
-  (`fast_path_implies_vote_quorums`), every honest validator eventually
-  aggregates a complete fast meta-block, `mvba_invoked` holds, evidence
-  exists per proposer (`fastqc_complete_implies_mvba_evidence`), and
-  (A-mvba) delivers the complete decision vector.
-* `x = 0`: all `≥ 2f+1` honest validators eventually cast fallback
-  votes (per-proposer fallback signing is always enabled one way or the
-  other — `progress_fallback_signing`), `fbcert` forms (mechanised:
-  `Chorus.fbcert_of_honest_fallback_votes`, same file), and (A-mvba)
-  delivers the decisions, given per-proposer evidence — see the
-  pigeonhole below.
+  (`fast_path_implies_vote_quorums`), which are at once the invocation
+  trigger (a complete fast meta-block) and the per-proposer evidence.
+* `x = 0`: every honest validator casts fallback votes (per-proposer
+  signing is enabled one way or the other —
+  `progress_fallback_signing`), so `FBCert` exists outright
+  (`Chorus.fbcert_of_honest_fallback_votes` — the honest population is
+  itself the quorum), and the per-proposer evidence is the **evidence
+  pigeonhole** (`Chorus.evidence_pigeonhole_of_reachable`): `2f+1`
+  honest per-proposer fallback entries split, by two-class counting,
+  into an `f+1` negative sub-quorum (a negative FallbackQC), an `f+1`
+  positive sub-quorum on one root (a positive FallbackQC), or positive
+  entries on two roots — both proposer-signed, i.e. `equiv_evidence`.
 
-**Commit-round epilogue (both MVBA branches, added 2026-07-07).**
-Decisions no longer finalize directly: the fallback commit round
-(`line:fb-mvba-decide`–`line:fb-finalize`) sits in between. Its
-fair-progress content is materialised by the appended invariant block in
-`Cadence/Chorus.lean` ("Fallback commit round — backing, confinement, and fair
-progress"): once `mvba_complete` holds, `redisseminate_chunk` is enabled
-for every decided-positive root (`mvba_decided_is_proposer` +
-`mvba_decided_pos_chunks_decodable` + `mvba_decided_pos_proposer_signed`)
-and delivers each honest validator's assigned chunks (F-justice), after
-which `cast_fb_commit` is enabled (`mvba_complete_phase` closes the
-phase leg); `2f+1` honest commit votes form `fbcommitqc` (the honest
-population is itself the quorum — mechanised as
-`Chorus.fbcommitqc_of_honest_commit_votes`, no longer a meta step), and
-`fbcommitqc_implies_mvba_complete` + `mvba_complete_per_proposer` hand
-over the `commit_assign_*` preconditions exactly as in the pre-round
-argument.
+The counting in these theorems partitions quorums by the value their
+members signed — set comprehension, outside the abstract `ByzNodeSet`
+language — which is why they are plain Lean over the concrete instance
+family `byzNodeSetFin n f`, for every `n = 3f+1` and any Byzantine set
+of size `≤ f`, rather than SMT-discharged invariants.
 
-**Evidence pigeonhole (mechanised 2026-07-07).** In the `x = 0`
-branch, the `2f+1` honest fallback entries for a proposer split as: an
-f+1 negative sub-quorum (a negative FallbackQC), or an f+1 positive
-sub-quorum on one root (a positive FallbackQC), or positive entries on
-two roots — whose backing vote quorums pin two proposer-signed roots,
-i.e. `equiv_evidence`. This split-counting partitions a quorum by the
-value its members signed, which is outside the `ByzNodeSet` language
-(no set comprehension), so it is not SMT-discharged in the invariant
-clump — but it is no longer a meta step: the theorem
-`Chorus.evidence_pigeonhole_of_reachable`
-([`Cadence/Chorus/Pigeonhole.lean`](../Cadence/Chorus/Pigeonhole.lean)) proves exactly
-this split-counting over reachable states, for every `n = 3f+1` and
-any Byzantine set of size `≤ f` (the concrete instance family — the
-abstract `ByzNodeSet` axioms cannot express the counting, which is why
-the step used to be meta): from a supermajority of honest per-proposer
-fallback entries, `fb_quorum_pos`/`fb_quorum_neg`/`equiv_evidence`
-follows, via the `two_cover` pigeonhole and the
-`msg_fb_pos_sig_backed → vote_pos_from_local → local_entry_pos_signed`
-chain over the named reachability projections.
+### 7.1 What stays outside Lean
 
-**Certificate formation (mechanised 2026-08-25).** The case split's
-other counting steps are theorems in
-[`Cadence/Chorus/Counting.lean`](../Cadence/Chorus/Counting.lean), over
-the same instance family: the honest population is itself a
-supermajority-sized node set (`honest_supermajority` — `n = 3f+1` minus
-`≤ f` Byzantine leaves `≥ 2f+1`), so once every honest validator has
-cast its fallback (resp. fallback commit) vote, `fbcert`
-(resp. `fbcommitqc`) holds outright; and in the fast-dominant branch,
-any supermajority of honest cast fast commit votes yields a per-proposer
-commitQC from honest votes alone, the polarity/root agreement coming
-from `commit_*_sig_from_local_fastqc` + `local_fastqc_pos_cross_unique`
-/ `local_fastqc_pos_neg_excl` over the reachability projections.
-
-**The case split, composed (2026-08-25).** The whole case analysis above
-is a single theorem, `Chorus.progress_dichotomy_of_saturation`
-([`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean)): in
-any reachable *saturated* state — every honest validator has cast its
-path vote, fast or fallback, with the per-proposer entries cast
-required — either a commitQC exists for every proposer from honest
-votes alone, or `mvba_invoked` holds together with per-proposer
-evidence stated verbatim as `mvba_decide_pos` / `mvba_decide_neg`'s
-external-validity guards. The remaining meta content of the
-fair-progress argument is therefore exactly two temporal steps:
-(F-justice) delivers the saturation hypothesis, and (A-mvba) consumes
-the conclusion.
-
-### 7.1 Limitations of the current encoding
-
-The temporal/fairness layer (fair executions, the ranking recursion)
-is not encoded inside Veil. Phase markers never *must* advance; the
-network has no GST marker; MVBA termination is an oracle. The
-discharged invariants are the safety content only.
-
-*Aggregation enablement* is no longer absorbed by (A-mvba): the
-dichotomy's evidence **is** the witness of `aggregate_fastqc_*`'s guard
-— `vote_quorum_pos`'s definition and the action's requires are the same
-two lines — so once the evidence exists, aggregation is enabled for
-every honest validator, and the only temporal residue is (F-justice) on
-the firing. `mvba_complete_per_proposer` then closes the chain to
-`committed I S`. A future extension would internalise the temporal
-layer itself via an L2S desugaring (sketched in
-[`Liveness.md`](./Liveness.md)) or a verification-diagram tactic
-family. Safety properties are unaffected by all of this: they hold in
-every reachable state regardless of scheduling.
+The ω-content only: quantification over infinite fair executions, and
+the rule "continuously enabled ⇒ eventually fires". Phase markers never
+*must* advance; the network has no GST marker; the MVBA is an oracle.
+Everything state-level — enabledness, counting, certificate formation,
+the case analysis — is theorems, so the assumptions above are consumed
+at exactly the seams the chain names and nowhere else. Internalising
+the temporal layer itself is the liveness-to-safety extension designed
+in the Veil fork ([`Liveness.md`](./Liveness.md) §3 points to it).
+Safety properties are unaffected by all of this: they hold in every
+reachable state regardless of scheduling.
 
 ### 7.2 Confirmed paper-side bug behind (A-mvba) — EquivCert harvest omission (2026-07-06; fixed upstream 2026-07-07)
 
@@ -1164,10 +1152,11 @@ would make formal.
 
 ### 10.3 Liveness
 
-See §7.1. A concrete extension proposal — ω-acceptance annotations on
-actions, discharged via a liveness-to-safety (L2S) reduction reusing
-the existing safety-VC machinery — is sketched in
-[`Liveness.md`](./Liveness.md). Out of scope even then: real-time /
-GST-style bounded delivery and probabilistic termination (axiomatise
-the randomised primitive, discharge the probability argument on
-paper — the current (A-mvba) treatment).
+See §7.1: the one thing not encoded is the temporal rule itself. The
+designed extension — ω-acceptance annotations on actions, discharged
+via a liveness-to-safety (L2S) reduction reusing the existing
+safety-VC machinery — is Veil work and lives in the fork
+([`Liveness.md`](./Liveness.md) §3 points to it). Out of scope even
+then: real-time / GST-style bounded delivery, and probabilistic
+termination (axiomatise the randomised primitive, discharge the
+probability argument on paper — the (A-mvba) treatment).

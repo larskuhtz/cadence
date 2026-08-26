@@ -3,9 +3,9 @@ import Cadence.FallbackReceipt.Totality
 
 /-! # ChorusPigeonhole — the evidence pigeonhole, mechanised
 
-The one deliberately meta-level counting step of Chorus's fair-progress
-argument (`docs/ChorusDesign.md` §7, the `x = 0`
-branch), now a Lean theorem: in any reachable Chorus state, if a
+The evidence-formation counting step of Chorus's fair-progress argument
+(`docs/ChorusDesign.md` §7, the `x = 0`
+branch): in any reachable Chorus state, if a
 supermajority of *honest* validators each hold a fallback signed entry
 for a proposer `j`, then certified per-proposer evidence exists —
 
@@ -41,9 +41,9 @@ because the two-class counting is not expressible over the abstract
 `ByzNodeSet` axioms.
 
 What this discharges: the "Evidence pigeonhole" step of the liveness
-meta-argument, as a theorem rather than an assumption. The remaining meta
-content of that argument is only the temporal glue
-((F-justice)/(F-byz)/(A-mvba); see `docs/Architecture.md` §4). Trust base:
+argument — see `docs/ChorusDesign.md` §7 for how it composes with the
+other theorems and where the named temporal assumptions
+((F-justice)/(F-byz)/(A-mvba); `docs/Architecture.md` §4) enter. Trust base:
 `[propext, Classical.choice, Quot.sound]` (pinned below) — the reachability
 projections consume the proof-file family's re-proved VC theorems
 (`Chorus/Proofs/`, via `Chorus/Certify.lean`), and the counting is

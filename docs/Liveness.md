@@ -1,88 +1,72 @@
-# Liveness — what is proven, what is assumed, what would close the gap
+# Liveness — what is proven, what is assumed
 
-*What **is** proven about liveness today: the fair-progress invariants are
-machine-checked like every other invariant, and the argument's entire
-state-level content — counting steps and case analysis included — is the
-theorem `Chorus.progress_dichotomy_of_saturation`
-([`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean)): in any
-reachable state where every honest validator has cast its path vote,
-commitQCs exist for every proposer from honest votes alone, or the MVBA
-stands invoked with per-proposer decide evidence. Only the temporal glue
-(fair scheduling ⇒ eventual firing) is a named meta-assumption. See
-[`Architecture.md`](./Architecture.md) §4 items 2 and 4 for exactly which
-assumptions that leaves, and [`ChorusDesign.md`](./ChorusDesign.md) §7 for
-what the Chorus encoding does.
-This document records the assumption structure on the Cadence side and what
-a tool extension would reduce it to; the extension's design itself is tool
-work and lives in the Veil fork (see §1).*
+*The audit summary for the liveness claim. The model-level narrative — how
+the theorems and assumptions compose against Chorus's actions and
+invariants — is [`ChorusDesign.md`](./ChorusDesign.md) §7; the assumption
+inventory is [`Architecture.md`](./Architecture.md) §4 items 2 and 4.*
 
-## 1. The tool extension (design lives in the fork)
+## 1. The shape of the claim
 
-Closing the temporal gap would be the largest single reduction of
-[`Architecture.md`](./Architecture.md) §4 available: (F-justice), (F-byz)
-and (A-mvba) would become *premises of a Lean theorem* rather than named
-assumptions beside one. The proposed mechanism, in one sentence: annotate
-actions with fairness classes and state ω-acceptance / response
-(`p ↝ q`) properties directly, then discharge them by the POPL'18
-**liveness-to-safety (L2S)** reduction — a snapshot-augmented state space
-on which the negated ω-property is an ordinary inductive-invariant
-problem, so Veil's whole existing safety-VC pipeline applies verbatim.
+The liveness claim — under the named assumptions below, every honest
+validator eventually commits — factors into state-level facts and temporal
+steps. **Every state-level fact is a kernel-checked, axiom-pinned theorem**
+over reachable states, for every `n = 3f+1`:
 
-That design — surface syntax, the L2S construction, ranking functions as a
-second-tier option, and the bring-up plan — is Veil work, and per this
-repository's documentation rules it lives in the fork:
-**`docs/Liveness.md` on the `lars/liveness` branch of `larskuhtz/veil`**.
+| Theorem | Says |
+|---|---|
+| `progress_dichotomy_of_saturation` ([`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean)) | in any reachable state where every honest validator has cast its path vote, commitQCs exist for every proposer from honest votes alone, **or** the MVBA is invoked with per-proposer evidence in exactly the `mvba_decide_*` guard form |
+| `evidence_pigeonhole_of_reachable` ([`Cadence/Chorus/Pigeonhole.lean`](../Cadence/Chorus/Pigeonhole.lean)) | `2f+1` honest per-proposer fallback entries always yield a FallbackQC or an EquivCert |
+| `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([`Cadence/Chorus/Counting.lean`](../Cadence/Chorus/Counting.lean)) | certificate formation: the honest population is itself the quorum; a supermajority of honest fast commit votes is a per-proposer commitQC |
+| `build_totality_of_reachable` (same file) | **any** supermajority of accepted receipts, Byzantine members included, yields a buildable fallback meta-block entry per proposer — "every correct validator can propose", at the state level |
 
-## 2. The fairness assumptions the extension would internalise
+plus the fair-progress and enabledness invariants of the sweep (the
+"Liveness" section of [`Cadence/Chorus.lean`](../Cadence/Chorus.lean)).
 
-The assumptions are stated and consumed in the models' own liveness
-sections ([`ChorusDesign.md`](./ChorusDesign.md) §7 narrates them); what
-matters structurally:
+**Every temporal step is an instance of one rule** — *a continuously
+enabled fair action eventually fires* — applied at named seams:
+(F-justice) drives every honest validator to the dichotomy's saturation
+hypothesis and fires the certificate-to-commit actions after it, and
+(A-mvba) consumes the dichotomy's conclusion. Nothing else is assumed: no
+counting, no case analysis, no certificate or quorum reasoning lives
+outside Lean.
 
-* They are **scheduling** assumptions about *honest* actions only — the
-  Byzantine-adversary actions (the `byz_*` family in
-  [`Cadence/Chorus.lean`](../Cadence/Chorus.lean)) carry no fairness and
-  can never satisfy a progress obligation ((F-byz)).
-* Weak fairness suffices in the monotone model: enabledness is itself
+## 2. The assumptions, exactly
+
+* **(F-justice)** — honest actions are weakly fair. Weak (not strong)
+  fairness suffices because the model is monotone: enabledness is itself
   monotone, so the enable/disable toggle that strong fairness exists for
-  cannot occur ((F-compassion) is reserved vocabulary for the non-monotone
-  implementation and never invoked).
-* Scheduling is **distinct from** network-level eventual delivery. A full
-  liveness proof needs both: fairness on the validators' local actions,
-  and a delivery assumption — under the extension, a compassion
-  annotation on a synthetic delivery action (or on the delivery action of
-  the explicit-network refactor sketched in
-  [`ChorusDesign.md`](./ChorusDesign.md) §10.1).
+  cannot occur. ((F-compassion) is reserved vocabulary for the
+  non-monotone implementation and never invoked.)
+* **(F-byz)** — Byzantine actions (the `byz_*` family) are unfair:
+  progress never relies on adversarial help, which makes the discharged
+  content strictly stronger than deadlock freedom.
+* **(A-mvba)** — the MVBA primitive's own liveness: invoked with
+  per-proposer evidence, it eventually decides every proposer and
+  terminates. The randomised primitive terminates with probability 1,
+  which no deductive framework expresses — the probability argument stays
+  on paper, exactly as for any cryptographic primitive contract.
+* Scheduling is distinct from **network delivery**. The monotone network
+  makes broadcast signatures globally visible, so delivery surfaces only
+  as fairness on the observation actions (`record_chunk`,
+  `redisseminate_chunk`, `aggregate_fastqc_*`); the network abstraction's
+  own soundness contract is [`Architecture.md`](./Architecture.md) §4
+  item 1.
 
-## 3. Cadence's obligations, mapped to the extension
+The well-founded ranking that makes the chain terminate is structural:
+per-slot state is finite and all relations are monotone, so every fair
+firing strictly shrinks the residual of unset tuples. It rests on the same
+monotonicity audit as the network contract.
 
-Even with the extension in place, Cadence's liveness properties split by
-what they need:
+## 3. What would close the rest
 
-* **"Honest fast-path commit eventually"** — *in scope*: a
-  network-delivery compassion annotation plus fairness on the validator's
-  local aggregation actions. Worth attempting as soon as the extension
-  exists; the fair-progress invariants it would build on are already
-  proven.
-* **"MVBA eventually terminates"** — *out of scope permanently*: the
-  randomised primitive terminates with probability 1, and no deductive
-  FOL framework handles probabilities. It stays an axiomatic black box
-  with a deterministic termination guarantee under a fair-scheduling
-  precondition, and the probability-1 argument stays on paper. Since
-  2026-08-25 this is *all* that (A-mvba) contains: its protocol-side
-  content — invocation, per-proposer evidence, and proposal
-  buildability — is theorems (`progress_dichotomy_of_saturation`,
-  `build_totality_of_reachable`).
-* **"Slot eventually decides"** — follows once the above two are in hand:
-  every honest validator either fast-commits or falls back to the MVBA,
-  both of which terminate.
-
-Real-time bounds (GST-style bounded delivery, latency) stay out of scope
-either way: the models are untimed, and no formal artefact here claims a
-latency bound ([`Architecture.md`](./Architecture.md) §4 item 4).
-
-So the useful intermediate target is unchanged: prove the *deterministic*
-liveness properties modulo the standard assumptions. That target becomes
-reachable once the L2S extension exists — and until then, the split above
-is the honest statement of where the machine stops and the assumptions
-begin.
+Veil has no fairness annotations and no quantification over runs, so the
+rule "continuously enabled ⇒ eventually fires" is not expressible today.
+The designed extension — fairness classes on actions,
+ω-acceptance/response properties, discharged by the POPL'18
+**liveness-to-safety** reduction on the existing safety-VC pipeline — is
+Veil work and lives in the fork: **`docs/Liveness.md` on the
+`lars/liveness` branch of `larskuhtz/veil`**. With it, (F-justice) becomes
+the premise of a Lean theorem and the deterministic liveness properties
+("honest fast-path commit eventually", "slot eventually decides") become
+provable in-system. (A-mvba)'s probability-1 core, and real-time bounds
+(GST, latency — the models are untimed), stay out of scope regardless.
