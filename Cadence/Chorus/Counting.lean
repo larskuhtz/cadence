@@ -1,4 +1,5 @@
 import Cadence.Chorus.Certify
+import Cadence.FallbackReceipt.Totality
 
 /-! # Chorus/Counting — the certificate-formation counting steps, mechanised
 
@@ -30,6 +31,18 @@ case split is mechanised, and what remains meta in the liveness argument is
    `commit_*_sig_from_local_fastqc` → `local_fastqc_pos_cross_unique` /
    `local_fastqc_pos_neg_excl` over the named reachability projections of
    [`Certify.lean`](./Certify.lean).
+4. `build_totality_of_reachable` — the network-level counterpart of the
+   receipt layer's build totality
+   ([`FallbackReceipt/Totality.lean`](../FallbackReceipt/Totality.lean)),
+   and the state-level half of "(A-mvba)'s *all correct validators
+   propose* premise is implementable": from **any** supermajority of
+   per-proposer fallback entries — arbitrary honest/Byzantine mix, which
+   is what a real validator's `2f+1` accepted receipts are — one of the
+   paper's meta-block build cases applies: a positive FallbackQC, a
+   negative FallbackQC, or an EquivCert. Unlike the pigeonhole (whose
+   quorum is honest-only), the Byzantine members' positive entries pin
+   proposer-signed roots by `fb_pos_sig_proposer_signed` — the entry
+   carries σ_p, verified at receipt, so validity holds for every signer.
 
 The hypotheses are exactly what the (F-justice) temporal layer delivers —
 "every honest validator (of the given population) has signed/cast" — so the
@@ -144,6 +157,21 @@ private abbrev cmCast (r : Fin n) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (cafr% Chorus.State.Label.msg_commit_cast)
     st.msg_commit_cast r = true
 
+/-- `r` has a positive fallback signed entry `⟨j, m⟩`. -/
+private abbrev fbEPos (r j : Fin n) (m : merkle_root) : Prop :=
+  @Veil.FieldRepresentation.get _ _ _ (cafr% Chorus.State.Label.msg_fb_pos_sig)
+    st.msg_fb_pos_sig r j m = true
+
+/-- `r` has a negative fallback signed entry for `j`. -/
+private abbrev fbENeg (r j : Fin n) : Prop :=
+  @Veil.FieldRepresentation.get _ _ _ (cafr% Chorus.State.Label.msg_fb_neg_sig)
+    st.msg_fb_neg_sig r j = true
+
+/-- The proposer `j` has signed root `m` (`msg_proposer_signed`). -/
+private abbrev pSigned (j : Fin n) (m : merkle_root) : Prop :=
+  @Veil.FieldRepresentation.get _ _ _ (cafr% Chorus.State.Label.msg_proposer_signed)
+    st.msg_proposer_signed j m = true
+
 /-- **`FBCert` formation** (`x = 0` branch, `docs/ChorusDesign.md` §7): once
 every honest validator has cast its fallback vote, `fbcert` holds — the
 honest population is itself the certifying quorum. Reachability-free. -/
@@ -248,6 +276,77 @@ theorem commitqc_of_honest_fast_dominant
         ⟨honest r hbz, honest r0 hbz0⟩)
     · exact ⟨hn, hcast⟩
 
+set_option maxHeartbeats 1000000 in
+/-- **Network-level build totality** — the receipt layer's
+`build_totality_of_reachable`, restated over Chorus's network state: in any
+reachable state, **any** supermajority of per-proposer fallback entries —
+arbitrary honest/Byzantine mix, i.e. what a validator's `2f+1` accepted
+receipts carry — yields a buildable meta-block entry for `j`: a positive
+FallbackQC, a negative FallbackQC, or an EquivCert. The two-roots case
+pins both roots as proposer-signed via `fb_pos_sig_proposer_signed`, which
+holds for Byzantine signers too (the entry carries σ_p). -/
+theorem build_totality_of_reachable
+    {th : Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice}
+    {st : Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice)}
+    (hreach : (Chorus.relationalTransitionSystem slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice
+      (nset := byzNodeSetFin n f hf is_byz hbyz)).reachable th st)
+    (j : Fin n) (Q : ByzNSet n)
+    (hQ_card : 2 * f + 1 ≤ Q.val.length)
+    (hQ : ∀ r, r ∈ Q.val → ((∃ m, fbEPos n st r j m) ∨ fbENeg n st r j)) :
+    (∃ m, cpv% Chorus.fb_quorum_pos j m th st) ∨
+    (cpv% Chorus.fb_quorum_neg j th st) ∨
+    (cpv% Chorus.equiv_evidence j th st) := by
+  classical
+  -- Case 1: an EquivCert already exists.
+  by_cases heqv : (cpv% Chorus.equiv_evidence j th st)
+  · exact Or.inr (Or.inr heqv)
+  -- Every positive entry — Byzantine members included — pins a
+  -- proposer-signed root.
+  have hsig : ∀ (r : Fin n) (m : merkle_root), fbEPos n st r j m → pSigned n st j m :=
+    fun r m hp => Chorus.reachable_fb_pos_sig_proposer_signed
+      (nset := byzNodeSetFin n f hf is_byz hbyz) hreach r j m hp
+  -- No EquivCert: any two proposer-signed roots agree.
+  have huniq : ∀ (m1 m2 : merkle_root),
+      pSigned n st j m1 → pSigned n st j m2 → m1 = m2 := by
+    intro m1 m2 h1 h2
+    by_contra hne
+    refine heqv ?_
+    unfold Chorus.equiv_evidence
+    dsimp only
+    exact ⟨m1, m2, hne, h1, h2⟩
+  -- The two-class pigeonhole over the mixed supermajority.
+  rcases ByzNSet.two_cover Q hQ_card (fun r => ∃ m, fbEPos n st r j m)
+    with ⟨t, ht_len, ht_mem⟩ | ⟨t, ht_len, ht_mem⟩
+  · -- All-positive class: the roots agree (no EquivCert), so `t`
+    -- witnesses a positive FallbackQC.
+    have ht_ne : t.val ≠ [] := by
+      intro hnil
+      rw [hnil] at ht_len
+      simp at ht_len
+    obtain ⟨r0, hr0⟩ := List.exists_mem_of_ne_nil _ ht_ne
+    obtain ⟨hr0Q, m0, hr0p⟩ := ht_mem r0 hr0
+    refine Or.inl ⟨m0, ?_⟩
+    unfold Chorus.fb_quorum_pos
+    dsimp only
+    simp only [byzNodeSetFin, decide_eq_true_eq]
+    refine ⟨t, ht_len, ?_⟩
+    intro r hr
+    obtain ⟨hrQ, m, hrp⟩ := ht_mem r hr
+    have hm : m = m0 := huniq m m0 (hsig r m hrp) (hsig r0 m0 hr0p)
+    exact hm ▸ hrp
+  · -- All-negative class: entry completeness (the hypothesis) leaves
+    -- the negative entry, so `t` witnesses a negative FallbackQC.
+    refine Or.inr (Or.inl ?_)
+    unfold Chorus.fb_quorum_neg
+    dsimp only
+    simp only [byzNodeSetFin, decide_eq_true_eq]
+    refine ⟨t, ht_len, ?_⟩
+    intro r hr
+    obtain ⟨hrQ, hrnp⟩ := ht_mem r hr
+    rcases hQ r hrQ with hpos | hneg
+    · exact absurd hpos hrnp
+    · exact hneg
+
 end Counting
 end Chorus
 
@@ -277,3 +376,9 @@ info: 'Chorus.commitqc_of_honest_fast_dominant' depends on axioms: [propext, Cla
 -/
 #guard_msgs in
 #print axioms Chorus.commitqc_of_honest_fast_dominant
+
+/--
+info: 'Chorus.build_totality_of_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.build_totality_of_reachable

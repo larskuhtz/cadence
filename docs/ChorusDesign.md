@@ -800,17 +800,21 @@ layer is stated as meta-axioms:
   monotone model enabledness is itself monotone, so weak fairness
   suffices.)
 * **(F-byz)** — Byzantine actions are unfair.
-* **(A-mvba)** — once `mvba_invoked` holds and certificate evidence
-  exists per proposer, the MVBA eventually decides every proposer and
-  terminates (probability-1 termination of the randomised primitive is
-  a paper-level argument). This stands in for `mod:mvba`'s
-  `ℓ_MVBA`-Termination, whose premise since the 2026-07-07 revision is
-  (i) *all correct validators propose* — the per-validator
-  implementability content behind the §7.2 finding, bridged from this
-  model's network-global evidence premise by the atomic-build argument
-  (mechanised separately in the receipt layer, `Architecture.md` §5) — and
-  (ii) *no correct validator
-  abandons before the bound* — moot in this single-slot model (no
+* **(A-mvba)** — the MVBA primitive's own liveness, and (since
+  2026-08-25) *only* that: once `mvba_invoked` holds and certificate
+  evidence exists per proposer, the MVBA eventually decides every
+  proposer and terminates (probability-1 termination of the randomised
+  primitive is a paper-level argument). It stands in for `mod:mvba`'s
+  `ℓ_MVBA`-Termination; what the assumption once bundled beyond the
+  primitive is now theorems: its premise is
+  `progress_dichotomy_of_saturation`'s conclusion, premise (i) — *all
+  correct validators propose* — is `build_totality_of_reachable`
+  (a buildable meta-block entry from **any** accepted receipt
+  supermajority, Byzantine members included; the per-validator
+  implementation refinement stays the receipt layer, §7.2 /
+  `Architecture.md` §5) together with the definitional aggregation
+  witness on the fast side, and premise (ii) — *no correct validator
+  abandons before the bound* — is moot in this single-slot model (no
   `abandon()`), discharged within Cadence by Conductor totality
   (`cor:chorus-correctness-within-cadence`).
 
@@ -915,13 +919,14 @@ is not encoded inside Veil. Phase markers never *must* advance; the
 network has no GST marker; MVBA termination is an oracle. The
 discharged invariants are the safety content only.
 
-Nor is *aggregation enablement* invariant-checked: `aggregate_fastqc_*`
-and the other aggregation actions enable on the existence of `2f+1`
-honest signatures, and whether such a quorum ever accumulates is a
-quorum-availability question about participation and partial synchrony.
-(A-mvba) absorbs it — assuming quorum availability the MVBA terminates,
-and `mvba_complete_per_proposer` closes the chain to `committed I S`. A future extension would internalise the
-meta-axioms via an L2S desugaring (sketched in
+*Aggregation enablement* is no longer absorbed by (A-mvba): the
+dichotomy's evidence **is** the witness of `aggregate_fastqc_*`'s guard
+— `vote_quorum_pos`'s definition and the action's requires are the same
+two lines — so once the evidence exists, aggregation is enabled for
+every honest validator, and the only temporal residue is (F-justice) on
+the firing. `mvba_complete_per_proposer` then closes the chain to
+`committed I S`. A future extension would internalise the temporal
+layer itself via an L2S desugaring (sketched in
 [`Liveness.md`](./Liveness.md)) or a verification-diagram tactic
 family. Safety properties are unaffected by all of this: they hold in
 every reachable state regardless of scheduling.

@@ -86,7 +86,7 @@ consequence of it.
   to run under the scheduler's lock for every VC on every refresh, which is
   quadratic in the number of VCs; and completed solver tasks retained their
   proof witnesses. Both are invisible at textbook scale and both are fatal at
-  3 822 VCs.
+  Chorus's ~4 000-VC scale.
 * **`precompileModules` for Veil's own library** — the proof-discharging
   tactics run natively instead of interpreted, which is what makes the
   per-action proof files usefully parallel.

@@ -27,7 +27,7 @@ veil_proof_options
 veil_large_clump_budgets
 -- `fastqc_complete_implies_mvba_evidence` diverges under the K5(a2')
 -- Bool-atom fold's query shape (2026-07-14, the fold-era cache refresh):
--- the one cell of 3 822 where cvc5's e-matching runs to ANY budget
+-- the one cell of the whole family where cvc5's e-matching runs to ANY budget
 -- (measured: the whole WP/TR retry ladder at 60 s, then again at 120 s)
 -- on the folded query, where the pre-fold shape solves in <37 s. The fold
 -- is tactic-side only — VC statements and cache keys are unchanged — so

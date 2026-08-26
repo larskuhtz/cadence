@@ -6,7 +6,7 @@ import Cadence.Tooling
 
 *This is a **model file** of the verified-module file family
 (`docs/Architecture.md` §6): it elaborates the transition system and
-persists the VC registry, but runs **no invariant sweep** — the 3 783
+persists the VC registry, but runs **no invariant sweep** — the 3 822
 invariant VCs are proven in the per-action files under
 [`Chorus/Proofs/`](./Chorus/Proofs) and composed into the reachability
 certificate by [`Chorus/Certify.lean`](./Chorus/Certify.lean). Opening
@@ -1458,6 +1458,20 @@ invariant [msg_fb_pos_sig_backed]
     ¬ is_byz R ∧ msg_fb_pos_sig R J M →
     ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_vote_pos_sig r J M
 
+-- Every network-valid positive fallback entry — honest or Byzantine — pins
+-- a proposer-signed root: a positive entry carries the proposer's signature
+-- σ_p on ⟨s, j, m⟩ and receivers verify it (§`subsection:fallback_path`).
+-- Honest entries via their f+1 vote-quorum backing (the quorum's honest
+-- voter's `local_entry_pos_signed`), Byzantine ones by the validity
+-- precondition of `byz_sign_fb_pos`. The σ_p-carrying discipline of the
+-- entry, mirroring `vote_pos_sig_chunk`'s σ/chunk discipline for votes.
+-- Deliberately unrestricted by honesty: it is what makes the network-level
+-- build totality (`Chorus/Counting.lean`) hold over an *arbitrary* accepted
+-- receipt supermajority, Byzantine members included.
+invariant [fb_pos_sig_proposer_signed]
+  ∀ (R : node) (J : node) (M : merkle_root),
+    msg_fb_pos_sig R J M → msg_proposer_signed J M
+
 -- Honest fallback entries exist only for proposers (`fb_sign_*` require
 -- `is_proposer`). Scopes the fallback-witness invariants below to
 -- proposers without altering their quantifier shape.
@@ -1831,27 +1845,37 @@ model, indexed by the action's category:
   (F-justice) suffices.
 * **(F-byz)** — Byzantine actions (`byz_*`) carry no scheduling preference;
   they are unfair.
-* **(A-mvba)** — once `mvba_invoked` holds (either invocation trigger) and
-  certificate evidence exists for every proposer, the MVBA oracle
-  eventually fires `mvba_decide_pos` / `mvba_decide_neg` for every
-  proposer and subsequently `mvba_terminate`. This stands in for the
-  paper's `ℓ_MVBA`-Termination (`mod:mvba`, `p2_mvba.tex`), whose premise
-  since the 2026-07-07 revision is twofold: (i) *all correct validators
-  propose* — the per-validator implementability of which is exactly the
-  receipt/propose-layer content behind the §7.2 finding (`docs/ChorusDesign.md`
-  §7.2: the model's premise is network-global evidence, and
-  the bridge from global evidence to every correct validator assembling
-  a valid proposal is the atomic-build argument, mechanised separately);
-  and (ii) *no correct validator abandons before the bound* — moot in
-  this single-slot model (no `abandon()` action), and within Cadence
-  discharged by Conductor totality
-  (`cor:chorus-correctness-within-cadence`). The probability-1
-  termination of the underlying randomised primitive remains a
-  paper-level argument; see `docs/Liveness.md` and `docs/ChorusDesign.md` §7.
+* **(A-mvba)** — the MVBA primitive's own liveness, and *only* that: once
+  `mvba_invoked` holds and certificate evidence exists for every
+  proposer, the oracle eventually fires `mvba_decide_pos` /
+  `mvba_decide_neg` for every proposer and subsequently
+  `mvba_terminate`. This stands in for the paper's `ℓ_MVBA`-Termination
+  (`mod:mvba`, `p2_mvba.tex`); the probability-1 termination of the
+  underlying randomised primitive remains a paper-level argument
+  (`docs/Liveness.md`). Everything the assumption once bundled beyond
+  the primitive is a theorem:
 
-  (A-mvba) is **not** unconditional: whether the invocation trigger and the
-  per-proposer evidence ever materialise is handled by the case split in
-  (3) below.
+  * its premise — the invocation trigger plus per-proposer evidence in
+    the decide actions' own guard form — is the conclusion of
+    `progress_dichotomy_of_saturation` (`Chorus/Progress.lean`);
+  * `ℓ_MVBA`-Termination's premise (i), *all correct validators
+    propose*, is state-level buildable: a fallback meta-block entry
+    from **any** supermajority of accepted receipts, Byzantine members
+    included (`build_totality_of_reachable`, `Chorus/Counting.lean`;
+    the per-validator implementation refinement is the receipt layer —
+    `docs/ChorusDesign.md` §7.2, `docs/Architecture.md` §5), and a fast
+    meta-block by aggregation, whose guard witness is *definitionally*
+    the dichotomy's vote-quorum evidence — compare `vote_quorum_pos`
+    with `aggregate_fastqc_pos`'s requires;
+  * premise (ii), *no correct validator abandons before the bound*, is
+    moot in this single-slot model (no `abandon()` action), and within
+    Cadence discharged by Conductor totality
+    (`cor:chorus-correctness-within-cadence`).
+
+  What fairness must still deliver around the oracle is (F-justice) on
+  the build/aggregation firings and receipt delivery — the same
+  temporal glue as everywhere else. (A-mvba) is **not** unconditional:
+  its premise materialises via the case split in (3) below.
 
 **(2) Well-founded ranking (structural).** Chorus is a one-shot per-slot
 protocol: per slot, `node`, `nodeset`, the proposer set and the set of
@@ -2107,7 +2131,7 @@ set_option veil.gen.modelCheckScaffolding false
 -- O(n^k) `Enumeration`/`FinEncodableInjOnly` label instances.
 set_option veil.gen.executableActions true
 
-/- The assembled `Invariants` conjunction is large (~97 conjuncts); the
+/- The assembled `Invariants` conjunction is large (~98 conjuncts); the
 `LocalRProp` instance chain over it exceeds Lean's default instance-search
 budgets, and without that instance every VC re-simplifies the full clump
 (a large constant-factor slowdown of the sweep). Raise the budgets so the
@@ -2189,7 +2213,7 @@ This is a **model file** of the verified-module file family
 (`docs/Architecture.md` §6): `#gen_spec` above elaborated the transition
 system and persisted the VC registry — the model's entire proof
 interface — and started only the (cheap) background `doesNotThrow`
-checks. The 3 783 invariant VCs are proven cross-file:
+checks. The 3 822 invariant VCs are proven cross-file:
 
 * one `#prove_action Chorus <action>` per action in
   [`Chorus/Proofs/`](./Chorus/Proofs) — every registered VC re-created

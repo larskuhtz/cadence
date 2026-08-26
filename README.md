@@ -39,7 +39,7 @@ is a build failure.
 | Every stated theorem has a **complete proof**, checked by Lean's kernel | the build; plus the axiom pins in [`Cadence.lean`](./Cadence.lean) — a `sorry` anywhere shows up as the axiom `sorryAx` and fails the pin |
 | The trust base has not drifted (no extra axiom crept in) | `#guard_msgs in #print axioms <thm>` for every end theorem, in [`Cadence.lean`](./Cadence.lean) and at each result's own site |
 | **cvc5's verdicts are not believed.** Every solver discharge is reconstructed as a Lean proof term and re-checked by the kernel | all models elaborate with `veil.smt.trust false`; if a proof cannot be reconstructed, the cell fails |
-| **Nothing is stubbed.** All 3 822 Chorus verification conditions (3 783 action × property obligations + 39 does-not-throw checks), and all 220 of the receipt layer's, have a real, statement-matching, kernel-checked theorem in scope | the pinned `#veil_status` lines in `Cadence/Chorus/Certify.lean` and `Cadence/FallbackReceipt/Certify.lean` — `3822/3822 real` and `220/220 real`, with the axiom union over all of them |
+| **Nothing is stubbed.** Every Chorus verification condition (one per action × property, plus a does-not-throw check per action), and every one of the receipt layer's, has a real, statement-matching, kernel-checked theorem in scope | the pinned `#veil_status` lines in `Cadence/Chorus/Certify.lean` and `Cadence/FallbackReceipt/Certify.lean`, each asserting *all* cells real with the axiom union over all of them |
 | The verification conditions are the ones the model states — they are not re-typed by hand anywhere | the proof files read their statements out of the model's own persisted registry; identity is by construction |
 | The receipt-layer bug found in 2026-07 **is** a bug in the pre-fix rules | `Cadence/FallbackReceipt/PreFix.lean` pins the model checker's counterexample; the file builds only if the bug is still found, verbatim |
 
@@ -101,7 +101,7 @@ paper published on arxiv.*
 
 | Claim | Where | Method / trust base |
 |---|---|---|
-| **Agreement** — correct validators never finalize conflicting proposal vectors | `Cadence/Chorus.lean` (`agreement_pos`, `agreement_pos_neg`) → `Chorus.slotConsensus_instance` | 3 822 inductive-invariant verification conditions (cvc5, **proof-reconstructed — kernel-checked**), proved per action under `Cadence/Chorus/Proofs/`, plus plain-Lean reachability composition — kernel-checked end to end, axiom-pinned, per-VC audit pinned |
+| **Agreement** — correct validators never finalize conflicting proposal vectors | `Cadence/Chorus.lean` (`agreement_pos`, `agreement_pos_neg`) → `Chorus.slotConsensus_instance` | one inductive-invariant verification condition per action × property (cvc5, **proof-reconstructed — kernel-checked**), proved per action under `Cadence/Chorus/Proofs/`, plus plain-Lean reachability composition — kernel-checked end to end, axiom-pinned, per-VC audit pinned |
 | **Proposal inclusion** (censorship resistance, under the paper's synchrony premise) | `Cadence/Chorus.lean` → instance field | same |
 | **Hiding until the deadline** (protocol half) | `Cadence/Chorus.lean` (`hiding_until_deadline`) | reconstructed VCs; the cryptographic half is axiomatised (`Cadence/Primitives.lean`) |
 | **Speculative-finality revertibility** ("reverted only if the proposer is the culprit") | `Cadence/Chorus.lean` (`speculative_agreement_*`) | reconstructed VCs, conditional on `no_equivocation` + `no_invalid_encoding` — the paper's full culprit set: equivocation, or committing to an invalidly encoded root |
@@ -109,6 +109,7 @@ paper published on arxiv.*
 | **Evidence pigeonhole** — `2f+1` honest fallback entries always yield certified per-proposer evidence (the counting step of the fallback liveness branch), for **every** `n = 3f+1` | `Cadence/Chorus/Pigeonhole.lean` (`evidence_pigeonhole_of_reachable`) | plain Lean over reachable states, axiom-pinned |
 | **Certificate formation** — `FBCert` / `fbCommitQC` exist once every honest validator has cast the corresponding vote, and a supermajority of honest fast commit votes yields a per-proposer commitQC from honest votes alone (the counting steps of the remaining liveness branches), for **every** `n = 3f+1` | `Cadence/Chorus/Counting.lean` (three theorems) | plain Lean (the commitQC leg over reachable states), axiom-pinned |
 | **Progress dichotomy** — the liveness case split as one theorem: in any reachable state where every honest validator has cast its path vote, either commitQCs exist for every proposer from honest votes alone, or the MVBA stands invoked with decide-enabling evidence for every proposer, for **every** `n = 3f+1` | `Cadence/Chorus/Progress.lean` (`progress_dichotomy_of_saturation`) | plain Lean over reachable states, axiom-pinned |
+| **Network-level build totality** — any supermajority of accepted receipts (Byzantine members included) yields a buildable fallback meta-block entry per proposer: the state-level half of "every correct validator can propose", for **every** `n = 3f+1` | `Cadence/Chorus/Counting.lean` (`build_totality_of_reachable`) | plain Lean over reachable states, axiom-pinned |
 | **MCP Safety, positional form** | `Cadence/Composition.lean` (`positional_log_safety`) | Cadence/Conductor sweeps (reconstructed) + plain-Lean composition — kernel-checked, axiom-pinned |
 | **`Conductor ⊨ Orchestrator`**, **`Chorus ⊨ SlotConsensus`** (the paper's module contracts) | `Cadence/Composition.lean`, `Cadence/Chorus/Compose.lean` | plain Lean over persisted VC theorems — kernel-checked, axiom-pinned |
 | **Fallback meta-block "valid by construction"**, including the counting argument, for **every** `n = 3f+1` | `Cadence/FallbackReceipt.lean` + `Cadence/FallbackReceipt/Totality.lean` | reconstructed SMT + kernel-checked Lean — **no trusted step**, axiom-pinned |
@@ -199,7 +200,7 @@ Individual pieces, for iteration:
 ```bash
 lake build Cadence.Chorus                    # the per-slot consensus MODEL (no sweep) — ~90 s
 lake build Cadence.Chorus.Proofs.Vote        # one action's ~98 proof cells
-lake build Cadence.Chorus.Certify            # composition certificate + the 3 822-cell audit pin
+lake build Cadence.Chorus.Certify            # composition certificate + the 3 861-cell audit pin
 lake build Cadence.Cadence Cadence.Conductor # the two small models, sweeps included
 lake build Cadence.FallbackReceipt           # receipt model + its n=4 exhaustive model check
 lake build Cadence                           # the audit root: every axiom pin, re-derived
@@ -291,8 +292,8 @@ as the architecture's fast regression leg.
 Cadence.lean                       AUDIT ROOT: every end theorem, every axiom pin
 Cadence/
   Chorus.lean                      per-slot consensus MODEL — no sweep; persists a
-                                    7 605-entry VC registry (both proof encodings of
-                                    each obligation), of which 3 822 cells are audited
+                                    7 683-entry VC registry (both proof encodings of
+                                    each obligation), of which 3 861 cells are audited
   Chorus/Proofs/                    one proof file per action (39): #prove_action —
                                     persisted real proofs + one preservation lemma each;
                                     the manual cells live here

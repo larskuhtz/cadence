@@ -68,8 +68,11 @@ what they need:
   randomised primitive terminates with probability 1, and no deductive
   FOL framework handles probabilities. It stays an axiomatic black box
   with a deterministic termination guarantee under a fair-scheduling
-  precondition — exactly the current (A-mvba) treatment — and the
-  probability-1 argument stays on paper.
+  precondition, and the probability-1 argument stays on paper. Since
+  2026-08-25 this is *all* that (A-mvba) contains: its protocol-side
+  content — invocation, per-proposer evidence, and proposal
+  buildability — is theorems (`progress_dichotomy_of_saturation`,
+  `build_totality_of_reachable`).
 * **"Slot eventually decides"** — follows once the above two are in hand:
   every honest validator either fast-commits or falls back to the MVBA,
   both of which terminate.

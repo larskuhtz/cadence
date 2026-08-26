@@ -83,11 +83,13 @@ closing the rest). Remaining:
 * Reachability-directed trace generation, so that non-vacuity witnesses for
   the *progress* invariants can be produced mechanically rather than written
   by hand.
-* Decompose (A-mvba). It currently collapses MVBA termination, partial
-  synchrony and quorum availability into one black-box assumption; splitting
-  it into a GST phase marker, per-action quorum-availability premises, and
-  the probability-1 argument as a separate paper proof would make the
-  model-to-reality gap legible item by item.
+* The timing content of a concrete MVBA instantiation (a GST phase
+  marker). This is the residue of the old "decompose (A-mvba)" item — the
+  rest landed 2026-08-25: quorum availability and proposal buildability
+  are theorems (`progress_dichotomy_of_saturation`,
+  `build_totality_of_reachable`), and (A-mvba) now names only the
+  primitive's own termination. Timing stays out of scope while the models
+  are untimed ([`Architecture.md`](./Architecture.md) §4 item 4).
 
 ## Model hygiene
 

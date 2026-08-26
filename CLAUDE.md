@@ -66,7 +66,7 @@ History: [docs/History.md](./docs/History.md).
   on <64 GB use `scripts/revalidate.sh`, which stages the same targets.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
   only, ~90 s), `Cadence.Chorus.Proofs.Vote` (one action's ~98 cells),
-  `Cadence.Chorus.Certify` (composition + the 3 822-cell audit pin, ~40 s).
+  `Cadence.Chorus.Certify` (composition + the 3 861-cell audit pin, ~40 s).
 * Run **one** expensive build at a time and kill stale `lean` processes first.
   Near-timeout VCs are noisy under load: a cell that times out in a full build
   may pass in isolation. Distinguish *slow* from *divergent* — if different
@@ -218,7 +218,7 @@ is a change to what this project *claims*, not a refactor.
 * **No `sorryAx` anywhere.** Every axiom pin stays at exactly
   `[propext, Classical.choice, Quot.sound]`, in every per-result pin and
   in [`Cadence.lean`](./Cadence.lean).
-* **The audit pins stay complete**: `#veil_status Chorus` at `3822/3822 real`
+* **The audit pins stay complete**: `#veil_status Chorus` at `3861/3861 real`
   and `#veil_status FallbackReceipt` at `220/220 real`. If an invariant is
   added, these numbers change — update the pins, and check the new numbers are
   the ones you expect.

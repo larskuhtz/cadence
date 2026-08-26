@@ -205,7 +205,7 @@ Measured, container (Apple `container`, 12 vCPU/24 GB) against the macOS host
 | the Mathlib shared link alone | 0.8 s | not possible |
 | Chorus model | 119 s | 118 s |
 | seven Chorus proof batches (kernel replay) | 19–28 s | 18–28 s |
-| certificates incl. the 3 822-cell audit walk | 23 s | 24 s |
+| certificates incl. the full audit walk | 23 s | 24 s |
 | no-op `lake build` | 5.3 s | 5.2 s |
 | edit one proof file, rebuild | 25 s | ~25 s |
 | cold end-to-end, empty volume | **~15.5 min** | not possible |

@@ -56,7 +56,7 @@ Current state, all green:
 
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
-| `Cadence/Chorus.lean` | 38 | 9 safety + 88 invariants | 3 822 | cvc5, **proof-reconstructed** (kernel-checked), + 11 manual Lean proofs for e-matching-divergent cells |
+| `Cadence/Chorus.lean` | 38 | 9 safety + 89 invariants | 3 861 | cvc5, **proof-reconstructed** (kernel-checked), + 11 manual Lean proofs for e-matching-divergent cells |
 | `Cadence/Cadence.lean` | 4 | 4 safety + 18 invariants | 115 | cvc5, **proof-reconstructed** (kernel-checked) |
 | `Cadence/Conductor.lean` | 7 | 5 safety + 14 invariants | 160 | cvc5, **proof-reconstructed** (kernel-checked; one encoding-divergent attempt covered by its alternative form) |
 | `Cadence/FallbackReceipt.lean` | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
@@ -199,7 +199,16 @@ relations, and it takes a human to confirm each use is positive.
    (F-justice) drives every honest validator to the theorem's saturation
    hypothesis (its path vote is cast), and (A-mvba) consumes the
    theorem's conclusion (invocation + per-proposer decide evidence, in
-   the model's own guard form).
+   the model's own guard form). (A-mvba) itself has shrunk to the
+   primitive's own termination: `ℓ_MVBA`'s premise *all correct
+   validators propose* is state-level buildable —
+   `Chorus.build_totality_of_reachable`
+   ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)): a
+   meta-block entry from **any** accepted receipt supermajority,
+   Byzantine members included; fast meta-blocks by the definitionally
+   enabled aggregation — leaving under the name (A-mvba) only what one
+   assumes of any randomised primitive: that an invoked MVBA with valid
+   proposals terminates (probability-1, paper-level).
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive) and
    the `MVBA` / `ACS` module contracts
@@ -273,7 +282,7 @@ file:
 | Artefact | Axioms | Pinned |
 |---|---|---|
 | `Cadence.positional_log_safety`, `Conductor.orchestrator_instance` (`Cadence/Composition.lean`) | `propext, Classical.choice, Quot.sound` | ✓ |
-| `Chorus.invariants_of_reachable` + per-property projections (`Cadence/Chorus/Certify.lean`) | same | ✓ + `#veil_status`: 3822/3822 real |
+| `Chorus.invariants_of_reachable` + per-property projections (`Cadence/Chorus/Certify.lean`) | same | ✓ + `#veil_status`: 3861/3861 real |
 | `FallbackReceipt.invariants_of_reachable` (`Cadence/FallbackReceipt/Certify.lean`) | same | ✓ + `#veil_status`: 220/220 real |
 | `FallbackReceipt.build_totality_of_reachable` (`Cadence/FallbackReceipt/Totality.lean`) | same | ✓ |
 | `Chorus.slotConsensus_instance` (`Cadence/Chorus/Compose.lean`) | same | ✓ |
@@ -328,7 +337,7 @@ kernel-replaying proof cache (so re-validation costs minutes, and is
 deterministic rather than solver-seed-dependent); composition emission
 and the `#veil_status` audit command (so the certificates and the
 "nothing is stubbed" claim are machine-derived); and a handful of
-scaling fixes without which a 3 822-VC module does not elaborate at all.
+scaling fixes without which a module at Chorus's VC scale does not elaborate at all.
 
 The one measurement worth keeping in this document, because it bounds
 what a future scaling effort can win: reconstruction proof terms of the
