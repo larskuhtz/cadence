@@ -83,10 +83,13 @@ closing the rest). Remaining:
 * Reachability-directed trace generation, so that non-vacuity witnesses for
   the *progress* invariants can be produced mechanically rather than written
   by hand.
-* The timing content of a concrete MVBA instantiation (a GST phase
-  marker): (A-mvba) names the primitive's untimed termination only, and
-  the models are untimed throughout — no artefact claims a latency bound
-  ([`Architecture.md`](./Architecture.md) §4 item 4).
+* The paper's Δ-bounds (`ℓ = 5Δ + ℓ_MVBA`, `d_tot = Δ`, …): the models
+  are untimed and no artefact claims a latency bound
+  ([`Architecture.md`](./Architecture.md) §4 item 4). The routes to
+  changing that — an add-on schedule theorem (preferred, no model
+  change), a Zeno-guarded ghost clock (Conductor-first), a full timed
+  refactor (only against demonstrated benefit) — and the recorded Veil
+  tooling constraints are [`Bounds.md`](./Bounds.md).
 
 ## Model hygiene
 

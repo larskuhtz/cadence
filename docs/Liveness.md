@@ -70,3 +70,8 @@ the premise of a Lean theorem and the deterministic liveness properties
 ("honest fast-path commit eventually", "slot eventually decides") become
 provable in-system. (A-mvba)'s probability-1 core, and real-time bounds
 (GST, latency — the models are untimed), stay out of scope regardless.
+
+The paper's concrete Δ-bounds are a separate, *incomparable* layer — they
+assume strong partial synchrony, where the model's claims above need only
+eventual delivery. How the two relate, and the routes by which bounds
+could be brought into the model, is [`Bounds.md`](./Bounds.md).
