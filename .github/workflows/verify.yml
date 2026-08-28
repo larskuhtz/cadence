@@ -215,9 +215,10 @@ jobs:
   # rebuilds) is the semantically right half of the pair.
   check:
     runs-on: ubuntu-24.04-arm
-    # Pull (~4 GiB) + volume seeding + leanchecker itself (~4–8 min depending
-    # on threads). Generous because a hung pull should fail loudly, not eat
-    # the verify job's budget.
+    # Pull (~4 GiB) + volume seeding + leanchecker itself — measured 12m44s
+    # end to end on this runner (9m31s of it leanchecker at 3 threads), inside
+    # the verify job's ~16 min. Generous because a hung pull should fail
+    # loudly, not eat the budget.
     timeout-minutes: 45
 
     steps:
