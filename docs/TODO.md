@@ -86,10 +86,13 @@ closing the rest). Remaining:
 * The paper's Δ-bounds (`ℓ = 5Δ + ℓ_MVBA`, `d_tot = Δ`, …): the models
   are untimed and no artefact claims a latency bound
   ([`Architecture.md`](./Architecture.md) §4 item 4). The routes to
-  changing that — an add-on schedule theorem (preferred, no model
-  change), a Zeno-guarded ghost clock (Conductor-first), a full timed
-  refactor (only against demonstrated benefit) — and the recorded Veil
-  tooling constraints are [`Bounds.md`](./Bounds.md).
+  changing that and the recorded Veil tooling constraints are
+  [`Bounds.md`](./Bounds.md); the preferred route — a plain-Lean
+  schedule theorem over timed runs of the generated transition system,
+  no model change — has a **worked, staged plan ready to pick up** in
+  [`Bounds.md`](./Bounds.md) §6 (Chorus leg ≈ 2–4 sessions; ranked
+  behind primitive instantiation and the (M-frame) checker, ahead of
+  L2S on near-term value-per-effort).
 
 ## Model hygiene
 

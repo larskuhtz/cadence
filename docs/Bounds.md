@@ -164,3 +164,73 @@ demonstrated benefit. Ordering relative to the L2S extension (the fork's
 `lars/liveness` branch) is decided then — the two are complementary, and
 the ghost clock would incidentally hand L2S its simplest ω-target
 (`infinitely_often tick`).
+
+## 6. Route (a): the worked plan
+
+Recorded so a future session can pick this up without re-deriving the
+design. Priority context: this ranks *behind* primitive instantiation and
+the (M-frame) checker ([`TODO.md`](./TODO.md) § Soundness) on
+auditor-confidence per effort, and *ahead* of L2S on near-term
+value-per-effort — it is executable today, entirely in plain Lean, with
+none of §4's tooling constraints in play.
+
+**Depth decision.** Prove the theorem over **real timed runs of the
+generated transition system**, not over abstract milestone propositions.
+A run is `σ : ℕ → State` stepping through the actual Chorus transitions
+with a monotone clock `c : ℕ → T`, where `T` carries a linear order plus
+two abstract inflationary monotone shifts (`+Δ`, `+ℓ_MVBA`) — no `Real`,
+no Archimedean axiom, `max` from the order. Every run point is reachable,
+so the chain theorems of [`Liveness.md`](./Liveness.md) §1 apply at every
+milestone state. The abstract-propositions variant is the fallback only:
+it checks arithmetic an auditor can check by eye.
+
+**Hypotheses.** One named per-seam bound assumption per temporal step of
+the chain ([`ChorusDesign.md`](./ChorusDesign.md) §7): "this seam
+completes within Δ after GST" for the (F-justice) seams, `ℓ_MVBA` for the
+oracle seam. These hypotheses *are* the strong-partial-synchrony content;
+the design rule is that they stay minimal and checkable against the
+paper's premises — a hypothesis that smuggles a conclusion voids the
+exercise. Workshop the exact statements in this section before writing
+Lean.
+
+**Target statement** (Chorus leg): for every timed run satisfying the
+per-seam assumptions in which all correct validators participate by `t`,
+every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA` — the
+statement shape of `lemma:chorus-termination`, with
+`prop:chorus-finalization-time`'s milestone table (`M+2Δ`, `M+3Δ`,
+`T−Δ`, `T`) as the internal schedule.
+
+**Staging** (reassess after step 2; each step is one focused session,
+give or take):
+
+1. Scaffolding: timed runs over the generated transition system, the
+   time theory, the per-seam assumption vocabulary.
+2. Milestones `M+2Δ` and `M+3Δ` — mostly plugging the proven theorems
+   (saturation, `build_totality_of_reachable`, the definitional
+   aggregation witness). This validates the scaffolding cheaply.
+3. The MVBA tail, the commit round, and the two-case termination lemma;
+   axiom pins at the standard trio; docs. Watch for per-validator
+   "holds-by-time" content that may need one or two new invariants
+   (a model change and cold re-solve — a known ~20-minute event).
+4. Conductor: `d_tot = Δ` totality, the window induction, `2W − p`
+   boundedness, `2Wτ` recovery.
+5. The composition: `cor:chorus-correctness-within-cadence` and the
+   alternating-window non-circularity — the subtlest statement work and
+   the highest-value single piece.
+
+**Placement.** A sibling of the end-theorem files — e.g.
+`Cadence/Chorus/Schedule.lean` at the `Compose`/`Pigeonhole`/`Counting`
+layer: plain Lean, kernel-only, in-file `#guard_msgs` pins, a row and pin
+at the audit root. On completion, the (A-sc-termination) /
+(A-sc-totality) / (A-orch-*) rows of
+[`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) convert from
+quoted paper statements into theorems with named per-seam assumptions.
+
+**Effort and risk.** Chorus-only (steps 1–3) ≈ 2–4 sessions; the full
+bounded story ≈ 5–8. The dominant risk is statement-design churn, not
+proof difficulty — the state-level content is already proven. Expected
+finding class: a misstated or missing premise in one of the paper's
+bounded lemmas (the timeline arithmetic has drifted once already,
+`d_tot`: `2Δ → Δ`); protocol-level findings are unlikely, since the state
+content is verified. The timed-run scaffolding is reusable by a later
+L2S bring-up — nothing here is throwaway.
