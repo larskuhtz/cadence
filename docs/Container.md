@@ -136,6 +136,13 @@ Tier 1 is what makes a published image worth having: Lean's kernel over all 66
 modules — every reconstructed Chorus proof included — in four minutes, with
 **no** SMT solver, no tactic execution and no elaboration. Silence is success.
 
+CI runs tiers 1 and 2a on every commit, as parallel jobs of the same workflow:
+`verify` re-validates the sources against the published image, and `check`
+kernel-replays every proof that image stores. The header of
+[`.github/workflows/verify.yml`](../.github/workflows/verify.yml) has the
+argument for why the two jobs compose — including what happens to a module
+added after the image was published.
+
 Tier 2 comes in two strengths, and the difference is worth understanding.
 `verify` on unmodified sources completes in about a minute with every stage
 green: lake compares each source file's hash against the trace it recorded when

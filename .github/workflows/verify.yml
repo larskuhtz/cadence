@@ -1,11 +1,27 @@
 # Re-verify the development against the sources in this commit.
 #
-# This is the cheap per-commit gate: it does NOT build the world. It pulls the
-# published `cadence-verified` image — which already carries the dependency
-# tree and this project's oleans — and re-runs the staged verification against
-# the checked-out sources, exactly as `scripts/container.sh verify` does
-# locally. A failed verification condition, a missing proof, a drifted axiom
-# pin or a broken `#guard_msgs` fails the job.
+# Two independent jobs, run in parallel on separate runners:
+#
+#   verify — pulls the published `cadence-verified` image and re-runs the
+#            staged verification against the checked-out sources (tier 2a of
+#            the audit ladder, docs/Container.md §4), then the conformance
+#            monitor. This is the cheap per-commit gate: it does NOT build
+#            the world.
+#   check  — kernel-replays every proof STORED in that same image through
+#            `leanchecker` (tier 1). Off the critical path: `verify` is
+#            always the longer job, so this adds no wall time.
+#
+# The two compose into "every declaration this commit relies on has been
+# kernel-checked": `verify` trusts the image's oleans for modules whose
+# sources are unchanged — that trust rests on lake's source-hash bookkeeping,
+# not on the kernel — and re-elaborates (hence kernel-checks, via `addDecl`)
+# everything else; `check` closes the first half by replaying the stored side.
+# A module added since the image was published has no stored olean: `check`
+# skips it loudly, and it falls in `verify`'s re-elaborated half.
+#
+# A failed verification condition, a missing proof, a drifted axiom pin, a
+# broken `#guard_msgs`, or a stored declaration the kernel rejects fails the
+# run.
 #
 # Cheap for the common commit because the image's oleans already match the
 # sources and nothing re-elaborates. A commit that touches a model or a proof
@@ -189,4 +205,94 @@ jobs:
           path: |
             verify.log
             monitor.log
+          retention-days: 14
+
+  # Tier 1 of the audit ladder (docs/Container.md §4): replay every stored
+  # proof in the published image through the kernel — no solver, no tactics,
+  # no elaboration. No `needs:` on purpose — it runs concurrently with
+  # `verify` on its own runner; the header comment carries the composition
+  # argument for why checking the IMAGE's oleans (not the ones `verify`
+  # rebuilds) is the semantically right half of the pair.
+  check:
+    runs-on: ubuntu-24.04-arm
+    # Pull (~4 GiB) + volume seeding + leanchecker itself (~4–8 min depending
+    # on threads). Generous because a hung pull should fail loudly, not eat
+    # the verify job's budget.
+    timeout-minutes: 45
+
+    steps:
+      # Same arithmetic as the verify job: the runner ships with ~14 GB free,
+      # and the image plus the volume copy of its `.lake` need roughly 25 GB.
+      - name: Reclaim disk space
+        run: |
+          set -euo pipefail
+          before=$(df --output=avail -BG / | tail -1)
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /usr/local/lib/node_modules \
+                      /opt/hostedtoolcache "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker image prune --all --force || true
+          echo "free before:${before} after:$(df --output=avail -BG / | tail -1)"
+          df -h /
+
+      # The checkout supplies `scripts/container.sh` and the source tree the
+      # module list is computed from; the proofs being checked come from the
+      # image.
+      - name: Check out the sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printenv REGISTRY_TOKEN \
+            | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+
+      # The digest in the log records exactly which image this run's claim is
+      # about — an anchor of unclear provenance is worth nothing at tier 1.
+      - name: Pull the verified image
+        run: |
+          set -euo pipefail
+          if ! docker pull "${IMAGE_BASE}-verified:latest"; then
+            echo "::error::cannot pull ${IMAGE_BASE}-verified:latest — run the" \
+                 "publish-images workflow first, and check the package is" \
+                 "readable by this repository."
+            exit 1
+          fi
+          docker tag "${IMAGE_BASE}-verified:latest" cadence-verified
+          docker image inspect cadence-verified \
+            --format 'pulled {{index .RepoDigests 0}}'
+
+      # LEAN_NUM_THREADS=3, not the script's default 4: leanchecker peaks at
+      # ~12.9 GB with 4 worker threads (measured — scripts/container.sh has
+      # the numbers), which leaves no headroom under a 13 GB container limit
+      # on this 16 GB runner. Three threads trades a couple of minutes — free,
+      # since this job is off the critical path — for not being OOM-flaky.
+      - name: Kernel-replay the stored proofs
+        env:
+          RUNTIME: docker
+          CPUS: '4'
+          MEMORY: 13G
+          LEAN_NUM_THREADS: '3'
+        run: |
+          set -euo pipefail
+          scripts/container.sh check 2>&1 | tee check.log
+
+      # Defence in depth, mirroring the verify job: the script exits non-zero
+      # on failure, but a gate should also assert the positive signal it
+      # exists to produce.
+      - name: Assert the kernel replay
+        run: |
+          set -euo pipefail
+          grep -q 'every stored declaration re-checked by the kernel' check.log
+
+      - name: Upload the check log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: check-log-${{ github.run_id }}
+          path: check.log
           retention-days: 14

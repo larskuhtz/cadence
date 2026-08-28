@@ -298,16 +298,41 @@ PAYLOAD
     IMAGE="${IMAGE:-cadence-verified}"
     run_in_container <<'PAYLOAD' ;;
 MODS=$( { echo Cadence; find Cadence -name '*.lean' | sed 's|\.lean$||; s|/|.|g'; } \
-        | grep -v '^Cadence\.Monitor' | sort -u | tr '\n' ' ' )
+        | grep -v '^Cadence\.Monitor' | sort -u )
+# leanchecker replays STORED proofs, so the module list is the intersection of
+# the checked-out sources with the oleans actually present in the volume. A
+# source module with no stored olean (added or renamed since the volume's
+# oleans were built) has nothing to re-check: skip it LOUDLY rather than fail.
+# Locally, a `verify` run first brings the volume up to date; in CI the check
+# job runs against the published image while the verify job elaborates — and
+# thereby kernel-checks — exactly the modules skipped here (verify.yml has the
+# composition argument).
+PRESENT="" MISSING=""
+for m in $MODS; do
+  if [ -f ".lake/build/lib/lean/${m//.//}.olean" ]; then
+    PRESENT="$PRESENT $m"
+  else
+    MISSING="$MISSING $m"
+  fi
+done
+if [ -n "$MISSING" ]; then
+  echo "==> skipping (source module with no stored olean — not part of what this run can re-check):"
+  for m in $MISSING; do echo "      $m"; done
+fi
+if [ -z "$PRESENT" ]; then
+  echo "FAILED — no stored oleans found; wrong volume, or run 'verify' first" >&2; exit 1
+fi
 # Cap Lean's worker threads. leanchecker allocates aggressively per thread and
 # at the default (one per core) it needs ~19 GB and gets OOM-killed inside a
 # 20 GB container 11 seconds in. Measured on all 66 modules: 4 threads =>
 # 4 min 12 s and a 12.9 GB peak; 2 threads => 4.8 GB but 226 s for the Chorus
 # model alone. Four is the sweet spot; lower it if you have less memory.
 export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-4}"
-echo "==> leanchecker over $(echo "$MODS" | wc -w) modules (LEAN_NUM_THREADS=$LEAN_NUM_THREADS)"
-if time lake env leanchecker $MODS; then
-  echo "OK — every declaration re-checked by the kernel"
+echo "==> leanchecker over $(echo $PRESENT | wc -w) modules (LEAN_NUM_THREADS=$LEAN_NUM_THREADS)"
+if time lake env leanchecker $PRESENT; then
+  echo "OK — every stored declaration re-checked by the kernel"
+  [ -n "$MISSING" ] && echo "    (skipped modules above were NOT covered by this run)"
+  exit 0
 else
   echo "FAILED — leanchecker rejected something" >&2; exit 1
 fi
