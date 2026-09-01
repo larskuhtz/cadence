@@ -134,12 +134,34 @@ precompiled (upstream ships that flag off), so no `:shared` target is forced
 on Mathlib, and a first native build works on Linux and macOS alike from any
 checkout path.
 
-Do not turn that flag on downstream. Precompiling a library forces every
-package under it to be available as a shared library, and two of them cannot
-supply one: Loom declares case-study libraries whose globs overlap its core
-library, and Mathlib's shared link passes ~7 650 object files on one command
-line, which exceeds the argument limit on macOS. Both were live build failures
-while the flag was set, and both are simply absent with it off.
+That flag is off deliberately, and it is not a free choice — it is the one
+real cost of the current dependency layout, so it is worth stating plainly.
+
+**What it costs.** Veil's tactic and meta layer runs interpreted rather than
+native. That layer is most of the work in a re-validation — re-creating VC
+statements from the registry, cache lookup, kernel replay — so the warm path
+is about **3× slower** than it was when Veil was precompiled: a full warm
+re-validation went from ~3½ to ~11 minutes, and a Chorus proof batch of six
+from ~20 s to ~50 s, measured on the same machine.
+
+**Why it is off anyway.** Precompiling a library forces every package under
+it to be available as a shared library, and on the current pins that does not
+work at all:
+
+* Loom declares case-study libraries whose globs overlap its core library, so
+  `CaseStudies:shared` fails with `bad import 'Loom.MonadAlgebras.NonDetT.Extract'`.
+  Fixing this is what the project's second fork used to exist for.
+* Mathlib's shared link passes its 7 649 object files on one command line —
+  987 KB of arguments plus a 61 KB pointer array, against macOS's 1 MiB
+  `execve` limit, so `clang` never starts. This one is only about path length:
+  the same link succeeds from a short enough checkout.
+* Even when that link does succeed, every Veil module then fails to load the
+  result, dying in ~60 ms with SIGSEGV.
+
+So turning it back on means reviving a Loom fork *and* resolving the loader
+failure. Until both are fixed upstream, the interpreted tactic layer is the
+price of a dependency tree that builds anywhere, and the proof cache is what
+keeps that price affordable.
 
 Two operational consequences:
 

@@ -28,9 +28,9 @@ Four Veil models plus support files, mirroring the paper's architecture:
   only).
 * **`Cadence/Cadence.lean`** — the extreme-pipelining glue: consumes
   `SlotConsensus` + `Orchestrator` as oracles; slot-indexed MCP safety. Small
-  and fast (~60 s, sweep included).
+  and fast (~25 s, sweep included).
 * **`Cadence/Conductor.lean`** — the window-based orchestrator: ACS as oracle,
-  abstract clock, window structure. Fast (~60 s).
+  abstract clock, window structure. Fast (~55 s).
 * **`Cadence/FallbackReceipt.lean`** (+ `Totality.lean`, `PreFix.lean`) — the
   per-validator fallback receipt/propose layer, where a real protocol bug was
   found and fixed. Same family shape as Chorus at 1/17 the scale, so it is the
@@ -65,8 +65,9 @@ History: [docs/History.md](./docs/History.md).
   files at once and a *cold* proof file peaks ~5 GB (lake has no job cap):
   on <64 GB use `scripts/revalidate.sh`, which stages the same targets.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
-  only, ~2 min), `Cadence.Chorus.Proofs.Vote` (one action's ~98 cells),
-  `Cadence.Chorus.Certify` (composition + the 3 861-cell audit pin, ~40 s).
+  only, ~2 min), `Cadence.Chorus.Proofs.Vote` (one action's ~98 cells, ~16 s
+  warm), `Cadence.Chorus.Certify` (composition + the 3 861-cell audit pin,
+  a few seconds warm).
 * Run **one** expensive build at a time and kill stale `lean` processes first.
   Near-timeout VCs are noisy under load: a cell that times out in a full build
   may pass in isolation. Distinguish *slow* from *divergent* — if different
@@ -78,8 +79,10 @@ History: [docs/History.md](./docs/History.md).
   kernel-checked). Grepping only `❌` silently hides failures.
 * Proof cache: `.lake/build/veilcache/`, safe to delete at any time, age-GC'd
   after 14 days. **Every hit is kernel-checked** — the cache skips search, not
-  checking. A warm re-validation of the whole suite is ~10–15 min; a cold one
-  re-solves ~4 000 VCs (~85 CPU-min for the Chorus family alone).
+  checking. A warm re-validation of the whole suite — project oleans deleted,
+  cache kept — is ~11 min at the default `BATCH=6` (15 min at `BATCH=3`),
+  peaking at 15 GB resident; a cold one re-solves ~4 000 VCs and is measured
+  in CPU-hours, not minutes.
 * **The cache hides derivation drift.** Entries are keyed by VC statement,
   not by proof script: a kernel-replay hit consumes a `#prove_vc … by <tac>`
   cell *without elaborating the tactic*, so a warm green build proves the

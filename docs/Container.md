@@ -72,6 +72,9 @@ runtime.
 | `verified` | + this project's own oleans — **no proof cache** | 13.1 GB | **3.96 GiB** | reading and auditing (tiers 1, 2a) |
 | `verified-cache` | + Veil's proof cache | 17.5 GB | 5.30 GiB | re-elaborating without re-solving (tiers 2b, 3) |
 
+These sizes are for the previously published image set; a dependency-tree
+change republishes them and shifts the figures.
+
 A registry transfers *compressed* layers, so a pull is about a third of the
 on-disk size — and the images share their base layers, so the second image is
 nearly free:
@@ -123,12 +126,15 @@ part an auditor should read closely.
 
 ## 4. The audit ladder
 
-Each tier is a superset of the one above it. Times are for the container on a
-14-core Apple-Silicon machine. Every tier also runs natively — the commands
-below are the container's convenience wrappers around `leanchecker` and
-`scripts/revalidate.sh`, both of which work on a plain checkout, though the
-timings differ (tier 1 natively on the same machine: 13 min at
-`LEAN_NUM_THREADS=4`).
+Each tier is a superset of the one above it. Every tier also runs natively —
+the commands below are the container's convenience wrappers around
+`leanchecker` and `scripts/revalidate.sh`, both of which work on a plain
+checkout.
+
+The times below were taken on the previously published images and are the one
+part of this document that a rebuild invalidates; re-measure them when CI next
+republishes. Native figures on a 14-core Apple-Silicon machine, for scale:
+tier 1 is 13 min at `LEAN_NUM_THREADS=4`, and tier 2b about 11 min.
 
 | tier | what you check | how | measured |
 |---|---|---|---|

@@ -232,10 +232,11 @@ counterexample, `💥` solver crash, `⏱` timeout, and `♻` proof-cache replay
 re-validation is much cheaper than a first build. A first build re-solves all
 ~4 000 verification conditions and reconstructs every proof: budget around 85
 CPU-minutes for the Chorus family. A warm re-validation replays them instead —
-on a 14-core Apple-Silicon machine, `scripts/revalidate.sh` end to end takes
-a few minutes, every replay kernel-checked. The cache is a build artefact,
-not shipped, and safe to delete at any time: it only ever skips proof
-*search*, never checking.
+on a 14-core Apple-Silicon machine, deleting the project's oleans and running
+`scripts/revalidate.sh` against a warm cache takes about 11 minutes end to
+end, every replay kernel-checked, peaking at 15 GB resident. The cache is a
+build artefact, not shipped, and safe to delete at any time: it only ever
+skips proof *search*, never checking.
 
 Do not run other heavy jobs concurrently with a *cold* proof-file build: some
 verification conditions sit close to the solver time budget, and stolen cores

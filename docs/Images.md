@@ -18,7 +18,10 @@ RUNTIME=podman scripts/container.sh build verified-cache
 ```
 
 Measured with podman on arm64: `deps` builds in **11 min 13 s**, `verified` in
-a further **10 min 32 s** with a seeded proof cache.
+a further **10 min 32 s** with a seeded proof cache. These, and the size
+figures below, are for the previously published image set — a dependency-tree
+change republishes them, and the first rebuild after one also has no usable
+seed cache, so its `verified` stage re-solves from scratch.
 
 The stages, in [`../Containerfile`](../Containerfile): `toolchain` → `deps` →
 (`dev`, `build`) — where `build` runs the staged verification and keeps the
