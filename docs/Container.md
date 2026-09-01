@@ -1,8 +1,10 @@
 # Auditing and developing in a container
 
 Everything in this repository can be re-checked and developed inside a Linux
-container, and for most readers that is the easiest path — on macOS it is
-currently the *only* turnkey path (see [§5](#5-why-a-container-at-all)).
+container, and for most readers that is the easiest path: the published images
+already contain the built dependency tree, so nothing has to be compiled
+before you can check a proof. A native build works too, on Linux and macOS
+alike — [§5](#5-why-a-container-at-all) says what the container buys over it.
 
 The images are built and verified by CI and published for `linux/arm64` and
 `linux/amd64`: `ghcr.io/larskuhtz/cadence-{verified,dev,deps,verified-cache}`.
@@ -121,8 +123,12 @@ part an auditor should read closely.
 
 ## 4. The audit ladder
 
-Each tier is a superset of the one above it. Times measured on a 14-core
-Apple-Silicon machine.
+Each tier is a superset of the one above it. Times are for the container on a
+14-core Apple-Silicon machine. Every tier also runs natively — the commands
+below are the container's convenience wrappers around `leanchecker` and
+`scripts/revalidate.sh`, both of which work on a plain checkout, though the
+timings differ (tier 1 natively on the same machine: 13 min at
+`LEAN_NUM_THREADS=4`).
 
 | tier | what you check | how | measured |
 |---|---|---|---|
@@ -157,13 +163,15 @@ rm -rf .lake/build/lib/lean/Cadence .lake/build/lib/lean/Cadence.*
 bash scripts/revalidate.sh /tmp        # 9 min 12 s, proof cache retained
 ```
 
-On few cores, set `BATCH=1` (it passes through `scripts/container.sh` into
-`revalidate.sh`): the default batch of 6 proof files makes concurrent
-dischargers contend for wall-clock, and near-limit verification conditions
-then time out spuriously — VCs that pass comfortably built alone. Measured
-by the 2026-08 external audit on 8 cores: 21 s alone against a 60 s budget,
-versus a timeout inside a batch of 6. This matters only when VCs are
-actually re-solved (tier 3, or edited files); cache replays do not contend.
+Narrow the batches when verification conditions are actually re-solved —
+`BATCH=3` for a cold run, `BATCH=1` on few cores (it passes through
+`scripts/container.sh` into `revalidate.sh`). The default of 6 makes
+concurrent dischargers contend for wall-clock, and a near-limit VC that
+passes comfortably alone then times out: measured by the 2026-08 external
+audit on 8 cores at 21 s alone against a 60 s budget versus a timeout in a
+batch of 6, and again on a cold run where one Chorus cell solving in 10.5 s
+alone missed the same budget in a batch of 6. Cache replays do not contend,
+so this matters only for tier 3 or for edited files.
 
 Tier 3 additionally throws away the proof cache, so cvc5 re-derives every
 verification condition and Lean re-reconstructs every proof term. That is the
@@ -181,9 +189,11 @@ assumed rather than proven — see [Architecture.md](./Architecture.md) §4.
 
 **Reproduction note — `libLake_shared.so` (auditing outside these
 images).** In a fresh Linux environment that is not one of the images
-above (an auditor's own container, say), the Veil frontend can fail to
-load with `error loading library, libLake_shared.so: cannot open shared
-object file`. The library ships with the Lean toolchain; export
+above (an auditor's own container, say), the build can fail with
+`error loading library, libLake_shared.so: cannot open shared object
+file` — `lean-smt` ships precompiled plugins that record a dependency on
+it without recording where to find it. The library ships with the Lean
+toolchain; export
 
 ```bash
 TC="$HOME/.elan/toolchains/<toolchain>"
@@ -196,31 +206,31 @@ not need this. Reported by the 2026-08 external audit.
 
 ## 5. Why a container at all
 
-Veil's library is built with `precompileModules`, which forces a
-shared-library link of all of Mathlib — the link that fails on macOS once
-the checkout's absolute path exceeds ~35 characters, and takes **under a
-second** on Linux. The arithmetic, and the workarounds that do not help,
-are in [Dependencies.md](./Dependencies.md) § "Consequence: the native
-precompile path, and the macOS link wall".
+Not to work around a platform limitation — a native build works on Linux and
+macOS from any checkout path. What the container buys:
 
-Measured, container (Apple `container`, 12 vCPU/24 GB) against the macOS host
-(14 cores), same seeded proof cache:
+* **Nothing to build.** The `verified` image already holds this project's
+  oleans, produced by a run that printed `ALL STAGES GREEN` inside the image
+  build. Tier 1 costs a pull and 4 minutes; a first native build re-solves
+  ~4 000 verification conditions.
+* **A fixed environment.** The toolchain, the system `clang`/`libc++` that
+  cvc5's FFI shim needs, and every dependency revision are pinned in the
+  image, so CI, a reviewer and an auditor run the identical tree.
+* **Reproducible measurement.** Timings taken in the image are comparable
+  across machines in a way native timings are not.
+
+Steady-state development is indistinguishable from native. Measured (Apple
+`container`, 12 vCPU/24 GB) against the macOS host (14 cores), same seeded
+proof cache — what matters here is that the two columns agree, not the
+absolute times, which move with the toolchain:
 
 | | container | macOS |
 |---|---|---|
-| all native compilation (7 653 Mathlib objects + the Mathlib shared link + Veil) and the two small model sweeps | **373 s** | 2 362 s, then **fails at the link** |
-| the Mathlib shared link alone | 0.8 s | not possible |
 | Chorus model | 119 s | 118 s |
 | seven Chorus proof batches (kernel replay) | 19–28 s | 18–28 s |
 | certificates incl. the full audit walk | 23 s | 24 s |
 | no-op `lake build` | 5.3 s | 5.2 s |
 | edit one proof file, rebuild | 25 s | ~25 s |
-| cold end-to-end, empty volume | **~15.5 min** | not possible |
-
-So steady-state development in a container is indistinguishable from native, and
-the cold native phase is both possible and about six times faster — almost
-certainly macOS process-spawn overhead across 7 650 short-lived compiler
-invocations.
 
 ## 6. Building and publishing the images
 

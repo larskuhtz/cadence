@@ -101,6 +101,7 @@ set_option maxHeartbeats 1000000 in
 finalization outputs are their decision vectors, and the contract's three
 formal fields are Chorus's proven safety properties, projected out of
 `invariants_of_reachable`. -/
+@[implicit_reducible]
 noncomputable def slotConsensus_instance
     (h : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).reachable th st) :
     SlotConsensus slot node merkle_root (node → Option merkle_root) where

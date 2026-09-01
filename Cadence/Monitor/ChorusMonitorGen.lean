@@ -23,8 +23,16 @@ set_option maxHeartbeats 800000
 set_option synthInstance.maxHeartbeats 200000
 set_option maxRecDepth 4096
 set_option linter.deprecated false
+-- `#gen_monitor` emits `stInhab`, a `def` whose type is a class, without a
+-- reducibility attribute, which Lean warns about. The declaration is
+-- generated, so it cannot carry the attribute from here and the fix belongs
+-- in the Veil fork; until then the warning would be printed on stdout by
+-- every monitor run and break the regression suite's output comparison
+-- against the hand-written oracle (`scripts/test-chorus-monitor.sh`).
+set_option warn.classDefReducibility false
 
 /-- Empty Byzantine set at n = 3f+1 = 4, f = 1 (see `Monitor/ChorusMonitor.lean`). -/
+@[implicit_reducible]
 def emptyByz4 : ByzNodeSet (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1)) :=
   byzNodeSetFin (3 * 1 + 1) 1 rfl (fun _ => False) (by decide)
 

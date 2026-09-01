@@ -249,13 +249,16 @@ ghost relation ready_next (i : node) (w : window) :=
 
 after_init {
   now := genesis_time
-  acs_proposed W R S := false
-  acs_decided W F B L := false
-  acs_has_proposed I W := false
+  -- Capitalized single letters are universal indices. `V` ranges over
+  -- windows: `W` is the paper's window *width* throughout this file, and it
+  -- also resolves to a Mathlib declaration, which Veil warns about.
+  acs_proposed V R S := false
+  acs_decided V F B L := false
+  acs_has_proposed I V := false
   -- Every validator enters window 1 at startup (`line:enter_window_1`).
-  entered I W := W == win_ord.zero
+  entered I V := V == win_ord.zero
   opened I S := false
-  opened_win I S W := false
+  opened_win I S V := false
   completed I S := false
 }
 

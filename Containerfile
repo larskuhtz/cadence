@@ -31,11 +31,11 @@
 # even at 24 GB, because the builder must hold the accumulating layer as well as
 # the elaboration). Podman builds it in 11 minutes. See docs/Container.md.
 #
-# Why containers at all: Veil precompiles its library, which forces a shared
-# library link of all of Mathlib — ~7 650 objects, ~987 KB of command line.
-# macOS caps exec arguments at 1 MiB, so that link fails there unless the
-# checkout path is very short. Linux allows RLIMIT_STACK/4 (2 MiB), where the
-# same link takes under a second.
+# Why containers at all: a fixed, published environment — the toolchain, the
+# whole dependency tree and (in the `verified` image) this project's own
+# oleans, so an auditor re-checks the proofs without building anything, and CI
+# and a reviewer run the identical tree. Native builds work on Linux and macOS
+# alike; see docs/Container.md.
 
 # The base of the `verified` stage. Defaults to the `deps` stage in this file,
 # which is what a local `scripts/container.sh build verified` uses. CI overrides
@@ -88,18 +88,18 @@ ENV PATH="/root/.elan/bin:${PATH}"
 
 # Bake the pinned toolchain in, so a container starts ready to build. Keep in
 # step with lean-toolchain.
-ARG LEAN_TOOLCHAIN=leanprover/lean4:v4.28.0
+ARG LEAN_TOOLCHAIN=leanprover/lean4:v4.32.0
 RUN elan toolchain install ${LEAN_TOOLCHAIN} \
  && elan default ${LEAN_TOOLCHAIN} \
  && lean --version
 
-# Veil's library is built with `precompileModules`, so downstream modules are
+# lean-smt is built with `precompileModules`, so modules importing it are
 # elaborated with its compiled `.so`s `dlopen`ed. Those carry a DT_NEEDED on the
 # toolchain's own libLake_shared.so with no RPATH, and the loader is not told
 # where to look — on Linux that is a hard failure ("error loading library,
 # libLake_shared.so"). macOS does not hit it because Mach-O records absolute
 # install names. Put the toolchain's library directories on the path once, here.
-ENV LD_LIBRARY_PATH="/root/.elan/toolchains/leanprover--lean4---v4.28.0/lib/lean:/root/.elan/toolchains/leanprover--lean4---v4.28.0/lib"
+ENV LD_LIBRARY_PATH="/root/.elan/toolchains/leanprover--lean4---v4.32.0/lib/lean:/root/.elan/toolchains/leanprover--lean4---v4.32.0/lib"
 
 # The workspace path is BAKED IN and load-bearing: lake records absolute paths
 # in its trace files, so a build tree is only reusable at the path it was built

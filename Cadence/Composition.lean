@@ -59,7 +59,14 @@ both discovered the hard way:
    per candidate). The `cvc%`/`ovc%` macros below therefore apply the VC
    theorems with **all** shared instance arguments explicit, mirroring
    the RTS's own instantiation term-for-term; only the small per-action
-   `Decidable` side conditions are left to synthesis. -/
+   `Decidable` side conditions are left to synthesis.
+3. Those side conditions are passed positionally as `_`, so each call site
+   states how many the theorem has. Veil canonicalises an action's extra
+   parameters, and two side conditions that are literally the same collapse
+   into one — so the count is a property of the *generated* theorem, not of
+   the action's own guards. `#check @<Module>.<action>_<property>` shows the
+   telescope; a wrong count is an "application type mismatch" naming the
+   first argument that landed in the wrong slot. -/
 
 open Veil
 
@@ -584,25 +591,25 @@ theorem invariants_of_reachable
         triple_of_meets (ovc% Conductor.byz_acs_propose_open_local_order slot window time node r w s0) th s1 s2 hassu ih htr,
         triple_of_meets (ovc% Conductor.byz_acs_propose_completed_opened slot window time node r w s0) th s1 s2 hassu ih htr⟩
     | acs_decide w0 w first boundary last f0 b0 l0 r1 sp1 =>
-      exact ⟨triple_of_meets (ovc% Conductor.acs_decide_window_assignment_agreement slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_win_separation slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_open_prefix_agreement slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_opened_after_start slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_bounded_tail slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_entered_prefix slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_entered_zero slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_decided_nonzero slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_bounds_shape slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_decided_downward_closed slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_win_bounds_ordered slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_acs_proposal_above_prev slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_proposal_prev_entered slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_entered_has_bounds slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_opened_backed slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_opened_win_entered slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_opened_win_contained slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_open_local_order slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-        triple_of_meets (ovc% Conductor.acs_decide_completed_opened slot window time node _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr⟩
+      exact ⟨triple_of_meets (ovc% Conductor.acs_decide_window_assignment_agreement slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_win_separation slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_open_prefix_agreement slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_opened_after_start slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_bounded_tail slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_entered_prefix slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_entered_zero slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_decided_nonzero slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_bounds_shape slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_decided_downward_closed slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_win_bounds_ordered slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_acs_proposal_above_prev slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_proposal_prev_entered slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_entered_has_bounds slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_opened_backed slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_opened_win_entered slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_opened_win_contained slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_open_local_order slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
+        triple_of_meets (ovc% Conductor.acs_decide_completed_opened slot window time node _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr⟩
     | enter_window i w w' f b l =>
       exact ⟨triple_of_meets (ovc% Conductor.enter_window_window_assignment_agreement slot window time node _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
         triple_of_meets (ovc% Conductor.enter_window_win_separation slot window time node _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
@@ -678,6 +685,7 @@ meta-axioms. -/
 /-- The `TotalOrder` a `TotalOrderWithMinimum` carries (the `Orchestrator`
 class of `Interfaces.lean` is stated over plain `TotalOrder`). Registered as
 a local instance so the `Orchestrator` structure below elaborates at it. -/
+@[implicit_reducible]
 def _root_.TotalOrderWithMinimum.toTotalOrder {t : Type} [ord : TotalOrderWithMinimum t] :
     TotalOrder t where
   le := ord.le
@@ -702,6 +710,7 @@ instance: `correct`/`opened`/`completed` are read off the state, and the
 contract's one formal safety field is the module's proven
 `safety [open_prefix_agreement]`, projected out of
 `invariants_of_reachable`. -/
+@[implicit_reducible]
 noncomputable def orchestrator_instance
     {th : Conductor.Theory slot window time node}
     {st : Conductor.State (Conductor.FieldAbstractType slot window time node)}

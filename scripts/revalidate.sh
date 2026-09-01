@@ -4,9 +4,9 @@
 # `lake build` alone verifies everything, but it schedules the 39 + 10
 # per-action proof files all at once, and a *cold* proof file peaks around
 # 5 GB of resident memory (lake has no job cap). This script builds the same
-# targets in dependency order with the proof families batched, which keeps a
-# cold run inside ~30 GB. On a machine with plenty of RAM, plain `lake build`
-# is equivalent and faster.
+# targets in dependency order with the proof families batched, which bounds a
+# cold run's footprint — see BATCH below for the measured figures. On a machine
+# with plenty of RAM, plain `lake build` is equivalent and faster.
 #
 #   scripts/revalidate.sh [logdir]
 #
@@ -15,11 +15,17 @@
 #
 # BATCH controls how many proof files build concurrently per stage (default
 # 6 for the Chorus family, capped at 5 for FallbackReceipt). The default is
-# tuned for a large workstation; on a core-poor machine (≤ 8 cores) the
-# concurrent dischargers contend for wall-clock and near-limit VCs can time
-# out spuriously — VCs that pass comfortably when the file builds alone
-# (measured by the 2026-08 external audit: 21 s alone vs > 60 s in a batch
-# of 6 on 8 cores). Use BATCH=1 there.
+# tuned for a large workstation with a WARM proof cache.
+#
+# Lower it for a cold run, or on a core-poor machine. Concurrent dischargers
+# contend for wall-clock, and a near-limit VC that passes comfortably alone
+# then times out — measured by the 2026-08 external audit at 21 s alone vs
+# > 60 s in a batch of 6 on 8 cores, and again on a cold 4.32 run where
+# `fb_sign_neg × inclusion_no_honest_fb_neg` (10.5 s alone, 60 s budget)
+# missed its budget in a batch of 6. A cold run is also memory-bound: 32.0 GB
+# peak at BATCH=6 against 20.7 GB at BATCH=3, on 14 cores / 36 GB.
+#
+# So: BATCH=3 for a cold run on a 36 GB machine, BATCH=1 on ≤ 8 cores.
 #
 # When reading the output, count all four verification markers — ✅ proven,
 # ❌ counterexample, 💥 solver crash, ⏱ timeout — plus ♻ (proof-cache

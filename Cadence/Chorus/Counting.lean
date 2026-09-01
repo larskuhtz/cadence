@@ -183,7 +183,7 @@ theorem fbcert_of_honest_fallback_votes
   obtain ⟨H, hlen, hH⟩ := honest_supermajority n f hf is_byz hbyz
   unfold Chorus.fbcert
   dsimp only
-  simp only [byzNodeSetFin, decide_eq_true_eq]
+  simp +instances only [byzNodeSetFin, decide_eq_true_eq]
   exact ⟨H, hlen, fun r hr => h r (hH r hr)⟩
 
 /-- **`fbCommitQC` formation** (the commit-round epilogue,
@@ -199,7 +199,7 @@ theorem fbcommitqc_of_honest_commit_votes
   obtain ⟨H, hlen, hH⟩ := honest_supermajority n f hf is_byz hbyz
   unfold Chorus.fbcommitqc
   dsimp only
-  simp only [byzNodeSetFin, decide_eq_true_eq]
+  simp +instances only [byzNodeSetFin, decide_eq_true_eq]
   exact ⟨H, hlen, fun r hr => h r (hH r hr)⟩
 
 set_option maxHeartbeats 1000000 in
@@ -226,7 +226,7 @@ theorem commitqc_of_honest_fast_dominant
   have honest : ∀ r : Fin n, ¬ is_byz r →
       ¬ (ByzNodeSet.is_byz (self := byzNodeSetFin n f hf is_byz hbyz) r = true) := by
     intro r hr hb
-    exact hr (by simpa [byzNodeSetFin] using hb)
+    exact hr (by simpa +instances [byzNodeSetFin] using hb)
   -- A representative member fixes the polarity (and, if positive, the root).
   have hne : H.val ≠ [] := by
     intro hnil
@@ -241,7 +241,7 @@ theorem commitqc_of_honest_fast_dominant
     refine Or.inl ⟨m0, ?_⟩
     unfold Chorus.commitqc_pos
     dsimp only
-    simp only [byzNodeSetFin, decide_eq_true_eq]
+    simp +instances only [byzNodeSetFin, decide_eq_true_eq]
     refine ⟨H, hH_card, ?_⟩
     intro r hr
     obtain ⟨hbz, hcast, hentry⟩ := hH r hr
@@ -263,7 +263,7 @@ theorem commitqc_of_honest_fast_dominant
     refine Or.inr ?_
     unfold Chorus.commitqc_neg
     dsimp only
-    simp only [byzNodeSetFin, decide_eq_true_eq]
+    simp +instances only [byzNodeSetFin, decide_eq_true_eq]
     refine ⟨H, hH_card, ?_⟩
     intro r hr
     obtain ⟨hbz, hcast, hentry⟩ := hH r hr
@@ -327,7 +327,7 @@ theorem build_totality_of_reachable
     refine Or.inl ⟨m0, ?_⟩
     unfold Chorus.fb_quorum_pos
     dsimp only
-    simp only [byzNodeSetFin, decide_eq_true_eq]
+    simp +instances only [byzNodeSetFin, decide_eq_true_eq]
     refine ⟨t, ht_len, ?_⟩
     intro r hr
     obtain ⟨hrQ, m, hrp⟩ := ht_mem r hr
@@ -338,7 +338,7 @@ theorem build_totality_of_reachable
     refine Or.inr (Or.inl ?_)
     unfold Chorus.fb_quorum_neg
     dsimp only
-    simp only [byzNodeSetFin, decide_eq_true_eq]
+    simp +instances only [byzNodeSetFin, decide_eq_true_eq]
     refine ⟨t, ht_len, ?_⟩
     intro r hr
     obtain ⟨hrQ, hrnp⟩ := ht_mem r hr

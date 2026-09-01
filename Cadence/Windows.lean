@@ -108,7 +108,7 @@ theorem IsMedian.between_correct {node α : Type} [LinearOrder α]
   constructor
   · -- Lower side: ≥ f + 1 entries with value ≤ m, ≤ f Byzantine.
     by_contra hno
-    push_neg at hno
+    push Not at hno
     have hmono : l.countP ((fun x => decide (x ≤ m)) ∘ Prod.snd) ≤
         l.countP (fun p => is_byz p.1) := by
       apply List.countP_mono_left
@@ -121,7 +121,7 @@ theorem IsMedian.between_correct {node α : Type} [LinearOrder α]
     omega
   · -- Upper side: symmetric.
     by_contra hno
-    push_neg at hno
+    push Not at hno
     have hmono : l.countP ((fun x => decide (m ≤ x)) ∘ Prod.snd) ≤
         l.countP (fun p => is_byz p.1) := by
       apply List.countP_mono_left

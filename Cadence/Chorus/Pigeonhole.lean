@@ -143,7 +143,7 @@ theorem evidence_pigeonhole_of_reachable
   have honest : ∀ r : Fin n, ¬ is_byz r →
       ¬ (ByzNodeSet.is_byz (self := byzNodeSetFin n f hf is_byz hbyz) r = true) := by
     intro r hr hb
-    exact hr (by simpa [byzNodeSetFin] using hb)
+    exact hr (by simpa +instances [byzNodeSetFin] using hb)
   -- The signature chain: an honest positive fallback entry pins a
   -- proposer-signed root.
   have hsig : ∀ (r : Fin n) (m : merkle_root), ¬ is_byz r →
@@ -184,7 +184,7 @@ theorem evidence_pigeonhole_of_reachable
     refine Or.inl ⟨m0, ?_⟩
     unfold Chorus.fb_quorum_pos
     dsimp only
-    simp only [byzNodeSetFin, decide_eq_true_eq]
+    simp +instances only [byzNodeSetFin, decide_eq_true_eq]
     refine ⟨t, ht_len, ?_⟩
     intro r hr
     obtain ⟨hrH, m, hrp⟩ := ht_mem r hr
@@ -198,7 +198,7 @@ theorem evidence_pigeonhole_of_reachable
     refine Or.inr (Or.inl ?_)
     unfold Chorus.fb_quorum_neg
     dsimp only
-    simp only [byzNodeSetFin, decide_eq_true_eq]
+    simp +instances only [byzNodeSetFin, decide_eq_true_eq]
     refine ⟨t, ht_len, ?_⟩
     intro r hr
     obtain ⟨hrH, hrnp⟩ := ht_mem r hr

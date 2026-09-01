@@ -147,8 +147,8 @@ theorem build_totality_of_complete (th : ρ) (st : σ)
   dsimp only at hsm hfq heqv hcomp ⊢
   -- Quorum arithmetic of `byzNodeSetFin`; `member`/`supermajority`/
   -- `greater_than_third` become list facts.
-  simp only [byzNodeSetFin, decide_eq_true_eq] at hsm ⊢
-  push_neg at hfq heqv
+  simp +instances only [byzNodeSetFin, decide_eq_true_eq] at hsm ⊢
+  push Not at hfq heqv
   obtain ⟨q, hq_sup, hq_acc⟩ := hsm
   rcases ByzNSet.two_cover q hq_sup
       (fun r => ∃ M,

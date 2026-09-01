@@ -22,7 +22,9 @@ cd "$REPO"
 # libraries — without this, `lean --run` can fail to load
 # libLake_shared.so (docs/Container.md §4).
 TC="$(lean --print-prefix 2>/dev/null || true)"
-[ -n "$TC" ] || TC="$HOME/.elan/toolchains/leanprover--lean4---v4.28.0"
+# Fallback: derive the elan directory name from lean-toolchain, so this never
+# drifts from the pinned toolchain.
+[ -n "$TC" ] || TC="$HOME/.elan/toolchains/$(tr -d '[:space:]' < lean-toolchain | sed 's|/|--|g; s|:|---|g')"
 export LD_LIBRARY_PATH="$TC/lib/lean:$TC/lib:${LD_LIBRARY_PATH:-}"
 # Default to the hand-written monitor (the test oracle); set CHORUS_MONITOR to
 # Cadence/Monitor/ChorusMonitorGen.lean to run the #gen_monitor-generated one.

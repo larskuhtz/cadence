@@ -1,15 +1,16 @@
 # Dependencies
 
-This project is a plain Lean 4 package. It pins two dependencies, both to
-**public forks**, and nothing else:
+This project is a plain Lean 4 package with **one** direct dependency:
 
 | Dependency | Pin | Upstream |
 |---|---|---|
 | [Veil](https://github.com/larskuhtz/veil) | branch `port/integration` | [`verse-lab/veil`](https://github.com/verse-lab/veil) |
-| [Loom](https://github.com/larskuhtz/loom) | branch `upgrade-v4.28-lakefile-fix` | [`verse-lab/loom`](https://github.com/verse-lab/loom) |
 
-Veil in turn pulls in `lean-smt` (which bundles the cvc5 SMT solver and its
-proof reconstruction), Mathlib, and Loom. The toolchain is pinned by
+Veil pins the rest of the tree — `lean-smt` (which bundles the cvc5 SMT solver
+and its proof reconstruction), Loom and Mathlib — at revisions this project
+does not override. [`lake-manifest.json`](../lake-manifest.json) records the
+exact revision of every package, so a checkout builds the same tree whatever
+the branches those pins name have since moved to. The toolchain is pinned by
 [`lean-toolchain`](../lean-toolchain) and fetched automatically by `elan`.
 
 Nothing in this repository patches Veil. The changes this project needs are
@@ -20,9 +21,11 @@ what the verification pipeline is made of without reading the tool's source.
 ## Veil — `larskuhtz/veil @ port/integration`
 
 `port/integration` is the union of the fork's `port/*` feature branches;
-each of those is a self-contained change against Veil's `veil-2.0-preview`,
-kept separate so it can be reviewed (and upstreamed) on its own. The
-branch inventory and the dependency order between them live in the fork.
+each of those is a self-contained change against Veil's `main`, kept separate
+so it can be reviewed (and upstreamed) on its own. The branch inventory and
+the dependency order between them live in the fork. Everything below is
+*additive*: the fork changes no upstream verification semantics, and the
+capabilities it adds are options and commands this project switches on.
 
 Grouped by what they buy this project:
 
@@ -74,22 +77,11 @@ consequence of it.
   with perturbed solver seeds before it is called a failure. Some Chorus
   cells sit close enough to the time budget that whether they solve depends
   on luck; the retry ladder is what makes an unattended build reproducible.
-* **Reconstruction-witness slimming** (`veil.smt.foldBoolAtoms`). Veil's
-  models use `Bool`-valued relations; without this, the proof-reconstruction
-  pipeline re-derives the `Bool → Prop` embedding of the entire hypothesis
-  context once per verification condition, which measured as 65–72 % of every
-  proof term at this project's scale. Folding it away cut cached proof size
-  by ~60 %. One Chorus cell solves *worse* under the folded query shape and
-  turns the option off file-locally — see the note in
-  `Cadence/Chorus/Proofs/Vote.lean`.
 * **Verifier scaling fixes** — the verification-results pretty-printer used
   to run under the scheduler's lock for every VC on every refresh, which is
   quadratic in the number of VCs; and completed solver tasks retained their
   proof witnesses. Both are invisible at textbook scale and both are fatal at
   Chorus's ~4 000-VC scale.
-* **`precompileModules` for Veil's own library** — the proof-discharging
-  tactics run natively instead of interpreted, which is what makes the
-  per-action proof files usefully parallel.
 
 ### 3. Persisting proofs as ordinary Lean theorems
 
@@ -133,56 +125,38 @@ consequence of it.
   in this mode can never be mistaken for "verified". See
   [../CLAUDE.md](../CLAUDE.md).
 
-## Loom — `larskuhtz/loom @ upgrade-v4.28-lakefile-fix`
+## Native shared libraries
 
-A lakefile-only fix, and a *build* concern rather than a verification one.
-Veil's own transitive pin (`verse-lab/loom @ upgrade-v4.28`) declares
-case-study libraries that import a module that branch's core-only toolchain
-bump removed, and whose globs overlap the core library; that breaks any
-consumer which precompiles modules — which this project does, via Veil (see
-group 2 above). The root `lakefile.lean` overrides the pin, and a root
-`require` shadows transitive ones. **Do not remove that override**: a
-consumer of the Veil fork without it hits the upstream breakage until Veil's
-own `require Loom` is repointed.
+`lean-smt` is built with `precompileModules`, so its translation and
+preprocessing meta-code runs natively rather than interpreted, which is where
+most of the per-query overhead used to sit. Veil's own library is *not*
+precompiled (upstream ships that flag off), so no `:shared` target is forced
+on Mathlib, and a first native build works on Linux and macOS alike from any
+checkout path.
 
-## Consequence: the native precompile path, and the macOS link wall
+Do not turn that flag on downstream. Precompiling a library forces every
+package under it to be available as a shared library, and two of them cannot
+supply one: Loom declares case-study libraries whose globs overlap its core
+library, and Mathlib's shared link passes ~7 650 object files on one command
+line, which exceeds the argument limit on macOS. Both were live build failures
+while the flag was set, and both are simply absent with it off.
 
-`precompileModules` on Veil's library (group 2) is what makes the two Loom and
-macOS build issues in this file *build* issues rather than curiosities. It
-requires every upstream package — including Mathlib — to be available as a
-shared library, and that has two knock-on effects:
+Two operational consequences:
 
-1. It is why the Loom pin has to be overridden (above): the upstream lakefile
-   declares libraries a precompiling consumer cannot build.
-2. Linking `libmathlib_Mathlib.dylib` passes **7 649** object files to the
-   compiler in one command, ~987 KB of command line. macOS caps arguments plus
-   environment at 1 MiB per `exec`, and the measured ceiling on an
-   arm64/macOS 15 machine is ~971 KB of arguments with a 2.6 KB environment —
-   so the link is over by roughly 16 KB. Each character of the checkout's
-   absolute path appears once per object, costing ~7.6 KB, which makes the
-   whole thing depend on **where the repository is checked out**: about 35
-   characters of absolute path is the ceiling. The symptom is
-
-   ```
-   could not execute external process '.../bin/clang'
-   error: external command '.../bin/clang' exited with code 255
-   ```
-
-   on `Mathlib:shared`. Check out at a shorter path, or build on Linux. It is
-   a one-time cost: once that library is linked, nothing rebuilds it.
-
-   Workarounds that look promising and are not: an `LEAN_CC` wrapper that
-   forwards to a compiler *response file* (the exec of the wrapper is itself
-   what overruns), stripping the environment (worth ~2.5 KB of the needed
-   16 KB), building from a symlinked short path (Lake resolves the working
-   directory to its physical path), a non-default `packagesDir` (short enough,
-   but Mathlib's and ProofWidgets' post-update hooks hardcode
-   `.lake/packages/…`), and transplanting a prebuilt `.dylib` from another
-   checkout (dependency dylibs embed their absolute install names, so the
-   recorded link-input hashes never match and the build tool relinks anyway).
-
-   The real fix belongs upstream — a response-file link in Lake, or Mathlib
-   linking in chunks — and is not something this project can carry.
+* On Linux, modules importing `lean-smt` are elaborated with its compiled
+  `.so`s `dlopen`ed, and those record a `DT_NEEDED` on the toolchain's own
+  `libLake_shared.so` with no `RPATH`. If the loader is not told where to
+  look the build fails with `error loading library, libLake_shared.so`. The
+  published images and the devcontainer set `LD_LIBRARY_PATH` once; an
+  auditor's own container needs the same
+  ([Container.md](./Container.md) §4).
+* Build the dependency tree at bounded parallelism. `lean-smt` and `lean-auto`
+  compile their own plugins, and if the build is OOM-killed mid-link the
+  half-written `.so`s are left **trace-complete**, so every later build dies
+  in milliseconds loading them and the build tool never regenerates them. The
+  recovery is `rm -rf .lake/packages/{auto,smt}/.lake/build`; the prevention
+  is `LEAN_NUM_THREADS=4` (Lake 5 has no `-j` flag — parallelism comes from
+  that variable).
 
 ## Trusted computing base
 
@@ -197,6 +171,25 @@ For completeness, the things whose correctness the results *do* rest on:
   mitigated by the model checker being an independent implementation of the
   model's semantics (used as a redundant regression on the receipt layer),
   and by the monitor running the model's own action bodies.
+
+  Within that surface, the largest single concentration is how an action
+  *body* becomes a state predicate. Upstream Veil now elaborates bodies
+  through Lean's own extensible `do`-notation extension points rather than by
+  rewriting syntax: every statement re-opens the state from a fresh `get`, so
+  the stale-binder failure mode is structurally absent rather than patched,
+  and a statement kind Veil does not recognise — including one a future
+  toolchain adds — is **rejected** instead of silently bypassing state
+  handling. That does not shrink the trust base, but it is the reason to
+  believe it, and it means a toolchain change cannot quietly alter what this
+  project's actions mean.
+
+* **Veil's elaboration-time defeq relaxation.** Veil wraps its own
+  elaboration hot paths in a compatibility shim that opts out of Lean 4.32's
+  stricter definitional-equality discipline. This affects which terms Veil's
+  *tactics* treat as equal while they build a proof; the finished term is
+  still re-checked by the kernel under the kernel's own rules, so the shim
+  can make elaboration succeed or fail but cannot make an unsound proof
+  accepted.
 * **cvc5's `unsat` verdicts are *not* trusted.** Every discharge reconstructs
   a proof term that Lean's kernel re-checks. The one place a solver verdict
   is taken at face value is the `sat trace` reachability sanity checks, which

@@ -90,7 +90,7 @@ date without doing the work:
 
 | candidate | size | can it go? |
 |---|---|---|
-| `lib/lean` in the Lean toolchain | 2.5 GB | **no** — 1.1 GB of `*.olean.private`, 331 MB of `*.olean`, 226 MB of shared libraries. This is just Lean 4.28 on arm64 |
+| `lib/lean` in the Lean toolchain | 2.5 GB | **no** — 1.1 GB of `*.olean.private`, 331 MB of `*.olean`, 226 MB of shared libraries. This is just the Lean toolchain on arm64 |
 | installed clang-18 + libc++ + Node | 722 MB | **no** — the cvc5 binding's FFI shim hardcodes `clang -std=c++17 -stdlib=libc++`, and Veil's widget target needs `npm` |
 | Mathlib's `.olean` tree | 5.6 GB | **no** — the prebuilt dependency the images exist to ship |
 | generated `.c` files | 485 MB | **no** — a declared lake output; removing it makes every module out of date |

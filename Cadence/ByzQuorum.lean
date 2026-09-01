@@ -44,6 +44,7 @@ private theorem byz_in_list_le (s : List (Fin n)) (hnodup : s.Nodup) :
 /-- ByzNodeSet instance for `Fin n` with at most `f` Byzantine nodes, valid for
     **any** `n ≥ 3f+1` (not only the tight `n = 3f+1`). The supermajority
     threshold scales with `n`. -/
+@[implicit_reducible]
 def byzNodeSetFinGen : ByzNodeSet (Fin n) (ByzNSet n) where
   is_byz := is_byz
   member a s := a ∈ s.val
@@ -60,7 +61,7 @@ def byzNodeSetFinGen : ByzNodeSet (Fin n) (ByzNSet n) where
     have hinter := Finset.card_inter (s1.toFinset) (s2.toFinset)
     have hunion := Finset.card_le_univ (s1.toFinset ∪ s2.toFinset) ; simp at hunion
     have hinter_size : f + 1 ≤ (s1.toFinset ∩ s2.toFinset).card := by omega
-    by_contra h ; push_neg at h
+    by_contra h ; push Not at h
     have hall_byz : ∀ a ∈ s1.toFinset ∩ s2.toFinset, is_byz a := by
       intro a ha ; simp at h ha
       have := h a ha.1 ha.2 ; tauto
@@ -76,7 +77,7 @@ def byzNodeSetFinGen : ByzNodeSet (Fin n) (ByzNSet n) where
   greater_than_third_one_honest := by
     intro ⟨s, hs_sorted⟩ hgt
     simp only at hgt
-    by_contra h ; push_neg at h
+    by_contra h ; push Not at h
     have hall_byz : ∀ a ∈ s, is_byz a := by
       intro a ha ; simp at h ; have := h a ha ; tauto
     have hnodup := List.Pairwise.nodup hs_sorted
@@ -141,19 +142,19 @@ def byzNodeSetFinGen : ByzNodeSet (Fin n) (ByzNSet n) where
 -- new instance). The theorem fields are erased; only these are evaluated.
 instance byzNodeSetFinGen_is_byz_dec :
   ∀ a, Decidable (ByzNodeSet.is_byz (self := byzNodeSetFinGen n f hf is_byz hbyz) a) := by
-  dsimp [byzNodeSetFinGen] ; intros ; infer_instance
+  dsimp +instances [byzNodeSetFinGen] ; intros ; infer_instance
 
 instance byzNodeSetFinGen_member_dec :
   ∀ a b, Decidable (ByzNodeSet.member (self := byzNodeSetFinGen n f hf is_byz hbyz) a b) := by
-  dsimp [byzNodeSetFinGen] ; intros ; infer_instance
+  dsimp +instances [byzNodeSetFinGen] ; intros ; infer_instance
 
 instance byzNodeSetFinGen_supermajority_dec :
   ∀ a, Decidable (ByzNodeSet.supermajority _ (self := byzNodeSetFinGen n f hf is_byz hbyz) a) := by
-  dsimp [byzNodeSetFinGen] ; intros ; infer_instance
+  dsimp +instances [byzNodeSetFinGen] ; intros ; infer_instance
 
 instance byzNodeSetFinGen_greater_than_third_dec :
   ∀ a, Decidable (ByzNodeSet.greater_than_third _ (self := byzNodeSetFinGen n f hf is_byz hbyz) a) := by
-  dsimp [byzNodeSetFinGen] ; intros ; infer_instance
+  dsimp +instances [byzNodeSetFinGen] ; intros ; infer_instance
 
 end
 

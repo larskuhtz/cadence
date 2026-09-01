@@ -150,7 +150,7 @@ theorem progress_dichotomy_of_saturation
   have honest : ∀ r : Fin n, ¬ is_byz r →
       ¬ (ByzNodeSet.is_byz (self := byzNodeSetFin n f hf is_byz hbyz) r = true) := by
     intro r hr hb
-    exact hr (by simpa [byzNodeSetFin] using hb)
+    exact hr (by simpa +instances [byzNodeSetFin] using hb)
   by_cases hallfast : ∀ r : Fin n, ¬ is_byz r →
       pCast n st r ∧ ∀ j : Fin n, th.is_proposer j = true →
         ((∃ m, pPos n st r j m) ∨ pNeg n st r j)

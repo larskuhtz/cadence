@@ -23,7 +23,7 @@ Four Veil models plus support files, mirroring the paper's architecture:
   it runs no invariant sweep and persists no theorems — its VC statements live
   in a persistent registry, the real kernel-checked proofs are produced per
   action by `Cadence/Chorus/Proofs/<Action>.lean`, and
-  `Cadence/Chorus/Certify.lean` composes them. Model-only build ~90 s. Do not
+  `Cadence/Chorus/Certify.lean` composes them. Model-only build ~2 min. Do not
   touch its imports casually (it imports `Primitives.lean` and `Tooling.lean`
   only).
 * **`Cadence/Cadence.lean`** — the extreme-pipelining glue: consumes
@@ -65,7 +65,7 @@ History: [docs/History.md](./docs/History.md).
   files at once and a *cold* proof file peaks ~5 GB (lake has no job cap):
   on <64 GB use `scripts/revalidate.sh`, which stages the same targets.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
-  only, ~90 s), `Cadence.Chorus.Proofs.Vote` (one action's ~98 cells),
+  only, ~2 min), `Cadence.Chorus.Proofs.Vote` (one action's ~98 cells),
   `Cadence.Chorus.Certify` (composition + the 3 861-cell audit pin, ~40 s).
 * Run **one** expensive build at a time and kill stale `lean` processes first.
   Near-timeout VCs are noisy under load: a cell that times out in a full build
@@ -91,9 +91,18 @@ History: [docs/History.md](./docs/History.md).
   by construction.
 * Scratch iteration (the fast loop): put `#prove_vc Chorus <action>
   <property> by <tac>` cells in a scratch file importing `Cadence.Chorus` and
-  run `lake env lean <file>`. Seconds per cell once the model is built. Probe
-  goal shapes by ending the tactic early and reading the unsolved-goals dump.
-  Cells proven in scratch warm the cache for the real proof file.
+  run **`scripts/scratch.sh <file>`**. Seconds per cell once the model is
+  built. Probe goal shapes by ending the tactic early and reading the
+  unsolved-goals dump. Cells proven in scratch warm the cache for the real
+  proof file.
+
+  Use that script, not bare `lake env lean`: cvc5, lean-smt, lean-auto and Qq
+  are loaded as native *plugins*, and lake passes them only for modules it
+  builds itself. Without them a file with a solver call aborts with
+  `Could not find native implementation of external declaration
+  'cvc5.TermManager.new'` — an abort with no Lean diagnostic, which reads like
+  a crash rather than a missing flag. The script reads the plugin list out of
+  a real module's build setup, so it cannot drift.
 * Editor: set `VEIL_NO_VERIFY=1` in the *editor's* environment (VS Code
   `lean4.serverEnv`) — never in your shell profile, since `lake build` must
   still verify. Skipped commands emit `⏭ skipped (veil.noVerify)`, so "no
@@ -104,24 +113,32 @@ History: [docs/History.md](./docs/History.md).
 A green build is not a silent build. These are known and harmless — do not
 "fix" them by changing working proofs:
 
-* `Cadence/Composition.lean:161–162` — two `try 'simp' instead of 'simpa'`
+* `Cadence/Composition.lean` — two `try 'simp' instead of 'simpa'`
   suggestions.
-* Dependency-side: one `declaration uses 'sorry'` in `lean-smt`'s
-  bit-vector reconstruction (a module this project never uses), plus
-  deprecation notices from Loom and `lean-smt`.
 
-Anything else — and in particular any `❌`, `💥`, `⏱`, or a `sorry` warning
-from a `Cadence/` file — is real.
+That is the whole list: the dependency tree builds silently. Anything else —
+and in particular any `❌`, `💥`, `⏱`, or a `sorry` warning from a `Cadence/`
+file — is real.
 
-### Building in a container (and the macOS wall it avoids)
+### Building natively, and building in a container
 
-A **cold** build fails on macOS at `Mathlib:shared` — `could not execute
-external process '.../clang'` — once the checkout's absolute path exceeds
-~35 characters: the link's command line overruns the 1 MiB argument cap.
-Linux is unaffected. The arithmetic, and the workarounds that do not help:
-[docs/Dependencies.md](./docs/Dependencies.md).
+A native build works on macOS and Linux from any checkout path. Veil's library
+is not precompiled, so no `:shared` target is forced on Mathlib and there is
+no link step to overrun.
 
-So: **`RUNTIME=podman scripts/container.sh {verify,check,shell}`**, or the
+**Build the dependency tree with `LEAN_NUM_THREADS=4`.** `lean-smt` and
+`lean-auto` compile their own plugins; if the build is OOM-killed mid-link the
+half-written `.so`s are left *trace-complete*, so every later build dies in
+milliseconds loading them and lake never regenerates them. Recovery:
+`rm -rf .lake/packages/{auto,smt}/.lake/build`. Lake 5 has no `-j` flag —
+parallelism comes from that variable alone.
+
+The container path is for a **fixed, published environment**: the toolchain,
+the whole dependency tree, and (in the `verified` image) this project's own
+oleans, so an auditor re-checks the proofs without building anything and CI
+runs the identical tree.
+
+**`RUNTIME=podman scripts/container.sh {verify,check,shell}`**, or the
 devcontainer. Both pull the published images
 (`ghcr.io/larskuhtz/cadence-*:latest`, multi-arch) on first use, so nothing
 has to be built; `container.sh build` exists for changes to the dependency
@@ -150,9 +167,6 @@ measurements and the audit ladder:
   with what was measured and how, is
   [docs/Images.md](./docs/Images.md) § "Why the images are the size they are".
 
-Failing all that, a native macOS build works from a checkout path of ≲35
-characters; see [docs/Dependencies.md](./docs/Dependencies.md).
-
 ## Hard rules (each has bitten before)
 
 * **No doc comments on Veil declarations.** `/-- … -/` before `safety`,
@@ -178,10 +192,37 @@ characters; see [docs/Dependencies.md](./docs/Dependencies.md).
   (it still changes every VC statement, so the family still re-solves), and
   a stale name is an elaboration error rather than a silently wrong
   conjunct.
-* **Keep the `set_option synthInstance.* / maxRecDepth` block** before
-  `#gen_spec` in `Chorus.lean`. Without it the pre-simplification of the large
+* **`Chorus.lean` needs `maxRecDepth` raised twice, for different reasons.**
+  Before the action declarations: action bodies elaborate one nested
+  `openStateAround` per statement, so depth scales with the longest body and
+  `after_init` alone exceeds the default. Before `#gen_spec`, together with
+  the `synthInstance.*` raises: without it the pre-simplification of the large
   invariant clump fails — as a *warning*, not an error — and every VC
   re-simplifies the clump, degrading the sweep from minutes to hours.
+* **Universal indices in bulk assignments are single capital letters.** A
+  multi-letter capitalised name is not recognised and fails with "unknown
+  identifier". If the letter also names a declaration in scope (Mathlib's `W`,
+  for instance) Veil warns that it shadows it and treats it as an index
+  anyway; pick a free letter rather than leaving the warning.
+* **A `def` whose type is a class needs `@[implicit_reducible]`.** Without it
+  Lean 4.32 warns, and downstream instance synthesis for that class fails.
+  `#gen_monitor` emits one such declaration and cannot be annotated from the
+  call site, so `Cadence/Monitor/ChorusMonitorGen.lean` turns the warning off
+  file-locally — otherwise it lands on stdout and breaks the monitor suite's
+  comparison against the hand-written oracle. The real fix belongs in the
+  Veil fork.
+* **Simp and dsimp do not see through instances by default.** Lean 4.32
+  defaults `Simp.Config.instances` to `false`, so anything unfolding a
+  class-valued definition needs `simp +instances only [...]` /
+  `dsimp +instances [...]` — the flag goes *before* `only`. The failure mode
+  is `made no progress`, sometimes with a note that the target is not
+  type-correct at `instances` transparency.
+* **Instance telescopes of generated VC theorems are deduplicated.** Veil
+  canonicalises an action's extra parameters, so two identical `Decidable`
+  side conditions collapse into one and the theorem's arity drops. The
+  explicit-instance macros in `Cadence/Composition.lean` pass those positions
+  as `_`, so the count must match; a mismatch is a loud "application type
+  mismatch" naming the first argument that landed in the wrong slot.
 * **Never put `set_option … in` directly after a `sat trace { … }` block** —
   the trace command's optional proof-term suffix greedily parses it. Put
   traces after `#check_invariants`, before `end`.

@@ -221,7 +221,10 @@ relations, and it takes a human to confirm each use is positive.
    sweep reconstructs its proofs kernel-checked (§6) — but its `sat`
    verdicts on the `sat trace` reachability sanity checks are (a wrong
    model there could only make a non-vacuity check vacuous, never a
-   safety claim wrong).
+   safety claim wrong). What sits inside that surface, and why an
+   unrecognised action statement now fails the build rather than being
+   silently mistranslated, is
+   [Dependencies.md](./Dependencies.md) § "Trusted computing base".
 
 ## 5. The receipt layer: why the auxiliary models exist
 
@@ -323,13 +326,14 @@ and the `#veil_status` audit command (so the certificates and the
 "nothing is stubbed" claim are machine-derived); and a handful of
 scaling fixes without which a module at Chorus's VC scale does not elaborate at all.
 
-The one measurement worth keeping in this document, because it bounds
-what a future scaling effort can win: reconstruction proof terms of the
-same action share 65–92 % of their term mass, and 65–72 % of a single
-term was the SMT pipeline re-deriving the `Bool → Prop` embedding of the
-whole hypothesis context. The fork removes that part; hoisting the
-remaining shared hypothesis processing into named, once-checked lemmas is
-the next structural lever.
+The one measurement worth keeping in this document, because it bounds what
+a future scaling effort can win: reconstruction proof terms of the same
+action share 65–92 % of their term mass. Most of a single term is not
+about that action at all — it is the SMT pipeline re-deriving the same
+embedding of the whole shared hypothesis context, once per verification
+condition. Hoisting that shared processing into named, once-checked
+lemmas is the next structural lever, and it is worth roughly the share
+above.
 
 ## 8. History
 

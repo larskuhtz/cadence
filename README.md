@@ -124,10 +124,10 @@ the monotone-network soundness contract — is the named assumption inventory in
 
 ## Checking the proofs
 
-Prebuilt images — this project already built and verified inside the image —
-are published for `linux/arm64` and `linux/amd64`.
-[`scripts/container.sh`](./scripts/container.sh) pulls what it needs on first
-use (~4 GiB, once); nothing has to be built:
+The quickest check needs no build at all. Prebuilt images — this project
+already built and verified inside the image — are published for `linux/arm64`
+and `linux/amd64`. [`scripts/container.sh`](./scripts/container.sh) pulls what
+it needs on first use (~4 GiB, once):
 
 ```bash
 RUNTIME=podman scripts/container.sh check    # kernel-re-check every proof — 4 min, no solver
@@ -138,7 +138,9 @@ RUNTIME=podman scripts/container.sh verify   # re-verify against the checkout's 
 are tiers 1 and 2 of an audit ladder that ends at "re-solve every verification
 condition from scratch". What each tier does and does not establish — in
 particular, what a prebuilt `.olean` proves — is
-[docs/Container.md](./docs/Container.md) §3–§4.
+[docs/Container.md](./docs/Container.md) §3–§4. Every tier, including the
+last, also runs natively on Linux and macOS ([below](#building-natively));
+the container just fixes the environment.
 
 ## Working on the models
 
@@ -170,7 +172,7 @@ dependency tree changes — is [docs/Images.md](./docs/Images.md).
 ### Building natively
 
 Requires [elan](https://github.com/leanprover/elan); the pinned toolchain and
-both dependencies are fetched automatically on the first build. Building also
+the dependency tree are fetched automatically on the first build. Building also
 needs a system `clang` with a version-matched `libc++` development package
 (providing the compiler's resource-dir headers): that is a transitive native
 dependency of the cvc5 binding used for proof reconstruction, whose build
@@ -179,25 +181,40 @@ invocation. elan's bundled toolchain `clang` does not ship those headers and
 cannot substitute.
 
 ```bash
-lake build          # everything: models, all 49 per-action proof files,
-                    # composition certificates, end theorems, the audit
-                    # root's axiom pins, and the monitor
+LEAN_NUM_THREADS=4 lake build   # everything: models, all 49 per-action proof
+                                # files, composition certificates, end
+                                # theorems, the audit root's axiom pins,
+                                # and the monitor
 ```
+
+Bound the parallelism on the **first** build, as above. `lean-smt` and
+`lean-auto` compile their own native plugins, and if that build is OOM-killed
+mid-link the half-written libraries are left in place and considered
+up-to-date, so every later build fails in milliseconds while loading them.
+Recovery is `rm -rf .lake/packages/{auto,smt}/.lake/build`. Lake has no `-j`
+flag; `LEAN_NUM_THREADS` is the only control.
 
 **Memory.** `lake build` schedules the 39 Chorus and 10 receipt-layer proof
 files all at once, and a *cold* proof file peaks around 5 GB of resident
 memory (lake has no job cap). On a machine with less than ~64 GB, build in
-stages instead — this does the same work in the same order, batched:
+stages instead — the same work in the same order, batched:
 
 ```bash
-scripts/revalidate.sh          # staged full build; keeps a cold run under ~30 GB
+scripts/revalidate.sh          # staged full build, batched
+BATCH=3 scripts/revalidate.sh  # ... narrower batches, for a cold run
 scripts/revalidate.sh /tmp     # ... and write the RSS sample log there
 ```
+
+`BATCH` is how many proof files solve concurrently. The default of 6 suits a
+warm cache; a *cold* run is both memory- and CPU-bound, and on a 14-core /
+36 GB machine measured 32.0 GB peak at `BATCH=6` against 20.7 GB at
+`BATCH=3` — with one near-budget verification condition timing out spuriously
+at the wider setting. Use `BATCH=3` cold, `BATCH=1` on eight cores or fewer.
 
 Individual pieces, for iteration:
 
 ```bash
-lake build Cadence.Chorus                    # the per-slot consensus MODEL (no sweep) — ~90 s
+lake build Cadence.Chorus                    # the per-slot consensus MODEL (no sweep) — ~2 min
 lake build Cadence.Chorus.Proofs.Vote        # one action's ~98 proof cells
 lake build Cadence.Chorus.Certify            # composition certificate + the 3 861-cell audit pin
 lake build Cadence.Cadence Cadence.Conductor # the two small models, sweeps included
@@ -216,20 +233,17 @@ re-validation is much cheaper than a first build. A first build re-solves all
 ~4 000 verification conditions and reconstructs every proof: budget around 85
 CPU-minutes for the Chorus family. A warm re-validation replays them instead —
 on a 14-core Apple-Silicon machine, `scripts/revalidate.sh` end to end takes
-under 4 minutes, with a peak of 18.8 GB resident during the cold proof-file
-stage. The cache is a build artefact, not shipped, and safe to delete at any
-time: it only ever skips proof *search*, never checking.
+a few minutes, every replay kernel-checked. The cache is a build artefact,
+not shipped, and safe to delete at any time: it only ever skips proof
+*search*, never checking.
 
 Do not run other heavy jobs concurrently with a *cold* proof-file build: some
 verification conditions sit close to the solver time budget, and stolen cores
 turn them into spurious timeouts.
 
-**macOS.** A *first* native build fails at the Mathlib shared-library link
-(`could not execute external process '…/clang'`) unless the checkout's
-absolute path is about 35 characters or fewer — the link's command line
-overruns macOS's 1 MiB argument cap. The container path avoids this
-entirely; the analysis, and the workarounds that do not help, are in
-[docs/Dependencies.md](./docs/Dependencies.md).
+A native build works on macOS and Linux alike, from any checkout path. The
+container path is for a *fixed, published* environment rather than to work
+around a platform limitation — see [docs/Container.md](./docs/Container.md).
 
 ---
 
@@ -364,7 +378,7 @@ Design, scope, the emitter contract and the full flag reference:
 | The Chorus model's design rationale (network abstraction and its soundness contract, property coverage, the liveness meta-argument, the bug record §7.2, open items §9) | [docs/ChorusDesign.md](./docs/ChorusDesign.md) |
 | The Cadence / Conductor model designs | [docs/ConductorDesign.md](./docs/ConductorDesign.md) (module decomposition, the class layer, where the top-level properties live), then the module headers of [`Cadence/Cadence.lean`](./Cadence/Cadence.lean) and [`Cadence/Conductor.lean`](./Cadence/Conductor.lean) |
 | The module contracts and their obligation tables | [`Cadence/Interfaces.lean`](./Cadence/Interfaces.lean) |
-| What the two forked dependencies provide, and why | [docs/Dependencies.md](./docs/Dependencies.md) |
+| What the forked Veil provides beyond upstream, and why | [docs/Dependencies.md](./docs/Dependencies.md) |
 | Using the published images; **what a prebuilt `.olean` proves**, and the audit ladder | [docs/Container.md](./docs/Container.md) |
 | Building and publishing the images (maintainers) | [docs/Images.md](./docs/Images.md) |
 | The model-conformance monitor | [docs/Monitor.md](./docs/Monitor.md) |

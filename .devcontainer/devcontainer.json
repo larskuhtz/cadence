@@ -2,8 +2,8 @@
   // Cadence — machine-checked verification.
   //
   // Opening this folder in a container gives you a working Lean environment
-  // with Mathlib, Loom, lean-smt and Veil already built, and without the macOS
-  // limitation that otherwise blocks a first build there (see ../Containerfile).
+  // with Mathlib, Loom, lean-smt and Veil already built, so nothing has to be
+  // compiled before you can edit (see ../Containerfile).
   //
   // Requires a Docker-compatible runtime. Podman works: set
   //   "dev.containers.dockerPath": "podman"

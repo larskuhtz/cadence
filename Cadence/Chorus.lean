@@ -480,6 +480,15 @@ ghost relation all_honest_recorded (j : node) (m : merkle_root) :=
   ¬ is_byz j ∧ is_proposer j ∧ (∀ i, ¬ is_byz i → local_entry_pos i j m) ∧
   well_encoded m
 
+/- Action bodies elaborate one nested `openStateAround` per statement — each
+statement re-opens the state from a fresh monadic `get` — so elaboration
+depth scales with the number of statements in the longest body. `after_init`
+(~50 bulk assignments) and the longest guarded actions exceed the default
+budget of 512. The `#gen_spec` block near the end of the file raises the
+same option again for the invariant clump's instance search; this raise is
+for the action language and has to come before the declarations. -/
+set_option maxRecDepth 8192
+
 /-! ## Initial state -/
 
 after_init {

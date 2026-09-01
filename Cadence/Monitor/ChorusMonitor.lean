@@ -53,6 +53,7 @@ abbrev Lbl := Chorus.Label SL ND NS MR PH PC
     including none), and the one that matches the all-honest Rust sim run — so
     the monitor validates every node's action.  Overrides the default
     `insByzNodeSetFinSimple` (which would make node 0 Byzantine). -/
+@[implicit_reducible]
 def emptyByz4 : ByzNodeSet ND NS :=
   Cadence.byzNodeSetFinGen (3 * 1 + 1) 1 (by decide) (fun _ => False) (by decide)
 
@@ -65,6 +66,7 @@ def chThy : Th := Chorus.Theory.mk (fun j => j == 0) (fun _ => true)
 
 /-- Explicit specialized Inhabited seed — avoids the pathological `Inhabited St`
     search (this is what `#model_check` does via `inhabσ`). -/
+@[implicit_reducible]
 def stInhab : Inhabited St := Chorus.instInhabitedStateFieldConcreteType
 
 /-- The extracted per-label executable step at this concrete instance. -/
@@ -274,9 +276,13 @@ environment facts only in guards (monotone / positive-use — see
 v1 coverage: the negative fast path with proposer = node 0 (matching the current
 emitter). Positive path / fallback are more admit rules on the same mechanism. -/
 
+@[implicit_reducible]
 def byz0 : ByzNodeSet ND NS := Cadence.byzNodeSetFinGen (3 * 1 + 1) 1 (by decide) (fun x => x = 0) (by decide)
+@[implicit_reducible]
 def byz1 : ByzNodeSet ND NS := Cadence.byzNodeSetFinGen (3 * 1 + 1) 1 (by decide) (fun x => x = 1) (by decide)
+@[implicit_reducible]
 def byz2 : ByzNodeSet ND NS := Cadence.byzNodeSetFinGen (3 * 1 + 1) 1 (by decide) (fun x => x = 2) (by decide)
+@[implicit_reducible]
 def byz3 : ByzNodeSet ND NS := Cadence.byzNodeSetFinGen (3 * 1 + 1) 1 (by decide) (fun x => x = 3) (by decide)
 
 -- Per-instance executors: the guard `Decidable`s need the instance fixed, so
