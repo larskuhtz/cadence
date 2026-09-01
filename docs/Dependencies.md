@@ -158,9 +158,17 @@ same change that made the audit pin cheap (group 1).
 it to be available as a shared library, and on the current pins that does not
 work at all:
 
-* Loom declares case-study libraries whose globs overlap its core library, so
-  `CaseStudies:shared` fails with `bad import 'Loom.MonadAlgebras.NonDetT.Extract'`.
-  Fixing this is what the project's second fork used to exist for.
+* Loom's `CaseStudies` library globs `Loom.*` *and* `CaseStudies.*`, so every
+  Loom module belongs to two libraries — and Lake loads a precompiled import
+  "as part of their whole library". It therefore fetches `CaseStudies:shared`
+  (never `Loom:shared`) for the Loom modules Veil imports, and that library
+  also contains nine files importing `Loom.MonadAlgebras.NonDetT.Extract`,
+  which does not exist at this revision — the tree has `NonDetT'`. So the
+  build stops at `CaseStudies: some modules have bad imports`. This is a
+  lakefile problem, not a platform one: it fails the same way on Linux, and
+  it is what the project's second fork used to exist to patch. With the flag
+  off, no Loom `:shared` target is requested and the broken library is never
+  visited.
 * Every Veil module then fails to load the resulting shared library, dying in
   ~60 ms with SIGSEGV.
 
