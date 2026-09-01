@@ -1,14 +1,19 @@
 # Dependencies
 
-This project is a plain Lean 4 package with **one** direct dependency:
+This project is a plain Lean 4 package with two direct dependencies:
 
 | Dependency | Pin | Upstream |
 |---|---|---|
 | [Veil](https://github.com/larskuhtz/veil) | branch `port/integration` | [`verse-lab/veil`](https://github.com/verse-lab/veil) |
+| [Loom](https://github.com/larskuhtz/loom) | branch `v4.32.0-for-veil-lakefile-fix` | [`verse-lab/loom`](https://github.com/verse-lab/loom) |
 
-Veil pins the rest of the tree — `lean-smt` (which bundles the cvc5 SMT solver
-and its proof reconstruction), Loom and Mathlib — at revisions this project
-does not override. [`lake-manifest.json`](../lake-manifest.json) records the
+The Loom pin is a lakefile-only override — identical Loom sources, with the
+unbuildable case-study libraries disabled. It matters only to a consumer that
+precompiles modules, which this project currently does not, so it is inert
+today; see § "Native shared libraries" for why it is carried anyway. Veil
+pins the rest of the tree — `lean-smt` (which bundles the cvc5 SMT solver and
+its proof reconstruction) and Mathlib — at revisions this project does not
+override. [`lake-manifest.json`](../lake-manifest.json) records the
 exact revision of every package, so a checkout builds the same tree whatever
 the branches those pins name have since moved to. The toolchain is pinned by
 [`lean-toolchain`](../lean-toolchain) and fetched automatically by `elan`.
@@ -169,18 +174,29 @@ work at all:
   it is what the project's second fork used to exist to patch. With the flag
   off, no Loom `:shared` target is requested and the broken library is never
   visited.
-* Every Veil module then fails to load the resulting shared library, dying in
-  ~60 ms with SIGSEGV.
+* Loom's core library does not build in full either, and this is *not* fixed
+  by the pin above. `Loom/MonadAlgebras/WP/Gen.lean` has its body — lines 32
+  to 285, including `WPGen` — inside a block comment at this revision, and
+  `Loom.Meta` and `Loom.MonadAlgebras.WP.Matcher` still reference what it no
+  longer defines. Nothing notices during a normal build because Veil imports
+  neither; precompiling has to build the whole library, and those two fail.
+* Even with those excluded, **loading Mathlib's shared library crashes Lean**.
+  The library links (123 MB) and then segfaults in its own module
+  initializers, null-dereferencing under
+  `initialize_mathlib_Mathlib_Tactic_ClickSuggestions_Util`, reached from
+  `lean_load_plugin`. An empty Lean file is enough to reproduce it, and the
+  module in question is a widget tactic this project never uses.
 
-Mathlib's shared link is *not* one of the reasons any more. It passes 7 649
+Mathlib's shared *link* is not one of the reasons any more. It passes 7 649
 object files, which on macOS used to overrun the 1 MiB `execve` limit and fail
 with `could not execute external process '.../clang'`. Lake fixed that in
 **4.30** by writing linker arguments to a response file on every platform
 (`Lake/Build/Actions.lean`, `mkArgs`; 4.28 and 4.29 did so only on Windows),
 so the link no longer depends on where the repository is checked out.
 
-So turning it back on means reviving a Loom fork *and* resolving the loader
-failure. Until both are fixed upstream, the interpreted tactic layer is the
+So turning it back on needs three upstream repairs, not one: Loom's library
+declarations, Loom's half-ported `WP/Gen.lean`, and whatever makes Mathlib's
+shared library unloadable. Until both are fixed upstream, the interpreted tactic layer is the
 price of a dependency tree that builds anywhere, and the proof cache is what
 keeps that price affordable.
 

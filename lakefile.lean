@@ -29,6 +29,14 @@ when a module elaborates its specification, so a package-level default would
 be a second, invisible place to look. -/
 package «cadence»
 
+/- Loom's own lakefile declares case-study libraries that cannot build at its
+Veil-support revision, and whose globs overlap the core library — so any
+consumer that precompiles modules resolves Loom's modules to that library and
+fails on its missing imports. The branch below is a lakefile-only fix; a root
+`require` shadows transitive ones, which is why this line comes first.
+See [docs/Dependencies.md](./docs/Dependencies.md). -/
+require Loom from git "https://github.com/larskuhtz/loom" @ "v4.32.0-for-veil-lakefile-fix"
+
 require veil from git "https://github.com/larskuhtz/veil" @ "port/integration"
 
 /-- The whole development: models, per-action proof families, composition
