@@ -67,7 +67,8 @@ History: [docs/History.md](./docs/History.md).
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
   only, ~2 min), `Cadence.Chorus.Proofs.Vote` (one action's ~98 cells, ~16 s
   warm), `Cadence.Chorus.Certify` (composition + the 3 861-cell audit pin,
-  a few seconds warm).
+  ~3 s — the audit walk reads each imported olean's stored axiom sets rather
+  than traversing proof terms, so it does not grow with proof size).
 * Run **one** expensive build at a time and kill stale `lean` processes first.
   Near-timeout VCs are noisy under load: a cell that times out in a full build
   may pass in isolation. Distinguish *slow* from *divergent* — if different
@@ -125,9 +126,13 @@ file — is real.
 
 ### Building natively, and building in a container
 
-A native build works on macOS and Linux from any checkout path. Veil's library
-is not precompiled, so no `:shared` target is forced on Mathlib and there is
-no link step to overrun.
+A native build works on macOS and Linux from any checkout path. Two
+independent reasons, worth not confusing: Veil's library is not precompiled,
+so no `:shared` target is forced on Mathlib at all; and since Lake 4.30 the
+linker's arguments go through a response file on every platform, so even that
+link would no longer depend on path length. The trade behind the first of
+those — a ~3× slower warm re-validation — is in
+[docs/Dependencies.md](./docs/Dependencies.md) § "Native shared libraries".
 
 **Build the dependency tree with `LEAN_NUM_THREADS=4`.** `lean-smt` and
 `lean-auto` compile their own plugins; if the build is OOM-killed mid-link the

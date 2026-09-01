@@ -56,7 +56,14 @@ consequence of it.
   axiom union over all of them. This project pins its output
   (`Cadence/Chorus/Certify.lean`, `Cadence/FallbackReceipt/Certify.lean`), so
   the claim "no verification condition is stubbed" is re-derived on every
-  build rather than asserted in prose.
+  build rather than asserted in prose. The audit walk is cheap on Lean 4.32
+  and gets no more expensive as the proofs grow: each olean now stores the
+  axiom set of every declaration it exports, computed when the olean is
+  written, so collecting axioms for an imported constant is a lookup rather
+  than a traversal of its proof term. `#veil_status Chorus` resolves 3 861
+  cell theorems across 39 proof-file oleans in about two seconds; before that
+  change it walked all 3 861 reconstructed proof terms and took roughly
+  forty.
 * **A code-generation switch for the model checker's scaffolding**
   (`veil.gen.modelCheckScaffolding`). The label-enumeration instances Veil
   derives for `#model_check` are `O(nᵏ)` in the number of actions; at Chorus's
@@ -131,18 +138,21 @@ consequence of it.
 preprocessing meta-code runs natively rather than interpreted, which is where
 most of the per-query overhead used to sit. Veil's own library is *not*
 precompiled (upstream ships that flag off), so no `:shared` target is forced
-on Mathlib, and a first native build works on Linux and macOS alike from any
-checkout path.
+on Mathlib at all.
 
 That flag is off deliberately, and it is not a free choice — it is the one
 real cost of the current dependency layout, so it is worth stating plainly.
 
 **What it costs.** Veil's tactic and meta layer runs interpreted rather than
 native. That layer is most of the work in a re-validation — re-creating VC
-statements from the registry, cache lookup, kernel replay — so the warm path
+statements from the registry, cache lookup, kernel replay — and the warm path
 is about **3× slower** than it was when Veil was precompiled: a full warm
 re-validation went from ~3½ to ~11 minutes, and a Chorus proof batch of six
-from ~20 s to ~50 s, measured on the same machine.
+from ~20 s to ~50 s, measured on the same machine with an identical workload.
+Not all of that is the missing native code, and the two causes have not been
+separated: Lean 4.32 also computes every declaration's axiom set when a module
+is serialized, which is work added to each proof file's olean export — the
+same change that made the audit pin cheap (group 1).
 
 **Why it is off anyway.** Precompiling a library forces every package under
 it to be available as a shared library, and on the current pins that does not
@@ -151,12 +161,15 @@ work at all:
 * Loom declares case-study libraries whose globs overlap its core library, so
   `CaseStudies:shared` fails with `bad import 'Loom.MonadAlgebras.NonDetT.Extract'`.
   Fixing this is what the project's second fork used to exist for.
-* Mathlib's shared link passes its 7 649 object files on one command line —
-  987 KB of arguments plus a 61 KB pointer array, against macOS's 1 MiB
-  `execve` limit, so `clang` never starts. This one is only about path length:
-  the same link succeeds from a short enough checkout.
-* Even when that link does succeed, every Veil module then fails to load the
-  result, dying in ~60 ms with SIGSEGV.
+* Every Veil module then fails to load the resulting shared library, dying in
+  ~60 ms with SIGSEGV.
+
+Mathlib's shared link is *not* one of the reasons any more. It passes 7 649
+object files, which on macOS used to overrun the 1 MiB `execve` limit and fail
+with `could not execute external process '.../clang'`. Lake fixed that in
+**4.30** by writing linker arguments to a response file on every platform
+(`Lake/Build/Actions.lean`, `mkArgs`; 4.28 and 4.29 did so only on Windows),
+so the link no longer depends on where the repository is checked out.
 
 So turning it back on means reviving a Loom fork *and* resolving the loader
 failure. Until both are fixed upstream, the interpreted tactic layer is the
