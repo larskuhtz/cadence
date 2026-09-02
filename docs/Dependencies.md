@@ -180,12 +180,17 @@ work at all:
   `Loom.Meta` and `Loom.MonadAlgebras.WP.Matcher` still reference what it no
   longer defines. Nothing notices during a normal build because Veil imports
   neither; precompiling has to build the whole library, and those two fail.
-* Even with those excluded, **loading Mathlib's shared library crashes Lean**.
-  The library links (123 MB) and then segfaults in its own module
-  initializers, null-dereferencing under
-  `initialize_mathlib_Mathlib_Tactic_ClickSuggestions_Util`, reached from
-  `lean_load_plugin`. An empty Lean file is enough to reproduce it, and the
-  module in question is a widget tactic this project never uses.
+* Loading Mathlib's shared library then crashes Lean — but for a small and
+  fixable reason. `ProofWidgets`' library uses Lake's default globs, so it
+  contains only what its root module reaches, and that does not include
+  `ProofWidgets/Component/RefreshComponent.lean`; the only importer inside
+  the package is a `Demos` module, which is a *separate* library. Mathlib
+  imports it anyway, from `Mathlib/Tactic/ClickSuggestions/Util.lean`. So the
+  module gets an olean but is never compiled into ProofWidgets' shared
+  object, leaving four symbols undefined; on macOS those bind lazily to null
+  and Mathlib's generated initializer jumps to address zero. Adding that one
+  module to the `ProofWidgets` library's globs makes Mathlib load cleanly —
+  verified here. The fix belongs to ProofWidgets or Mathlib.
 
 Mathlib's shared *link* is not one of the reasons any more. It passes 7 649
 object files, which on macOS used to overrun the 1 MiB `execve` limit and fail
@@ -194,9 +199,11 @@ with `could not execute external process '.../clang'`. Lake fixed that in
 (`Lake/Build/Actions.lean`, `mkArgs`; 4.28 and 4.29 did so only on Windows),
 so the link no longer depends on where the repository is checked out.
 
-So turning it back on needs three upstream repairs, not one: Loom's library
-declarations, Loom's half-ported `WP/Gen.lean`, and whatever makes Mathlib's
-shared library unloadable. Until both are fixed upstream, the interpreted tactic layer is the
+So turning it back on needs two more upstream repairs: Loom's half-ported
+`WP/Gen.lean` (or its orphaned dependents), and the ProofWidgets packaging
+gap above. Both are small; neither is ours. `precompileModules` with Mathlib
+is a lightly-tested configuration in general — Lean has several open issues
+about it, on Linux as well as macOS. Until both are fixed upstream, the interpreted tactic layer is the
 price of a dependency tree that builds anywhere, and the proof cache is what
 keeps that price affordable.
 
