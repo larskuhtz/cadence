@@ -130,8 +130,9 @@ A native build works on macOS and Linux from any checkout path. Two
 independent reasons, worth not confusing: Veil's library is not precompiled,
 so no `:shared` target is forced on Mathlib at all; and since Lake 4.30 the
 linker's arguments go through a response file on every platform, so even that
-link would no longer depend on path length. The trade behind the first of
-those — a ~3× slower warm re-validation — is in
+link would no longer depend on path length. Precompiling was measured and
+does not pay here — a warm re-validation is dominated by kernel replay, not
+tactic search — and it does not build on the current pins in any case:
 [docs/Dependencies.md](./docs/Dependencies.md) § "Native shared libraries".
 
 **Build the dependency tree with `LEAN_NUM_THREADS=4`.** `lean-smt` and

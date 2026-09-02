@@ -145,23 +145,26 @@ most of the per-query overhead used to sit. Veil's own library is *not*
 precompiled (upstream ships that flag off), so no `:shared` target is forced
 on Mathlib at all.
 
-That flag is off deliberately, and it is not a free choice — it is the one
-real cost of the current dependency layout, so it is worth stating plainly.
+**It costs this project nothing measurable.** That is worth stating, because
+it is easy to assume otherwise: precompiling makes a library's meta-code run
+natively, and Veil's tactic layer is meta-code. Measured on one machine, same
+workload (843 ✅ / 16 324 ♻), warm re-validation at the default `BATCH=6`:
 
-**What it costs.** Veil's tactic and meta layer runs interpreted rather than
-native. That layer is most of the work in a re-validation — re-creating VC
-statements from the registry, cache lookup, kernel replay — and the warm path
-is about **3× slower** than it was when Veil was precompiled: a full warm
-re-validation went from ~3½ to ~11 minutes, and a Chorus proof batch of six
-from ~20 s to ~50 s, measured on the same machine with an identical workload.
-Not all of that is the missing native code, and the two causes have not been
-separated: Lean 4.32 also computes every declaration's axiom set when a module
-is serialized, which is work added to each proof file's olean export — the
-same change that made the audit pin cheap (group 1).
+| configuration | wall |
+|---|---|
+| no precompilation (what this project ships) | **654 s** |
+| Veil's library precompiled | 688 s |
+| this project's library precompiled (native Veil *and* native Cadence) | 702 s |
 
-**Why it is off anyway.** Precompiling a library forces every package under
-it to be available as a shared library, and on the current pins that does not
-work at all:
+Precompiling is, if anything, slightly slower — the extra native compilation
+costs more than native tactics save. The reason is the proof cache: a warm
+re-validation is dominated by re-creating VC statements and kernel-replaying
+stored proofs, not by tactic search, so a faster tactic layer has little to
+work with.
+
+**And it does not work on the current pins anyway.** Precompiling forces every
+package underneath to be available as a shared library, and three separate
+things break:
 
 * Loom's `CaseStudies` library globs `Loom.*` *and* `CaseStudies.*`, so every
   Loom module belongs to two libraries — and Lake loads a precompiled import
@@ -208,11 +211,12 @@ with `could not execute external process '.../clang'`. Lake fixed that in
 (`Lake/Build/Actions.lean`, `mkArgs`; 4.28 and 4.29 did so only on Windows),
 so the link no longer depends on where the repository is checked out.
 
-So turning it back on needs two more upstream repairs: Loom's half-ported
-`WP/Gen.lean` (or its orphaned dependents), and the ProofWidgets packaging
-gap above. Both are small; neither is ours. `precompileModules` with Mathlib
-is a lightly-tested configuration in general — Lean has several open issues
-about it, on Linux as well as macOS. Until both are fixed upstream, the interpreted tactic layer is the
+All three have been worked around and the configuration made to build — the
+Loom pin above, plus a one-line ProofWidgets fix applied as a local Lake
+package override. That is how the numbers above were obtained. None of it is
+shipped, because none of it pays: see the table. `precompileModules` with
+Mathlib is a lightly-tested configuration in general — Lean has several open
+issues about it, on Linux as well as macOS. Until both are fixed upstream, the interpreted tactic layer is the
 price of a dependency tree that builds anywhere, and the proof cache is what
 keeps that price affordable.
 
