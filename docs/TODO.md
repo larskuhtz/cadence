@@ -182,10 +182,8 @@ Two items are exceptions, because they are this project's to ask for.
   42 s against 13–15 s for the others) and leaves one ~30 MB olean. Worth
   revisiting if the cell can be made folded-shape-tractable, e.g. as a manual
   cell.
-* **The ProofWidgets library gap.** `ProofWidgets.Component.RefreshComponent`
-  is imported by Mathlib but not a member of ProofWidgets' library, so
-  nothing that precompiles can load Mathlib's shared library. A fix exists
-  on a fork branch and is verified; it belongs upstream, because pinning any
-  package Mathlib also pins costs the Mathlib binary cache
-  ([`Dependencies.md`](./Dependencies.md)). Only matters if precompiling ever
-  becomes worthwhile — on current evidence it is not.
+* ~~The ProofWidgets library gap.~~ **Fixed upstream in ProofWidgets
+  v0.0.106**; this tree carries v0.0.105 because Mathlib v4.32.0 pins it, so
+  it clears with the next Mathlib bump. Nothing to carry, and it only ever
+  mattered to a consumer that precompiles — which on current evidence is not
+  worth doing ([`Dependencies.md`](./Dependencies.md)).

@@ -207,26 +207,23 @@ things break:
   `Loom.Meta` and `Loom.MonadAlgebras.WP.Matcher` still reference what it no
   longer defines. Nothing notices during a normal build because Veil imports
   neither; precompiling has to build the whole library, and those two fail.
-* Loading Mathlib's shared library then crashes Lean — but for a small and
-  fixable reason. `ProofWidgets`' library uses Lake's default globs, so it
-  contains only what its root module reaches, and that does not include
-  `ProofWidgets/Component/RefreshComponent.lean`; the only importer inside
-  the package is a `Demos` module, which is a *separate* library. Mathlib
-  imports it anyway, from `Mathlib/Tactic/ClickSuggestions/Util.lean`. So the
-  module gets an olean but is never compiled into ProofWidgets' shared
-  object, leaving four symbols undefined; on macOS those bind lazily to null
-  and Mathlib's generated initializer jumps to address zero. Adding that one
-  module to the `ProofWidgets` library's globs makes Mathlib load cleanly —
-  verified, and available as a branch on a fork — but that fix **cannot be
-  pinned here**. Overriding any package Mathlib also pins makes
-  `lake exe cache get` compute the wrong hashes and refuse, which would mean
-  building Mathlib from source (the container's `deps` stage runs exactly that
-  command). So this one has to land upstream, in ProofWidgets or Mathlib,
-  rather than being carried downstream.
+* Loading Mathlib's shared library then crashes Lean, on the ProofWidgets
+  version this tree currently has. `ProofWidgets/Component/RefreshComponent`
+  is imported by Mathlib (`Mathlib/Tactic/ClickSuggestions/Util.lean`) but is
+  not reachable from ProofWidgets' root module at **v0.0.105**, so it is never
+  compiled into that library's shared object; four symbols are then undefined,
+  and on macOS they bind lazily to null and Mathlib's generated module
+  initializer jumps to address zero. **Fixed upstream in v0.0.106** by adding
+  the import to the root module. This tree is on v0.0.105 only because
+  Mathlib v4.32.0 pins it there — ProofWidgets is inherited, not chosen here,
+  and the pin has to match Mathlib's (below), so it resolves itself with the
+  next Mathlib bump.
 
-That asymmetry is worth remembering in general: a fork of Loom costs nothing,
+That last point is worth remembering in general: a fork of Loom costs nothing,
 because Mathlib does not depend on Loom, while a fork of anything in Mathlib's
-own dependency set costs the Mathlib binary cache.
+own dependency set costs the Mathlib binary cache — `lake exe cache get` then
+computes wrong hashes and refuses, and the container's `deps` stage runs
+exactly that command.
 
 Mathlib's shared *link* is not one of the reasons any more. It passes 7 649
 object files, which on macOS used to overrun the 1 MiB `execve` limit and fail
