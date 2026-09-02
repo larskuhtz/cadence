@@ -166,7 +166,29 @@ action behaves in a full build.
 
 ## Verification-pipeline work
 
-Not tracked here. The tooling this project depends on is the public Veil fork
-(see [`Dependencies.md`](./Dependencies.md)); anything to be improved about it
-belongs in that repository. The one measurement worth carrying forward is
-recorded in [`Architecture.md`](./Architecture.md) §7.
+Mostly not tracked here. The tooling this project depends on is the public
+Veil fork (see [`Dependencies.md`](./Dependencies.md)); anything to be
+improved about it belongs in that repository. The one measurement worth
+carrying forward is recorded in [`Architecture.md`](./Architecture.md) §7.
+
+Two items are exceptions, because they are this project's to ask for.
+
+* **Re-include the Bool-atom fold.** It is the only change measured to affect
+  build times here: it halves stored proof-term size, and a warm
+  re-validation is kernel replay almost in full, so the per-cell cost moves
+  between ~400 ms and ~100–150 ms — a 3× swing over 16 280 cells. The branch
+  is currently parked in the fork, on the argument that upstream's newer Bool
+  translators had eroded its niche; the numbers disagree. Re-including it
+  means rebasing that branch, re-checking its `preSimpLeanSmtSets` region
+  against the current tactic layer, and **re-solving the family cold** —
+  cached entries are keyed by VC statement, so existing hits keep replaying
+  the old, larger terms and the benefit only appears after a cold run. It
+  also needs the `veil.smt.foldBoolAtoms false` escape restored for the one
+  `vote` cell that diverges under the folded query shape.
+* **The ProofWidgets library gap.** `ProofWidgets.Component.RefreshComponent`
+  is imported by Mathlib but not a member of ProofWidgets' library, so
+  nothing that precompiles can load Mathlib's shared library. A fix exists
+  on a fork branch and is verified; it belongs upstream, because pinning any
+  package Mathlib also pins costs the Mathlib binary cache
+  ([`Dependencies.md`](./Dependencies.md)). Only matters if precompiling ever
+  becomes worthwhile — on current evidence it is not.

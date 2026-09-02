@@ -69,6 +69,15 @@ History: [docs/History.md](./docs/History.md).
   warm), `Cadence.Chorus.Certify` (composition + the 3 861-cell audit pin,
   ~3 s — the audit walk reads each imported olean's stored axiom sets rather
   than traversing proof terms, so it does not grow with proof size).
+* **Where the time actually goes, before optimising anything.** A warm
+  re-validation is kernel replay almost in full: building one Chorus proof
+  file costs 39.7 s, and elaborating it *without* writing its olean costs the
+  same, so serialization is free. Per cell that is ~400 ms of replay, and
+  replay is proportional to stored proof-term size — so the lever is term
+  size, not native code. `precompileModules` was measured three ways and is a
+  dead end here (654 s off, 688 s with Veil precompiled, 702 s with this
+  project precompiled); [docs/Dependencies.md](./docs/Dependencies.md)
+  § "Native shared libraries" has the table and why.
 * Run **one** expensive build at a time and kill stale `lean` processes first.
   Near-timeout VCs are noisy under load: a cell that times out in a full build
   may pass in isolation. Distinguish *slow* from *divergent* — if different
