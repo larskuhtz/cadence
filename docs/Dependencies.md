@@ -157,10 +157,21 @@ workload (843 ✅ / 16 324 ♻), warm re-validation at the default `BATCH=6`:
 | this project's library precompiled (native Veil *and* native Cadence) | 702 s |
 
 Precompiling is, if anything, slightly slower — the extra native compilation
-costs more than native tactics save. The reason is the proof cache: a warm
-re-validation is dominated by re-creating VC statements and kernel-replaying
-stored proofs, not by tactic search, so a faster tactic layer has little to
-work with.
+costs more than native tactics save. The reason is where the time actually
+goes: a warm re-validation is **kernel replay, almost entirely**. Building one
+Chorus proof file takes 39.68 s, and elaborating the same file without writing
+its olean takes 39.78 s — so serialization is free and the work is all in
+checking. Per cell, that is ~400 ms of kernel replay, 16 280 times over. A
+faster tactic layer has nothing to bite on.
+
+Which also identifies what the warm path *is* sensitive to: **the size of the
+stored proof terms**. Kernel replay is proportional to term size, and this
+project's terms are large — a single action's proof file olean is 31 MB. The
+fork branch that halved them (`veil.smt.foldBoolAtoms`, which stopped the SMT
+pipeline re-deriving the `Bool → Prop` embedding of the whole hypothesis
+context in every proof) is not in the current fork. With it, the per-cell
+replay cost was measured at 100–150 ms; without it, ~400 ms. That is the
+lever, and it is the only one measured to matter.
 
 **And it does not work on the current pins anyway.** Precompiling forces every
 package underneath to be available as a shared library, and three separate
