@@ -74,10 +74,17 @@ History: [docs/History.md](./docs/History.md).
   file costs 39.7 s, and elaborating it *without* writing its olean costs the
   same, so serialization is free. Per cell that is ~400 ms of replay, and
   replay is proportional to stored proof-term size — so the lever is term
-  size, not native code. `precompileModules` was measured three ways and is a
-  dead end here (654 s off, 688 s with Veil precompiled, 702 s with this
-  project precompiled); [docs/Dependencies.md](./docs/Dependencies.md)
-  § "Native shared libraries" has the table and why.
+  size, not native code — which is why `veil.smt.foldBoolAtoms` is on: it
+  takes per-cell replay from 402 ms to 79 ms and a warm re-validation from
+  654 s to 389 s. `precompileModules`, by contrast, was measured three ways
+  and is a dead end here (654 / 688 / 702 s).
+  [docs/Dependencies.md](./docs/Dependencies.md) § "Native shared libraries"
+  has both tables.
+* **Toggling `veil.smt.foldBoolAtoms` needs a cold re-solve.** Cache entries
+  are keyed by VC statement and the fold changes only the proof *term*, so
+  warm hits keep replaying whichever shape produced them — flip the option and
+  a warm build looks identical. Delete `.lake/build/veilcache/` to see any
+  effect.
 * Run **one** expensive build at a time and kill stale `lean` processes first.
   Near-timeout VCs are noisy under load: a cell that times out in a full build
   may pass in isolation. Distinguish *slow* from *divergent* — if different
@@ -90,9 +97,8 @@ History: [docs/History.md](./docs/History.md).
 * Proof cache: `.lake/build/veilcache/`, safe to delete at any time, age-GC'd
   after 14 days. **Every hit is kernel-checked** — the cache skips search, not
   checking. A warm re-validation of the whole suite — project oleans deleted,
-  cache kept — is ~11 min at the default `BATCH=6` (15 min at `BATCH=3`),
-  peaking at 15 GB resident; a cold one re-solves ~4 000 VCs and is measured
-  in CPU-hours, not minutes.
+  cache kept — is ~6½ min at the default `BATCH=6`, peaking at 12 GB resident;
+  a cold one re-solves ~4 000 VCs in ~15 min at `BATCH=3`.
 * **The cache hides derivation drift.** Entries are keyed by VC statement,
   not by proof script: a kernel-replay hit consumes a `#prove_vc … by <tac>`
   cell *without elaborating the tactic*, so a warm green build proves the

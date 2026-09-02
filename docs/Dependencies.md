@@ -165,13 +165,26 @@ checking. Per cell, that is ~400 ms of kernel replay, 16 280 times over. A
 faster tactic layer has nothing to bite on.
 
 Which also identifies what the warm path *is* sensitive to: **the size of the
-stored proof terms**. Kernel replay is proportional to term size, and this
-project's terms are large — a single action's proof file olean is 31 MB. The
-fork branch that halved them (`veil.smt.foldBoolAtoms`, which stopped the SMT
-pipeline re-deriving the `Bool → Prop` embedding of the whole hypothesis
-context in every proof) is not in the current fork. With it, the per-cell
-replay cost was measured at 100–150 ms; without it, ~400 ms. That is the
-lever, and it is the only one measured to matter.
+stored proof terms**, since kernel replay is proportional to it. That is the
+lever, and the only one measured to matter here. It is why
+`veil.smt.foldBoolAtoms` is on: it stops the SMT pipeline re-deriving the
+`Bool → Prop` embedding of the whole hypothesis context in every proof.
+Measured by turning it off and on over the same suite:
+
+| | per-cell replay | warm re-validation | proof-file olean |
+|---|---|---|---|
+| fold off | 402 ms | 654 s | ~30 MB |
+| fold on | **79 ms** | **389 s** | **11–12 MB** |
+
+One file opts out — `Cadence/Chorus/Proofs/Vote.lean`, whose
+`fastqc_complete_implies_mvba_evidence` cell diverges under the folded query
+shape at any budget. Its olean stays ~30 MB against its siblings' 11–12 MB,
+and its batch costs 42 s against their 13–15 s, which is a clean measure of
+what the fold is worth.
+
+Enabling or disabling it requires **re-solving cold**: cache entries are keyed
+by VC statement, and the fold changes only the proof term, so existing hits
+keep replaying whichever shape produced them.
 
 **And it does not work on the current pins anyway.** Precompiling forces every
 package underneath to be available as a shared library, and three separate

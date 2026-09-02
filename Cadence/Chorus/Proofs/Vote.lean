@@ -25,6 +25,14 @@ open Veil Chorus Veil.InvProjection
 set_option veil.smt.trust false
 veil_proof_options
 veil_large_clump_budgets
+-- The Bool-atom fold is on by default and halves stored proof size, which is
+-- what keeps re-validation affordable. This one file turns it off: under the
+-- folded query shape, `vote`'s `fastqc_complete_implies_mvba_evidence` sends
+-- cvc5's e-matching into a loop that no budget fixes, while the unfolded
+-- shape solves in under 40 s. The fold is tactic-side only — VC statements
+-- and cache keys are unchanged — so the cost is confined to this action's
+-- cells being larger. Revisit if lean-smt or cvc5 changes its e-matching.
+set_option veil.smt.foldBoolAtoms false
 
 namespace Chorus.Proofs
 

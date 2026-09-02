@@ -233,8 +233,8 @@ re-validation is much cheaper than a first build. A first build re-solves all
 ~4 000 verification conditions and reconstructs every proof: budget around 85
 CPU-minutes for the Chorus family. A warm re-validation replays them instead —
 on a 14-core Apple-Silicon machine, deleting the project's oleans and running
-`scripts/revalidate.sh` against a warm cache takes about 11 minutes end to
-end, every replay kernel-checked, peaking at 15 GB resident. The cache is a
+`scripts/revalidate.sh` against a warm cache takes about 6½ minutes end to
+end, every replay kernel-checked, peaking at 12 GB resident. The cache is a
 build artefact, not shipped, and safe to delete at any time: it only ever
 skips proof *search*, never checking.
 

@@ -173,18 +173,15 @@ carrying forward is recorded in [`Architecture.md`](./Architecture.md) §7.
 
 Two items are exceptions, because they are this project's to ask for.
 
-* **Re-include the Bool-atom fold.** It is the only change measured to affect
-  build times here: it halves stored proof-term size, and a warm
-  re-validation is kernel replay almost in full, so the per-cell cost moves
-  between ~400 ms and ~100–150 ms — a 3× swing over 16 280 cells. The branch
-  is currently parked in the fork, on the argument that upstream's newer Bool
-  translators had eroded its niche; the numbers disagree. Re-including it
-  means rebasing that branch, re-checking its `preSimpLeanSmtSets` region
-  against the current tactic layer, and **re-solving the family cold** —
-  cached entries are keyed by VC statement, so existing hits keep replaying
-  the old, larger terms and the benefit only appears after a cold run. It
-  also needs the `veil.smt.foldBoolAtoms false` escape restored for the one
-  `vote` cell that diverges under the folded query shape.
+* ~~Re-include the Bool-atom fold.~~ **Done 2026-09-02** — ported forward in
+  the fork, pinned, and validated cold; see
+  [`History.md`](./History.md). The one residual is
+  `Cadence/Chorus/Proofs/Vote.lean`, which still opts out because its
+  `fastqc_complete_implies_mvba_evidence` cell diverges under the folded
+  query shape. That costs ~28 s of every warm re-validation (its batch runs
+  42 s against 13–15 s for the others) and leaves one ~30 MB olean. Worth
+  revisiting if the cell can be made folded-shape-tractable, e.g. as a manual
+  cell.
 * **The ProofWidgets library gap.** `ProofWidgets.Component.RefreshComponent`
   is imported by Mathlib but not a member of ProofWidgets' library, so
   nothing that precompiles can load Mathlib's shared library. A fix exists
