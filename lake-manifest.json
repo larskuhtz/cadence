@@ -15,7 +15,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "fa212c1027979b81f03ce9ab76460e2a67822554",
+   "rev": "b9681f94ce5daa44ac8962496ae4ca7af1777754",
    "name": "Loom",
    "manifestFile": "lake-manifest.json",
    "inputRev": "v4.32.0-for-veil-lakefile-fix",

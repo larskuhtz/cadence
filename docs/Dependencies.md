@@ -190,7 +190,16 @@ work at all:
   object, leaving four symbols undefined; on macOS those bind lazily to null
   and Mathlib's generated initializer jumps to address zero. Adding that one
   module to the `ProofWidgets` library's globs makes Mathlib load cleanly —
-  verified here. The fix belongs to ProofWidgets or Mathlib.
+  verified, and available as a branch on a fork — but that fix **cannot be
+  pinned here**. Overriding any package Mathlib also pins makes
+  `lake exe cache get` compute the wrong hashes and refuse, which would mean
+  building Mathlib from source (the container's `deps` stage runs exactly that
+  command). So this one has to land upstream, in ProofWidgets or Mathlib,
+  rather than being carried downstream.
+
+That asymmetry is worth remembering in general: a fork of Loom costs nothing,
+because Mathlib does not depend on Loom, while a fork of anything in Mathlib's
+own dependency set costs the Mathlib binary cache.
 
 Mathlib's shared *link* is not one of the reasons any more. It passes 7 649
 object files, which on macOS used to overrun the 1 MiB `execve` limit and fail
