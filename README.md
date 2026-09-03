@@ -414,18 +414,18 @@ mechanically refutes the v1 rules.
 The paper is written in a separate git repository, which carries no release
 tags, so the correspondence to the arXiv versions is recorded here. Each row
 was established by extracting the arXiv e-print and comparing **every** `.tex`
-file against the commit's tree; both are exact, byte-for-byte matches on all
-18 files:
+file against the commit's tree, over the whole surrounding range of history.
+In each case exactly one commit matches, byte-for-byte, on all 18 files:
 
 | arXiv | date | paper-repo commit | note |
 |---|---|---|---|
 | v1 | 2026-07-02 | `89322be` | the pre-fix design `PreFix.lean` refutes |
 | v2 | 2026-07-07 | `3efdbfe` | what this development verifies |
 
-`3efdbfe` is the newest commit whose sources still reproduce v2; the tree moves
-on after it, and a source reorganisation on 2026-07-09 added the `src/` prefix
-to every `\input`, so later commits differ from the e-print in those paths
-while the prose and algorithms stay identical. The procedure for re-checking
+The match is unique in both directions: no other commit in the surrounding
+history reproduces either e-print. A source reorganisation on 2026-07-09 added
+the `src/` prefix to every `\input`, so commits after it differ from the
+e-print in those paths while the prose and algorithms stay identical. The procedure for re-checking
 any of this is [`docs/PaperAlignment.md`](./docs/PaperAlignment.md) §1.
 
 The paper repository also contains a second, **internal** document describing
