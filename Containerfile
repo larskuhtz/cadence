@@ -91,15 +91,25 @@ ENV PATH="/root/.elan/bin:${PATH}"
 ARG LEAN_TOOLCHAIN=leanprover/lean4:v4.32.0
 RUN elan toolchain install ${LEAN_TOOLCHAIN} \
  && elan default ${LEAN_TOOLCHAIN} \
- && lean --version
+ && lean --version \
+ && ln -sfn "$(lean --print-prefix)" /opt/lean-toolchain
 
 # lean-smt is built with `precompileModules`, so modules importing it are
 # elaborated with its compiled `.so`s `dlopen`ed. Those carry a DT_NEEDED on the
 # toolchain's own libLake_shared.so with no RPATH, and the loader is not told
 # where to look — on Linux that is a hard failure ("error loading library,
 # libLake_shared.so"). macOS does not hit it because Mach-O records absolute
-# install names. Put the toolchain's library directories on the path once, here.
-ENV LD_LIBRARY_PATH="/root/.elan/toolchains/leanprover--lean4---v4.32.0/lib/lean:/root/.elan/toolchains/leanprover--lean4---v4.32.0/lib"
+# install names. Put the toolchain's library directories on the path once, here,
+# through the /opt/lean-toolchain symlink above so that no toolchain version is
+# spelled out twice and this cannot drift from ${LEAN_TOOLCHAIN}.
+#
+# This is still only correct for the toolchain baked into the image. A checkout
+# whose `lean-toolchain` names a *different* version makes elan fetch that one,
+# and `lake` then loads a mismatched `libleanshared.so` and dies with
+# `undefined symbol: runtime_initialize_Init_System_IO`. `scripts/revalidate.sh`
+# therefore re-derives the path from `lean --print-prefix` at run time, which is
+# authoritative; keep that in place.
+ENV LD_LIBRARY_PATH="/opt/lean-toolchain/lib/lean:/opt/lean-toolchain/lib"
 
 # The workspace path is BAKED IN and load-bearing: lake records absolute paths
 # in its trace files, so a build tree is only reusable at the path it was built
@@ -165,6 +175,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # no local cache, as on any fresh clone or the CI bootstrap — published an
 # EMPTY cache image, and the CI seed chain silently never warmed up.)
 FROM ${DEPS_IMAGE} AS build
+# Fail HERE, loudly, if the base image was built for a different toolchain than
+# this checkout asks for — otherwise elan silently fetches the requested one and
+# `lake` loads the *image's* libleanshared.so through LD_LIBRARY_PATH, dying as
+# `undefined symbol: runtime_initialize_Init_System_IO` several minutes later.
+# A toolchain bump therefore needs the `deps` image rebuilt: dispatch
+# publish-images with `rebuild_deps: true` (the automatic trigger only inspects
+# the last commit, so a bump landing earlier in a branch does not fire it).
+COPY lean-toolchain /tmp/want-toolchain
+RUN want="$(sed -n 's|.*lean4:v\([0-9][0-9.]*\).*|\1|p' /tmp/want-toolchain)" \
+ && have="$(lean --version | sed -n 's|.*version \([0-9][0-9.]*\).*|\1|p')" \
+ && if [ -z "$want" ] || [ "$want" != "$have" ]; then \
+      echo "TOOLCHAIN MISMATCH: image has Lean '$have', checkout wants '$want'." >&2 ; \
+      echo "Rebuild the deps image: publish-images with rebuild_deps: true." >&2 ; \
+      exit 1 ; \
+    fi \
+ && rm /tmp/want-toolchain
 
 # An explicit list, not `COPY . .`: the context also holds .veilcache-seed, and
 # copying that here would defeat mounting it below. (.containerignore keeps a

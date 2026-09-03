@@ -32,6 +32,21 @@
 # replay, kernel-checked). A healthy run has only ✅ and ♻.
 set -u
 cd "$(dirname "$0")/.." || exit 1
+
+# Point the dynamic loader at the toolchain that is actually in use, not at
+# whichever one an image happened to be built with. `lean-smt` ships
+# precompiled plugins that record a DT_NEEDED on the toolchain's own
+# libLake_shared.so without an RPATH, so on Linux the loader has to be told
+# where to look. Deriving the path here rather than baking it into an image
+# keeps it correct when the two disagree: a container built for one toolchain
+# and a checkout whose lean-toolchain names another makes `lake` load a
+# mismatched libleanshared.so and die with
+# `undefined symbol: runtime_initialize_Init_System_IO`.
+TC="$(lean --print-prefix 2>/dev/null || true)"
+if [ -n "$TC" ]; then
+  export LD_LIBRARY_PATH="$TC/lib/lean:$TC/lib:${LD_LIBRARY_PATH:-}"
+fi
+
 LOGDIR=${1:-/tmp}
 BATCH="${BATCH:-6}"
 case "$BATCH" in (*[!0-9]*|'') echo "BATCH must be a positive integer" >&2; exit 2 ;; esac
