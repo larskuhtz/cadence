@@ -45,6 +45,12 @@ then diff each extracted file against its `src/` counterpart in the paper
 repository. (`papers/` is gitignored. Note the flat layout: the e-print has
 `alg_da.tex` where the paper repository now has `src/alg_da.tex`.)
 
+The paper repository carries **no release tags**, so which commit is which
+arXiv version is recorded once, in [`../README.md`](../README.md) § "Which
+paper revision is which source revision" — established by exactly this
+comparison, run over every `.tex` file rather than a sample. Tagging that
+repository would make the table redundant, which would be an improvement.
+
 **Result on 2026-09-03.** All five algorithm floats, `p2_framework`,
 `p2_mvba` and `p2_problem_definition` are byte-identical. `p2_chorus` and
 `p2_conductor_proofs` differ only in `\input{src/…}` path prefixes, and
@@ -86,6 +92,16 @@ recorded here because it is where the protocol's engineering intent now
 lives, and because a reader comparing the two documents will find
 differences that are neither errors in this development nor errors in the
 paper.
+
+**Visibility.** Everything the models verify is public. The supplement is
+not: an auditor can read `arXiv:2607.02275v2` but not the implementation
+track. The algorithms it describes are not secret — they are realised in
+the Rust implementation in the `monad-bft` repository — but the *prose
+specification* the models would be read against, were they ever extended to
+cover the supplement, is internal. Nothing in §1 depends on this; it matters
+only for work that targets supplement content — the MVBA instantiation
+being the first candidate — where the spec an auditor would check against is
+unavailable to them.
 
 ## 3. Where the implementation track diverges from the verified algorithms
 
