@@ -15,18 +15,27 @@ that is part of no trust base here.
 ## 1. The verified surface, and how to re-check it
 
 The models cite the paper by stable LaTeX anchor (never by page or line —
-see [`../CLAUDE.md`](../CLAUDE.md)). Every anchor cited anywhere in this
-repository is defined in one of nine files:
+see [`../CLAUDE.md`](../CLAUDE.md)). Every anchor cited by a model or a
+design document resolves in one of eleven files:
 
 `src/alg_proposer.tex`, `src/alg_voting.tex`, `src/alg_fast.tex`,
 `src/alg_fallback.tex`, `src/alg_da.tex`, `src/p2_problem_definition.tex`,
-`src/p2_framework.tex`, `src/p2_chorus.tex`, `src/p2_conductor_proofs.tex`.
+`src/p2_framework.tex`, `src/p2_mvba.tex`, `src/p2_chorus.tex`,
+`src/p2_conductor_proofs.tex`, and — for one anchor only,
+`section:conductor-overview`, cited where
+[`ConductorDesign.md`](./ConductorDesign.md) contrasts the paper's informal
+and formal presentations of the Conductor — `src/p1_informal.tex`.
 
-That set *is* the verified surface. Nothing this repository cites lives in
-Part 1 (the informal and deployment sections), in `main.tex`, or in the
-internal supplement (§2). So the alignment question reduces to whether
-those nine files have changed, which is mechanically checkable against the
-published source:
+That set *is* the verified surface: Part 2, the algorithm floats, and a
+single Part 1 overview anchor. No model and no design document cites the
+internal supplement (§2) — with two deliberate exceptions, both introduced
+by this audit and both about the supplement rather than resting on it:
+§§3–4 below, and the `sec:domain-separation` item in
+[`TODO.md`](./TODO.md). A future check should expect supplement anchors in
+exactly those two places.
+
+So the alignment question reduces to whether those eleven files have
+changed, which is mechanically checkable against the published source:
 
 ```
 mkdir -p papers/cadence && curl -sL https://arxiv.org/e-print/2607.02275v2 | tar -xz -C papers/cadence
@@ -38,17 +47,29 @@ repository. (`papers/` is gitignored. Note the flat layout: the e-print has
 
 **Result on 2026-09-03.** All five algorithm floats, `p2_framework`,
 `p2_mvba` and `p2_problem_definition` are byte-identical. `p2_chorus` and
-`p2_conductor_proofs` differ only in `\input{src/…}` path prefixes from the
-paper repository's July source reorganisation. Elsewhere: two new
-formatting macros and one reviewer note in `related_work.tex`. No protocol
-rule, definition, lemma statement or proof has moved.
+`p2_conductor_proofs` differ only in `\input{src/…}` path prefixes, and
+`p1_informal` only in one figure path, from the paper repository's July
+source reorganisation. Elsewhere: two new formatting macros and one
+reviewer note in `related_work.tex`. No protocol rule, definition, lemma
+statement or proof has moved.
 
-Two anchor-shaped strings in this repository are deliberately not labels,
-and a grep-based check will flag them: `alg:da.isDecoded` names a function
-*inside* `alg:da`, and `line:assumption-one..four` is range shorthand for
-four labels that each exist. A third, `line:da-rebroadcast`, names a **v1
-rule removed in v2** and is cited as such in
-[`ChorusDesign.md`](./ChorusDesign.md).
+Four cautions for whoever automates the anchor half of this check, each of
+which cost time once:
+
+* `sec:` and `section:` are **different** prefixes, as are `mod:` and
+  `module:`. A prefix list missing `section:` silently skips
+  `section:conductor-overview` and `section:conductor-formal`.
+* A regex alternation listing both `sec` and `section` can emit truncated
+  phantoms (`section:co` from `section:conductor-overview`). Verify any
+  apparent dangler by grepping for it literally before believing it.
+* Some anchor-shaped strings are deliberately not labels:
+  `alg:da.isDecoded` names a function *inside* `alg:da`, and
+  `line:assumption-one..four` is range shorthand for four labels that each
+  exist. `line:da-rebroadcast` names a **v1 rule removed in v2**, cited as
+  such in [`ChorusDesign.md`](./ChorusDesign.md).
+* Exclude `supplementary-internal-bkp.tex` (§6), and be aware the
+  supplement redefines some main-body label names, so "defined somewhere"
+  is the wrong test — resolve against `main.tex` and `src/*.tex` only.
 
 ## 2. The paper repository has two tracks
 
