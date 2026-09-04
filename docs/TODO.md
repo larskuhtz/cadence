@@ -7,7 +7,35 @@ The authoritative, numbered list of Chorus-side open items is
 lifts); this file collects the cross-cutting ones and the model-hygiene
 wishlist.
 
-## Contract composition — finish stating each property once
+## Contract composition — state the contracts over an explicit state
+
+**Direction settled, and validated against the pipeline:**
+[`CompositionContracts.md`](./CompositionContracts.md). The contracts are
+stated as snapshots, hiding a state index that `orchestrator_instance`
+smuggles in as a parameter; the fix is to state each contract over an explicit
+state type, which makes its fields pure, lets a consuming module take it as an
+ordinary `instantiate` constraint, and gives the temporal obligations a place
+to be stated. A spike with a negative control confirms Veil feeds the
+instantiated class's axioms to the solver, so the consumer *uses* the contract
+rather than restating it — and that formalising Monotonicity is then load-
+bearing rather than decorative.
+
+Migration, in order:
+
+1. Restate `Orchestrator` over an explicit state, with the obligation-table
+   rows as formal fields (provable ones proven, temporal ones as declared
+   assumptions). Rework `Cadence.lean` to hold the orchestrator state and read
+   it through the contract, and `Composition.lean` to build the instance from
+   the Conductor once rather than per state.
+2. Remove the `openPrefixAgreement%` scaffolding below — it is superseded, not
+   built on.
+3. Then `SlotConsensus`, whose per-instance/slot-indexed arity mismatch
+   dissolves once the contract carries its own state.
+
+The notes below predate that decision and are kept for the parts still true —
+the ACS finding, and why a shared *definition* cannot replace the syntax.
+
+## Superseded: finish stating each property once
 
 A consuming model used to *restate* the contract it assumes, with only a
 comment tying the restatement to the class field, so nothing checked that the
