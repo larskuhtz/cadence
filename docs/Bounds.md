@@ -37,11 +37,13 @@ The model relates to these in three distinct ways:
    *saturation* hypotheses are the state consequences of what fairness
    delivers).
 3. **The bounded statements themselves** are not model theorems at any
-   abstraction level — they are the named inventory rows
-   ((A-sc-termination), (A-acs-termination), (A-acs-totality),
-   (A-orch-totality), (A-orch-boundedness), (A-orch-recovery);
-   [`Architecture.md`](./Architecture.md) §4 item 4,
-   [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean)). What the
+   abstraction level — they are fields of the full module contracts,
+   stated over timed runs, and for the two implementations the fields of
+   the residual structures ((A-sc-termination), (A-acs-termination),
+   (A-acs-totality), (A-orch-totality), (A-orch-boundedness),
+   (A-orch-recovery); [`Architecture.md`](./Architecture.md) §4 item 4,
+   [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean),
+   `Conductor.OrchestratorResidual`, `Chorus.SlotConsensusResidual`). What the
    model proves instead is the **bound-erased skeleton of their paper
    proofs**: each timeline milestone's state content is a theorem
    (saturation ⇒ dichotomy; buildability; certificate formation; the
@@ -221,10 +223,12 @@ give or take):
 **Placement.** A sibling of the end-theorem files — e.g.
 `Cadence/Chorus/Schedule.lean` at the `Compose`/`Pigeonhole`/`Counting`
 layer: plain Lean, kernel-only, in-file `#guard_msgs` pins, a row and pin
-at the audit root. On completion, the (A-sc-termination) /
-(A-sc-totality) / (A-orch-*) rows of
-[`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) convert from
-quoted paper statements into theorems with named per-seam assumptions.
+at the audit root. On completion, the corresponding fields leave the
+residual structures (`Chorus.SlotConsensusResidual`,
+`Conductor.OrchestratorResidual`) and are proven in the `…_of_residual`
+definitions — the contract fields in
+[`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) themselves do not
+change, which is the point of stating them there.
 
 **Effort and risk.** Chorus-only (steps 1–3) ≈ 2–4 sessions; the full
 bounded story ≈ 5–8. The dominant risk is statement-design churn, not

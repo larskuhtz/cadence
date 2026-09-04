@@ -1,318 +1,323 @@
-# Module contracts: making the state explicit
+# Module contracts: the composition, mechanised
 
-*Design note. It records a defect in how the module contracts are stated, the
-fix, and the experiments showing the fix works in Veil. Nothing here is
-implemented yet beyond the Orchestrator's property being single-sourced.*
+*Design record and status. It records a defect in how the module contracts
+used to be stated, the design that replaced them, what is now machine-checked
+about the composition, and — named, in one place — what is not. Implemented
+2026-09-04 (branch `worktree-composition-contracts`); the code is
+[`../Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) (the contracts),
+[`../Cadence/Cadence.lean`](../Cadence/Cadence.lean) and
+[`../Cadence/Conductor.lean`](../Cadence/Conductor.lean) (the consumers),
+[`../Cadence/Composition.lean`](../Cadence/Composition.lean) and
+[`../Cadence/Chorus/Compose.lean`](../Cadence/Chorus/Compose.lean) (the
+instances and residuals), and [`../Cadence/System.lean`](../Cadence/System.lean)
+(the composed theorem).*
 
-## Start here (handoff, 2026-09-04)
+## 1. The defect that was fixed
 
-This was a research and planning session; the implementation is a separate
-piece of work and has not begun. To pick it up:
+The contracts were stated as *snapshots*. `Orchestrator.opened : validator →
+slot → Prop` looked like a pure predicate on two declared types, but what a
+validator has opened depends on how far the run has got: the index was real
+and merely hidden — `orchestrator_instance` took a *state* and returned an
+`Orchestrator`, so "the Orchestrator" was a family indexed by state and the
+class type did not say so. Three consequences, one problem:
 
-1. Read §1 (the defect), §5 (the two-level contract that resolves it), then
-   §6 (which contracts need it, and the uniform target shape).
-2. Run the four experiments in [`../spikes/`](../spikes/README.md) — they
-   take seconds and are the whole argument, including two that are *supposed*
-   to fail. That directory's README says what each establishes.
-3. The ordered migration is [`TODO.md`](./TODO.md) § "Contract composition".
-   Step 1 is `Orchestrator`; the smallest useful pilot is smaller still —
-   `SlotConsensusWithTotality` is already an empty two-level `extends`, so
-   populating it exercises the pattern against one obligation and no
-   consumer (§6).
+* **The class could not be consumed as a constraint.** A Veil module cannot
+  `instantiate` a contract whose carrier is its own evolving state, so the
+  glue *restated* each contract property as a `require` and an `invariant`,
+  tied to the class only by a comment. Nothing checked the restatement — the
+  seam the 2026-09 hand-off called *transcription fidelity*.
+* **The temporal properties had nowhere to live.** Totality, Monotonicity,
+  Integrity, boundedness, recovery, termination, quiescence are properties of
+  *runs*; a snapshot contract cannot state them, so they were prose rows in
+  obligation tables with named meta-axioms.
+* **The contracts were nearly empty.** What survived into `Orchestrator` was
+  one field, satisfiable by an orchestrator that never opens anything.
 
-State of the branch (`worktree-composition-contracts`, off master): the
-Orchestrator's `open_prefix_agreement` is single-sourced as shared syntax and
-the whole suite re-validates green (17 124 discharges, 196 cache replays, no
-counterexamples, timeouts or crashes; axiom pins unchanged). **That syntax
-change is scaffolding and is superseded by §5** — see §4. Everything else on
-the branch is documentation.
+`ByzNodeSet` was the counterexample that made the diagnosis: it is consumed
+exactly as a class constraint should be (`instantiate nset : ByzNodeSet node
+nodeset`, discharged by `byzNodeSetFin`), because its operations genuinely are
+functions of `node` and `nset`.
 
-Build note for a fresh worktree: symlink `.lake/packages` and
-`.lake/build/veilcache` from the main checkout rather than rebuilding the
-dependency tree, and read lake's own exit code rather than a shell wrapper's.
+## 2. The design
 
-## 1. The defect
+**State the contract over an explicit state type.** Every observable becomes a
+function of the abstract state, the module's transitions become relations on
+it, and a consumer holds the state as a state component of its own and reads
+it through the contract. The contract may carry a simpler state than the
+implementation operates on; it carries enough for every property the paper
+states.
 
-[`Interfaces.lean`](../Cadence/Interfaces.lean)'s contracts are stated as
-*snapshots*. `Orchestrator.opened : validator → slot → Prop` looks like a pure
-predicate on two declared types, but it is not a function of those types: what
-a validator has opened depends on how far the run has got. The index is real
-and merely hidden — `Composition.lean`'s `orchestrator_instance` takes a state
-`st` and a proof that it is reachable, and returns an `Orchestrator`. So "the
-Orchestrator" is a *family indexed by state*, and the class type does not say
-so. Veil is honest about this where the contract is not: it generates every
-named invariant as `Conductor.open_prefix_agreement th st`, explicitly indexed.
+**Two levels per module** — forced, not chosen (§7): Veil hands *every* axiom
+of an instantiated class to the SMT solver, and a field that quantifies over
+a run is not first-order, so it aborts every verification condition of the
+consuming module. Hence, for each paper module `X`:
 
-Three consequences follow, and they are one problem rather than three.
-
-* **The class cannot be consumed as a constraint.** This is the visible
-  symptom: a consumer cannot `instantiate` a contract whose carrier is really
-  its own evolving state, so it restates the property instead, tied to the
-  class only by a comment. Nothing checks the restatement.
-* **The temporal properties have nowhere to live.** Totality, Monotonicity,
-  Integrity, `B`-boundedness and `R`-recovery are all properties of *runs*. A
-  snapshot contract cannot state them, so they became prose rows in an
-  obligation table with named meta-axioms, discharged by argument rather than
-  by the machine.
-* **The contract is nearly empty.** What survives into `Orchestrator` is one
-  field, `open_prefix_agreement`, which an orchestrator that never opens
-  anything satisfies vacuously. Everything that makes an orchestrator
-  *orchestrate* sits outside the formal claim.
-
-Note what is *not* the problem: `ByzNodeSet` is consumed exactly as a class
-constraint should be (`instantiate nset : ByzNodeSet node nodeset`, discharged
-by `byzNodeSetFin`), because its operations genuinely are functions of `node`
-and `nset`. The contrast is the diagnosis, not a Veil limitation.
-
-## 2. The fix
-
-State the contract over an explicit state type, so every field is a pure
-function of declared types and the consuming module can take it as an ordinary
-class constraint. The consumer holds the orchestrator's state as a state
-component of its own and reads it through the contract's accessors.
-
-The contract may carry a *simpler* state than the implementation operates on —
-the Conductor's windows, clock and ACS need not appear — provided it carries
-enough to support the safety content the consumer needs. Stating more than the
-consumer uses is a feature, not waste: it puts each assumption where it
-*originates* rather than only where it is consumed, which is what makes a claim
-traceable through the stack.
-
-## 3. The experiment
-
-Both halves were checked against the real pipeline, with a negative control.
-
-```lean
-class MiniOrch (validator slot state : Type) where
-  init      : state
-  step      : state → state → Prop
-  reachable : state → Prop
-  opened    : state → validator → slot → Prop
-  byz       : validator → Prop
-  lt        : slot → slot → Prop
-  reachable_init  : reachable init
-  reachable_step  : ∀ st st', reachable st → step st st' → reachable st'
-  opened_monotone : ∀ st st' i s, step st st' → opened st i s → opened st' i s
-  open_prefix_agreement : ∀ st, reachable st →
-    ∀ i j s s', ¬ byz i → ¬ byz j →
-      opened st i s' → opened st j s → lt s' s → opened st j s'
-
-veil module Mini
-type node ; type slot ; type ostate
-instantiate orch : MiniOrch node slot ostate
-individual os : ostate
-relation appended (i : node) (s : slot)
-#gen_state
-after_init { os := orch.init ; appended I S := false }
-action orch_step (os' : ostate) { require orch.step os os' ; os := os' }
-action append (i : node) (s : slot) {
-  require ¬ orch.byz i
-  require orch.opened os i s
-  appended i s := true }
-invariant [os_reachable]    orch.reachable os
-invariant [appended_opened] ∀ i s, appended i s → orch.opened os i s
-invariant [prefix_agreement_usable]
-  ∀ i j s s', ¬ orch.byz i → ¬ orch.byz j →
-    orch.opened os i s' → orch.opened os j s → orch.lt s' s → orch.opened os j s'
-#gen_spec
-#check_invariants
-```
-
-**All invariants discharge.** Three findings:
-
-1. **A Veil module can consume a state-explicit contract as a class
-   constraint.** `instantiate` accepts it, because the state type is a module
-   *parameter* (`type ostate`) rather than the module's generated `State` — the
-   ordering constraint that blocks the snapshot form does not arise.
-2. **Veil feeds the instantiated class's axioms to the solver.** This is what
-   makes the approach work at all, and it is the same mechanism `ByzNodeSet`
-   already relies on. `prefix_agreement_usable` is discharged from
-   `open_prefix_agreement` and `os_reachable`; the consumer *uses* the contract
-   rather than restating it.
-3. **Negative control: the axiom is load-bearing.** Removing
-   `open_prefix_agreement` from the class and changing nothing else makes
-   `prefix_agreement_usable` fail with a counterexample (`❌`) while every other
-   invariant still passes. So the discharge above is not vacuous.
-
-A fourth point falls out unasked: `appended_opened` is maintainable *only*
-because `opened_monotone` is a formal field. Making the state explicit forces
-Monotonicity — today a prose row in the obligation table — to become a stated
-axiom that does real work. That is the provenance benefit, demonstrated rather
-than argued.
-
-## 4. What this supersedes
-
-An earlier attempt single-sourced the property as shared *syntax*
-(`openPrefixAgreement%`), so that the consumer's invariant and the class field
-expand from one definition. That closes the drift between two statements, and
-it removed a real shape mismatch — the class demanded `le ∧ ≠` where the models
-prove `lt`, so the instance carried a hand conversion, now deleted. But it
-leaves the hidden index in place, and by making the two statements textually
-identical it makes the conflation between the provider's state and the
-consumer's observation *harder* to see. It should be treated as scaffolding and
-removed when the contracts are restated, not extended to the other contracts.
-
-For the record of why a shared *definition* was not used instead: a `def` over
-the carrier does not survive SMT translation, because the carrier arrives as a
-function argument and SMT-LIB is first-order. That constraint disappears in the
-design above, where the carrier is an uninterpreted state sort and the
-accessors are uninterpreted predicates applied to it — all first-order.
-
-## 5. Stating liveness and the concrete bounds at the interface
-
-An interface is part of the model's *specification*, not a detail of the
-proof: its fields are the proof obligations the sub-protocol owes, and the
-composed protocol consumes them as assumptions. So an obligation belongs in
-the class whether or not this project can discharge it mechanically today, and
-whether or not anything consumes it yet. Omitting the temporal rows because
-Veil cannot prove them, or the bounds because nothing reads them, loses the
-provenance of the claim — the assumption ends up recorded where it is
-consumed instead of where it originates.
-
-There is one hazard, and it is sharp. **Veil emits every axiom of an
-instantiated class to the solver.** That is the mechanism §3 depends on, but
-it means a field that is not first-order poisons the whole module: adding a
-`totality` field quantifying over a run (`run : Nat → state`) to the
-instantiated class made **all nine** VCs of the consuming module crash with
-
-    cvc5.Error.error "Symbol '->' not declared as a type"
-
-— cvc5 has no function sorts, and the arrow reached the encoder verbatim.
-
-The fix is a two-level contract, checked and working:
-
-```lean
-class OrchSafety (validator slot state : Type) where
-  init … step … reachable … opened … completed … byz … lt …
-  reachable_init … reachable_step …
-  opened_monotone        -- Monotonicity
-  open_prefix_agreement  -- the safety residue
-
-/-- A run: the execution the temporal obligations speak about. -/
-structure OrchRun (state : Type) [O : OrchSafety validator slot state] where
-  at' : Nat → state
-  starts : at' 0 = O.init
-  steps  : ∀ n, O.step (at' n) (at' (n + 1))
-
-class Orch (validator slot state : Type)
-    extends OrchSafety validator slot state where
-  totality    : …    -- (A-orch-totality), over an OrchRun
-  bound       : Nat  -- the deployment's B = 2W − p, carried as data
-  boundedness : …    -- (A-orch-boundedness), over an OrchRun
-```
-
-The consuming Veil module writes `instantiate orch : OrchSafety node slot
-ostate` — the first-order fragment only — and its VCs all discharge. `Orch`
-extends it, so `F.toOrchSafety` hands the composition exactly what it assumes:
-an implementation owes the full contract and nothing is omitted from the
-interface. What differs between the two levels is only *which* fields cross
-into the SMT layer, not which are specified.
-
-Two further consequences worth taking deliberately.
-
-* **The obligation table becomes the class.** The rows in
-  [`Interfaces.lean`](../Cadence/Interfaces.lean)'s Orchestrator table are
-  exactly these fields; once they are fields, the table is a rendering of the
-  contract rather than a substitute for it.
-* **An unmet obligation becomes type-visible.** Conductor can supply an
-  `OrchSafety` instance — those fields are proven — but not an `Orch`
-  instance, because totality and boundedness are not mechanically provable
-  here yet. That is the honest state, and stating it this way is *stronger*
-  than a prose row: the absence of an `Orch` instance is checkable, whereas a
-  table entry is not. If something later needs to consume a temporal field
-  before Veil can prove it, it should enter as a named `axiom` in a file
-  carrying its own `#print axioms` pin, so the extra assumption shows up in
-  the trust base instead of in prose — never by weakening the pins on the end
-  theorems, which stay at `[propext, Classical.choice, Quot.sound]`.
-
-## 6. The inventory: does every contract follow the pattern?
-
-Ten contract classes, in two groups. The split is not stylistic: it is whether
-the carrier is *data* or a *run*.
-
-### Algebraic primitives — already in the right shape
-
-Every field is a function of the declared types and every property is a pure
-statement about those functions, so each is consumable as an `instantiate`
-constraint exactly as `ByzNodeSet` is. These are the positive control for the
-pattern, and they need no restatement.
-
-| Class (`Primitives.lean`) | Operations | Laws |
+| Class | Content | Who uses it |
 |---|---|---|
-| `HashFunction` | `hash` | `collision_resistant` |
-| `SignatureScheme` | `Sign`, `Verify`, `signer` | `sound`, `unforgeable`, `sound_signer`, `unforgeable_signer` |
-| `ErasureCoding` | `Encode`, `Decode` | `decode_sound`, `encode_inj` |
-| `MerkleTree` | `MerkleRoot`, `MerkleProof`, `VerifyMerkle` | `sound`, `binding` |
-| `ThresholdIBE` | `Enc`, `KeyShare`, `VerifyShare`, `Dec`, `mpk`, `msk` | `decrypt_sound`, `decrypt_secret` |
+| `XSafety` | first-order: `init`, internal `step`, the input transitions the paper's *safety* properties mention, their union `trans`, `reachable` (abstract, closed under `init`/`trans`); the observables; monotonicity of every observable along `trans`; frames (internal steps do not fabricate a correct validator's inputs; an input records exactly itself); the paper's safety properties at `reachable st` | a Veil consumer `instantiate`s it; an implementation proves it |
+| `X extends XSafety` | the module proper: the inputs only the temporal properties mention, with their observables; `clock`; `Admissible : TimedRun → Prop` (the execution model, implementation-defined, non-vacuous by `admissible_exists`); bounds as data; every temporal, quantitative and cryptographic-residue property, over `Run`/`TimedRun` | Lean-level only; an implementation *owes* it |
 
-Two caveats that are about content rather than shape. `ThresholdIBE`'s
-`decrypt_secret` is a *structural* surrogate — "if `Dec` succeeded then a
-verified `≥ t` share set existed" — not computational hiding, which is not
-expressible in this style at all and stays a named meta-assumption
-([`Architecture.md`](./Architecture.md) §4 item 3). And **none of these five is
-consumed via `instantiate` by any model**: the only `instantiate` of a
-contract anywhere is `ByzNodeSet`. They are correctly shaped but unwired,
-which is the mirror image of the sub-protocol problem and a separate item.
+An implementation that proves the safety fragment but not the rest provides
+the `XSafety` instance (kernel-checked) and a **residual** — a Lean
+`structure` whose fields are exactly the upper-level obligations it does not
+discharge, restated over its own transition system — plus `X_of_residual :
+Residual → X`. Type-checking the latter is what guarantees the residual says
+exactly what the class says; the residual *is* the module's remaining
+assumption inventory, as a type.
 
-### Sub-protocol interfaces — all carry the same defect
+**Conventions that make it uniform** (the header of `Interfaces.lean` is the
+authoritative statement):
 
-Each has a carrier that is really a run, with the index hidden, so each needs
-the two-level treatment of §5.
+* *Correctness is one object.* Every class takes `byz : validator → Prop` as an
+  explicit parameter; a Veil module instantiates `FaultModel` once and passes
+  `fm.byz` to every contract it consumes, so all of them are stated against
+  the same notion of "correct". Spike 05 established that a later
+  `instantiate` can take an earlier instantiated parameter's projection.
+* *Inputs are transitions, outputs are observables.* `complete : state →
+  validator → slot → state → Prop` is driven by the consumer choosing a
+  post-state; `opened : state → validator → slot → Prop` is read.
+* *Time.* Timed properties take a `time` type with Veil's `TotalOrder` and an
+  `Add`; `max(t, GST) + d` is `TimedRun.byGstBound` ("by `u + d` for the least
+  `u` above both"), so no decidability of the order is needed.
+* *Hiding.* `def:hiding` is simulation-based and not expressible here; the
+  contract carries its protocol-level residue (`hiding_residue`: payloads
+  become recoverable only after the deadline) and names the two steps that
+  stay meta — `ThresholdIBE.decrypt_secret` and the paper's simulation.
 
-| Class | Hidden-state carrier | Currently prose | Also needs |
-|---|---|---|---|
-| `Orchestrator` | `opened`, `completed` | Totality, Integrity ×2, Monotonicity, `B`-boundedness, `R`-recovery | — (design settled, §5) |
-| `SlotConsensus` | `finalized`; `on_time_proposal` is documented as "per-instance data fixed by the execution" | Hiding, ℓ-Termination (A-sc-termination), Quiescence | resolving per-instance vs the glue's slot-indexed family |
-| `SlotConsensusWithTotality` | inherits | `d_tot`-Totality (A-sc-totality) | it is an **empty** `extends SlotConsensus` — see below |
-| `ACS` | `proposed`, `decided`, `has_decided` | ℓ-Termination (A-acs-termination), Δ-Totality (A-acs-totality), quantitative validity | not consumed as a class at all (Conductor models a window interval) |
-| `MVBA` | `input`, `output` — whose docstring says "eventually populated", so time is hidden too | ℓ_MVBA-Termination, Quiescence | not consumed as a class at all (Chorus inlines the oracle) |
+## 3. The consumers: what changed in the models
 
-Three observations worth acting on.
+**The glue** (`Cadence.lean`) now reads
 
-* **The codebase already anticipated the two-level shape.**
-  `SlotConsensusWithTotality extends SlotConsensus` has an *empty body*, with
-  a docstring explaining that the property is temporal so "this class adds no
-  formal fields — it is a marker carrying the documented obligation". That is
-  precisely the upper level of §5, left unpopulated. Filling it in is the
-  smallest possible first instance of the pattern.
-* **The upper level takes three kinds of field, not one.** Beyond temporal
-  properties, the ACS table marks its quantitative validity half documented
-  because cardinality is "outside the first-order language", and
-  `B`-boundedness is the same kind of statement. Liveness, bounds and
-  cardinality all belong at the non-first-order level; only the first-order
-  residue goes in the fragment a Veil module instantiates.
-* **`ByzNodeSet` is the only contract in the development that is both
-  correctly shaped and discharged by a proven instance.** `Orchestrator` and
-  `SlotConsensus` have constructed instances (`orchestrator_instance`,
-  `Chorus.slotConsensus_instance`) but the wrong shape; the five primitives
-  have the right shape and no instance and no consumer; `ACS` and `MVBA` have
-  neither.
+```
+instantiate fm   : FaultModel node
+instantiate orch : OrchestratorSafety node slot ostate fm.byz
+instantiate sc   : SlotConsensusSafety slot node proposal pvector scstate fm.byz
+individual os : ostate
+function sc_state (s : slot) : scstate
+```
 
-### The uniform target
+and every contract property it used to restate is gone from its guards and
+invariants: `opened i s` is the ghost `orch.opened os i s`, `finalized i s v`
+is `sc.finalized s (sc_state s) i v`, and the three invariants that carry
+contract content (`finalized_agreement`, `finalized_inclusion`,
+`opened_prefix_agreement`) are *proven* from the class axioms at the reachable
+abstract state — kept as invariants only because downstream cells e-match on
+them better. The old oracle actions became an oracle step per sub-protocol
+(`orch_step`, `sc_step`: any internal transition the contract allows) plus
+handlers that react to observables (`on_propose`, `on_finalize`, with
+`record_skip` and `append` as before). `on_finalize` drives the orchestrator's
+`complete` input, so the glue's `completed` *is* the orchestrator's record —
+which is what lets `bounded_concurrency_interval` be stated over the object
+`Orchestrator.boundedness` speaks about, with no bridge between two notions
+of "completed". The `participate()` call is definitionally the opening; the
+inputs the paper's safety properties never mention (`abandon`, `propose`) stay
+glue-local records, as the paper's own local variables (§8).
 
-For each sub-protocol interface `X`:
+The handler relaxation — the paper runs a handler atomically upon the output,
+here it is a later action — admits strictly more behaviours, so every safety
+property holds a fortiori; no safety property had to be weakened (the
+biconditional in `bounded_concurrency_interval` survives because
+`participate()` is the opening and `abandon()` shares its handler with
+`complete(s)`). What it costs is an (F-justice) obligation on the handlers.
 
-* `XSafety` — first-order: the carrier accessors over an explicit state,
-  `init`/`step`/`reachable`, and the state-predicate properties. This is what
-  a consuming Veil module `instantiate`s.
-* `XRun` — the execution its temporal obligations quantify over.
-* `X extends XSafety` — the specification proper: every remaining row of the
-  obligation table as a field, including bounds carried as data.
+**The Conductor** (`Conductor.lean`) consumes `ACSSafety` the same way: one
+abstract ACS state per window (`function acs_state (w : window) : acsstate`),
+the honest `acs_propose` driving the instance's `propose` input, a new
+`acs_step` oracle action for the instance's internal steps (Byzantine
+proposals appearing, the decision itself — the contract constrains only
+correct validators' proposals, so `byz_acs_propose` is subsumed), and
+`acs_decide` reading `acs.decided` off the state. The Conductor's own fault
+pattern is now the shared `FaultModel` too. One bridge remains a stated
+`require` rather than a class property, deliberately: that the decided
+first slot is bracketed from below by a *correct* pair of the decided set,
+which is the quantitative half of ACS validity through the median lemma of
+`Windows.lean` — cardinality is outside the first-order fragment (§8).
 
-An implementation owes `X`; a Veil consumer assumes `XSafety`; `toXSafety`
-connects them. Obligations this project cannot yet discharge stay stated and
-uninstantiated, which makes the gap type-visible rather than prose.
+**Chorus is unchanged as a model.** Its MVBA oracle stays inlined for a
+reason that is not the class's shape (§8).
 
-## 7. What this does not fix
+Both consumers re-solved cold and green: the glue 177 conditions (7 actions ×
+24 properties, plus the initializer and both reachability traces), the
+Conductor 170 (7 × 20). Nothing was weakened; three glue invariants changed
+name because the concept they track changed (`delivered` is the handler's
+record of a finalization, `pending := delivered ∧ ¬ appended`).
 
-The consumer's `opened` and the implementation's `opened` remain different
-objects, related by an observation map. Making the index explicit turns that
-from something hidden into something nameable, but it does not discharge it —
-trace-level refinement stays out of scope
-([`Composition.lean`](../Cadence/Composition.lean)'s header,
-[`ChorusDesign.md`](./ChorusDesign.md) §10.1).
+## 4. The providers: what is proven, and how
 
-Nor does it make the temporal rows *provable*: Veil has no fairness or
-run quantification today ([`Liveness.md`](./Liveness.md)). It makes them
-*stateable*, which converts "trust this prose row" into "assume this named
-formal hypothesis" — a declared gap rather than an unchecked one.
+* **`Conductor.orchestratorSafety th : OrchestratorSafety node slot
+  (Conductor.State …) fm.byz`** (`Composition.lean`). Every field proven:
+  `init`/`trans`/`reachable` are the Conductor's own relations, so the closure
+  fields are the reachability constructors; `open_prefix_agreement` is
+  `safety [open_prefix_agreement]` projected out of `invariants_of_reachable`
+  (the strict order converted to `le ∧ ≠` by `TotalOrderWithMinimum.le_lt`);
+  the paper's Monotonicity is `invariant [open_local_order]` plus the
+  `open_slot` guard; and the **step-level** fields — `opened_mono`,
+  `completed_mono`, `completed_step_frame`, `complete_effect`,
+  `complete_frame`, `init_opened`, `init_completed` — are proven action by
+  action from Veil's pre-computed transition bodies.
+* **`Chorus.slotConsensusSafety th : SlotConsensusSafety slot node merkle_root
+  (slot × (node → Option merkle_root)) (Chorus.State …) (fun i => nset.is_byz
+  i = true)`** (`Chorus/Compose.lean`). The family runs one copy of the
+  single-slot model per slot and tags each finalized vector with its slot,
+  which is what makes `slot_safety` hold by construction; `agreement` and
+  `proposal_inclusion` are the 2026-07 proofs over the named reachability
+  projections; `on_time` is `all_honest_recorded`; and the step-level fields
+  (`finalized_mono`, `on_time_mono`, `init_finalized`) rest on four uniform
+  two-state lemmas over all 38 actions — including that a committed
+  validator's entries are *frozen*, because `commit_assign_*` require
+  `¬ local_committed i`.
+
+**The step-level technique**, which the plan had not exercised and which was
+the one open risk: a contract field such as "`opened` is monotone along
+`trans`" is a relation between two consecutive states, and no
+`#check_invariants` cell speaks about two states. Veil, however, pre-computes
+each action's two-state transition as a `reducible` definition
+`<action>.ext.tr` (a conjunction of the guards and `setIn {updated fields}
+s₀ = s₁`) with a bridge `<action>.ext.derived_eq` from the derived transition
+the reachability relation uses. So a step-level fact is proven by dispatching
+the label, rewriting with `derived_eq`, unfolding `tr`, destructuring (the
+`obtain` on the final equation substitutes the post-state), and evaluating
+the field-representation `get`/`set` pair at the canonical functional
+representation (`CanonicalField.set`, `FieldUpdateDescr.fieldUpdate`,
+`IteratedArrow.curry`, …). One macro pair per model (`conductor_tr` /
+`conductor_field_simp`, `chorus_tr` / `chorus_field_simp`) and one tactic
+line per fact; the 38-action Chorus lemmas elaborate in seconds. The guards
+are kept as inaccessible hypotheses, which is how the frozen-entries lemma
+sees `¬ local_committed i`.
+
+Trust base: every new declaration is pinned at `[propext, Classical.choice,
+Quot.sound]` at its own site and in [`../Cadence.lean`](../Cadence.lean).
+
+## 5. The residuals: exactly what is still assumed
+
+`Conductor.OrchestratorResidual th` (`Composition.lean`) has fields
+`Admissible`, `admissible_exists`, `totality`, `bound`, `boundedness`,
+`recovery_time`, `recovery` — the paper's Totality (`lemma:conductor-totality`),
+`B`-Boundedness (`lem:boundedness`; the interval form *is* proven as
+`safety [bounded_tail]`, the count `2W − p` needs widths the model keeps meta)
+and `R`-Recovery (`prop:smooth-windows`, `prop:first-post-gst-window-time`),
+over timed runs of the Conductor with the admissible-execution model as data.
+`orchestrator_of_residual` proves these are all that is missing, discharging
+Integrity's timing half (`safety [opened_after_start]`) on the way.
+
+`Chorus.SlotConsensusResidual th time message` (`Chorus/Compose.lean`) is
+larger, honestly: Chorus models none of `mod:slotconsensus`'s participation
+interface (`participate`/`abandon`/`propose` and their observables), no clock
+and no message type, so the whole upper level except Hiding's protocol half
+is residual — `slotConsensus_of_residual` discharges `hiding_residue` from
+`safety [hiding_until_deadline]` and takes the rest as the hypothesis.
+
+These two structures replace the rows of the old obligation tables that said
+"documented, (A-…)". [`Architecture.md`](./Architecture.md) §4 item 4 now
+points at them by name; the meta-axiom names (A-orch-totality),
+(A-orch-boundedness), (A-orch-recovery), (A-sc-termination) are the fields'
+docstrings.
+
+## 6. The composed system
+
+`Cadence.system_positional_log_safety` (`System.lean`) is the glue's
+`positional_log_safety` instantiated at `Conductor.orchestratorSafety thC` and
+`Chorus.slotConsensusSafety thS`: MCP Safety for the glue running the
+Conductor's and Chorus's own transition systems, with **no contract
+hypothesis left**. What remains are the two modules' configurations and one
+hypothesis `hbyz` that the system's fault model and Chorus's
+`ByzNodeSet.is_byz` agree — the transport that brings Chorus's instance to
+the shared `byz` (`SlotConsensusSafety.castByz`, a rewrite along a
+propositional equality of predicates). No temporal obligation enters: MCP
+Safety is a safety property and needs only the two proven fragments.
+
+## 7. Evidence
+
+The runnable experiments are in [`../spikes/`](../spikes/README.md); 01–04
+established the state-explicit shape, the negative control (removing the
+class axiom makes the consumer's invariant fail with `❌`), the hazard (a
+run-quantifying field in an instantiated class crashes all VCs with
+`cvc5.Error.error "Symbol '->' not declared as a type"`) and the two-level
+split; 05 the shared fault model, the inst-implicit order and the per-slot
+`function` state. The step-level technique graduated straight into the code
+(§4).
+
+## 8. What this does not close — the remaining seams, named
+
+1. **Chorus's MVBA oracle is inlined, not a class constraint.** `MVBASafety`
+   exists and is the uniform shape, and Chorus's `mvba_decide_*` guards are
+   the transcription of its fields, audited by reading:
+
+   | `MVBASafety` field | Chorus guard (`mvba_decide_pos` / `mvba_decide_neg`) |
+   |---|---|
+   | `agreement`, `integrity` | `∀ m2, mvba_decided_pos j m2 → m = m2`, `¬ mvba_decided_neg j` / `∀ m, ¬ mvba_decided_pos j m`, plus `¬ mvba_complete` |
+   | `external_validity` | `vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)` / `vote_quorum_neg j ∨ ((fb_quorum_neg j ∨ equiv_evidence j) ∧ fbcert)` |
+   | `decided_mono`, `init_decided` | the relations are only ever set; `after_init` clears them |
+
+   The obstacle is not the class's shape. The paper's `Valid B` is a
+   function of the meta-block, which *carries* its certificates; Chorus
+   checks a decided entry's certificate against its own network relations —
+   a predicate on Chorus's **state**, which a class parameter declared before
+   `#gen_state` cannot mention. Closing this means either carrying
+   certificates in the value type or restating the evidence guards as the
+   class's `Valid`; either changes every Chorus verification condition and is
+   scheduled with the MVBA instantiation (`docs/MvbaPlan.md` on its branch),
+   not here.
+2. **Chorus has no participation interface**, so `SlotConsensusResidual`
+   carries the whole of it; and the glue's records of the inputs it does not
+   drive (`sc_abandoned`, `proposed`) are its own, as the paper's local
+   variables are. That the glue's call *is* the instance's input is the
+   trace-level refinement seam declared out of scope in `Composition.lean`'s
+   header and `ChorusDesign.md` §10.1. Adding `participate`/`abandon` to the
+   Chorus model would let the glue drive them and shrink the residual; it is
+   a model change and pays the Chorus cold re-solve.
+3. **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
+   the decided set brackets the first slot from below is justified by
+   `ACS.validity_quantitative` through `Windows.lean`'s median lemma, not
+   derived from the class: cardinality is upper-level. It is one `require`,
+   documented at the action.
+4. **`Admissible` is implementation-defined data**, so a future full instance
+   could be vacuous if it defined it as `False`; `admissible_exists` forbids
+   that, and the definition is one line to audit.
+5. **The two fault patterns** meet in `hbyz` (§6) — an honest hypothesis, not
+   a proof.
+
+## 9. What this supersedes
+
+* **The shared-syntax route** (`openPrefixAgreement%`, on this branch until
+  2026-09-04): it single-sourced the *statement* but left the hidden index in
+  place and made the provider-state/consumer-observation conflation harder to
+  see. Removed; do not reintroduce it for the other contracts.
+* **The snapshot classes** `SlotConsensus`/`Orchestrator`/`ACS`/`MVBA` of the
+  old `Interfaces.lean`, `Conductor.orchestrator_instance` and
+  `Chorus.slotConsensus_instance` (per-state instances). The names
+  `SlotConsensus`, `Orchestrator`, `ACS`, `MVBA` now denote the *full*
+  contracts; the state-level fragments carry the `…Safety` suffix.
+* `class MVBA` moved from `Primitives.lean` to `Interfaces.lean` — it is a
+  module contract, and `Chorus.lean` imports `Primitives.lean`, so keeping it
+  there made every contract edit a Chorus rebuild.
+
+## 10. Veil facts that cost time to find
+
+Recorded so they are not re-derived (all reproduced by the spikes or the code):
+
+* Veil emits **every axiom of an instantiated class** to the solver. That is
+  what makes the design work, and why a non-first-order field in the
+  instantiated fragment aborts *all* the consumer's VCs (spike 03).
+* `instantiate` must precede `#gen_state`, so a class cannot mention the
+  module's own `State`; the design sidesteps this because the contract's
+  state is a module *parameter* (`type ostate`). A later `instantiate` *can*
+  refer to an earlier one's projection (`fm.byz`) and resolve inst-implicit
+  class arguments from earlier instances (spike 05).
+* A shared `def` over the carrier does **not** translate (the carrier
+  arrives as a function argument; SMT-LIB is first-order); `@[invSimp]`
+  unfolds it in hypotheses but not goals. Not needed any more.
+* **Never name an action parameter `st'`**: Veil's trace pipeline uses that
+  name for the post-state, and the `sat trace` fails with an application
+  type mismatch naming `<action>.ext.tr … st' rd st st'`. (The sweep itself
+  is unaffected, which is what makes the failure confusing.)
+* `hiding` is a Lean keyword (`open … hiding`), unusable as a field name.
+* Two-state facts about a generated transition: `<action>.ext.derived_eq`
+  then the `reducible` `<action>.ext.tr`; `obtain ⟨_, h⟩ := h` on the final
+  `setIn … = s₁` conjunct *substitutes* (so a following `subst` is a no-op
+  the linter flags); the guards survive as inaccessible hypotheses. The
+  `actSimp`/`nextSimp` simp sets unfold the action *bodies* and defeat the
+  `derived_eq` rewrite — use the explicit lemma names.
+* `all_honest_recorded j m` has four conjuncts since the 2026-08
+  `well_encoded` refactor (`¬ is_byz j`, `is_proposer j`, the recorded
+  entries, `well_encoded m`).

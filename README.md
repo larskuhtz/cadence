@@ -41,6 +41,8 @@ is a build failure.
 | **cvc5's verdicts are not believed.** Every solver discharge is reconstructed as a Lean proof term and re-checked by the kernel | all models elaborate with `veil.smt.trust false`; if a proof cannot be reconstructed, the cell fails |
 | **Nothing is stubbed.** Every Chorus verification condition (one per action × property, plus a does-not-throw check per action), and every one of the receipt layer's, has a real, statement-matching, kernel-checked theorem in scope | the pinned `#veil_status` lines in `Cadence/Chorus/Certify.lean` and `Cadence/FallbackReceipt/Certify.lean`, each asserting *all* cells real with the axiom union over all of them |
 | The verification conditions are the ones the model states — they are not re-typed by hand anywhere | the proof files read their statements out of the model's own persisted registry; identity is by construction |
+| **The composition is not a transcription.** The glue and the Conductor consume the sub-protocol contracts as *class constraints* over abstract states (`instantiate orch : OrchestratorSafety …`, `instantiate sc : SlotConsensusSafety …`, `instantiate acs : ACSSafety …`); no contract property is restated as a guard or invariant, and the implementations' instances (`Conductor.orchestratorSafety`, `Chorus.slotConsensusSafety`) are checked against the same classes | the `instantiate` lines in `Cadence/Cadence.lean` and `Cadence/Conductor.lean`; the instance definitions' types; `Cadence/System.lean`, which instantiates the glue's end theorem at both instances and leaves no contract hypothesis |
+| **What is not proven about the composition is a type, not prose.** Each implementation's unproven contract obligations are the fields of a Lean structure, and a definition proves they are all that is missing | `Conductor.OrchestratorResidual` / `orchestrator_of_residual` (`Cadence/Composition.lean`), `Chorus.SlotConsensusResidual` / `slotConsensus_of_residual` (`Cadence/Chorus/Compose.lean`) — type-checked against the full contracts |
 | The receipt-layer bug found in 2026-07 **is** a bug in the pre-fix rules | `Cadence/FallbackReceipt/PreFix.lean` pins the model checker's counterexample; the file builds only if the bug is still found, verbatim |
 
 In short: `lake build` succeeding is the claim. You can re-derive any pin
@@ -74,8 +76,11 @@ are the right ones. Three things need eyes:
    theorems, in the paper's own vocabulary, are tabulated in
    [`Cadence.lean`](./Cadence.lean) and in [What is proven](#what-is-proven)
    below. The paper's *module contracts* — the interfaces the layers are
-   proven against, with their obligation tables — are
-   [`Cadence/Interfaces.lean`](./Cadence/Interfaces.lean).
+   proven against, stated in full as type classes (every property of each
+   paper module, safety and liveness alike) and consumed by the models as
+   class constraints — are [`Cadence/Interfaces.lean`](./Cadence/Interfaces.lean);
+   [docs/CompositionContracts.md](./docs/CompositionContracts.md) explains the
+   encoding and names the seams that remain.
 3. **Are the meta-theoretic assumptions sound?** Everything deliberately kept
    outside Lean — the network abstraction's soundness contract, the fairness
    axioms and the fairness-to-liveness reduction, the cryptographic
@@ -101,15 +106,16 @@ paper published on arxiv.*
 
 | Claim | Where | Method / trust base |
 |---|---|---|
-| **Agreement** — correct validators never finalize conflicting proposal vectors | `Cadence/Chorus.lean` (`agreement_pos`, `agreement_pos_neg`) → `Chorus.slotConsensus_instance` | one inductive-invariant verification condition per action × property (cvc5, **proof-reconstructed — kernel-checked**), proved per action under `Cadence/Chorus/Proofs/`, plus plain-Lean reachability composition — kernel-checked end to end, axiom-pinned, per-VC audit pinned |
+| **Agreement** — correct validators never finalize conflicting proposal vectors | `Cadence/Chorus.lean` (`agreement_pos`, `agreement_pos_neg`) → `Chorus.slotConsensusSafety` | one inductive-invariant verification condition per action × property (cvc5, **proof-reconstructed — kernel-checked**), proved per action under `Cadence/Chorus/Proofs/`, plus plain-Lean reachability composition — kernel-checked end to end, axiom-pinned, per-VC audit pinned |
 | **Proposal inclusion** (censorship resistance, under the paper's synchrony premise) | `Cadence/Chorus.lean` → instance field | same |
 | **Hiding until the deadline** (protocol half) | `Cadence/Chorus.lean` (`hiding_until_deadline`) | reconstructed VCs; the cryptographic half is axiomatised (`Cadence/Primitives.lean`) |
 | **Speculative-finality revertibility** ("reverted only if the proposer is the culprit") | `Cadence/Chorus.lean` (`speculative_agreement_*`) | reconstructed VCs, conditional on `no_equivocation` + `no_invalid_encoding` — the paper's full culprit set: equivocation, or committing to an invalidly encoded root |
 | **Fair-progress liveness content** (no livelock of fair actions — strictly stronger than deadlock-freedom) | `Cadence/Chorus.lean`, liveness section | reconstructed VCs + the named temporal assumptions ([docs/Liveness.md](./docs/Liveness.md)) |
 | **Progress dichotomy** — the liveness case split as one theorem: in any reachable state where every honest validator has cast its path vote, either commitQCs exist for every proposer from honest votes alone, or the MVBA stands invoked with decide-enabling evidence for every proposer, for **every** `n = 3f+1` | `Cadence/Chorus/Progress.lean` (`progress_dichotomy_of_saturation`); its counting inputs — the evidence pigeonhole and certificate formation — are separately stated and pinned in `Cadence/Chorus/Pigeonhole.lean` and `Cadence/Chorus/Counting.lean` | plain Lean over reachable states, axiom-pinned |
 | **Network-level build totality** — any supermajority of accepted receipts (Byzantine members included) yields a buildable fallback meta-block entry per proposer: the state-level half of "every correct validator can propose", for **every** `n = 3f+1` | `Cadence/Chorus/Counting.lean` (`build_totality_of_reachable`) | plain Lean over reachable states, axiom-pinned |
-| **MCP Safety, positional form** | `Cadence/Composition.lean` (`positional_log_safety`) | Cadence/Conductor sweeps (reconstructed) + plain-Lean composition — kernel-checked, axiom-pinned |
-| **`Conductor ⊨ Orchestrator`**, **`Chorus ⊨ SlotConsensus`** (the paper's module contracts) | `Cadence/Composition.lean`, `Cadence/Chorus/Compose.lean` | plain Lean over persisted VC theorems — kernel-checked, axiom-pinned |
+| **MCP Safety, positional form** — for the glue over *any* orchestrator and slot consensus satisfying the contracts, and **for the composed system** (the glue running the Conductor's and Chorus's own transition systems, no contract hypothesis left) | `Cadence/Composition.lean` (`positional_log_safety`), `Cadence/System.lean` (`system_positional_log_safety`) | Cadence sweep against the contracts as class constraints (reconstructed) + plain-Lean composition — kernel-checked, axiom-pinned |
+| **`Conductor ⊨ OrchestratorSafety`**, **`Chorus ⊨ SlotConsensusSafety`** — the state-level fragments of the paper's module contracts, every field proven (including the two-state fields: monotonicity of the observables, frames, the paper's Monotonicity) | `Cadence/Composition.lean` (`Conductor.orchestratorSafety`), `Cadence/Chorus/Compose.lean` (`Chorus.slotConsensusSafety`) | plain Lean over persisted VC theorems and Veil's transition bodies — kernel-checked, axiom-pinned |
+| **The residuals** — given exactly the fields of `Conductor.OrchestratorResidual` (Totality, `B`-Boundedness, `R`-Recovery, the execution model) the Conductor is a full `Orchestrator`; given `Chorus.SlotConsensusResidual` (the participation interface, Termination, Quiescence, the clock) Chorus is a full `SlotConsensus` — Integrity's timing half and Hiding's protocol half discharged on the way | `orchestrator_of_residual`, `slotConsensus_of_residual` | plain Lean; the residual is a hypothesis, never an axiom — axiom-pinned |
 | **Fallback meta-block "valid by construction"**, including the counting argument, for **every** `n = 3f+1` | `Cadence/FallbackReceipt.lean` + `Cadence/FallbackReceipt/Totality.lean` | reconstructed SMT + kernel-checked Lean — **no trusted step**, axiom-pinned |
 | **The pre-fix receipt rules are broken** ("pre-fix" = the paper's rules *before* the 2026-07-07 bug fix; the bug, mechanically reproduced) | `Cadence/FallbackReceipt/PreFix.lean` | exhaustive model check; the counterexample trace is pinned in the build |
 
@@ -118,7 +124,10 @@ assumptions and the fairness-to-liveness reduction (the liveness argument's
 entire *state-level* content **is** machine-checked —
 [docs/Liveness.md](./docs/Liveness.md)), the cryptographic primitives,
 the monotone-network soundness contract — is the named assumption inventory in
-[docs/Architecture.md](./docs/Architecture.md) §4.
+[docs/Architecture.md](./docs/Architecture.md) §4. For the two sub-protocol
+implementations, the temporal part of that inventory is also a *type*: the
+residual structures above list, field by field, what each still owes of its
+paper contract.
 
 ---
 
@@ -313,20 +322,27 @@ Cadence/
                                     the manual cells live here
   Chorus/Certify.lean               #gen_composition: reachability induction + named
                                     per-property projections (axiom- and audit-pinned)
-  Chorus/Compose.lean               Chorus ⊨ SlotConsensus  (axiom-pinned)
+  Chorus/Compose.lean               Chorus ⊨ SlotConsensusSafety + the residual toward the
+                                    full SlotConsensus  (axiom-pinned)
   Chorus/Pigeonhole.lean            evidence pigeonhole for every n = 3f+1  (axiom-pinned)
   Conductor.lean                   window-based orchestrator MODEL (+ sweep, traces, theorems)
   Cadence.lean                     extreme-pipelining MODEL (+ sweep, traces, theorems)
   Composition.lean                 Cadence + Conductor reachability inductions,
-                                    Conductor ⊨ Orchestrator, positional MCP Safety
+                                    Conductor ⊨ OrchestratorSafety + the residual toward the
+                                    full Orchestrator, positional MCP Safety
+  System.lean                      the composed system: the glue's MCP Safety at the
+                                    Conductor and Chorus instances (axiom-pinned)
   FallbackReceipt.lean             fallback receipt/propose MODEL, shipped design
                                     (+ the n=4 exhaustive model check)
   FallbackReceipt/Proofs/, FallbackReceipt/Certify.lean
                                    the receipt layer's proof-file family (axiom-pinned)
   FallbackReceipt/Totality.lean    build totality for every n = 3f+1 (axiom-pinned)
   FallbackReceipt/PreFix.lean      pre-fix rules, mechanically refuted (pinned counterexample)
-  Interfaces.lean                  SlotConsensus / ACS / Orchestrator contracts + obligations
-  Primitives.lean                  cryptographic primitive classes (ThresholdIBE, MVBA)
+  Interfaces.lean                  the module contracts — SlotConsensus / Orchestrator / ACS /
+                                    MVBA as two-level type classes over explicit state
+                                    (the …Safety fragments the models consume; the full
+                                    classes with every temporal obligation)
+  Primitives.lean                  cryptographic primitive classes (ThresholdIBE, …)
   ByzQuorum.lean                   Byzantine-quorum instances, non-vacuity witnesses
   Windows.lean                     the ACS median lemma (plain Lean)
   Tooling.lean                     targeted #check_vc / #check_invariant commands
@@ -378,7 +394,8 @@ Design, scope, the emitter contract and the full flag reference:
 | The verification architecture: methods, trust bases, and the complete meta-assumption inventory | [docs/Architecture.md](./docs/Architecture.md) |
 | The Chorus model's design rationale (network abstraction and its soundness contract, property coverage, the liveness meta-argument, the bug record §7.2, open items §9) | [docs/ChorusDesign.md](./docs/ChorusDesign.md) |
 | The Cadence / Conductor model designs | [docs/ConductorDesign.md](./docs/ConductorDesign.md) (module decomposition, the class layer, where the top-level properties live), then the module headers of [`Cadence/Cadence.lean`](./Cadence/Cadence.lean) and [`Cadence/Conductor.lean`](./Cadence/Conductor.lean) |
-| The module contracts and their obligation tables | [`Cadence/Interfaces.lean`](./Cadence/Interfaces.lean) |
+| The module contracts — every property of each paper module, as two-level type classes | [`Cadence/Interfaces.lean`](./Cadence/Interfaces.lean) |
+| How the modules are composed through the contracts, what is proven about the composition, and the seams that remain | [docs/CompositionContracts.md](./docs/CompositionContracts.md) |
 | What the forked Veil provides beyond upstream, and why | [docs/Dependencies.md](./docs/Dependencies.md) |
 | Using the published images; **what a prebuilt `.olean` proves**, and the audit ladder | [docs/Container.md](./docs/Container.md) |
 | Building and publishing the images (maintainers) | [docs/Images.md](./docs/Images.md) |

@@ -7,8 +7,7 @@ primitives the Chorus sub-protocol depends on. They serve two purposes:
 
 1. Documentation: each class states the *signatures* and *properties* of the
    primitive that Chorus relies on, lifted from the Cadence paper
-   (`arXiv:2607.02275v2`): §Cryptographic Primitives `appendix:crypto`, and
-   `mod:mvba` in `src/p2_mvba.tex`.
+   (`arXiv:2607.02275v2`): §Cryptographic Primitives `appendix:crypto`.
 2. Targets for instantiation: a concrete implementation of Chorus would
    discharge each class by an actual scheme. For verification we only use the
    algebraic properties stated here.
@@ -191,38 +190,13 @@ class MerkleTree (leaf : Type) (root : Type) (proof : Type) where
       VerifyMerkle r i d' π' = true →
       d = d'
 
-/-! ## Multi-Value Byzantine Agreement (MVBA)
+/-! ## Where the MVBA contract lives
 
-The MVBA primitive is invoked by the fallback path of Chorus. We encapsulate
-its specification (`mod:mvba` in `src/p2_mvba.tex`) abstractly: each correct party
-`p` invokes `input p v` with an input value satisfying the publicly
-verifiable `Valid` predicate; eventually each correct party outputs the same
-value via `output p v'`.
-
-The Veil model in `Chorus.lean` consumes the MVBA only through the *agreement*
-property: if any two correct nodes output, they output the same value. This
-is captured by the relation `mvba_decided` in the Veil module along with the
-assumption that decided values agree. -/
-class MVBA (party : Type) (value : Type) where
-  /-- The publicly verifiable validity predicate. -/
-  Valid : value → Prop
-  /-- `p`'s input value (a partial function — only correct parties
-      provide one). -/
-  input : party → value → Prop
-  /-- `p`'s output value (eventually populated for every correct
-      party). -/
-  output : party → value → Prop
-
-  /-- Agreement (safety): all correct parties that output, output the
-      same value. This is the property we feed into the Chorus model. -/
-  agreement :
-    ∀ (p q : party) (v v' : value), output p v → output q v' → v = v'
-
-  /-- External Validity (safety): the output passes `Valid`. -/
-  external_validity :
-    ∀ (p : party) (v : value), output p v → Valid v
-
-  /-- Integrity (safety): every correct party outputs at most one
-      value. -/
-  integrity :
-    ∀ (p : party) (v v' : value), output p v → output p v' → v = v'
+The MVBA is a *module* contract (`mod:mvba`), not a cryptographic primitive,
+and it is stated with the other module contracts in
+[`Interfaces.lean`](./Interfaces.lean) (`MVBASafety`/`MVBA`) since 2026-09.
+It used to live here; it moved because `Chorus.lean` imports this file, so
+any edit to a contract kept here would force the whole Chorus proof family
+to rebuild. Chorus consumes the MVBA as an inlined oracle
+(`Chorus.lean`, "MVBA oracle"); why it does not yet take the class as a
+constraint is recorded at the class. -/

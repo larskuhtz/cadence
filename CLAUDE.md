@@ -26,21 +26,33 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `Cadence/Chorus/Certify.lean` composes them. Model-only build ~2 min. Do not
   touch its imports casually (it imports `Primitives.lean` and `Tooling.lean`
   only).
-* **`Cadence/Cadence.lean`** — the extreme-pipelining glue: consumes
-  `SlotConsensus` + `Orchestrator` as oracles; slot-indexed MCP safety. Small
-  and fast (~25 s, sweep included).
-* **`Cadence/Conductor.lean`** — the window-based orchestrator: ACS as oracle,
-  abstract clock, window structure. Fast (~55 s).
+* **`Cadence/Cadence.lean`** — the extreme-pipelining glue: consumes the
+  `SlotConsensusSafety` and `OrchestratorSafety` contracts as **class
+  constraints** over abstract sub-protocol states it holds (`instantiate …`;
+  no contract property is restated as a guard); slot-indexed MCP safety.
+  Small and fast (~1 min cold, sweep included).
+* **`Cadence/Conductor.lean`** — the window-based orchestrator: `ACSSafety` as
+  a class constraint (one abstract ACS state per window), abstract clock,
+  window structure. Fast (~1 min cold).
 * **`Cadence/FallbackReceipt.lean`** (+ `Totality.lean`, `PreFix.lean`) — the
   per-validator fallback receipt/propose layer, where a real protocol bug was
   found and fixed. Same family shape as Chorus at 1/17 the scale, so it is the
   architecture's **cheap validation leg**: try any pipeline change here first.
   `PreFix.lean` pins the model checker's counterexample to the *pre-fix*
   rules — a green build **requires** the violation; do not "fix" it.
-* Support: `Interfaces.lean` (module contracts + obligation tables),
+* Support: `Interfaces.lean` (the module contracts — `SlotConsensus`,
+  `Orchestrator`, `ACS`, `MVBA` as two-level type classes over explicit
+  state: a first-order `…Safety` fragment the models instantiate, and the
+  full class with every temporal obligation; `docs/CompositionContracts.md`),
   `Primitives.lean` (cryptographic primitive classes), `ByzQuorum.lean`
   (quorum instances and non-vacuity witnesses), `Windows.lean` (the ACS median
   lemma), `Tooling.lean` (targeted check commands).
+* Composition: `Composition.lean` (reachability inductions for the two small
+  models, `Conductor ⊨ OrchestratorSafety`, the Conductor's residual toward
+  the full `Orchestrator`, positional MCP Safety), `Chorus/Compose.lean`
+  (`Chorus ⊨ SlotConsensusSafety` and its residual), `System.lean` (the
+  glue's end theorem at both instances — the composed system, no contract
+  hypothesis left).
 * `Cadence/Monitor/` — the model-conformance monitor. Not part of any
   theorem's trust base; see [docs/Monitor.md](./docs/Monitor.md).
 
@@ -55,7 +67,10 @@ the meta-assumption inventory) → [docs/ChorusDesign.md](./docs/ChorusDesign.md
 (Chorus modelling choices, the network abstraction and its soundness contract,
 the bug record §7.2, open items §9) →
 [docs/ConductorDesign.md](./docs/ConductorDesign.md) (the module decomposition
-behind Cadence/Conductor; those two models' own headers carry the detail).
+behind Cadence/Conductor; those two models' own headers carry the detail) →
+[docs/CompositionContracts.md](./docs/CompositionContracts.md) (how the
+modules are composed through the contract classes, what is proven about the
+composition and what the remaining seams are).
 History: [docs/History.md](./docs/History.md).
 
 ## Build
@@ -258,9 +273,33 @@ measurements and the audit ladder:
   `Cadence/Cadence.lean`).
 * **Keep action parameter lists ≤ 10.** The enumeration derivation over the
   action label sum blows up in parameter arity.
-* **Do not `open Veil` in a file that writes a `SlotConsensus` instance** —
-  the Veil DSL's scoped keywords include `includes`, which collides with the
-  field name. `Cadence/Chorus/Compose.lean` qualifies Veil names instead.
+* **Do not `open Veil` in a file that writes a `SlotConsensusSafety`
+  instance** — the Veil DSL's scoped keywords include `includes`, which
+  collides with the field name. `Cadence/Chorus/Compose.lean` qualifies Veil
+  names instead. Relatedly, `hiding` is a Lean keyword and cannot name a
+  class field (`hiding_residue`).
+* **Never name an action parameter `st'`.** Veil's trace pipeline uses that
+  name for the post-state; the sweep passes and the `sat trace` fails with
+  an "application type mismatch" naming `<action>.ext.tr … st' rd st st'`.
+  The models use `os_next`, `sc_next`, `acs_next`.
+* **Only first-order fields in a `…Safety` contract fragment.** Veil hands
+  every axiom of an instantiated class to the solver; a field quantifying
+  over a run or a function aborts *every* verification condition of the
+  consuming module with `Symbol '->' not declared as a type`. Temporal and
+  quantitative obligations go in the upper class (`Orchestrator`,
+  `SlotConsensus`, …), which no Veil module instantiates.
+* **Contract properties are never restated in a consumer.** The glue and
+  the Conductor take the contracts as class constraints; a `require` or
+  `invariant` that spells out a contract property again is the seam this
+  design removed. If a consumer needs something the class does not say, add
+  the field to the class (and prove it in the instances).
+* **Two-state contract fields are proven from the transition bodies**, not
+  from cells: `<action>.ext.derived_eq`, then the `reducible`
+  `<action>.ext.tr`, destructure, and simplify the field-representation
+  `get`/`set` pair (the `conductor_tr`/`chorus_tr` macro pairs). Use the
+  explicit `derived_eq` names — the `actSimp` simp set unfolds the action
+  bodies and defeats the rewrite. Adding an action means extending the macro
+  and regenerating the `invariants_of_reachable` tuple.
 * **The hand-written composition files must stay in the generated transition
   system's exact instance regime** — no `DecidableEq` binders, `open
   Classical`, VC theorems applied through the explicit-instance macros — or
@@ -287,6 +326,14 @@ is a change to what this project *claims*, not a refactor.
   and `#veil_status FallbackReceipt` at `220/220 real`. If an invariant is
   added, these numbers change — update the pins, and check the new numbers are
   the ones you expect.
+* **No full contract instance is fabricated.** `Orchestrator` and
+  `SlotConsensus` (the full classes) have instances only *through* the
+  residual structures (`Conductor.orchestrator_of_residual`,
+  `Chorus.slotConsensus_of_residual`), whose fields are the obligations this
+  development does not prove. Proving one of those fields means deleting it
+  from the residual and proving it in the `…_of_residual` definition — never
+  adding an axiom, and never weakening a class field to make an instance
+  possible.
 * **The pre-fix refutation keeps failing.** `FallbackReceipt/PreFix.lean`
   builds only while the model checker still finds the documented
   counterexample. Its `#model_check` **must** keep `(sequential := true)`:

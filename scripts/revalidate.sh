@@ -114,6 +114,9 @@ stage Cadence.Chorus.Compose Cadence.Chorus.Pigeonhole \
       Cadence.Composition \
       Cadence.FallbackReceipt.Totality \
       Cadence.FallbackReceipt.PreFix
+# The composed system: the glue's end theorem at the Conductor and Chorus
+# instances (imports both composition files).
+stage Cadence.System
 
 # The root audit module (re-derives every end theorem's axiom footprint) and
 # everything else the default target covers, including the monitor.
