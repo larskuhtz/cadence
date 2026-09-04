@@ -451,9 +451,7 @@ contract field (`Interfaces.lean`), consumed by the Cadence glue module's
 `orch_open` requires (a)/(b): if honest `j` has opened `s` and honest `i`
 has opened a smaller `s'`, then `j` has opened `s'` too. -/
 safety [open_prefix_agreement]
-  ∀ (i j : node) (s s' : slot),
-    ¬ is_byz i ∧ ¬ is_byz j ∧ opened i s' ∧ opened j s ∧ slot_ord.lt s' s →
-    opened j s'
+  openPrefixAgreement% is_byz opened slot_ord.lt
 
 /- Integrity, clock half (`mod:orchestrator_2` Integrity; the
 `line:conductor-wait-for-open` guard persisted): no slot is opened before

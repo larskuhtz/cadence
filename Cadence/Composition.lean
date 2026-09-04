@@ -682,19 +682,10 @@ property of the same name. This machine-checks the obligation-table row;
 the temporal rows (totality, recovery, boundedness) remain the documented
 meta-axioms. -/
 
-/-- The `TotalOrder` a `TotalOrderWithMinimum` carries (the `Orchestrator`
-class of `Interfaces.lean` is stated over plain `TotalOrder`). Registered as
-a local instance so the `Orchestrator` structure below elaborates at it. -/
-@[implicit_reducible]
-def _root_.TotalOrderWithMinimum.toTotalOrder {t : Type} [ord : TotalOrderWithMinimum t] :
-    TotalOrder t where
-  le := ord.le
-  le_refl := ord.le_refl
-  le_trans := ord.le_trans
-  le_antisymm := ord.le_antisymm
-  le_total := ord.le_total
-
-attribute [local instance] TotalOrderWithMinimum.toTotalOrder
+/- The `TotalOrder` bridge that used to live here is gone: `Orchestrator`
+now carries the implementation's own strict order as a field, so the
+Conductor supplies `slot_ord.lt` directly instead of being re-expressed
+over a derived `TotalOrder` and converted back. -/
 
 /- The abstract field representation of the Conductor state, at the
 canonical `Classical` instances (cf. the `ovc%` macro). -/
@@ -706,28 +697,32 @@ local macro "afr%" f:ident : term =>
 
 set_option maxHeartbeats 1000000 in
 /-- Any reachable Conductor state induces an `Orchestrator` contract
-instance: `correct`/`opened`/`completed` are read off the state, and the
-contract's one formal safety field is the module's proven
-`safety [open_prefix_agreement]`, projected out of
-`invariants_of_reachable`. -/
+instance: `byz`/`opened`/`completed`/`lt` are read off the state and the
+module's own order, and the contract's one formal safety field *is* the
+module's proven `safety [open_prefix_agreement]`, projected out of
+`invariants_of_reachable`.
+
+The projection is the whole proof. Both statements expand from
+`openPrefixAgreement%` ([`Interfaces.lean`](./Interfaces.lean)) at the same
+carrier, so there is no longer a conversion step between what the Conductor
+proves and what the contract asks for — and correspondingly no way for the
+two to drift. -/
 @[implicit_reducible]
 noncomputable def orchestrator_instance
     {th : Conductor.Theory slot window time node}
     {st : Conductor.State (Conductor.FieldAbstractType slot window time node)}
     (h : (Conductor.relationalTransitionSystem slot window time node).reachable th st) :
     Orchestrator node slot where
-  correct i := ¬ th.is_byz i = true
+  byz i := th.is_byz i = true
   opened i s :=
     @Veil.FieldRepresentation.get _ _ _ (afr% Conductor.State.Label.opened) st.opened i s = true
   completed i s :=
     @Veil.FieldRepresentation.get _ _ _ (afr% Conductor.State.Label.completed) st.completed i s = true
-  open_prefix_agreement := by
-    have hp : Conductor.open_prefix_agreement
-        (ρ := Conductor.Theory slot window time node)
-        (σ := Conductor.State (Conductor.FieldAbstractType slot window time node)) th st :=
-      (invariants_of_reachable h).2.2.1
-    intro i j s s' hci hcj hi hj hle hne
-    exact hp i j s s' ⟨hci, hcj, hi, hj, (TotalOrderWithMinimum.le_lt s' s).mpr ⟨hle, hne⟩⟩
+  lt := TotalOrderWithMinimum.lt
+  -- No conversion: the module's `safety [open_prefix_agreement]` and this
+  -- contract field are the same statement, both expanded from
+  -- `openPrefixAgreement%` at the same carrier.
+  open_prefix_agreement := (invariants_of_reachable h).2.2.1
 
 end Conductor
 

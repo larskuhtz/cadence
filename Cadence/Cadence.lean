@@ -417,12 +417,14 @@ invariant [finalized_inclusion]
     ¬ is_byz i ∧ finalized i s v ∧ inclusion_premise s j p →
     pv_includes v j p
 
-/- Orchestrator open-prefix agreement, lifted (the
-`Orchestrator.open_prefix_agreement` class field verbatim). -/
+/- Orchestrator open-prefix agreement. Not a restatement of
+`Orchestrator.open_prefix_agreement` — the *same* statement, expanded from
+the shared syntax the class field also uses
+([`Interfaces.lean`](./Interfaces.lean) § "Contract properties as shared
+syntax"), so the assumption this glue makes and the contract an
+orchestrator discharges cannot drift apart. -/
 invariant [opened_prefix_agreement]
-  ∀ (i j : node) (s s' : slot),
-    ¬ is_byz i ∧ ¬ is_byz j ∧ opened i s' ∧ opened j s ∧ slot_lt s' s →
-    opened j s'
+  openPrefixAgreement% is_byz opened slot_lt
 
 /-! ## Invariants — local structure -/
 

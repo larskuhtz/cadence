@@ -52,6 +52,41 @@ the established Chorus/MVBA doctrine (`docs/ChorusDesign.md` §7, `Primitives.le
   consumed by the meta-level liveness argument, never by an SMT proof.
 -/
 
+/-! ## Contract properties as shared syntax
+
+A contract property is written **once**, as syntax over its carrier, and
+then used by both sides: the class field below, and the `safety` /
+`invariant` / `require` of every model that implements or consumes it.
+Expansion happens before elaboration, so the two sides are the *same term*
+by construction — there is no restatement to drift, and the generated
+verification conditions are exactly what the models wrote by hand before.
+
+**Why syntax and not a definition over the carrier.** The obvious
+alternative — `def OpenPrefixAgreement (byz opened lt) : Prop := …`, applied
+at each model's relations — does not survive Veil's SMT translation. The
+carrier arrives as a *function argument*, and SMT-LIB is first-order, so the
+solver call fails with "cannot translate `fun x x_1 => …`, SMT-LIB does not
+support lambdas". Tagging the definition `@[invSimp]` unfolds it where the
+invariant clump appears as a *hypothesis*, but not in the goal, so the
+failure persists. A ghost relation does not help either: referring to one
+without applying it elaborates to a state-closing lambda, which is the same
+problem. Applying a ghost relation is fine, which is why the carrier
+arguments below are always *applied* after expansion, never passed on.
+
+Consequence for anyone adding a property: substitute only things that are
+first-order at the point of use — a relation name, or an applied ghost
+relation — and let the macro do the applying. -/
+
+/-- Open-prefix agreement (`mod:orchestrator_2`), as shared syntax: if an
+honest validator has opened `s` and another honest validator has opened a
+strictly smaller `s'`, the former has opened `s'` too. -/
+syntax "openPrefixAgreement% " term:max term:max term:max : term
+macro_rules
+  | `(openPrefixAgreement% $byz $opened $lt) =>
+    `(∀ i j s s',
+        ¬ $byz i ∧ ¬ $byz j ∧ $opened i s' ∧ $opened j s ∧ $lt s' s →
+        $opened j s')
+
 /-! ## Slot Consensus (`mod:slotconsensus`)
 
 One instance per slot `s`. A validator participates (`participate()` /
@@ -250,9 +285,13 @@ maintains it as invariant `[opened_prefix_agreement]`; the Conductor
 discharges it from window-assignment agreement (`prop:window-agreement`)
 plus the synchronized-clocks scheduling of openings within a window
 (`prop:fate-order` and the `schedule_opening` timing). -/
-class Orchestrator (validator slot : Type) [ord : TotalOrder slot] where
-  /-- `correct i`: validator `i` is correct (non-Byzantine). -/
-  correct : validator → Prop
+class Orchestrator (validator slot : Type) where
+  /-- `byz i`: validator `i` is Byzantine. Stated in the models' own
+      polarity — every model carries `is_byz` — so that the contract
+      property can be substituted at a relation name rather than at a
+      lambda, which is what keeps it translatable (see "Contract
+      properties as shared syntax"). -/
+  byz : validator → Prop
   /-- `opened i s`: the orchestrator has output `open(s)` at validator `i`. -/
   opened : validator → slot → Prop
   /-- `completed i s`: validator `i` has input `complete(s)`. (No formal
@@ -261,8 +300,14 @@ class Orchestrator (validator slot : Type) [ord : TotalOrder slot] where
       `opened`.) -/
   completed : validator → slot → Prop
 
+  /-- The implementation's strict slot order. Carried as a field rather
+      than derived from a `TotalOrder` instance so that an implementation
+      supplies the very relation its own safety property is stated over,
+      making the contract field it discharges the *same* statement rather
+      than an equivalent one. The property below is a plain implication and
+      does not depend on `lt` being an order. -/
+  lt : slot → slot → Prop
+
   /-- **Open-prefix agreement** — the safety residue of Totality +
       Monotonicity (see the class docstring). -/
-  open_prefix_agreement : ∀ (i j : validator) (s s' : slot),
-    correct i → correct j → opened i s' → opened j s →
-    ord.le s' s → s' ≠ s → opened j s'
+  open_prefix_agreement : openPrefixAgreement% byz opened lt
