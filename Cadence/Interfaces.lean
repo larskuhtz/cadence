@@ -54,12 +54,34 @@ the established Chorus/MVBA doctrine (`docs/ChorusDesign.md` §7, `Primitives.le
 
 /-! ## Contract properties as shared syntax
 
-A contract property is written **once**, as syntax over its carrier, and
-then used by both sides: the class field below, and the `safety` /
+**This is a workaround, not the design we want.** What a consumer should do
+is take the contract as a class constraint and use its fields directly —
+exactly what `Chorus.lean` does with `instantiate nset : ByzNodeSet node
+nodeset`, discharged by the Lean-proven `byzNodeSetFin` family. That works
+for `ByzNodeSet` because it is *state-independent*: its parameters are the
+types `node` and `nset`, and every operation is a function of those alone,
+so an instance is a run-constant.
+
+A module contract is not like that. `Orchestrator.opened` **is** the
+consuming module's mutable state — `Cadence.lean` writes it in `orch_open`
+as the run proceeds — so an instance is a snapshot of one state of one run,
+not a fixed structure. And Veil's `instantiate` cannot bind such a thing:
+its elaborator calls `throwIfStateAlreadyDefined`, so a module parameter
+must be declared *before* `#gen_state`, at which point the module's `State`
+type does not yet exist. Stating the field as `opened : σ → validator →
+slot → Prop` does not help, because σ is exactly the type that is not
+available yet.
+
+So the proper fix — letting a module assume a contract over its own state —
+is a change to Veil, and belongs in the fork rather than here (see
+[`Dependencies.md`](../docs/Dependencies.md) for how fork capabilities are
+recorded). Until then, the property is written **once**, as syntax over its
+carrier, and used by both sides: the class field below, and the `safety` /
 `invariant` / `require` of every model that implements or consumes it.
 Expansion happens before elaboration, so the two sides are the *same term*
 by construction — there is no restatement to drift, and the generated
-verification conditions are exactly what the models wrote by hand before.
+verification conditions are what the models wrote by hand before. That buys
+single-sourcing without a Veil change; it does not buy the abstraction.
 
 **Why syntax and not a definition over the carrier.** The obvious
 alternative — `def OpenPrefixAgreement (byz opened lt) : Prop := …`, applied

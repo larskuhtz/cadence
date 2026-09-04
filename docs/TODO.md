@@ -7,6 +7,66 @@ The authoritative, numbered list of Chorus-side open items is
 lifts); this file collects the cross-cutting ones and the model-hygiene
 wishlist.
 
+## Contract composition — finish stating each property once
+
+A consuming model used to *restate* the contract it assumes, with only a
+comment tying the restatement to the class field, so nothing checked that the
+assumption and the guarantee were the same property. `Orchestrator` is fixed:
+its one property is now shared syntax (`openPrefixAgreement%`,
+[`Interfaces.lean`](../Cadence/Interfaces.lean) § "Contract properties as
+shared syntax"), expanded identically in `Conductor.lean`'s `safety`,
+`Cadence.lean`'s `invariant` and the class field, which collapsed
+`orchestrator_instance`'s proof to a bare projection. Two contracts remain.
+
+* **`SlotConsensus` — needs a design decision first.** The class is
+  per-instance (`finalized : validator → pvector → Prop`, one instance per
+  slot, `mod:slotconsensus`) while the glue runs a slot-indexed family
+  (`finalized i s v`). Sharing one statement means picking an arity, and the
+  carrier cannot be partially applied to bridge the difference — a lambda
+  does not survive SMT translation. The workable shape is to index the
+  class's carrier by slot and state its property at `inst_slot`, so the
+  consumer writes `∀ s, slotAgreementAt% is_byz finalized s` and the class
+  writes the same syntax at its own slot; the family-vs-instance step then
+  becomes an explicit "one instance per slot" bridge instead of being hidden
+  in a restatement. Touches `Chorus/Compose.lean`, so it needs the Chorus
+  build.
+  Note `sc_finalize`'s `require`s are *firing guards*, not the global
+  property, and should stay that way — only the invariants are restatements.
+* **`ACS` — nothing to do, and worth recording why.** `Conductor.acs_decide`
+  does not restate the class: it models the decision as a window-level
+  interval (`acs_decided w first boundary last`) where the class models
+  per-pair decisions. That gap is a real abstraction step — the median
+  argument of [`Windows.lean`](../Cadence/Windows.lean) — not a duplicated
+  statement, and collapsing it would erase content rather than a seam.
+* **Move `class MVBA` out of `Primitives.lean`.** Nothing references it in
+  code — every mention in the models is prose — and `Chorus.lean` imports
+  `Primitives`, so leaving it there means future MVBA contract work forces a
+  Chorus rebuild for no reason.
+
+* **The proper fix is a Veil change, and shared syntax is standing in for
+  it.** A consumer *should* take the contract as a class constraint and use
+  its fields, the way `Chorus.lean` takes `instantiate nset : ByzNodeSet
+  node nodeset`. That works only because `ByzNodeSet` is state-independent;
+  a module contract's carrier is the consuming module's own mutable state,
+  and `instantiate` must be declared before `#gen_state`, so the class
+  cannot mention the `State` it would need to range over. Letting a module
+  assume a contract over its own state is the change that would make all of
+  the above unnecessary, and it belongs in the Veil fork
+  ([`Dependencies.md`](./Dependencies.md)), not here. Worth deciding before
+  investing further in the syntax route.
+* **Consider `assumption` rather than `invariant` for a consumed contract.**
+  Veil has an `assumption` assertion kind, and the generated VCs already
+  carry an `Assumptions` argument. A contract a glue module *assumes* is not
+  the same thing as an invariant it proves, and `Cadence.lean` currently
+  states it as the latter, discharged by its own oracle guards. This does
+  not fix identity on its own, but it is the semantically right home.
+
+What this does *not* address, and should not be conflated with it:
+trace-level refinement, that an implementing module's runs implement the
+consumer's oracle transitions, which
+[`Composition.lean`](../Cadence/Composition.lean)'s header already declares
+out of scope.
+
 ## Soundness — guarding against vacuous claims
 
 These are the items that would most change an auditor's confidence, so they
