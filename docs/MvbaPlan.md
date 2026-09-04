@@ -83,21 +83,63 @@ claims to restate. That is narrow and auditable — two statements read side
 by side — but it is not machine-checked, and it is the only reason a
 verified MVBA would not *automatically* discharge Chorus's (A-mvba).
 
-The reason it exists is mechanical, not deep: a contract field is a `Prop`
-*about* the consumer's own relations, so `instantiate` cannot bind it before
-those relations exist. Two ways to close it, both ordinary work:
+### Why the class is not consumed directly, and how to fix it
 
-* a bridging lemma per field, stating that the model's lifted invariant *is*
-  the class field applied to the model's relations — the same shape
-  `Chorus/Compose.lean` already does in the provider direction; or
-* generate the invariant from the class field with a macro, so the
-  transcription cannot drift.
+The mechanical reason is specific. Veil's `instantiate` registers a
+`Parameter` of kind `.moduleTypeclass`: a **universal parameter of the
+module**, fixed for the entire run, and it must be declared before
+`#gen_state`. `ByzNodeSet` and `TotalOrder` fit because quorum structure and
+orderings *are* run-constants. `SlotConsensus` does not, because it bundles
+`finalized` — and in the consumer `finalized` is mutable state
+(`relation finalized (i : node) (s : slot) (v : pvector)`, written by
+actions). A module parameter cannot be the state the module evolves.
+Secondarily, the class describes one instance while `Cadence.lean` runs a
+slot-indexed family of them.
 
-**For the MVBA specifically**, this means the deliverable is not just
-`Mvba ⊨ MVBA` but also bridging lemmas tying Chorus's `mvba_decide_pos` /
-`mvba_decide_neg` guards to the three state-predicate fields. Budget for it
-deliberately: touching Chorus's oracle section changes every VC statement in
-that family and forces a full cold re-solve.
+But that is an artifact of how the class is **factored**, not a law about
+classes. `SlotConsensus` conflates two different things:
+
+* a **carrier** — `correct`, `finalized`, `includes`, `on_time_proposal`,
+  `slot_of`, `inst_slot` — which the consumer already has, as its own state;
+* the **properties** — `agreement`, `slot_safety`, `proposal_inclusion` —
+  which are the only part the consumer actually wants to assume.
+
+Because the properties are written as inline `∀`-statements *inside* the
+class, they can only be referred to through an instance, and an instance
+drags the carrier with it. Lift them into standalone definitions over
+carrier arguments and the problem disappears:
+
+```lean
+def Agreement (correct : v → Prop) (finalized : v → pv → Prop) : Prop :=
+  ∀ i j V V', correct i → correct j → finalized i V → finalized j V' → V = V'
+```
+
+Then the class field becomes `agreement : Agreement correct finalized`; the
+consumer's Veil invariant becomes that *same definition* applied to its own
+state, per slot; and the provider's instance supplies it applied to Chorus's
+relations. Consumer and provider now reference one object, so there is
+nothing to transcribe and nothing to drift. No `instantiate` is required or
+wanted — what the consumer needs is the property, not the carrier — and the
+top-level instance still does exactly the job it should: witness that the
+assumed properties are satisfiable, so the composition is not vacuous.
+
+The class stays, both as the packaging for the provider and because
+`Interfaces.lean` deliberately keeps `SlotConsensus` "exactly the paper's
+module"; only its fields are re-expressed through the shared definitions.
+
+A residue remains, and it is real content rather than bookkeeping: mapping
+the provider's carrier to the consumer's — Chorus's per-proposer commit
+relations to a `pvector` — which is the construction `Chorus/Compose.lean`
+already performs. That is honest composition work; the transcription gap is
+not.
+
+**For the MVBA specifically**, doing this refactor *first* is what makes the
+rest cheap. Otherwise the deliverable is `Mvba ⊨ MVBA` plus bridging lemmas
+tying Chorus's `mvba_decide_pos` / `mvba_decide_neg` guards to the contract
+fields; afterwards there is nothing to bridge, because the guards are the
+definitions. Either way the step touches Chorus's oracle section and so
+changes every VC statement in that family — budget the cold re-solve
+deliberately rather than meeting it by surprise.
 
 ## 2. Liveness
 
@@ -216,18 +258,31 @@ Lean beside `Counting.lean` and `Pigeonhole.lean`.
 
 1. **Settle §0.** Needs a decision on visibility and the implementation
    commit; everything else can start regardless.
-2. **Contract and obligation table** in `Interfaces.lean`, splitting
-   state-predicate fields from temporal obligations per the file's own
-   doctrine. Cheap, and it forces the `value` question early.
-3. **Single-view spike.** Agreement within one view, no view change —
-   the FallbackReceipt precedent of proving the architecture at small scale
+2. **Lift the contract properties into standalone definitions** (§1). Do
+   this before anything MVBA-specific: it is a contained refactor of
+   `Interfaces.lean` plus the invariants in `Cadence.lean` that restate its
+   fields, it removes an unchecked seam that exists *today* for
+   `SlotConsensus` and `Orchestrator` independently of any MVBA work, and it
+   is what stops the MVBA arriving with a bridging problem of its own. It
+   changes the consuming models' invariant statements, so it re-solves
+   `Cadence` and `Conductor` — both cheap — and is worth doing while nothing
+   else is in flight.
+3. **MVBA contract and obligation table** in `Interfaces.lean`, expressed
+   through those definitions, splitting state-predicate fields from temporal
+   obligations per the file's own doctrine. Forces the `value` question
+   early.
+4. **Single-view spike.** Agreement within one view, no view change — the
+   FallbackReceipt precedent of proving the architecture at small scale
    first. Shakes out the encoding, and its cells warm the cache.
-4. **Full model and safety**, including the lock-persistence core.
-5. **Vacuity**: traces, then the mutation pin.
-6. **Compose**: `Mvba ⊨ MVBA`, then the bridging lemmas of §1 — the step
-   that touches Chorus and pays the re-solve.
-7. **Liveness skeleton**, on the hooks §2 leaves in place.
+5. **Full model and safety**, including the lock-persistence core.
+6. **Vacuity**: traces, then the mutation pin.
+7. **Compose**: `Mvba ⊨ MVBA`. With step 2 done this is the provider side
+   only; Chorus's oracle guards become the same definitions the instance
+   satisfies. This is the step that touches Chorus and pays the cold
+   re-solve of that family.
+8. **Liveness skeleton**, on the hooks §2 leaves in place.
 
-Steps 2–5 are self-contained and do not touch any existing model. Step 6 is
-the first that changes Chorus, and should be scheduled as its own piece of
-work rather than tacked onto step 5.
+Steps 3–6 are self-contained and touch no existing model. Steps 2 and 7 both
+change existing models and should each be scheduled as their own piece of
+work — step 2 because it is the one that pays down existing debt, step 7
+because it is the one that pays the Chorus re-solve.
