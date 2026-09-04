@@ -261,6 +261,30 @@ action behaves in a full build.
   network boundary, multi-slot (Conductor) traces, Byzantine
   validate-vs-admit tagging. [`Monitor.md`](./Monitor.md) §8.
 
+## Paper alignment
+
+The verified surface is unchanged and mechanically re-checkable; the paper's
+*implementation* track has moved a long way from it. Both, with the audit
+that established them, are [`PaperAlignment.md`](./PaperAlignment.md). Three
+items fall out of the 2026-09-03 audit, all documentary except the first:
+
+* **Re-check the `EquivCert` build guard** once the paper side settles
+  whether witness chunks are intended to supersede `line:fb-build-equiv`.
+  `FallbackReceipt.lean`'s `equiv_available` mirrors the published guard; if
+  the supplement's rule wins, the branch reassignment and the totality
+  counting argument both need re-reading.
+  [`PaperAlignment.md`](./PaperAlignment.md) §3.
+* Cite `sec:domain-separation` where the network relations rely on
+  message-type non-confusability — the paper now names an assumption the
+  model has always made structurally (one relation per message type).
+  Candidate homes: [`ChorusDesign.md`](./ChorusDesign.md) §3.5's relation
+  table and [`Architecture.md`](./Architecture.md) §4 item 3.
+* Record ChunkSync and `Δ_sync` alongside the (F-justice) justification for
+  `redisseminate_chunk`: the implementation dropped
+  `line:fb-redisseminate`, so the paper-side discharge of that fairness
+  assumption now runs through a mechanism the supplement calls
+  liveness-critical and has not specified.
+
 ## Verification-pipeline work
 
 Mostly not tracked here. The tooling this project depends on is the public

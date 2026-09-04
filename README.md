@@ -409,6 +409,17 @@ verifies the v2 design, and
 [`Cadence/FallbackReceipt/PreFix.lean`](./Cadence/FallbackReceipt/PreFix.lean)
 mechanically refutes the v1 rules.
 
+### Paper Revisions
+
+| arXiv | date | paper-repo commit | note |
+|---|---|---|---|
+| v1 | 2026-07-02 | `89322be` | the pre-fix design `PreFix.lean` refutes |
+| v2 | 2026-07-07 | `3efdbfe` | what this development verifies |
+
+The paper repository also contains a second, **internal** document describing
+the implementation. Currently, the formal model does not depend on it.
+See [`docs/PaperAlignment.md`](./docs/PaperAlignment.md) §2 for details.
+
 ### Resolving a citation
 
 The sources and documentation cite the paper by its LaTeX `\label` names —
