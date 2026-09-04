@@ -85,6 +85,15 @@ verified MVBA would not *automatically* discharge Chorus's (A-mvba).
 
 ### Why the class is not consumed directly, and how to fix it
 
+> **Superseded (2026-09-04).** The analysis below is correct about the
+> mechanics but wrong about the fix: it treats Veil's `instantiate` ordering
+> as the obstruction, when the real defect is that the contracts hide a state
+> index. Shared syntax single-sources the statement but leaves that index in
+> place. The validated replacement is a two-level, state-explicit contract —
+> `docs/CompositionContracts.md` on `worktree-composition-contracts`. Kept
+> here because the failure modes it records are still true and still worth
+> not re-deriving.
+
 The mechanical reason is specific. Veil's `instantiate` registers a
 `Parameter` of kind `.moduleTypeclass`: a **universal parameter of the
 module**, fixed for the entire run, and it must be declared before
@@ -258,15 +267,15 @@ Lean beside `Counting.lean` and `Pigeonhole.lean`.
 
 1. **Settle §0.** Needs a decision on visibility and the implementation
    commit; everything else can start regardless.
-2. **Lift the contract properties into standalone definitions** (§1). Do
-   this before anything MVBA-specific: it is a contained refactor of
-   `Interfaces.lean` plus the invariants in `Cadence.lean` that restate its
-   fields, it removes an unchecked seam that exists *today* for
-   `SlotConsensus` and `Orchestrator` independently of any MVBA work, and it
-   is what stops the MVBA arriving with a bridging problem of its own. It
-   changes the consuming models' invariant statements, so it re-solves
-   `Cadence` and `Conductor` — both cheap — and is worth doing while nothing
-   else is in flight.
+2. **Fix the contract composition first — and note this step has been
+   superseded since this plan was written.** §1 below proposed lifting the
+   contract properties into standalone definitions. That is *not* the right
+   fix: the real defect is that the contracts hide a state index, and the
+   validated design is a two-level, state-explicit contract. See
+   `docs/CompositionContracts.md` on branch `worktree-composition-contracts`
+   (not on this branch), with its runnable evidence in `spikes/`. Doing that
+   first is what turns step 7 below into provider-side work with nothing to
+   bridge — so this remains step 2, but follow that design rather than §1's.
 3. **MVBA contract and obligation table** in `Interfaces.lean`, expressed
    through those definitions, splitting state-predicate fields from temporal
    obligations per the file's own doctrine. Forces the `value` question
