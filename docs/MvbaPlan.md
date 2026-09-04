@@ -43,8 +43,8 @@ an internal artefact.
 ### 0.2 There is no immutable referent to pin to
 
 The paper has arXiv versions, and [`../README.md`](../README.md) maps each to
-the unique paper-repo commit that reproduces it (landing with the
-paper-alignment branch). The supplement has neither tags nor versions, and
+the unique paper-repo commit that reproduces it. The supplement has neither
+tags nor versions, and
 `alg_mvba.tex` is the most-churned file in the paper repository — roughly a
 dozen commits since July. Modelling it means modelling a moving target.
 
