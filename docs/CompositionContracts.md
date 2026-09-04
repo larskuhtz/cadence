@@ -199,7 +199,85 @@ Two further consequences worth taking deliberately.
   the trust base instead of in prose — never by weakening the pins on the end
   theorems, which stay at `[propext, Classical.choice, Quot.sound]`.
 
-## 6. What this does not fix
+## 6. The inventory: does every contract follow the pattern?
+
+Ten contract classes, in two groups. The split is not stylistic: it is whether
+the carrier is *data* or a *run*.
+
+### Algebraic primitives — already in the right shape
+
+Every field is a function of the declared types and every property is a pure
+statement about those functions, so each is consumable as an `instantiate`
+constraint exactly as `ByzNodeSet` is. These are the positive control for the
+pattern, and they need no restatement.
+
+| Class (`Primitives.lean`) | Operations | Laws |
+|---|---|---|
+| `HashFunction` | `hash` | `collision_resistant` |
+| `SignatureScheme` | `Sign`, `Verify`, `signer` | `sound`, `unforgeable`, `sound_signer`, `unforgeable_signer` |
+| `ErasureCoding` | `Encode`, `Decode` | `decode_sound`, `encode_inj` |
+| `MerkleTree` | `MerkleRoot`, `MerkleProof`, `VerifyMerkle` | `sound`, `binding` |
+| `ThresholdIBE` | `Enc`, `KeyShare`, `VerifyShare`, `Dec`, `mpk`, `msk` | `decrypt_sound`, `decrypt_secret` |
+
+Two caveats that are about content rather than shape. `ThresholdIBE`'s
+`decrypt_secret` is a *structural* surrogate — "if `Dec` succeeded then a
+verified `≥ t` share set existed" — not computational hiding, which is not
+expressible in this style at all and stays a named meta-assumption
+([`Architecture.md`](./Architecture.md) §4 item 3). And **none of these five is
+consumed via `instantiate` by any model**: the only `instantiate` of a
+contract anywhere is `ByzNodeSet`. They are correctly shaped but unwired,
+which is the mirror image of the sub-protocol problem and a separate item.
+
+### Sub-protocol interfaces — all carry the same defect
+
+Each has a carrier that is really a run, with the index hidden, so each needs
+the two-level treatment of §5.
+
+| Class | Hidden-state carrier | Currently prose | Also needs |
+|---|---|---|---|
+| `Orchestrator` | `opened`, `completed` | Totality, Integrity ×2, Monotonicity, `B`-boundedness, `R`-recovery | — (design settled, §5) |
+| `SlotConsensus` | `finalized`; `on_time_proposal` is documented as "per-instance data fixed by the execution" | Hiding, ℓ-Termination (A-sc-termination), Quiescence | resolving per-instance vs the glue's slot-indexed family |
+| `SlotConsensusWithTotality` | inherits | `d_tot`-Totality (A-sc-totality) | it is an **empty** `extends SlotConsensus` — see below |
+| `ACS` | `proposed`, `decided`, `has_decided` | ℓ-Termination (A-acs-termination), Δ-Totality (A-acs-totality), quantitative validity | not consumed as a class at all (Conductor models a window interval) |
+| `MVBA` | `input`, `output` — whose docstring says "eventually populated", so time is hidden too | ℓ_MVBA-Termination, Quiescence | not consumed as a class at all (Chorus inlines the oracle) |
+
+Three observations worth acting on.
+
+* **The codebase already anticipated the two-level shape.**
+  `SlotConsensusWithTotality extends SlotConsensus` has an *empty body*, with
+  a docstring explaining that the property is temporal so "this class adds no
+  formal fields — it is a marker carrying the documented obligation". That is
+  precisely the upper level of §5, left unpopulated. Filling it in is the
+  smallest possible first instance of the pattern.
+* **The upper level takes three kinds of field, not one.** Beyond temporal
+  properties, the ACS table marks its quantitative validity half documented
+  because cardinality is "outside the first-order language", and
+  `B`-boundedness is the same kind of statement. Liveness, bounds and
+  cardinality all belong at the non-first-order level; only the first-order
+  residue goes in the fragment a Veil module instantiates.
+* **`ByzNodeSet` is the only contract in the development that is both
+  correctly shaped and discharged by a proven instance.** `Orchestrator` and
+  `SlotConsensus` have constructed instances (`orchestrator_instance`,
+  `Chorus.slotConsensus_instance`) but the wrong shape; the five primitives
+  have the right shape and no instance and no consumer; `ACS` and `MVBA` have
+  neither.
+
+### The uniform target
+
+For each sub-protocol interface `X`:
+
+* `XSafety` — first-order: the carrier accessors over an explicit state,
+  `init`/`step`/`reachable`, and the state-predicate properties. This is what
+  a consuming Veil module `instantiate`s.
+* `XRun` — the execution its temporal obligations quantify over.
+* `X extends XSafety` — the specification proper: every remaining row of the
+  obligation table as a field, including bounds carried as data.
+
+An implementation owes `X`; a Veil consumer assumes `XSafety`; `toXSafety`
+connects them. Obligations this project cannot yet discharge stay stated and
+uninstantiated, which makes the gap type-visible rather than prose.
+
+## 7. What this does not fix
 
 The consumer's `opened` and the implementation's `opened` remain different
 objects, related by an observation map. Making the index explicit turns that
