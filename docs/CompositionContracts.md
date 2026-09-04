@@ -1,9 +1,35 @@
 # Module contracts: making the state explicit
 
 *Design note. It records a defect in how the module contracts are stated, the
-fix, and the experiment showing the fix works in Veil. Nothing here is
-implemented yet beyond the Orchestrator's property being single-sourced; the
-migration is [`TODO.md`](./TODO.md) § "Contract composition".*
+fix, and the experiments showing the fix works in Veil. Nothing here is
+implemented yet beyond the Orchestrator's property being single-sourced.*
+
+## Start here (handoff, 2026-09-04)
+
+This was a research and planning session; the implementation is a separate
+piece of work and has not begun. To pick it up:
+
+1. Read §1 (the defect), §5 (the two-level contract that resolves it), then
+   §6 (which contracts need it, and the uniform target shape).
+2. Run the four experiments in [`../spikes/`](../spikes/README.md) — they
+   take seconds and are the whole argument, including two that are *supposed*
+   to fail. That directory's README says what each establishes.
+3. The ordered migration is [`TODO.md`](./TODO.md) § "Contract composition".
+   Step 1 is `Orchestrator`; the smallest useful pilot is smaller still —
+   `SlotConsensusWithTotality` is already an empty two-level `extends`, so
+   populating it exercises the pattern against one obligation and no
+   consumer (§6).
+
+State of the branch (`worktree-composition-contracts`, off master): the
+Orchestrator's `open_prefix_agreement` is single-sourced as shared syntax and
+the whole suite re-validates green (17 124 discharges, 196 cache replays, no
+counterexamples, timeouts or crashes; axiom pins unchanged). **That syntax
+change is scaffolding and is superseded by §5** — see §4. Everything else on
+the branch is documentation.
+
+Build note for a fresh worktree: symlink `.lake/packages` and
+`.lake/build/veilcache` from the main checkout rather than rebuilding the
+dependency tree, and read lake's own exit code rather than a shell wrapper's.
 
 ## 1. The defect
 
