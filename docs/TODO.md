@@ -22,11 +22,20 @@ bearing rather than decorative.
 
 Migration, in order:
 
-1. Restate `Orchestrator` over an explicit state, with the obligation-table
-   rows as formal fields (provable ones proven, temporal ones as declared
-   assumptions). Rework `Cadence.lean` to hold the orchestrator state and read
-   it through the contract, and `Composition.lean` to build the instance from
-   the Conductor once rather than per state.
+1. Restate `Orchestrator` over an explicit state, as a **two-level** contract:
+   a first-order `OrchestratorSafety` fragment that the Veil modules
+   `instantiate`, and the full `Orchestrator` extending it with every row of
+   the obligation table — Totality, Integrity, `B`-boundedness (carrying `B`
+   as data), `R`-recovery — stated over an explicit run. The split is forced:
+   Veil emits *all* axioms of an instantiated class to the solver, so a field
+   quantifying over a run crashes every VC in the consuming module
+   (`Symbol '->' not declared as a type`). Both levels are validated in
+   [`CompositionContracts.md`](./CompositionContracts.md) §5.
+   Rework `Cadence.lean` to hold the orchestrator state and read it through
+   the contract, and `Composition.lean` to build the `…Safety` instance from
+   the Conductor once rather than per state. Do **not** fabricate an instance
+   of the full contract: leaving it uninstantiated is the honest state and
+   makes the gap type-visible.
 2. Remove the `openPrefixAgreement%` scaffolding below — it is superseded, not
    built on.
 3. Then `SlotConsensus`, whose per-instance/slot-indexed arity mismatch

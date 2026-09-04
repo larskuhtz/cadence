@@ -132,7 +132,74 @@ function argument and SMT-LIB is first-order. That constraint disappears in the
 design above, where the carrier is an uninterpreted state sort and the
 accessors are uninterpreted predicates applied to it — all first-order.
 
-## 5. What this does not fix
+## 5. Stating liveness and the concrete bounds at the interface
+
+An interface is part of the model's *specification*, not a detail of the
+proof: its fields are the proof obligations the sub-protocol owes, and the
+composed protocol consumes them as assumptions. So an obligation belongs in
+the class whether or not this project can discharge it mechanically today, and
+whether or not anything consumes it yet. Omitting the temporal rows because
+Veil cannot prove them, or the bounds because nothing reads them, loses the
+provenance of the claim — the assumption ends up recorded where it is
+consumed instead of where it originates.
+
+There is one hazard, and it is sharp. **Veil emits every axiom of an
+instantiated class to the solver.** That is the mechanism §3 depends on, but
+it means a field that is not first-order poisons the whole module: adding a
+`totality` field quantifying over a run (`run : Nat → state`) to the
+instantiated class made **all nine** VCs of the consuming module crash with
+
+    cvc5.Error.error "Symbol '->' not declared as a type"
+
+— cvc5 has no function sorts, and the arrow reached the encoder verbatim.
+
+The fix is a two-level contract, checked and working:
+
+```lean
+class OrchSafety (validator slot state : Type) where
+  init … step … reachable … opened … completed … byz … lt …
+  reachable_init … reachable_step …
+  opened_monotone        -- Monotonicity
+  open_prefix_agreement  -- the safety residue
+
+/-- A run: the execution the temporal obligations speak about. -/
+structure OrchRun (state : Type) [O : OrchSafety validator slot state] where
+  at' : Nat → state
+  starts : at' 0 = O.init
+  steps  : ∀ n, O.step (at' n) (at' (n + 1))
+
+class Orch (validator slot state : Type)
+    extends OrchSafety validator slot state where
+  totality    : …    -- (A-orch-totality), over an OrchRun
+  bound       : Nat  -- the deployment's B = 2W − p, carried as data
+  boundedness : …    -- (A-orch-boundedness), over an OrchRun
+```
+
+The consuming Veil module writes `instantiate orch : OrchSafety node slot
+ostate` — the first-order fragment only — and its VCs all discharge. `Orch`
+extends it, so `F.toOrchSafety` hands the composition exactly what it assumes:
+an implementation owes the full contract and nothing is omitted from the
+interface. What differs between the two levels is only *which* fields cross
+into the SMT layer, not which are specified.
+
+Two further consequences worth taking deliberately.
+
+* **The obligation table becomes the class.** The rows in
+  [`Interfaces.lean`](../Cadence/Interfaces.lean)'s Orchestrator table are
+  exactly these fields; once they are fields, the table is a rendering of the
+  contract rather than a substitute for it.
+* **An unmet obligation becomes type-visible.** Conductor can supply an
+  `OrchSafety` instance — those fields are proven — but not an `Orch`
+  instance, because totality and boundedness are not mechanically provable
+  here yet. That is the honest state, and stating it this way is *stronger*
+  than a prose row: the absence of an `Orch` instance is checkable, whereas a
+  table entry is not. If something later needs to consume a temporal field
+  before Veil can prove it, it should enter as a named `axiom` in a file
+  carrying its own `#print axioms` pin, so the extra assumption shows up in
+  the trust base instead of in prose — never by weakening the pins on the end
+  theorems, which stay at `[propext, Classical.choice, Quot.sound]`.
+
+## 6. What this does not fix
 
 The consumer's `opened` and the implementation's `opened` remain different
 objects, related by an observation map. Making the index explicit turns that
