@@ -15,57 +15,33 @@ it under (A-mvba) and why `ℓ_MVBA` is a parametric hole
 specifies a concrete leader-based protocol with its own correctness section,
 so for the first time there is something to model.
 
-## 0. Two decisions that come before any Lean
+## 0. The specification, and the commit to pin it to
 
-### 0.1 The specification is internal
+Everything verified so far is checkable against `arXiv:2607.02275v2`. The
+MVBA algorithm is not in it: it lives in the paper repository's **internal
+supplement** (`supplementary-internal.tex` and
+`src/supplementary-internal/`), which is not yet part of the published
+paper ([`PaperAlignment.md`](./PaperAlignment.md) §2, §4). That is stated,
+not worked around: the model's header, and every document that names the
+model, say that its specification is the internal supplement, not yet part
+of the published paper, and that `mod:mvba` — the contract the model is
+proven to satisfy — is the public part. What an auditor can check without
+the supplement is the theorem `Mvba ⊨ MVBASafety` against the public
+contract; what needs the supplement is the model's fidelity to the
+algorithm. The implementation in code is out of scope and is not cited.
 
-Everything verified so far is checkable by an auditor against
-`arXiv:2607.02275v2`. The MVBA algorithm is not in it — only the internal
-supplement has it ([`PaperAlignment.md`](./PaperAlignment.md) §2
-"Visibility", §4). The algorithms are not secret; a Rust implementation
-exists in the `monad-bft` tree. But an auditor reading a `Mvba.lean` would
-have no specification to read it against, which is a real change to this
-repository's audit story rather than a documentation detail.
-
-**Proposed default, pending Lars's decision.** Keep the *public* claim at
-contract level and treat the algorithm as an implementation detail whose
-model is an internally-referenced artefact:
-
-* `MVBASafety`/`MVBA` in [`Interfaces.lean`](../Cadence/Interfaces.lean)
-  are `mod:mvba` verbatim and stay the public surface. `Mvba ⊨ MVBASafety`
-  is then a public *theorem about a public contract*; only the model's
-  fidelity to the algorithm needs the internal document.
-* The model's header cites the supplement by commit SHA and label (§0.2),
-  and [`README.md`](../README.md)'s audit section says in one paragraph
-  that this one model's specification is not public and what an auditor
-  can and cannot check without it.
-
-The two alternatives — publish the MVBA section of the supplement, or mark
-the component internal-only — remain open; neither blocks the modelling.
-
-**Still open, and needed before the header is written:** the exact
-implementation branch and commit to cite. The Cadence-named branches visible
-from here — `xinyuan/chorus-core-sim`, `xinyuan/chorus-finalization-test`,
-`xinyuan/chorus-modular-env`, `xinyuan/acs-interface-and-cadence-conductor`,
-`xinyuan/conductor-revision`, `mcp-dev` — are all in the **private**
-`monad-bft-private` remote. The only public branch matching any Cadence
-keyword, `category-labs/monad-bft` `xinyuan/mcp-prototype` (`c7a9633`,
-2026-03-27), predates the paper by four months and contains no
-chorus/cadence/conductor paths. So the public referent still has to be
-identified.
-
-### 0.2 There is no immutable referent to pin to
-
-The paper has arXiv versions, and [`README.md`](../README.md) maps each to
-the unique paper-repo commit that reproduces it. The supplement has neither
-tags nor versions, and `src/supplementary-internal/alg_mvba.tex` is the
-most-churned file in the paper repository — some twenty commits since July,
-the latest on 2026-09-03. Modelling it means modelling a moving target.
-
-**Pin the model to a supplement commit SHA** and treat any later change to
-`alg_mvba.tex` or to `subsec:mvba-correctness` as a trigger to re-read. As
-of this revision the referent is paper-repo commit **`026dc8b`**
-(2026-09-03). The anchors to cite from it: `sec:mvba-instantiation`,
+**The referent is a paper-repository commit, recorded for our own future
+iterations.** The paper has arXiv versions, and [`README.md`](../README.md)
+maps each to the unique paper-repo commit that reproduces it. The
+supplement has neither tags nor versions, and
+`src/supplementary-internal/alg_mvba.tex` is the most-churned file in the
+repository — some twenty commits since July, the latest on 2026-09-03 — so
+the model pins the **commit SHA of the paper repository it was read
+against**, and any later change to `alg_mvba.tex` or to
+`subsec:mvba-correctness` is the trigger to re-read the model against the
+new commit and move the pin. For this plan, and for the model's first
+version, the referent is paper-repo commit **`026dc8b`** (2026-09-03).
+The anchors to cite from it: `sec:mvba-instantiation`,
 `subsec:mvba-datatypes`, `subsec:mvba-protocol`, the three algorithm blocks
 `alg:mvba`, `alg:mvba-cont`, `alg:mvba-cont2` with their `line:mvba:*`
 labels, and the correctness section `subsec:mvba-correctness` with
@@ -199,7 +175,7 @@ model file `Cadence/Mvba.lean` (registry, no sweep) importing `Veil` and
 `Cadence/Mvba/Compose.lean` (the only file importing `Interfaces.lean`)
 with the instance, the residual and the axiom pins; rows and pins in
 [`Cadence.lean`](../Cadence.lean). Nothing imports `Chorus.lean`, so steps
-1–6 of §8 never rebuild the Chorus family. The model shares Chorus's `node`
+1–5 of §8 never rebuild the Chorus family. The model shares Chorus's `node`
 / `nodeset` / `ByzNodeSet` vocabulary so that the system composition needs
 no fault-model transport between the two.
 
@@ -482,40 +458,38 @@ The risk is concentrated in **lock persistence across views**
 (`lem:lock-persistence`, `lem:cert-uniqueness`), the standard PBFT
 view-change argument: several quorum-intersection cells that may diverge
 under e-matching and become manual cells (§2.6). The single-view spike (§8
-step 3) exercises `lem:cert-uniqueness` in isolation before the view-change
+step 2) exercises `lem:cert-uniqueness` in isolation before the view-change
 machinery is added, which is where the first manual cells will appear.
 
 ## 8. Proposed order
 
 Each step names its exit criterion and what it costs to rebuild.
 
-1. **Settle §0.** The visibility default of §0.1 and the referent
-   `026dc8b`; the implementation commit can follow. Everything else can
-   start regardless.
-2. **Contract review — no class change expected.** `MVBASafety`/`MVBA`
+1. **Contract review — no class change expected.** `MVBASafety`/`MVBA`
    are `mod:mvba` and the plan instantiates them as they stand; the
-   supplement's certificate output is not a field (§0.2). The one edit is
+   supplement's certificate output is not a field (§0). The one edit is
    the obligation table's discharge column and the header table's "out of
    scope" row, once the instance exists — a comment in `Interfaces.lean`,
    which rebuilds the small models and the composition files (minutes),
    not the Chorus family.
-3. **Single-view spike.** `Cadence/Mvba.lean` with one view, no timeouts:
+2. **Single-view spike.** `Cadence/Mvba.lean` with one view, no timeouts:
    agreement via certificate uniqueness, the whole file family
-   (model / `Proofs/` / `Certify`), traces, the `#veil_status` pin. Exit:
-   green, and the quorum-intersection cells either solve or are manual.
-   Shakes out the encoding; its cells warm the cache.
-4. **Full model and safety** (§2): views, timeouts, certificates, lock
+   (model / `Proofs/` / `Certify`), traces, the `#veil_status` pin, and
+   the header that pins the referent (§0). Exit: green, and the
+   quorum-intersection cells either solve or are manual. Shakes out the
+   encoding; its cells warm the cache.
+3. **Full model and safety** (§2): views, timeouts, certificates, lock
    persistence. Exit: `safety [agreement]`, `[integrity]`,
    `[external_validity]` proven; pins updated; rows in `Cadence.lean`.
-5. **Vacuity** (§4): the four traces, then the `NoLock` mutation pin.
-6. **Provider** (§5): `Mvba.mvbaSafety`, the residual, `mvba_of_residual`,
+4. **Vacuity** (§4): the four traces, then the `NoLock` mutation pin.
+5. **Provider** (§5): `Mvba.mvbaSafety`, the residual, `mvba_of_residual`,
    axiom pins. Exit: `Cadence.lean` pins the new declarations at the
    standard trio.
-7. **Chorus consumption** (§6). Its own piece of work — the one that pays
+6. **Chorus consumption** (§6). Its own piece of work — the one that pays
    the Chorus cold re-solve and touches the monitor.
-8. **Liveness skeleton** (§3), on the hooks left in place.
+7. **Liveness skeleton** (§3), on the hooks left in place.
 
-Steps 3–6 are self-contained and touch no existing model. Step 7 is
+Steps 2–5 are self-contained and touch no existing model. Step 6 is
 scheduled last among the safety work on purpose: the provider is worth
 having on its own (it retires the "no instance exists" caveat of
 `Architecture.md` §4 item 3), and the consumption's cost is independent of
@@ -533,8 +507,10 @@ when it is paid.
 ## 9. Documentation consequences
 
 Where the claims live once the work lands, so the "one home per fact" rule
-holds: [`README.md`](../README.md) (end-results table; the §0.1 paragraph
-on the internal specification); [`Architecture.md`](./Architecture.md) §4
+holds: [`README.md`](../README.md) (end-results table; the §0 note that the
+model's specification is the internal supplement, not yet part of the
+published paper, pinned to a paper-repository commit);
+[`Architecture.md`](./Architecture.md) §4
 items 2 and 3 (the MVBA leaves the "no instance exists" list; the bridge
 joins the ACS median bridge) and the file-family table;
 [`CompositionContracts.md`](./CompositionContracts.md) §8 item 1 (closed,
