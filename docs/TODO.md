@@ -7,6 +7,50 @@ The authoritative, numbered list of Chorus-side open items is
 lifts); this file collects the cross-cutting ones and the model-hygiene
 wishlist.
 
+## Contract composition — done 2026-09-04, with three named seams left
+
+**Implemented**: the module contracts are two-level type classes over an
+explicit abstract state ([`CompositionContracts.md`](./CompositionContracts.md)),
+the glue and the Conductor consume the state-level fragments as class
+constraints (no restated `require`s), the Conductor and Chorus instances are
+proven field for field, each implementation's unproven obligations are a
+residual structure type-checked against the full class, and
+`Cadence.system_positional_log_safety` composes MCP Safety at both instances
+with no contract hypothesis left. What remains, in the order worth taking:
+
+* **Chorus's MVBA oracle as a class constraint.** `MVBASafety` exists; Chorus
+  still inlines the properties as guards of `mvba_decide_*`, and the
+  transcription is audited by reading (table in
+  [`CompositionContracts.md`](./CompositionContracts.md) §8). The obstacle is
+  the model's abstraction of validity — a predicate on Chorus's *state*
+  (certificates as network relations), which a class parameter cannot
+  mention. Closing it means carrying certificates in the value type or
+  restating the evidence guards as the class's `Valid`; either way every
+  Chorus verification condition changes. Scheduled with the MVBA
+  instantiation (`MvbaPlan.md`, on branch `worktree-mvba-instantiation`).
+* **Chorus's participation interface.** `mod:slotconsensus`'s
+  `participate`/`abandon`/`propose` are absent from the model, so the whole
+  of `SlotConsensus`'s upper level except Hiding's protocol half is residual
+  (`Chorus.SlotConsensusResidual`), and the glue's records of those calls
+  (`sc_abandoned`, `proposed`) stay glue-local. Adding the inputs to the
+  Chorus model would let the glue drive them and shrink the residual to the
+  temporal fields; it is a model change and pays the Chorus cold re-solve.
+* **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
+  the decided set brackets the first slot from below is the quantitative half
+  of ACS validity (`ACS.validity_quantitative`, upper level) through
+  `Windows.lean`'s median lemma; cardinality is outside the first-order
+  fragment. A Lean theorem deriving the `require` from the upper-level field
+  plus the median lemma would turn the one stated bridge into a proof.
+
+Two smaller items fall out of the same work: **stating `Admissible`** (each
+upper class's admissible-execution model) for the Conductor and Chorus in
+Lean — today it is residual data, and its intended content is the
+(F-justice)/(A-acs-*) prose of the models' liveness sections; and a
+**composed bounded-concurrency corollary** — from the glue's
+`bounded_concurrency_interval` and `Conductor.OrchestratorResidual.boundedness`,
+"at most `B` slots actively participated in", which needs a finite
+minimum-extraction argument over slots that is not written yet.
+
 ## Soundness — guarding against vacuous claims
 
 These are the items that would most change an auditor's confidence, so they

@@ -57,8 +57,8 @@ Current state, all green:
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
 | `Cadence/Chorus.lean` | 38 | 9 safety + 89 invariants | 3 861 | cvc5, **proof-reconstructed** (kernel-checked), + 11 manual Lean proofs for e-matching-divergent cells |
-| `Cadence/Cadence.lean` | 4 | 4 safety + 18 invariants | 115 | cvc5, **proof-reconstructed** (kernel-checked) |
-| `Cadence/Conductor.lean` | 7 | 5 safety + 14 invariants | 160 | cvc5, **proof-reconstructed** (kernel-checked; one encoding-divergent attempt covered by its alternative form) |
+| `Cadence/Cadence.lean` | 6 | 4 safety + 20 invariants | 175 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
+| `Cadence/Conductor.lean` | 7 | 5 safety + 15 invariants | 168 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
 | `Cadence/FallbackReceipt.lean` | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
 
 **All four modules run with proof reconstruction** (`veil.smt.trust
@@ -93,14 +93,30 @@ invariant clump" (`invariants_of_reachable` — emitted by
 `#gen_composition` in the families' `Certify.lean` files, hand-written
 in `Cadence/Composition.lean` for the small modules), from which the paper's
 *module contracts* ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean)) are
-instantiated:
+instantiated. The contracts are type classes over an explicit abstract
+state, in two levels — a first-order fragment the consuming Veil model
+`instantiate`s as a class constraint (so the properties are the solver's
+hypotheses, never restated), and the full class with every temporal and
+quantitative obligation over explicit runs
+([CompositionContracts.md](./CompositionContracts.md)):
 
-* `Conductor ⊨ Orchestrator` and the paper's **positional MCP Safety**
-  (`def:safety` over ordered logs) — [Cadence/Composition.lean](../Cadence/Composition.lean);
-* `Chorus ⊨ SlotConsensus` —
+* `Conductor ⊨ OrchestratorSafety` (`Conductor.orchestratorSafety`, every
+  field proven — the two-state fields from Veil's transition bodies) and
+  the paper's **positional MCP Safety** (`def:safety` over ordered logs) —
+  [Cadence/Composition.lean](../Cadence/Composition.lean);
+* `Chorus ⊨ SlotConsensusSafety` (`Chorus.slotConsensusSafety`) —
   [Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean), over the composed
   certificate and named per-property projections of
   [Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean);
+* the **composed system** — the glue's MCP Safety instantiated at those two
+  instances, with no contract hypothesis left
+  (`Cadence.system_positional_log_safety`,
+  [Cadence/System.lean](../Cadence/System.lean));
+* what each implementation still owes of its *full* contract is a Lean
+  structure — `Conductor.OrchestratorResidual`,
+  `Chorus.SlotConsensusResidual` — with a definition
+  (`…_of_residual`) that type-checks it against the class; these are §4
+  item 4 as types;
 * build totality of the receipt layer for **every** `n = 3f+1` —
   [Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean),
   kernel-checked end-to-end;
@@ -142,9 +158,9 @@ The paper's headline properties and their formal counterparts:
 | Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of `lemma:chorus-termination`'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
 | Progress dichotomy (`lemma:chorus-termination`'s case split as one statement: saturated reachable state ⇒ per-proposer commitQCs from honest votes alone, or MVBA invoked with per-proposer decide evidence) | `progress_dichotomy_of_saturation` ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)), all `n = 3f+1` | sweep + Lean |
 | The pre-fix receipt rules are broken (the §7.2 finding) | pinned model-checker violation, [Cadence/FallbackReceipt/PreFix.lean](../Cadence/FallbackReceipt/PreFix.lean) | model check |
-| Conductor open-prefix agreement, boundedness residues | Conductor sweep + `orchestrator_instance` | sweep + composition |
-| MCP Safety, positional form (`def:safety`) | `positional_log_safety` in `Cadence/Composition.lean` | composition |
-| Conductor/Cadence temporal claims (totality, ℓ-liveness, recovery) | documented obligations in `Cadence/Interfaces.lean` tables | meta (§4) |
+| Conductor as the paper's orchestrator, state-level: open-prefix agreement, Monotonicity, Integrity (at most once), the observables' monotonicity and frames; boundedness in interval form | Conductor sweep + `Conductor.orchestratorSafety` (`Cadence/Composition.lean`) | sweep + composition |
+| MCP Safety, positional form (`def:safety`) — for the glue over any contract instances, and for the composed system | `positional_log_safety` (`Cadence/Composition.lean`); `system_positional_log_safety` (`Cadence/System.lean`) | composition |
+| Conductor/Cadence temporal claims (totality, ℓ-liveness, recovery, termination, quiescence) | fields of the full contracts in `Cadence/Interfaces.lean`, stated over timed runs; the unproven subset per implementation is `Conductor.OrchestratorResidual` / `Chorus.SlotConsensusResidual` | meta (§4), stated formally |
 
 ## 4. The meta-assumption inventory
 
@@ -194,28 +210,58 @@ relations, and it takes a human to confirm each use is positive.
    implementation refinement of the proposal build is the receipt
    layer (§5).
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
-   hiding — genuinely an assumption, as for any crypto primitive) and
-   the `MVBA` / `ACS` module contracts
-   ([Cadence/Primitives.lean](../Cadence/Primitives.lean),
-   [Cadence/Interfaces.lean](../Cadence/Interfaces.lean)) — standard primitives whose
-   implementations are out of scope. Note what is *not* on this list:
+   hiding — genuinely an assumption, as for any crypto primitive;
+   [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS` /
+   `MVBA` module contracts ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean))
+   — standard primitives whose implementations are out of scope, so no
+   instance exists and every field is assumed. What *is* machine-checked
+   is the consumption side for ACS: the Conductor takes `ACSSafety` as a
+   class constraint, so it assumes exactly the class, with one stated
+   bridge (the median-range `require` of `acs_decide`, justified by the
+   class's quantitative validity through `Windows.lean`). The MVBA is the
+   one contract still consumed by *inlined guards* (Chorus's
+   `mvba_decide_*`); the transcription is tabulated against the class in
+   [CompositionContracts.md](./CompositionContracts.md) §8, and the reason
+   it is not yet a constraint — validity is a predicate on Chorus's own
+   state — is recorded at the class. Note what is *not* on this list:
    the `ByzNodeSet` quorum/counting interface is **not** an assumption
    gap — its axioms are Lean-proven for the concrete `byzNodeSetFin`
    instance family, which covers every deployment size `n = 3f+1` with
    any Byzantine set of size `≤ f`. An end-to-end example instantiation
    of the remaining class stack (an `MVBA`/`ThresholdIBE` model
    instance) is open work ([ChorusDesign.md](./ChorusDesign.md) §9).
-4. **Temporal/quantitative module obligations**: ℓ-termination,
-   `d_tot`-totality, Quiescence, boundedness cardinalities, recovery —
-   documented rows of the `Cadence/Interfaces.lean` obligation tables with
-   named meta-axiom labels ((A-sc-termination), (A-sc-totality), …).
-   The models are untimed; no formal artefact claims a latency bound.
+4. **Temporal/quantitative module obligations**: totality, termination,
+   `d_tot`-totality, Quiescence, boundedness, recovery — *fields* of the
+   full contracts `Orchestrator`, `SlotConsensus`,
+   `SlotConsensusWithTotality`, `ACS`, `MVBA` in
+   [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), stated over timed
+   runs with an implementation-defined admissible-execution model. For the
+   two implementations the exact unproven subset is a type:
+   `Conductor.OrchestratorResidual` ([Cadence/Composition.lean](../Cadence/Composition.lean);
+   Totality, `B`-Boundedness, `R`-Recovery, the execution model) and
+   `Chorus.SlotConsensusResidual` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean);
+   the participation interface, the clock, Termination, Quiescence — Chorus
+   models no participation window). The meta-axiom names
+   ((A-orch-totality), (A-orch-boundedness), (A-orch-recovery),
+   (A-sc-termination), (A-sc-totality), (A-acs-termination),
+   (A-acs-totality)) are those fields' docstrings. The models are untimed;
+   no formal artefact claims a latency bound.
 5. **Scope**: single slot for Chorus (slot independence is argued, not
    modelled), no epochs/proposer rotation, chunk indices and
    erasure-code arithmetic abstracted
    ([ChorusDesign.md](./ChorusDesign.md) §3.4, §8), payload bytes not
    modelled.
-6. **Trusted tooling**: Veil's VC generation and the concrete model
+6. **Composition seams**: (a) the glue's records of the slot-consensus
+   inputs it does not drive into the contract (`sc_abandoned`, `proposed`)
+   are its own, as the paper's local variables are — that its call *is*
+   the instance's input is trace-level refinement, out of scope
+   ([ChorusDesign.md](./ChorusDesign.md) §10.1); (b) the two fault patterns
+   — the shared `FaultModel` and Chorus's `ByzNodeSet.is_byz` — meet in the
+   hypothesis `hbyz` of `system_positional_log_safety`; (c) an
+   implementation's `Admissible` execution model is data it defines
+   (non-vacuity is a class axiom, the definition is one line to read).
+   All three are named in [CompositionContracts.md](./CompositionContracts.md) §8.
+7. **Trusted tooling**: Veil's VC generation and the concrete model
    checker are part of the trusted computing base everywhere (as is
    Lean's kernel). cvc5's `unsat` verdicts are *not* trusted — every
    sweep reconstructs its proofs kernel-checked (§6) — but its `sat`
@@ -268,11 +314,12 @@ file:
 
 | Artefact | Axioms | Pinned |
 |---|---|---|
-| `Cadence.positional_log_safety`, `Conductor.orchestrator_instance` (`Cadence/Composition.lean`) | `propext, Classical.choice, Quot.sound` | ✓ |
+| `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_residual` (`Cadence/Composition.lean`) | `propext, Classical.choice, Quot.sound` | ✓ |
+| `Cadence.system_positional_log_safety` (`Cadence/System.lean`) | same | ✓ |
 | `Chorus.invariants_of_reachable` + per-property projections (`Cadence/Chorus/Certify.lean`) | same | ✓ + `#veil_status`: 3861/3861 real |
 | `FallbackReceipt.invariants_of_reachable` (`Cadence/FallbackReceipt/Certify.lean`) | same | ✓ + `#veil_status`: 220/220 real |
 | `FallbackReceipt.build_totality_of_reachable` (`Cadence/FallbackReceipt/Totality.lean`) | same | ✓ |
-| `Chorus.slotConsensus_instance` (`Cadence/Chorus/Compose.lean`) | same | ✓ |
+| `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_residual` (`Cadence/Chorus/Compose.lean`) | same | ✓ |
 | `Chorus.evidence_pigeonhole_of_reachable` (`Cadence/Chorus/Pigeonhole.lean`) | same | ✓ |
 | the `FallbackReceiptPreFix` refutation (`Cadence/FallbackReceipt/PreFix.lean`) | expected model-checker violation (trace) | ✓ |
 
@@ -305,7 +352,7 @@ set with a pinned `#veil_status` line — per VC, a real,
 statement-matching, kernel-checked theorem must be in scope, or the
 build fails.
 
-What remains trusted is inventoried in §4 item 6 — Lean's kernel,
+What remains trusted is inventoried in §4 item 7 — Lean's kernel,
 Veil's VC generation, the model checker where used, and the solver's
 `sat` verdicts on non-load-bearing `sat trace` checks.
 

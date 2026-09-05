@@ -78,35 +78,56 @@ four properties) is `p2_problem_definition.tex`.
         └───────────────────────────┘  └───────────────────────────┘
 ```
 
-The **oracle pattern** is the one already established twice (MVBA inside
-Chorus; and it is how Veil abstracts sub-routines generally): the
-consumed primitive's *safety* properties become `require` clauses of
-oracle actions (then lifted to invariants), its *liveness* properties
-become named meta-axioms ((A-mvba)-style), and the class in
-`Cadence/Interfaces.lean` documents the full contract that an implementation
-must discharge. Each module is verified independently against the
-oracle contract.
+The **contract pattern** (since 2026-09; `CompositionContracts.md`): the
+consumed module's contract is a type class over an *explicit abstract
+state*, which the consumer holds as state of its own and reads through the
+class's observables. The consumer `instantiate`s the contract's state-level
+fragment as a class constraint — Veil hands every axiom of an instantiated
+class to the solver — so the contract's properties are *used* in the
+consumer's verification conditions, never restated as `require`s. The
+module's transitions appear as an oracle step (`orch_step`, `sc_step`,
+`acs_step`: any transition the contract allows) and as the consumer-driven
+input transitions; the paper's liveness and quantitative properties are
+fields of the full class, stated over runs, and each implementation's
+unproven subset is a residual structure. Each module is verified
+independently against the contract; the instances and the composed theorem
+are §5. (The MVBA inside Chorus is the one consumed sub-protocol still
+inlined as oracle guards — the reason is recorded at the class.)
 
 ### The class layer (`Cadence/Interfaces.lean`)
 
 The contracts live in their own file rather than in
 `Cadence/Primitives.lean`, deliberately: `Cadence/Chorus.lean` imports
 `Primitives`, so extending it would invalidate Chorus's olean and force a
-full re-sweep. Obligation tables are in the class docstrings.
+full re-sweep. Each paper module is **two classes**: a first-order
+`…Safety` fragment (state, transitions, observables, the paper's safety
+properties, monotonicity and frames) that a Veil module `instantiate`s, and
+the full class extending it with every remaining property over explicit
+runs — the obligation tables of the class docstrings are renderings of the
+fields, not substitutes for them.
 
-* `SlotConsensus` — agreement, slot safety, proposal inclusion
-  (conditional on the synchrony premise), ℓ-termination, **and
-  d_tot-totality**. Note: totality is *not* part of `mod:slotconsensus`;
-  it is a Chorus-specific strengthening (`prop:chorus-totality`) that
-  Conductor's totality proof consumes (`lemma:conductor-totality`, via
-  Φ_oc = ℓ_chorus + d_tot). Model it as a separate field or an extending
-  class `SlotConsensusWithTotality` so the base class stays the paper's
-  module. Instance: Chorus (see §5).
-* `ACS` — agreement, validity (≥ 2f+1 pairs; correct pairs genuine),
-  integrity, ℓ-termination, Δ-totality (`mod:acs`). Implementation out
-  of scope (standard primitive), like MVBA.
-* `Orchestrator` — totality, integrity, monotonicity, B-boundedness,
-  R-recovery (`mod:orchestrator_2`). Instance: Conductor.
+* `SlotConsensus` (family over slots) — agreement, slot safety, proposal
+  inclusion (conditional on the synchrony premise) in the fragment;
+  termination, hiding's protocol residue, quiescence and the participation
+  interface in the full class. `d_tot`-totality and `ℓ`-termination are
+  *not* part of `mod:slotconsensus` — they are Chorus-specific
+  strengthenings (`prop:chorus-totality`, `lemma:chorus-termination`) that
+  Conductor's proofs consume (`lemma:conductor-totality`, via
+  Φ_oc = ℓ_chorus + d_tot) — and live in `SlotConsensusWithTotality`.
+  Instance: `Chorus.slotConsensusSafety` (§5); residual:
+  `Chorus.SlotConsensusResidual`.
+* `ACS` — agreement, genuine validity, integrity, the `propose` input in
+  the fragment; quantitative validity, ℓ-termination, Δ-totality,
+  quiescence in the full class (`mod:acs`). No instance (standard
+  primitive); the Conductor consumes the fragment as its `acs` constraint.
+* `Orchestrator` — open-prefix agreement, Monotonicity, Integrity's
+  at-most-once half, the `complete` input in the fragment; Integrity's
+  timing half, totality, B-boundedness, R-recovery in the full class
+  (`mod:orchestrator_2`). Instance: `Conductor.orchestratorSafety`;
+  residual: `Conductor.OrchestratorResidual`.
+* `MVBA` — agreement, integrity, external validity in the fragment;
+  ℓ_MVBA-termination, quiescence in the full class (`mod:mvba`). No
+  instance; Chorus inlines it (see the class for why).
 
 ## 3. The Conductor Veil module
 
@@ -189,8 +210,10 @@ Exactly the Chorus doctrine:
 Conductor itself has no Byzantine message surface beyond ACS (its only
 inputs are local `completed(s)` callbacks and ACS decisions). Byzantine
 influence enters via (i) ACS decided sets containing up to f faulty
-pairs — captured by the oracle validity require + median range, and
-(ii) Byzantine validators' own ACS proposals — free oracle inputs. This
+pairs — captured by the median-range require justified by the contract's
+quantitative validity, and (ii) Byzantine validators' own ACS proposals —
+internal steps of the ACS instance, which the contract leaves
+unconstrained for Byzantine validators. This
 makes the Conductor module *much* lighter than Chorus (no quorum
 machinery of its own; ByzNodeSet needed only for the median lemma).
 
@@ -201,16 +224,20 @@ Model `algorithm:cadence` as its own small Veil module:
 * State (per validator): `opened`, `skipped`, `pending(s, v)`,
   `appended(s, v)` (the log as a slot-indexed relation — the ordered-list
   view is recovered from slot order), plus the proposer's `proposed(s)`.
-* Oracle actions:
-  - `orch_open(i, s)` — gated by the Orchestrator contract's safety
-    requires (integrity: not opened before; monotonicity: no
-    higher-numbered slot opened; totality is meta).
-  - `sc_finalize(i, s, v)` — gated by the SlotConsensus contract's
-    agreement (any two finalizations of s agree — cross-validator *and*
-    per-validator) and slot safety.
+* Sub-protocol state and oracle steps: `os : ostate` and
+  `sc_state s : scstate`, advanced by `orch_step`/`sc_step` — any internal
+  transition the respective `…Safety` contract allows. `opened`,
+  `finalized`, `completed` are ghosts reading the contracts' observables.
+* Handlers: `on_finalize(i, s, v)` — reacts to `sc.finalized`, buffers the
+  vector (`delivered`), drives the orchestrator's `complete` input, records
+  the abandon; `on_propose(i, s)` — the proposer's `propose` call. The
+  `participate()` call is definitionally the opening.
 * Protocol actions: append when `ready_to_append` (every smaller slot
-  skipped-or-appended — expressible relationally), complete/abandon
-  bookkeeping.
+  skipped-or-appended — expressible relationally), `record_skip`.
+
+(Until 2026-09 the two oracle outputs were actions `orch_open`/`sc_finalize`
+whose `require`s *restated* the contract properties; the restatements are
+gone — the properties are now the class axioms, `CompositionContracts.md`.)
 
 **Slot-indexed MCP safety, in the glue module (SMT):**
 
@@ -221,8 +248,8 @@ Model `algorithm:cadence` as its own small Veil module:
   note the *safety-usable* residue of totality here is the paper's
   argument "j opened a higher slot without opening s ⇒ j never opens s,
   contradicting totality"; in the monotone model this becomes an
-  invariant relating `appended`/`skipped` across validators, gated by
-  the orchestrator oracle's requires);
+  invariant relating `appended`/`skipped` across validators, discharged
+  from the contract's `open_prefix_agreement` and `monotonicity` axioms);
 * per-slot inclusion lift: under the `all_honest_recorded`-style premise
   the finalized v contains the correct proposer's proposal — this is
   imported through the SlotConsensus oracle's (conditional) inclusion
@@ -258,27 +285,41 @@ which is the property that keeps the model reviewable against it.
 
 ## 5. Connecting the layers (how "Chorus ⊨ SlotConsensus" becomes real)
 
-Two levels, both in place.
+Three pieces, all in place (`CompositionContracts.md` is the full record).
 
-### 5.1 Contract-mirroring
+### 5.1 Consumption as class constraints
 
-The glue module's oracle `require`s are stated to be *syntactically* the
-class properties, and each class field carries a doc pointer to the
-discharging theorem (`Chorus.agreement_pos`, `Chorus.proposal_inclusion`,
-`Chorus.hiding_until_deadline`, meta-axiom names for
-termination/totality). An obligation table in the class docstring keeps
-this auditable.
+The glue holds the sub-protocols' abstract states and `instantiate`s the
+contracts' state-level fragments; every property it needs is a class axiom
+the solver gets for free at the reachable abstract state. There is no
+restatement to keep in sync — the seam the earlier design had between a
+class field and the glue's `require` of the "same" property is gone.
 
 ### 5.2 Lean instance theorems
 
-The class is stated over an abstract "finalization predicate" and
-`Chorus ⊨ SlotConsensus`'s safety fields are proven by instantiating with
-Chorus's committed-relations and citing the persisted reachable-state
-theorems — the safety fields are precisely Chorus's proven invariants, so
-the proofs are `exact`-level
-([`../Cadence/Chorus/Compose.lean`](../Cadence/Chorus/Compose.lean)). A
-full trace/refinement treatment is the `ChorusDesign.md` §10.1 research
-item — out of scope here.
+`Conductor.orchestratorSafety` ([`../Cadence/Composition.lean`](../Cadence/Composition.lean))
+and `Chorus.slotConsensusSafety`
+([`../Cadence/Chorus/Compose.lean`](../Cadence/Chorus/Compose.lean)) package
+each implementation's *own transition system* — its `init`, `next`,
+`reachable`, its actions as the contract's input transitions — as an
+instance of the fragment. The state-predicate fields are the persisted
+reachable-state theorems, `exact`-level; the two-state fields (monotonicity
+of the observables, frames, the paper's Monotonicity) are proven action by
+action from Veil's pre-computed transition bodies. What each implementation
+does *not* prove of the full contract is its residual structure, with a
+definition that type-checks the residual against the class.
+Trace-level refinement — that the implementation's runs *implement* the
+consumer's oracle steps — remains the `ChorusDesign.md` §10.1 research
+item; here the oracle steps *are* the implementation's transitions, which
+is as close as a state-based composition comes.
+
+### 5.3 The composed system
+
+`Cadence.system_positional_log_safety` ([`../Cadence/System.lean`](../Cadence/System.lean))
+instantiates the glue's positional MCP Safety at the two instances: the
+statement is about the glue running the Conductor's and Chorus's transition
+systems, with no contract hypothesis left — only the modules'
+configurations and their agreement on the fault pattern.
 
 ## 6. Stake weighting
 
