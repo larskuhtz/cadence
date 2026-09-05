@@ -649,7 +649,7 @@ validity predicate the instance is parameterised by.
 
 No implementation is in scope, so no instance exists here; every field is an
 assumption of the composition ([`docs/Architecture.md`](../docs/Architecture.md)
-§4 item 3; the plan to change that is `docs/MvbaPlan.md` on its own branch).
+§4 item 3; the plan to change that is `docs/MvbaPlan.md`).
 
 **Chorus does not consume this class as a constraint** — alone among the
 consumers it inlines the oracle's properties as guards of its

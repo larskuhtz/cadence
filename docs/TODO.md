@@ -27,7 +27,7 @@ with no contract hypothesis left. What remains, in the order worth taking:
   mention. Closing it means carrying certificates in the value type or
   restating the evidence guards as the class's `Valid`; either way every
   Chorus verification condition changes. Scheduled with the MVBA
-  instantiation (`MvbaPlan.md`, on branch `worktree-mvba-instantiation`).
+  instantiation ([`MvbaPlan.md`](./MvbaPlan.md)).
 * **Chorus's participation interface.** `mod:slotconsensus`'s
   `participate`/`abandon`/`propose` are absent from the model, so the whole
   of `SlotConsensus`'s upper level except Hiding's protocol half is residual

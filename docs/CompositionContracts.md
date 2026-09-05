@@ -256,7 +256,7 @@ split; 05 the shared fault model, the inst-implicit order and the per-slot
    `#gen_state` cannot mention. Closing this means either carrying
    certificates in the value type or restating the evidence guards as the
    class's `Valid`; either changes every Chorus verification condition and is
-   scheduled with the MVBA instantiation (`docs/MvbaPlan.md` on its branch),
+   scheduled with the MVBA instantiation (`docs/MvbaPlan.md`),
    not here.
 2. **Chorus has no participation interface**, so `SlotConsensusResidual`
    carries the whole of it; and the glue's records of the inputs it does not
