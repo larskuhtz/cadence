@@ -271,7 +271,7 @@ table is the working list, not a promise about count.
 | `rem:lock-monotonicity` | `local_prepqc i w e ∧ entered i v ⇒ w ≤ v`; held certificates are network certificates |
 | `lem:cert-uniqueness` | `msg_prepqc v e ∧ msg_prepqc v e' ⇒ e = e'`, and for `msg_commitqc` — the two-supermajority intersection; expect these to be **manual cells**, as Chorus's quorum-intersection cells are |
 | `lem:timeout-closes-view` | honest `msg_timeout_* r v` ⇒ no later `accepted r v _`; `timed_out r v ⇒ voted r v` |
-| `lem:lock-persistence` | (i) `msg_commitqc v e ∧ v ≤ v' ∧ tc_lock v' e' ⇒ e' = e`, and `¬ tc_nolock v'`; (ii) `msg_commitqc v e ∧ v ≤ w ∧ msg_prepqc w e' ⇒ e' = e` |
+| `lem:lock-persistence` | **not an invariant** (see the correction below): the clump carries the inductive form `prepqc_blocks_lower_commits` — `msg_prepqc w e' ∧ v < w ∧ e ≠ e' ⇒` every supermajority has a correct member that left `v` without a view-`≥ v` lock or holds a view-`v` lock on another value; (i) `msg_commitqc v e ∧ v ≤ v' ∧ tc_lock v' e' ⇒ e' = e`, `¬ tc_nolock v'` and (ii) `msg_commitqc v e ∧ v ≤ w ∧ msg_prepqc w e' ⇒ e' = e` are corollaries, and `commitqc_agree` (agreement at the certificate level, across views) is the one the safety property uses |
 | `thm:agreement` | `safety [agreement]`: `decided i e ∧ decided j e' ∧ ¬ byz i ∧ ¬ byz j ⇒ e = e'` — from (ii) and certificate uniqueness |
 | Integrity | `safety [integrity]` — by construction, lifted |
 | `lem:external-validity` | `safety [external_validity]`: `decided i e ⇒ valid e`, via honest `accepted _ _ e ⇒ valid e` and an honest preparer in every prepare quorum |
@@ -291,6 +291,28 @@ carries a certificate of view at least `v` (lock monotonicity), which is on
 whole safety argument stays inside the invariant clump. The risk is the
 usual one: e-matching divergence at the intersection cells, cured by manual
 cells, not a language gap.
+
+**A second correction, found while building the full model (2026-09-08).**
+`lem:lock-persistence` as stated is *not an inductive invariant*, and the
+table's original rows (i)/(ii) could not have been proven cell by cell. The
+supplement proves it by induction on the view `v'`; the model has no such
+step. When a commit certificate of view `v` forms, timeout and prepare
+certificates of views above `v` may already exist (asynchrony), and
+re-establishing (i)/(ii) for all of them at that one transition *is* the
+induction. The inductive form is the standard one from the Paxos-made-EPR
+family: `prepqc_blocks_lower_commits` — a prepare certificate of view `w`
+on `e'` blocks, in every view `v < w` and for every `e ≠ e'`, every
+supermajority from committing `e` in `v`, by exhibiting a correct member
+that either sent a timeout at or after `v` carrying no lock of view `≥ v`
+or holds a view-`v` lock on another value (the ghost `blocked`). It is
+stated for *all* lower views, not only committed ones, so the commit
+transition has nothing to re-establish; its one non-trivial step is
+`form_prepqc`, where the honest preparer's justification, the timeout
+quorum's honest intersection with the given supermajority, and the
+invariant itself at the lock's certificate give the supplement's argument
+for a single view transition. `commitqc_agree` — agreement at the
+certificate level across views — follows by instantiation, and so do (i)
+and (ii). The model header of `Cadence/Mvba.lean` carries the same account.
 
 ## 3. Liveness
 
@@ -477,10 +499,17 @@ Each step names its exit criterion and what it costs to rebuild.
    (model / `Proofs/` / `Certify`), traces, the `#veil_status` pin, and
    the header that pins the referent (§0). Exit: green, and the
    quorum-intersection cells either solve or are manual. Shakes out the
-   encoding; its cells warm the cache.
+   encoding; its cells warm the cache. *Done 2026-09-08 (History.md):
+   224 cells, every one automatic — the intersection cells needed no
+   manual proof at that clump size.*
 3. **Full model and safety** (§2): views, timeouts, certificates, lock
    persistence. Exit: `safety [agreement]`, `[integrity]`,
    `[external_validity]` proven; pins updated; rows in `Cadence.lean`.
+   *In progress 2026-09-08: the model as built has 24 actions (the
+   leader's three view-entry cases and the two `Pre-Prepare` handlers are
+   separate actions, `timeout_qc`/`timeout_noqc`, `form_tc_lock`/
+   `form_tc_nolock`, `sync_view`/`sync_view_adopt`, five Byzantine
+   signers) and 28 properties; names as in `Cadence/Mvba.lean`.*
 4. **Vacuity** (§4): the four traces, then the `NoLock` mutation pin.
 5. **Provider** (§5): `Mvba.mvbaSafety`, the residual, `mvba_of_residual`,
    axiom pins. Exit: `Cadence.lean` pins the new declarations at the
