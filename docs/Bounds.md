@@ -25,7 +25,14 @@ two assumed primitive bounds:
 * **The parametric holes**: `ℓ_MVBA` (`mod:mvba`) and the ACS's `ℓ`
   (`mod:acs`) are *assumed module properties*, stated as deterministic
   bounds — an idealisation, since the randomised constructions satisfy
-  them only in expectation / with high probability.
+  them only in expectation / with high probability. Since 2026-09 the first
+  hole has a referent in this development: the MVBA instantiation of the
+  paper repository's internal supplement is modelled
+  ([`Cadence/Mvba.lean`](../Cadence/Mvba.lean)), and `ℓ_MVBA` is the field
+  `ℓ` of its residual `Mvba.MvbaResidual`
+  ([`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean)) — data, next
+  to the Termination it bounds (the supplement's `thm:termination`,
+  `O(fΔ)`); the model is untimed, so the bound stays a paper quantity.
 
 The model relates to these in three distinct ways:
 

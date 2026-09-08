@@ -20,6 +20,13 @@ import Cadence.System
 import Cadence.FallbackReceipt.Totality
 import Cadence.FallbackReceipt.PreFix
 
+-- The MVBA leg: the leader-based instantiation of the paper repository's
+-- internal supplement, its contract instance, and the mutation test that
+-- refutes the instantiation without its lock check.
+import Cadence.Mvba.Certify
+import Cadence.Mvba.Compose
+import Cadence.Mvba.NoLock
+
 /-!
 # Cadence — the audit root
 
@@ -55,21 +62,34 @@ complete inventory of what is **not** in Lean is
 | `Cadence.system_positional_log_safety` | `Cadence/System.lean` | the same, **for the composed system**: the glue running the Conductor's and Chorus's own transition systems. No contract hypothesis remains; what is assumed is the two modules' configurations and that they agree on who is Byzantine |
 | `FallbackReceipt.invariants_of_reachable` | `Cadence/FallbackReceipt/Certify.lean` | every reachable state of the fallback receipt/propose layer satisfies its declared invariants |
 | `FallbackReceipt.build_totality_of_reachable` | `Cadence/FallbackReceipt/Totality.lean` | an honest validator can always build a *valid* fallback meta-block, for **every** `n = 3f+1` |
+| `Mvba.invariants_of_reachable` | `Cadence/Mvba/Certify.lean` | every reachable state of the leader-based MVBA instantiation (`Cadence/Mvba.lean` — the protocol of the paper repository's *internal supplement*, pinned to a paper-repository commit in the model's header, not yet part of the published paper) satisfies all its declared safety properties and invariants |
+| `Mvba.reachable_agreement`, `Mvba.reachable_integrity`, `Mvba.reachable_external_validity` | `Cadence/Mvba/Certify.lean` | the three safety properties of `mod:mvba` at every reachable state — the supplement's `thm:agreement` at the entries level, integrity (a correct validator decides at most once), `lem:external-validity` |
+| `Mvba.mvbaSafety` | `Cadence/Mvba/Compose.lean` | Mvba ⊨ `MVBASafety` — the state-level fragment of the paper's MVBA module contract (agreement, integrity, external validity, the monotonicity of `decided`), every field proven from the model's own transition system. The object Chorus is scheduled to consume as its `mvba` constraint (`docs/MvbaPlan.md` §6 — not yet done: Chorus still inlines the oracle) |
+| `Mvba.mvba_of_residual` | `Cadence/Mvba/Compose.lean` | given `Mvba.MvbaResidual` — the clock, the admissible-run model and `ℓ_MVBA`-Termination, stated over the Mvba transition system — Mvba is a full `MVBA`; the inputs (`propose`, `abandon`), their observables, effects and frames, and **Quiescence** are discharged on the way. The residual's fields are the formal statement of what is *not* proven about the instantiation; unlike the other two residuals, none of them is safety-shaped |
 
 Two further build-checked claims are pinned where they are made, because
 their form is not an axiom footprint:
 
 * **Completeness of the per-VC evidence.** `#veil_status Chorus` (in
-  `Cadence/Chorus/Certify.lean`) and `#veil_status FallbackReceipt` (in
-  `Cadence/FallbackReceipt/Certify.lean`) walk each model's registry of
+  `Cadence/Chorus/Certify.lean`), `#veil_status FallbackReceipt` (in
+  `Cadence/FallbackReceipt/Certify.lean`) and `#veil_status Mvba` (in
+  `Cadence/Mvba/Certify.lean`) walk each model's registry of
   verification conditions and report, per condition, whether a real,
-  statement-matching, kernel-checked theorem is in scope. Both are pinned:
-  `3861/3861 real` and `220/220 real`, three axioms. That is the claim
-  "nothing here is stubbed", as a command rather than as prose.
+  statement-matching, kernel-checked theorem is in scope. All three are
+  pinned: `3861/3861 real`, `220/220 real` and `725/725 real`, three
+  axioms. That is the claim "nothing here is stubbed", as a command rather
+  than as prose.
 * **The pre-fix receipt rules are broken.**
   `Cadence/FallbackReceipt/PreFix.lean` pins the model checker's
   *counterexample* to the receipt rules as published in `arXiv:2607.02275v1`.
   That file builds only if the bug is still found, verbatim.
+* **The MVBA's lock check is load-bearing.** `Cadence/Mvba/NoLock.lean`
+  pins the model checker's *counterexample* to the MVBA instantiation with
+  the `Pre-Prepare` handler's lock check removed — two correct validators
+  deciding different vectors — found on a restriction of that mutant every
+  run of which is a run of the mutant. It is the mutation test of the
+  instantiation's invariants: they are not merely true but needed. That
+  file, too, builds only if the violation is still found, verbatim.
 
 ## What this module does not import
 
@@ -189,3 +209,39 @@ info: 'FallbackReceipt.build_totality_of_reachable' depends on axioms: [propext,
 -/
 #guard_msgs in
 #print axioms FallbackReceipt.build_totality_of_reachable
+
+/--
+info: 'Mvba.invariants_of_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.invariants_of_reachable
+
+/--
+info: 'Mvba.reachable_agreement' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.reachable_agreement
+
+/--
+info: 'Mvba.reachable_integrity' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.reachable_integrity
+
+/--
+info: 'Mvba.reachable_external_validity' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.reachable_external_validity
+
+/--
+info: 'Mvba.mvbaSafety' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.mvbaSafety
+
+/--
+info: 'Mvba.mvba_of_residual' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.mvba_of_residual

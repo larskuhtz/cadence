@@ -41,6 +41,17 @@ rules as they stood **before** that bug fix, i.e. as published in
 `arXiv:2607.02275v1` (§5; "pre-fix" is used in this sense throughout) —
 kept as a machine-checked refutation.
 
+A third model goes one level *below* the published paper: the **MVBA
+instantiation** ([Cadence/Mvba.lean](../Cadence/Mvba.lean) and companions).
+`mod:mvba` is an interface in the paper; the leader-based protocol that
+implements it lives in the paper repository's *internal supplement*, which
+is not yet part of the published paper and has neither tags nor versions,
+so the model pins the paper-repository commit it was read against in its
+header ([MvbaPlan.md](./MvbaPlan.md) §0). Its safety properties are the
+three of `mod:mvba`, proven as for Chorus, and it provides the `MVBA`
+contract's instance (§4 item 3); Chorus's consumption of that instance is
+scheduled work, not done.
+
 ## 2. The methods
 
 Four verification methods are combined — the numbering is a catalogue,
@@ -60,14 +71,15 @@ Current state, all green:
 | `Cadence/Cadence.lean` | 6 | 4 safety + 20 invariants | 175 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
 | `Cadence/Conductor.lean` | 7 | 5 safety + 15 invariants | 168 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
 | `Cadence/FallbackReceipt.lean` | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
+| `Cadence/Mvba.lean` | 24 | 3 safety + 25 invariants | 725 | cvc5, **proof-reconstructed** (kernel-checked), + 2 manual Lean proofs for the two argument-carrying cells (the lock-persistence step and cross-view certificate agreement) |
 
-**All four modules run with proof reconstruction** (`veil.smt.trust
+**All five modules run with proof reconstruction** (`veil.smt.trust
 false`): every ✅ is a proof re-checked by Lean's kernel, not a trusted
 solver verdict. Where the VCs are discharged differs by module size:
 `Cadence/Cadence.lean`/`Conductor.lean` run an in-file sweep
-(`#check_invariants`); `Cadence/Chorus.lean`/`FallbackReceipt.lean` only *state*
-their VCs (a persistent registry) and the per-action proof files
-discharge them (§6). A per-cell fallback ladder (seed retries → the
+(`#check_invariants`); `Cadence/Chorus.lean`/`FallbackReceipt.lean`/`Mvba.lean`
+only *state* their VCs (a persistent registry) and the per-action proof
+files discharge them (§6). A per-cell fallback ladder (seed retries → the
 alternative two-state encoding → manual Lean proofs) absorbs
 reconstruction-resistant cells; no trusted islands are needed.
 
@@ -79,6 +91,14 @@ about the final protocol rests on a bounded-instance check**:
   reachable counterexample is complete evidence of a bug regardless of
   instance size; the found trace (`n = 3f+1`, `f = 1`) is pinned
   verbatim in the build;
+* the **mutation test** of the MVBA instantiation
+  ([Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean)): with the
+  `Pre-Prepare` handler's lock check removed, the checker exhibits two
+  correct validators deciding differently — on a restriction of the mutant
+  every run of which is a run of the mutant, so the evidence is complete
+  in the same sense — which shows the proven invariants of
+  `Cadence/Mvba.lean` are load-bearing and not merely true; the trace is
+  pinned verbatim in the build;
 * a **redundant regression check** over the receipt layer's structural
   invariants (23 975 states) — defense in depth alongside their
   unbounded SMT proofs, and a non-vacuity witness (the explored graph
@@ -158,9 +178,12 @@ The paper's headline properties and their formal counterparts:
 | Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of `lemma:chorus-termination`'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
 | Progress dichotomy (`lemma:chorus-termination`'s case split as one statement: saturated reachable state ⇒ per-proposer commitQCs from honest votes alone, or MVBA invoked with per-proposer decide evidence) | `progress_dichotomy_of_saturation` ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)), all `n = 3f+1` | sweep + Lean |
 | The pre-fix receipt rules are broken (the §7.2 finding) | pinned model-checker violation, [Cadence/FallbackReceipt/PreFix.lean](../Cadence/FallbackReceipt/PreFix.lean) | model check |
+| The MVBA's lock check is load-bearing (`lem:lock-persistence`'s premise; the mutation test of `docs/MvbaPlan.md` §4): without it, two correct validators decide differently | pinned model-checker violation, [Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) | model check |
 | Conductor as the paper's orchestrator, state-level: open-prefix agreement, Monotonicity, Integrity (at most once), the observables' monotonicity and frames; boundedness in interval form | Conductor sweep + `Conductor.orchestratorSafety` (`Cadence/Composition.lean`) | sweep + composition |
 | MCP Safety, positional form (`def:safety`) — for the glue over any contract instances, and for the composed system | `positional_log_safety` (`Cadence/Composition.lean`); `system_positional_log_safety` (`Cadence/System.lean`) | composition |
-| Conductor/Cadence temporal claims (totality, ℓ-liveness, recovery, termination, quiescence) | fields of the full contracts in `Cadence/Interfaces.lean`, stated over timed runs; the unproven subset per implementation is `Conductor.OrchestratorResidual` / `Chorus.SlotConsensusResidual` | meta (§4), stated formally |
+| Conductor/Cadence temporal claims (totality, ℓ-liveness, recovery, termination, quiescence) | fields of the full contracts in `Cadence/Interfaces.lean`, stated over timed runs; the unproven subset per implementation is `Conductor.OrchestratorResidual` / `Chorus.SlotConsensusResidual` / `Mvba.MvbaResidual` | meta (§4), stated formally |
+| MVBA agreement, integrity, external validity (`mod:mvba`; the internal supplement's `thm:agreement` at the entries level and `lem:external-validity`, for its leader-based instantiation — `Cadence/Mvba.lean`'s header pins the referent) | `safety [agreement]`, `[integrity]`, `[external_validity]` in `Cadence/Mvba.lean`; instance fields of `Mvba.mvbaSafety` in `Cadence/Mvba/Compose.lean` | sweep + composition |
+| MVBA Quiescence (`mod:mvba`), and the module's inputs and their observables | discharged inside `Mvba.mvba_of_residual` (`Cadence/Mvba/Compose.lean`) from the transition bodies; only the timed fields are residual | composition |
 
 ## 4. The meta-assumption inventory
 
@@ -208,28 +231,43 @@ relations, and it takes a human to confirm each use is positive.
    invoked with valid proposals (probability-1, paper-level), whose
    protocol-side premises are theorem conclusions; the per-validator
    implementation refinement of the proposal build is the receipt
-   layer (§5).
+   layer (§5). Since the MVBA instantiation was modelled
+   ([Cadence/Mvba.lean](../Cadence/Mvba.lean)), the primitive's
+   Termination is also stated *formally*, over that model's own transition
+   system, as the residual field `Mvba.MvbaResidual.termination`
+   ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean), item 4);
+   (A-mvba) remains the assumption at Chorus's level until Chorus consumes
+   the instance (item 3).
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive;
-   [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS` /
-   `MVBA` module contracts ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean))
-   — standard primitives whose implementations are out of scope, so no
+   [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS`
+   module contract ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean))
+   — a standard primitive whose implementation is out of scope, so no
    instance exists and every field is assumed. What *is* machine-checked
    is the consumption side for ACS: the Conductor takes `ACSSafety` as a
    class constraint, so it assumes exactly the class, with one stated
    bridge (the median-range `require` of `acs_decide`, justified by the
-   class's quantitative validity through `Windows.lean`). The MVBA is the
-   one contract still consumed by *inlined guards* (Chorus's
+   class's quantitative validity through `Windows.lean`). The `MVBA`
+   contract has left this list on the *provider* side: `Mvba.mvbaSafety`
+   ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) instantiates
+   its state-level fragment from the leader-based protocol of the paper
+   repository's internal supplement ([Cadence/Mvba.lean](../Cadence/Mvba.lean);
+   the referent is pinned in that header and is not yet part of the
+   published paper), every field proven, and `Mvba.mvba_of_residual` leaves
+   only the timed fields (item 4). What remains is the *consumption*: the
+   MVBA is the one contract still consumed by *inlined guards* (Chorus's
    `mvba_decide_*`); the transcription is tabulated against the class in
-   [CompositionContracts.md](./CompositionContracts.md) §8, and the reason
-   it is not yet a constraint — validity is a predicate on Chorus's own
-   state — is recorded at the class. Note what is *not* on this list:
+   [CompositionContracts.md](./CompositionContracts.md) §8, the reason it is
+   not yet a constraint — validity is a predicate on Chorus's own state —
+   is recorded at the class, and the consumption, with one stated bridge
+   (the decision handler's certificate check) joining the ACS median
+   bridge, is `docs/MvbaPlan.md` §6. Note what is *not* on this list:
    the `ByzNodeSet` quorum/counting interface is **not** an assumption
    gap — its axioms are Lean-proven for the concrete `byzNodeSetFin`
    instance family, which covers every deployment size `n = 3f+1` with
    any Byzantine set of size `≤ f`. An end-to-end example instantiation
-   of the remaining class stack (an `MVBA`/`ThresholdIBE` model
-   instance) is open work ([ChorusDesign.md](./ChorusDesign.md) §9).
+   of the remaining class stack (a `ThresholdIBE` model instance) is open
+   work ([ChorusDesign.md](./ChorusDesign.md) §9).
 4. **Temporal/quantitative module obligations**: totality, termination,
    `d_tot`-totality, Quiescence, boundedness, recovery — *fields* of the
    full contracts `Orchestrator`, `SlotConsensus`,
@@ -241,7 +279,11 @@ relations, and it takes a human to confirm each use is positive.
    Totality, `B`-Boundedness, `R`-Recovery, the execution model) and
    `Chorus.SlotConsensusResidual` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean);
    the participation interface, the clock, Termination, Quiescence — Chorus
-   models no participation window). The meta-axiom names
+   models no participation window) and `Mvba.MvbaResidual`
+   ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean); the clock,
+   the admissible-run model, `ℓ_MVBA` and Termination — the inputs, their
+   observables and Quiescence are proven, so none of its fields is
+   safety-shaped). The meta-axiom names
    ((A-orch-totality), (A-orch-boundedness), (A-orch-recovery),
    (A-sc-termination), (A-sc-totality), (A-acs-termination),
    (A-acs-totality)) are those fields' docstrings. The models are untimed;
@@ -321,7 +363,10 @@ file:
 | `FallbackReceipt.build_totality_of_reachable` (`Cadence/FallbackReceipt/Totality.lean`) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_residual` (`Cadence/Chorus/Compose.lean`) | same | ✓ |
 | `Chorus.evidence_pigeonhole_of_reachable` (`Cadence/Chorus/Pigeonhole.lean`) | same | ✓ |
+| `Mvba.invariants_of_reachable` + per-property projections (`Cadence/Mvba/Certify.lean`) | same | ✓ + `#veil_status`: 725/725 real |
+| `Mvba.mvbaSafety`, `Mvba.mvba_of_residual` (`Cadence/Mvba/Compose.lean`) | same | ✓ |
 | the `FallbackReceiptPreFix` refutation (`Cadence/FallbackReceipt/PreFix.lean`) | expected model-checker violation (trace) | ✓ |
+| the `MvbaNoLock` refutation (`Cadence/Mvba/NoLock.lean`) | expected model-checker violation (trace) | ✓ |
 
 **cvc5's unsat verdicts are trusted nowhere**: every discharge runs
 with proof reconstruction (`veil.smt.trust false`) — every proof is
@@ -331,7 +376,7 @@ terms.
 
 The mechanism that makes this fit on a 32 GB machine is the
 **verified-module file family**. A model file (`Cadence/Chorus.lean`,
-`Cadence/FallbackReceipt.lean`) elaborates the transition system and persists
+`Cadence/FallbackReceipt.lean`, `Cadence/Mvba.lean`) elaborates the transition system and persists
 its VC *statements* in an olean-carried registry — it runs no solver
 and persists no proofs. One proof file per action
 (`<Model>/Proofs/<Action>.lean`) re-creates that action's VCs from the

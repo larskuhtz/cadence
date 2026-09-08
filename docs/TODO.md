@@ -18,16 +18,19 @@ residual structure type-checked against the full class, and
 `Cadence.system_positional_log_safety` composes MCP Safety at both instances
 with no contract hypothesis left. What remains, in the order worth taking:
 
-* **Chorus's MVBA oracle as a class constraint.** `MVBASafety` exists; Chorus
-  still inlines the properties as guards of `mvba_decide_*`, and the
-  transcription is audited by reading (table in
+* **Chorus's MVBA oracle as a class constraint.** The provider exists since
+  2026-09-08: `Mvba.mvbaSafety` (`Cadence/Mvba/Compose.lean`) instantiates
+  `MVBASafety` from the leader-based protocol of the paper repository's
+  internal supplement (`Cadence/Mvba.lean`), every field proven, with only
+  the timed fields residual. Chorus still inlines the properties as guards
+  of `mvba_decide_*`, and the transcription is audited by reading (table in
   [`CompositionContracts.md`](./CompositionContracts.md) §8). The obstacle is
   the model's abstraction of validity — a predicate on Chorus's *state*
   (certificates as network relations), which a class parameter cannot
-  mention. Closing it means carrying certificates in the value type or
-  restating the evidence guards as the class's `Valid`; either way every
-  Chorus verification condition changes. Scheduled with the MVBA
-  instantiation ([`MvbaPlan.md`](./MvbaPlan.md)).
+  mention. The route is [`MvbaPlan.md`](./MvbaPlan.md) §6: the class over
+  an abstract state, an oracle step, and a decision handler carrying the
+  certificate check as the one stated bridge; every Chorus verification
+  condition changes, so it is its own piece of work (step 6).
 * **Chorus's participation interface.** `mod:slotconsensus`'s
   `participate`/`abandon`/`propose` are absent from the model, so the whole
   of `SlotConsensus`'s upper level except Hiding's protocol half is residual
@@ -60,15 +63,21 @@ come first.
   interface is already discharged for the concrete `byzNodeSetFin` family
   (see [`../Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean)), which is why
   it is *not* on the assumption list in
-  [`Architecture.md`](./Architecture.md) §4. `MVBA` and `ThresholdIBE` are
-  still axiomatic classes with no model instance: producing one would
-  demonstrate the axiom set is satisfiable rather than accidentally
-  contradictory. `ChorusDesign.md` §9 item 1.
+  [`Architecture.md`](./Architecture.md) §4. `MVBA` has one since 2026-09-08
+  (`Mvba.mvbaSafety` for the state-level fragment, `Mvba.mvba_of_residual`
+  for the full class given the timed residual — `Cadence/Mvba/Compose.lean`).
+  `ThresholdIBE` is still an axiomatic class with no model instance:
+  producing one would demonstrate the axiom set is satisfiable rather than
+  accidentally contradictory. `ChorusDesign.md` §9 item 1.
 * **Non-vacuity of the safety claims.** `Cadence.lean` and `Conductor.lean`
   carry in-build `sat trace` reachability witnesses so that the properties
   are not vacuously true (if finalization were unreachable, agreement would
   hold trivially). The receipt layer additionally has an exhaustive
   `#model_check` whose explored graph is checked to contain proposing runs.
+  The MVBA instantiation has the strongest instrument of the three: a
+  **mutation test** (`Cadence/Mvba/NoLock.lean` — the lock check removed,
+  agreement refuted by the model checker and the counterexample pinned),
+  which shows its invariants are load-bearing and not merely true.
   Extending the same discipline to every new property is a standing rule,
   not a one-off task.
 

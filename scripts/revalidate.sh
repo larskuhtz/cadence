@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Staged re-validation of the whole Cadence suite.
 #
-# `lake build` alone verifies everything, but it schedules the 39 + 10 + 14
+# `lake build` alone verifies everything, but it schedules the 39 + 10 + 25
 # per-action proof files all at once, and a *cold* proof file peaks around
 # 5 GB of resident memory (lake has no job cap). This script builds the same
 # targets in dependency order with the proof families batched, which bounds a

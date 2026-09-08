@@ -542,6 +542,16 @@ deadline vote.
 
 ### MVBA as an oracle
 
+*Status note (2026-09-08).* The primitive itself is now modelled and proven
+separately — [`Cadence/Mvba.lean`](../Cadence/Mvba.lean), the leader-based
+instantiation of the paper repository's internal supplement, with
+`Mvba.mvbaSafety : MVBASafety …` in
+[`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean) — but Chorus
+does **not** consume that instance yet: what follows describes the oracle
+as Chorus still has it. Replacing the oracle by the class constraint, with
+the decision handler's certificate check as the one stated bridge, is
+[`MvbaPlan.md`](./MvbaPlan.md) §6.
+
 The MVBA primitive (`mod:mvba`, `p2_mvba.tex`) is modelled as three
 mutable relations (`mvba_decided_pos/neg`, `mvba_complete`) populated
 by three oracle actions. Its correctness properties are *not*
@@ -1099,7 +1109,11 @@ list, and §§10.1–10.3 below for the bigger lifts.
 
 1. Instantiate the abstract classes of `Cadence/Primitives.lean` (e.g. an
    example `ByzNodeSet` model instantiation of the whole module) to
-   demonstrate satisfiability of the axioms end-to-end.
+   demonstrate satisfiability of the axioms end-to-end. The `MVBA` contract
+   (now in `Cadence/Interfaces.lean`) has its instance since 2026-09-08 —
+   `Mvba.mvbaSafety` / `Mvba.mvba_of_residual` in
+   [`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean); `ThresholdIBE`
+   is the one still without.
 
 2. Move the explicit `is_proposer` immutable relation to a derivation
    from a VRF-output relation, once a `VRF` primitive class exists in

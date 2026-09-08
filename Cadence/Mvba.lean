@@ -294,9 +294,13 @@ action leader_propose_first (l : node) (e : value) {
 }
 
 /- View `v > 1` with `lock(J) ≠ ⊥`: `x ← Recover(lock(J))`, the lock's
-entries themselves (`lem:reproposal`). -/
+entries themselves (`lem:reproposal`). The participation guard `∃ E, input
+l E` is redundant at reachable states (a view `> 1` is entered only through
+`sync_view`, which requires it) and is what makes the contract's Quiescence
+a one-step fact for this send too (`Mvba/Compose.lean`). -/
 action leader_repropose (l : node) (pv : view) (v : view) (w : view) (e : value) {
   require ¬ is_byz l
+  require ∃ E, input l E
   require ¬ abandoned l
   require vord.next pv v
   require leader v l

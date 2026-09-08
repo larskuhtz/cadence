@@ -1,9 +1,12 @@
 # MVBA instantiation — plan
 
-*A plan, not a status document. Nothing here is built yet. It records what
-the work is, what has to be decided before it starts, and which choices
-would quietly foreclose later work if made carelessly. Revised 2026-09-04,
-after the contract composition landed in `master`
+*A plan with a status trail, not a status document. It records what the
+work is, what had to be decided before it started, and which choices would
+quietly foreclose later work if made carelessly; each step of §8 carries a
+note saying whether and how it landed (steps 2, 3 and 5 landed 2026-09-08 on
+branch `worktree-mvba-instantiation`; what is proven now is in
+[`../README.md`](../README.md) and [`../Cadence.lean`](../Cadence.lean)).
+Revised 2026-09-04, after the contract composition landed in `master`
 ([`CompositionContracts.md`](./CompositionContracts.md)); the first draft's
 contract-fix step is gone and its analysis is superseded (§10).*
 
@@ -381,7 +384,9 @@ machine-checked evidence.
    label enumeration is what Chorus disables at ~38 actions because the
    derived encodings blow the heartbeat budget; at ~18 actions it should
    fit (FallbackReceipt runs it at 9), but if it does not, the mutation pin
-   moves to a reduced sibling model.
+   moves to a reduced sibling model. *Outcome (2026-09-08): the enumeration
+   fits; the state space does not — the pin lives on a restriction of the
+   mutant (§8 step 4 and the header of `Cadence/Mvba/NoLock.lean`).*
 4. **Monitor conformance** via `#gen_monitor`, following `Cadence/Monitor/`.
    Not in any trust base, and [`Monitor.md`](./Monitor.md) §8 already lists
    coverage gaps, so sequence this last and only if the monitor effort is
@@ -418,6 +423,12 @@ at `n` — which is exactly the shape the step-facts technique proves. What
 must stay residual is `clock`, `Admissible`, `admissible_exists`, `ℓ` and
 `termination`: `Mvba.MvbaResidual` with `mvba_of_residual : MvbaResidual →
 MVBA …`, the first residual in the development with no safety-shaped field.
+*Landed as predicted (2026-09-08; step 5 below).* One consumer-facing
+detail worth knowing for step 6: the instance's `step` is the model's
+transitions *other than* `propose` and `abandon` (the upper class's frame
+fields demand it), so a consumer that advances the abstract state only by
+`mvba.step` never sees a proposal — Chorus's oracle action should take
+`mvba.trans`, or drive the inputs itself once they are available to it.
 
 ## 6. Chorus consumes the class — the expensive step
 
@@ -511,9 +522,33 @@ Each step names its exit criterion and what it costs to rebuild.
    `form_tc_nolock`, `sync_view`/`sync_view_adopt`, five Byzantine
    signers) and 28 properties; names as in `Cadence/Mvba.lean`.*
 4. **Vacuity** (§4): the four traces, then the `NoLock` mutation pin.
+   *Done 2026-09-08 (three traces in `Mvba.lean`; `Cadence/Mvba/NoLock.lean`).
+   The label enumeration does elaborate at 24 actions (the traces already
+   needed it), but the faithful mutant — only the lock check weakened — is
+   far too wide for the interpreted exhaustive search at `n = 4`, two
+   values, two views: the violation needs 28 transitions, and a depth-6
+   probe had not finished after half an hour; the first reduction (bulk
+   `propose`/availability/Byzantine steps, `abandon` and `byz_timeout_qc`
+   dropped) still holds ~27 000 states at depth 8 and did not finish in
+   35 minutes. The pin therefore sits on a **second-level restriction**
+   that additionally fixes the scheduler and the adversary's plan through
+   the theory (`participant`, `byz_plan`) — every run of it is a run of
+   the mutant, so the violation is a fortiori the mutant's — and finds
+   `agreement` violated in about a minute and a half of search. The
+   checker's `compiled` mode returns without waiting outside an editor and
+   is unusable for a build-time pin. Details in the file's header.*
 5. **Provider** (§5): `Mvba.mvbaSafety`, the residual, `mvba_of_residual`,
    axiom pins. Exit: `Cadence.lean` pins the new declarations at the
-   standard trio.
+   standard trio. *Done 2026-09-08 (`Cadence/Mvba/Compose.lean`): every
+   field of `MVBASafety` discharged; the residual is exactly the five
+   timed fields §5 predicted (`clock`, `Admissible`, `admissible_exists`,
+   `ℓ`, `termination`), and Quiescence is proven as the one-step fact
+   `sent_new_tr`. One model edit was needed for that: `leader_repropose`
+   was the only honest send without the participation guard `∃ E, input
+   l E` (redundant at reachable states, since a view `> 1` is entered
+   only through `sync_view`, which requires it); it now has it, and the
+   action's cells re-solved cold. `Cadence.lean` pins the six new
+   declarations.*
 6. **Chorus consumption** (§6). Its own piece of work — the one that pays
    the Chorus cold re-solve and touches the monitor.
 7. **Liveness skeleton** (§3), on the hooks left in place.
