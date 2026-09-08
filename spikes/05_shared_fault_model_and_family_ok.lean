@@ -15,7 +15,14 @@ rests on, beyond what 01–04 established.
    invariants from the class axioms *at the reachable abstract state*?
 
 Expected: `exit 0`, all `✅`. This is the shape `Cadence/Cadence.lean` now
-has (with the real contracts of `Cadence/Interfaces.lean`). -/
+has (with the real contracts of `Cadence/Interfaces.lean`).
+
+Two Veil facts this file also records, because its first version tripped over
+both (and was committed with them, 2026-09-04): an `assumption` may mention
+immutable components only — a mutable `os` in one is rejected with
+`Unbound uncapitalized variable` — so the initial abstract states are
+immutable parameters constrained by assumptions; and an action parameter must
+not be named `st'`, which the trace pipeline uses for the post-state. -/
 
 class FaultModel (validator : Type) where
   byz : validator → Prop
@@ -56,27 +63,34 @@ instantiate fm : FaultModel node
 instantiate orch : OrchS node slot ostate fm.byz
 instantiate sc : ScS slot node pvector scstate fm.byz
 
+-- the sub-protocols' initial states: per-execution data, constrained below
+immutable individual os0 : ostate
+immutable function sc_init_state : slot → scstate
+-- the orchestrator's state and one slot-consensus state per slot, held
+-- explicitly by the consuming protocol
 individual os : ostate
 function sc_state (s : slot) : scstate
 relation appended (i : node) (s : slot) (v : pvector)
 
 #gen_state
 
-assumption [os_init] orch.init os
-assumption [sc_init] ∀ s, sc.init s (sc_state s)
+assumption [os_init] orch.init os0
+assumption [sc_init] ∀ s, sc.init s (sc_init_state s)
 
 after_init {
+  os := os0
+  sc_state S := sc_init_state S
   appended I S V := false
 }
 
-action orch_step (os' : ostate) {
-  require orch.step os os'
-  os := os'
+action orch_step (os_next : ostate) {
+  require orch.step os os_next
+  os := os_next
 }
 
-action sc_step (s : slot) (st' : scstate) {
-  require sc.step s (sc_state s) st'
-  sc_state s := st'
+action sc_step (s : slot) (sc_next : scstate) {
+  require sc.step s (sc_state s) sc_next
+  sc_state s := sc_next
 }
 
 action append (i : node) (s : slot) (v : pvector) {
