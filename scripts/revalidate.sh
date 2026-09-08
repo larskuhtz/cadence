@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Staged re-validation of the whole Cadence suite.
 #
-# `lake build` alone verifies everything, but it schedules the 39 + 10
+# `lake build` alone verifies everything, but it schedules the 39 + 10 + 14
 # per-action proof files all at once, and a *cold* proof file peaks around
 # 5 GB of resident memory (lake has no job cap). This script builds the same
 # targets in dependency order with the proof families batched, which bounds a
@@ -78,9 +78,10 @@ stage() {
 # Composition-layer models: small, and they run their invariant sweeps in-file.
 stage Cadence.Cadence Cadence.Conductor
 
-# Model files of the two proof families: VC registry only, no sweep.
+# Model files of the three proof families: VC registry only, no sweep.
 stage Cadence.Chorus
 stage Cadence.FallbackReceipt
+stage Cadence.Mvba
 
 # Per-action proof files, batched (the memory rule above).
 PROOFS=()
@@ -105,8 +106,19 @@ while [ $i -lt ${#FPROOFS[@]} ]; do
   i=$(( i + FB_BATCH ))
 done
 
+MPROOFS=()
+for f in Cadence/Mvba/Proofs/*.lean; do
+  MPROOFS+=("Cadence.Mvba.Proofs.$(basename "$f" .lean)")
+done
+echo "=== ${#MPROOFS[@]} Mvba proof files, batches of $FB_BATCH"
+i=0
+while [ $i -lt ${#MPROOFS[@]} ]; do
+  stage "${MPROOFS[@]:$i:$FB_BATCH}"
+  i=$(( i + FB_BATCH ))
+done
+
 # Composition certificates (#gen_composition + the #veil_status audit pins).
-stage Cadence.Chorus.Certify Cadence.FallbackReceipt.Certify
+stage Cadence.Chorus.Certify Cadence.FallbackReceipt.Certify Cadence.Mvba.Certify
 
 # End theorems, the pre-fix refutation, and the monitor.
 stage Cadence.Chorus.Compose Cadence.Chorus.Pigeonhole \

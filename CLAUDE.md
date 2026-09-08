@@ -76,7 +76,7 @@ History: [docs/History.md](./docs/History.md).
 ## Build
 
 * Always build from the **project root**.
-* `lake build` verifies everything. But it schedules all 49 per-action proof
+* `lake build` verifies everything. But it schedules all 63 per-action proof
   files at once and a *cold* proof file peaks ~5 GB (lake has no job cap):
   on <64 GB use `scripts/revalidate.sh`, which stages the same targets.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model

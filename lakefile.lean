@@ -42,7 +42,7 @@ require veil from git "https://github.com/larskuhtz/veil" @ "port/integration"
 /-- The whole development: models, per-action proof families, composition
 certificates, end theorems, and the model-conformance monitor.
 
-`lake build` schedules the 39 + 10 per-action proof files in parallel and a
+`lake build` schedules the 39 + 10 + 14 per-action proof files in parallel and a
 *cold* proof file peaks around 5 GB, so on a machine with less than ~64 GB
 build in batches first — [scripts/revalidate.sh](./scripts/revalidate.sh)
 does exactly that staging, and the [README](./README.md) spells it out. -/
