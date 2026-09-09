@@ -192,13 +192,16 @@ each action's two-state transition as a `reducible` definition
 `<action>.ext.tr` (a conjunction of the guards and `setIn {updated fields}
 s₀ = s₁`) with a bridge `<action>.ext.derived_eq` from the derived transition
 the reachability relation uses. So a step-level fact is proven by dispatching
-the label, rewriting with `derived_eq`, unfolding `tr`, destructuring (the
-`obtain` on the final equation substitutes the post-state), and evaluating
-the field-representation `get`/`set` pair at the canonical functional
-representation (`CanonicalField.set`, `FieldUpdateDescr.fieldUpdate`,
-`IteratedArrow.curry`, …). One macro pair per model (`conductor_tr` /
-`conductor_field_simp`, `chorus_tr` / `chorus_field_simp`) and one tactic
-line per fact; the 38-action Chorus lemmas elaborate in seconds. The guards
+the label, exposing the body — Veil's `trSimp` simp set is exactly the
+`derived_eq` theorems and the `tr` definitions, so one `simp only [trSimp]`
+covers every action of the module — destructuring (the `obtain` on the final
+equation substitutes the post-state), and evaluating the field-representation
+`get`/`set` pair at the canonical functional representation
+(`CanonicalField.set`, `FieldUpdateDescr.fieldUpdate`, `IteratedArrow.curry`,
+…). One macro pair per model (`conductor_tr` / `conductor_field_simp`,
+`chorus_tr` / `chorus_field_simp`, `mvba_tr` / `mvba_field_simp`) and one
+tactic line per fact; the 38-action Chorus lemmas elaborate in seconds. None
+of the macros names an action, so adding one to a model changes nothing here. The guards
 are kept as inaccessible hypotheses, which is how the frozen-entries lemma
 sees `¬ local_committed i`.
 
@@ -256,10 +259,11 @@ Safety is a safety property and needs only the two proven fragments.
 The runnable experiments are in [`../spikes/`](../spikes/README.md); 01–04
 established the state-explicit shape, the negative control (removing the
 class axiom makes the consumer's invariant fail with `❌`), the hazard (a
-run-quantifying field in an instantiated class crashes all VCs with
-`cvc5.Error.error "Symbol '->' not declared as a type"`) and the two-level
-split; 05 the shared fault model, the inst-implicit order and the per-slot
-`function` state. The step-level technique graduated straight into the code
+run-quantifying field in an instantiated class is fatal — originally `💥` on
+every VC with `cvc5.Error.error "Symbol '->' not declared as a type"`, today
+one error naming the class and the field) and the two-level split; 05 the
+shared fault model, the inst-implicit order and the per-slot `function`
+state. The step-level technique graduated straight into the code
 (§4).
 
 ## 8. What this does not close — the remaining seams, named
@@ -330,8 +334,16 @@ split; 05 the shared fault model, the inst-implicit order and the per-slot
 Recorded so they are not re-derived (all reproduced by the spikes or the code):
 
 * Veil emits **every axiom of an instantiated class** to the solver. That is
-  what makes the design work, and why a non-first-order field in the
-  instantiated fragment aborts *all* the consumer's VCs (spike 03).
+  what makes the design work, and why a non-first-order field cannot sit in
+  the instantiated fragment (spike 03). Since the 2026-09 fork bump the
+  check commands *report* such a field by class and field name before any
+  solver starts, instead of every VC of the consumer aborting with
+  `Symbol '->' not declared as a type`; and `attribute [veil_smt_ignore]
+  C.field` withholds a field from the solver while it stays a declared
+  axiom of the class, with the withheld fields listed once per module. This
+  development withholds nothing — the two-level split is what keeps the
+  instantiated fragment first-order — but the attribute is the escape hatch
+  if a field ever has to live in a class the models instantiate.
 * `instantiate` must precede `#gen_state`, so a class cannot mention the
   module's own `State`; the design sidesteps this because the contract's
   state is a module *parameter* (`type ostate`). A later `instantiate` *can*
@@ -340,17 +352,14 @@ Recorded so they are not re-derived (all reproduced by the spikes or the code):
 * A shared `def` over the carrier does **not** translate (the carrier
   arrives as a function argument; SMT-LIB is first-order); `@[invSimp]`
   unfolds it in hypotheses but not goals. Not needed any more.
-* **Never name an action parameter `st'`**: Veil's trace pipeline uses that
-  name for the post-state, and the `sat trace` fails with an application
-  type mismatch naming `<action>.ext.tr … st' rd st st'`. (The sweep itself
-  is unaffected, which is what makes the failure confusing.)
 * `hiding` is a Lean keyword (`open … hiding`), unusable as a field name.
-* Two-state facts about a generated transition: `<action>.ext.derived_eq`
-  then the `reducible` `<action>.ext.tr`; `obtain ⟨_, h⟩ := h` on the final
-  `setIn … = s₁` conjunct *substitutes* (so a following `subst` is a no-op
-  the linter flags); the guards survive as inaccessible hypotheses. The
+* Two-state facts about a generated transition: `simp only [trSimp]`
+  (`<action>.ext.derived_eq` then the `reducible` `<action>.ext.tr`, for
+  every action at once); `obtain ⟨_, h⟩ := h` on the final `setIn … = s₁`
+  conjunct *substitutes* (so a following `subst` is a no-op the linter
+  flags); the guards survive as inaccessible hypotheses. The
   `actSimp`/`nextSimp` simp sets unfold the action *bodies* and defeat the
-  `derived_eq` rewrite — use the explicit lemma names.
+  `derived_eq` rewrite — never use them for this.
 * `all_honest_recorded j m` has four conjuncts since the 2026-08
   `well_encoded` refactor (`¬ is_byz j`, `is_proposer j`, the recorded
   entries, `well_encoded m`).

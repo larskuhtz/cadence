@@ -114,14 +114,6 @@ noncomputable abbrev DeadlinePassed
     (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) : Prop :=
   ¬ (@Veil.FieldRepresentation.get _ _ _ (afr% Chorus.State.Label.phase) st.phase = Phase_Enum.pre_deadline)
 
-/-- The Chorus state is inhabited. Veil derives this instance as part of the
-model-check scaffolding, which `Chorus.lean` disables (its label enumeration
-is `O(nᵏ)` in the action count); the composed system needs it because the
-glue's `scstate` sort must be inhabited, so it is provided here. -/
-noncomputable instance instInhabitedChorusState :
-    Inhabited (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) :=
-  ⟨by constructor <;> exact default⟩
-
 variable (th : Chorus.Theory slot node nodeset merkle_root Phase PathChoice)
 
 /-- The proposal vector a committed validator holds: each proposer maps to
@@ -137,7 +129,9 @@ noncomputable def decisionVector
 /-! ### Step-level facts, uniformly over all 38 actions
 
 Each is proven by exposing every action's pre-computed transition body
-(`<action>.ext.derived_eq`, then the `reducible` `<action>.ext.tr`),
+(`<action>.ext.derived_eq`, then the `reducible` `<action>.ext.tr` — Veil's
+`trSimp` set is exactly those two per action, so one `simp only` covers all
+of them),
 substituting the post-state and evaluating the field-representation
 `get`/`set` pair at the canonical representation. The commit relations are
 only ever set to `true`, and `commit_assign_pos`/`commit_assign_neg` are
@@ -147,48 +141,7 @@ frozen. -/
 /-- Expose one action's transition body in `h`. -/
 local macro "chorus_tr" h:ident : tactic =>
   `(tactic| (simp only [Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct] at $h:ident
-             simp only [
-               Chorus.advance_to_deadline.ext.derived_eq, Chorus.advance_to_fb_arm.ext.derived_eq,
-               Chorus.advance_to_mvba_arm.ext.derived_eq, Chorus.propose.ext.derived_eq,
-               Chorus.deliver_chunk_assigned.ext.derived_eq, Chorus.record_chunk.ext.derived_eq,
-               Chorus.vote.ext.derived_eq, Chorus.aggregate_fastqc_pos.ext.derived_eq,
-               Chorus.aggregate_fastqc_neg.ext.derived_eq, Chorus.commit_sign_pos.ext.derived_eq,
-               Chorus.commit_sign_neg.ext.derived_eq, Chorus.cast_fast_commit.ext.derived_eq,
-               Chorus.broadcast_commitqc_pos.ext.derived_eq,
-               Chorus.broadcast_commitqc_neg.ext.derived_eq, Chorus.fb_sign_pos.ext.derived_eq,
-               Chorus.fb_sign_neg.ext.derived_eq, Chorus.cast_fallback_vote.ext.derived_eq,
-               Chorus.mvba_decide_pos.ext.derived_eq, Chorus.mvba_decide_neg.ext.derived_eq,
-               Chorus.mvba_terminate.ext.derived_eq, Chorus.redisseminate_chunk.ext.derived_eq,
-               Chorus.cast_fb_commit.ext.derived_eq, Chorus.commit_assign_pos.ext.derived_eq,
-               Chorus.commit_assign_neg.ext.derived_eq, Chorus.finalize_commit.ext.derived_eq,
-               Chorus.byz_sign_proposer.ext.derived_eq, Chorus.byz_deliver_chunk.ext.derived_eq,
-               Chorus.byz_sign_vote_pos.ext.derived_eq, Chorus.byz_sign_vote_neg.ext.derived_eq,
-               Chorus.byz_cast_vote.ext.derived_eq, Chorus.byz_sign_fb_pos.ext.derived_eq,
-               Chorus.byz_sign_fb_neg.ext.derived_eq, Chorus.byz_sign_fallback.ext.derived_eq,
-               Chorus.byz_sign_commit_pos.ext.derived_eq,
-               Chorus.byz_sign_commit_neg.ext.derived_eq, Chorus.byz_cast_commit.ext.derived_eq,
-               Chorus.byz_sign_fbcommit.ext.derived_eq,
-               Chorus.byz_release_msg_decrypt_share.ext.derived_eq] at $h:ident
-             simp only [
-               Chorus.advance_to_deadline.ext.tr, Chorus.advance_to_fb_arm.ext.tr,
-               Chorus.advance_to_mvba_arm.ext.tr, Chorus.propose.ext.tr,
-               Chorus.deliver_chunk_assigned.ext.tr, Chorus.record_chunk.ext.tr,
-               Chorus.vote.ext.tr, Chorus.aggregate_fastqc_pos.ext.tr,
-               Chorus.aggregate_fastqc_neg.ext.tr, Chorus.commit_sign_pos.ext.tr,
-               Chorus.commit_sign_neg.ext.tr, Chorus.cast_fast_commit.ext.tr,
-               Chorus.broadcast_commitqc_pos.ext.tr, Chorus.broadcast_commitqc_neg.ext.tr,
-               Chorus.fb_sign_pos.ext.tr, Chorus.fb_sign_neg.ext.tr,
-               Chorus.cast_fallback_vote.ext.tr, Chorus.mvba_decide_pos.ext.tr,
-               Chorus.mvba_decide_neg.ext.tr, Chorus.mvba_terminate.ext.tr,
-               Chorus.redisseminate_chunk.ext.tr, Chorus.cast_fb_commit.ext.tr,
-               Chorus.commit_assign_pos.ext.tr, Chorus.commit_assign_neg.ext.tr,
-               Chorus.finalize_commit.ext.tr, Chorus.byz_sign_proposer.ext.tr,
-               Chorus.byz_deliver_chunk.ext.tr, Chorus.byz_sign_vote_pos.ext.tr,
-               Chorus.byz_sign_vote_neg.ext.tr, Chorus.byz_cast_vote.ext.tr,
-               Chorus.byz_sign_fb_pos.ext.tr, Chorus.byz_sign_fb_neg.ext.tr,
-               Chorus.byz_sign_fallback.ext.tr, Chorus.byz_sign_commit_pos.ext.tr,
-               Chorus.byz_sign_commit_neg.ext.tr, Chorus.byz_cast_commit.ext.tr,
-               Chorus.byz_sign_fbcommit.ext.tr, Chorus.byz_release_msg_decrypt_share.ext.tr] at $h:ident))
+             simp only [trSimp] at $h:ident))
 
 /-- Evaluate the field-representation `get`/`set` pair at the canonical
 representation, everywhere. -/

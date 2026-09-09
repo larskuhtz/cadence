@@ -118,7 +118,9 @@ variable (th : Mvba.Theory node nodeset value view)
 /-! ### Step-level facts, uniformly over all 24 actions
 
 Each is proven by exposing every action's pre-computed transition body
-(`<action>.ext.derived_eq`, then the `reducible` `<action>.ext.tr`),
+(`<action>.ext.derived_eq`, then the `reducible` `<action>.ext.tr` — Veil's
+`trSimp` set is exactly those two per action, so one `simp only` covers all
+of them),
 substituting the post-state and evaluating the field-representation
 `get`/`set` pair at the canonical representation
 (`docs/CompositionContracts.md` §4). -/
@@ -126,34 +128,7 @@ substituting the post-state and evaluating the field-representation
 /-- Expose one action's transition body in `h`. -/
 local macro "mvba_tr" h:ident : tactic =>
   `(tactic| (simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct] at $h:ident
-             simp only [
-               Mvba.propose.ext.derived_eq, Mvba.abandon.ext.derived_eq,
-               Mvba.leader_propose_first.ext.derived_eq, Mvba.leader_repropose.ext.derived_eq,
-               Mvba.leader_propose_fresh.ext.derived_eq,
-               Mvba.handle_preprepare_first.ext.derived_eq, Mvba.handle_preprepare.ext.derived_eq,
-               Mvba.form_prepqc.ext.derived_eq, Mvba.adopt_prepqc.ext.derived_eq,
-               Mvba.become_avail_ready.ext.derived_eq, Mvba.send_commit.ext.derived_eq,
-               Mvba.form_commitqc.ext.derived_eq, Mvba.decide.ext.derived_eq,
-               Mvba.timeout_qc.ext.derived_eq, Mvba.timeout_noqc.ext.derived_eq,
-               Mvba.form_tc_lock.ext.derived_eq, Mvba.form_tc_nolock.ext.derived_eq,
-               Mvba.sync_view.ext.derived_eq, Mvba.sync_view_adopt.ext.derived_eq,
-               Mvba.byz_preprepare.ext.derived_eq, Mvba.byz_prepare.ext.derived_eq,
-               Mvba.byz_commit.ext.derived_eq, Mvba.byz_timeout_qc.ext.derived_eq,
-               Mvba.byz_timeout_noqc.ext.derived_eq] at $h:ident
-             simp only [
-               Mvba.propose.ext.tr, Mvba.abandon.ext.tr,
-               Mvba.leader_propose_first.ext.tr, Mvba.leader_repropose.ext.tr,
-               Mvba.leader_propose_fresh.ext.tr,
-               Mvba.handle_preprepare_first.ext.tr, Mvba.handle_preprepare.ext.tr,
-               Mvba.form_prepqc.ext.tr, Mvba.adopt_prepqc.ext.tr,
-               Mvba.become_avail_ready.ext.tr, Mvba.send_commit.ext.tr,
-               Mvba.form_commitqc.ext.tr, Mvba.decide.ext.tr,
-               Mvba.timeout_qc.ext.tr, Mvba.timeout_noqc.ext.tr,
-               Mvba.form_tc_lock.ext.tr, Mvba.form_tc_nolock.ext.tr,
-               Mvba.sync_view.ext.tr, Mvba.sync_view_adopt.ext.tr,
-               Mvba.byz_preprepare.ext.tr, Mvba.byz_prepare.ext.tr,
-               Mvba.byz_commit.ext.tr, Mvba.byz_timeout_qc.ext.tr,
-               Mvba.byz_timeout_noqc.ext.tr] at $h:ident))
+             simp only [trSimp] at $h:ident))
 
 /-- Evaluate the field-representation `get`/`set` pair at the canonical
 representation, everywhere. -/

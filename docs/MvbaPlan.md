@@ -367,8 +367,8 @@ machine-checked evidence.
    vacuous, never a safety claim wrong
    ([`Architecture.md`](./Architecture.md) §4 item 6). Mind the parser rule:
    traces go after `#check_invariants`, and never `set_option … in`
-   immediately after a trace block; and never name an action parameter
-   `st'`.
+   immediately after a trace block. (The old `st'` rule is retired: the
+   generated binders are hygienic since the 2026-09 Veil bump.)
 2. **Quorum non-vacuity**, following [`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)'s
    witness pattern, so the quorum interface cannot be vacuously satisfiable.
 3. **Mutation testing with `#model_check`** — the strongest available, with

@@ -109,9 +109,11 @@ discharged VC is persisted as a named, kernel-checked theorem
 (`#gen_theorems` in the small modules, `#prove_action` in the
 proof-file families), and inductions over the generated `reachable`
 relation assemble them into "every reachable state satisfies the
-invariant clump" (`invariants_of_reachable` — emitted by
-`#gen_composition` in the families' `Certify.lean` files, hand-written
-in `Cadence/Composition.lean` for the small modules), from which the paper's
+invariant clump" (`invariants_of_reachable`, plus one named
+`reachable_<property>` projection per conjunct — emitted by
+`#gen_composition` for all five verified modules: in the families'
+`Certify.lean` files, and in `Cadence/Composition.lean` for the two small
+ones), from which the paper's
 *module contracts* ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean)) are
 instantiated. The contracts are type classes over an explicit abstract
 state, in two levels — a first-order fragment the consuming Veil model
