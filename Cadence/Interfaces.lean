@@ -12,7 +12,7 @@ type classes, lifted from the paper's module specifications
 | `mod:slotconsensus` (per-slot consensus) | `SlotConsensus` | Chorus ([`Chorus.lean`](./Chorus.lean)) |
 | `mod:orchestrator_2` (slot scheduling) | `Orchestrator` | Conductor ([`Conductor.lean`](./Conductor.lean)) |
 | `mod:acs` (agreement on a core set) | `ACS` | out of scope (a standard primitive) |
-| `mod:mvba` (multi-valued Byzantine agreement) | `MVBA` | out of scope (a standard primitive) |
+| `mod:mvba` (multi-valued Byzantine agreement) | `MVBA` | Mvba ([`Mvba.lean`](./Mvba.lean) — the leader-based protocol of the paper repository's internal supplement; instance provided, not yet consumed by Chorus) |
 
 Every class states the **whole** of the paper's module: its interface (inputs
 and outputs), and every one of its properties — safety, liveness, and the
@@ -647,35 +647,43 @@ Invoked by Chorus's fallback path, one instance per slot. Interface: inputs
 `abandon()`; output `decide(B)`. `Valid` is the publicly verifiable external
 validity predicate the instance is parameterised by.
 
-No implementation is in scope, so no instance exists here; every field is an
-assumption of the composition ([`docs/Architecture.md`](../docs/Architecture.md)
-§4 item 3; the plan to change that is `docs/MvbaPlan.md` on its own branch).
+The implementation is `Mvba` ([`Mvba.lean`](./Mvba.lean)) — the leader-based
+protocol of the paper repository's internal supplement, pinned to a
+paper-repository commit in that file's header; `docs/MvbaPlan.md` §0 says
+what that referent is and is not — with `value` the entry vector and
+`Valid` the model's immutable `valid`. The instance is `Mvba.mvbaSafety`
+([`Mvba/Compose.lean`](./Mvba/Compose.lean)), every field of the fragment
+proven; `Mvba.mvba_of_residual` proves that the residual
+`Mvba.MvbaResidual` — the clock, the admissible-run model, `ℓ` and
+Termination — is all the full class still owes, the upper level's inputs,
+observables and Quiescence being discharged from the transition bodies.
 
-**Chorus does not consume this class as a constraint** — alone among the
-consumers it inlines the oracle's properties as guards of its
+**Chorus does not yet consume this class as a constraint** — alone among
+the consumers it inlines the oracle's properties as guards of its
 `mvba_decide_*` actions ([`Chorus.lean`](./Chorus.lean), "MVBA oracle"). The
 reason is not the class's shape but the model's abstraction of validity:
 the paper's `Valid B` is a function of the meta-block, which *carries* its
 certificates, while Chorus checks a decided entry's certificate against its
 own network relations (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`)
 — a predicate on Chorus's *state*, which a class parameter declared before
-the module's state exists cannot mention. Closing that seam means either
-carrying certificates in the value type or restating the evidence guards as
-the class's `Valid`; both change every Chorus verification condition and are
-scheduled with the MVBA instantiation, not here
-([`docs/CompositionContracts.md`](../docs/CompositionContracts.md) §8). Until
-then the transcription seam between these fields and Chorus's guards is
-audited by reading — the two are listed side by side in that section.
+the module's state exists cannot mention. Closing that seam — the plan's
+step 6, `docs/MvbaPlan.md` §6: the class over an abstract state, an oracle
+step, and a decision handler carrying the certificate check as the one
+stated bridge — changes every Chorus verification condition and is its own
+piece of work ([`docs/CompositionContracts.md`](../docs/CompositionContracts.md)
+§8). Until then the transcription seam between these fields and Chorus's
+guards is audited by reading — the two are listed side by side in that
+section.
 
 ### Obligation table
 
-| Property (paper) | Field | Level |
-|---|---|---|
-| Agreement | `agreement` | safety |
-| Integrity (decides at most once) | `integrity` | safety |
-| External validity | `external_validity` | safety |
-| `ℓ_MVBA`-Termination | `termination`, `ℓ` | temporal |
-| Quiescence | `quiescence` | temporal | -/
+| Property (paper) | Field | Level | Discharge |
+|---|---|---|---|
+| Agreement | `agreement` | safety | Mvba `safety [agreement]` — `Mvba.mvbaSafety` |
+| Integrity (decides at most once) | `integrity` | safety | Mvba `safety [integrity]` — `Mvba.mvbaSafety` |
+| External validity | `external_validity` | safety | Mvba `safety [external_validity]` — `Mvba.mvbaSafety` |
+| `ℓ_MVBA`-Termination | `termination`, `ℓ` | temporal | **residual** (`Mvba.MvbaResidual`): the supplement's `thm:termination`, `O(fΔ)`; the model is untimed (`docs/MvbaPlan.md` §3) |
+| Quiescence | `quiescence` | temporal | proven in `Mvba.mvba_of_residual` from the transition bodies (`sent_new_tr`: every honest send requires the input and `¬ abandoned`) | -/
 
 /-- The state-level fragment of `mod:mvba`. -/
 class MVBASafety (party value state : Type) (byz : party → Prop) where

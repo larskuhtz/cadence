@@ -90,7 +90,7 @@ project: nothing in tier 1 or 2a reads the cache.
 
 The `verified` image is built by running the staged verification *inside* the
 image build, so its oleans come from a run that printed `ALL STAGES GREEN` —
-every axiom pin and both `#veil_status` pins included. What that is worth to a
+every axiom pin and all three `#veil_status` pins included. What that is worth to a
 reader, and what it leaves open, is §3–§4.
 
 Two things about the images that are easy to get wrong:

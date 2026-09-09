@@ -166,6 +166,23 @@ record of a finalization, `pending := delivered ∧ ¬ appended`).
   two-state lemmas over all 38 actions — including that a committed
   validator's entries are *frozen*, because `commit_assign_*` require
   `¬ local_committed i`.
+* **`Mvba.mvbaSafety th : MVBASafety node value (Mvba.State …) (fun i =>
+  nset.is_byz i = true)`** (`Mvba/Compose.lean`, 2026-09-08; `docs/MvbaPlan.md`
+  §5). The model is one instance of `mod:mvba`, so the contract is
+  instantiated directly: `Valid` is the theory's immutable `valid` (the
+  value is the entry vector), `decided` the relation of that name, `step`
+  the transitions other than the two inputs; `agreement`, `integrity` and
+  `external_validity` are the model's three `safety` declarations through
+  the named reachability projections of `Mvba/Certify.lean`, and the
+  step-level fields (`decided_mono`, `init_decided`) come from the 24
+  actions' transition bodies by the same technique. Because the model has
+  `propose` and `abandon` as actions and a per-sender row for each signed
+  message kind, the instance file also proves — for the *upper* class,
+  inside `mvba_of_residual` — the inputs, their observables (`proposed :=
+  input`, `abandoned`, `sent` by cases on `Mvba.Msg`), effects, frames,
+  initial conditions and **Quiescence**, the last as the one-step fact
+  `sent_new_tr` (every honest send requires `∃ E, input i E` and
+  `¬ abandoned i`).
 
 **The step-level technique**, which the plan had not exercised and which was
 the one open risk: a contract field such as "`opened` is monotone along
@@ -207,7 +224,15 @@ and no message type, so the whole upper level except Hiding's protocol half
 is residual — `slotConsensus_of_residual` discharges `hiding_residue` from
 `safety [hiding_until_deadline]` and takes the rest as the hypothesis.
 
-These two structures replace the rows of the old obligation tables that said
+`Mvba.MvbaResidual th time` (`Mvba/Compose.lean`) is the smallest of the
+three: `clock`, `Admissible`, `admissible_exists`, `ℓ` and `termination` —
+the timed part of `mod:mvba` alone (`ℓ_MVBA`-Termination, the supplement's
+`thm:termination`; the model is untimed). It is the first residual in the
+development with **no safety-shaped field**: `mvba_of_residual` discharges
+the inputs, their observables, effects, frames, initial conditions and
+Quiescence from the transition bodies.
+
+These structures replace the rows of the old obligation tables that said
 "documented, (A-…)". [`Architecture.md`](./Architecture.md) §4 item 4 now
 points at them by name; the meta-axiom names (A-orch-totality),
 (A-orch-boundedness), (A-orch-recovery), (A-sc-termination) are the fields'
@@ -239,9 +264,13 @@ split; 05 the shared fault model, the inst-implicit order and the per-slot
 
 ## 8. What this does not close — the remaining seams, named
 
-1. **Chorus's MVBA oracle is inlined, not a class constraint.** `MVBASafety`
-   exists and is the uniform shape, and Chorus's `mvba_decide_*` guards are
-   the transcription of its fields, audited by reading:
+1. **Chorus's MVBA oracle is inlined, not a class constraint.** The
+   *provider* side is closed: `Mvba.mvbaSafety` (`Mvba/Compose.lean`, §4)
+   instantiates `MVBASafety` from the leader-based protocol of the paper
+   repository's internal supplement with every field proven, and
+   `mvba_of_residual` leaves only the timed fields (§5). What is still open
+   is the *consumer* side: Chorus's `mvba_decide_*` guards are the
+   transcription of the class's fields, audited by reading:
 
    | `MVBASafety` field | Chorus guard (`mvba_decide_pos` / `mvba_decide_neg`) |
    |---|---|
@@ -255,9 +284,13 @@ split; 05 the shared fault model, the inst-implicit order and the per-slot
    a predicate on Chorus's **state**, which a class parameter declared before
    `#gen_state` cannot mention. Closing this means either carrying
    certificates in the value type or restating the evidence guards as the
-   class's `Valid`; either changes every Chorus verification condition and is
-   scheduled with the MVBA instantiation (`docs/MvbaPlan.md` on its branch),
-   not here.
+   class's `Valid`; either changes every Chorus verification condition. The
+   route chosen is `docs/MvbaPlan.md` §6 (step 6, its own piece of work):
+   Chorus instantiates `MVBASafety` over an abstract state, advances it by
+   an oracle step, and a decision handler transports a correct validator's
+   decision into the existing records with **one stated bridge** — the
+   certificate check against Chorus's network relations — the same shape as
+   the ACS median bridge (item 3).
 2. **Chorus has no participation interface**, so `SlotConsensusResidual`
    carries the whole of it; and the glue's records of the inputs it does not
    drive (`sc_abandoned`, `proposed`) are its own, as the paper's local

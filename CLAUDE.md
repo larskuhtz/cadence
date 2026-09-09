@@ -40,6 +40,21 @@ Four Veil models plus support files, mirroring the paper's architecture:
   architecture's **cheap validation leg**: try any pipeline change here first.
   `PreFix.lean` pins the model checker's counterexample to the *pre-fix*
   rules — a green build **requires** the violation; do not "fix" it.
+* **`Cadence/Mvba.lean`** (+ `Mvba/Proofs/`, `Mvba/Certify.lean`,
+  `Mvba/Compose.lean`) — the leader-based MVBA instantiation of the paper
+  repository's **internal supplement** (the referent is pinned to a
+  paper-repository commit in the header; `docs/MvbaPlan.md` §0), in the
+  Chorus family shape at mid scale: a model file with views, timeouts,
+  timeout certificates and the lock, one proof file per action (exactly
+  two manual cells), the certificate with its `#veil_status` pin, and
+  `Mvba.mvbaSafety : MVBASafety …` plus the residual `Mvba.MvbaResidual`
+  in `Compose.lean` — the only Mvba file importing `Interfaces.lean`.
+  Chorus does **not** consume the instance yet (`docs/MvbaPlan.md` §6).
+  The lock-persistence lemma is not inductive; the clump carries the
+  Paxos-EPR-style `prepqc_blocks_lower_commits` (the header explains).
+  `Mvba/NoLock.lean` is the mutation test: the model checker's
+  counterexample to the instantiation *without* its lock check, pinned
+  like `PreFix.lean` — a green build **requires** the violation.
 * Support: `Interfaces.lean` (the module contracts — `SlotConsensus`,
   `Orchestrator`, `ACS`, `MVBA` as two-level type classes over explicit
   state: a first-order `…Safety` fragment the models instantiate, and the
@@ -76,7 +91,7 @@ History: [docs/History.md](./docs/History.md).
 ## Build
 
 * Always build from the **project root**.
-* `lake build` verifies everything. But it schedules all 49 per-action proof
+* `lake build` verifies everything. But it schedules all 74 per-action proof
   files at once and a *cold* proof file peaks ~5 GB (lake has no job cap):
   on <64 GB use `scripts/revalidate.sh`, which stages the same targets.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
@@ -322,15 +337,15 @@ is a change to what this project *claims*, not a refactor.
 * **No `sorryAx` anywhere.** Every axiom pin stays at exactly
   `[propext, Classical.choice, Quot.sound]`, in every per-result pin and
   in [`Cadence.lean`](./Cadence.lean).
-* **The audit pins stay complete**: `#veil_status Chorus` at `3861/3861 real`
-  and `#veil_status FallbackReceipt` at `220/220 real`. If an invariant is
-  added, these numbers change — update the pins, and check the new numbers are
-  the ones you expect.
-* **No full contract instance is fabricated.** `Orchestrator` and
-  `SlotConsensus` (the full classes) have instances only *through* the
-  residual structures (`Conductor.orchestrator_of_residual`,
-  `Chorus.slotConsensus_of_residual`), whose fields are the obligations this
-  development does not prove. Proving one of those fields means deleting it
+* **The audit pins stay complete**: `#veil_status Chorus` at `3861/3861 real`,
+  `#veil_status FallbackReceipt` at `220/220 real` and `#veil_status Mvba`
+  at `725/725 real`. If an invariant is added, these numbers change —
+  update the pins, and check the new numbers are the ones you expect.
+* **No full contract instance is fabricated.** `Orchestrator`,
+  `SlotConsensus` and `MVBA` (the full classes) have instances only
+  *through* the residual structures (`Conductor.orchestrator_of_residual`,
+  `Chorus.slotConsensus_of_residual`, `Mvba.mvba_of_residual`), whose
+  fields are the obligations this development does not prove. Proving one of those fields means deleting it
   from the residual and proving it in the `…_of_residual` definition — never
   adding an axiom, and never weakening a class field to make an instance
   possible.
@@ -341,7 +356,11 @@ is a change to what this project *claims*, not a refactor.
   defaults to the machine's *core count*, so which of the many violating
   states is reported first is hardware-dependent — 4, 8, 12 and 14 cores each
   produce a different, equally valid witness, and the pin would then only hold
-  on the machine that recorded it. The reasoning is in the file.
+  on the machine that recorded it. The reasoning is in the file. The same
+  holds for **`Mvba/NoLock.lean`**, the MVBA's lock-check mutation test: it
+  builds only while the checker still finds agreement violated on the
+  restricted mutant, and its `#model_check` keeps `(sequential := true)`
+  for the same reason.
 * Headline results stay readable by non-FV reviewers: named `safety`
   declarations in the models, corollaries and contract instances in the
   composition files, and one index page in `Cadence.lean`.

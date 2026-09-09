@@ -179,25 +179,37 @@ atomic reload. `subsec:mvba-correctness` discharges the module's properties
 with roughly fifteen lemmas, `thm:agreement` and `thm:termination`, the
 latter at `O(fΔ)`.
 
-Three consequences for this repository, none urgent:
+Three consequences for this repository, the second of which has since been
+acted on:
 
 1. `ℓ_MVBA` acquires a concrete candidate value, `O(fΔ)`. It stays a paper
    quantity — the models are untimed — but
    [`Bounds.md`](./Bounds.md)'s "parametric hole" now has a referent.
 2. The open item of instantiating the primitive classes end-to-end
-   ([`ChorusDesign.md`](./ChorusDesign.md) §9) acquires a concrete target:
-   a Veil model of `alg:mvba` discharging `MVBA` from
-   [`Primitives.lean`](../Cadence/Primitives.lean).
+   ([`ChorusDesign.md`](./ChorusDesign.md) §9) acquired a concrete target,
+   and it is done (2026-09-08): [`Cadence/Mvba.lean`](../Cadence/Mvba.lean)
+   is a Veil model of `alg:mvba` (views, timeouts, timeout certificates, the
+   lock), read against paper-repository commit `026dc8b` and pinned to it in
+   the model's header, and [`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean)
+   discharges `MVBASafety` (`Mvba.mvbaSafety`, every field) and, given the
+   timed residual, the full `MVBA` (`Mvba.mvba_of_residual`) — the class
+   lives in [`Interfaces.lean`](../Cadence/Interfaces.lean) since the
+   contract composition of 2026-09-04. This is the one model in the
+   development whose referent is the supplement rather than the published
+   paper; [`MvbaPlan.md`](./MvbaPlan.md) §0 says what that does and does not
+   commit to. Chorus's consumption of the instance is the plan's step 6.
 3. **An agreement-level observation.** `mod:mvba` states Agreement as
-   metablock equality, and `Primitives.lean`'s `MVBA.agreement` mirrors it
-   as value equality. The supplement's `thm:agreement` proves the weaker
+   metablock equality, and `Interfaces.lean`'s `MVBASafety.agreement` mirrors
+   it as value equality. The supplement's `thm:agreement` proves the weaker
    entries-level statement, and says so deliberately: agreement is over a
    metablock's entries, the certificates being carried only so validity can
    be checked. Chorus needs no more than that, and the Chorus model already
    works at that level — its oracle shadow is the per-proposer
    `mvba_decided_pos`/`mvba_decided_neg` with `mvba_decided_pos_unique`. So
    the right instantiation of the class's `value` is the entry vector, not
-   the metablock. This is the one place where this development's abstraction
+   the metablock — which is what `Cadence/Mvba.lean` does (`value` is the
+   entry vector, `Recover(e)` the identity; [`MvbaPlan.md`](./MvbaPlan.md)
+   §1.2). This is the one place where this development's abstraction
    matches the supplement rather than the published contract, and it is the
    sound direction: assuming the stronger contract while needing only the
    weaker one.
