@@ -39,8 +39,11 @@ Each module `X` is two classes.
   `instantiate`s as a class constraint**, and Veil hands every axiom of an
   instantiated class to the SMT solver verbatim (which is what lets the
   consumer *use* the contract instead of restating it; it is also why a
-  non-first-order field here would abort every verification condition of the
-  consuming module — `docs/CompositionContracts.md` §5 has the measurement).
+  non-first-order field here is fatal — the check commands reject one by
+  class and field name before any solver starts, and before the 2026-09 Veil
+  bump it aborted *every* verification condition of the consuming module.
+  `attribute [veil_smt_ignore] C.field` is the escape hatch, unused here;
+  `docs/CompositionContracts.md` §10 and `spikes/03_*.lean` have the detail).
 * **`X extends XSafety`** — the module proper: everything else the paper
   promises. Temporal properties are stated over explicit runs (`Run`,
   `TimedRun` below); bounds are carried as data; the inputs that only the

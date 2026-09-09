@@ -62,9 +62,10 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `Primitives.lean` (cryptographic primitive classes), `ByzQuorum.lean`
   (quorum instances and non-vacuity witnesses), `Windows.lean` (the ACS median
   lemma), `Tooling.lean` (targeted check commands).
-* Composition: `Composition.lean` (reachability inductions for the two small
-  models, `Conductor ⊨ OrchestratorSafety`, the Conductor's residual toward
-  the full `Orchestrator`, positional MCP Safety), `Chorus/Compose.lean`
+* Composition: `Composition.lean` (`#gen_composition` for the two small
+  models — the reachability inductions and the named `reachable_<property>`
+  projections — `Conductor ⊨ OrchestratorSafety`, the Conductor's residual
+  toward the full `Orchestrator`, positional MCP Safety), `Chorus/Compose.lean`
   (`Chorus ⊨ SlotConsensusSafety` and its residual), `System.lean` (the
   glue's end theorem at both instances — the composed system, no contract
   hypothesis left).
@@ -271,12 +272,6 @@ measurements and the audit ladder:
   `dsimp +instances [...]` — the flag goes *before* `only`. The failure mode
   is `made no progress`, sometimes with a note that the target is not
   type-correct at `instances` transparency.
-* **Instance telescopes of generated VC theorems are deduplicated.** Veil
-  canonicalises an action's extra parameters, so two identical `Decidable`
-  side conditions collapse into one and the theorem's arity drops. The
-  explicit-instance macros in `Cadence/Composition.lean` pass those positions
-  as `_`, so the count must match; a mismatch is a loud "application type
-  mismatch" naming the first argument that landed in the wrong slot.
 * **Never put `set_option … in` directly after a `sat trace { … }` block** —
   the trace command's optional proof-term suffix greedily parses it. Put
   traces after `#check_invariants`, before `end`.
@@ -293,32 +288,40 @@ measurements and the audit ladder:
   collides with the field name. `Cadence/Chorus/Compose.lean` qualifies Veil
   names instead. Relatedly, `hiding` is a Lean keyword and cannot name a
   class field (`hiding_residue`).
-* **Never name an action parameter `st'`.** Veil's trace pipeline uses that
-  name for the post-state; the sweep passes and the `sat trace` fails with
-  an "application type mismatch" naming `<action>.ext.tr … st' rd st st'`.
-  The models use `os_next`, `sc_next`, `acs_next`.
 * **Only first-order fields in a `…Safety` contract fragment.** Veil hands
-  every axiom of an instantiated class to the solver; a field quantifying
-  over a run or a function aborts *every* verification condition of the
-  consuming module with `Symbol '->' not declared as a type`. Temporal and
-  quantitative obligations go in the upper class (`Orchestrator`,
-  `SlotConsensus`, …), which no Veil module instantiates.
+  every axiom of an instantiated class to the solver, so a field quantifying
+  over a run or a function is outside the fragment the translation accepts.
+  Temporal and quantitative obligations go in the upper class
+  (`Orchestrator`, `SlotConsensus`, …), which no Veil module instantiates.
+  Since the fork bump this is an **error naming the class and the field**,
+  raised by the check commands before any solver starts — not, as it used to
+  be, every VC of the consuming module aborting with `Symbol '->' not
+  declared as a type`. The escape hatch, for a field that must stay in the
+  class but need not reach the solver, is `attribute [veil_smt_ignore]
+  C.field` after the class: the field stays a declared axiom, the module
+  verifies, and each check command reports the withheld fields once per
+  module, so the trust statement stays one line. `spikes/03_*.lean` is the
+  reproduction.
 * **Contract properties are never restated in a consumer.** The glue and
   the Conductor take the contracts as class constraints; a `require` or
   `invariant` that spells out a contract property again is the seam this
   design removed. If a consumer needs something the class does not say, add
   the field to the class (and prove it in the instances).
 * **Two-state contract fields are proven from the transition bodies**, not
-  from cells: `<action>.ext.derived_eq`, then the `reducible`
-  `<action>.ext.tr`, destructure, and simplify the field-representation
-  `get`/`set` pair (the `conductor_tr`/`chorus_tr` macro pairs). Use the
-  explicit `derived_eq` names — the `actSimp` simp set unfolds the action
-  bodies and defeats the rewrite. Adding an action means extending the macro
-  and regenerating the `invariants_of_reachable` tuple.
+  from cells: dispatch the label, expose the body with `simp only [trSimp]`
+  — Veil's `trSimp` set is exactly the `derived_eq` theorems and the `tr`
+  definitions, so it covers every action — destructure, and simplify the
+  field-representation `get`/`set` pair (the `conductor_tr` / `chorus_tr` /
+  `mvba_tr` macros). Do *not* reach for `actSimp`/`nextSimp`: they unfold the
+  action bodies first and defeat the rewrite. Adding an action needs no edit
+  here: neither the macros nor the reachability induction lists actions any
+  more.
 * **The hand-written composition files must stay in the generated transition
   system's exact instance regime** — no `DecidableEq` binders, `open
-  Classical`, VC theorems applied through the explicit-instance macros — or
-  elaboration dies in `whnf` timeouts with no useful error. Read the header of
+  Classical` — or elaboration dies in `whnf` timeouts with no useful error.
+  Never apply a generated VC theorem by hand: `#gen_composition` extracts the
+  canonical instantiation from the module's own `relationalTransitionSystem`,
+  which is why the two inductions are one command each. Read the header of
   `Cadence/Composition.lean` first.
 * **Manual cells are `#prove_vc <Module> <action> <property> by <tac>`
   lines** before the file's `#prove_action`, which consumes them after a

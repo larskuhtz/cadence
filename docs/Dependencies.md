@@ -102,6 +102,33 @@ consequence of it.
   (`Cadence/Cadence.lean`, `Cadence/Conductor.lean`) use it directly; their
   compositions in `Cadence/Composition.lean` are plain Lean over those
   theorems. (The large models use the registry route of group 1 instead.)
+* **Per-action preservation lemmas and `#gen_composition`** — the step from
+  per-VC theorems to "every reachable state satisfies the invariants" is
+  emitted, not written. `#prove_action` (per proof file) and `#gen_theorems`
+  (in-module, every action at once) each emit the action's preservation
+  lemma; `#gen_composition <Module>`, run in the module's namespace, assembles
+  those into `<Module>.invariants_of_reachable` plus one named
+  `<Module>.reachable_<property>` projection per invariant conjunct. It
+  *extracts* the canonical instantiation of the generated definitions from
+  the module's own `relationalTransitionSystem` rather than reconstructing
+  it, which is what makes the composition writable at all: applying those VC
+  theorems by hand needs every shared instance argument spelled out, and
+  instance synthesis for the field-representation arguments diverges. All
+  five verified modules use it ([`Cadence/Composition.lean`](../Cadence/Composition.lean)
+  and the three `Certify.lean` files). Everything it emits goes through
+  `addDecl`, so the kernel checks it; nothing here widens the trust base.
+* **The `trSimp` simp set** — exactly the actions' `derived_eq` theorems and
+  `tr` definitions. Two-state facts (frames, monotonicity of an observable)
+  are proven from the pre-computed transition bodies, and the `actSimp` /
+  `nextSimp` sets unfold the action *bodies* first and defeat that rewrite;
+  before `trSimp` each consumer carried a hand-maintained list of every
+  action's two lemmas. The three `*_tr` macros in the composition files are
+  now one `simp only [trSimp]` each, and adding an action changes nothing.
+* **A derived `Inhabited` instance for the abstract state**
+  (`instInhabitedStateFieldAbstractType`), emitted with the state theory
+  rather than with the model-check scaffolding that `Chorus.lean` has to
+  disable. The composed system needs it (the glue's `scstate` sort must be
+  inhabited); `Chorus/Compose.lean` used to provide it by hand.
 * **Solver-option capture guards** — Veil captures solver options when a
   module elaborates its specification, so a `set_option … in
   #check_invariants` *after* that point is silently inert. The fork warns
@@ -136,6 +163,40 @@ consequence of it.
   command emits a visible `⏭ skipped (veil.noVerify)` warning, so "no errors"
   in this mode can never be mistaken for "verified". See
   [../CLAUDE.md](../CLAUDE.md).
+* **Hygienic generated binders.** The generated transition relations bind a
+  reader, a pre-state, a label and a post-state; an action parameter of the
+  same name (`st'` above all) used to be captured — the invariant sweep
+  passed and every `sat trace` failed with an application type mismatch
+  naming `<action>.ext.tr … st' rd st st'`. Those binders are now hygienic,
+  which retires a rule this project had to carry.
+
+### 7. Keeping the contract classes honest
+
+The two-level contract design ([CompositionContracts.md](./CompositionContracts.md))
+rests on one Veil fact: **every `Prop` field of an `instantiate`d class is a
+solver hypothesis**. That is what lets a consumer *use* a contract property
+without restating it — and what makes a badly-shaped field fatal.
+
+* **The first-order check.** A field that quantifies over a function (a run,
+  say) is outside the fragment the SMT translation accepts. It used to abort
+  *every* verification condition of the consuming module with an opaque
+  solver error naming neither the class nor the field; the check commands now
+  report it once, by class and field, before any solver starts.
+  [`spikes/03_nonfirstorder_field_breaks_smt.lean`](../spikes/03_nonfirstorder_field_breaks_smt.lean)
+  is the reproduction.
+* **`attribute [veil_smt_ignore] C.field`** withholds one field from the
+  solver: it stays a declared axiom of the class, the consuming module
+  verifies, and each check command reports the withheld fields once per
+  module — so the trust statement stays one line ("every axiom of the
+  instantiated classes except these"). This project does not withhold
+  anything today; the attribute is the escape hatch for a field that must
+  live in the class but need not reach the solver.
+* **A readable rejection for an `assumption` over mutable state.** An
+  `assumption` is a background axiom and ranges over the immutable part of
+  the state only; naming a mutable component in one used to fail with
+  `Unbound uncapitalized variable: os`. The message now says what an
+  `assumption` may range over and points at `invariant` / `trusted invariant`
+  instead — which is the choice the contract design keeps making.
 
 ## Native shared libraries
 

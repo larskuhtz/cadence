@@ -252,20 +252,29 @@ Two items are exceptions, because they are this project's to ask for.
 
 **Asks from the contract-composition work (2026-09-08)** — recorded with
 reproductions in the fork's roadmap (`VEIL-REVIEW.md` § "From the Cadence
-contract-composition work", codes L9–L15 / M13–M14 / H6). In the order of
-their effect on this project's audit surface: `#gen_theorems` emitting the
-per-action preservation lemmas, so `#gen_composition` replaces the
-hand-assembled inductions and explicit-instance macros of
-`Cadence/Composition.lean` (L14); recursive destructuring of instantiated
-classes and a named, per-module report of class fields withheld from the
-solver (L9, L10), which would let the contracts share a transition-system
-skeleton and be one class per paper module; generated frame and monotonicity
-lemmas and a two-state property kind (M13, M14), which would replace the
-`StepFacts` sections of the instance files and give the (M-frame) network
-contract its first machine-checked form; and the hygiene items — a direct
-`Inhabited` instance for the abstract state (today hand-written in
-`Chorus/Compose.lean`), hygienic internal names in the trace pipeline, a
-`trSimp` simp set (L11, L12, L15).
+contract-composition work", codes L9–L15 / M13–M14 / H6).
+
+*The seven L-items landed in the fork on 2026-09-08 and were taken up here in
+the 2026-09-09 Veil bump* ([`History.md`](./History.md),
+[`Dependencies.md`](./Dependencies.md) §3 and §7): `#gen_theorems` now emits
+the per-action preservation lemmas, so one `#gen_composition` per module
+replaced the hand-assembled inductions and the explicit-instance macros of
+`Cadence/Composition.lean` (L14); the `trSimp` simp set replaced the three
+per-action lemma lists (L15); the abstract state's `Inhabited` instance is
+derived rather than hand-written (L11); a non-first-order field of an
+instantiated class is now an error naming class and field, with
+`veil_smt_ignore` as the escape hatch (L10); the trace pipeline's binders are
+hygienic, retiring the `st'` rule (L12); and an `assumption` over mutable
+state gets a readable rejection (L13). What L9 (recursive destructuring of
+instantiated classes before SMT) enables — the contracts sharing one
+transition-system skeleton, and the temporal level as a class over the safety
+instance instead of a residual structure — is the interface redesign, still
+to do.
+
+Still open: generated frame and monotonicity lemmas and a two-state property
+kind (M13, M14), which would replace the `StepFacts` sections of the instance
+files and give the (M-frame) network contract its first machine-checked form;
+and H6.
 
 
 * ~~Re-include the Bool-atom fold.~~ **Done 2026-09-02** — ported forward in

@@ -48,7 +48,9 @@ from what the model declares. Never restate a VC by hand.
 
 `Cadence/Cadence.lean` and `Cadence/Conductor.lean` are small enough to sweep
 in-file (`#check_invariants`) and persist their real proofs directly with
-`#gen_theorems`; `Cadence/Composition.lean` consumes those theorems, and
+`#gen_theorems` (which also emits their per-action preservation lemmas);
+`Cadence/Composition.lean` turns those into the two reachability inductions
+with one `#gen_composition` each, and
 `Cadence/System.lean` instantiates the glue's end theorem at the Conductor
 and Chorus contract instances.
 
@@ -164,12 +166,13 @@ never write one by hand.
   the contract's *input* transitions. The pattern and its evidence:
   `docs/CompositionContracts.md`.
 * **Only first-order fields go in the `…Safety` fragment.** A field that
-  quantifies over a run or a function crashes *every* cell of the consuming
-  module with `Symbol '->' not declared as a type`. Temporal and quantitative
-  obligations belong in the upper class (`Orchestrator`, `SlotConsensus`, …).
-* **Never name an action parameter `st'`.** The trace pipeline uses that
-  name for the post-state; the sweep passes and the `sat trace` fails with
-  an application type mismatch. (`os_next`, `sc_next`, `acs_next` here.)
+  quantifies over a run or a function is outside the fragment the SMT
+  translation accepts; the check commands report it as an error naming the
+  class and the field, before any solver starts. Temporal and quantitative
+  obligations belong in the upper class (`Orchestrator`, `SlotConsensus`, …);
+  a field that must stay in the class but need not reach the solver is
+  withheld with `attribute [veil_smt_ignore] C.field`, which the check
+  commands then list once per module.
 * When a solver search diverges at a handler, materialise the missing fact as
   an explicit witness parameter or a derivable `require` (see `acs_decide`'s
   decision-precedes-entry require) instead of hoping e-matching finds the
@@ -182,15 +185,18 @@ never write one by hand.
 * The state-level contract fields that relate *two* states (monotonicity of
   an observable, frames, the paper's Monotonicity) cannot come from a
   `#check_invariants` cell. They are proven from Veil's pre-computed
-  transition bodies: dispatch the label, `simp only [<action>.ext.derived_eq]`,
-  `simp only [<action>.ext.tr]`, `repeat (obtain ⟨_, h⟩ := h)` (the last step
-  substitutes the post-state — a following `subst` is a no-op), then the
-  field-representation simp set (`conductor_field_simp` / `chorus_field_simp`).
-  Use the explicit `derived_eq` names — the `actSimp` simp set unfolds the
-  action bodies first and defeats the rewrite.
-* Adding an action to a model changes the label sum: extend the macro's
-  lemma list and regenerate the `invariants_of_reachable` tuple (the
-  side-condition counts come from `#check @<Module>.<action>_<property>`).
+  transition bodies: dispatch the label, `simp only [trSimp]` (Veil's set of
+  exactly the `derived_eq` theorems and the `tr` definitions — the
+  `conductor_tr` / `chorus_tr` / `mvba_tr` macros are that plus the
+  `relationalTransitionSystem`/`Next`/`NextAct` line),
+  `repeat (obtain ⟨_, h⟩ := h)` (the last step substitutes the post-state —
+  a following `subst` is a no-op), then the field-representation simp set
+  (`conductor_field_simp` / `chorus_field_simp`). Do not reach for
+  `actSimp`/`nextSimp`: they unfold the action bodies first and defeat the
+  rewrite.
+* Adding an action to a model needs no edit in the composition files: the
+  `*_tr` macros name no action, and the reachability induction is emitted by
+  `#gen_composition` from the per-action preservation lemmas.
 * An upper-level obligation an implementation cannot prove goes into its
   `…Residual` structure, restated at that implementation's types; the
   `…_of_residual` definition type-checks the restatement against the class.

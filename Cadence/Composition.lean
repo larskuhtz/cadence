@@ -6,15 +6,21 @@ import Cadence.Conductor
 Plain-Lean theorems connecting the verified Veil modules to the module
 contracts of [`Interfaces.lean`](./Interfaces.lean), per
 `docs/ConductorDesign.md` §5.2 and `docs/CompositionContracts.md`.
-Everything here consumes the per-VC theorems persisted by the `#gen_theorems`
+Everything here rests on the per-VC theorems persisted by the `#gen_theorems`
 commands in the module files (named `<Module>.<action>_<property>` /
-`<Module>.initializer_<property>`) and composes them, by ordinary induction
-over the generated `RelationalTransitionSystem.reachable` relation, into
+`<Module>.initializer_<property>`), composed by ordinary induction over the
+generated `RelationalTransitionSystem.reachable` relation into
 
 > **`<Module>.invariants_of_reachable`** — every reachable state of the
 > module satisfies its assembled `Invariants` conjunction —
 
-from which the contract instances and corollaries are projected. The trust
+and one named **`<Module>.reachable_<property>`** projection per conjunct.
+Both are *emitted* here by `#gen_composition <Module>`, from the per-action
+preservation lemmas the same `#gen_theorems` commands emit: the induction is
+no longer written out in this file, and no consumer indexes the `Invariants`
+conjunction positionally — a property that has been renamed or reordered
+fails loudly by name. The contract instances and corollaries below are
+projected from those. The trust
 base is exactly that of the `#check_invariants` sweeps — and since both
 modules run with proof reconstruction, that base is the standard
 `propext`/`Classical.choice`/`Quot.sound` trio alone: the persisted VC
@@ -73,25 +79,24 @@ both discovered the hard way:
    Classical` providing the fallback — otherwise every unification compares
    terms built from *different* `Decidable` instances and dies in deep
    structural `whnf`.
-2. Instance *synthesis* for the `χ_rep : (f : Label) → FieldRepresentation …`
-   arguments diverges (the search reduces `toDomain`/`IteratedProd`
-   per candidate). The `cvc%`/`ovc%` macros below therefore apply the VC
-   theorems with **all** shared instance arguments explicit, mirroring
-   the RTS's own instantiation term-for-term; only the small per-action
-   `Decidable` side conditions are left to synthesis.
-3. Those side conditions are passed positionally as `_`, so each call site
-   states how many the theorem has. Veil canonicalises an action's extra
-   parameters, and two side conditions that are literally the same collapse
-   into one — so the count is a property of the *generated* theorem, not of
-   the action's own guards. `#check @<Module>.<action>_<property>` shows the
-   telescope; a wrong count is an "application type mismatch" naming the
-   first argument that landed in the wrong slot.
-4. The step-level contract fields are proven by unfolding an action's
-   pre-computed transition body — `rw [<action>.ext.derived_eq]`, then the
-   `reducible` `<action>.ext.tr` — destructuring its guards, substituting
-   the post-state and simplifying the field-representation `get`/`set`
-   pair at the canonical (functional) representation. The `conductor_tr`
-   and `conductor_field_simp` macros package the two halves. -/
+2. Applying a VC theorem *by hand* in that regime does not work: instance
+   synthesis for the `χ_rep : (f : Label) → FieldRepresentation …` arguments
+   diverges (the search reduces `toDomain`/`IteratedProd` per candidate), so
+   every shared instance argument has to be spelled out to mirror the RTS's
+   own instantiation term-for-term. This file used to carry two macros doing
+   exactly that. It does not any more: `#gen_composition` *extracts* the
+   canonical instantiation from the module's own `relationalTransitionSystem`
+   elaboration instead of reconstructing it, which is why the two inductions
+   are now one command each.
+3. The step-level contract fields are still hand-written, because they relate
+   *two* states and no cell states them. They are proven by unfolding an
+   action's pre-computed transition body — Veil's `trSimp` simp set is
+   exactly the `derived_eq` theorems and the `tr` definitions, so one
+   `simp only [trSimp]` covers every action — destructuring its guards,
+   substituting the post-state and simplifying the field-representation
+   `get`/`set` pair at the canonical (functional) representation. The
+   `conductor_tr` and `conductor_field_simp` macros package the two halves,
+   and neither has to be extended when an action is added. -/
 
 open Veil
 
@@ -199,36 +204,6 @@ theorem sorted_prefix_agreement {α β : Type} {r : α → α → Prop}
 namespace Cadence
 open Classical
 
-/- Apply a persisted `Cadence` VC theorem at the canonical instantiation of
-`Cadence.relationalTransitionSystem` (see the header note): all shared
-instance arguments explicit — the six sorts with their `Classical`
-decidability, the slot order, the fault model and the two contracts —
-matching the RTS's `Classical` elaboration term-for-term. Action arguments
-follow, leaving the per-action `Decidable` side-condition instances to
-synthesis. -/
-local macro "cvc%" t:ident s:term:max n:term:max p:term:max q:term:max os:term:max scs:term:max args:term:max* : term =>
-  `(@$t
-    (Cadence.Theory $s $n $p $q $os $scs)
-    (Cadence.State (Cadence.FieldAbstractType $s $n $p $q $os $scs))
-    $s (fun a b => Classical.propDecidable (a = b)) inferInstance
-    $n (fun a b => Classical.propDecidable (a = b)) inferInstance
-    $p (fun a b => Classical.propDecidable (a = b)) inferInstance
-    $q (fun a b => Classical.propDecidable (a = b)) inferInstance
-    $os (fun a b => Classical.propDecidable (a = b)) inferInstance
-    $scs (fun a b => Classical.propDecidable (a = b)) inferInstance
-    inferInstance inferInstance inferInstance inferInstance
-    (Cadence.FieldAbstractType $s $n $p $q $os $scs)
-    (fun f => @Cadence.instAbstractFieldRepresentation $s $n $p $q $os $scs
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b)) f)
-    (fun f => @Cadence.instLawfulAbstractFieldRepresentation $s $n $p $q $os $scs
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b)) f)
-    instIsSubStateOfRefl instIsSubReaderOfRefl
-    $args*)
-
 variable {slot node pvector proposal ostate scstate : Type}
   [Inhabited slot] [Inhabited node] [Inhabited pvector] [Inhabited proposal]
   [Inhabited ostate] [Inhabited scstate]
@@ -236,242 +211,17 @@ variable {slot node pvector proposal ostate scstate : Type}
   [orch : OrchestratorSafety node slot ostate fm.byz]
   [sc : SlotConsensusSafety slot node proposal pvector scstate fm.byz]
 
-set_option maxHeartbeats 4000000 in
-/-- Every reachable state of the Cadence glue satisfies the assembled
-invariant clump — the induction over `reachable`, with the base and step
-obligations discharged by the persisted `#check_invariants` VC theorems.
-Stated for arbitrary instances of the two contracts: this is the glue's
-claim *as a function of its assumptions*. -/
-theorem invariants_of_reachable
-    {th : Cadence.Theory slot node pvector proposal ostate scstate}
-    {st : Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate)}
-    (h : (Cadence.relationalTransitionSystem slot node pvector proposal ostate scstate).reachable th st) :
-    Cadence.Invariants (Cadence.Theory slot node pvector proposal ostate scstate)
-      (Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate))
-      slot node pvector proposal ostate scstate
-      (Cadence.FieldAbstractType slot node pvector proposal ostate scstate) th st := by
-  induction h with
-  | init s hassu hinit =>
-    have htr : Cadence.initializer.ext.toTransitionDerived th default s := by
-      rw [Cadence.initializer.ext.derived_eq]; exact hinit
-    exact ⟨triple_of_meets (cvc% Cadence.initializer_log_agreement slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_skip_agreement slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_inclusion_lift slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_bounded_concurrency_interval slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_orch_reachable slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_sc_reachable slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_finalized_agreement slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_finalized_inclusion slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_opened_prefix_agreement slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_skipped_witness slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_opened_skipped_excl slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_skipped_resolved slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_appended_resolved slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_resolved_backed slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_appended_prefix_resolved slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_appended_delivered slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_delivered_finalized slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_delivered_opened slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_delivered_completed slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_completed_delivered slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_completed_iff_abandoned slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_abandoned_after_finalize slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_proposed_proposer_opened slot node pvector proposal ostate scstate) th default s hassu trivial htr,
-      triple_of_meets (cvc% Cadence.initializer_pending_append_enabled slot node pvector proposal ostate scstate) th default s hassu trivial htr⟩
-  | step s1 s2 hr hnext ih =>
-    have hassu := Veil.RelationalTransitionSystem.reachable_assumptions _ th s1 hr
-    obtain ⟨l, htr⟩ := hnext
-    cases l with
-    | orch_step os_next =>
-    exact ⟨triple_of_meets (cvc% Cadence.orch_step_log_agreement slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_skip_agreement slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_inclusion_lift slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_bounded_concurrency_interval slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_orch_reachable slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_sc_reachable slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_finalized_agreement slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_finalized_inclusion slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_opened_prefix_agreement slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_skipped_witness slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_opened_skipped_excl slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_skipped_resolved slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_appended_resolved slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_resolved_backed slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_appended_prefix_resolved slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_appended_delivered slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_delivered_finalized slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_delivered_opened slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_delivered_completed slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_completed_delivered slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_completed_iff_abandoned slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_abandoned_after_finalize slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_proposed_proposer_opened slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.orch_step_pending_append_enabled slot node pvector proposal ostate scstate _ os_next) th s1 s2 hassu ih htr⟩
-    | sc_step s0 sc_next =>
-    exact ⟨triple_of_meets (cvc% Cadence.sc_step_log_agreement slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_skip_agreement slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_inclusion_lift slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_bounded_concurrency_interval slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_orch_reachable slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_sc_reachable slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_finalized_agreement slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_finalized_inclusion slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_opened_prefix_agreement slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_skipped_witness slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_opened_skipped_excl slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_skipped_resolved slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_appended_resolved slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_resolved_backed slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_appended_prefix_resolved slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_appended_delivered slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_delivered_finalized slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_delivered_opened slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_delivered_completed slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_completed_delivered slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_completed_iff_abandoned slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_abandoned_after_finalize slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_proposed_proposer_opened slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.sc_step_pending_append_enabled slot node pvector proposal ostate scstate _ s0 sc_next) th s1 s2 hassu ih htr⟩
-    | on_propose i s0 =>
-    exact ⟨triple_of_meets (cvc% Cadence.on_propose_log_agreement slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_skip_agreement slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_inclusion_lift slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_bounded_concurrency_interval slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_orch_reachable slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_sc_reachable slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_finalized_agreement slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_finalized_inclusion slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_opened_prefix_agreement slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_skipped_witness slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_opened_skipped_excl slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_skipped_resolved slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_appended_resolved slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_resolved_backed slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_appended_prefix_resolved slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_appended_delivered slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_delivered_finalized slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_delivered_opened slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_delivered_completed slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_completed_delivered slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_completed_iff_abandoned slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_abandoned_after_finalize slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_proposed_proposer_opened slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_propose_pending_append_enabled slot node pvector proposal ostate scstate _ _ i s0) th s1 s2 hassu ih htr⟩
-    | record_skip i s0 s_wit =>
-    exact ⟨triple_of_meets (cvc% Cadence.record_skip_log_agreement slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_skip_agreement slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_inclusion_lift slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_bounded_concurrency_interval slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_orch_reachable slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_sc_reachable slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_finalized_agreement slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_finalized_inclusion slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_opened_prefix_agreement slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_skipped_witness slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_opened_skipped_excl slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_skipped_resolved slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_appended_resolved slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_resolved_backed slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_appended_prefix_resolved slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_appended_delivered slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_delivered_finalized slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_delivered_opened slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_delivered_completed slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_completed_delivered slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_completed_iff_abandoned slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_abandoned_after_finalize slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_proposed_proposer_opened slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.record_skip_pending_append_enabled slot node pvector proposal ostate scstate _ _ _ _ i s0 s_wit) th s1 s2 hassu ih htr⟩
-    | on_finalize i s0 v os_next =>
-    exact ⟨triple_of_meets (cvc% Cadence.on_finalize_log_agreement slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_skip_agreement slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_inclusion_lift slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_bounded_concurrency_interval slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_orch_reachable slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_sc_reachable slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_finalized_agreement slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_finalized_inclusion slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_opened_prefix_agreement slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_skipped_witness slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_opened_skipped_excl slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_skipped_resolved slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_appended_resolved slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_resolved_backed slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_appended_prefix_resolved slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_appended_delivered slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_delivered_finalized slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_delivered_opened slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_delivered_completed slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_completed_delivered slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_completed_iff_abandoned slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_abandoned_after_finalize slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_proposed_proposer_opened slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.on_finalize_pending_append_enabled slot node pvector proposal ostate scstate _ _ _ _ _ i s0 v os_next) th s1 s2 hassu ih htr⟩
-    | append i s0 v =>
-    exact ⟨triple_of_meets (cvc% Cadence.append_log_agreement slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_skip_agreement slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_inclusion_lift slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_bounded_concurrency_interval slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_orch_reachable slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_sc_reachable slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_finalized_agreement slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_finalized_inclusion slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_opened_prefix_agreement slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_skipped_witness slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_opened_skipped_excl slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_skipped_resolved slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_appended_resolved slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_resolved_backed slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_appended_prefix_resolved slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_appended_delivered slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_delivered_finalized slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_delivered_opened slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_delivered_completed slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_completed_delivered slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_completed_iff_abandoned slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_abandoned_after_finalize slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_proposed_proposer_opened slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr,
-      triple_of_meets (cvc% Cadence.append_pending_append_enabled slot node pvector proposal ostate scstate _ _ _ i s0 v) th s1 s2 hassu ih htr⟩
-
-/-! ### Named projections — the slot-indexed MCP safety properties
-
-Declaration-order projections out of `Invariants` (see `Cadence.lean`),
-exposed under their property names for the positional-log corollary and
-external consumers. -/
-
-section Projections
-variable {th : Cadence.Theory slot node pvector proposal ostate scstate}
-  {st : Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate)}
-
-theorem reachable_log_agreement
-    (h : (Cadence.relationalTransitionSystem slot node pvector proposal ostate scstate).reachable th st) :
-    Cadence.log_agreement
-      (ρ := Cadence.Theory slot node pvector proposal ostate scstate)
-      (σ := Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate)) th st :=
-  (invariants_of_reachable h).1
-
-theorem reachable_skip_agreement
-    (h : (Cadence.relationalTransitionSystem slot node pvector proposal ostate scstate).reachable th st) :
-    Cadence.skip_agreement
-      (ρ := Cadence.Theory slot node pvector proposal ostate scstate)
-      (σ := Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate)) th st :=
-  (invariants_of_reachable h).2.1
-
-theorem reachable_inclusion_lift
-    (h : (Cadence.relationalTransitionSystem slot node pvector proposal ostate scstate).reachable th st) :
-    Cadence.inclusion_lift
-      (ρ := Cadence.Theory slot node pvector proposal ostate scstate)
-      (σ := Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate)) th st :=
-  (invariants_of_reachable h).2.2.1
-
-theorem reachable_bounded_concurrency_interval
-    (h : (Cadence.relationalTransitionSystem slot node pvector proposal ostate scstate).reachable th st) :
-    Cadence.bounded_concurrency_interval
-      (ρ := Cadence.Theory slot node pvector proposal ostate scstate)
-      (σ := Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate)) th st :=
-  (invariants_of_reachable h).2.2.2.1
-
-end Projections
+/- Every reachable state of the Cadence glue satisfies the assembled
+invariant clump — the induction over `reachable`, one case per action, each
+discharged by the per-action preservation lemma `#gen_theorems` emitted in
+[`Cadence.lean`](./Cadence.lean) — together with one named
+`reachable_<property>` projection per conjunct, in declaration order.
+Emitted by Veil from the module's own `relationalTransitionSystem`, so the
+composition regime (the canonical instantiation of every VC theorem) is
+extracted rather than restated here; everything goes through `addDecl` and
+is kernel-checked. Stated for arbitrary instances of the two contracts:
+this is the glue's claim *as a function of its assumptions*. -/
+#gen_composition Cadence
 
 /-! ### MCP Safety in positional form (`def:safety`, `lemma:cadence-safety`)
 
@@ -518,13 +268,12 @@ theorem positional_log_safety
     {i j : node} (hi : ¬ fm.byz i) (hj : ¬ fm.byz j)
     {Li Lj : List (slot × pvector)} (hLi : IsLog st i Li) (hLj : IsLog st j Lj) :
     ∀ k (h₁ : k < Li.length) (h₂ : k < Lj.length), Li[k]'h₁ = Lj[k]'h₂ := by
-  have hinv := invariants_of_reachable hreach
-  have hla := hinv.1              -- log_agreement (#1)
-  have hsa := hinv.2.1            -- skip_agreement (#2)
-  have hrb := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.1          -- resolved_backed (#14)
-  have hapr := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1       -- appended_prefix_resolved (#15)
-  have had := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1      -- appended_delivered (#16)
-  have hdo := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1  -- delivered_opened (#18)
+  have hla := reachable_log_agreement hreach
+  have hsa := reachable_skip_agreement hreach
+  have hrb := reachable_resolved_backed hreach
+  have hapr := reachable_appended_prefix_resolved hreach
+  have had := reachable_appended_delivered hreach
+  have hdo := reachable_delivered_opened hreach
   apply sorted_prefix_agreement (r := fun a b : slot => TotalOrder.le a b ∧ a ≠ b)
   · intro a ⟨_, hne⟩; exact hne rfl
   · intro a b ⟨hab, hne⟩ ⟨hba, _⟩; exact hne (TotalOrder.le_antisymm _ _ hab hba)
@@ -573,220 +322,19 @@ end Cadence
 namespace Conductor
 open Classical
 
-local macro "ovc%" t:ident s:term:max w:term:max ti:term:max n:term:max a:term:max args:term:max* : term =>
-  `(@$t
-    (Conductor.Theory $s $w $ti $n $a)
-    (Conductor.State (Conductor.FieldAbstractType $s $w $ti $n $a))
-    $s (fun a b => Classical.propDecidable (a = b)) inferInstance
-    $w (fun a b => Classical.propDecidable (a = b)) inferInstance
-    $ti (fun a b => Classical.propDecidable (a = b)) inferInstance
-    $n (fun a b => Classical.propDecidable (a = b)) inferInstance
-    $a (fun a b => Classical.propDecidable (a = b)) inferInstance
-    inferInstance inferInstance inferInstance inferInstance inferInstance
-    (Conductor.FieldAbstractType $s $w $ti $n $a)
-    (fun f => @Conductor.instAbstractFieldRepresentation $s $w $ti $n $a
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) f)
-    (fun f => @Conductor.instLawfulAbstractFieldRepresentation $s $w $ti $n $a
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) f)
-    instIsSubStateOfRefl instIsSubReaderOfRefl
-    $args*)
-
 variable {slot window time node acsstate : Type}
   [Inhabited slot] [Inhabited window] [Inhabited time] [Inhabited node] [Inhabited acsstate]
   [TotalOrderWithMinimum slot] [TotalOrderWithMinimum window] [TotalOrder time]
   [fm : FaultModel node] [acs : ACSSafety node slot acsstate fm.byz]
 
-set_option maxHeartbeats 4000000 in
-/-- Every reachable state of the Conductor satisfies the assembled
-invariant clump — for every fault model and every ACS instance satisfying
-the contract's state-level fragment. -/
-theorem invariants_of_reachable
-    {th : Conductor.Theory slot window time node acsstate}
-    {st : Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)}
-    (h : (Conductor.relationalTransitionSystem slot window time node acsstate).reachable th st) :
-    Conductor.Invariants (Conductor.Theory slot window time node acsstate)
-      (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
-      slot window time node acsstate
-      (Conductor.FieldAbstractType slot window time node acsstate) th st := by
-  induction h with
-  | init s hassu hinit =>
-    have htr : Conductor.initializer.ext.toTransitionDerived th default s := by
-      rw [Conductor.initializer.ext.derived_eq]; exact hinit
-    exact ⟨triple_of_meets (ovc% Conductor.initializer_window_assignment_agreement slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_win_separation slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_open_prefix_agreement slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_opened_after_start slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_bounded_tail slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_entered_prefix slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_entered_zero slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_decided_nonzero slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_bounds_shape slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_decided_downward_closed slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_win_bounds_ordered slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_acs_proposal_above_prev slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_proposal_prev_entered slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_entered_has_bounds slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_opened_backed slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_opened_win_entered slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_opened_win_contained slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_open_local_order slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_completed_opened slot window time node acsstate) th default s hassu trivial htr,
-      triple_of_meets (ovc% Conductor.initializer_acs_reachable slot window time node acsstate) th default s hassu trivial htr⟩
-  | step s1 s2 hr hnext ih =>
-    have hassu := Veil.RelationalTransitionSystem.reachable_assumptions _ th s1 hr
-    obtain ⟨l, htr⟩ := hnext
-    cases l with
-    | tick t =>
-    exact ⟨triple_of_meets (ovc% Conductor.tick_window_assignment_agreement slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_win_separation slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_open_prefix_agreement slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_opened_after_start slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_bounded_tail slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_entered_prefix slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_entered_zero slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_decided_nonzero slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_bounds_shape slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_decided_downward_closed slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_win_bounds_ordered slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_acs_proposal_above_prev slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_proposal_prev_entered slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_entered_has_bounds slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_opened_backed slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_opened_win_entered slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_opened_win_contained slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_open_local_order slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_completed_opened slot window time node acsstate _ t) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.tick_acs_reachable slot window time node acsstate _ t) th s1 s2 hassu ih htr⟩
-    | acs_propose i w w' s_star acs_next =>
-    exact ⟨triple_of_meets (ovc% Conductor.acs_propose_window_assignment_agreement slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_win_separation slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_open_prefix_agreement slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_opened_after_start slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_bounded_tail slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_entered_prefix slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_entered_zero slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_decided_nonzero slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_bounds_shape slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_decided_downward_closed slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_win_bounds_ordered slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_acs_proposal_above_prev slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_proposal_prev_entered slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_entered_has_bounds slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_opened_backed slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_opened_win_entered slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_opened_win_contained slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_open_local_order slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_completed_opened slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_propose_acs_reachable slot window time node acsstate _ _ _ _ _ _ _ i w w' s_star acs_next) th s1 s2 hassu ih htr⟩
-    | acs_step w acs_next =>
-    exact ⟨triple_of_meets (ovc% Conductor.acs_step_window_assignment_agreement slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_win_separation slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_open_prefix_agreement slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_opened_after_start slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_bounded_tail slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_entered_prefix slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_entered_zero slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_decided_nonzero slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_bounds_shape slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_decided_downward_closed slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_win_bounds_ordered slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_acs_proposal_above_prev slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_proposal_prev_entered slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_entered_has_bounds slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_opened_backed slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_opened_win_entered slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_opened_win_contained slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_open_local_order slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_completed_opened slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_step_acs_reachable slot window time node acsstate _ w acs_next) th s1 s2 hassu ih htr⟩
-    | acs_decide w0 w first boundary last f0 b0 l0 r1 sp1 =>
-    exact ⟨triple_of_meets (ovc% Conductor.acs_decide_window_assignment_agreement slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_win_separation slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_open_prefix_agreement slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_opened_after_start slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_bounded_tail slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_entered_prefix slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_entered_zero slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_decided_nonzero slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_bounds_shape slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_decided_downward_closed slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_win_bounds_ordered slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_acs_proposal_above_prev slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_proposal_prev_entered slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_entered_has_bounds slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_opened_backed slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_opened_win_entered slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_opened_win_contained slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_open_local_order slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_completed_opened slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.acs_decide_acs_reachable slot window time node acsstate _ _ _ _ _ _ _ w0 w first boundary last f0 b0 l0 r1 sp1) th s1 s2 hassu ih htr⟩
-    | enter_window i w w' f b l =>
-    exact ⟨triple_of_meets (ovc% Conductor.enter_window_window_assignment_agreement slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_win_separation slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_open_prefix_agreement slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_opened_after_start slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_bounded_tail slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_entered_prefix slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_entered_zero slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_decided_nonzero slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_bounds_shape slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_decided_downward_closed slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_win_bounds_ordered slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_acs_proposal_above_prev slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_proposal_prev_entered slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_entered_has_bounds slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_opened_backed slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_opened_win_entered slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_opened_win_contained slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_open_local_order slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_completed_opened slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.enter_window_acs_reachable slot window time node acsstate _ _ _ _ i w w' f b l) th s1 s2 hassu ih htr⟩
-    | open_slot i s0 w f b l =>
-    exact ⟨triple_of_meets (ovc% Conductor.open_slot_window_assignment_agreement slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_win_separation slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_open_prefix_agreement slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_opened_after_start slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_bounded_tail slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_entered_prefix slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_entered_zero slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_decided_nonzero slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_bounds_shape slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_decided_downward_closed slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_win_bounds_ordered slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_acs_proposal_above_prev slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_proposal_prev_entered slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_entered_has_bounds slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_opened_backed slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_opened_win_entered slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_opened_win_contained slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_open_local_order slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_completed_opened slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.open_slot_acs_reachable slot window time node acsstate _ _ _ _ _ i s0 w f b l) th s1 s2 hassu ih htr⟩
-    | complete_slot i s0 =>
-    exact ⟨triple_of_meets (ovc% Conductor.complete_slot_window_assignment_agreement slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_win_separation slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_open_prefix_agreement slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_opened_after_start slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_bounded_tail slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_entered_prefix slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_entered_zero slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_decided_nonzero slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_bounds_shape slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_decided_downward_closed slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_win_bounds_ordered slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_acs_proposal_above_prev slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_proposal_prev_entered slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_entered_has_bounds slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_opened_backed slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_opened_win_entered slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_opened_win_contained slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_open_local_order slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_completed_opened slot window time node acsstate _ i s0) th s1 s2 hassu ih htr,
-      triple_of_meets (ovc% Conductor.complete_slot_acs_reachable slot window time node acsstate _ i s0) th s1 s2 hassu ih htr⟩
+/- Every reachable state of the Conductor satisfies the assembled invariant
+clump — for every fault model and every ACS instance satisfying the
+contract's state-level fragment — plus one named `reachable_<property>`
+projection per conjunct. Emitted by Veil from the per-action preservation
+lemmas `#gen_theorems` persisted in [`Conductor.lean`](./Conductor.lean),
+as in the `Cadence` namespace above. -/
+#gen_composition Conductor
+
 
 /-! ### Conductor ⊨ OrchestratorSafety
 
@@ -840,17 +388,12 @@ def Label.isComplete : Conductor.Label slot window time node acsstate → Prop
   | _ => False
 
 /-- Expose one action's pre-computed transition body: dispatch the label,
-rewrite the derived transition to `<action>.ext.tr`, and unfold it. -/
+then rewrite the derived transition to `<action>.ext.tr` and unfold it with
+Veil's `trSimp` set (exactly the `derived_eq` theorems and the `tr`
+definitions, for every action of every module in scope). -/
 local macro "conductor_tr" h:ident : tactic =>
   `(tactic| (simp only [Conductor.relationalTransitionSystem, Conductor.Next, Conductor.NextAct] at $h:ident
-             simp only [Conductor.tick.ext.derived_eq, Conductor.acs_propose.ext.derived_eq,
-               Conductor.acs_step.ext.derived_eq, Conductor.acs_decide.ext.derived_eq,
-               Conductor.enter_window.ext.derived_eq, Conductor.open_slot.ext.derived_eq,
-               Conductor.complete_slot.ext.derived_eq] at $h:ident
-             simp only [Conductor.tick.ext.tr, Conductor.acs_propose.ext.tr,
-               Conductor.acs_step.ext.tr, Conductor.acs_decide.ext.tr,
-               Conductor.enter_window.ext.tr, Conductor.open_slot.ext.tr,
-               Conductor.complete_slot.ext.tr] at $h:ident))
+             simp only [trSimp] at $h:ident))
 
 /-- Evaluate the field-representation `get`/`set` pair at the canonical
 (functional) representation, in every hypothesis and the goal. -/
@@ -922,21 +465,20 @@ theorem init_not_completed
   (repeat (obtain ⟨_, hinit⟩ := hinit)); conductor_field_simp
 
 set_option maxHeartbeats 2000000 in
-/-- The paper's Monotonicity, in the contract's step form: from a reachable
-state, no action opens a slot below a slot the same correct validator has
-already opened without it. Only `open_slot` opens anything, and its guard
-together with `[open_local_order]` at the pre-state rules that case out. -/
+/-- The paper's Monotonicity, in the contract's step form: no action opens a
+slot below a slot the same correct validator has already opened without it.
+Only `open_slot` opens anything, and its guard together with
+`[open_local_order]` at the pre-state — the hypothesis, projected out of
+reachability by `reachable_open_local_order` — rules that case out. -/
 theorem monotonicity_tr {l : Conductor.Label slot window time node acsstate}
-    (hinv : Conductor.Invariants (Conductor.Theory slot window time node acsstate)
-      (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
-      slot window time node acsstate (Conductor.FieldAbstractType slot window time node acsstate) th st)
+    (horder : Conductor.open_local_order
+      (ρ := Conductor.Theory slot window time node acsstate)
+      (σ := Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)) th st)
     (htr : (Conductor.relationalTransitionSystem slot window time node acsstate).tr th st l st')
     (i : node) (s s' : slot) (hi : ¬ fm.byz i)
     (hs' : Opened st i s') (hle : TotalOrderWithMinimum.le s s') (hne : s ≠ s')
     (hns : ¬ Opened st i s) : ¬ Opened st' i s := by
   have hlt : TotalOrderWithMinimum.lt s s' := (TotalOrderWithMinimum.le_lt s s').mpr ⟨hle, hne⟩
-  -- `open_local_order` (#18): below an opened slot, every scheduled slot is opened.
-  have horder := hinv.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
   cases l with
   | open_slot i0 s0 w f b l =>
     conductor_tr htr
@@ -994,9 +536,9 @@ noncomputable def orchestratorSafety (th : Conductor.Theory slot window time nod
   init_opened _ i s h := init_not_opened h.2 i s
   init_completed _ i s h := init_not_completed h.2 i s
   monotonicity _ _ i s s' hr hn hi hs' hle hne hns :=
-    monotonicity_tr (invariants_of_reachable hr) hn.choose_spec i s s' hi hs' hle hne hns
+    monotonicity_tr (reachable_open_local_order hr) hn.choose_spec i s s' hi hs' hle hne hns
   open_prefix_agreement _ hr i j s s' hi hj his hjs hle hne :=
-    (invariants_of_reachable hr).2.2.1 i j s s'
+    reachable_open_prefix_agreement hr i j s s'
       ⟨hi, hj, his, hjs, (TotalOrderWithMinimum.le_lt s' s).mpr ⟨hle, hne⟩⟩
 
 /-! ### The residual: what the full `Orchestrator` still owes
@@ -1066,7 +608,7 @@ noncomputable def orchestrator_of_residual [Add time] {th : Conductor.Theory slo
   start_time := th.start_time
   Admissible := h.Admissible
   admissible_exists := h.admissible_exists
-  integrity_timing _ hr i s hi hop := (invariants_of_reachable hr).2.2.2.1 i s ⟨hi, hop⟩
+  integrity_timing _ hr i s hi hop := reachable_opened_after_start hr i s ⟨hi, hop⟩
   totality := h.totality
   bound := h.bound
   boundedness := h.boundedness

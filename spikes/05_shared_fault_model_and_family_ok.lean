@@ -22,7 +22,9 @@ both (and was committed with them, 2026-09-04): an `assumption` may mention
 immutable components only — a mutable `os` in one is rejected with
 `Unbound uncapitalized variable` — so the initial abstract states are
 immutable parameters constrained by assumptions; and an action parameter must
-not be named `st'`, which the trace pipeline uses for the post-state. -/
+not be named `st'`, which the trace pipeline used for the post-state. (The
+second is history: the generated binders became hygienic in the 2026-09 Veil
+bump, and `st'` is an ordinary parameter name again.) -/
 
 class FaultModel (validator : Type) where
   byz : validator → Prop

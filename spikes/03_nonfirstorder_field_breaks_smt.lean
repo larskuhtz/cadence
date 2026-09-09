@@ -5,8 +5,17 @@ import Cadence.Interfaces
 quantifies over runs) to a class the Veil module instantiates break SMT
 translation of the module's VCs?
 
-If it does, the contract must be split: a first-order part the module
-instantiates, extended by the full contract used only at the Lean level. -/
+It does, which is why the contract is split: a first-order part the module
+instantiates, extended by the full contract used only at the Lean level.
+
+**Expected result: `exit 1`, one error.** When this spike was first run it
+produced `💥` on *every* VC, with `cvc5.Error.error "Symbol '->' not declared
+as a type"` naming neither the class nor the field. Since the 2026-09 Veil
+bump the check command reports the culprit once, by class and field, before
+any solver starts, and names the escape hatch
+(`attribute [veil_smt_ignore] MiniOrchLive.totality`, which withholds the
+field from the solver while it stays a declared axiom of the class). This
+file is kept as the reproduction of that check. -/
 
 class MiniOrchLive (validator slot state : Type) where
   init      : state
