@@ -40,18 +40,16 @@ is introduced here.
   action by action from Veil's pre-computed transition bodies
   (`<action>.ext.tr`); the paper's Monotonicity from `[open_local_order]`
   and the `open_slot` guard; open-prefix agreement from
-  `safety [open_prefix_agreement]`. This is the object the `Cadence` glue
+  `safety [open_prefix_agreement]`; and Integrity's timing half, which is
+  first-order, from `safety [opened_after_start]`. This is the object the `Cadence` glue
   module consumes as its `orch` constraint — nothing is restated between
   the two.
-* **`Conductor.OrchestratorResidual`** and **`orchestrator_of_residual`** —
-  the remaining obligations of the full `Orchestrator` contract, stated over
-  the Conductor's transition system as the fields of a Lean structure, and
-  the proof that they are *all* that is missing: given a residual, the
-  Conductor is a full `Orchestrator`. Integrity's timing half is proven
-  inside (`safety [opened_after_start]`); Totality, `B`-Boundedness and
-  `R`-Recovery, and the admissible-run model they are stated over, are the
-  residual. Type-checking `orchestrator_of_residual` is what guarantees the
-  residual's fields say exactly what the class says.
+* **`Conductor.orchestrator_of_temporal`** — that the *only* thing between
+  the proven fragment and the full `Orchestrator` contract is an instance of
+  `OrchestratorTemporal` at that fragment, of which this development has
+  none. Totality, `B`-Boundedness, `R`-Recovery and the admissible-run model
+  are that class's fields, already stated over `(orchestratorSafety th)`'s
+  own relations, so nothing is restated anywhere to say what is missing.
 * **`Cadence.positional_log_safety`** — the paper's MCP Safety over
   positional logs, for the glue at *any* instances of the two contracts;
   [`System.lean`](./System.lean) instantiates it at the Conductor and Chorus
@@ -88,15 +86,22 @@ both discovered the hard way:
    canonical instantiation from the module's own `relationalTransitionSystem`
    elaboration instead of reconstructing it, which is why the two inductions
    are now one command each.
-3. The step-level contract fields are still hand-written, because they relate
-   *two* states and no cell states them. They are proven by unfolding an
-   action's pre-computed transition body — Veil's `trSimp` simp set is
-   exactly the `derived_eq` theorems and the `tr` definitions, so one
-   `simp only [trSimp]` covers every action — destructuring its guards,
-   substituting the post-state and simplifying the field-representation
-   `get`/`set` pair at the canonical (functional) representation. The
-   `conductor_tr` and `conductor_field_simp` macros package the two halves,
-   and neither has to be extended when an action is added. -/
+3. The step-level contract fields relate *two* states, which no invariant
+   cell states — but since 2026-09-10 almost none of them is hand-written
+   either. Whatever the update records determine comes from Veil's
+   generated step lemmas (`<relation>.mono`, `<action>.frame_<f>`,
+   `<f>.init`), and what needs the invariants at the pre-state — the paper's
+   Monotonicity — is a `step_property` in `Conductor.lean`, checked per
+   action and applied here as `Conductor.monotonicity_step`. Exactly two
+   facts remain hand-written, both about a *single* action rather than all
+   of them: `complete_effect_tr` and `complete_frame_other`. They unfold
+   that action's pre-computed transition body — Veil's `trSimp` simp set is
+   exactly the `derived_eq` theorems and the `tr` definitions — and simplify
+   the field-representation `get`/`set` pair at the canonical (functional)
+   representation; the `conductor_tr` and `conductor_field_simp` macros
+   package the two halves, and neither names an action, so neither has to be
+   extended when one is added. `docs/CompositionContracts.md` §4 has the
+   three sources and when each applies. -/
 
 open Veil
 
@@ -204,11 +209,11 @@ theorem sorted_prefix_agreement {α β : Type} {r : α → α → Prop}
 namespace Cadence
 open Classical
 
-variable {slot node pvector proposal ostate scstate : Type}
+variable {slot node pvector proposal ostate scstate time : Type}
   [Inhabited slot] [Inhabited node] [Inhabited pvector] [Inhabited proposal]
-  [Inhabited ostate] [Inhabited scstate]
-  [TotalOrder slot] [fm : FaultModel node]
-  [orch : OrchestratorSafety node slot ostate fm.byz]
+  [Inhabited ostate] [Inhabited scstate] [Inhabited time]
+  [TotalOrder slot] [TotalOrder time] [fm : FaultModel node]
+  [orch : OrchestratorSafety node slot ostate time fm.byz]
   [sc : SlotConsensusSafety slot node proposal pvector scstate fm.byz]
 
 /- Every reachable state of the Cadence glue satisfies the assembled
@@ -239,20 +244,21 @@ matching the paper's `local_log(p, t)`. -/
 
 /-- `v` is appended for slot `s` in `i`'s local log, in state `st`. -/
 def AppendedIn
-    (st : Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate))
+    (st : Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate time))
     (i : node) (s : slot) (v : pvector) : Prop :=
   @Veil.FieldRepresentation.get _ _ _
-    (@Cadence.instAbstractFieldRepresentation slot node pvector proposal ostate scstate
+    (@Cadence.instAbstractFieldRepresentation slot node pvector proposal ostate scstate time
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b))
       Cadence.State.Label.appended)
     st.appended i s v = true
 
 /-- `L` is `i`'s local log in state `st`: the (slot, vector) pairs of
 `appended`, listed in strictly increasing slot order. -/
 def IsLog
-    (st : Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate))
+    (st : Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate time))
     (i : node) (L : List (slot × pvector)) : Prop :=
   L.Pairwise (fun a b => TotalOrder.le a.1 b.1 ∧ a.1 ≠ b.1) ∧
   ∀ s v, ((s, v) ∈ L ↔ AppendedIn st i s v)
@@ -262,9 +268,9 @@ set_option maxHeartbeats 1000000 in
 the log entry at a given position — for the glue over *any* orchestrator
 and slot consensus satisfying the contracts. -/
 theorem positional_log_safety
-    {th : Cadence.Theory slot node pvector proposal ostate scstate}
-    {st : Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate)}
-    (hreach : (Cadence.relationalTransitionSystem slot node pvector proposal ostate scstate).reachable th st)
+    {th : Cadence.Theory slot node pvector proposal ostate scstate time}
+    {st : Cadence.State (Cadence.FieldAbstractType slot node pvector proposal ostate scstate time)}
+    (hreach : (Cadence.relationalTransitionSystem slot node pvector proposal ostate scstate time).reachable th st)
     {i j : node} (hi : ¬ fm.byz i) (hj : ¬ fm.byz j)
     {Li Lj : List (slot × pvector)} (hLi : IsLog st i Li) (hLj : IsLog st j Lj) :
     ∀ k (h₁ : k < Li.length) (h₂ : k < Lj.length), Li[k]'h₁ = Lj[k]'h₂ := by
@@ -341,7 +347,8 @@ as in the `Cadence` namespace above. -/
 The instance theorem of `docs/CompositionContracts.md`: the Conductor's own
 transition system, packaged as the state-level orchestrator contract that
 the `Cadence` glue module consumes. Every field is proven; the temporal
-fields of the full `Orchestrator` are the residual structure that follows. -/
+fields of the full `Orchestrator` are the `OrchestratorTemporal` class that
+follows, of which this development has no instance. -/
 
 /-- The `TotalOrder` a `TotalOrderWithMinimum` carries: the contract classes
 are stated over Veil's plain `TotalOrder`, the Conductor over the richer
@@ -497,7 +504,7 @@ open-prefix agreement by projecting `safety [open_prefix_agreement]` out of
 @[implicit_reducible]
 noncomputable def orchestratorSafety (th : Conductor.Theory slot window time node acsstate) :
     OrchestratorSafety node slot (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
-      fm.byz where
+      time fm.byz where
   init st := (Conductor.relationalTransitionSystem slot window time node acsstate).assumptions th ∧
     (Conductor.relationalTransitionSystem slot window time node acsstate).init th st
   step st st' := ∃ l, ¬ Label.isComplete l ∧
@@ -512,6 +519,8 @@ noncomputable def orchestratorSafety (th : Conductor.Theory slot window time nod
   reachable_trans st st' hr hn := Veil.RelationalTransitionSystem.reachable.step st st' hr hn
   opened := Opened
   completed := Completed
+  clock := Clock
+  start_time := th.start_time
   opened_mono _ _ i s _ hn h := opened_mono_tr hn.choose_spec i s h
   completed_mono _ _ i s _ hn h := completed_mono_tr hn.choose_spec i s h
   complete_effect _ _ _ _ h := complete_effect_tr h
@@ -519,6 +528,7 @@ noncomputable def orchestratorSafety (th : Conductor.Theory slot window time nod
   completed_step_frame _ _ i s h _ := completed_frame_internal h.choose_spec.1 h.choose_spec.2 i s
   init_opened _ i s h := init_not_opened h.2 i s
   init_completed _ i s h := init_not_completed h.2 i s
+  integrity_timing _ hr i s hi hop := reachable_opened_after_start hr i s ⟨hi, hop⟩
   monotonicity _ _ i s s' hr hn hi hs' hle hne hns :=
     monotonicity_tr (Veil.RelationalTransitionSystem.reachable_assumptions _ th _ hr)
       (invariants_of_reachable hr) hn.choose_spec i s s' hi hs' hle hne hns
@@ -526,79 +536,61 @@ noncomputable def orchestratorSafety (th : Conductor.Theory slot window time nod
     reachable_open_prefix_agreement hr i j s s'
       ⟨hi, hj, his, hjs, (TotalOrderWithMinimum.le_lt s' s).mpr ⟨hle, hne⟩⟩
 
-/-! ### The residual: what the full `Orchestrator` still owes
+/-! ### What the full `Orchestrator` still owes
 
-The fields below are the obligations of `Orchestrator` (the paper's
-`mod:orchestrator_2` in full, [`Interfaces.lean`](./Interfaces.lean)) that
-this development does not prove for the Conductor, restated over the
-Conductor's own transition system. They are the formal counterparts of the
-paper's Totality (`lemma:conductor-totality`), `B`-Boundedness
-(`lem:boundedness`, `B = 2W − p`) and `R`-Recovery (`prop:smooth-windows`,
+`OrchestratorSafety` above is proven. What remains between it and the full
+`Orchestrator` (the paper's `mod:orchestrator_2`,
+[`Interfaces.lean`](./Interfaces.lean)) is an instance of
+**`OrchestratorTemporal … (S := orchestratorSafety th)`** — and there is
+none. That is the whole statement of the gap: not a structure restating the
+missing obligations at the Conductor's types, but the absence of an instance
+of a class whose every field is already stated over `(orchestratorSafety
+th).init`, `.trans`, `.reachable` and `.opened`.
+
+Its fields are the formal counterparts of the paper's Totality
+(`lemma:conductor-totality`), `B`-Boundedness (`lem:boundedness`,
+`B = 2W − p`) and `R`-Recovery (`prop:smooth-windows`,
 `prop:first-post-gst-window-time`, `R = 2Wτ`), together with the admissible
-execution model they are stated for. `orchestrator_of_residual` proves that
-they are *all* that is missing: Integrity's timing half is discharged by
-`safety [opened_after_start]` on the way. Type-checking that definition is
-what guarantees these restatements match the class field for field.
+execution model they are stated for — (A-orch-totality),
+(A-orch-boundedness) and (A-orch-recovery) of
+[`docs/Architecture.md`](../docs/Architecture.md) §4 item 4, whose
+`Admissible` is the Conductor's fairness and network assumptions
+((F-justice), (A-acs-termination), (A-acs-totality), (A-sc-termination) in
+`Conductor.lean`'s liveness section).
 
-Why they are residual: the untimed model does not carry the per-window
+Why they are not proven: the untimed model does not carry the per-window
 induction the paper's proofs run (`Conductor.lean`, "Liveness"), and the
 count `2W − p` needs window widths that the interval encoding keeps meta.
-`docs/Architecture.md` §4 item 4 lists them by their meta-axiom names;
-this structure is the same list as a type. -/
-structure OrchestratorResidual [Add time] (th : Conductor.Theory slot window time node acsstate) where
-  /-- The admissible executions — the Conductor's fairness and network
-      assumptions ((F-justice), (A-acs-termination), (A-acs-totality),
-      (A-sc-termination) in `Conductor.lean`'s liveness section), as a
-      predicate on timed runs of the Conductor. -/
-  Admissible : TimedRun (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)) time
-    (orchestratorSafety th).init (orchestratorSafety th).trans Clock → Prop
-  admissible_exists : ∀ st, (orchestratorSafety th).init st →
-    ∃ r : TimedRun (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)) time
-      (orchestratorSafety th).init (orchestratorSafety th).trans Clock, Admissible r ∧ r.at' 0 = st
-  /-- **(A-orch-totality)** — `lemma:conductor-totality`. -/
-  totality : ∀ r : TimedRun (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)) time
-      (orchestratorSafety th).init (orchestratorSafety th).trans Clock, Admissible r →
-    ∀ i j s, ¬ fm.byz i → ¬ fm.byz j →
-      r.eventually (fun st => Opened st i s) → r.eventually (fun st => Opened st j s)
-  /-- `B = 2W − p`. -/
-  bound : Nat
-  /-- **(A-orch-boundedness)** — `lem:boundedness`; the interval form is
-      `safety [bounded_tail]`, the count is this. -/
-  boundedness : ∀ st, (orchestratorSafety th).reachable st → ∀ i s,
-    ¬ fm.byz i → Opened st i s → ¬ Completed st i s →
-    ¬ ∃ f : Fin bound → slot, Function.Injective f ∧
-      ∀ k, Opened st i (f k) ∧ TotalOrderWithMinimum.le s (f k) ∧ s ≠ f k
-  /-- `R = 2Wτ`. -/
-  recovery_time : time
-  /-- **(A-orch-recovery)** — `prop:smooth-windows`,
-      `prop:first-post-gst-window-time`, under the four parameter assumptions
-      `line:assumption-one..four`. -/
-  recovery : ∀ r : TimedRun (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)) time
-      (orchestratorSafety th).init (orchestratorSafety th).trans Clock, Admissible r →
-    ∀ s, TotalOrder.le (r.gst + recovery_time) (th.start_time s) →
-    ∀ i, ¬ fm.byz i → r.byTime (th.start_time s) (fun st => Opened st i s)
 
-/-- Given the residual, the Conductor is a full `Orchestrator`. The one
-upper-level field this development *does* prove — Integrity's timing half,
-"no slot is opened before its starting time" — is discharged here from
-`safety [opened_after_start]`; everything else is the residual, field for
-field. -/
+Integrity's timing half, which *is* proven, is no longer discharged on the
+way here: it is a first-order fact about a reachable state, so it sits in
+the fragment above (`integrity_timing`, from `safety [opened_after_start]`)
+and the glue may use it. -/
+
+/-- Given a temporal level **at this fragment**, the Conductor is a full
+`Orchestrator`. Nothing is restated to join them: the safety fields come
+from `orchestratorSafety th`, the rest from `h`, and
+`(orchestrator_of_temporal h).toOrchestratorSafety` is `orchestratorSafety
+th` by `rfl` — so the composition consumes exactly what was proven. -/
 @[implicit_reducible]
-noncomputable def orchestrator_of_residual [Add time] {th : Conductor.Theory slot window time node acsstate}
-    (h : OrchestratorResidual th) :
-    Orchestrator node slot (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)) time
-      fm.byz where
-  toOrchestratorSafety := orchestratorSafety th
-  clock := Clock
-  start_time := th.start_time
-  Admissible := h.Admissible
-  admissible_exists := h.admissible_exists
-  integrity_timing _ hr i s hi hop := reachable_opened_after_start hr i s ⟨hi, hop⟩
-  totality := h.totality
-  bound := h.bound
-  boundedness := h.boundedness
-  recovery_time := h.recovery_time
-  recovery := h.recovery
+noncomputable def orchestrator_of_temporal [Add time]
+    {th : Conductor.Theory slot window time node acsstate}
+    (h : OrchestratorTemporal node slot
+      (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)) time
+      fm.byz (S := orchestratorSafety th)) :
+    Orchestrator node slot
+      (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)) time
+      fm.byz :=
+  { orchestratorSafety th, h with }
+
+/-- The fragment the composition consumes is exactly the one that was
+proven — the join drops nothing. -/
+theorem orchestrator_of_temporal_toSafety [Add time]
+    {th : Conductor.Theory slot window time node acsstate}
+    (h : OrchestratorTemporal node slot
+      (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)) time
+      fm.byz (S := orchestratorSafety th)) :
+    (orchestrator_of_temporal h).toOrchestratorSafety = orchestratorSafety th := rfl
 
 end Conductor
 
@@ -610,7 +602,7 @@ proofs, with **no `sorryAx`**, and the step-level contract fields are proven
 by unfolding Veil's own transition definitions. A regression that
 reintroduces trusted SMT anywhere below these theorems (e.g. a module sweep
 silently falling back to `veil.smt.trust true`) fails these guards. The
-residual-conditioned full instance is pinned too: its extra assumptions
+temporal-conditioned full instance is pinned too: its extra assumptions
 enter as a *hypothesis*, never as an axiom. -/
 
 /--
@@ -626,7 +618,7 @@ info: 'Conductor.orchestratorSafety' depends on axioms: [propext, Classical.choi
 #print axioms Conductor.orchestratorSafety
 
 /--
-info: 'Conductor.orchestrator_of_residual' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Conductor.orchestrator_of_temporal' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Conductor.orchestrator_of_residual
+#print axioms Conductor.orchestrator_of_temporal

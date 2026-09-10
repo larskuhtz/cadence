@@ -197,20 +197,24 @@ never write one by hand.
      Chorus — so add one only for a fact a contract needs;
   3. **by hand from the transition bodies**, for a single-action effect or
      pointwise frame: dispatch the label, `simp only [trSimp]` (the
-     `conductor_tr` / `chorus_tr` / `mvba_tr` macros are that plus the
+     `conductor_tr` / `mvba_tr` macros are that plus the
      `relationalTransitionSystem`/`Next`/`NextAct` line),
      `repeat (obtain ⟨_, h⟩ := h)` (the last step substitutes the post-state
      — a following `subst` is a no-op), then the field-representation simp
-     set (`conductor_field_simp` / `chorus_field_simp`). Do not reach for
+     set (`conductor_field_simp` / `mvba_field_simp`). `Chorus/Compose.lean`
+     needs no such macro any more — all of its step facts come from (1) or
+     (2). Do not reach for
      `actSimp`/`nextSimp` here: they unfold the action bodies first and
      defeat the rewrite.
 * Adding an action to a model needs no edit in the composition files: the
   `*_tr` macros name no action, and the reachability induction is emitted by
   `#gen_composition` from the per-action preservation lemmas.
 * An upper-level obligation an implementation cannot prove goes into its
-  `…Residual` structure, restated at that implementation's types; the
-  `…_of_residual` definition type-checks the restatement against the class.
-  Never fabricate a full instance.
+  `…Temporal` class — whose fields are already stated over the `…Safety`
+  instance, so nothing is restated at the implementation's types. Supplying
+  no instance of it *is* the statement of the gap; `…_of_temporal` joins the
+  two levels when one exists, and its `…_toSafety` `rfl` companion pins that
+  the join returns the proven fragment. Never fabricate a full instance.
 
 ### FallbackReceipt
 

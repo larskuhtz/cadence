@@ -138,17 +138,18 @@ hypotheses.
 
 The machine-checked half of this table is `Conductor.orchestratorSafety`
 ([`Composition.lean`](./Composition.lean)); the rest is
-`Conductor.OrchestratorResidual` there, the same rows as a Lean structure.
+`OrchestratorTemporal` there, the same rows as the fields of a class this
+development supplies no instance of.
 
 | Contract item | Discharged by |
 |---|---|
 | `open_prefix_agreement` | `safety [open_prefix_agreement]` |
 | Integrity "at most once" (`opened_mono`) | `opened` is only ever set, proven action by action from the transition bodies |
-| Integrity "not before starting time" (`integrity_timing`) | `safety [opened_after_start]` (+ synchronized-clocks assumption), inside `orchestrator_of_residual` |
+| Integrity "not before starting time" (`integrity_timing`) | `safety [opened_after_start]` (+ synchronized-clocks assumption); first-order, so it is a field of the *fragment* since 2026-09-09 |
 | Monotonicity (`monotonicity`) | `[open_local_order]` + the `open_slot` guard |
 | the observables' frames (`completed_step_frame`, `complete_frame`, `complete_effect`) | the transition bodies: only `complete_slot` touches `completed`, and only its own pair |
-| `B`-boundedness, `B = 2W − p` | **residual** — `safety [bounded_tail]` is the interval form; the count needs widths the model keeps meta |
-| Totality / `R`-recovery, `R = 2Wτ` | **residual** — Liveness section below |
+| `B`-boundedness, `B = 2W − p` | **unproven** — `safety [bounded_tail]` is the interval form; the count needs widths the model keeps meta |
+| Totality / `R`-recovery, `R = 2Wτ` | **unproven** — Liveness section below |
 -/
 
 veil module Conductor

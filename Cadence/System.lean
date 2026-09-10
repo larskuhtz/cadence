@@ -28,8 +28,9 @@ What remains as a hypothesis is exactly what genuinely is one:
 
 Nothing about the temporal obligations enters here — MCP Safety is a safety
 property, and its proof needs only the two `…Safety` fragments, which are
-fully proven. The residuals (`Conductor.OrchestratorResidual`,
-`Chorus.SlotConsensusResidual`) are consumed by nothing in this file.
+fully proven. The temporal levels (`OrchestratorTemporal`,
+`SlotConsensusTemporal`), of which this development has no instance, are
+consumed by nothing in this file.
 
 The one composition claim this file does *not* make is the one declared out
 of scope throughout (`docs/ChorusDesign.md` §10.1): that running the
@@ -68,7 +69,7 @@ noncomputable def chorusInstance
     (thS : Chorus.Theory slot node nodeset merkle_root Phase PathChoice)
     (hbyz : ∀ i, (nset.is_byz i = true) ↔ fm.byz i) :
     SlotConsensusSafety slot node merkle_root (slot × (node → Option merkle_root))
-      (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice))
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice))
       fm.byz :=
   SlotConsensusSafety.castByz (funext fun i => propext (hbyz i))
     (Chorus.slotConsensusSafety thS)
@@ -82,8 +83,8 @@ noncomputable abbrev systemRTS (thC : Conductor.Theory slot window time node acs
     (hbyz : ∀ i, (nset.is_byz i = true) ↔ fm.byz i) :=
   @Cadence.relationalTransitionSystem slot node (slot × (node → Option merkle_root)) merkle_root
     (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
-    (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice))
-    _ _ _ _ _ _ TotalOrderWithMinimum.toTotalOrder fm
+    (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) time
+    _ _ _ _ _ _ _ TotalOrderWithMinimum.toTotalOrder _ fm
     (Conductor.orchestratorSafety thC) (chorusInstance thS hbyz)
 
 /-- **MCP Safety, positional form, for the composed system** (`def:safety`,
@@ -97,10 +98,10 @@ theorem system_positional_log_safety
     (hbyz : ∀ i, (nset.is_byz i = true) ↔ fm.byz i)
     {th : Cadence.Theory slot node (slot × (node → Option merkle_root)) merkle_root
       (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
-      (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice))}
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) time}
     {st : Cadence.State (Cadence.FieldAbstractType slot node (slot × (node → Option merkle_root)) merkle_root
       (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
-      (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)))}
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) time)}
     (hreach : (systemRTS thC thS hbyz).reachable th st)
     {i j : node} (hi : ¬ fm.byz i) (hj : ¬ fm.byz j)
     {Li Lj : List (slot × (slot × (node → Option merkle_root)))}
@@ -108,8 +109,8 @@ theorem system_positional_log_safety
     ∀ k (h₁ : k < Li.length) (h₂ : k < Lj.length), Li[k]'h₁ = Lj[k]'h₂ :=
   @Cadence.positional_log_safety slot node (slot × (node → Option merkle_root)) merkle_root
     (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
-    (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice))
-    _ _ _ _ _ _ TotalOrderWithMinimum.toTotalOrder fm
+    (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) time
+    _ _ _ _ _ _ _ TotalOrderWithMinimum.toTotalOrder _ fm
     (Conductor.orchestratorSafety thC) (chorusInstance thS hbyz)
     th st hreach i j hi hj Li Lj hLi hLj
 

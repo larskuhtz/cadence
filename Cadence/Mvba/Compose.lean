@@ -1,13 +1,13 @@
 import Cadence.Mvba.Certify
 import Cadence.Interfaces
 
-/-! # MvbaCompose — `Mvba ⊨ MVBASafety`, and the residual toward `MVBA`
+/-! # MvbaCompose — `Mvba ⊨ MVBASafety`, and the join toward `MVBA`
 
 The provider step of the MVBA instantiation (`docs/MvbaPlan.md` §5): the
 `Mvba` transition system ([`Mvba.lean`](../Mvba.lean)), packaged as the
 state-level MVBA contract of [`Interfaces.lean`](../Interfaces.lean) —
 the class Chorus is scheduled to consume as its `mvba` constraint (plan
-step 6, not part of this file) — together with the residual toward the
+step 6, not part of this file) — together with the join toward the
 full `MVBA` class. This is the only file of the `Mvba` family that imports
 `Cadence.Interfaces`, on the pattern of
 [`Chorus/Compose.lean`](../Chorus/Compose.lean).
@@ -26,7 +26,7 @@ Byzantine predicate of the module's `ByzNodeSet` instance.
 | `decided_mono`, `init_decided` | the transition bodies of all 24 actions, uniformly (`decided_mono_tr`, `init_not_decided` below): `decided` is only ever set, and `after_init` clears it |
 | `step_trans`, `reachable_init`, `reachable_trans` | the reachability constructors |
 
-**The residual is smaller than the other two.** The model has the module's
+**What is left unproven is smaller than for the other two.** The model has the module's
 two inputs as actions (`propose`, `abandon`) and a per-party message row
 for each of the five signed message kinds, so the upper level's inputs,
 their observables (`proposed := input`, `abandoned`, `sent` by cases on
@@ -35,13 +35,11 @@ proven here — Quiescence is the one-step fact `sent_new_tr`: a correct
 party's new message row comes from an honest send, and every honest send
 requires `∃ E, input i E` and `¬ abandoned i`. What remains is the timed
 part alone — `clock`, the admissible-run model, `ℓ` and
-`ℓ_MVBA`-Termination — the residual `MvbaResidual` below, the first
-residual in the development with no safety-shaped field.
-`mvba_of_residual` proves it is all that is missing.
-
-Trust base: `[propext, Classical.choice, Quot.sound]`, pinned by the
-`#guard_msgs` axiom checks at the end of this file and again in
-[`Cadence.lean`](../../Cadence.lean). -/
+`ℓ_MVBA`-Termination — the four fields of `MVBATemporal`, of which this
+development has no instance: the smallest gap of the three implementations,
+since the inputs, their observables, the frames and one-step Quiescence are
+all proven into the fragment. `mvba_of_temporal` joins the two levels.
+-/
 
 -- NOTE: no `open Veil` here, as in `Chorus/Compose.lean` — Veil names are
 -- used fully qualified, which keeps the file in the generated transition
@@ -254,7 +252,7 @@ initial-state relation together with its theory assumption
 theory's `valid`, `decided` the relation of that name. -/
 @[implicit_reducible]
 noncomputable def mvbaSafety :
-    MVBASafety node value (Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+    MVBASafety node value (Msg view value) (Mvba.State (Mvba.FieldAbstractType node nodeset value view))
       (fun i => nset.is_byz i = true) where
   Valid e := th.valid e = true
   init st := (Mvba.relationalTransitionSystem node nodeset value view).assumptions th ∧
@@ -266,64 +264,19 @@ noncomputable def mvbaSafety :
   step_trans _ _ h := ⟨h.choose, h.choose_spec.2⟩
   reachable_init st h := Veil.RelationalTransitionSystem.reachable.init st h.1 h.2
   reachable_trans st st' hr hn := Veil.RelationalTransitionSystem.reachable.step st st' hr hn
-  decided := Decided
-  decided_mono _ _ i e hn h := decided_mono_tr th hn.choose_spec i e h
-  init_decided _ i e h := init_not_decided th h.2 i e
-  agreement _ hr i j e e' hi hj hdi hdj := reachable_agreement hr i j e e' hi hj hdi hdj
-  integrity _ hr i e e' hi hdi hdi' := reachable_integrity hr i e e' hi hdi hdi'
-  external_validity _ hr i e hi hd := reachable_external_validity hr i e hi hd
-
-/-! ### The residual: what the full `MVBA` still owes
-
-The model is untimed, so the fields below — the clock, the admissible-run
-model, the bound `ℓ_MVBA` and `ℓ_MVBA`-Termination (`thm:termination` of
-the supplement, `docs/MvbaPlan.md` §3) — are the obligations of `MVBA`
-this development does not prove, restated over the Mvba transition
-system. `mvba_of_residual` proves they are *all* that is missing: the
-inputs, their observables, effects, frames and initial conditions, and
-Quiescence are discharged from the transition bodies. Type-checking that
-definition is what guarantees these restatements match the class field
-for field. -/
-structure MvbaResidual (time : Type) [TotalOrder time] [Add time] where
-  clock : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → time
-  /-- The admissible executions — the fairness and network assumptions the
-      liveness argument will be stated under ((F-justice), the supplement's
-      `Δ_sync`; `docs/MvbaPlan.md` §3) — as a predicate on timed runs. -/
-  Admissible : TimedRun (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
-    (mvbaSafety th).init (mvbaSafety th).trans clock → Prop
-  admissible_exists : ∀ st, (mvbaSafety th).init st →
-    ∃ r : TimedRun (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
-      (mvbaSafety th).init (mvbaSafety th).trans clock, Admissible r ∧ r.at' 0 = st
-  /-- `ℓ_MVBA` — the supplement's `thm:termination` gives `O(fΔ)`. -/
-  ℓ : time
-  /-- **`ℓ_MVBA`-Termination** (`thm:termination`). -/
-  termination : ∀ r : TimedRun (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
-      (mvbaSafety th).init (mvbaSafety th).trans clock, Admissible r →
-    ∀ t, (∀ p, ¬ nset.is_byz p = true → r.byTime t (fun st => ∃ v, Proposed st p v)) →
-    (∀ p, ¬ nset.is_byz p = true → ∀ n, Abandoned (r.at' n) p →
-      ∃ u, TotalOrder.le t u ∧ TotalOrder.le r.gst u ∧
-        (∀ u', TotalOrder.le t u' → TotalOrder.le r.gst u' → TotalOrder.le u u') ∧
-        ¬ TotalOrder.le (clock (r.at' n)) (u + ℓ)) →
-    ∀ q, ¬ nset.is_byz q = true → r.byGstBound t ℓ (fun st => ∃ v, Decided st q v)
-
-/-- Given the residual, Mvba is a full `MVBA`: the inputs are the actions
-`propose`/`abandon`, `proposed` is `input`, `abandoned` the relation of
-that name, `sent` the per-sender message rows; their monotonicity, effects,
-frames and initial conditions are the step-level lemmas above, and
-Quiescence is `sent_new_tr` applied to each step of the run. -/
-@[implicit_reducible]
-noncomputable def mvba_of_residual {time : Type} [TotalOrder time] [Add time]
-    (h : MvbaResidual th time) :
-    MVBA node value (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
-      (Msg view value) (fun i => nset.is_byz i = true) where
-  toMVBASafety := mvbaSafety th
+  -- The two inputs are the model's own actions, so the interface, its
+  -- observables, their frames and one-step Quiescence are all first-order
+  -- facts this model proves — which is why they sit in the fragment rather
+  -- than at the temporal level (`Interfaces.lean`, the placement rule).
   propose st p v st' := (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.propose p v) st'
   abandon st p st' := (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.abandon p) st'
   propose_trans _ _ _ _ h := ⟨_, h⟩
   abandon_trans _ _ _ h := ⟨_, h⟩
+  decided := Decided
   proposed := Proposed
   abandoned := Abandoned
   sent := Sent
+  decided_mono _ _ i e hn h := decided_mono_tr th hn.choose_spec i e h
   proposed_mono _ _ p v hn h := proposed_mono_tr th hn.choose_spec p v h
   abandoned_mono _ _ p hn h := abandoned_mono_tr th hn.choose_spec p h
   sent_mono _ _ p m hn h := sent_mono_tr th hn.choose_spec p m h
@@ -331,16 +284,48 @@ noncomputable def mvba_of_residual {time : Type} [TotalOrder time] [Add time]
   abandon_effect _ _ _ h := abandon_effect_tr th h
   proposed_step_frame _ _ p v h _ := proposed_frame_internal th h.choose_spec.1 h.choose_spec.2 p v
   abandoned_step_frame _ _ p h _ := abandoned_frame_internal th h.choose_spec.1 h.choose_spec.2 p
+  init_decided _ i e h := init_not_decided th h.2 i e
   init_proposed _ p v h := init_not_proposed th h.2 p v
   init_abandoned _ p h := init_not_abandoned th h.2 p
-  clock := h.clock
-  Admissible := h.Admissible
-  admissible_exists := h.admissible_exists
-  ℓ := h.ℓ
-  termination := h.termination
-  quiescence r _ n p m hp hnew hold := by
-    obtain ⟨l, htr⟩ := r.steps n
-    exact sent_new_tr th htr p m hp hnew hold
+  agreement _ hr i j e e' hi hj hdi hdj := reachable_agreement hr i j e e' hi hj hdi hdj
+  integrity _ hr i e e' hi hdi hdi' := reachable_integrity hr i e e' hi hdi hdi'
+  external_validity _ hr i e hi hd := reachable_external_validity hr i e hi hd
+  -- **Quiescence**, in the one-step form the contract now states: a new
+  -- message row of a correct party at a transition comes with the input and
+  -- with the party not having abandoned. `sent_new_tr` is exactly that, over
+  -- all 5 message kinds × 24 actions.
+  quiescence _ _ p m hn hp hnew hold := sent_new_tr th hn.choose_spec p m hp hnew hold
+
+/-! ### What the full `MVBA` still owes
+
+With the inputs, their observables, the frames and one-step Quiescence all
+proven above, what stands between the fragment and the full `MVBA` is an
+instance of **`MVBATemporal … (S := mvbaSafety th)`** — and there is none.
+Its fields are exactly four: the clock, the admissible-run model, `ℓ` and
+`ℓ_MVBA`-Termination (the supplement's `thm:termination`, `O(fΔ)`), which
+the untimed model cannot state (`docs/MvbaPlan.md` §3).
+
+This is the smallest gap of the three implementations, and it is stated
+without restating anything: every field of `MVBATemporal` is already over
+`(mvbaSafety th)`'s own `init`, `trans` and observables. -/
+
+/-- Given a temporal level **at this fragment**, `Mvba` is a full `MVBA`.
+Nothing is restated to join them, and the fragment comes back out by
+`rfl`. -/
+@[implicit_reducible]
+noncomputable def mvba_of_temporal {time : Type} [TotalOrder time] [Add time]
+    (h : MVBATemporal node value (Msg view value) (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
+      (fun i => nset.is_byz i = true) (S := mvbaSafety th)) :
+    MVBA node value (Msg view value) (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
+      (fun i => nset.is_byz i = true) :=
+  { mvbaSafety th, h with }
+
+/-- The fragment the composition consumes is exactly the one that was
+proven. -/
+theorem mvba_of_temporal_toSafety {time : Type} [TotalOrder time] [Add time]
+    (h : MVBATemporal node value (Msg view value) (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
+      (fun i => nset.is_byz i = true) (S := mvbaSafety th)) :
+    (mvba_of_temporal th h).toMVBASafety = mvbaSafety th := rfl
 
 end Instance
 end Mvba
@@ -352,9 +337,9 @@ The instance rests on the standard Lean trio and nothing else — no
 family (`Mvba/Proofs/`, via `Mvba/Certify.lean`'s `#gen_composition`):
 every VC statement re-created from the persistent registry, solved as a
 fresh kernel-checked reconstruction, assembled per action into a
-preservation lemma, and composed. The residual-conditioned full instance
-is pinned too: its assumptions enter as a *hypothesis*, never as an
-axiom. -/
+preservation lemma, and composed. The temporal-conditioned full instance
+is pinned too: what is unproven enters as a *hypothesis* — the missing
+`MVBATemporal` instance — never as an axiom. -/
 
 /--
 info: 'Mvba.mvbaSafety' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -363,7 +348,7 @@ info: 'Mvba.mvbaSafety' depends on axioms: [propext, Classical.choice, Quot.soun
 #print axioms Mvba.mvbaSafety
 
 /--
-info: 'Mvba.mvba_of_residual' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.mvba_of_temporal' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.mvba_of_residual
+#print axioms Mvba.mvba_of_temporal

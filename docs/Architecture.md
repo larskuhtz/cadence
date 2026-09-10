@@ -134,11 +134,11 @@ quantitative obligation over explicit runs
   instances, with no contract hypothesis left
   (`Cadence.system_positional_log_safety`,
   [Cadence/System.lean](../Cadence/System.lean));
-* what each implementation still owes of its *full* contract is a Lean
-  structure — `Conductor.OrchestratorResidual`,
-  `Chorus.SlotConsensusResidual` — with a definition
-  (`…_of_residual`) that type-checks it against the class; these are §4
-  item 4 as types;
+* what each implementation still owes of its *full* contract is a **missing
+  class instance** — no `OrchestratorTemporal`, `SlotConsensusTemporal` or
+  `MVBATemporal` at the fragment it proved — with a definition
+  (`…_of_temporal`) that joins the two levels when one is supplied; these
+  are §4 item 4 as types, restated nowhere;
 * build totality of the receipt layer for **every** `n = 3f+1` —
   [Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean),
   kernel-checked end-to-end;
@@ -183,9 +183,9 @@ The paper's headline properties and their formal counterparts:
 | The MVBA's lock check is load-bearing (`lem:lock-persistence`'s premise; the mutation test of `docs/MvbaPlan.md` §4): without it, two correct validators decide differently | pinned model-checker violation, [Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) | model check |
 | Conductor as the paper's orchestrator, state-level: open-prefix agreement, Monotonicity, Integrity (at most once), the observables' monotonicity and frames; boundedness in interval form | Conductor sweep + `Conductor.orchestratorSafety` (`Cadence/Composition.lean`) | sweep + composition |
 | MCP Safety, positional form (`def:safety`) — for the glue over any contract instances, and for the composed system | `positional_log_safety` (`Cadence/Composition.lean`); `system_positional_log_safety` (`Cadence/System.lean`) | composition |
-| Conductor/Cadence temporal claims (totality, ℓ-liveness, recovery, termination, quiescence) | fields of the full contracts in `Cadence/Interfaces.lean`, stated over timed runs; the unproven subset per implementation is `Conductor.OrchestratorResidual` / `Chorus.SlotConsensusResidual` / `Mvba.MvbaResidual` | meta (§4), stated formally |
+| Conductor/Cadence temporal claims (totality, ℓ-liveness, recovery, termination, quiescence) | fields of the `…Temporal` classes in `Cadence/Interfaces.lean`, stated over timed runs; the unproven subset per implementation is the field list of `OrchestratorTemporal` / `SlotConsensusTemporal`, of which this development supplies no instance |
 | MVBA agreement, integrity, external validity (`mod:mvba`; the internal supplement's `thm:agreement` at the entries level and `lem:external-validity`, for its leader-based instantiation — `Cadence/Mvba.lean`'s header pins the referent) | `safety [agreement]`, `[integrity]`, `[external_validity]` in `Cadence/Mvba.lean`; instance fields of `Mvba.mvbaSafety` in `Cadence/Mvba/Compose.lean` | sweep + composition |
-| MVBA Quiescence (`mod:mvba`), and the module's inputs and their observables | discharged inside `Mvba.mvba_of_residual` (`Cadence/Mvba/Compose.lean`) from the transition bodies; only the timed fields are residual | composition |
+| MVBA Quiescence (`mod:mvba`), and the module's inputs and their observables | proven in `Mvba.mvbaSafety` (`Cadence/Mvba/Compose.lean`) from the transition bodies; only the timed fields are residual | composition |
 
 ## 4. The meta-assumption inventory
 
@@ -236,7 +236,7 @@ relations, and it takes a human to confirm each use is positive.
    layer (§5). Since the MVBA instantiation was modelled
    ([Cadence/Mvba.lean](../Cadence/Mvba.lean)), the primitive's
    Termination is also stated *formally*, over that model's own transition
-   system, as the residual field `Mvba.MvbaResidual.termination`
+   system, as the class field `MVBATemporal.termination`
    ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean), item 4);
    (A-mvba) remains the assumption at Chorus's level until Chorus consumes
    the instance (item 3).
@@ -255,7 +255,7 @@ relations, and it takes a human to confirm each use is positive.
    its state-level fragment from the leader-based protocol of the paper
    repository's internal supplement ([Cadence/Mvba.lean](../Cadence/Mvba.lean);
    the referent is pinned in that header and is not yet part of the
-   published paper), every field proven, and `Mvba.mvba_of_residual` leaves
+   published paper), every field proven, and `Mvba.mvba_of_temporal` leaves
    only the timed fields (item 4). What remains is the *consumption*: the
    MVBA is the one contract still consumed by *inlined guards* (Chorus's
    `mvba_decide_*`); the transcription is tabulated against the class in
@@ -276,16 +276,17 @@ relations, and it takes a human to confirm each use is positive.
    `SlotConsensusWithTotality`, `ACS`, `MVBA` in
    [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), stated over timed
    runs with an implementation-defined admissible-execution model. For the
-   two implementations the exact unproven subset is a type:
-   `Conductor.OrchestratorResidual` ([Cadence/Composition.lean](../Cadence/Composition.lean);
-   Totality, `B`-Boundedness, `R`-Recovery, the execution model) and
-   `Chorus.SlotConsensusResidual` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean);
+   three implementations the exact unproven subset is the field list of a
+   class that has **no instance** at the fragment they proved:
+   `OrchestratorTemporal` ([Cadence/Composition.lean](../Cadence/Composition.lean);
+   Totality, `B`-Boundedness, `R`-Recovery, the execution model),
+   `SlotConsensusTemporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean);
    the participation interface, the clock, Termination, Quiescence — Chorus
-   models no participation window) and `Mvba.MvbaResidual`
+   models no participation window) and `MVBATemporal`
    ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean); the clock,
    the admissible-run model, `ℓ_MVBA` and Termination — the inputs, their
-   observables and Quiescence are proven, so none of its fields is
-   safety-shaped). The meta-axiom names
+   observables and Quiescence are proven into the fragment, so nothing
+   safety-shaped is left). The meta-axiom names
    ((A-orch-totality), (A-orch-boundedness), (A-orch-recovery),
    (A-sc-termination), (A-sc-totality), (A-acs-termination),
    (A-acs-totality)) are those fields' docstrings. The models are untimed;
@@ -358,15 +359,15 @@ file:
 
 | Artefact | Axioms | Pinned |
 |---|---|---|
-| `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_residual` (`Cadence/Composition.lean`) | `propext, Classical.choice, Quot.sound` | ✓ |
+| `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_temporal` (`Cadence/Composition.lean`) | `propext, Classical.choice, Quot.sound` | ✓ |
 | `Cadence.system_positional_log_safety` (`Cadence/System.lean`) | same | ✓ |
 | `Chorus.invariants_of_reachable` + per-property projections (`Cadence/Chorus/Certify.lean`) | same | ✓ + `#veil_status`: 3899/3899 real |
 | `FallbackReceipt.invariants_of_reachable` (`Cadence/FallbackReceipt/Certify.lean`) | same | ✓ + `#veil_status`: 220/220 real |
 | `FallbackReceipt.build_totality_of_reachable` (`Cadence/FallbackReceipt/Totality.lean`) | same | ✓ |
-| `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_residual` (`Cadence/Chorus/Compose.lean`) | same | ✓ |
+| `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` (`Cadence/Chorus/Compose.lean`) | same | ✓ |
 | `Chorus.evidence_pigeonhole_of_reachable` (`Cadence/Chorus/Pigeonhole.lean`) | same | ✓ |
 | `Mvba.invariants_of_reachable` + per-property projections (`Cadence/Mvba/Certify.lean`) | same | ✓ + `#veil_status`: 725/725 real |
-| `Mvba.mvbaSafety`, `Mvba.mvba_of_residual` (`Cadence/Mvba/Compose.lean`) | same | ✓ |
+| `Mvba.mvbaSafety`, `Mvba.mvba_of_temporal` (`Cadence/Mvba/Compose.lean`) | same | ✓ |
 | the `FallbackReceiptPreFix` refutation (`Cadence/FallbackReceipt/PreFix.lean`) | expected model-checker violation (trace) | ✓ |
 | the `MvbaNoLock` refutation (`Cadence/Mvba/NoLock.lean`) | expected model-checker violation (trace) | ✓ |
 

@@ -1111,7 +1111,7 @@ list, and §§10.1–10.3 below for the bigger lifts.
    example `ByzNodeSet` model instantiation of the whole module) to
    demonstrate satisfiability of the axioms end-to-end. The `MVBA` contract
    (now in `Cadence/Interfaces.lean`) has its instance since 2026-09-08 —
-   `Mvba.mvbaSafety` / `Mvba.mvba_of_residual` in
+   `Mvba.mvbaSafety` / `Mvba.mvba_of_temporal` in
    [`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean); `ThresholdIBE`
    is the one still without.
 

@@ -47,8 +47,8 @@ Four Veil models plus support files, mirroring the paper's architecture:
   Chorus family shape at mid scale: a model file with views, timeouts,
   timeout certificates and the lock, one proof file per action (exactly
   two manual cells), the certificate with its `#veil_status` pin, and
-  `Mvba.mvbaSafety : MVBASafety …` plus the residual `Mvba.MvbaResidual`
-  in `Compose.lean` — the only Mvba file importing `Interfaces.lean`.
+  `Mvba.mvbaSafety : MVBASafety …` plus `Mvba.mvba_of_temporal` in
+  `Compose.lean` — the only Mvba file importing `Interfaces.lean`.
   Chorus does **not** consume the instance yet (`docs/MvbaPlan.md` §6).
   The lock-persistence lemma is not inductive; the clump carries the
   Paxos-EPR-style `prepqc_blocks_lower_commits` (the header explains).
@@ -64,9 +64,10 @@ Four Veil models plus support files, mirroring the paper's architecture:
   lemma), `Tooling.lean` (targeted check commands).
 * Composition: `Composition.lean` (`#gen_composition` for the two small
   models — the reachability inductions and the named `reachable_<property>`
-  projections — `Conductor ⊨ OrchestratorSafety`, the Conductor's residual
-  toward the full `Orchestrator`, positional MCP Safety), `Chorus/Compose.lean`
-  (`Chorus ⊨ SlotConsensusSafety` and its residual), `System.lean` (the
+  projections — `Conductor ⊨ OrchestratorSafety`, its join with a temporal
+  level toward the full `Orchestrator`, positional MCP Safety),
+  `Chorus/Compose.lean` (`Chorus ⊨ SlotConsensusSafety` and the same join),
+  `System.lean` (the
   glue's end theorem at both instances — the composed system, no contract
   hypothesis left).
 * `Cadence/Monitor/` — the model-conformance monitor. Not part of any
@@ -340,8 +341,9 @@ measurements and the audit ladder:
   need, not for every monotone relation. (3) **By hand from the transition
   bodies**, only for what neither covers (a single-action effect, a pointwise
   frame): dispatch the label, expose the body with `simp only [trSimp]`, and
-  simplify the field-representation `get`/`set` pair (the `conductor_tr` /
-  `chorus_tr` / `mvba_tr` macros). Do *not* reach for `actSimp`/`nextSimp`
+  simplify the field-representation `get`/`set` pair (the `conductor_tr` and
+  `mvba_tr` macros — `Chorus/Compose.lean` needs none any more, every one of
+  its step facts having moved to source (1) or (2)). Do *not* reach for `actSimp`/`nextSimp`
   there: they unfold the action bodies first and defeat the rewrite. Adding
   an action needs no edit in the composition files in any of the three
   cases.
@@ -376,12 +378,18 @@ is a change to what this project *claims*, not a refactor.
   pins, and check the new numbers are the ones you expect.
 * **No full contract instance is fabricated.** `Orchestrator`,
   `SlotConsensus` and `MVBA` (the full classes) have instances only
-  *through* the residual structures (`Conductor.orchestrator_of_residual`,
-  `Chorus.slotConsensus_of_residual`, `Mvba.mvba_of_residual`), whose
-  fields are the obligations this development does not prove. Proving one of those fields means deleting it
-  from the residual and proving it in the `…_of_residual` definition — never
+  *given* an instance of the matching `…Temporal` class at the proven
+  fragment — `Conductor.orchestrator_of_temporal`,
+  `Chorus.slotConsensus_of_temporal`, `Mvba.mvba_of_temporal`, each of them
+  `{ theSafetyInstance, h with }` and nothing more. This development
+  provides no `…Temporal` instance, and that absence *is* the statement of
+  what is unproven: the class's fields, stated over the fragment's own
+  relations, restated nowhere. Proving one of them means moving the field
+  from `XTemporal` to `XSafety` (if it is first-order and every
+  implementation proves it) and discharging it in the instances — never
   adding an axiom, and never weakening a class field to make an instance
-  possible.
+  possible. Each `…_of_temporal` is paired with a `…_toSafety` `rfl` lemma:
+  the join must hand back exactly the fragment that was proven.
 * **The pre-fix refutation keeps failing.** `FallbackReceipt/PreFix.lean`
   builds only while the model checker still finds the documented
   counterexample. Its `#model_check` **must** keep `(sequential := true)`:

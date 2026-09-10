@@ -13,8 +13,8 @@ wishlist.
 explicit abstract state ([`CompositionContracts.md`](./CompositionContracts.md)),
 the glue and the Conductor consume the state-level fragments as class
 constraints (no restated `require`s), the Conductor and Chorus instances are
-proven field for field, each implementation's unproven obligations are a
-residual structure type-checked against the full class, and
+proven field for field, each implementation's unproven obligations are the
+fields of an `…Temporal` class it supplies no instance of, and
 `Cadence.system_positional_log_safety` composes MCP Safety at both instances
 with no contract hypothesis left. What remains, in the order worth taking:
 
@@ -22,7 +22,7 @@ with no contract hypothesis left. What remains, in the order worth taking:
   2026-09-08: `Mvba.mvbaSafety` (`Cadence/Mvba/Compose.lean`) instantiates
   `MVBASafety` from the leader-based protocol of the paper repository's
   internal supplement (`Cadence/Mvba.lean`), every field proven, with only
-  the timed fields residual. Chorus still inlines the properties as guards
+  the timed fields left. Chorus still inlines the properties as guards
   of `mvba_decide_*`, and the transcription is audited by reading (table in
   [`CompositionContracts.md`](./CompositionContracts.md) §8). The obstacle is
   the model's abstraction of validity — a predicate on Chorus's *state*
@@ -33,11 +33,12 @@ with no contract hypothesis left. What remains, in the order worth taking:
   condition changes, so it is its own piece of work (step 6).
 * **Chorus's participation interface.** `mod:slotconsensus`'s
   `participate`/`abandon`/`propose` are absent from the model, so the whole
-  of `SlotConsensus`'s upper level except Hiding's protocol half is residual
-  (`Chorus.SlotConsensusResidual`), and the glue's records of those calls
-  (`sc_abandoned`, `proposed`) stay glue-local. Adding the inputs to the
-  Chorus model would let the glue drive them and shrink the residual to the
-  temporal fields; it is a model change and pays the Chorus cold re-solve.
+  of `SlotConsensus`'s upper level except Hiding's protocol half is unproven
+  (the fields of `SlotConsensusTemporal`), and the glue's records of those
+  calls (`sc_abandoned`, `proposed`) stay glue-local. Adding the inputs to
+  the Chorus model would let the glue drive them and shrink what is owed to
+  the temporal fields; it is a model change and pays the Chorus cold
+  re-solve.
 * **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
   the decided set brackets the first slot from below is the quantitative half
   of ACS validity (`ACS.validity_quantitative`, upper level) through
@@ -46,11 +47,12 @@ with no contract hypothesis left. What remains, in the order worth taking:
   plus the median lemma would turn the one stated bridge into a proof.
 
 Two smaller items fall out of the same work: **stating `Admissible`** (each
-upper class's admissible-execution model) for the Conductor and Chorus in
-Lean — today it is residual data, and its intended content is the
+`…Temporal` class's admissible-execution model) for the Conductor and Chorus
+in Lean — today it is an unsupplied class field, and its intended content is
+the
 (F-justice)/(A-acs-*) prose of the models' liveness sections; and a
 **composed bounded-concurrency corollary** — from the glue's
-`bounded_concurrency_interval` and `Conductor.OrchestratorResidual.boundedness`,
+`bounded_concurrency_interval` and `OrchestratorTemporal.boundedness`,
 "at most `B` slots actively participated in", which needs a finite
 minimum-extraction argument over slots that is not written yet.
 
@@ -64,8 +66,8 @@ come first.
   (see [`../Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean)), which is why
   it is *not* on the assumption list in
   [`Architecture.md`](./Architecture.md) §4. `MVBA` has one since 2026-09-08
-  (`Mvba.mvbaSafety` for the state-level fragment, `Mvba.mvba_of_residual`
-  for the full class given the timed residual — `Cadence/Mvba/Compose.lean`).
+  (`Mvba.mvbaSafety` for the state-level fragment, `Mvba.mvba_of_temporal`
+  for the full class given a temporal level — `Cadence/Mvba/Compose.lean`).
   `ThresholdIBE` is still an axiomatic class with no model instance:
   producing one would demonstrate the axiom set is satisfiable rather than
   accidentally contradictory. `ChorusDesign.md` §9 item 1.
@@ -271,8 +273,10 @@ hygienic, retiring the `st'` rule (L12); and an `assumption` over mutable
 state gets a readable rejection (L13). What L9 (recursive destructuring of
 instantiated classes before SMT) enables — the contracts sharing one
 transition-system skeleton, and the temporal level as a class over the safety
-instance instead of a residual structure — is the interface redesign, still
-to do.
+instance instead of a residual structure — has landed in full. The skeleton
+was briefly held back by fork bug L17 (`sat trace` mis-destructured an
+instantiated class with an `extends` parent), which this work found and the
+fork fixed on 2026-09-10. See [`History.md`](./History.md).
 
 *M13 and M14 landed in the fork on 2026-09-10 and were taken up here the same
 day* ([`History.md`](./History.md), [`Dependencies.md`](./Dependencies.md) §3):
@@ -280,8 +284,8 @@ generated step lemmas (`veil.gen.stepLemmas`) replaced most of the `StepFacts`
 sections with one-line applications, and `step_property` turned the two facts
 that need the guards or the invariants at the pre-state — the Conductor's
 Monotonicity and Chorus's frozen entries — into SMT-checked cells. L17 (the
-trace path with `extends` parents) landed with them, which unblocks the shared
-transition-system skeleton.
+trace path with `extends` parents) landed with them, and the shared
+transition-system skeleton went in on top.
 
 Still open: **H6**, and the (M-frame) syntactic audit above — for which M13 is
 now the missing half, since the contract is a set of frame facts about the

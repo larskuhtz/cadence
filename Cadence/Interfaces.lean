@@ -23,11 +23,17 @@ when it is only ever discharged by hand. What differs between the properties
 is *where* they are discharged, and the two-level shape below makes that
 difference visible in the types rather than in prose.
 
-## The two-level shape
+## The shape: one skeleton, two levels
 
-Each module `X` is two classes.
+Each module `X` is two classes over a shared skeleton.
 
-* **`XSafety`** — the *state-level* fragment. It fixes an abstract state type
+* **`TransitionSystemSafety`** — what every contract has because it *is* a
+  transition system: `init`, the internal `step`, their union `trans`, an
+  over-approximated `reachable`, and the three closure facts. Stated once and
+  extended by all four fragments, so "the module's transition system" means
+  the same seven things everywhere and a reader who has understood one
+  contract has understood that much of the others.
+* **`XSafety extends TransitionSystemSafety`** — the *state-level* fragment. It fixes an abstract state type
   and the module's transitions over it (`init`, the internal `step`, the input
   transitions the paper's safety properties refer to, and their union
   `trans`), the observables a consumer reads off that state, and every
@@ -44,23 +50,19 @@ Each module `X` is two classes.
   bump it aborted *every* verification condition of the consuming module.
   `attribute [veil_smt_ignore] C.field` is the escape hatch, unused here;
   `docs/CompositionContracts.md` §10 and `spikes/03_*.lean` have the detail).
-* **`X extends XSafety`** — the module proper: everything else the paper
-  promises. Temporal properties are stated over explicit runs (`Run`,
-  `TimedRun` below); bounds are carried as data; the inputs that only the
-  temporal properties refer to enter here with their observables. This level
-  is consumed at the Lean level only, so it may quantify freely.
-
-Roles, then, are: an **implementation owes `X`**; a **Veil consumer assumes
-`XSafety`**; `toXSafety` connects them. Where an implementation can prove the
-safety fragment but not (yet) the rest, it provides an `XSafety` instance
-(kernel-checked) and a *residual* structure — a Lean `structure` whose fields
-are exactly the upper-level obligations it does not discharge, restated over
-its own transition system — together with a function `X_of_residual :
-Residual → X` whose type-checking guarantees the restatement matches the
-class. The residual *is* the module's remaining assumption inventory, stated
-formally and in one place. See `Conductor.OrchestratorResidual`
-([`Composition.lean`](./Composition.lean)) and `Chorus.SlotConsensusResidual`
-([`Chorus/Compose.lean`](./Chorus/Compose.lean)).
+* **`XTemporal … [S : XSafety …]`** — everything else the paper promises,
+  stated **over the safety instance**: every field mentions `S.init`,
+  `S.trans`, `S.reachable` or one of `S`'s observables, so a temporal
+  obligation is an obligation about *exactly* the transition system the
+  fragment fixes and cannot drift from it. Temporal properties are stated
+  over explicit runs (`Run`, `TimedRun` below); bounds are carried as data;
+  the inputs that only the temporal properties refer to enter here with
+  their observables. This level is consumed at the Lean level only, so it may
+  quantify freely.
+* **`X extends XSafety, XTemporal`** — the paper's module in one name. The
+  second parent's instance argument is the first parent, so `X` is exactly
+  "a safety fragment together with a temporal level *about it*"; nothing is
+  restated to join them.
 
 ## Conventions shared by every class
 
@@ -125,6 +127,32 @@ correct validators. -/
 class FaultModel (validator : Type) where
   byz : validator → Prop
 
+/-- **The transition-system skeleton shared by all four module contracts.**
+
+Every `…Safety` fragment extends this, so `init` / `step` / `trans` /
+`reachable` mean the same thing in each of them and the closure facts are
+stated once. `step` is the module's *internal* (module-driven) transitions;
+`trans` is any transition, internal steps and the consumer's inputs alike,
+and is what runs are sequences of. `reachable` is an over-approximation: an
+implementation supplies its true reachable set, a consumer needs only that
+it is closed under `init` and `trans`.
+
+A Veil module `instantiate`s a fragment, not this class; the fragment's
+parent arrives as a projection field and is destructured into the solver's
+hypotheses like any other, which the fork's `VeilTest/DestructParentClass.lean`
+pins and `spikes/07_sc_state_tag_ok.lean` exercises here. -/
+class TransitionSystemSafety (state : Type) where
+  init : state → Prop
+  /-- Internal (module-driven) transitions. -/
+  step : state → state → Prop
+  /-- Any transition — internal steps and the consumer's inputs. -/
+  trans : state → state → Prop
+  /-- The over-approximated reachable states. -/
+  reachable : state → Prop
+  step_trans : ∀ st st', step st st' → trans st st'
+  reachable_init : ∀ st, init st → reachable st
+  reachable_trans : ∀ st st', reachable st → trans st st' → reachable st'
+
 /-- A run of a module: an infinite sequence of states, starting in an initial
 state, each consecutive pair a transition. The temporal obligations of the
 module contracts quantify over these. -/
@@ -172,15 +200,30 @@ end TimedRun
 
 /-! ## Slot Consensus (`mod:slotconsensus`)
 
-The paper's module is *parameterised by a slot* `s`, one instance per slot.
-The class is the **family**: every instance-specific field takes the
-instance's slot explicitly — the dependent product over the module's
-parameter — so the glue can hold one abstract state per slot
-(`function sc_state (s : slot) : scstate` in [`Cadence.lean`](./Cadence.lean))
-and read every instance through the same contract. The implementation
-instance (`Chorus.slotConsensusSafety`, [`Chorus/Compose.lean`](./Chorus/Compose.lean))
-runs one independent copy of the single-slot Chorus model per slot and tags
-each finalized vector with its slot.
+The paper's module is *parameterised by a slot* `s`, one instance per slot,
+and the glue holds one abstract state per slot
+(`function sc_state (s : slot) : scstate` in [`Cadence.lean`](./Cadence.lean)).
+The class carries that parameter **in the state** rather than as an index on
+every field: a state knows which instance it belongs to, through the
+observable `tag : state → slot`, and `tag_frame` says transitions stay inside
+their instance. What was `init s st` is `init st ∧ tag st = s`, and a consumer
+pins the correspondence once, for its *initial* states, from which
+`tag (sc_state s) = s` follows as an ordinary inductive invariant.
+
+The reason is uniformity: this is the only family-indexed contract, and
+indexing the shared skeleton to accommodate it would make the other three
+read as degenerate families (`init () st`) for the sake of this one.
+[`spikes/07_sc_state_tag_ok.lean`](../spikes/07_sc_state_tag_ok.lean)
+establishes that the encoding costs a consumer exactly one assumption and
+still yields everything the indexed form gave;
+[`spikes/08_sc_tag_frame_removed.lean`](../spikes/08_sc_tag_frame_removed.lean)
+is its negative control.
+
+The implementation instance (`Chorus.slotConsensusSafety`,
+[`Chorus/Compose.lean`](./Chorus/Compose.lean)) runs one independent copy of
+the single-slot Chorus model per slot: its state is a `slot × Chorus.State`
+pair whose first component is the tag, and each finalized vector carries the
+same slot.
 
 Interface (`mod:slotconsensus`): inputs `participate()`, `abandon()`,
 `propose(P)`; output `finalize(V)`.
@@ -190,114 +233,130 @@ Interface (`mod:slotconsensus`): inputs `participate()`, `abandon()`,
 | Property (paper) | Field | Level | Discharge |
 |---|---|---|---|
 | Agreement (incl. per-validator integrity: take `i = j`) | `agreement` | safety | Chorus `safety [agreement_pos]`, `[agreement_pos_neg]`, `invariant [local_committed_complete]` — `Chorus.slotConsensusSafety` |
-| Slot safety | `slot_safety` | safety | by construction of the family instance (each slot's copy tags its vectors) |
+| Slot safety | `slot_safety` | safety | by construction of the tagged state (`slot_of V = tag st`) |
 | Proposal inclusion (conditional on synchrony) | `proposal_inclusion` | safety | Chorus `safety [proposal_inclusion]`, `[proposal_inclusion_no_neg]`; the synchrony premise's state-level form is `on_time` = Chorus's `all_honest_recorded` |
-| Termination | `termination` | temporal | **residual** (`Chorus.SlotConsensusResidual`): Chorus's fair-progress layer + (F-justice)/(F-byz)/(A-mvba), `docs/Liveness.md` |
-| Hiding (`def:hiding`, specialised to `s`) | `hiding_residue` | temporal level, state-shaped | the protocol half is Chorus `safety [hiding_until_deadline]`; the field is that residue — see the field's docstring for what it does and does not say |
-| Quiescence | `quiescence` | temporal | **residual**: Chorus models no participation window (its in-model shadow is phase confinement) |
+| Termination | `termination` | temporal | **not proven**: Chorus's fair-progress layer + (F-justice)/(F-byz)/(A-mvba), `docs/Liveness.md` |
+| Hiding (`def:hiding`, specialised to the instance's slot) | `hiding_residue` | safety | first-order and proven by Chorus (`safety [hiding_until_deadline]`), so it sits in the fragment — see the field's docstring for what it does and does not say |
+| Quiescence | `quiescence` | temporal | **not proven**: Chorus models no participation window (its in-model shadow is phase confinement) |
 
 `d_tot`-totality and `ℓ`-termination are *not* properties of `mod:slotconsensus`
 — they are Chorus-specific strengthenings the Conductor's proofs consume —
 and live in `SlotConsensusWithTotality` below. -/
 
-/-- The state-level fragment of `mod:slotconsensus`, as a family over slots.
-This is what the `Cadence` glue module instantiates. -/
+/-- The state-level fragment of `mod:slotconsensus`. This is what the
+`Cadence` glue module instantiates. Unindexed: the instance's slot is the
+state observable `tag` (see the section docstring). -/
 class SlotConsensusSafety (slot validator proposal pvector state : Type)
-    (byz : validator → Prop) where
-  /-- Initial states of the instance for slot `s`. -/
-  init : slot → state → Prop
-  /-- Internal (module-driven) transitions of the instance for slot `s`. -/
-  step : slot → state → state → Prop
-  /-- Any transition of the instance — internal steps and (at the upper
-      level) inputs. Runs are sequences of `trans` steps. -/
-  trans : slot → state → state → Prop
-  /-- The (over-approximated) reachable states of the instance for slot `s`. -/
-  reachable : slot → state → Prop
+    (byz : validator → Prop) extends TransitionSystemSafety state where
 
-  step_trans : ∀ s st st', step s st st' → trans s st st'
-  reachable_init : ∀ s st, init s st → reachable s st
-  reachable_trans : ∀ s st st', reachable s st → trans s st st' → reachable s st'
+  /-- The slot whose instance this state belongs to — the module's parameter,
+      carried by the state instead of indexing every field. -/
+  tag : state → slot
+  /-- Transitions stay inside their instance: a state never becomes another
+      slot's. With a consumer's initial-state assumption this makes "slot
+      `s`'s state is tagged `s`" an inductive invariant. -/
+  tag_frame : ∀ st st', trans st st' → tag st' = tag st
 
-  /-- Output `finalize(V)`: `finalized s st i V` says validator `i` has
-      finalized proposal vector `V` in the slot-`s` instance, in state `st`. -/
-  finalized : slot → state → validator → pvector → Prop
+  /-- Output `finalize(V)`: `finalized st i V` says validator `i` has
+      finalized proposal vector `V`, in state `st` of this instance. -/
+  finalized : state → validator → pvector → Prop
   /-- The slot identifier a proposal vector carries (`V.slot`). -/
   slot_of : pvector → slot
   /-- `includes V j P`: `V` maps proposer `j` to proposal `P` (`V[j] = P`).
       Pure data of the vector. -/
   includes : pvector → validator → proposal → Prop
   /-- The state-level form of proposal inclusion's synchrony premise — "`j` is
-      a correct proposer of `s`, `s.deadline − Δ ≥ GST`, and `j` proposed `P`
-      at `s.deadline − Δ`". The premise is about the timed execution; its
+      a correct proposer of the slot, `s.deadline − Δ ≥ GST`, and `j` proposed
+      `P` at `s.deadline − Δ`". The premise is about the timed execution; its
       consequence inside an untimed implementation is a *state* fact
       (for Chorus: every honest validator has recorded `j`'s entry `P`,
-      `all_honest_recorded`), which is what `on_time s st j P` names. It is
+      `all_honest_recorded`), which is what `on_time st j P` names. It is
       monotone: once established it stays established. -/
-  on_time : slot → state → validator → proposal → Prop
+  on_time : state → validator → proposal → Prop
 
   /-- A finalization, once output, stands. -/
-  finalized_mono : ∀ s st st' i V, reachable s st → trans s st st' → finalized s st i V → finalized s st' i V
-  on_time_mono : ∀ s st st' j P, reachable s st → trans s st st' → on_time s st j P → on_time s st' j P
+  finalized_mono : ∀ st st' i V, reachable st → trans st st' → finalized st i V → finalized st' i V
+  on_time_mono : ∀ st st' j P, reachable st → trans st st' → on_time st j P → on_time st' j P
   /-- Nothing is finalized before the instance runs. -/
-  init_finalized : ∀ s st i V, init s st → ¬ finalized s st i V
+  init_finalized : ∀ st i V, init st → ¬ finalized st i V
 
   /-- **Agreement** — correct validators never finalize conflicting proposal
       vectors; with `i = j` this is per-validator integrity ("no correct
       validator finalizes two different proposal vectors, even on separate
       occasions"). -/
-  agreement : ∀ s st, reachable s st → ∀ i j V V',
-    ¬ byz i → ¬ byz j → finalized s st i V → finalized s st j V' → V = V'
-  /-- **Slot safety** — a finalized proposal vector carries the instance's
-      slot identifier. -/
-  slot_safety : ∀ s st, reachable s st → ∀ i V,
-    ¬ byz i → finalized s st i V → slot_of V = s
+  agreement : ∀ st, reachable st → ∀ i j V V',
+    ¬ byz i → ¬ byz j → finalized st i V → finalized st j V' → V = V'
+  /-- **Slot safety** — a finalized proposal vector carries the slot of the
+      instance that finalized it. -/
+  slot_safety : ∀ st, reachable st → ∀ i V,
+    ¬ byz i → finalized st i V → slot_of V = tag st
   /-- **Proposal inclusion** — under the synchrony premise, the finalized
       vector contains the correct proposer's on-time proposal. -/
-  proposal_inclusion : ∀ s st, reachable s st → ∀ i j V P,
-    ¬ byz i → finalized s st i V → on_time s st j P → includes V j P
+  proposal_inclusion : ∀ st, reachable st → ∀ i j V P,
+    ¬ byz i → finalized st i V → on_time st j P → includes V j P
 
-/-- `mod:slotconsensus` in full: the safety fragment plus the participation
-interface and every remaining property, stated over timed runs. `message`
-is the module's own protocol-message type (used by Quiescence). -/
-class SlotConsensus (slot validator proposal pvector state time message : Type)
+  /-- The slot's deadline has passed in state `st` (for Chorus: the phase is
+      no longer `pre_deadline`). -/
+  deadline_passed : state → Prop
+  /-- The instance's proposal payloads have become recoverable — the
+      decryption threshold has been reached (for Chorus: the slot key is
+      released, `slot_key_released`). -/
+  payload_recoverable : state → Prop
+  /-- **Hiding** (`def:hiding`, specialised to this instance's slot) — its
+      *protocol-level residue*: payloads become recoverable only after the
+      deadline. The paper's definition is simulation-based (an ideal
+      functionality and a simulator) and is not expressible in this language;
+      what it reduces to is this residue together with the cryptographic
+      hiding of the threshold encryption (`ThresholdIBE.decrypt_secret`,
+      [`Primitives.lean`](./Primitives.lean)) and the paper's simulation
+      argument (`appendix:encryption`). Those two steps stay meta-theoretic
+      ([`docs/Architecture.md`](../docs/Architecture.md) §4 item 3).
+
+      First-order, and proven by Chorus, so it sits in the fragment. -/
+  hiding_residue : ∀ st, reachable st → payload_recoverable st → deadline_passed st
+
+/-- The temporal level of `mod:slotconsensus`, over a safety instance `S`:
+the participation interface and every property the fragment cannot state.
+`message` is the module's own protocol-message type (used by Quiescence). -/
+class SlotConsensusTemporal (slot validator proposal pvector state time message : Type)
     [TotalOrder time] [Add time] (byz : validator → Prop)
-    extends SlotConsensusSafety slot validator proposal pvector state byz where
+    [S : SlotConsensusSafety slot validator proposal pvector state byz] where
   /-- Input `participate()` at validator `i`. -/
-  participate : slot → state → validator → state → Prop
+  participate : state → validator → state → Prop
   /-- Input `abandon()` at validator `i`. -/
-  abandon : slot → state → validator → state → Prop
+  abandon : state → validator → state → Prop
   /-- Input `propose(P)` by (proposer) `i`. -/
-  propose : slot → state → validator → proposal → state → Prop
-  participate_trans : ∀ s st i st', participate s st i st' → trans s st st'
-  abandon_trans : ∀ s st i st', abandon s st i st' → trans s st st'
-  propose_trans : ∀ s st i P st', propose s st i P st' → trans s st st'
+  propose : state → validator → proposal → state → Prop
+  participate_trans : ∀ st i st', participate st i st' → S.trans st st'
+  abandon_trans : ∀ st i st', abandon st i st' → S.trans st st'
+  propose_trans : ∀ st i P st', propose st i P st' → S.trans st st'
 
   /-- `i` has started participating. -/
-  participating : slot → state → validator → Prop
+  participating : state → validator → Prop
   /-- `i` has stopped participating. -/
-  abandoned : slot → state → validator → Prop
+  abandoned : state → validator → Prop
   /-- `i` has proposed `P`. -/
-  proposed : slot → state → validator → proposal → Prop
+  proposed : state → validator → proposal → Prop
   /-- `i` has sent protocol message `m` of this instance. -/
-  sent : slot → state → validator → message → Prop
+  sent : state → validator → message → Prop
 
-  participating_mono : ∀ s st st' i, trans s st st' → participating s st i → participating s st' i
-  abandoned_mono : ∀ s st st' i, trans s st st' → abandoned s st i → abandoned s st' i
-  proposed_mono : ∀ s st st' i P, trans s st st' → proposed s st i P → proposed s st' i P
-  sent_mono : ∀ s st st' i m, trans s st st' → sent s st i m → sent s st' i m
-  participate_effect : ∀ s st i st', participate s st i st' → participating s st' i
-  abandon_effect : ∀ s st i st', abandon s st i st' → abandoned s st' i
-  propose_effect : ∀ s st i P st', propose s st i P st' → proposed s st' i P
+  participating_mono : ∀ st st' i, S.trans st st' → participating st i → participating st' i
+  abandoned_mono : ∀ st st' i, S.trans st st' → abandoned st i → abandoned st' i
+  proposed_mono : ∀ st st' i P, S.trans st st' → proposed st i P → proposed st' i P
+  sent_mono : ∀ st st' i m, S.trans st st' → sent st i m → sent st' i m
+  participate_effect : ∀ st i st', participate st i st' → participating st' i
+  abandon_effect : ∀ st i st', abandon st i st' → abandoned st' i
+  propose_effect : ∀ st i P st', propose st i P st' → proposed st' i P
   /-- Internal steps do not fabricate a correct validator's inputs. -/
-  participating_step_frame : ∀ s st st' i, step s st st' → ¬ byz i →
-    (participating s st' i ↔ participating s st i)
-  abandoned_step_frame : ∀ s st st' i, step s st st' → ¬ byz i →
-    (abandoned s st' i ↔ abandoned s st i)
-  proposed_step_frame : ∀ s st st' i P, step s st st' → ¬ byz i →
-    (proposed s st' i P ↔ proposed s st i P)
-  init_participating : ∀ s st i, init s st → ¬ participating s st i
-  init_abandoned : ∀ s st i, init s st → ¬ abandoned s st i
-  init_proposed : ∀ s st i P, init s st → ¬ proposed s st i P
+  participating_step_frame : ∀ st st' i, S.step st st' → ¬ byz i →
+    (participating st' i ↔ participating st i)
+  abandoned_step_frame : ∀ st st' i, S.step st st' → ¬ byz i →
+    (abandoned st' i ↔ abandoned st i)
+  proposed_step_frame : ∀ st st' i P, S.step st st' → ¬ byz i →
+    (proposed st' i P ↔ proposed st i P)
+  init_participating : ∀ st i, S.init st → ¬ participating st i
+  init_abandoned : ∀ st i, S.init st → ¬ abandoned st i
+  init_proposed : ∀ st i P, S.init st → ¬ proposed st i P
 
   /-- The module's clock, read off its state (the paper's synchronized
       clocks). -/
@@ -306,44 +365,34 @@ class SlotConsensus (slot validator proposal pvector state time message : Type)
       implementation's fair-scheduling and network assumptions, *defined by
       the implementation*. The properties below are stated for admissible
       runs only. -/
-  Admissible : ∀ s, TimedRun state time (init s) (trans s) clock → Prop
+  Admissible : TimedRun state time S.init S.trans clock → Prop
   /-- Admissibility is not vacuous: every initial state starts some
       admissible run. -/
-  admissible_exists : ∀ s st, init s st →
-    ∃ r : TimedRun state time (init s) (trans s) clock, Admissible s r ∧ r.at' 0 = st
+  admissible_exists : ∀ st, S.init st →
+    ∃ r : TimedRun state time S.init S.trans clock, Admissible r ∧ r.at' 0 = st
 
   /-- **Termination** — if every correct validator starts participating (and
       none abandons before finalizing — the paper's assumed behaviour of
       correct validators), then every correct validator eventually finalizes. -/
-  termination : ∀ s (r : TimedRun state time (init s) (trans s) clock), Admissible s r →
-    (∀ i, ¬ byz i → r.eventually (fun st => participating s st i)) →
-    (∀ i, ¬ byz i → ∀ n, abandoned s (r.at' n) i → ∃ V, finalized s (r.at' n) i V) →
-    ∀ j, ¬ byz j → r.eventually (fun st => ∃ V, finalized s st j V)
-
-  /-- The slot's deadline has passed in state `st` (for Chorus: the phase is
-      no longer `pre_deadline`). -/
-  deadline_passed : slot → state → Prop
-  /-- The instance's proposal payloads have become recoverable — the
-      decryption threshold has been reached (for Chorus: the slot key is
-      released, `slot_key_released`). -/
-  payload_recoverable : slot → state → Prop
-  /-- **Hiding** (`def:hiding`, specialised to `s`) — its *protocol-level
-      residue*: payloads become recoverable only after the deadline. The
-      paper's definition is simulation-based (an ideal functionality and a
-      simulator) and is not expressible in this language; what it reduces to
-      is this residue together with the cryptographic hiding of the threshold
-      encryption (`ThresholdIBE.decrypt_secret`, [`Primitives.lean`](./Primitives.lean))
-      and the paper's simulation argument (`appendix:encryption`). Those two
-      steps stay meta-theoretic ([`docs/Architecture.md`](../docs/Architecture.md)
-      §4 item 3). -/
-  hiding_residue : ∀ s st, reachable s st → payload_recoverable s st → deadline_passed s st
+  termination : ∀ (r : TimedRun state time S.init S.trans clock), Admissible r →
+    (∀ i, ¬ byz i → r.eventually (fun st => participating st i)) →
+    (∀ i, ¬ byz i → ∀ n, abandoned (r.at' n) i → ∃ V, S.finalized (r.at' n) i V) →
+    ∀ j, ¬ byz j → r.eventually (fun st => ∃ V, S.finalized st j V)
 
   /-- **Quiescence** — a correct validator sends no protocol message before it
-      starts participating or after it stops: a send event at step `n → n+1`
-      finds it participating and not yet abandoned. -/
-  quiescence : ∀ s (r : TimedRun state time (init s) (trans s) clock), Admissible s r →
-    ∀ n i m, ¬ byz i → sent s (r.at' (n + 1)) i m → ¬ sent s (r.at' n) i m →
-      participating s (r.at' (n + 1)) i ∧ ¬ abandoned s (r.at' n) i
+      starts participating or after it stops. Stated in one-step form, over a
+      transition rather than over a run, as it is in the other three
+      contracts: a send that appears across `trans` finds the sender
+      participating and not yet abandoned. -/
+  quiescence : ∀ st st' i m, S.trans st st' → ¬ byz i →
+    sent st' i m → ¬ sent st i m → participating st' i ∧ ¬ abandoned st i
+
+/-- `mod:slotconsensus` in full: the fragment together with a temporal level
+about it. -/
+class SlotConsensus (slot validator proposal pvector state time message : Type)
+    [TotalOrder time] [Add time] (byz : validator → Prop) extends
+    SlotConsensusSafety slot validator proposal pvector state byz,
+    SlotConsensusTemporal slot validator proposal pvector state time message byz
 
 /-! ### Slot consensus with the Chorus timing strengthenings
 
@@ -355,11 +404,16 @@ Chorus that the Conductor's totality and recovery proofs consume
 conditioned on *Δ-synchronized participation*
 (`def:delta-synchronized-participation`), which is stated here as a predicate
 on the run. An orchestrator built on a slot consensus without these does not
-achieve the paper's bounds. Both are **residual** for Chorus (the models are
-untimed; `docs/Bounds.md`). -/
+achieve the paper's bounds. Neither is proven for Chorus (the models are
+untimed; `docs/Bounds.md`).
+
+Like `SlotConsensusTemporal`, this is a class **over** the safety instance:
+one more level of what the implementation still owes, kept separate because
+`mod:slotconsensus` does not promise it — only Chorus does. -/
 class SlotConsensusWithTotality (slot validator proposal pvector state time message : Type)
     [TotalOrder time] [Add time] (byz : validator → Prop)
-    extends SlotConsensus slot validator proposal pvector state time message byz where
+    [S : SlotConsensusSafety slot validator proposal pvector state byz]
+    [T : SlotConsensusTemporal slot validator proposal pvector state time message byz] where
   /-- The network delay bound after `gst`. -/
   Δ : time
   /-- Chorus's termination latency. -/
@@ -369,25 +423,25 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
   /-- **Δ-synchronized participation**: if a correct validator starts
       participating at time `t`, every correct validator does so by
       `max(t, GST) + Δ`. -/
-  SyncParticipation : ∀ s, TimedRun state time (init s) (trans s) clock → Prop
-  syncParticipation_def : ∀ s (r : TimedRun state time (init s) (trans s) clock),
-    SyncParticipation s r ↔
-      ∀ n i, ¬ byz i → participating s (r.at' n) i →
-        ∀ j, ¬ byz j → r.byGstBound (clock (r.at' n)) Δ (fun st => participating s st j)
+  SyncParticipation : TimedRun state time S.init S.trans T.clock → Prop
+  syncParticipation_def : ∀ r : TimedRun state time S.init S.trans T.clock,
+    SyncParticipation r ↔
+      ∀ n i, ¬ byz i → T.participating (r.at' n) i →
+        ∀ j, ¬ byz j → r.byGstBound (T.clock (r.at' n)) Δ (fun st => T.participating st j)
   /-- **ℓ-Termination** — under Δ-synchronized participation, if all correct
       validators participate by `t`, every correct validator finalizes by
       `max(t, GST) + ℓ`. -/
-  bounded_termination : ∀ s (r : TimedRun state time (init s) (trans s) clock),
-    Admissible s r → SyncParticipation s r →
-    ∀ t, (∀ i, ¬ byz i → r.byTime t (fun st => participating s st i)) →
-    ∀ j, ¬ byz j → r.byGstBound t ℓ (fun st => ∃ V, finalized s st j V)
+  bounded_termination : ∀ r : TimedRun state time S.init S.trans T.clock,
+    T.Admissible r → SyncParticipation r →
+    ∀ t, (∀ i, ¬ byz i → r.byTime t (fun st => T.participating st i)) →
+    ∀ j, ¬ byz j → r.byGstBound t ℓ (fun st => ∃ V, S.finalized st j V)
   /-- **d_tot-Totality** — under Δ-synchronized participation, if a correct
       validator finalizes at time `t`, every correct validator finalizes by
       `max(t, GST) + d_tot`. -/
-  totality : ∀ s (r : TimedRun state time (init s) (trans s) clock),
-    Admissible s r → SyncParticipation s r →
-    ∀ n i V, ¬ byz i → finalized s (r.at' n) i V →
-    ∀ j, ¬ byz j → r.byGstBound (clock (r.at' n)) d_tot (fun st => ∃ V', finalized s st j V')
+  totality : ∀ r : TimedRun state time S.init S.trans T.clock,
+    T.Admissible r → SyncParticipation r →
+    ∀ n i V, ¬ byz i → S.finalized (r.at' n) i V →
+    ∀ j, ¬ byz j → r.byGstBound (T.clock (r.at' n)) d_tot (fun st => ∃ V', S.finalized st j V')
 
 /-! ## Orchestrator (`mod:orchestrator_2`)
 
@@ -398,13 +452,13 @@ output `open(s)`; a slot never opened is *skipped*.
 
 | Property (paper) | Field | Level | Discharge (`Conductor`) |
 |---|---|---|---|
-| Totality | `totality` | temporal | **residual** (`Conductor.OrchestratorResidual`): `lemma:conductor-totality`, a per-window induction the untimed model does not carry |
+| Totality | `totality` | temporal | **not proven**: `lemma:conductor-totality`, a per-window induction the untimed model does not carry |
 | Integrity, "at most once" | `opened_mono` | safety | the `opened` observable is monotone, so an open event (`¬ opened st ∧ opened st'`) happens at most once per `(i, s)` — `Conductor.orchestratorSafety` |
-| Integrity, "not before `s.deadline − Δ`" | `integrity_timing` | upper level, state-shaped | Conductor `safety [opened_after_start]` — proven inside `Conductor.orchestrator_of_residual` |
+| Integrity, "not before `s.deadline − Δ`" | `integrity_timing` | safety | first-order and proven by the Conductor (`safety [opened_after_start]`), so it sits in the fragment — which is why the fragment carries `time` — `Conductor.orchestratorSafety` |
 | Monotonicity | `monotonicity` | safety | Conductor `invariant [open_local_order]` + the `open_slot` guard — `Conductor.orchestratorSafety` |
 | Totality + Integrity + Monotonicity, safety residue | `open_prefix_agreement` | safety | Conductor `safety [open_prefix_agreement]` — `Conductor.orchestratorSafety` |
-| `B`-Boundedness | `boundedness`, `bound` | upper level, state-shaped | **residual**: the interval form is Conductor `safety [bounded_tail]`; the count `B = 2W − p` needs window widths, which the model keeps meta |
-| `R`-Recovery | `recovery`, `recovery_time` | temporal | **residual**: `prop:smooth-windows`, `prop:first-post-gst-window-time`, the four parameter assumptions |
+| `B`-Boundedness | `boundedness`, `bound` | temporal (quantifies over `Fin bound → slot`) | **not proven**: the interval form is Conductor `safety [bounded_tail]`; the count `B = 2W − p` needs window widths, which the model keeps meta |
+| `R`-Recovery | `recovery`, `recovery_time` | temporal | **not proven**: `prop:smooth-windows`, `prop:first-post-gst-window-time`, the four parameter assumptions |
 
 ### `open_prefix_agreement` — the safety residue of Totality + Monotonicity
 
@@ -420,28 +474,30 @@ without opening it, `s'` is never opened by `j`, hence — by this field — by
 no correct validator. -/
 
 /-- The state-level fragment of `mod:orchestrator_2`. This is what the
-`Cadence` glue module instantiates. -/
-class OrchestratorSafety (validator slot state : Type) [ord : TotalOrder slot]
-    (byz : validator → Prop) where
-  init : state → Prop
-  /-- Internal (module-driven) transitions — those that may produce `open`
-      outputs. -/
-  step : state → state → Prop
+`Cadence` glue module instantiates.
+
+It carries `time`, `clock` and `start_time` — not because the glue reasons
+about time (it does not) but because Integrity's second half is a
+first-order fact about a reachable state that the Conductor *proves*, and
+the placement rule puts such a property in the fragment. The glue therefore
+declares a phantom `time` sort with its order and never mentions it again;
+the paper's orchestrator interface does speak of starting times, so the sort
+is honest rather than an artefact. -/
+class OrchestratorSafety (validator slot state time : Type) [ord : TotalOrder slot]
+    [tord : TotalOrder time] (byz : validator → Prop)
+    extends TransitionSystemSafety state where
   /-- Input `complete(s)` at validator `i`. -/
   complete : state → validator → slot → state → Prop
-  /-- Any transition: internal steps and inputs. -/
-  trans : state → state → Prop
-  reachable : state → Prop
-
-  step_trans : ∀ st st', step st st' → trans st st'
   complete_trans : ∀ st i s st', complete st i s st' → trans st st'
-  reachable_init : ∀ st, init st → reachable st
-  reachable_trans : ∀ st st', reachable st → trans st st' → reachable st'
 
   /-- Output `open(s)`: the orchestrator has output `open(s)` at validator `i`. -/
   opened : state → validator → slot → Prop
   /-- Input record: validator `i` has input `complete(s)`. -/
   completed : state → validator → slot → Prop
+  /-- The module's clock, read off its state (Conductor's `now`). -/
+  clock : state → time
+  /-- The slot's starting time `s.deadline − Δ`. -/
+  start_time : slot → time
 
   /-- **Integrity, first half.** An `open(s)` output stands; hence the event
       happens at most once per `(i, s)`. -/
@@ -458,6 +514,10 @@ class OrchestratorSafety (validator slot state : Type) [ord : TotalOrder slot]
   init_opened : ∀ st i s, init st → ¬ opened st i s
   init_completed : ∀ st i s, init st → ¬ completed st i s
 
+  /-- **Integrity, second half** — no slot is opened before its starting
+      time. -/
+  integrity_timing : ∀ st, reachable st → ∀ i s,
+    ¬ byz i → opened st i s → TotalOrder.le (start_time s) (clock st)
   /-- **Monotonicity** — a correct validator opens slots in increasing order;
       state-level form: a slot below an opened slot that is not opened is
       never opened. -/
@@ -469,45 +529,45 @@ class OrchestratorSafety (validator slot state : Type) [ord : TotalOrder slot]
     ¬ byz i → ¬ byz j → opened st i s' → opened st j s → ord.le s' s → s' ≠ s →
     opened st j s'
 
-/-- `mod:orchestrator_2` in full. -/
-class Orchestrator (validator slot state time : Type) [ord : TotalOrder slot]
+/-- The temporal level of `mod:orchestrator_2`, over a safety instance `S`. -/
+class OrchestratorTemporal (validator slot state time : Type) [ord : TotalOrder slot]
     [TotalOrder time] [Add time] (byz : validator → Prop)
-    extends OrchestratorSafety validator slot state byz where
-  /-- The module's clock, read off its state (Conductor's `now`). -/
-  clock : state → time
-  /-- The slot's starting time `s.deadline − Δ`. -/
-  start_time : slot → time
+    [S : OrchestratorSafety validator slot state time byz] where
   /-- The executions under which the temporal guarantees hold, defined by the
       implementation (see the file header). -/
-  Admissible : TimedRun state time init trans clock → Prop
-  admissible_exists : ∀ st, init st →
-    ∃ r : TimedRun state time init trans clock, Admissible r ∧ r.at' 0 = st
+  Admissible : TimedRun state time S.init S.trans S.clock → Prop
+  admissible_exists : ∀ st, S.init st →
+    ∃ r : TimedRun state time S.init S.trans S.clock, Admissible r ∧ r.at' 0 = st
 
-  /-- **Integrity, second half** — no slot is opened before its starting time. -/
-  integrity_timing : ∀ st, reachable st → ∀ i s,
-    ¬ byz i → opened st i s → TotalOrder.le (start_time s) (clock st)
   /-- **Totality** — if some correct validator opens `s`, every correct
       validator eventually opens `s`. -/
-  totality : ∀ (r : TimedRun state time init trans clock), Admissible r →
+  totality : ∀ (r : TimedRun state time S.init S.trans S.clock), Admissible r →
     ∀ i j s, ¬ byz i → ¬ byz j →
-      r.eventually (fun st => opened st i s) → r.eventually (fun st => opened st j s)
+      r.eventually (fun st => S.opened st i s) → r.eventually (fun st => S.opened st j s)
   /-- The bound `B` (`2W − p` for Conductor). -/
   bound : Nat
   /-- **`B`-Boundedness** — an opened-but-uncompleted slot of a correct
       validator has fewer than `B` opened slots above it; equivalently (the
       paper's form) if `p_i` has opened `k` slots `s_1 < … < s_k`, every `s_j`
       with `j ≤ k − B` is completed. -/
-  boundedness : ∀ st, reachable st → ∀ i s, ¬ byz i → opened st i s → ¬ completed st i s →
+  boundedness : ∀ st, S.reachable st → ∀ i s, ¬ byz i → S.opened st i s →
+    ¬ S.completed st i s →
     ¬ ∃ f : Fin bound → slot, Function.Injective f ∧
-      ∀ k, opened st i (f k) ∧ ord.le s (f k) ∧ s ≠ f k
+      ∀ k, S.opened st i (f k) ∧ ord.le s (f k) ∧ s ≠ f k
   /-- The recovery time `R` (`2Wτ` for Conductor). -/
   recovery_time : time
   /-- **`R`-Recovery** — every slot whose starting time is at least `R` after
       `gst` is opened by every correct validator, and no later than its
       starting time (with `integrity_timing`: exactly then). -/
-  recovery : ∀ (r : TimedRun state time init trans clock), Admissible r →
-    ∀ s, TotalOrder.le (r.gst + recovery_time) (start_time s) →
-    ∀ i, ¬ byz i → r.byTime (start_time s) (fun st => opened st i s)
+  recovery : ∀ (r : TimedRun state time S.init S.trans S.clock), Admissible r →
+    ∀ s, TotalOrder.le (r.gst + recovery_time) (S.start_time s) →
+    ∀ i, ¬ byz i → r.byTime (S.start_time s) (fun st => S.opened st i s)
+
+/-- `mod:orchestrator_2` in full. -/
+class Orchestrator (validator slot state time : Type) [ord : TotalOrder slot]
+    [TotalOrder time] [Add time] (byz : validator → Prop) extends
+    OrchestratorSafety validator slot state time byz,
+    OrchestratorTemporal validator slot state time byz
 
 /-! ## Agreement on a Core Set (`mod:acs`)
 
@@ -542,18 +602,11 @@ fragment, so the bridge is a stated `require`, not a derivation).
 
 /-- The state-level fragment of `mod:acs`. This is what the `Conductor`
 module instantiates. -/
-class ACSSafety (validator slot state : Type) (byz : validator → Prop) where
-  init : state → Prop
-  step : state → state → Prop
+class ACSSafety (validator slot state : Type) (byz : validator → Prop)
+    extends TransitionSystemSafety state where
   /-- Input `propose(s)` by validator `p`. -/
   propose : state → validator → slot → state → Prop
-  trans : state → state → Prop
-  reachable : state → Prop
-
-  step_trans : ∀ st st', step st st' → trans st st'
   propose_trans : ∀ st p s st', propose st p s st' → trans st st'
-  reachable_init : ∀ st, init st → reachable st
-  reachable_trans : ∀ st st', reachable st → trans st st' → reachable st'
 
   /-- `p` has proposed slot `s`. -/
   proposed : state → validator → slot → Prop
@@ -591,65 +644,74 @@ class ACSSafety (validator slot state : Type) (byz : validator → Prop) where
   integrity : ∀ st, reachable st → ∀ i,
     ¬ byz i → has_decided st i → ∃ s, proposed st i s
 
-/-- `mod:acs` in full. -/
-class ACS (validator slot state time message : Type) [TotalOrder time] [Add time]
-    (byz : validator → Prop)
-    extends ACSSafety validator slot state byz where
+/-- The temporal level of `mod:acs`, over a safety instance `S`. -/
+class ACSTemporal (validator slot state time message : Type)
+    [TotalOrder time] [Add time] (byz : validator → Prop)
+    [S : ACSSafety validator slot state byz] where
   /-- Input `abandon()` at validator `i`. -/
   abandon : state → validator → state → Prop
-  abandon_trans : ∀ st i st', abandon st i st' → trans st st'
+  abandon_trans : ∀ st i st', abandon st i st' → S.trans st st'
   abandoned : state → validator → Prop
   sent : state → validator → message → Prop
-  abandoned_mono : ∀ st st' i, trans st st' → abandoned st i → abandoned st' i
-  sent_mono : ∀ st st' i m, trans st st' → sent st i m → sent st' i m
+  abandoned_mono : ∀ st st' i, S.trans st st' → abandoned st i → abandoned st' i
+  sent_mono : ∀ st st' i m, S.trans st st' → sent st i m → sent st' i m
   abandon_effect : ∀ st i st', abandon st i st' → abandoned st' i
-  abandoned_step_frame : ∀ st st' i, step st st' → ¬ byz i → (abandoned st' i ↔ abandoned st i)
-  init_abandoned : ∀ st i, init st → ¬ abandoned st i
+  abandoned_step_frame : ∀ st st' i, S.step st st' → ¬ byz i →
+    (abandoned st' i ↔ abandoned st i)
+  init_abandoned : ∀ st i, S.init st → ¬ abandoned st i
 
   clock : state → time
-  Admissible : TimedRun state time init trans clock → Prop
-  admissible_exists : ∀ st, init st →
-    ∃ r : TimedRun state time init trans clock, Admissible r ∧ r.at' 0 = st
+  Admissible : TimedRun state time S.init S.trans clock → Prop
+  admissible_exists : ∀ st, S.init st →
+    ∃ r : TimedRun state time S.init S.trans clock, Admissible r ∧ r.at' 0 = st
 
   /-- The resilience parameter `f` (at most `f` Byzantine validators). -/
   fault_bound : Nat
   /-- **Validity, quantitative half** — a correct validator's decided set has
       at least `2f + 1` pairs. -/
-  validity_quantitative : ∀ st, reachable st → ∀ i, ¬ byz i → has_decided st i →
+  validity_quantitative : ∀ st, S.reachable st → ∀ i, ¬ byz i → S.has_decided st i →
     ∃ g : Fin (2 * fault_bound + 1) → validator × slot,
-      Function.Injective g ∧ ∀ k, decided st i (g k).1 (g k).2
+      Function.Injective g ∧ ∀ k, S.decided st i (g k).1 (g k).2
 
   Δ : time
   ℓ : time
   /-- The module's first assumption, **Δ-synchronized proposals**: if a correct
       validator proposes at `t`, every correct validator proposes by
       `max(t, GST) + Δ`. -/
-  SyncProposals : TimedRun state time init trans clock → Prop
-  syncProposals_def : ∀ r : TimedRun state time init trans clock, SyncProposals r ↔
-    ∀ n p s, ¬ byz p → proposed (r.at' n) p s →
-      ∀ q, ¬ byz q → r.byGstBound (clock (r.at' n)) Δ (fun st => ∃ s', proposed st q s')
+  SyncProposals : TimedRun state time S.init S.trans clock → Prop
+  syncProposals_def : ∀ r : TimedRun state time S.init S.trans clock, SyncProposals r ↔
+    ∀ n p s, ¬ byz p → S.proposed (r.at' n) p s →
+      ∀ q, ¬ byz q → r.byGstBound (clock (r.at' n)) Δ (fun st => ∃ s', S.proposed st q s')
   /-- The module's second assumption, **no premature abandonment**: a correct
       validator that has proposed does not abandon before deciding. -/
-  NoPrematureAbandon : TimedRun state time init trans clock → Prop
-  noPrematureAbandon_def : ∀ r : TimedRun state time init trans clock, NoPrematureAbandon r ↔
-    ∀ n i, ¬ byz i → abandoned (r.at' n) i → has_decided (r.at' n) i
+  NoPrematureAbandon : TimedRun state time S.init S.trans clock → Prop
+  noPrematureAbandon_def : ∀ r : TimedRun state time S.init S.trans clock,
+    NoPrematureAbandon r ↔
+      ∀ n i, ¬ byz i → abandoned (r.at' n) i → S.has_decided (r.at' n) i
   /-- **ℓ-Termination** — under the two assumptions: if all correct validators
       propose by `t`, every correct validator decides by `max(t, GST) + ℓ`. -/
-  termination : ∀ r : TimedRun state time init trans clock,
+  termination : ∀ r : TimedRun state time S.init S.trans clock,
     Admissible r → SyncProposals r → NoPrematureAbandon r →
-    ∀ t, (∀ i, ¬ byz i → r.byTime t (fun st => ∃ s, proposed st i s)) →
-    ∀ j, ¬ byz j → r.byGstBound t ℓ (fun st => has_decided st j)
+    ∀ t, (∀ i, ¬ byz i → r.byTime t (fun st => ∃ s, S.proposed st i s)) →
+    ∀ j, ¬ byz j → r.byGstBound t ℓ (fun st => S.has_decided st j)
   /-- **Δ-Totality** — under the two assumptions: if a correct validator
       decides at `t`, all correct validators decide by `max(t, GST) + Δ`. -/
-  totality : ∀ r : TimedRun state time init trans clock,
+  totality : ∀ r : TimedRun state time S.init S.trans clock,
     Admissible r → SyncProposals r → NoPrematureAbandon r →
-    ∀ n i, ¬ byz i → has_decided (r.at' n) i →
-    ∀ j, ¬ byz j → r.byGstBound (clock (r.at' n)) Δ (fun st => has_decided st j)
+    ∀ n i, ¬ byz i → S.has_decided (r.at' n) i →
+    ∀ j, ¬ byz j → r.byGstBound (clock (r.at' n)) Δ (fun st => S.has_decided st j)
   /-- **Quiescence** — no protocol message before proposing or after
-      abandoning. -/
-  quiescence : ∀ r : TimedRun state time init trans clock, Admissible r →
-    ∀ n i m, ¬ byz i → sent (r.at' (n + 1)) i m → ¬ sent (r.at' n) i m →
-      (∃ s, proposed (r.at' (n + 1)) i s) ∧ ¬ abandoned (r.at' n) i
+      abandoning. Stated in one-step form, over a transition, as in the other
+      three contracts. -/
+  quiescence : ∀ st st' i m, S.trans st st' → ¬ byz i →
+    sent st' i m → ¬ sent st i m →
+      (∃ s, S.proposed st' i s) ∧ ¬ abandoned st i
+
+/-- `mod:acs` in full. -/
+class ACS (validator slot state time message : Type) [TotalOrder time] [Add time]
+    (byz : validator → Prop) extends
+    ACSSafety validator slot state byz,
+    ACSTemporal validator slot state time message byz
 
 /-! ## Multi-Value Byzantine Agreement (`mod:mvba`)
 
@@ -664,10 +726,10 @@ paper-repository commit in that file's header; `docs/MvbaPlan.md` §0 says
 what that referent is and is not — with `value` the entry vector and
 `Valid` the model's immutable `valid`. The instance is `Mvba.mvbaSafety`
 ([`Mvba/Compose.lean`](./Mvba/Compose.lean)), every field of the fragment
-proven; `Mvba.mvba_of_residual` proves that the residual
-`Mvba.MvbaResidual` — the clock, the admissible-run model, `ℓ` and
-Termination — is all the full class still owes, the upper level's inputs,
-observables and Quiescence being discharged from the transition bodies.
+proven — the inputs, their observables, the frames and one-step Quiescence
+included, which is why they sit in the fragment. What the full class still
+owes is exactly `MVBATemporal`: the clock, the admissible-run model, `ℓ` and
+Termination.
 
 **Chorus does not yet consume this class as a constraint** — alone among
 the consumers it inlines the oracle's properties as guards of its
@@ -693,25 +755,49 @@ section.
 | Agreement | `agreement` | safety | Mvba `safety [agreement]` — `Mvba.mvbaSafety` |
 | Integrity (decides at most once) | `integrity` | safety | Mvba `safety [integrity]` — `Mvba.mvbaSafety` |
 | External validity | `external_validity` | safety | Mvba `safety [external_validity]` — `Mvba.mvbaSafety` |
-| `ℓ_MVBA`-Termination | `termination`, `ℓ` | temporal | **residual** (`Mvba.MvbaResidual`): the supplement's `thm:termination`, `O(fΔ)`; the model is untimed (`docs/MvbaPlan.md` §3) |
-| Quiescence | `quiescence` | temporal | proven in `Mvba.mvba_of_residual` from the transition bodies (`sent_new_tr`: every honest send requires the input and `¬ abandoned`) | -/
+| `ℓ_MVBA`-Termination | `termination`, `ℓ` | temporal | **not proven**: the supplement's `thm:termination`, `O(fΔ)`; the model is untimed (`docs/MvbaPlan.md` §3) |
+| Quiescence | `quiescence` | safety (one-step form) | Mvba, from the transition bodies (`sent_new_tr`: every honest send requires the input and `¬ abandoned`) — `Mvba.mvbaSafety` | -/
 
 /-- The state-level fragment of `mod:mvba`. -/
-class MVBASafety (party value state : Type) (byz : party → Prop) where
+class MVBASafety (party value message state : Type) (byz : party → Prop)
+    extends TransitionSystemSafety state where
   /-- The publicly verifiable validity predicate. -/
   Valid : value → Prop
-  init : state → Prop
-  step : state → state → Prop
-  trans : state → state → Prop
-  reachable : state → Prop
-  step_trans : ∀ st st', step st st' → trans st st'
-  reachable_init : ∀ st, init st → reachable st
-  reachable_trans : ∀ st st', reachable st → trans st st' → reachable st'
+
+  /-- Input `propose(v)` by party `p` (`Valid v` is the caller's obligation). -/
+  propose : state → party → value → state → Prop
+  /-- Input `abandon()` at party `p`. -/
+  abandon : state → party → state → Prop
+  propose_trans : ∀ st p v st', propose st p v st' → trans st st'
+  abandon_trans : ∀ st p st', abandon st p st' → trans st st'
 
   /-- Output `decide(v)`: `p` has decided `v`. -/
   decided : state → party → value → Prop
+  proposed : state → party → value → Prop
+  abandoned : state → party → Prop
+  /-- `p` has sent protocol message `m`. -/
+  sent : state → party → message → Prop
+
   decided_mono : ∀ st st' p v, trans st st' → decided st p v → decided st' p v
+  proposed_mono : ∀ st st' p v, trans st st' → proposed st p v → proposed st' p v
+  abandoned_mono : ∀ st st' p, trans st st' → abandoned st p → abandoned st' p
+  sent_mono : ∀ st st' p m, trans st st' → sent st p m → sent st' p m
+  propose_effect : ∀ st p v st', propose st p v st' → proposed st' p v
+  abandon_effect : ∀ st p st', abandon st p st' → abandoned st' p
+  proposed_step_frame : ∀ st st' p v, step st st' → ¬ byz p →
+    (proposed st' p v ↔ proposed st p v)
+  abandoned_step_frame : ∀ st st' p, step st st' → ¬ byz p →
+    (abandoned st' p ↔ abandoned st p)
   init_decided : ∀ st p v, init st → ¬ decided st p v
+  init_proposed : ∀ st p v, init st → ¬ proposed st p v
+  init_abandoned : ∀ st p, init st → ¬ abandoned st p
+
+  /-- **Quiescence** — no protocol message before proposing or after
+      abandoning. First-order in one-step form, and proven by `Mvba`
+      (`sent_new_tr`), so it sits in the fragment. -/
+  quiescence : ∀ st st' p m, trans st st' → ¬ byz p →
+    sent st' p m → ¬ sent st p m →
+      (∃ v, proposed st' p v) ∧ ¬ abandoned st p
 
   /-- **Agreement** — correct parties that decide, decide the same value. -/
   agreement : ∀ st, reachable st → ∀ p q v v',
@@ -724,47 +810,32 @@ class MVBASafety (party value state : Type) (byz : party → Prop) where
   external_validity : ∀ st, reachable st → ∀ p v,
     ¬ byz p → decided st p v → Valid v
 
-/-- `mod:mvba` in full. -/
-class MVBA (party value state time message : Type) [TotalOrder time] [Add time]
-    (byz : party → Prop)
-    extends MVBASafety party value state byz where
-  /-- Input `propose(v)` by party `p` (`Valid v` is the caller's obligation). -/
-  propose : state → party → value → state → Prop
-  /-- Input `abandon()` at party `p`. -/
-  abandon : state → party → state → Prop
-  propose_trans : ∀ st p v st', propose st p v st' → trans st st'
-  abandon_trans : ∀ st p st', abandon st p st' → trans st st'
-  proposed : state → party → value → Prop
-  abandoned : state → party → Prop
-  sent : state → party → message → Prop
-  proposed_mono : ∀ st st' p v, trans st st' → proposed st p v → proposed st' p v
-  abandoned_mono : ∀ st st' p, trans st st' → abandoned st p → abandoned st' p
-  sent_mono : ∀ st st' p m, trans st st' → sent st p m → sent st' p m
-  propose_effect : ∀ st p v st', propose st p v st' → proposed st' p v
-  abandon_effect : ∀ st p st', abandon st p st' → abandoned st' p
-  proposed_step_frame : ∀ st st' p v, step st st' → ¬ byz p → (proposed st' p v ↔ proposed st p v)
-  abandoned_step_frame : ∀ st st' p, step st st' → ¬ byz p → (abandoned st' p ↔ abandoned st p)
-  init_proposed : ∀ st p v, init st → ¬ proposed st p v
-  init_abandoned : ∀ st p, init st → ¬ abandoned st p
-
+/-- The temporal level of `mod:mvba`, over a safety instance `S`. With the
+inputs, their observables, the frames and Quiescence all in the fragment —
+`Mvba` proves every one of them — this level is exactly the clock, the
+admissible-run model, `ℓ` and Termination. -/
+class MVBATemporal (party value message state time : Type)
+    [TotalOrder time] [Add time] (byz : party → Prop)
+    [S : MVBASafety party value message state byz] where
   clock : state → time
-  Admissible : TimedRun state time init trans clock → Prop
-  admissible_exists : ∀ st, init st →
-    ∃ r : TimedRun state time init trans clock, Admissible r ∧ r.at' 0 = st
+  Admissible : TimedRun state time S.init S.trans clock → Prop
+  admissible_exists : ∀ st, S.init st →
+    ∃ r : TimedRun state time S.init S.trans clock, Admissible r ∧ r.at' 0 = st
 
   ℓ : time
   /-- **ℓ_MVBA-Termination** — if all correct parties propose by `t` and no
       correct party abandons before `max(t, GST) + ℓ`, every correct party
       decides by `max(t, GST) + ℓ`. -/
-  termination : ∀ r : TimedRun state time init trans clock, Admissible r →
-    ∀ t, (∀ p, ¬ byz p → r.byTime t (fun st => ∃ v, proposed st p v)) →
-    (∀ p, ¬ byz p → ∀ n, abandoned (r.at' n) p →
+  termination : ∀ r : TimedRun state time S.init S.trans clock, Admissible r →
+    ∀ t, (∀ p, ¬ byz p → r.byTime t (fun st => ∃ v, S.proposed st p v)) →
+    (∀ p, ¬ byz p → ∀ n, S.abandoned (r.at' n) p →
       ∃ u, TotalOrder.le t u ∧ TotalOrder.le r.gst u ∧
         (∀ u', TotalOrder.le t u' → TotalOrder.le r.gst u' → TotalOrder.le u u') ∧
         ¬ TotalOrder.le (clock (r.at' n)) (u + ℓ)) →
-    ∀ q, ¬ byz q → r.byGstBound t ℓ (fun st => ∃ v, decided st q v)
-  /-- **Quiescence** — no protocol message before proposing or after
-      abandoning. -/
-  quiescence : ∀ r : TimedRun state time init trans clock, Admissible r →
-    ∀ n p m, ¬ byz p → sent (r.at' (n + 1)) p m → ¬ sent (r.at' n) p m →
-      (∃ v, proposed (r.at' (n + 1)) p v) ∧ ¬ abandoned (r.at' n) p
+    ∀ q, ¬ byz q → r.byGstBound t ℓ (fun st => ∃ v, S.decided st q v)
+
+/-- `mod:mvba` in full. -/
+class MVBA (party value message state time : Type) [TotalOrder time] [Add time]
+    (byz : party → Prop) extends
+    MVBASafety party value message state byz,
+    MVBATemporal party value message state time byz
