@@ -89,7 +89,7 @@ changes the model:
 the module contracts are two-level type classes over an explicit abstract
 state; the glue and the Conductor consume the `…Safety` fragments as class
 constraints; `Conductor.orchestratorSafety` and `Chorus.slotConsensusSafety`
-are proven field for field; the unproven temporal obligations are residual
+are proven field for field; the unproven temporal obligations are class
 structures type-checked against the full classes; and
 `Cadence.system_positional_log_safety` composes MCP Safety with no contract
 hypothesis left. The MVBA already has its two classes:
@@ -176,7 +176,7 @@ model file `Cadence/Mvba.lean` (registry, no sweep) importing `Veil` and
 `Cadence.Tooling` only; `Cadence/Mvba/Proofs/<Action>.lean`;
 `Cadence/Mvba/Certify.lean` with the `#veil_status Mvba` pin;
 `Cadence/Mvba/Compose.lean` (the only file importing `Interfaces.lean`)
-with the instance, the residual and the axiom pins; rows and pins in
+with the instance, the join toward the full class and the axiom pins; rows and pins in
 [`Cadence.lean`](../Cadence.lean). Nothing imports `Chorus.lean`, so steps
 1–5 of §8 never rebuild the Chorus family. The model shares Chorus's `node`
 / `nodeset` / `ByzNodeSet` vocabulary so that the system composition needs
@@ -257,7 +257,7 @@ actions; parameter lists stay well under ten.
 * **`abandon` is modelled**, unlike in Chorus: a monotone flag that every
   honest send requires to be unset, and `propose` is the `input` record.
   Cheap, and it is what lets the provider prove the class's input fields
-  and Quiescence (§5) instead of leaving them residual.
+  and Quiescence (§5) instead of leaving them unproven.
 * **Integrity by construction.** `decide` requires `¬ ∃ e', decided i e'`.
 * **The leader's `Recover(lock(J))`** is the lock's entries themselves
   (§1.2).
@@ -398,7 +398,7 @@ meta-level and never reach the SMT layer, and they speak about *firing given
 enabledness*, not about enabledness being reachable at all — which is what
 vacuity asks. The machine-checked non-vacuity evidence is instruments 1–3.
 
-## 5. The provider: `Mvba ⊨ MVBASafety`, and the residual
+## 5. The provider: `Mvba ⊨ MVBASafety`, and the join toward `MVBA`
 
 `Mvba.mvbaSafety th : MVBASafety node value (Mvba.State …) (fun i =>
 nset.is_byz i = true)` in `Cadence/Mvba/Compose.lean`, on the pattern of
@@ -412,17 +412,19 @@ nset.is_byz i = true)` in `Cadence/Mvba/Compose.lean`, on the pattern of
 | `decided_mono`, `init_decided` | the step-facts technique over every action (`mvba_tr` / `mvba_field_simp`, one tactic line each — `CompositionContracts.md` §4) |
 | `agreement`, `integrity`, `external_validity` | the named `reachable_<property>` projections of `Certify.lean` |
 
-**The residual is smaller than Chorus's, and Quiescence may leave it.**
+**What is left unproven is smaller than for Chorus, and Quiescence left it.**
 Because the model has `propose` and `abandon`, the upper class's inputs,
 observables, effects, frames and initial conditions are *provable*, not
-residual: `propose := propose i e`'s transition, `proposed := input i e`,
+unproven: `propose := propose i e`'s transition, `proposed := input i e`,
 `abandoned := abandoned i`, `sent st p m` by cases on a `Mvba.Msg` inductive
 over the `msg_*` rows. Quiescence is then a *two-state* fact — a correct
 party's new `sent` row at step `n` implies `input` by `n+1` and `¬ abandoned`
 at `n` — which is exactly the shape the step-facts technique proves. What
-must stay residual is `clock`, `Admissible`, `admissible_exists`, `ℓ` and
-`termination`: `Mvba.MvbaResidual` with `mvba_of_residual : MvbaResidual →
-MVBA …`, the first residual in the development with no safety-shaped field.
+must stay unproven is `clock`, `Admissible`, `admissible_exists`, `ℓ` and
+`termination`: the fields of `MVBATemporal`, joined to the fragment by
+`mvba_of_temporal`. Since 2026-09-09 the inputs, their observables, the
+frames and one-step Quiescence sit in `MVBASafety` itself, so nothing
+safety-shaped is left at the temporal level.
 *Landed as predicted (2026-09-08; step 5 below).* One consumer-facing
 detail worth knowing for step 6: the instance's `step` is the model's
 transitions *other than* `propose` and `abandon` (the upper class's frame
@@ -435,13 +437,18 @@ fields demand it), so a consumer that advances the abstract state only by
 This is the step that changes every Chorus verification condition. The
 edit, concretely:
 
-* `instantiate mvba : MVBASafety node (node → Option merkle_root) mstate
-  (fun i => nset.is_byz i = true)` after `nset`, with `type mstate`; then
+* `instantiate mvba : MVBASafety node (node → Option merkle_root) mmsg
+  mstate (fun i => nset.is_byz i = true)` after `nset`, with `type mstate`
+  and `type mmsg` (the fragment carries the module's message type since
+  2026-09-09, because Quiescence moved into it); then
   `individual mvba_st : mstate`. Spike first that a later `instantiate` can
   take `nset.is_byz i = true` as the `byz` argument (spike 05 established
   the analogous `fm.byz` projection).
 * An oracle action `mvba_step (mvba_next : mstate)` — `require mvba.step
-  mvba_st mvba_next` — replaces the three oracle actions.
+  mvba_st mvba_next` — replaces the three oracle actions. The `propose` /
+  `abandon` **input** transitions Chorus needs to drive are in the fragment
+  too (also since 2026-09-09), so the consumer no longer needs the full
+  class for them.
 * A handler `on_mvba_decide (i j m …)` transports a **correct** validator's
   decision entry into Chorus's own records: it reads `mvba.decided mvba_st
   i v` with `v j = some m` (or `none`), keeps Chorus's own guards
@@ -537,10 +544,10 @@ Each step names its exit criterion and what it costs to rebuild.
    `agreement` violated in about a minute and a half of search. The
    checker's `compiled` mode returns without waiting outside an editor and
    is unusable for a build-time pin. Details in the file's header.*
-5. **Provider** (§5): `Mvba.mvbaSafety`, the residual, `mvba_of_residual`,
+5. **Provider** (§5): `Mvba.mvbaSafety`, `mvba_of_temporal`,
    axiom pins. Exit: `Cadence.lean` pins the new declarations at the
    standard trio. *Done 2026-09-08 (`Cadence/Mvba/Compose.lean`): every
-   field of `MVBASafety` discharged; the residual is exactly the five
+   field of `MVBASafety` discharged; what is left is exactly the five
    timed fields §5 predicted (`clock`, `Admissible`, `admissible_exists`,
    `ℓ`, `termination`), and Quiescence is proven as the one-step fact
    `sent_new_tr`. One model edit was needed for that: `leader_repropose`

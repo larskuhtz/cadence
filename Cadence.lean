@@ -50,14 +50,14 @@ complete inventory of what is **not** in Lean is
 |---|---|---|
 | `Chorus.invariants_of_reachable` | `Cadence/Chorus/Certify.lean` | every reachable state of the per-slot consensus satisfies all 98 declared safety properties and invariants |
 | `Chorus.slotConsensusSafety` | `Cadence/Chorus/Compose.lean` | Chorus ⊨ `SlotConsensusSafety` — the state-level fragment of the paper's per-slot module contract (agreement, slot safety, proposal inclusion, and the monotonicity of finalization), for every slot's copy of the model; this is the object the glue consumes as its `sc` constraint |
-| `Chorus.slotConsensus_of_residual` | `Cadence/Chorus/Compose.lean` | given `Chorus.SlotConsensusResidual` — the participation interface, the admissible-run model, Termination and Quiescence, stated over Chorus's transition system — Chorus is a full `SlotConsensus`; Hiding's protocol half is discharged on the way. The residual's fields are the formal statement of what is *not* proven about Chorus as a slot consensus |
+| `Chorus.slotConsensus_of_temporal` | `Cadence/Chorus/Compose.lean` | given an instance of `SlotConsensusTemporal` **at the proven fragment** — the participation interface, the admissible-run model, Termination and Quiescence — Chorus is a full `SlotConsensus`. This development has no such instance, and that is the statement of what is *not* proven about Chorus as a slot consensus: the class's own fields, over Chorus's own transition system, restated nowhere. Hiding's protocol half is first-order and is proven in the fragment |
 | `Chorus.evidence_pigeonhole_of_reachable` | `Cadence/Chorus/Pigeonhole.lean` | `2f+1` honest fallback entries always yield certified per-proposer evidence, for **every** `n = 3f+1` (the counting step of the fallback liveness branch) |
 | `Chorus.fbcert_of_honest_fallback_votes`, `Chorus.fbcommitqc_of_honest_commit_votes` | `Cadence/Chorus/Counting.lean` | certificate formation: once every honest validator has cast its fallback (resp. fallback commit) vote, `FBCert` (resp. `fbCommitQC`) exists — the honest population is itself the quorum, for **every** `n = 3f+1` |
 | `Chorus.commitqc_of_honest_fast_dominant` | `Cadence/Chorus/Counting.lean` | a supermajority of honest fast commit votes yields, per proposer, a commitQC from honest votes alone (the counting step of the fast-dominant liveness branch), for **every** `n = 3f+1` |
 | `Chorus.progress_dichotomy_of_saturation` | `Cadence/Chorus/Progress.lean` | the liveness case split as **one theorem**: in any reachable state where every honest validator has cast its path vote, either commitQCs exist for every proposer from honest votes alone, or the MVBA stands invoked with decide-enabling evidence for every proposer (verbatim the `mvba_decide_*` guards), for **every** `n = 3f+1` |
 | `Chorus.build_totality_of_reachable` | `Cadence/Chorus/Counting.lean` | any supermajority of per-proposer fallback entries — arbitrary honest/Byzantine mix, i.e. a validator's `2f+1` accepted receipts — yields a buildable meta-block entry (FallbackQC or EquivCert) for every proposer: the state-level half of "every correct validator can propose", for **every** `n = 3f+1` |
 | `Conductor.orchestratorSafety` | `Cadence/Composition.lean` | Conductor ⊨ `OrchestratorSafety` — the state-level fragment of the paper's slot-scheduling module contract (open-prefix agreement, Monotonicity, Integrity's at-most-once half, the observables' monotonicity and frames), every field proven from the Conductor's own transition system; the object the glue consumes as its `orch` constraint |
-| `Conductor.orchestrator_of_residual` | `Cadence/Composition.lean` | given `Conductor.OrchestratorResidual` — Totality, `B`-Boundedness, `R`-Recovery and the admissible-run model, stated over the Conductor's transition system — the Conductor is a full `Orchestrator`; Integrity's timing half is discharged on the way. The residual's fields are the formal statement of what is *not* proven about the Conductor as an orchestrator |
+| `Conductor.orchestrator_of_temporal` | `Cadence/Composition.lean` | given an instance of `OrchestratorTemporal` **at the proven fragment** — Totality, `B`-Boundedness, `R`-Recovery and the admissible-run model — the Conductor is a full `Orchestrator`. This development has no such instance, and that is the statement of what is *not* proven about the Conductor as an orchestrator. Integrity's timing half is first-order and is proven in the fragment |
 | `Cadence.positional_log_safety` | `Cadence/Composition.lean` | MCP Safety in the paper's positional form — two correct validators never disagree on the log entry at a given position — for the glue over *any* orchestrator and slot consensus satisfying the two `…Safety` contracts |
 | `Cadence.system_positional_log_safety` | `Cadence/System.lean` | the same, **for the composed system**: the glue running the Conductor's and Chorus's own transition systems. No contract hypothesis remains; what is assumed is the two modules' configurations and that they agree on who is Byzantine |
 | `FallbackReceipt.invariants_of_reachable` | `Cadence/FallbackReceipt/Certify.lean` | every reachable state of the fallback receipt/propose layer satisfies its declared invariants |
@@ -65,7 +65,7 @@ complete inventory of what is **not** in Lean is
 | `Mvba.invariants_of_reachable` | `Cadence/Mvba/Certify.lean` | every reachable state of the leader-based MVBA instantiation (`Cadence/Mvba.lean` — the protocol of the paper repository's *internal supplement*, pinned to a paper-repository commit in the model's header, not yet part of the published paper) satisfies all its declared safety properties and invariants |
 | `Mvba.reachable_agreement`, `Mvba.reachable_integrity`, `Mvba.reachable_external_validity` | `Cadence/Mvba/Certify.lean` | the three safety properties of `mod:mvba` at every reachable state — the supplement's `thm:agreement` at the entries level, integrity (a correct validator decides at most once), `lem:external-validity` |
 | `Mvba.mvbaSafety` | `Cadence/Mvba/Compose.lean` | Mvba ⊨ `MVBASafety` — the state-level fragment of the paper's MVBA module contract (agreement, integrity, external validity, the monotonicity of `decided`), every field proven from the model's own transition system. The object Chorus is scheduled to consume as its `mvba` constraint (`docs/MvbaPlan.md` §6 — not yet done: Chorus still inlines the oracle) |
-| `Mvba.mvba_of_residual` | `Cadence/Mvba/Compose.lean` | given `Mvba.MvbaResidual` — the clock, the admissible-run model and `ℓ_MVBA`-Termination, stated over the Mvba transition system — Mvba is a full `MVBA`; the inputs (`propose`, `abandon`), their observables, effects and frames, and **Quiescence** are discharged on the way. The residual's fields are the formal statement of what is *not* proven about the instantiation; unlike the other two residuals, none of them is safety-shaped |
+| `Mvba.mvba_of_temporal` | `Cadence/Mvba/Compose.lean` | given an instance of `MVBATemporal` **at the proven fragment** — the clock, the admissible-run model and `ℓ_MVBA`-Termination — Mvba is a full `MVBA`. This development has no such instance; those four fields are the whole of what is *not* proven about the instantiation, since the inputs (`propose`, `abandon`), their observables, effects and frames, and **Quiescence** in one-step form are all proven into the fragment. The smallest gap of the three implementations |
 
 Two further build-checked claims are pinned where they are made, because
 their form is not an axiom footprint:
@@ -133,10 +133,10 @@ info: 'Chorus.slotConsensusSafety' depends on axioms: [propext, Classical.choice
 #print axioms Chorus.slotConsensusSafety
 
 /--
-info: 'Chorus.slotConsensus_of_residual' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Chorus.slotConsensus_of_temporal' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Chorus.slotConsensus_of_residual
+#print axioms Chorus.slotConsensus_of_temporal
 
 /--
 info: 'Chorus.evidence_pigeonhole_of_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -181,10 +181,10 @@ info: 'Conductor.orchestratorSafety' depends on axioms: [propext, Classical.choi
 #print axioms Conductor.orchestratorSafety
 
 /--
-info: 'Conductor.orchestrator_of_residual' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Conductor.orchestrator_of_temporal' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Conductor.orchestrator_of_residual
+#print axioms Conductor.orchestrator_of_temporal
 
 /--
 info: 'Cadence.positional_log_safety' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -241,7 +241,7 @@ info: 'Mvba.mvbaSafety' depends on axioms: [propext, Classical.choice, Quot.soun
 #print axioms Mvba.mvbaSafety
 
 /--
-info: 'Mvba.mvba_of_residual' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.mvba_of_temporal' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.mvba_of_residual
+#print axioms Mvba.mvba_of_temporal

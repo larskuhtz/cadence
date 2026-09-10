@@ -66,6 +66,6 @@ exactly the standard axioms. Run `#veil_status Chorus table`
 interactively for the per-cell table (theorem, defining file, per-cell
 axiom set; expect minutes at this scale). -/
 
-/-- info: #veil_status Chorus: 3861/3861 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Chorus: 3899/3899 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Chorus

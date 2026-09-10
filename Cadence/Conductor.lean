@@ -138,17 +138,18 @@ hypotheses.
 
 The machine-checked half of this table is `Conductor.orchestratorSafety`
 ([`Composition.lean`](./Composition.lean)); the rest is
-`Conductor.OrchestratorResidual` there, the same rows as a Lean structure.
+`OrchestratorTemporal` there, the same rows as the fields of a class this
+development supplies no instance of.
 
 | Contract item | Discharged by |
 |---|---|
 | `open_prefix_agreement` | `safety [open_prefix_agreement]` |
 | Integrity "at most once" (`opened_mono`) | `opened` is only ever set, proven action by action from the transition bodies |
-| Integrity "not before starting time" (`integrity_timing`) | `safety [opened_after_start]` (+ synchronized-clocks assumption), inside `orchestrator_of_residual` |
+| Integrity "not before starting time" (`integrity_timing`) | `safety [opened_after_start]` (+ synchronized-clocks assumption); first-order, so it is a field of the *fragment* since 2026-09-09 |
 | Monotonicity (`monotonicity`) | `[open_local_order]` + the `open_slot` guard |
 | the observables' frames (`completed_step_frame`, `complete_frame`, `complete_effect`) | the transition bodies: only `complete_slot` touches `completed`, and only its own pair |
-| `B`-boundedness, `B = 2W − p` | **residual** — `safety [bounded_tail]` is the interval form; the count needs widths the model keeps meta |
-| Totality / `R`-recovery, `R = 2Wτ` | **residual** — Liveness section below |
+| `B`-boundedness, `B = 2W − p` | **unproven** — `safety [bounded_tail]` is the interval form; the count needs widths the model keeps meta |
+| Totality / `R`-recovery, `R = 2Wτ` | **unproven** — Liveness section below |
 -/
 
 veil module Conductor
@@ -742,6 +743,35 @@ statement itself (solver-independent); every hit is re-checked against the
 live goal, and the kernel still checks at every persistence point.
 File-level so the dischargers capture it at `#gen_spec` (§1.9 semantics). -/
 set_option veil.cache.proofs true
+
+/-! ## Step properties — two-state cells, checked per action
+
+Stated for the contract's step-level fields: the two monotonicities (also
+derivable from the update records) and the paper's Monotonicity, which
+needs `[open_local_order]` at the pre-state together with `open_slot`'s
+guard. -/
+step_property [opened_mono] { opened I S → opened' I S }
+step_property [completed_mono] { completed I S → completed' I S }
+step_property [monotonicity] {
+  ∀ (i : node) (s0 s1 : slot),
+    ¬ fm.byz i ∧ opened i s1 ∧ slot_ord.le s0 s1 ∧ s0 ≠ s1 ∧ ¬ opened i s0 →
+    ¬ opened' i s0 }
+
+/- Solver budget for this module's in-file sweep: three times Veil's 60 s
+default, for the same reason the proof files carry it
+(`Cadence/ProofPrelude.lean`) — the budget has to hold on the slowest
+machine that runs cold, which is CI's 4-core runner, not a workstation. On
+2026-09-10 this module's slowest cell, `enter_window × bounded_tail`, ran
+there at 95% of the 60 s budget. It is a *completed* solve, so the remedy
+is the budget; a cell that starts needing minutes is diverging, and that
+wants a manual proof instead.
+
+**File-level, before `#gen_spec`, deliberately.** On the in-file sweep path
+the dischargers capture solver options when the module elaborates its
+specification, so a `set_option … in #check_invariants` further down is
+silently inert — this project shipped exactly that mistake for weeks
+(`docs/History.md`, Build #12). -/
+set_option veil.smt.timeout 180
 
 #gen_spec
 

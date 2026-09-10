@@ -192,7 +192,7 @@ acted on:
    lock), read against paper-repository commit `026dc8b` and pinned to it in
    the model's header, and [`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean)
    discharges `MVBASafety` (`Mvba.mvbaSafety`, every field) and, given the
-   timed residual, the full `MVBA` (`Mvba.mvba_of_residual`) — the class
+   timed level, the full `MVBA` (`Mvba.mvba_of_temporal`) — the class
    lives in [`Interfaces.lean`](../Cadence/Interfaces.lean) since the
    contract composition of 2026-09-04. This is the one model in the
    development whose referent is the supplement rather than the published

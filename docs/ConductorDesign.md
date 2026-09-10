@@ -88,8 +88,9 @@ consumer's verification conditions, never restated as `require`s. The
 module's transitions appear as an oracle step (`orch_step`, `sc_step`,
 `acs_step`: any transition the contract allows) and as the consumer-driven
 input transitions; the paper's liveness and quantitative properties are
-fields of the full class, stated over runs, and each implementation's
-unproven subset is a residual structure. Each module is verified
+fields of the `…Temporal` class over the safety instance, stated over runs,
+and each implementation's unproven subset is exactly the field list of that
+class, of which it has no instance. Each module is verified
 independently against the contract; the instances and the composed theorem
 are §5. (The MVBA inside Chorus is the one consumed sub-protocol still
 inlined as oracle guards — the reason is recorded at the class.)
@@ -114,17 +115,18 @@ fields, not substitutes for them.
   strengthenings (`prop:chorus-totality`, `lemma:chorus-termination`) that
   Conductor's proofs consume (`lemma:conductor-totality`, via
   Φ_oc = ℓ_chorus + d_tot) — and live in `SlotConsensusWithTotality`.
-  Instance: `Chorus.slotConsensusSafety` (§5); residual:
-  `Chorus.SlotConsensusResidual`.
+  Instance: `Chorus.slotConsensusSafety` (§5); no instance of
+  `SlotConsensusTemporal` at it.
 * `ACS` — agreement, genuine validity, integrity, the `propose` input in
   the fragment; quantitative validity, ℓ-termination, Δ-totality,
   quiescence in the full class (`mod:acs`). No instance (standard
   primitive); the Conductor consumes the fragment as its `acs` constraint.
 * `Orchestrator` — open-prefix agreement, Monotonicity, Integrity's
   at-most-once half, the `complete` input in the fragment; Integrity's
-  timing half, totality, B-boundedness, R-recovery in the full class
-  (`mod:orchestrator_2`). Instance: `Conductor.orchestratorSafety`;
-  residual: `Conductor.OrchestratorResidual`.
+  totality, B-boundedness and R-recovery in the temporal class
+  (`mod:orchestrator_2`); Integrity's timing half is first-order and sits in
+  the fragment. Instance: `Conductor.orchestratorSafety`; no instance of
+  `OrchestratorTemporal` at it.
 * `MVBA` — agreement, integrity, external validity in the fragment;
   ℓ_MVBA-termination, quiescence in the full class (`mod:mvba`). No
   instance; Chorus inlines it (see the class for why).
@@ -306,8 +308,9 @@ instance of the fragment. The state-predicate fields are the persisted
 reachable-state theorems, `exact`-level; the two-state fields (monotonicity
 of the observables, frames, the paper's Monotonicity) are proven action by
 action from Veil's pre-computed transition bodies. What each implementation
-does *not* prove of the full contract is its residual structure, with a
-definition that type-checks the residual against the class.
+does *not* prove of the full contract is the field list of the `…Temporal`
+class it supplies no instance of, with a definition (`…_of_temporal`) that
+joins the two levels when one is supplied.
 Trace-level refinement — that the implementation's runs *implement* the
 consumer's oracle steps — remains the `ChorusDesign.md` §10.1 research
 item; here the oracle steps *are* the implementation's transitions, which

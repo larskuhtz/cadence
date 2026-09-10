@@ -43,7 +43,7 @@ Each sub-protocol is a transition system the glue does not see inside:
   by the glue's handlers (`on_finalize` performs `O.complete(s)` through
   `orch.complete`);
 * the glue **reads** the sub-protocols' outputs as observables of the
-  abstract state (`orch.opened os i s`, `sc.finalized s (sc_state s) i v`)
+  abstract state (`orch.opened os i s`, `sc.finalized (sc_state s) i v`)
   and reacts to them in **handlers** (`on_propose`, `on_finalize`, and the
   bookkeeping actions `record_skip`, `append`).
 
@@ -148,7 +148,7 @@ inside the primitives.
 
 ## Slot safety
 
-`sc.finalized s (sc_state s) i v` is the event "`S[s]` finalizes `v` at
+`sc.finalized (sc_state s) i v` is the event "`S[s]` finalizes `v` at
 `i`"; that `v` carries slot `s` is the contract's `slot_safety`, which this
 module never needs — the instance index already says which slot a
 finalization belongs to.
@@ -174,8 +174,19 @@ type proposal
 type ostate
 -- The abstract state of a slot-consensus instance `S[s]` (one per slot).
 type scstate
+-- The orchestrator contract's time. This module never reasons about time and
+-- never mentions this sort again: it is here because Integrity's second half
+-- ("no slot is opened before its starting time") is a first-order fact about
+-- a reachable state that the Conductor *proves*, so it belongs to
+-- `OrchestratorSafety` rather than to the temporal level
+-- (`Interfaces.lean`, the placement rule). The paper's orchestrator
+-- interface does speak of starting times, so the sort is honest; it costs
+-- this module one uninterpreted sort and two uninterpreted functions per
+-- verification condition.
+type time
 
 instantiate slot_ord : TotalOrder slot
+instantiate time_ord : TotalOrder time
 
 /-! ## The contracts
 
@@ -185,7 +196,7 @@ axiom of these classes is available to the solver in every verification
 condition below. -/
 
 instantiate fm : FaultModel node
-instantiate orch : OrchestratorSafety node slot ostate fm.byz
+instantiate orch : OrchestratorSafety node slot ostate time fm.byz
 instantiate sc : SlotConsensusSafety slot node proposal pvector scstate fm.byz
 
 /-! ## Immutable configuration -/
@@ -237,7 +248,16 @@ relation proposed (i : node) (s : slot)
 assumption [orch_init]
   orch.init orch_init_state
 assumption [sc_init]
-  ∀ (s : slot), sc.init s (sc_init_state s)
+  ∀ (s : slot), sc.init (sc_init_state s)
+-- …and the slot-consensus instance held for slot `s` really is the instance
+-- *for* `s`. The contract is unindexed: a slot-consensus state carries the
+-- slot it belongs to as the observable `sc.tag`, and `sc.tag_frame` keeps it
+-- there across transitions (`Interfaces.lean`, "Slot Consensus"). This is
+-- the one place the correspondence between the glue's index and the
+-- contract's tag is stated; `[sc_tagged]` below carries it to every
+-- reachable state, and nothing else in this module mentions `tag`.
+assumption [sc_tag_init]
+  ∀ (s : slot), sc.tag (sc_init_state s) = s
 
 /-! ## Theory -/
 
@@ -253,7 +273,7 @@ ghost relation opened (i : node) (s : slot) := orch.opened os i s
 ghost relation completed (i : node) (s : slot) := orch.completed os i s
 -- `S[s]` has output `finalize(v)` at `i`.
 ghost relation finalized (i : node) (s : slot) (v : pvector) :=
-  sc.finalized s (sc_state s) i v
+  sc.finalized (sc_state s) i v
 -- `i` has invoked `S[s].participate()` (`line:participate`) — issued in
 -- the handler of `open(s)`, hence definitionally the opening.
 ghost relation sc_started (i : node) (s : slot) := opened i s
@@ -304,7 +324,7 @@ Any transition `SlotConsensusSafety.step s` allows — including the ones
 that output `finalize(v)` at some validators. Finalizations stay finalized
 and the contract's agreement and inclusion hold at every reachable state. -/
 action sc_step (s : slot) (sc_next : scstate) {
-  require sc.step s (sc_state s) sc_next
+  require sc.step (sc_state s) sc_next
   sc_state s := sc_next
 }
 
@@ -410,7 +430,7 @@ of every correct proposer for which the synchrony premise holds — both
 sides in the contract's vocabulary. -/
 safety [inclusion_lift]
   ∀ (i j : node) (s : slot) (v : pvector) (p : proposal),
-    ¬ fm.byz i ∧ appended i s v ∧ sc.on_time s (sc_state s) j p →
+    ¬ fm.byz i ∧ appended i s v ∧ sc.on_time (sc_state s) j p →
     sc.includes v j p
 
 /- The state-level reduction of `lemma:cadence-bounded-concurrency`: an
@@ -437,7 +457,15 @@ invariant [orch_reachable]
   orch.reachable os
 
 invariant [sc_reachable]
-  ∀ (s : slot), sc.reachable s (sc_state s)
+  ∀ (s : slot), sc.reachable (sc_state s)
+
+-- The instance held for slot `s` is the instance for `s`, at every reachable
+-- state. Established by `[sc_tag_init]` and preserved by `sc.tag_frame`,
+-- since `sc_step` is the only action that moves a slot-consensus state. It
+-- is what turns the contract's `slot_safety` ("a finalized vector carries
+-- its instance's slot") back into the glue's reading of it ("…carries `s`").
+invariant [sc_tagged]
+  ∀ (s : slot), sc.tag (sc_state s) = s
 
 /-! ## Invariants — contract properties at the glue's states
 
@@ -456,7 +484,7 @@ invariant [finalized_agreement]
 /- `SlotConsensusSafety.proposal_inclusion` at every instance. -/
 invariant [finalized_inclusion]
   ∀ (i j : node) (s : slot) (v : pvector) (p : proposal),
-    ¬ fm.byz i ∧ finalized i s v ∧ sc.on_time s (sc_state s) j p →
+    ¬ fm.byz i ∧ finalized i s v ∧ sc.on_time (sc_state s) j p →
     sc.includes v j p
 
 /- `OrchestratorSafety.open_prefix_agreement` at `os`. -/
@@ -575,13 +603,13 @@ meta-axioms, safety content SMT-discharged. The claim mirrored is
   `.recovery` ([`Interfaces.lean`](./Interfaces.lean)): the orchestrator
   eventually opens, at every honest validator, every slot any honest
   validator opened, and — from `GST + R` on — every upcoming slot.
-  Discharge: residual for the Conductor (`Conductor.OrchestratorResidual`,
+  Discharge: unproven for the Conductor (`OrchestratorTemporal`,
   [`Composition.lean`](./Composition.lean)); the paper's
   `lemma:conductor-totality` and `(2Wτ)`-recovery.
 * **(A-sc-termination)** — `SlotConsensus.termination`: once every honest
   validator participates in `S[s]`, every honest validator's instance
-  eventually finalizes. Discharge: residual for Chorus
-  (`Chorus.SlotConsensusResidual`, [`Chorus/Compose.lean`](./Chorus/Compose.lean));
+  eventually finalizes. Discharge: unproven for Chorus
+  (`SlotConsensusTemporal`, [`Chorus/Compose.lean`](./Chorus/Compose.lean));
   Chorus's fair-progress layer + (A-mvba).
 
 ### The induction (paper's proof of `lemma:cadence-liveness`)
@@ -640,6 +668,22 @@ statement itself (solver-independent); every hit is re-checked against the
 live goal, and the kernel still checks at every persistence point.
 File-level so the dischargers capture it at `#gen_spec` (§1.9 semantics). -/
 set_option veil.cache.proofs true
+
+/- Solver budget for this module's in-file sweep: three times Veil's 60 s
+default, for the same reason the proof files carry it
+(`Cadence/ProofPrelude.lean`) — the budget has to hold on the slowest
+machine that runs cold, which is CI's 4-core runner, not a workstation. On
+2026-09-10 this module's slowest cell, `enter_window × bounded_tail`, ran
+there at 95% of the 60 s budget. It is a *completed* solve, so the remedy
+is the budget; a cell that starts needing minutes is diverging, and that
+wants a manual proof instead.
+
+**File-level, before `#gen_spec`, deliberately.** On the in-file sweep path
+the dischargers capture solver options when the module elaborates its
+specification, so a `set_option … in #check_invariants` further down is
+silently inert — this project shipped exactly that mistake for weeks
+(`docs/History.md`, Build #12). -/
+set_option veil.smt.timeout 180
 
 #gen_spec
 

@@ -9,7 +9,7 @@ about the composition, and — named, in one place — what is not. Implemented
 [`../Cadence/Conductor.lean`](../Cadence/Conductor.lean) (the consumers),
 [`../Cadence/Composition.lean`](../Cadence/Composition.lean) and
 [`../Cadence/Chorus/Compose.lean`](../Cadence/Chorus/Compose.lean) (the
-instances and residuals), and [`../Cadence/System.lean`](../Cadence/System.lean)
+instances and the joins toward the full contracts), and [`../Cadence/System.lean`](../Cadence/System.lean)
 (the composed theorem).*
 
 ## 1. The defect that was fixed
@@ -54,16 +54,27 @@ consuming module. Hence, for each paper module `X`:
 
 | Class | Content | Who uses it |
 |---|---|---|
-| `XSafety` | first-order: `init`, internal `step`, the input transitions the paper's *safety* properties mention, their union `trans`, `reachable` (abstract, closed under `init`/`trans`); the observables; monotonicity of every observable along `trans`; frames (internal steps do not fabricate a correct validator's inputs; an input records exactly itself); the paper's safety properties at `reachable st` | a Veil consumer `instantiate`s it; an implementation proves it |
-| `X extends XSafety` | the module proper: the inputs only the temporal properties mention, with their observables; `clock`; `Admissible : TimedRun → Prop` (the execution model, implementation-defined, non-vacuous by `admissible_exists`); bounds as data; every temporal, quantitative and cryptographic-residue property, over `Run`/`TimedRun` | Lean-level only; an implementation *owes* it |
+| `TransitionSystemSafety state` | the seven things every contract has because it *is* a transition system: `init`, internal `step`, their union `trans`, an over-approximated `reachable`, and the three closure facts | extended by all four fragments, so the vocabulary is identical across them |
+| `XSafety extends TransitionSystemSafety` | first-order: `init`, internal `step`, the input transitions the paper's *safety* properties mention, their union `trans`, `reachable` (abstract, closed under `init`/`trans`); the observables; monotonicity of every observable along `trans`; frames (internal steps do not fabricate a correct validator's inputs; an input records exactly itself); the paper's safety properties at `reachable st` | a Veil consumer `instantiate`s it; an implementation proves it |
+| `XTemporal … [S : XSafety …]` | the rest of the module, stated **over the safety instance**: the inputs only the temporal properties mention, with their observables; `clock`; `Admissible : TimedRun → Prop` (the execution model, implementation-defined, non-vacuous by `admissible_exists`); bounds as data; every temporal and quantitative property, over `Run`/`TimedRun` | Lean-level only; an implementation *owes* it |
+| `X extends XSafety, XTemporal` | the paper's module in one name; the second parent's instance argument *is* the first parent | the composition, where a full contract is needed |
 
 An implementation that proves the safety fragment but not the rest provides
-the `XSafety` instance (kernel-checked) and a **residual** — a Lean
-`structure` whose fields are exactly the upper-level obligations it does not
-discharge, restated over its own transition system — plus `X_of_residual :
-Residual → X`. Type-checking the latter is what guarantees the residual says
-exactly what the class says; the residual *is* the module's remaining
-assumption inventory, as a type.
+the `XSafety` instance (kernel-checked) and **no `XTemporal` instance at
+it**. That absence is the whole statement of what is missing: every field of
+`XTemporal` is already written over `S.init`, `S.trans`, `S.reachable` and
+`S`'s observables, so there is nothing to restate at the implementation's
+own types. `X_of_temporal h = { theSafetyInstance, h with }` joins the two
+levels, and a companion `rfl` lemma pins that the join hands back exactly
+the fragment that was proven.
+
+Until 2026-09 each implementation instead carried a `…Residual` structure
+whose fields restated those obligations at its own types, with an
+`X_of_residual : Residual → X` whose type-checking was what guaranteed the
+restatement matched the class. That mechanism cost one restatement per
+obligation per implementation; the dependent-parent shape removes it
+([`../spikes/06_dependent_temporal_parent.lean`](../spikes/06_dependent_temporal_parent.lean),
+[`History.md`](./History.md)).
 
 **Conventions that make it uniform** (the header of `Interfaces.lean` is the
 authoritative statement):
@@ -178,64 +189,102 @@ record of a finalization, `pending := delivered ∧ ¬ appended`).
   actions' transition bodies by the same technique. Because the model has
   `propose` and `abandon` as actions and a per-sender row for each signed
   message kind, the instance file also proves — for the *upper* class,
-  inside `mvba_of_residual` — the inputs, their observables (`proposed :=
+  in the fragment itself — the inputs, their observables (`proposed :=
   input`, `abandoned`, `sent` by cases on `Mvba.Msg`), effects, frames,
   initial conditions and **Quiescence**, the last as the one-step fact
   `sent_new_tr` (every honest send requires `∃ E, input i E` and
   `¬ abandoned i`).
 
-**The step-level technique**, which the plan had not exercised and which was
+**The step-level fields**, which the plan had not exercised and which were
 the one open risk: a contract field such as "`opened` is monotone along
 `trans`" is a relation between two consecutive states, and no
-`#check_invariants` cell speaks about two states. Veil, however, pre-computes
-each action's two-state transition as a `reducible` definition
-`<action>.ext.tr` (a conjunction of the guards and `setIn {updated fields}
-s₀ = s₁`) with a bridge `<action>.ext.derived_eq` from the derived transition
-the reachability relation uses. So a step-level fact is proven by dispatching
-the label, exposing the body — Veil's `trSimp` simp set is exactly the
-`derived_eq` theorems and the `tr` definitions, so one `simp only [trSimp]`
-covers every action of the module — destructuring (the `obtain` on the final
-equation substitutes the post-state), and evaluating the field-representation
-`get`/`set` pair at the canonical functional representation
-(`CanonicalField.set`, `FieldUpdateDescr.fieldUpdate`, `IteratedArrow.curry`,
-…). One macro pair per model (`conductor_tr` / `conductor_field_simp`,
-`chorus_tr` / `chorus_field_simp`, `mvba_tr` / `mvba_field_simp`) and one
-tactic line per fact; the 38-action Chorus lemmas elaborate in seconds. None
-of the macros names an action, so adding one to a model changes nothing here. The guards
-are kept as inaccessible hypotheses, which is how the frozen-entries lemma
-sees `¬ local_committed i`.
+`#check_invariants` cell speaks about two states. As of 2026-09-10 that is
+no longer a gap in the tool, and the instance files reach for three things
+in order.
+
+1. **Generated lemmas** (`veil.gen.stepLemmas`). Everything the update
+   records already determine is emitted and kernel-checked at `#gen_spec`:
+   `<Module>.<f>.mono` over every label, `<Module>.<action>.frame_<f>`, and
+   `<Module>.<f>.init`. `opened_mono_tr`, `completed_mono_tr`,
+   `completed_frame_internal`, `init_not_opened`, `init_not_completed`
+   (Conductor) and `committedAll_mono`, `committedPos_mono`,
+   `recorded_mono`, `init_not_committed` (Chorus) are each a one-line
+   application of one of these. They were 38-case `cases l` scripts before.
+2. **A checked two-state cell** (`step_property`) where the fact needs the
+   action guards or the invariants at the pre-state, which the update
+   records do not carry. Two are stated: the Conductor's `monotonicity` —
+   the paper's, which needs `[open_local_order]` at the pre-state together
+   with `open_slot`'s guard — and Chorus's `committed_pos_frozen`, "a
+   committed validator's positive entries do not change", which needs
+   `commit_assign_pos`'s `¬ local_committed i`. Each is checked per action
+   like an invariant and exported as `reachable_<name>_step`; the 30-line
+   `monotonicity_tr` and the 38-case `committedPos_frozen` are gone.
+3. **By hand from the transition bodies**, for what neither covers. Two
+   remain, both about a *single* action rather than all of them:
+   `complete_effect_tr` (the effect of `complete_slot`) and
+   `complete_frame_other` (its pointwise frame). The technique is Veil's
+   pre-computed `<action>.ext.tr` reached through `<action>.ext.derived_eq`
+   — the `trSimp` simp set is exactly those two per action, so one
+   `simp only [trSimp]` covers a module — then destructure and evaluate the
+   field-representation `get`/`set` pair at the canonical representation
+   (the `conductor_tr` / `conductor_field_simp` macro pairs, and their
+   Chorus and Mvba twins). No macro names an action, so adding one to a
+   model changes nothing here.
+
+**The premise this costs.** A `step_property` cell's hypotheses are the
+module's assumptions and invariants at the pre-state, so a contract field
+discharged from one cannot be an all-states claim. The four monotonicity
+fields — `OrchestratorSafety.opened_mono`/`completed_mono`,
+`SlotConsensusSafety.finalized_mono`/`on_time_mono` — therefore take
+`reachable st` before `trans`, as `monotonicity` always did. It costs the
+consumers nothing: they already carry the sub-protocols' reachability as
+invariants (`orch_reachable`, `sc_reachable`), and the glue re-solves with
+the same 175 cells. The contracts' own convention has always promised
+properties at reachable states (`Interfaces.lean`, "Conventions").
 
 Trust base: every new declaration is pinned at `[propext, Classical.choice,
 Quot.sound]` at its own site and in [`../Cadence.lean`](../Cadence.lean).
 
-## 5. The residuals: exactly what is still assumed
+## 5. What is still assumed: the missing `XTemporal` instances
 
-`Conductor.OrchestratorResidual th` (`Composition.lean`) has fields
+Each implementation proves its `XSafety` fragment. What it still owes is an
+instance of the matching `XTemporal` class **at that fragment** — and this
+development provides none of the three. Because those classes are stated
+over the fragment's own `init` / `trans` / `reachable` / observables, the
+list below is a list of *class fields*, not of restatements: there is no
+second place where these obligations are written down.
+
+**`OrchestratorTemporal … (S := Conductor.orchestratorSafety th)`** —
 `Admissible`, `admissible_exists`, `totality`, `bound`, `boundedness`,
-`recovery_time`, `recovery` — the paper's Totality (`lemma:conductor-totality`),
-`B`-Boundedness (`lem:boundedness`; the interval form *is* proven as
-`safety [bounded_tail]`, the count `2W − p` needs widths the model keeps meta)
-and `R`-Recovery (`prop:smooth-windows`, `prop:first-post-gst-window-time`),
-over timed runs of the Conductor with the admissible-execution model as data.
-`orchestrator_of_residual` proves these are all that is missing, discharging
-Integrity's timing half (`safety [opened_after_start]`) on the way.
+`recovery_time`, `recovery`: the paper's Totality
+(`lemma:conductor-totality`), `B`-Boundedness (`lem:boundedness`; the
+interval form *is* proven, as `safety [bounded_tail]` — the count `2W − p`
+needs widths the model keeps meta) and `R`-Recovery
+(`prop:smooth-windows`, `prop:first-post-gst-window-time`), over timed runs
+of the Conductor with the admissible-execution model as data.
+`Conductor.orchestrator_of_temporal` joins it to the fragment. Integrity's
+timing half is **no longer here**: it is first-order and the Conductor
+proves it, so it moved into `OrchestratorSafety` (`integrity_timing`, from
+`safety [opened_after_start]`), which is why that fragment carries `time`.
 
-`Chorus.SlotConsensusResidual th time message` (`Chorus/Compose.lean`) is
-larger, honestly: Chorus models none of `mod:slotconsensus`'s participation
-interface (`participate`/`abandon`/`propose` and their observables), no clock
-and no message type, so the whole upper level except Hiding's protocol half
-is residual — `slotConsensus_of_residual` discharges `hiding_residue` from
-`safety [hiding_until_deadline]` and takes the rest as the hypothesis.
+**`SlotConsensusTemporal … (S := Chorus.slotConsensusSafety th)`** — the
+largest of the three, honestly: Chorus models none of
+`mod:slotconsensus`'s participation interface
+(`participate`/`abandon`/`propose` and their observables), no clock and no
+message type, so all of that is owed, together with Termination and
+Quiescence. Hiding's protocol half is **no longer here** either: it is
+first-order and Chorus proves it, so `deadline_passed`,
+`payload_recoverable` and `hiding_residue` moved into
+`SlotConsensusSafety`.
 
-`Mvba.MvbaResidual th time` (`Mvba/Compose.lean`) is the smallest of the
-three: `clock`, `Admissible`, `admissible_exists`, `ℓ` and `termination` —
-the timed part of `mod:mvba` alone (`ℓ_MVBA`-Termination, the supplement's
-`thm:termination`; the model is untimed). It is the first residual in the
-development with **no safety-shaped field**: `mvba_of_residual` discharges
-the inputs, their observables, effects, frames, initial conditions and
-Quiescence from the transition bodies.
+**`MVBATemporal … (S := Mvba.mvbaSafety th)`** — the smallest: `clock`,
+`Admissible`, `admissible_exists`, `ℓ` and `termination`, the timed part of
+`mod:mvba` alone (`ℓ_MVBA`-Termination, the supplement's `thm:termination`;
+the model is untimed). Everything else — the two inputs, their observables,
+effects, frames, initial conditions and **Quiescence** in one-step form —
+is proven into the fragment from the transition bodies.
 
-These structures replace the rows of the old obligation tables that said
+These classes replace the rows of the old obligation tables that said
 "documented, (A-…)". [`Architecture.md`](./Architecture.md) §4 item 4 now
 points at them by name; the meta-axiom names (A-orch-totality),
 (A-orch-boundedness), (A-orch-recovery), (A-sc-termination) are the fields'
@@ -272,7 +321,7 @@ state. The step-level technique graduated straight into the code
    *provider* side is closed: `Mvba.mvbaSafety` (`Mvba/Compose.lean`, §4)
    instantiates `MVBASafety` from the leader-based protocol of the paper
    repository's internal supplement with every field proven, and
-   `mvba_of_residual` leaves only the timed fields (§5). What is still open
+   only the timed fields are left (§5). What is still open
    is the *consumer* side: Chorus's `mvba_decide_*` guards are the
    transcription of the class's fields, audited by reading:
 
@@ -295,13 +344,13 @@ state. The step-level technique graduated straight into the code
    decision into the existing records with **one stated bridge** — the
    certificate check against Chorus's network relations — the same shape as
    the ACS median bridge (item 3).
-2. **Chorus has no participation interface**, so `SlotConsensusResidual`
+2. **Chorus has no participation interface**, so `SlotConsensusTemporal`
    carries the whole of it; and the glue's records of the inputs it does not
    drive (`sc_abandoned`, `proposed`) are its own, as the paper's local
    variables are. That the glue's call *is* the instance's input is the
    trace-level refinement seam declared out of scope in `Composition.lean`'s
    header and `ChorusDesign.md` §10.1. Adding `participate`/`abandon` to the
-   Chorus model would let the glue drive them and shrink the residual; it is
+   Chorus model would let the glue drive them and shrink what is owed; it is
    a model change and pays the Chorus cold re-solve.
 3. **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
    the decided set brackets the first slot from below is justified by
@@ -353,13 +402,20 @@ Recorded so they are not re-derived (all reproduced by the spikes or the code):
   arrives as a function argument; SMT-LIB is first-order); `@[invSimp]`
   unfolds it in hypotheses but not goals. Not needed any more.
 * `hiding` is a Lean keyword (`open … hiding`), unusable as a field name.
-* Two-state facts about a generated transition: `simp only [trSimp]`
-  (`<action>.ext.derived_eq` then the `reducible` `<action>.ext.tr`, for
-  every action at once); `obtain ⟨_, h⟩ := h` on the final `setIn … = s₁`
-  conjunct *substitutes* (so a following `subst` is a no-op the linter
-  flags); the guards survive as inaccessible hypotheses. The
-  `actSimp`/`nextSimp` simp sets unfold the action *bodies* and defeat the
-  `derived_eq` rewrite — never use them for this.
+* Two-state facts about a generated transition: prefer the generated step
+  lemmas (`<f>.mono`, `<action>.frame_<f>`, `<f>.init`) and, when the guards
+  or invariants are needed, a `step_property` cell — see §4. Only when
+  neither applies, by hand: `simp only [trSimp]` (`<action>.ext.derived_eq`
+  then the `reducible` `<action>.ext.tr`, for every action at once);
+  `obtain ⟨_, h⟩ := h` on the final `setIn … = s₁` conjunct *substitutes*
+  (so a following `subst` is a no-op the linter flags); the guards survive
+  as inaccessible hypotheses. The `actSimp`/`nextSimp` simp sets unfold the
+  action *bodies* and defeat the `derived_eq` rewrite — never use them for
+  this.
+* A `step_property` body elaborates over binders named `th`, `st`, `st'`, so
+  a bound variable of a body must not use those names (the models use `s0`,
+  `s1`). Capitals are quantified, as in an `invariant`. Step properties are
+  conclusions only, and only mutable components have a primed form.
 * `all_honest_recorded j m` has four conjuncts since the 2026-08
   `well_encoded` refactor (`¬ is_byz j`, `is_proposer j`, the recorded
   entries, `well_encoded m`).

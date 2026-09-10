@@ -129,6 +129,33 @@ consequence of it.
   rather than with the model-check scaffolding that `Chorus.lean` has to
   disable. The composed system needs it (the glue's `scstate` sort must be
   inhabited); `Chorus/Compose.lean` used to provide it by hand.
+* **Generated step lemmas** (`veil.gen.stepLemmas`, on by default). At
+  `#gen_spec`, for every imperative action `a` and mutable component `f`,
+  Veil emits and kernel-checks what the update records already determine:
+  `M.a.tr_of_step` (the exposed transition body), `M.a.frame` and its
+  per-field projections `M.a.frame_f`, `M.a.mono_f` (only `true` is
+  written), the whole-system `M.f.mono` when every action frames or
+  monotonically writes `f`, and `M.f.init` from the initializer's closed
+  literal. These are exactly the facts the contract instances used to prove
+  by hand with a 38-case `cases l` script per field; in
+  `Composition.lean` and `Chorus/Compose.lean` each is now a one-line
+  application. Silent on success (`set_option trace.veil.stepLemmas true`
+  for the verdicts); about 5 s of Chorus's ~127 s model build.
+* **`step_property [name] { … f' … }`** — a **two-state** property of a
+  module, stated in the `transition` priming notation before `#gen_spec`,
+  with capitals quantified as in an `invariant`. Veil checks one cell
+  `<action>_<property>` per action, with the module's assumptions and
+  invariants at the pre-state as hypotheses, through the same TR route as
+  every other cell: they appear in the sweep, in the VC registry
+  (`#check_action`, `#prove_action`, and `#veil_status` counts them), and in
+  `#gen_theorems`. The exports are `M.<P>_step` and — from
+  `#gen_composition` — `M.reachable_<P>_step`. This is what lets a
+  step-level *specification* live in the model and be SMT-checked rather
+  than hand-proven downstream: the paper's Monotonicity for the Conductor,
+  and Chorus's frozen-entries fact, are now checked cells. The cost is one
+  cell per action, so they are stated for the facts the contracts need —
+  what follows from the update records alone comes free from the generated
+  lemmas above.
 * **Solver-option capture guards** — Veil captures solver options when a
   module elaborates its specification, so a `set_option … in
   #check_invariants` *after* that point is silently inert. The fork warns

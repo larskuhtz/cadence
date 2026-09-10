@@ -34,20 +34,21 @@ contract's docstring says.
 | `agreement` | `safety [agreement_pos]` + `[agreement_pos_neg]` + `invariant [local_committed_complete]` |
 | `slot_safety` | by construction (the slot tag) |
 | `proposal_inclusion` | `safety [proposal_inclusion]` + `[proposal_inclusion_no_neg]` + `invariant [local_committed_complete]` |
-| `finalized_mono`, `on_time_mono`, `init_finalized` | the transition bodies of all 38 actions, uniformly (`committedAll_mono`, `committedPos_frozen`, `recorded_mono`, `init_not_committed` below); the vector is frozen once committed because `commit_assign_*` require `¬ local_committed i` |
+| `finalized_mono`, `on_time_mono`, `init_finalized` | Veil's generated step lemmas (`local_committed.mono`, `local_committed_pos.mono`, `local_entry_pos.mono`, `local_committed.init`) through `committedAll_mono`, `committedPos_mono`, `recorded_mono`, `init_not_committed` below; plus `committedPos_frozen_of_reachable`, the `step_property [committed_pos_frozen]` cells exported by `#gen_composition` — the vector is frozen once committed because `commit_assign_*` require `¬ local_committed i`, which is a guard rather than an update record, so it needs the checked cells rather than the generated lemmas |
 | `step_trans`, `reachable_init`, `reachable_trans` | the reachability constructors |
 
 all consumed through the named reachability projections of
 [`Chorus/Certify.lean`](./Certify.lean) (emitted by `#gen_composition` from
 the proof-file family's preservation lemmas).
 
-**What stays residual.** Chorus models neither the participation interface
+**What stays unproven.** Chorus models neither the participation interface
 of `mod:slotconsensus` (`participate`/`abandon`/`propose` are absent — the
 model is single-slot and its participation window is Cadence-driven) nor
 time, and it has no message type at the interface. So the upper level's
 inputs, their observables, the clock, the admissible-run model, Termination
-and Quiescence are the residual `SlotConsensusResidual` below —
-`slotConsensus_of_residual` proves that, given them, Chorus is a full
+and Quiescence are the fields of `SlotConsensusTemporal`, of which this
+development has no instance —
+`slotConsensus_of_temporal` proves that, given one, Chorus is a full
 `SlotConsensus`, discharging on the way the one upper-level field Chorus
 *does* prove: the protocol half of Hiding (`safety [hiding_until_deadline]`,
 the contract's `hiding_residue`). The residual is the formal statement of
@@ -128,85 +129,73 @@ noncomputable def decisionVector
 
 /-! ### Step-level facts, uniformly over all 38 actions
 
-Each is proven by exposing every action's pre-computed transition body
-(`<action>.ext.derived_eq`, then the `reducible` `<action>.ext.tr` — Veil's
-`trSimp` set is exactly those two per action, so one `simp only` covers all
-of them),
-substituting the post-state and evaluating the field-representation
-`get`/`set` pair at the canonical representation. The commit relations are
-only ever set to `true`, and `commit_assign_pos`/`commit_assign_neg` are
-guarded by `¬ local_committed i`, so a committed validator's entries are
-frozen. -/
-
-/-- Expose one action's transition body in `h`. -/
-local macro "chorus_tr" h:ident : tactic =>
-  `(tactic| (simp only [Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct] at $h:ident
-             simp only [trSimp] at $h:ident))
-
-/-- Evaluate the field-representation `get`/`set` pair at the canonical
-representation, everywhere. -/
-local macro "chorus_field_simp" : tactic =>
-  `(tactic| simp +unfoldPartialApp [CommittedPos, CommittedAll, Recorded, DeadlinePassed,
-      Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
-      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
-      Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
-      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id] at *)
+None of these is a hand-written case analysis any more. Three of them —
+`committedAll_mono`, `committedPos_mono`, `recorded_mono` — are Veil's
+generated whole-system monotonicity lemmas (`<relation>.mono`, emitted at
+`#gen_spec` because every action either frames the relation or only ever
+writes `true` to it), and `init_not_committed` is the generated
+initial-value lemma. The one fact the update records cannot give is that a
+*committed* validator's entries are frozen: that rests on
+`commit_assign_pos`'s guard `¬ local_committed i`, so it is a
+`step_property` in the model, checked per action, and reaches this file as
+`Chorus.reachable_committed_pos_frozen_step`. `docs/CompositionContracts.md`
+§4 explains the three sources and when each applies. -/
 
 section StepFacts
 variable {st st' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)}
 
-set_option maxHeartbeats 4000000 in
-/-- `local_committed` stands across every action. -/
+/-- `local_committed` stands across every action: the generated whole-system
+monotonicity lemma. -/
 theorem committedAll_mono
     (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st')
     (i : node) (h : CommittedAll st i) : CommittedAll st' i := by
   obtain ⟨l, htr⟩ := hn
-  cases l <;> chorus_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    chorus_field_simp <;> first | exact h | (right; exact h)
+  exact Chorus.local_committed.mono htr i h
 
-set_option maxHeartbeats 4000000 in
-/-- `local_committed_pos` stands across every action. -/
+/-- `local_committed_pos` stands across every action: the generated
+whole-system monotonicity lemma. -/
 theorem committedPos_mono
     (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st')
     (i J : node) (M : merkle_root) (h : CommittedPos st i J M) : CommittedPos st' i J M := by
   obtain ⟨l, htr⟩ := hn
-  cases l <;> chorus_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    chorus_field_simp <;> first | exact h | (right; exact h)
+  exact Chorus.local_committed_pos.mono htr i J M h
 
-set_option maxHeartbeats 4000000 in
-/-- A committed validator's positive entries are frozen: `commit_assign_pos`
-requires `¬ local_committed i`. -/
-theorem committedPos_frozen
+/-- A committed validator's positive entries are frozen (`commit_assign_pos`
+requires `¬ local_committed i`): from the checked `step_property
+[committed_pos_frozen]` cells, along any step from a reachable state
+(`reachable_<property>_step`, emitted by `Chorus/Certify.lean`'s
+`#gen_composition`). The contract's `finalized_mono` takes the pre-state's
+reachability, which the glue tracks as an invariant. -/
+theorem committedPos_frozen_of_reachable
+    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).reachable th st)
     (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st')
     (i : node) (hc : CommittedAll st i) (J : node) (M : merkle_root)
     (h : CommittedPos st' i J M) : CommittedPos st i J M := by
   obtain ⟨l, htr⟩ := hn
-  cases l <;> chorus_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    chorus_field_simp <;> first | exact h | (rcases h with ⟨rfl, rfl, rfl⟩ | h <;> simp_all)
+  exact Chorus.reachable_committed_pos_frozen_step hr htr i J M ⟨hc, h⟩
 
-set_option maxHeartbeats 4000000 in
-/-- `local_entry_pos` stands across every action. -/
+/-- `local_entry_pos` stands across every action: the generated whole-system
+monotonicity lemma. -/
 theorem recorded_mono
     (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st')
     (r j : node) (m : merkle_root) (h : Recorded st r j m) : Recorded st' r j m := by
   obtain ⟨l, htr⟩ := hn
-  cases l <;> chorus_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    chorus_field_simp <;> first | exact h | (right; exact h)
+  exact Chorus.local_entry_pos.mono htr r j m h
 
-/-- Initially nobody has committed. -/
+/-- Initially nobody has committed: the generated initial-value lemma. -/
 theorem init_not_committed
     (hinit : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).init th st)
-    (i : node) : ¬ CommittedAll st i := by
-  simp only [Chorus.relationalTransitionSystem, Chorus.Init] at hinit
-  simp only [Chorus.initializer.ext.tr] at hinit
-  (repeat (obtain ⟨_, hinit⟩ := hinit)); chorus_field_simp
+    (i : node) : ¬ CommittedAll st i :=
+  fun h => Bool.false_ne_true ((Chorus.local_committed.init hinit i).symm.trans h)
 
-/-- A committed validator's decision vector does not change. -/
+/-- A committed validator's decision vector does not change along any step
+from a reachable state. -/
 theorem decisionVector_stable
+    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).reachable th st)
     (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st')
     (i : node) (hc : CommittedAll st i) : decisionVector th st' i = decisionVector th st i := by
   have hiff : ∀ J M, CommittedPos st' i J M ↔ CommittedPos st i J M :=
-    fun J M => ⟨committedPos_frozen th hn i hc J M, committedPos_mono th hn i J M⟩
+    fun J M => ⟨committedPos_frozen_of_reachable th hr hn i hc J M, committedPos_mono th hn i J M⟩
   funext J
   unfold decisionVector
   by_cases hp : th.is_proposer J = true
@@ -224,33 +213,47 @@ end StepFacts
 
 set_option maxHeartbeats 1000000 in
 /-- **`Chorus ⊨ SlotConsensusSafety`** — for every Chorus theory `th`, the
-family of slot-indexed copies of the Chorus transition system is an instance
-of the state-level slot-consensus contract, with `byz` the Byzantine
-predicate of the module's `ByzNodeSet` instance. -/
+slot-indexed copies of the Chorus transition system are an instance of the
+state-level slot-consensus contract, with `byz` the Byzantine predicate of
+the module's `ByzNodeSet` instance.
+
+The contract is unindexed (`Interfaces.lean`, "Slot Consensus"): a state
+carries the slot of the instance it belongs to. Chorus's own state does not,
+because the model is single-slot — so the instance runs on **pairs**
+`slot × Chorus.State`, whose first component is exactly the contract's
+`tag`. Transitions leave it alone, which is `tag_frame`; `finalized` tags
+each vector with it, which is what makes `slot_safety` hold by
+construction. Nothing about the Chorus model changes: every field below
+reads the pair's second component and defers to the same reachability
+projections as before. -/
 @[implicit_reducible]
 noncomputable def slotConsensusSafety :
     SlotConsensusSafety slot node merkle_root (slot × (node → Option merkle_root))
-      (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice))
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice))
       (fun i => nset.is_byz i = true) where
-  init _ st := (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).assumptions th ∧
-    (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).init th st
-  step _ st st' := (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st'
-  trans _ st st' := (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st'
-  reachable _ st := (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).reachable th st
-  step_trans _ _ _ h := h
-  reachable_init _ st h := Veil.RelationalTransitionSystem.reachable.init st h.1 h.2
-  reachable_trans _ st st' hr hn := Veil.RelationalTransitionSystem.reachable.step st st' hr hn
-  finalized s st i V := CommittedAll st i ∧ V = (s, decisionVector th st i)
+  init p := (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).assumptions th ∧
+    (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).init th p.2
+  step p p' := p.1 = p'.1 ∧ (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th p.2 p'.2
+  trans p p' := p.1 = p'.1 ∧ (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th p.2 p'.2
+  reachable p := (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).reachable th p.2
+  step_trans _ _ h := h
+  reachable_init p h := Veil.RelationalTransitionSystem.reachable.init p.2 h.1 h.2
+  reachable_trans p p' hr hn := Veil.RelationalTransitionSystem.reachable.step p.2 p'.2 hr hn.2
+  tag p := p.1
+  tag_frame _ _ h := h.1.symm
+  finalized p i V := CommittedAll p.2 i ∧ V = (p.1, decisionVector th p.2 i)
   slot_of V := V.1
   includes V j P := V.2 j = some P
-  on_time _ st j P := Chorus.all_honest_recorded (nset := nset)
-    (χ := Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) j P th st
-  finalized_mono _ st st' i V hn h :=
-    ⟨committedAll_mono th hn i h.1, by rw [h.2, decisionVector_stable th hn i h.1]⟩
-  on_time_mono _ st st' j P hn h :=
-    ⟨h.1, h.2.1, fun r hr => recorded_mono th hn r j P (h.2.2.1 r hr), h.2.2.2⟩
-  init_finalized _ _ i V h hf := init_not_committed th h.2 i hf.1
-  agreement _ st hr i j V V' hci hcj hfi hfj := by
+  on_time p j P := Chorus.all_honest_recorded (nset := nset)
+    (χ := Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) j P th p.2
+  finalized_mono _ _ i V hr hn h :=
+    ⟨committedAll_mono th hn.2 i h.1,
+      by rw [h.2, hn.1, decisionVector_stable th hr hn.2 i h.1]⟩
+  on_time_mono _ _ j P _ hn h :=
+    ⟨h.1, h.2.1, fun r hrec => recorded_mono th hn.2 r j P (h.2.2.1 r hrec), h.2.2.2⟩
+  init_finalized _ i V h hf := init_not_committed th h.2 i hf.1
+  agreement p hr i j V V' hci hcj hfi hfj := by
+    obtain ⟨s, st⟩ := p
     obtain ⟨hci_com, hVi⟩ := hfi
     obtain ⟨hcj_com, hVj⟩ := hfj
     subst hVi; subst hVj
@@ -281,10 +284,10 @@ noncomputable def slotConsensusSafety :
           · exact (reachable_agreement_pos_neg hr j i J M ⟨hcj, hci, hcj_com, hci_com, hM⟩) hneg
         rw [dif_neg hi, dif_neg hj']
     · rw [if_neg hp, if_neg hp]
-  -- By construction: the family's instance for slot `s` tags its vectors
-  -- with `s`.
-  slot_safety _ _ _ _ _ _ hf := by rw [hf.2]
-  proposal_inclusion _ st hr i j V P hci hfi hot := by
+  -- By construction: the instance tags its vectors with its own slot.
+  slot_safety _ _ _ _ _ hf := by rw [hf.2]
+  proposal_inclusion p hr i j V P hci hfi hot := by
+    obtain ⟨s, st⟩ := p
     obtain ⟨hcom, hV⟩ := hfi
     subst hV
     show decisionVector th st i j = some P
@@ -298,113 +301,54 @@ noncomputable def slotConsensusSafety :
     rw [dif_pos hex]
     congr 1
     exact reachable_proposal_inclusion hr j i P hex.choose ⟨hot, hci, hex.choose_spec⟩
+  -- Hiding's protocol half: `payload_recoverable` is the module's
+  -- `slot_key_released` (the decryption threshold has been reached),
+  -- `deadline_passed` its phase leaving `pre_deadline`, and
+  -- `safety [hiding_until_deadline]` is exactly the implication. It is
+  -- first-order, so it belongs to the fragment.
+  deadline_passed p := DeadlinePassed p.2
+  payload_recoverable p := Chorus.slot_key_released (nset := nset)
+    (χ := Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) th p.2
+  hiding_residue _ hr hk := reachable_hiding_until_deadline hr hk
 
-/-! ### The residual: what the full `SlotConsensus` still owes
+/-! ### What the full `SlotConsensus` still owes
 
 Chorus has no participation interface, no clock and no message type at the
-contract's level of abstraction, so the whole upper level except Hiding's
-protocol half is residual. The structure below restates those fields over
-the Chorus transition system; `slotConsensus_of_residual` proves they are
-all that is missing and discharges `hiding_residue` from
-`safety [hiding_until_deadline]`. `docs/Architecture.md` §4 item 4 lists the
-temporal rows by their meta-axiom names ((A-sc-termination) is
-`termination` here); this structure is that list as a type, together with
-the interface Chorus does not model. -/
-structure SlotConsensusResidual (time message : Type) [TotalOrder time] [Add time] where
-  participate : slot → Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) →
-    node → Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) → Prop
-  abandon : slot → Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) →
-    node → Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) → Prop
-  propose : slot → Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) →
-    node → merkle_root → Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) → Prop
-  participate_trans : ∀ s st i st', participate s st i st' → (slotConsensusSafety th).trans s st st'
-  abandon_trans : ∀ s st i st', abandon s st i st' → (slotConsensusSafety th).trans s st st'
-  propose_trans : ∀ s st i P st', propose s st i P st' → (slotConsensusSafety th).trans s st st'
-  participating : slot → Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) → node → Prop
-  abandoned : slot → Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) → node → Prop
-  proposed : slot → Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) → node → merkle_root → Prop
-  sent : slot → Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) → node → message → Prop
-  participating_mono : ∀ s st st' i, (slotConsensusSafety th).trans s st st' → participating s st i → participating s st' i
-  abandoned_mono : ∀ s st st' i, (slotConsensusSafety th).trans s st st' → abandoned s st i → abandoned s st' i
-  proposed_mono : ∀ s st st' i P, (slotConsensusSafety th).trans s st st' → proposed s st i P → proposed s st' i P
-  sent_mono : ∀ s st st' i m, (slotConsensusSafety th).trans s st st' → sent s st i m → sent s st' i m
-  participate_effect : ∀ s st i st', participate s st i st' → participating s st' i
-  abandon_effect : ∀ s st i st', abandon s st i st' → abandoned s st' i
-  propose_effect : ∀ s st i P st', propose s st i P st' → proposed s st' i P
-  participating_step_frame : ∀ s st st' i, (slotConsensusSafety th).step s st st' → ¬ nset.is_byz i = true →
-    (participating s st' i ↔ participating s st i)
-  abandoned_step_frame : ∀ s st st' i, (slotConsensusSafety th).step s st st' → ¬ nset.is_byz i = true →
-    (abandoned s st' i ↔ abandoned s st i)
-  proposed_step_frame : ∀ s st st' i P, (slotConsensusSafety th).step s st st' → ¬ nset.is_byz i = true →
-    (proposed s st' i P ↔ proposed s st i P)
-  init_participating : ∀ s st i, (slotConsensusSafety th).init s st → ¬ participating s st i
-  init_abandoned : ∀ s st i, (slotConsensusSafety th).init s st → ¬ abandoned s st i
-  init_proposed : ∀ s st i P, (slotConsensusSafety th).init s st → ¬ proposed s st i P
-  clock : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) → time
-  Admissible : ∀ s, TimedRun (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) time
-    ((slotConsensusSafety th).init s) ((slotConsensusSafety th).trans s) clock → Prop
-  admissible_exists : ∀ s st, (slotConsensusSafety th).init s st →
-    ∃ r : TimedRun (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) time
-      ((slotConsensusSafety th).init s) ((slotConsensusSafety th).trans s) clock, Admissible s r ∧ r.at' 0 = st
-  /-- **(A-sc-termination)**, eventual form. -/
-  termination : ∀ s (r : TimedRun (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) time
-      ((slotConsensusSafety th).init s) ((slotConsensusSafety th).trans s) clock), Admissible s r →
-    (∀ i, ¬ nset.is_byz i = true → r.eventually (fun st => participating s st i)) →
-    (∀ i, ¬ nset.is_byz i = true → ∀ n, abandoned s (r.at' n) i →
-      ∃ V, (slotConsensusSafety th).finalized s (r.at' n) i V) →
-    ∀ j, ¬ nset.is_byz j = true → r.eventually (fun st => ∃ V, (slotConsensusSafety th).finalized s st j V)
-  /-- Quiescence: Chorus's in-model shadow is phase confinement; the
-      participation-window statement needs the interface it lacks. -/
-  quiescence : ∀ s (r : TimedRun (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) time
-      ((slotConsensusSafety th).init s) ((slotConsensusSafety th).trans s) clock), Admissible s r →
-    ∀ n i m, ¬ nset.is_byz i = true → sent s (r.at' (n + 1)) i m → ¬ sent s (r.at' n) i m →
-      participating s (r.at' (n + 1)) i ∧ ¬ abandoned s (r.at' n) i
+contract's level of abstraction. What stands between the fragment above and
+the full `SlotConsensus` is therefore an instance of
+**`SlotConsensusTemporal … (S := slotConsensusSafety th)`** — and there is
+none. Its fields are exactly that missing interface (`participate`,
+`abandon`, `propose` with their observables and frames) together with the
+clock, the admissible-run model, Termination ((A-sc-termination) of
+[`docs/Architecture.md`](../../docs/Architecture.md) §4 item 4) and
+Quiescence, whose participation-window statement needs the interface Chorus
+lacks — its in-model shadow being phase confinement.
 
-/-- Given the residual, Chorus is a full `SlotConsensus`. The one upper-level
-field Chorus proves — Hiding's protocol half — is discharged here:
-`payload_recoverable` is the module's `slot_key_released` (the decryption
-threshold has been reached), `deadline_passed` its phase leaving
-`pre_deadline`, and `safety [hiding_until_deadline]` is exactly the
-implication. -/
+Because every one of those fields is already stated over
+`(slotConsensusSafety th)`'s own `init`, `trans`, `reachable` and
+`finalized`, none of them is restated here: the gap is a missing instance,
+not a structure. -/
+
+/-- Given a temporal level **at this fragment**, Chorus is a full
+`SlotConsensus`. Nothing is restated to join them, and the fragment comes
+back out by `rfl`. -/
 @[implicit_reducible]
-noncomputable def slotConsensus_of_residual {time message : Type} [TotalOrder time] [Add time]
-    (h : SlotConsensusResidual th time message) :
+noncomputable def slotConsensus_of_temporal {time message : Type} [TotalOrder time] [Add time]
+    (h : SlotConsensusTemporal slot node merkle_root (slot × (node → Option merkle_root))
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) time message
+      (fun i => nset.is_byz i = true) (S := slotConsensusSafety th)) :
     SlotConsensus slot node merkle_root (slot × (node → Option merkle_root))
-      (Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice))
-      time message (fun i => nset.is_byz i = true) where
-  toSlotConsensusSafety := slotConsensusSafety th
-  participate := h.participate
-  abandon := h.abandon
-  propose := h.propose
-  participate_trans := h.participate_trans
-  abandon_trans := h.abandon_trans
-  propose_trans := h.propose_trans
-  participating := h.participating
-  abandoned := h.abandoned
-  proposed := h.proposed
-  sent := h.sent
-  participating_mono := h.participating_mono
-  abandoned_mono := h.abandoned_mono
-  proposed_mono := h.proposed_mono
-  sent_mono := h.sent_mono
-  participate_effect := h.participate_effect
-  abandon_effect := h.abandon_effect
-  propose_effect := h.propose_effect
-  participating_step_frame := h.participating_step_frame
-  abandoned_step_frame := h.abandoned_step_frame
-  proposed_step_frame := h.proposed_step_frame
-  init_participating := h.init_participating
-  init_abandoned := h.init_abandoned
-  init_proposed := h.init_proposed
-  clock := h.clock
-  Admissible := h.Admissible
-  admissible_exists := h.admissible_exists
-  termination := h.termination
-  deadline_passed _ st := DeadlinePassed st
-  payload_recoverable _ st := Chorus.slot_key_released (nset := nset)
-    (χ := Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) th st
-  hiding_residue _ _ hr hk := reachable_hiding_until_deadline hr hk
-  quiescence := h.quiescence
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice))
+      time message (fun i => nset.is_byz i = true) :=
+  { slotConsensusSafety th, h with }
+
+/-- The fragment the composition consumes is exactly the one that was
+proven. -/
+theorem slotConsensus_of_temporal_toSafety {time message : Type} [TotalOrder time] [Add time]
+    (h : SlotConsensusTemporal slot node merkle_root (slot × (node → Option merkle_root))
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)) time message
+      (fun i => nset.is_byz i = true) (S := slotConsensusSafety th)) :
+    (slotConsensus_of_temporal th h).toSlotConsensusSafety = slotConsensusSafety th := rfl
 
 end Instance
 end Chorus
@@ -421,7 +365,7 @@ registered VC statements from scratch as fresh kernel-checked
 reconstructions (`veil.smt.trust false`), persisted as real proofs in
 small per-file oleans and assembled into one preservation lemma. A
 regression anywhere in that chain — a proof silently degrading to a
-stub, trusted SMT reappearing — fails this guard. The residual-conditioned
+stub, trusted SMT reappearing — fails this guard. The temporal-conditioned
 full instance is pinned too: its assumptions enter as a *hypothesis*, never
 as an axiom. -/
 
@@ -432,7 +376,7 @@ info: 'Chorus.slotConsensusSafety' depends on axioms: [propext, Classical.choice
 #print axioms Chorus.slotConsensusSafety
 
 /--
-info: 'Chorus.slotConsensus_of_residual' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Chorus.slotConsensus_of_temporal' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Chorus.slotConsensus_of_residual
+#print axioms Chorus.slotConsensus_of_temporal
