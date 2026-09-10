@@ -35,7 +35,10 @@ were e-matching-divergent. The `well_encoded` refactor (audit Finding 1)
 changed the query shapes and cvc5 now solves all three directly -- the
 `no_invalid_encoding` hypothesis supplies the signed-root-is-well-encoded
 bridge as an explicit premise, which is exactly the instantiation the old
-encoding could not trigger (measured 6.2-17.0 s against the 60 s budget).
+encoding could not trigger (measured 6.2-17.0 s on this workstation). On
+CI's 4-core runner the same cell takes 52.8-62.5 s, which is what set the
+family's 180 s budget (`ProofPrelude.lean`) after it overran the old 60 s
+one on 2026-09-10. Those are still *completed* solves, not divergence.
 If a future statement change re-diverges them, put fresh manual cells on
 `#prove_vc Chorus fb_sign_neg <property> by <tac>` lines before the
 `#prove_action`, statements regenerated from the failing cells' output. -/

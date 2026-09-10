@@ -34,6 +34,20 @@ open Lean Elab Command Term Meta
 no-trusted-solver rule is the repository's headline claim (`README.md`),
 and keeping the literal in every file keeps it greppable.
 
+* `veil.smt.timeout 180` — three times Veil's 60 s default. Not because
+  any cell needs 180 s to solve, but because the budget has to be sized for
+  the *slowest machine that runs the family cold*, and that is CI (a 4-core
+  `ubuntu-24.04-arm` runner at `BATCH=1`, with no proof cache), not a
+  workstation. Measured 2026-09-10 on the same file and runner:
+  `fb_sign_neg × inclusion_no_honest_fb_neg` takes 6.2–17.0 s here, 52.8 s
+  on CI before the step properties landed (88% of the old budget) and
+  62.5 s after them — a *completed* solve that overran, with its TR retry
+  at 63.3 s, so the build failed on a cell cvc5 can discharge. Raising the
+  budget is close to free: a timeout bounds a **failing** search only, so a
+  green run costs the same wall clock either way. It is not a licence to
+  ignore a slow cell — a cell that starts needing minutes is diverging, and
+  the remedy for that is a manual proof, not a bigger number (`CLAUDE.md`
+  § Build, "Distinguish *slow* from *divergent*").
 * `veil.cache.proofs true` — consume the proof-cache entries earlier
   solves stored and store fresh ones. Every hit is kernel-replayed
   (`veil.cache.kernelReplay`), so the cache skips *search*, not checking.
@@ -45,7 +59,8 @@ and keeping the literal in every file keeps it greppable.
   cell must be solved cold once (the cache discipline in `CLAUDE.md`
   § Build). -/
 elab "veil_proof_options" : command => do
-  for stx in #[← `(command| set_option veil.cache.proofs true),
+  for stx in #[← `(command| set_option veil.smt.timeout 180),
+               ← `(command| set_option veil.cache.proofs true),
                ← `(command| set_option linter.unreachableTactic false),
                ← `(command| set_option linter.unusedTactic false)] do
     elabCommand stx

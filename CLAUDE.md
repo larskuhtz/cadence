@@ -116,6 +116,18 @@ History: [docs/History.md](./docs/History.md).
   warm hits keep replaying whichever shape produced them — flip the option and
   a warm build looks identical. Delete `.lake/build/veilcache/` to see any
   effect.
+* **The solver budget is sized for CI, not for this machine.** The proof
+  files set `veil.smt.timeout 180` (`veil_proof_options` in
+  `Cadence/ProofPrelude.lean`) against Veil's 60 s default, because the
+  budget has to hold on the slowest machine that runs the family *cold* —
+  a 4-core CI runner at `BATCH=1` with no proof cache, where cells run 3–8×
+  slower than here. A local green run is therefore **not** evidence that a
+  near-limit cell fits its budget: the cache replays the old cells and the
+  hardware is faster. When a change adds solver work to a proof file, read
+  CI's "Slowest discharge attempts" list, which prints each cell's
+  percentage of budget. On the *in-file sweep* path (the two small models)
+  the budget is still Veil's default, and a `set_option` there is captured
+  at `#gen_spec`, not at the command.
 * Run **one** expensive build at a time and kill stale `lean` processes first.
   Near-timeout VCs are noisy under load: a cell that times out in a full build
   may pass in isolation. Distinguish *slow* from *divergent* — if different

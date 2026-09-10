@@ -756,6 +756,22 @@ step_property [monotonicity] {
     ¬ fm.byz i ∧ opened i s1 ∧ slot_ord.le s0 s1 ∧ s0 ≠ s1 ∧ ¬ opened i s0 →
     ¬ opened' i s0 }
 
+/- Solver budget for this module's in-file sweep: three times Veil's 60 s
+default, for the same reason the proof files carry it
+(`Cadence/ProofPrelude.lean`) — the budget has to hold on the slowest
+machine that runs cold, which is CI's 4-core runner, not a workstation. On
+2026-09-10 this module's slowest cell, `enter_window × bounded_tail`, ran
+there at 95% of the 60 s budget. It is a *completed* solve, so the remedy
+is the budget; a cell that starts needing minutes is diverging, and that
+wants a manual proof instead.
+
+**File-level, before `#gen_spec`, deliberately.** On the in-file sweep path
+the dischargers capture solver options when the module elaborates its
+specification, so a `set_option … in #check_invariants` further down is
+silently inert — this project shipped exactly that mistake for weeks
+(`docs/History.md`, Build #12). -/
+set_option veil.smt.timeout 180
+
 #gen_spec
 
 /- The sweep runs at Veil's solver defaults. Do not try to override them
