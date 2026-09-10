@@ -427,64 +427,163 @@ frames and one-step Quiescence sit in `MVBASafety` itself, so nothing
 safety-shaped is left at the temporal level.
 *Landed as predicted (2026-09-08; step 5 below).* One consumer-facing
 detail worth knowing for step 6: the instance's `step` is the model's
-transitions *other than* `propose` and `abandon` (the upper class's frame
-fields demand it), so a consumer that advances the abstract state only by
-`mvba.step` never sees a proposal — Chorus's oracle action should take
-`mvba.trans`, or drive the inputs itself once they are available to it.
+transitions *other than* `propose` and `abandon` (the frame fields demand
+it), so a consumer that advances the abstract state only by `mvba.step`
+never sees a proposal. Since the inputs moved into the fragment
+(2026-09-09) the consumer *drives* them, as the glue drives
+`orch.complete`: the oracle step stays `mvba.step` and `mvba.propose` is
+driven by a Chorus action (§6).
 
 ## 6. Chorus consumes the class — the expensive step
+
+*Re-planned 2026-09-10, after the Veil integration of 2026-09-09/10
+([`History.md`](./History.md), the three rows "the composition is emitted
+now", "step lemmas and step properties", "the interface redesign"). What
+changed under this step: `MVBASafety` now extends the shared
+`TransitionSystemSafety` skeleton, carries a `message` sort, the two inputs
+`propose`/`abandon`, their observables, the frames and one-step Quiescence
+(the parameter order is `party value message state`); the residual
+structures are gone (`mvba_of_temporal` joins the fragment with an
+`MVBATemporal` instance); `#gen_composition` emits the reachability
+induction and the composition files carry no per-action lists; the
+two-state fields come from M13's generated lemmas and M14 `step_property`
+cells; a non-first-order class field is an error naming the field, with
+`attribute [veil_smt_ignore] C.field` as the escape hatch; the proof files'
+budget is sized for CI (`veil.smt.timeout 180`); generated binders are
+hygienic, and the abstract state's `Inhabited` instance is derived.*
 
 This is the step that changes every Chorus verification condition. The
 edit, concretely:
 
-* `instantiate mvba : MVBASafety node (node → Option merkle_root) mmsg
-  mstate (fun i => nset.is_byz i = true)` after `nset`, with `type mstate`
-  and `type mmsg` (the fragment carries the module's message type since
-  2026-09-09, because Quiescence moved into it); then
-  `individual mvba_st : mstate`. Spike first that a later `instantiate` can
-  take `nset.is_byz i = true` as the `byz` argument (spike 05 established
-  the analogous `fm.byz` projection).
-* An oracle action `mvba_step (mvba_next : mstate)` — `require mvba.step
-  mvba_st mvba_next` — replaces the three oracle actions. The `propose` /
-  `abandon` **input** transitions Chorus needs to drive are in the fragment
-  too (also since 2026-09-09), so the consumer no longer needs the full
-  class for them.
-* A handler `on_mvba_decide (i j m …)` transports a **correct** validator's
-  decision entry into Chorus's own records: it reads `mvba.decided mvba_st
-  i v` with `v j = some m` (or `none`), keeps Chorus's own guards
-  (`phase = post_mvba_arm`, `is_proposer j`, `mvba_invoked` — a Chorus-side
-  listening condition, not a contract property), carries the **one stated
-  bridge** (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, resp. the
-  negative form) as certificate verification, and sets `mvba_decided_pos j
-  m` / `mvba_decided_neg j`. Keeping those relations as the *handler's
-  records* — the glue's `delivered` pattern — leaves the ~16 downstream
-  invariants that mention them untouched in form. `mvba_complete` becomes
-  the record that some correct validator has decided; per-proposer
-  completeness is by construction of the vector.
-* The agreement guards of the old oracle actions go; in their place, the
-  invariants `mvba_decided_pos_unique` and `mvba_decided_pos_neg_excl` are
-  *proven* from the class's `agreement` at the reachable abstract state via
-  a new invariant tying each record to a correct decision — kept as
-  invariants because downstream cells e-match on them (the glue's
-  `finalized_agreement` precedent).
+* **Sorts, projections, constraint.** `type mstate`, `type mvalue`, `type
+  mmsg`. The value is the entry vector (§1.2), but a Veil module needs a
+  first-order sort, so `mvalue` is opaque and read through two immutable
+  projection relations `mval_pos (v : mvalue) (j : node) (m : merkle_root)`
+  and `mval_neg (v : mvalue) (j : node)`, with two assumptions — `mval_pos`
+  functional in `m`, and `mval_pos`/`mval_neg` exclusive — that
+  [`System.lean`](../Cadence/System.lean) instantiates at `mvalue := node →
+  Option merkle_root`, `mval_pos v j m := v j = some m`, `mval_neg v j := v j
+  = none`. Then `instantiate mvba : MVBASafety node mvalue mmsg mstate (fun
+  i => nset.is_byz i = true)` after `nset`, `individual mvba_st : mstate`,
+  an assumption `[mvba_init] mvba.init mvba_st` and an invariant
+  `[mvba_reachable] mvba.reachable mvba_st` — the glue's `sc_init` /
+  `sc_reachable` pattern. Spike first (spikes 09/10, kept in `spikes/`, on
+  the pattern of 07/08): a toy consumer of the *real* `MVBASafety` with the
+  projection relations, the oracle step, one handler and the tie invariant
+  below sweeps green, and the negative control without the tie invariant
+  fails exactly at the handler. Spike 05 established that a later
+  `instantiate` can take an earlier instantiated parameter's projection as
+  the `byz` argument.
+* **The oracle step.** `mvba_step (mvba_next : mstate)` — `require
+  mvba.step mvba_st mvba_next`, `mvba_st := mvba_next` — the internal
+  transitions the contract allows, as `sc_step` for the glue. `step`, not
+  `trans`: the inputs are driven below.
+* **The invocation.** `mvba_propose (i : node) (v : mvalue) (mvba_next :
+  mstate)` — the paper's `MVBA.propose(B_i)`: `¬ is_byz i`, the phase,
+  `mvba_invoked`, the proposal a certified meta-block (every positive entry
+  a proposer's with `vote_quorum_pos J M ∨ (fb_quorum_pos J M ∧ fbcert)`,
+  every negative entry with the negative form, every proposer covered) —
+  the caller's `Valid B_i` obligation stated as guards — and `require
+  mvba.propose mvba_st i v mvba_next`. Safety needs nothing from this
+  action; it is what gives the abstract instance's Quiescence and
+  Termination premises their meaning, so step 7 needs it, and it is cheap
+  here. `abandon` stays undriven (this single-slot model never abandons the
+  instance; a note for step 7).
+* **The decision handlers** replace `mvba_decide_pos`/`mvba_decide_neg`
+  one for one and keep their records: `on_mvba_decide_pos (i j m v)`
+  requires `¬ is_byz i`, `mvba.decided mvba_st i v`, `mval_pos v j m`,
+  `is_proposer j`, `phase = post_mvba_arm`, `mvba_invoked` (a Chorus-side
+  listening condition, not a contract property — check first whether any
+  *safety* invariant relies on it; it stays as the handler's guard either
+  way), and the **one stated bridge** — certificate verification of the
+  decided entry, `vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)` —
+  and sets `mvba_decided_pos j m := true`; `on_mvba_decide_neg` symmetric.
+  Per-entry handlers rather than a bulk transport of the vector, so every
+  update stays a monotone `:= true` (M13's `mono` lemmas keep coming, the
+  ~16 downstream invariants keep their form, and `#gen_proof_files` maps
+  the proof files one for one). `mvba_terminate (i v)` keeps closing the
+  oracle, now guarded by a correct validator's full decision: `mvba.decided
+  mvba_st i v` and every proposer's record matching `v`'s entry — which is
+  what keeps `mvba_complete_per_proposer` provable.
+* **What the class buys.** The agreement guards of the old oracle actions
+  go. `mvba_decided_pos_unique` and `mvba_decided_pos_neg_excl` stay as
+  invariants (downstream cells e-match on them) and are *proven* from the
+  class's `agreement` at `mvba_reachable`, through two new tie invariants
+  — `mvba_decided_pos J M → ∃ I V, ¬ is_byz I ∧ mvba.decided mvba_st I V ∧
+  mval_pos V J M`, and the negative form — plus the two `mval_*`
+  assumptions. Records from different correct validators' decisions agree
+  *because* the instance's agreement says so: this is where the proven
+  `Mvba.mvbaSafety` enters Chorus's trust base in place of the oracle's
+  firing rules. `decided_mono` along `step` is what keeps the tie invariants
+  inductive under `mvba_step`.
+* Every read of `mvba.decided`, `mvba.proposed` and the network is in
+  positive position; `mvba_st` is oracle state (category (A),
+  [`ChorusDesign.md`](./ChorusDesign.md) §3.5 — say so there). Parameter
+  lists stay ≤ 10.
 
-**Check before starting:** whether any *safety* invariant relies on
-`mvba_invoked` gating decisions (the guard exists for liveness). If one
-does, it stays as the handler's guard — which is where it belongs anyway.
+**Cost, and what the integration removed from it.** A full cold re-solve
+of the Chorus family — every VC statement changes (new invariants, and the
+instantiated class's axioms become hypotheses of every cell): `BATCH=3
+scripts/revalidate.sh` locally, and **CI is the budget measurement that
+counts** (`CLAUDE.md` § Build; read its "Slowest discharge attempts"). If
+the ~30 extra axioms per cell move cell times, withhold with
+`attribute [veil_smt_ignore] MVBASafety.<field>` exactly the fields
+Chorus's proofs never use (`sent`, `sent_mono`, `quiescence`, `Valid`,
+`external_validity`, the input effects and frames) and record the
+measurement in [`Dependencies.md`](./Dependencies.md) — never a field the
+proofs use. Manual-cell repair: the four cells of `MvbaDecidePos.lean` /
+`MvbaDecideNeg.lean` (`commitqc_pos_mvba_consistent`,
+`commitqc_neg_mvba_pos_excl`, `commitqc_pos_mvba_neg_excl`,
+`inclusion_no_mvba_neg`) move to the handlers' proof files and will need
+the same quorum arguments; the other seven manual cells re-solve cold with
+changed statements and their `inv_have` names still resolve. New proof
+files: delete the three oracle actions' files and scaffold the new ones
+(`#gen_proof_files Chorus` from a scratch directory — it never overwrites).
+Re-pin `#veil_status Chorus`. **Gone from the bill**: the action lists of
+`Chorus/Compose.lean` (there are none — `#gen_composition` and `trSimp`),
+the hand-written `Inhabited` instance, the `Decidable` side-condition
+counts. What `Chorus/Compose.lean` and `System.lean` still change is
+*types*: three more sorts in `Chorus.FieldAbstractType …`, the `[mvba :
+MVBASafety …]` variable and the two projection fields of the theory; in
+`System.lean` `mstate := Mvba.State (Mvba.FieldAbstractType node nodeset
+(node → Option merkle_root) view)`, `mmsg := Mvba.Msg view (node → Option
+merkle_root)`, `mvba := Mvba.mvbaSafety thM`, so
+`system_positional_log_safety` gains `thM` and the `view` sort with its
+`TotalOrderWithMinimum` — and no MVBA contract hypothesis remains; no
+fault-model transport is needed, both models share `nset`.
+`Chorus/Progress.lean`'s `progress_dichotomy_of_saturation` keeps its
+statement (the evidence predicates are Chorus's own and become the bridge)
+and changes its docstring.
 
-**Cost.** A full cold re-solve of the Chorus family (the ~4 000-cell,
-~15–20 minute event; budget it deliberately), manual-cell repair where an
-action's guards changed (`delta%` binders), the action lists of
-`Chorus/Compose.lean`'s step-lemma macros (−3 +2 actions), the
-`#veil_status Chorus` pin, the monitor suite under `Cadence/Monitor/`
-(it extracts Chorus's actions and CI runs it — the oracle actions are
-extracted today), and the "MVBA as an oracle" prose in
-[`ChorusDesign.md`](./ChorusDesign.md) §4 and the Chorus header. Afterwards
-`Chorus.slotConsensusSafety` carries the MVBA constraint as a parameter,
-and [`System.lean`](../Cadence/System.lean) instantiates it at
-`Mvba.mvbaSafety thM` — the composed theorem then has no contract
-hypothesis left for the MVBA either, and no fault-model transport is
-needed because both models share `nset`.
+**The monitor is the one new cost.** `Cadence/Monitor/` instantiates
+Chorus at concrete sorts and decodes implementation trace events into
+`Chorus.Label`; the three abstract sorts have no implementation
+counterpart. Instantiate `mstate := Unit` and `mmsg := Unit` (the oracle
+step is a silent step), give `mvalue` a concrete finite encoding with
+decoders for `mval_*`, update the action tables of `ChorusMonitor.lean`
+and `ChorusMonitorGen.lean`, and regenerate `Alphabet.lean` — whose
+published alphabet (JSON and the Rust stub) *changes*, which the
+implementation-side emitter has to follow. If the decision handlers cannot
+be decoded from the current fixtures, record the MVBA leg as a coverage gap
+in [`Monitor.md`](./Monitor.md) §8 rather than block; the fixtures under
+`traces/` are fast-path only and stay valid. The three suites must print
+`ALL PASS`.
+
+**Docs afterwards**: [`ChorusDesign.md`](./ChorusDesign.md) §3.5, §4 "MVBA
+as an oracle" (rewritten: the constraint, the handlers, the bridge), §6.4;
+[`CompositionContracts.md`](./CompositionContracts.md) §3 (Chorus as a
+consumer), §6, §8 item 1 closed (the bridge joins the ACS median bridge);
+[`Architecture.md`](./Architecture.md) §4 items 2 and 3; the
+`Interfaces.lean` MVBA section; `README.md`; `TODO.md`; `History.md`;
+`CLAUDE.md`.
+
+**Setup note (2026-09-10).** The package tree the worktrees symlink from
+the main checkout was still at the pre-integration Veil revision
+(`6003fc7f`) while `master`'s manifest pins `1ab4be74`; the first `lake`
+invocation against it updates and rebuilds the Veil package inside the
+main checkout. Do that deliberately, from the main checkout, with
+`LEAN_NUM_THREADS=4` (`CLAUDE.md` § Building natively), before the
+step-6 session builds anything.
 
 ## 7. Scale and where the risk is
 
@@ -557,7 +656,11 @@ Each step names its exit criterion and what it costs to rebuild.
    action's cells re-solved cold. `Cadence.lean` pins the six new
    declarations.*
 6. **Chorus consumption** (§6). Its own piece of work — the one that pays
-   the Chorus cold re-solve and touches the monitor.
+   the Chorus cold re-solve and touches the monitor. *Re-planned
+   2026-09-10 for the integrated Veil (§6): the inputs are driven from the
+   fragment, the composition files need no action lists, and the monitor
+   is the one genuinely new cost. Next up, on branch
+   `worktree-mvba-consumption`.*
 7. **Liveness skeleton** (§3), on the hooks left in place.
 
 Steps 2–5 are self-contained and touch no existing model. Step 6 is
