@@ -107,7 +107,10 @@ come first.
   would not fail the build, it would silently void the asynchrony argument.
   A small Lean meta-program that walks each action's syntax and flags negative
   occurrences of a relation declared "network" would turn the top item of
-  [`Architecture.md`](./Architecture.md) §4 into a machine check.
+  [`Architecture.md`](./Architecture.md) §4 into a machine check. **Since
+  2026-09-10 the other half exists**: M13 emits per-action frame and
+  monotonicity lemmas, which is the positive-position content of the contract
+  as kernel-checked facts rather than as a table maintained by hand.
   `ChorusDesign.md` §9 item 3. **Priority raised by the 2026-08 external
   audit** (its Finding 2): the hand audit's own record had mis-tabled two
   relations, which is exactly the failure mode a machine check removes. Design
@@ -271,10 +274,18 @@ transition-system skeleton, and the temporal level as a class over the safety
 instance instead of a residual structure — is the interface redesign, still
 to do.
 
-Still open: generated frame and monotonicity lemmas and a two-state property
-kind (M13, M14), which would replace the `StepFacts` sections of the instance
-files and give the (M-frame) network contract its first machine-checked form;
-and H6.
+*M13 and M14 landed in the fork on 2026-09-10 and were taken up here the same
+day* ([`History.md`](./History.md), [`Dependencies.md`](./Dependencies.md) §3):
+generated step lemmas (`veil.gen.stepLemmas`) replaced most of the `StepFacts`
+sections with one-line applications, and `step_property` turned the two facts
+that need the guards or the invariants at the pre-state — the Conductor's
+Monotonicity and Chorus's frozen entries — into SMT-checked cells. L17 (the
+trace path with `extends` parents) landed with them, which unblocks the shared
+transition-system skeleton.
+
+Still open: **H6**, and the (M-frame) syntactic audit above — for which M13 is
+now the missing half, since the contract is a set of frame facts about the
+`msg_*` relations and those are exactly what it emits.
 
 
 * ~~Re-include the Bool-atom fold.~~ **Done 2026-09-02** — ported forward in

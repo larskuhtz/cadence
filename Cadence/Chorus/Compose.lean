@@ -34,7 +34,7 @@ contract's docstring says.
 | `agreement` | `safety [agreement_pos]` + `[agreement_pos_neg]` + `invariant [local_committed_complete]` |
 | `slot_safety` | by construction (the slot tag) |
 | `proposal_inclusion` | `safety [proposal_inclusion]` + `[proposal_inclusion_no_neg]` + `invariant [local_committed_complete]` |
-| `finalized_mono`, `on_time_mono`, `init_finalized` | the transition bodies of all 38 actions, uniformly (`committedAll_mono`, `committedPos_frozen`, `recorded_mono`, `init_not_committed` below); the vector is frozen once committed because `commit_assign_*` require `¬ local_committed i` |
+| `finalized_mono`, `on_time_mono`, `init_finalized` | the transition bodies of all 38 actions, uniformly (`committedAll_mono`, `committedPos_frozen_of_reachable` — the `step_property [committed_pos_frozen]` cells, exported by `#gen_composition` —, `recorded_mono`, `init_not_committed` below); the vector is frozen once committed because `commit_assign_*` require `¬ local_committed i` |
 | `step_trans`, `reachable_init`, `reachable_trans` | the reachability constructors |
 
 all consumed through the named reachability projections of
@@ -155,58 +155,58 @@ local macro "chorus_field_simp" : tactic =>
 section StepFacts
 variable {st st' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice)}
 
-set_option maxHeartbeats 4000000 in
-/-- `local_committed` stands across every action. -/
+/-- `local_committed` stands across every action: the generated whole-system
+monotonicity lemma. -/
 theorem committedAll_mono
     (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st')
     (i : node) (h : CommittedAll st i) : CommittedAll st' i := by
   obtain ⟨l, htr⟩ := hn
-  cases l <;> chorus_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    chorus_field_simp <;> first | exact h | (right; exact h)
+  exact Chorus.local_committed.mono htr i h
 
-set_option maxHeartbeats 4000000 in
-/-- `local_committed_pos` stands across every action. -/
+/-- `local_committed_pos` stands across every action: the generated
+whole-system monotonicity lemma. -/
 theorem committedPos_mono
     (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st')
     (i J : node) (M : merkle_root) (h : CommittedPos st i J M) : CommittedPos st' i J M := by
   obtain ⟨l, htr⟩ := hn
-  cases l <;> chorus_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    chorus_field_simp <;> first | exact h | (right; exact h)
+  exact Chorus.local_committed_pos.mono htr i J M h
 
-set_option maxHeartbeats 4000000 in
-/-- A committed validator's positive entries are frozen: `commit_assign_pos`
-requires `¬ local_committed i`. -/
-theorem committedPos_frozen
+/-- A committed validator's positive entries are frozen (`commit_assign_pos`
+requires `¬ local_committed i`): from the checked `step_property
+[committed_pos_frozen]` cells, along any step from a reachable state
+(`reachable_<property>_step`, emitted by `Chorus/Certify.lean`'s
+`#gen_composition`). The contract's `finalized_mono` takes the pre-state's
+reachability, which the glue tracks as an invariant. -/
+theorem committedPos_frozen_of_reachable
+    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).reachable th st)
     (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st')
     (i : node) (hc : CommittedAll st i) (J : node) (M : merkle_root)
     (h : CommittedPos st' i J M) : CommittedPos st i J M := by
   obtain ⟨l, htr⟩ := hn
-  cases l <;> chorus_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    chorus_field_simp <;> first | exact h | (rcases h with ⟨rfl, rfl, rfl⟩ | h <;> simp_all)
+  exact Chorus.reachable_committed_pos_frozen_step hr htr i J M ⟨hc, h⟩
 
-set_option maxHeartbeats 4000000 in
-/-- `local_entry_pos` stands across every action. -/
+/-- `local_entry_pos` stands across every action: the generated whole-system
+monotonicity lemma. -/
 theorem recorded_mono
     (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st')
     (r j : node) (m : merkle_root) (h : Recorded st r j m) : Recorded st' r j m := by
   obtain ⟨l, htr⟩ := hn
-  cases l <;> chorus_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    chorus_field_simp <;> first | exact h | (right; exact h)
+  exact Chorus.local_entry_pos.mono htr r j m h
 
-/-- Initially nobody has committed. -/
+/-- Initially nobody has committed: the generated initial-value lemma. -/
 theorem init_not_committed
     (hinit : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).init th st)
-    (i : node) : ¬ CommittedAll st i := by
-  simp only [Chorus.relationalTransitionSystem, Chorus.Init] at hinit
-  simp only [Chorus.initializer.ext.tr] at hinit
-  (repeat (obtain ⟨_, hinit⟩ := hinit)); chorus_field_simp
+    (i : node) : ¬ CommittedAll st i :=
+  fun h => Bool.false_ne_true ((Chorus.local_committed.init hinit i).symm.trans h)
 
-/-- A committed validator's decision vector does not change. -/
+/-- A committed validator's decision vector does not change along any step
+from a reachable state. -/
 theorem decisionVector_stable
+    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).reachable th st)
     (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root Phase PathChoice).next th st st')
     (i : node) (hc : CommittedAll st i) : decisionVector th st' i = decisionVector th st i := by
   have hiff : ∀ J M, CommittedPos st' i J M ↔ CommittedPos st i J M :=
-    fun J M => ⟨committedPos_frozen th hn i hc J M, committedPos_mono th hn i J M⟩
+    fun J M => ⟨committedPos_frozen_of_reachable th hr hn i hc J M, committedPos_mono th hn i J M⟩
   funext J
   unfold decisionVector
   by_cases hp : th.is_proposer J = true
@@ -245,9 +245,9 @@ noncomputable def slotConsensusSafety :
   includes V j P := V.2 j = some P
   on_time _ st j P := Chorus.all_honest_recorded (nset := nset)
     (χ := Chorus.FieldAbstractType slot node nodeset merkle_root Phase PathChoice) j P th st
-  finalized_mono _ st st' i V hn h :=
-    ⟨committedAll_mono th hn i h.1, by rw [h.2, decisionVector_stable th hn i h.1]⟩
-  on_time_mono _ st st' j P hn h :=
+  finalized_mono _ st st' i V hr hn h :=
+    ⟨committedAll_mono th hn i h.1, by rw [h.2, decisionVector_stable th hr hn i h.1]⟩
+  on_time_mono _ st st' j P _ hn h :=
     ⟨h.1, h.2.1, fun r hr => recorded_mono th hn r j P (h.2.2.1 r hr), h.2.2.2⟩
   init_finalized _ _ i V h hf := init_not_committed th h.2 i hf.1
   agreement _ st hr i j V V' hci hcj hfi hfj := by

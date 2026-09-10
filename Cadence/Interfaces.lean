@@ -82,7 +82,15 @@ formally and in one place. See `Conductor.OrchestratorResidual`
 * **Reachability is abstract and over-approximating.** `reachable` is a field
   closed under `init` and `trans`; an implementation supplies its true
   reachable set, a consumer only needs the closure. Properties are stated at
-  `reachable st`.
+  `reachable st` — **including the step-level ones**: the monotonicity fields
+  (`opened_mono`, `completed_mono`, `finalized_mono`, `on_time_mono`) take the
+  pre-state's reachability before `trans`, exactly as `monotonicity` always
+  did. The reason is on the provider side: an implementation discharges these
+  from checked two-state cells (Veil's `step_property`), whose hypotheses are
+  the module's assumptions and invariants at the pre-state, so an all-states
+  field could not consume them. It costs a consumer nothing — the glue and
+  the Conductor already carry `orch_reachable` / `sc_reachable` / `acs_*` as
+  invariants — and it matches what this list has always promised.
 * **Runs.** `Run state init trans` is an infinite sequence of states along
   `trans`; `TimedRun` adds a clock read off the state, non-Zeno progress, and
   the run's global stabilisation time `gst`. The paper's execution model —
@@ -228,8 +236,8 @@ class SlotConsensusSafety (slot validator proposal pvector state : Type)
   on_time : slot → state → validator → proposal → Prop
 
   /-- A finalization, once output, stands. -/
-  finalized_mono : ∀ s st st' i V, trans s st st' → finalized s st i V → finalized s st' i V
-  on_time_mono : ∀ s st st' j P, trans s st st' → on_time s st j P → on_time s st' j P
+  finalized_mono : ∀ s st st' i V, reachable s st → trans s st st' → finalized s st i V → finalized s st' i V
+  on_time_mono : ∀ s st st' j P, reachable s st → trans s st st' → on_time s st j P → on_time s st' j P
   /-- Nothing is finalized before the instance runs. -/
   init_finalized : ∀ s st i V, init s st → ¬ finalized s st i V
 
@@ -437,8 +445,8 @@ class OrchestratorSafety (validator slot state : Type) [ord : TotalOrder slot]
 
   /-- **Integrity, first half.** An `open(s)` output stands; hence the event
       happens at most once per `(i, s)`. -/
-  opened_mono : ∀ st st' i s, trans st st' → opened st i s → opened st' i s
-  completed_mono : ∀ st st' i s, trans st st' → completed st i s → completed st' i s
+  opened_mono : ∀ st st' i s, reachable st → trans st st' → opened st i s → opened st' i s
+  completed_mono : ∀ st st' i s, reachable st → trans st st' → completed st i s → completed st' i s
   complete_effect : ∀ st i s st', complete st i s st' → completed st' i s
   /-- An input records itself and nothing else: `complete(s)` at `i` leaves
       every other correct validator's `completed` record unchanged. -/

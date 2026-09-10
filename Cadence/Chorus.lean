@@ -2209,6 +2209,11 @@ manual `#prove_vc … by <tactic>` cells in their actions' proof files
 made tractable; the current count is pinned by `#veil_status` and tabled
 in `docs/Architecture.md`). -/
 
+/-! ## Step property — a committed validator's positive entries are frozen
+(`commit_assign_pos` requires `¬ local_committed i`). -/
+step_property [committed_pos_frozen] {
+  local_committed I ∧ local_committed_pos' I J M → local_committed_pos I J M }
+
 #gen_spec
 
 /-! ## Verification — in the proof-file family, not here

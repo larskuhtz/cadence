@@ -184,26 +184,52 @@ record of a finalization, `pending := delivered ∧ ¬ appended`).
   `sent_new_tr` (every honest send requires `∃ E, input i E` and
   `¬ abandoned i`).
 
-**The step-level technique**, which the plan had not exercised and which was
+**The step-level fields**, which the plan had not exercised and which were
 the one open risk: a contract field such as "`opened` is monotone along
 `trans`" is a relation between two consecutive states, and no
-`#check_invariants` cell speaks about two states. Veil, however, pre-computes
-each action's two-state transition as a `reducible` definition
-`<action>.ext.tr` (a conjunction of the guards and `setIn {updated fields}
-s₀ = s₁`) with a bridge `<action>.ext.derived_eq` from the derived transition
-the reachability relation uses. So a step-level fact is proven by dispatching
-the label, exposing the body — Veil's `trSimp` simp set is exactly the
-`derived_eq` theorems and the `tr` definitions, so one `simp only [trSimp]`
-covers every action of the module — destructuring (the `obtain` on the final
-equation substitutes the post-state), and evaluating the field-representation
-`get`/`set` pair at the canonical functional representation
-(`CanonicalField.set`, `FieldUpdateDescr.fieldUpdate`, `IteratedArrow.curry`,
-…). One macro pair per model (`conductor_tr` / `conductor_field_simp`,
-`chorus_tr` / `chorus_field_simp`, `mvba_tr` / `mvba_field_simp`) and one
-tactic line per fact; the 38-action Chorus lemmas elaborate in seconds. None
-of the macros names an action, so adding one to a model changes nothing here. The guards
-are kept as inaccessible hypotheses, which is how the frozen-entries lemma
-sees `¬ local_committed i`.
+`#check_invariants` cell speaks about two states. As of 2026-09-10 that is
+no longer a gap in the tool, and the instance files reach for three things
+in order.
+
+1. **Generated lemmas** (`veil.gen.stepLemmas`). Everything the update
+   records already determine is emitted and kernel-checked at `#gen_spec`:
+   `<Module>.<f>.mono` over every label, `<Module>.<action>.frame_<f>`, and
+   `<Module>.<f>.init`. `opened_mono_tr`, `completed_mono_tr`,
+   `completed_frame_internal`, `init_not_opened`, `init_not_completed`
+   (Conductor) and `committedAll_mono`, `committedPos_mono`,
+   `recorded_mono`, `init_not_committed` (Chorus) are each a one-line
+   application of one of these. They were 38-case `cases l` scripts before.
+2. **A checked two-state cell** (`step_property`) where the fact needs the
+   action guards or the invariants at the pre-state, which the update
+   records do not carry. Two are stated: the Conductor's `monotonicity` —
+   the paper's, which needs `[open_local_order]` at the pre-state together
+   with `open_slot`'s guard — and Chorus's `committed_pos_frozen`, "a
+   committed validator's positive entries do not change", which needs
+   `commit_assign_pos`'s `¬ local_committed i`. Each is checked per action
+   like an invariant and exported as `reachable_<name>_step`; the 30-line
+   `monotonicity_tr` and the 38-case `committedPos_frozen` are gone.
+3. **By hand from the transition bodies**, for what neither covers. Two
+   remain, both about a *single* action rather than all of them:
+   `complete_effect_tr` (the effect of `complete_slot`) and
+   `complete_frame_other` (its pointwise frame). The technique is Veil's
+   pre-computed `<action>.ext.tr` reached through `<action>.ext.derived_eq`
+   — the `trSimp` simp set is exactly those two per action, so one
+   `simp only [trSimp]` covers a module — then destructure and evaluate the
+   field-representation `get`/`set` pair at the canonical representation
+   (the `conductor_tr` / `conductor_field_simp` macro pairs, and their
+   Chorus and Mvba twins). No macro names an action, so adding one to a
+   model changes nothing here.
+
+**The premise this costs.** A `step_property` cell's hypotheses are the
+module's assumptions and invariants at the pre-state, so a contract field
+discharged from one cannot be an all-states claim. The four monotonicity
+fields — `OrchestratorSafety.opened_mono`/`completed_mono`,
+`SlotConsensusSafety.finalized_mono`/`on_time_mono` — therefore take
+`reachable st` before `trans`, as `monotonicity` always did. It costs the
+consumers nothing: they already carry the sub-protocols' reachability as
+invariants (`orch_reachable`, `sc_reachable`), and the glue re-solves with
+the same 175 cells. The contracts' own convention has always promised
+properties at reachable states (`Interfaces.lean`, "Conventions").
 
 Trust base: every new declaration is pinned at `[propext, Classical.choice,
 Quot.sound]` at its own site and in [`../Cadence.lean`](../Cadence.lean).
@@ -353,13 +379,20 @@ Recorded so they are not re-derived (all reproduced by the spikes or the code):
   arrives as a function argument; SMT-LIB is first-order); `@[invSimp]`
   unfolds it in hypotheses but not goals. Not needed any more.
 * `hiding` is a Lean keyword (`open … hiding`), unusable as a field name.
-* Two-state facts about a generated transition: `simp only [trSimp]`
-  (`<action>.ext.derived_eq` then the `reducible` `<action>.ext.tr`, for
-  every action at once); `obtain ⟨_, h⟩ := h` on the final `setIn … = s₁`
-  conjunct *substitutes* (so a following `subst` is a no-op the linter
-  flags); the guards survive as inaccessible hypotheses. The
-  `actSimp`/`nextSimp` simp sets unfold the action *bodies* and defeat the
-  `derived_eq` rewrite — never use them for this.
+* Two-state facts about a generated transition: prefer the generated step
+  lemmas (`<f>.mono`, `<action>.frame_<f>`, `<f>.init`) and, when the guards
+  or invariants are needed, a `step_property` cell — see §4. Only when
+  neither applies, by hand: `simp only [trSimp]` (`<action>.ext.derived_eq`
+  then the `reducible` `<action>.ext.tr`, for every action at once);
+  `obtain ⟨_, h⟩ := h` on the final `setIn … = s₁` conjunct *substitutes*
+  (so a following `subst` is a no-op the linter flags); the guards survive
+  as inaccessible hypotheses. The `actSimp`/`nextSimp` simp sets unfold the
+  action *bodies* and defeat the `derived_eq` rewrite — never use them for
+  this.
+* A `step_property` body elaborates over binders named `th`, `st`, `st'`, so
+  a bound variable of a body must not use those names (the models use `s0`,
+  `s1`). Capitals are quantified, as in an `invariant`. Step properties are
+  conclusions only, and only mutable components have a primed form.
 * `all_honest_recorded j m` has four conjuncts since the 2026-08
   `well_encoded` refactor (`¬ is_byz j`, `is_proposer j`, the recorded
   entries, `well_encoded m`).

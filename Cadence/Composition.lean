@@ -408,30 +408,34 @@ section StepFacts
 variable {th : Conductor.Theory slot window time node acsstate}
   {st st' : Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)}
 
-set_option maxHeartbeats 2000000 in
-/-- An `open(s)` output stands across every action. -/
+/-- An `open(s)` output stands across every action: the generated
+whole-system monotonicity lemma of `opened`. -/
 theorem opened_mono_tr {l : Conductor.Label slot window time node acsstate}
     (htr : (Conductor.relationalTransitionSystem slot window time node acsstate).tr th st l st')
-    (j : node) (s0 : slot) (h : Opened st j s0) : Opened st' j s0 := by
-  cases l <;> conductor_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    conductor_field_simp <;> first | exact h | (right; exact h)
+    (j : node) (s0 : slot) (h : Opened st j s0) : Opened st' j s0 :=
+  Conductor.opened.mono htr j s0 h
 
-set_option maxHeartbeats 2000000 in
-/-- A `complete(s)` record stands across every action. -/
+/-- A `complete(s)` record stands across every action: the generated
+whole-system monotonicity lemma of `completed`. -/
 theorem completed_mono_tr {l : Conductor.Label slot window time node acsstate}
     (htr : (Conductor.relationalTransitionSystem slot window time node acsstate).tr th st l st')
-    (j : node) (s0 : slot) (h : Completed st j s0) : Completed st' j s0 := by
-  cases l <;> conductor_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    conductor_field_simp <;> first | exact h | (right; exact h)
+    (j : node) (s0 : slot) (h : Completed st j s0) : Completed st' j s0 :=
+  Conductor.completed.mono htr j s0 h
 
-set_option maxHeartbeats 2000000 in
-/-- Internal steps leave `completed` untouched. -/
+/-- Internal steps leave `completed` untouched: the generated per-action
+frame lemma of each internal action. -/
 theorem completed_frame_internal {l : Conductor.Label slot window time node acsstate}
     (hl : ¬ Label.isComplete l)
     (htr : (Conductor.relationalTransitionSystem slot window time node acsstate).tr th st l st')
     (j : node) (s0 : slot) : Completed st' j s0 ↔ Completed st j s0 := by
-  cases l <;> simp [Label.isComplete] at hl <;> conductor_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
-    conductor_field_simp
+  cases l with
+  | complete_slot => exact (hl trivial).elim
+  | tick => simp only [Completed, Conductor.tick.frame_completed htr]
+  | acs_propose => simp only [Completed, Conductor.acs_propose.frame_completed htr]
+  | acs_step => simp only [Completed, Conductor.acs_step.frame_completed htr]
+  | acs_decide => simp only [Completed, Conductor.acs_decide.frame_completed htr]
+  | enter_window => simp only [Completed, Conductor.enter_window.frame_completed htr]
+  | open_slot => simp only [Completed, Conductor.open_slot.frame_completed htr]
 
 set_option maxHeartbeats 2000000 in
 /-- `complete(s)` at `i` records exactly `(i, s)`. -/
@@ -448,52 +452,32 @@ theorem complete_effect_tr {i : node} {s : slot}
     Completed st' i s := by
   conductor_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); conductor_field_simp
 
-/-- Initially nothing is opened. -/
+/-- Initially nothing is opened: the generated initial-value lemma. -/
 theorem init_not_opened
     (hinit : (Conductor.relationalTransitionSystem slot window time node acsstate).init th st)
-    (i : node) (s : slot) : ¬ Opened st i s := by
-  simp only [Conductor.relationalTransitionSystem, Conductor.Init] at hinit
-  simp only [Conductor.initializer.ext.tr] at hinit
-  (repeat (obtain ⟨_, hinit⟩ := hinit)); conductor_field_simp
+    (i : node) (s : slot) : ¬ Opened st i s :=
+  fun h => Bool.false_ne_true ((Conductor.opened.init hinit i s).symm.trans h)
 
-/-- Initially nothing is completed. -/
+/-- Initially nothing is completed: the generated initial-value lemma. -/
 theorem init_not_completed
     (hinit : (Conductor.relationalTransitionSystem slot window time node acsstate).init th st)
-    (i : node) (s : slot) : ¬ Completed st i s := by
-  simp only [Conductor.relationalTransitionSystem, Conductor.Init] at hinit
-  simp only [Conductor.initializer.ext.tr] at hinit
-  (repeat (obtain ⟨_, hinit⟩ := hinit)); conductor_field_simp
+    (i : node) (s : slot) : ¬ Completed st i s :=
+  fun h => Bool.false_ne_true ((Conductor.completed.init hinit i s).symm.trans h)
 
-set_option maxHeartbeats 2000000 in
-/-- The paper's Monotonicity, in the contract's step form: no action opens a
-slot below a slot the same correct validator has already opened without it.
-Only `open_slot` opens anything, and its guard together with
-`[open_local_order]` at the pre-state — the hypothesis, projected out of
-reachability by `reachable_open_local_order` — rules that case out. -/
+/-- The paper's Monotonicity, in the contract's step form, from the checked
+`step_property [monotonicity]` cells: `Conductor.monotonicity_step` is the
+property over every label, from the assumptions and the invariants at the
+pre-state. -/
 theorem monotonicity_tr {l : Conductor.Label slot window time node acsstate}
-    (horder : Conductor.open_local_order
-      (ρ := Conductor.Theory slot window time node acsstate)
-      (σ := Conductor.State (Conductor.FieldAbstractType slot window time node acsstate)) th st)
+    (hassu : (Conductor.relationalTransitionSystem slot window time node acsstate).assumptions th)
+    (hinv : Conductor.Invariants (Conductor.Theory slot window time node acsstate)
+      (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
+      slot window time node acsstate (Conductor.FieldAbstractType slot window time node acsstate) th st)
     (htr : (Conductor.relationalTransitionSystem slot window time node acsstate).tr th st l st')
     (i : node) (s s' : slot) (hi : ¬ fm.byz i)
     (hs' : Opened st i s') (hle : TotalOrderWithMinimum.le s s') (hne : s ≠ s')
-    (hns : ¬ Opened st i s) : ¬ Opened st' i s := by
-  have hlt : TotalOrderWithMinimum.lt s s' := (TotalOrderWithMinimum.le_lt s s').mpr ⟨hle, hne⟩
-  cases l with
-  | open_slot i0 s0 w f b l =>
-    conductor_tr htr
-    obtain ⟨_, hent, hwb, hf, hl, _, _, _, heq⟩ := htr
-    subst heq
-    intro hop
-    simp +unfoldPartialApp [Opened, Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
-      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
-      Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
-      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id] at hop
-    rcases hop with ⟨rfl, rfl⟩ | hop
-    · exact hns (horder _ s' _ w f b l ⟨hi, hs', hent, hwb, hf, hl, hlt⟩)
-    · exact hns hop
-  | _ =>
-    conductor_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); conductor_field_simp; exact hns
+    (hns : ¬ Opened st i s) : ¬ Opened st' i s :=
+  Conductor.monotonicity_step hassu hinv htr i s s' ⟨hi, hs', hle, hne, hns⟩
 
 end StepFacts
 
@@ -528,15 +512,16 @@ noncomputable def orchestratorSafety (th : Conductor.Theory slot window time nod
   reachable_trans st st' hr hn := Veil.RelationalTransitionSystem.reachable.step st st' hr hn
   opened := Opened
   completed := Completed
-  opened_mono _ _ i s hn h := opened_mono_tr hn.choose_spec i s h
-  completed_mono _ _ i s hn h := completed_mono_tr hn.choose_spec i s h
+  opened_mono _ _ i s _ hn h := opened_mono_tr hn.choose_spec i s h
+  completed_mono _ _ i s _ hn h := completed_mono_tr hn.choose_spec i s h
   complete_effect _ _ _ _ h := complete_effect_tr h
   complete_frame _ _ _ _ j s' h _ hne := complete_frame_other h j s' hne
   completed_step_frame _ _ i s h _ := completed_frame_internal h.choose_spec.1 h.choose_spec.2 i s
   init_opened _ i s h := init_not_opened h.2 i s
   init_completed _ i s h := init_not_completed h.2 i s
   monotonicity _ _ i s s' hr hn hi hs' hle hne hns :=
-    monotonicity_tr (reachable_open_local_order hr) hn.choose_spec i s s' hi hs' hle hne hns
+    monotonicity_tr (Veil.RelationalTransitionSystem.reachable_assumptions _ th _ hr)
+      (invariants_of_reachable hr) hn.choose_spec i s s' hi hs' hle hne hns
   open_prefix_agreement _ hr i j s s' hi hj his hjs hle hne :=
     reachable_open_prefix_agreement hr i j s s'
       ⟨hi, hj, his, hjs, (TotalOrderWithMinimum.le_lt s' s).mpr ⟨hle, hne⟩⟩

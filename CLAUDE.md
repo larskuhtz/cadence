@@ -166,9 +166,17 @@ A green build is not a silent build. These are known and harmless — do not
 * `Cadence/Composition.lean` — two `try 'simp' instead of 'simpa'`
   suggestions.
 
-That is the whole list: the dependency tree builds silently. Anything else —
-and in particular any `❌`, `💥`, `⏱`, or a `sorry` warning from a `Cadence/`
-file — is real.
+That is the whole list of *warnings*: the dependency tree builds silently.
+Anything else — and in particular any `❌`, `💥`, `⏱`, or a `sorry` warning
+from a `Cadence/` file — is real.
+
+A green build also prints `info:` lines, which are not warnings and are
+expected: the VC-registry and sweep summaries, `#gen_composition`'s
+projection count (now with "+ N step propert(y/ies)" where a module has
+them), `#gen_theorems`' preservation-lemma list, and — since the 2026-09-10
+bump — its **step-lemma summary** (`emitted 3 step lemma(s) … ` in
+`Conductor.lean`). M13's per-action frame and monotonicity lemmas are silent
+on success; `set_option trace.veil.stepLemmas true` shows their verdicts.
 
 ### Building natively, and building in a container
 
@@ -307,15 +315,24 @@ measurements and the audit ladder:
   `invariant` that spells out a contract property again is the seam this
   design removed. If a consumer needs something the class does not say, add
   the field to the class (and prove it in the instances).
-* **Two-state contract fields are proven from the transition bodies**, not
-  from cells: dispatch the label, expose the body with `simp only [trSimp]`
-  — Veil's `trSimp` set is exactly the `derived_eq` theorems and the `tr`
-  definitions, so it covers every action — destructure, and simplify the
-  field-representation `get`/`set` pair (the `conductor_tr` / `chorus_tr` /
-  `mvba_tr` macros). Do *not* reach for `actSimp`/`nextSimp`: they unfold the
-  action bodies first and defeat the rewrite. Adding an action needs no edit
-  here: neither the macros nor the reachability induction lists actions any
-  more.
+* **Two-state contract fields have three sources; reach for them in this
+  order.** (1) **M13's generated lemmas**, for anything that follows from the
+  update records alone: `<Module>.<f>.mono` (the relation is only ever set to
+  `true`, over every label), `<Module>.<action>.frame_<f>`, and
+  `<Module>.<f>.init` from the initializer — all emitted at `#gen_spec`,
+  hypothesis-free, kernel-checked. (2) A **`step_property [name] { … f' … }`**
+  in the model, for a fact that needs the guards or the invariants at the
+  pre-state; it is checked per action like an invariant and exported as
+  `<Module>.<name>_step` / `<Module>.reachable_<name>_step`. It costs one
+  cell per action — 38 on Chorus — so state them for what the contracts
+  need, not for every monotone relation. (3) **By hand from the transition
+  bodies**, only for what neither covers (a single-action effect, a pointwise
+  frame): dispatch the label, expose the body with `simp only [trSimp]`, and
+  simplify the field-representation `get`/`set` pair (the `conductor_tr` /
+  `chorus_tr` / `mvba_tr` macros). Do *not* reach for `actSimp`/`nextSimp`
+  there: they unfold the action bodies first and defeat the rewrite. Adding
+  an action needs no edit in the composition files in any of the three
+  cases.
 * **The hand-written composition files must stay in the generated transition
   system's exact instance regime** — no `DecidableEq` binders, `open
   Classical` — or elaboration dies in `whnf` timeouts with no useful error.
@@ -340,10 +357,11 @@ is a change to what this project *claims*, not a refactor.
 * **No `sorryAx` anywhere.** Every axiom pin stays at exactly
   `[propext, Classical.choice, Quot.sound]`, in every per-result pin and
   in [`Cadence.lean`](./Cadence.lean).
-* **The audit pins stay complete**: `#veil_status Chorus` at `3861/3861 real`,
+* **The audit pins stay complete**: `#veil_status Chorus` at `3899/3899 real`,
   `#veil_status FallbackReceipt` at `220/220 real` and `#veil_status Mvba`
-  at `725/725 real`. If an invariant is added, these numbers change —
-  update the pins, and check the new numbers are the ones you expect.
+  at `725/725 real`. If an invariant **or a `step_property`** is added, these
+  numbers change — a step property costs one cell per action — so update the
+  pins, and check the new numbers are the ones you expect.
 * **No full contract instance is fabricated.** `Orchestrator`,
   `SlotConsensus` and `MVBA` (the full classes) have instances only
   *through* the residual structures (`Conductor.orchestrator_of_residual`,

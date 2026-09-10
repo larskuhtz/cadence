@@ -743,6 +743,19 @@ live goal, and the kernel still checks at every persistence point.
 File-level so the dischargers capture it at `#gen_spec` (§1.9 semantics). -/
 set_option veil.cache.proofs true
 
+/-! ## Step properties — two-state cells, checked per action
+
+Stated for the contract's step-level fields: the two monotonicities (also
+derivable from the update records) and the paper's Monotonicity, which
+needs `[open_local_order]` at the pre-state together with `open_slot`'s
+guard. -/
+step_property [opened_mono] { opened I S → opened' I S }
+step_property [completed_mono] { completed I S → completed' I S }
+step_property [monotonicity] {
+  ∀ (i : node) (s0 s1 : slot),
+    ¬ fm.byz i ∧ opened i s1 ∧ slot_ord.le s0 s1 ∧ s0 ≠ s1 ∧ ¬ opened i s0 →
+    ¬ opened' i s0 }
+
 #gen_spec
 
 /- The sweep runs at Veil's solver defaults. Do not try to override them
