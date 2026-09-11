@@ -166,8 +166,11 @@ slot numbers.
 `mod:mvba` in the published paper is an interface — `propose`, `abandon`,
 `decide` — plus five properties (Agreement, Integrity, External validity,
 `ℓ_MVBA`-Termination, Quiescence). It specifies no algorithm, which is why
-this development consumes the MVBA as an oracle under (A-mvba)
-([`Architecture.md`](./Architecture.md) §4 item 2) and why `ℓ_MVBA` is a
+this development consumed the MVBA as an oracle under (A-mvba) until
+2026-09-10 — since then Chorus consumes the class `MVBASafety`, instantiated
+at the supplement's leader-based model (`Mvba.mvbaSafety`, plugged in by
+`Cadence/System.lean`), and (A-mvba) is the instance's own Termination
+([`Architecture.md`](./Architecture.md) §4 item 2) — and why `ℓ_MVBA` is a
 parametric hole ([`Bounds.md`](./Bounds.md) §1).
 
 The supplement now closes that hole on paper. `sec:mvba-instantiation`
@@ -204,8 +207,10 @@ acted on:
    entries-level statement, and says so deliberately: agreement is over a
    metablock's entries, the certificates being carried only so validity can
    be checked. Chorus needs no more than that, and the Chorus model already
-   works at that level — its oracle shadow is the per-proposer
-   `mvba_decided_pos`/`mvba_decided_neg` with `mvba_decided_pos_unique`. So
+   works at that level — its records are the per-proposer
+   `mvba_decided_pos`/`mvba_decided_neg`, filled by the decision handlers
+   through the entry-vector projections `mval_pos`/`mval_neg`, with
+   `mvba_decided_pos_unique` proven from the class's agreement. So
    the right instantiation of the class's `value` is the entry vector, not
    the metablock — which is what `Cadence/Mvba.lean` does (`value` is the
    entry vector, `Recover(e)` the identity; [`MvbaPlan.md`](./MvbaPlan.md)

@@ -14,7 +14,7 @@ over reachable states, for every `n = 3f+1`:
 
 | Theorem | Says |
 |---|---|
-| `progress_dichotomy_of_saturation` ([`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean)) | in any reachable state where every honest validator has cast its path vote, commitQCs exist for every proposer from honest votes alone, **or** the MVBA is invoked with per-proposer evidence in exactly the `mvba_decide_*` guard form |
+| `progress_dichotomy_of_saturation` ([`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean)) | in any reachable state where every honest validator has cast its path vote, commitQCs exist for every proposer from honest votes alone, **or** the MVBA is invoked with per-proposer evidence in exactly the certificate form of the decision handlers' bridge and of `mvba_propose`'s validity guards |
 | `evidence_pigeonhole_of_reachable` ([`Cadence/Chorus/Pigeonhole.lean`](../Cadence/Chorus/Pigeonhole.lean)) | `2f+1` honest per-proposer fallback entries always yield a FallbackQC or an EquivCert |
 | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([`Cadence/Chorus/Counting.lean`](../Cadence/Chorus/Counting.lean)) | certificate formation: the honest population is itself the quorum; a supermajority of honest fast commit votes is a per-proposer commitQC |
 | `build_totality_of_reachable` (same file) | **any** supermajority of accepted receipts, Byzantine members included, yields a buildable fallback meta-block entry per proposer — "every correct validator can propose", at the state level |

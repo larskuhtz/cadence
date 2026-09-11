@@ -41,7 +41,7 @@ is a build failure.
 | **cvc5's verdicts are not believed.** Every solver discharge is reconstructed as a Lean proof term and re-checked by the kernel | all models elaborate with `veil.smt.trust false`; if a proof cannot be reconstructed, the cell fails |
 | **Nothing is stubbed.** Every Chorus verification condition (one per action × property, plus a does-not-throw check per action), and every one of the receipt layer's and of the MVBA instantiation's, has a real, statement-matching, kernel-checked theorem in scope | the pinned `#veil_status` lines in `Cadence/Chorus/Certify.lean`, `Cadence/FallbackReceipt/Certify.lean` and `Cadence/Mvba/Certify.lean`, each asserting *all* cells real with the axiom union over all of them |
 | The verification conditions are the ones the model states — they are not re-typed by hand anywhere | the proof files read their statements out of the model's own persisted registry; identity is by construction |
-| **The composition is not a transcription.** The glue and the Conductor consume the sub-protocol contracts as *class constraints* over abstract states (`instantiate orch : OrchestratorSafety …`, `instantiate sc : SlotConsensusSafety …`, `instantiate acs : ACSSafety …`); no contract property is restated as a guard or invariant, and the implementations' instances (`Conductor.orchestratorSafety`, `Chorus.slotConsensusSafety`) are checked against the same classes | the `instantiate` lines in `Cadence/Cadence.lean` and `Cadence/Conductor.lean`; the instance definitions' types; `Cadence/System.lean`, which instantiates the glue's end theorem at both instances and leaves no contract hypothesis |
+| **The composition is not a transcription.** The glue, the Conductor and Chorus consume the sub-protocol contracts as *class constraints* over abstract states (`instantiate orch : OrchestratorSafety …`, `instantiate sc : SlotConsensusSafety …`, `instantiate acs : ACSSafety …`, `instantiate mvba : MVBASafety …`); no contract property is restated as a guard or invariant — the two documented bridges (the ACS median range, the MVBA decision's certificate check) are the interpretation of a class parameter in the consumer's vocabulary, not restatements — and the implementations' instances (`Conductor.orchestratorSafety`, `Chorus.slotConsensusSafety`, `Mvba.mvbaSafety`) are checked against the same classes | the `instantiate` lines in `Cadence/Cadence.lean`, `Cadence/Conductor.lean` and `Cadence/Chorus.lean`; the instance definitions' types; `Cadence/System.lean`, which instantiates the glue's end theorem at the instances, with `Mvba.mvbaSafety` filling Chorus's constraint, and leaves no contract hypothesis |
 | **What is not proven about the composition is a type, not prose.** Each implementation's unproven contract obligations are the fields of a class it has *no instance of* — stated over the very transition system it proved, so they are written down once and nowhere else | `OrchestratorTemporal` / `orchestrator_of_temporal` (`Cadence/Composition.lean`), `SlotConsensusTemporal` / `slotConsensus_of_temporal` (`Cadence/Chorus/Compose.lean`), `MVBATemporal` / `mvba_of_temporal` (`Cadence/Mvba/Compose.lean`) — each join paired with a `rfl` lemma that it hands back exactly the proven fragment |
 | The receipt-layer bug found in 2026-07 **is** a bug in the pre-fix rules | `Cadence/FallbackReceipt/PreFix.lean` pins the model checker's counterexample; the file builds only if the bug is still found, verbatim |
 | The MVBA instantiation's invariants are **load-bearing**, not merely true: remove the lock check and agreement fails | `Cadence/Mvba/NoLock.lean` pins the model checker's counterexample to the mutant; the file builds only if the violation is still found, verbatim |
@@ -114,13 +114,13 @@ paper published on arxiv.*
 | **Fair-progress liveness content** (no livelock of fair actions — strictly stronger than deadlock-freedom) | `Cadence/Chorus.lean`, liveness section | reconstructed VCs + the named temporal assumptions ([docs/Liveness.md](./docs/Liveness.md)) |
 | **Progress dichotomy** — the liveness case split as one theorem: in any reachable state where every honest validator has cast its path vote, either commitQCs exist for every proposer from honest votes alone, or the MVBA stands invoked with decide-enabling evidence for every proposer, for **every** `n = 3f+1` | `Cadence/Chorus/Progress.lean` (`progress_dichotomy_of_saturation`); its counting inputs — the evidence pigeonhole and certificate formation — are separately stated and pinned in `Cadence/Chorus/Pigeonhole.lean` and `Cadence/Chorus/Counting.lean` | plain Lean over reachable states, axiom-pinned |
 | **Network-level build totality** — any supermajority of accepted receipts (Byzantine members included) yields a buildable fallback meta-block entry per proposer: the state-level half of "every correct validator can propose", for **every** `n = 3f+1` | `Cadence/Chorus/Counting.lean` (`build_totality_of_reachable`) | plain Lean over reachable states, axiom-pinned |
-| **MCP Safety, positional form** — for the glue over *any* orchestrator and slot consensus satisfying the contracts, and **for the composed system** (the glue running the Conductor's and Chorus's own transition systems, no contract hypothesis left) | `Cadence/Composition.lean` (`positional_log_safety`), `Cadence/System.lean` (`system_positional_log_safety`) | Cadence sweep against the contracts as class constraints (reconstructed) + plain-Lean composition — kernel-checked, axiom-pinned |
+| **MCP Safety, positional form** — for the glue over *any* orchestrator and slot consensus satisfying the contracts, and **for the composed system** (the glue running the Conductor's and Chorus's own transition systems, Chorus running the `Mvba` model's as its MVBA; no contract hypothesis left) | `Cadence/Composition.lean` (`positional_log_safety`), `Cadence/System.lean` (`system_positional_log_safety`) | Cadence sweep against the contracts as class constraints (reconstructed) + plain-Lean composition — kernel-checked, axiom-pinned |
 | **`Conductor ⊨ OrchestratorSafety`**, **`Chorus ⊨ SlotConsensusSafety`** — the state-level fragments of the paper's module contracts, every field proven (including the two-state fields: monotonicity of the observables, frames, the paper's Monotonicity) | `Cadence/Composition.lean` (`Conductor.orchestratorSafety`), `Cadence/Chorus/Compose.lean` (`Chorus.slotConsensusSafety`) | plain Lean over persisted VC theorems and Veil's transition bodies — kernel-checked, axiom-pinned |
 | **The joins toward the full contracts** — given an `OrchestratorTemporal` instance at the proven fragment (Totality, `B`-Boundedness, `R`-Recovery, the execution model) the Conductor is a full `Orchestrator`; given a `SlotConsensusTemporal` one (the participation interface, Termination, Quiescence, the clock) Chorus is a full `SlotConsensus`. This development supplies neither, and that is precisely the claim about what is unproven. Integrity's timing half and Hiding's protocol half are first-order and *are* proven — they sit in the fragments | `orchestrator_of_temporal`, `slotConsensus_of_temporal` | plain Lean; what is unproven is a hypothesis, never an axiom — axiom-pinned |
 | **Fallback meta-block "valid by construction"**, including the counting argument, for **every** `n = 3f+1` | `Cadence/FallbackReceipt.lean` + `Cadence/FallbackReceipt/Totality.lean` | reconstructed SMT + kernel-checked Lean — **no trusted step**, axiom-pinned |
 | **The pre-fix receipt rules are broken** ("pre-fix" = the paper's rules *before* the 2026-07-07 bug fix; the bug, mechanically reproduced) | `Cadence/FallbackReceipt/PreFix.lean` | exhaustive model check; the counterexample trace is pinned in the build |
 | **MVBA agreement, integrity and external validity** — the three safety properties of `mod:mvba`, for the leader-based instantiation of the paper repository's *internal supplement* (views, timeouts, timeout certificates, the lock; the referent is pinned to a paper-repository commit in the model's header and is not yet part of the published paper) | `Cadence/Mvba.lean` (`agreement`, `integrity`, `external_validity`) → `Mvba.mvbaSafety` | one verification condition per action × property (cvc5, **proof-reconstructed — kernel-checked**), proved per action under `Cadence/Mvba/Proofs/`, plus plain-Lean reachability composition — kernel-checked end to end, axiom-pinned, per-VC audit pinned |
-| **`Mvba ⊨ MVBASafety`** — the state-level fragment of the paper's MVBA contract, every field proven, including the two inputs, their observables and **Quiescence**; given an `MVBATemporal` instance (the clock, the admissible-run model, `ℓ_MVBA`-Termination — four fields, nothing safety-shaped) the instantiation is a full `MVBA`. Chorus does not consume the instance yet | `Cadence/Mvba/Compose.lean` (`Mvba.mvbaSafety`, `mvba_of_temporal`) | plain Lean over persisted VC theorems and Veil's transition bodies — kernel-checked, axiom-pinned |
+| **`Mvba ⊨ MVBASafety`** — the state-level fragment of the paper's MVBA contract, every field proven, including the two inputs, their observables and **Quiescence**; given an `MVBATemporal` instance (the clock, the admissible-run model, `ℓ_MVBA`-Termination — four fields, nothing safety-shaped) the instantiation is a full `MVBA`. Chorus consumes the class as a constraint and `Cadence/System.lean` fills it with this instance | `Cadence/Mvba/Compose.lean` (`Mvba.mvbaSafety`, `mvba_of_temporal`) | plain Lean over persisted VC theorems and Veil's transition bodies — kernel-checked, axiom-pinned |
 | **The MVBA's lock check is load-bearing** — with the `Pre-Prepare` handler's lock check removed, two correct validators decide different vectors: the mutation test showing the instantiation's invariants are needed, not merely true | `Cadence/Mvba/NoLock.lean` | exhaustive model check of a restriction of the mutant (every run of which is a run of the mutant); the counterexample trace is pinned in the build |
 
 What is *not* proven in Lean — timing bounds, the scheduling (fairness)
@@ -208,7 +208,7 @@ up-to-date, so every later build fails in milliseconds while loading them.
 Recovery is `rm -rf .lake/packages/{auto,smt}/.lake/build`. Lake has no `-j`
 flag; `LEAN_NUM_THREADS` is the only control.
 
-**Memory.** `lake build` schedules the 39 Chorus and 10 receipt-layer proof
+**Memory.** `lake build` schedules the 41 Chorus and 10 receipt-layer proof
 files all at once, and a *cold* proof file peaks around 5 GB of resident
 memory (lake has no job cap). On a machine with less than ~64 GB, build in
 stages instead — the same work in the same order, batched:
@@ -229,8 +229,8 @@ Individual pieces, for iteration:
 
 ```bash
 lake build Cadence.Chorus                    # the per-slot consensus MODEL (no sweep) — ~2 min
-lake build Cadence.Chorus.Proofs.Vote        # one action's ~98 proof cells
-lake build Cadence.Chorus.Certify            # composition certificate + the 3 861-cell audit pin
+lake build Cadence.Chorus.Proofs.Vote        # one action's ~100 proof cells
+lake build Cadence.Chorus.Certify            # composition certificate + the #veil_status audit pin
 lake build Cadence.Cadence Cadence.Conductor # the two small models, sweeps included
 lake build Cadence.FallbackReceipt           # receipt model + its n=4 exhaustive model check
 lake build Cadence                           # the audit root: every axiom pin, re-derived
@@ -285,7 +285,7 @@ Cadence/Chorus.lean          the MODEL: state, actions, invariants. Elaborating 
    │                         persists every VC statement (the "VC registry") — it
    │                         runs no invariant sweep and persists no proofs
    ▼ imported by
-Cadence/Chorus/Proofs/*.lean one file per action (39): #prove_action re-proves every
+Cadence/Chorus/Proofs/*.lean one file per action (41): #prove_action re-proves every
    │                         registered VC statement of that action → real
    │                         kernel-checked proofs, plus one exported preservation
    │                         lemma ("this action preserves all invariants"). The
@@ -319,10 +319,12 @@ as the architecture's fast regression leg.
 ```
 Cadence.lean                       AUDIT ROOT: every end theorem, every axiom pin
 Cadence/
-  Chorus.lean                      per-slot consensus MODEL — no sweep; persists a
-                                    7 683-entry VC registry (both proof encodings of
-                                    each obligation), of which 3 861 cells are audited
-  Chorus/Proofs/                    one proof file per action (39): #prove_action —
+  Chorus.lean                      per-slot consensus MODEL — no sweep; consumes the
+                                    MVBA as a class constraint (instantiate mvba);
+                                    persists the VC registry (both proof encodings of
+                                    each obligation); the audited cell count is the
+                                    #veil_status pin in Chorus/Certify.lean
+  Chorus/Proofs/                    one proof file per action (41): #prove_action —
                                     persisted real proofs + one preservation lemma each;
                                     the manual cells live here
   Chorus/Certify.lean               #gen_composition: reachability induction + named

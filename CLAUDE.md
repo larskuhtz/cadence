@@ -23,9 +23,14 @@ Four Veil models plus support files, mirroring the paper's architecture:
   it runs no invariant sweep and persists no theorems — its VC statements live
   in a persistent registry, the real kernel-checked proofs are produced per
   action by `Cadence/Chorus/Proofs/<Action>.lean`, and
-  `Cadence/Chorus/Certify.lean` composes them. Model-only build ~2 min. Do not
-  touch its imports casually (it imports `Primitives.lean` and `Tooling.lean`
-  only).
+  `Cadence/Chorus/Certify.lean` composes them. Model-only build ~2 min. It
+  consumes the MVBA as the class constraint `instantiate mvba : MVBASafety
+  …` over an abstract state (since 2026-09-10; `docs/MvbaPlan.md` §6), with
+  two per-entry decision handlers whose certificate check against the
+  network is the **one stated bridge**, so it imports `Interfaces.lean` —
+  which means an edit to the contracts now rebuilds the Chorus family. Do
+  not touch its imports casually (it imports `Primitives.lean`,
+  `Interfaces.lean` and `Tooling.lean` only).
 * **`Cadence/Cadence.lean`** — the extreme-pipelining glue: consumes the
   `SlotConsensusSafety` and `OrchestratorSafety` contracts as **class
   constraints** over abstract sub-protocol states it holds (`instantiate …`;
@@ -49,7 +54,9 @@ Four Veil models plus support files, mirroring the paper's architecture:
   two manual cells), the certificate with its `#veil_status` pin, and
   `Mvba.mvbaSafety : MVBASafety …` plus `Mvba.mvba_of_temporal` in
   `Compose.lean` — the only Mvba file importing `Interfaces.lean`.
-  Chorus does **not** consume the instance yet (`docs/MvbaPlan.md` §6).
+  Chorus consumes the class, and `System.lean` fills its constraint with
+  `Mvba.mvbaSafety` (`docs/MvbaPlan.md` §6); the value is the entry
+  vector `node → Option merkle_root`.
   The lock-persistence lemma is not inductive; the clump carries the
   Paxos-EPR-style `prepqc_blocks_lower_commits` (the header explains).
   `Mvba/NoLock.lean` is the mutation test: the model checker's
@@ -93,12 +100,12 @@ History: [docs/History.md](./docs/History.md).
 ## Build
 
 * Always build from the **project root**.
-* `lake build` verifies everything. But it schedules all 74 per-action proof
+* `lake build` verifies everything. But it schedules all 76 per-action proof
   files at once and a *cold* proof file peaks ~5 GB (lake has no job cap):
   on <64 GB use `scripts/revalidate.sh`, which stages the same targets.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
   only, ~2 min), `Cadence.Chorus.Proofs.Vote` (one action's ~98 cells, ~16 s
-  warm), `Cadence.Chorus.Certify` (composition + the 3 861-cell audit pin,
+  warm), `Cadence.Chorus.Certify` (composition + the `#veil_status` audit pin,
   ~3 s — the audit walk reads each imported olean's stored axiom sets rather
   than traversing proof terms, so it does not grow with proof size).
 * **Where the time actually goes, before optimising anything.** A warm
@@ -337,7 +344,7 @@ measurements and the audit ladder:
   in the model, for a fact that needs the guards or the invariants at the
   pre-state; it is checked per action like an invariant and exported as
   `<Module>.<name>_step` / `<Module>.reachable_<name>_step`. It costs one
-  cell per action — 38 on Chorus — so state them for what the contracts
+  cell per action — 40 on Chorus — so state them for what the contracts
   need, not for every monotone relation. (3) **By hand from the transition
   bodies**, only for what neither covers (a single-action effect, a pointwise
   frame): dispatch the label, expose the body with `simp only [trSimp]`, and
@@ -371,7 +378,7 @@ is a change to what this project *claims*, not a refactor.
 * **No `sorryAx` anywhere.** Every axiom pin stays at exactly
   `[propext, Classical.choice, Quot.sound]`, in every per-result pin and
   in [`Cadence.lean`](./Cadence.lean).
-* **The audit pins stay complete**: `#veil_status Chorus` at `3899/3899 real`,
+* **The audit pins stay complete**: `#veil_status Chorus` at `4222/4222 real`,
   `#veil_status FallbackReceipt` at `220/220 real` and `#veil_status Mvba`
   at `725/725 real`. If an invariant **or a `step_property`** is added, these
   numbers change — a step property costs one cell per action — so update the

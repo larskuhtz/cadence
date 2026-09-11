@@ -12,8 +12,14 @@ fixtures and they must agree.
 (`Veil/Frontend/DSL/Module/GenMonitor.lean`); its argument keywords are
 `scoped`, so the command has to be activated with `open scoped
 Veil.GenMonitor`.
+
+Chorus's MVBA class constraint (since 2026-09-10) is filled by instance
+synthesis: the `instance` below registers the silent stub of
+`Monitor/MvbaStub.lean` at exactly the fault pattern the generated executor
+asks for (`#gen_monitor` has an override only for the `ByzNodeSet` instance).
 -/
 import Cadence.Chorus
+import Cadence.Monitor.MvbaStub
 open Veil Veil.Extract
 open scoped Veil.GenMonitor
 open scoped Chorus
@@ -36,11 +42,19 @@ set_option warn.classDefReducibility false
 def emptyByz4 : ByzNodeSet (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1)) :=
   byzNodeSetFin (3 * 1 + 1) 1 rfl (fun _ => False) (by decide)
 
+/-- The MVBA Chorus's class constraint is filled with: the silent stub, at
+the module's own fault pattern under `emptyByz4`. -/
+instance : MVBASafety (Fin (3 * 1 + 1)) ChorusMonitor.MV Unit Unit
+    (fun i => @ByzNodeSet.is_byz _ _ emptyByz4 i = true) :=
+  ChorusMonitor.silentMvba _
+
 -- ▼▼▼ the entire instantiation, generated ▼▼▼
 #gen_monitor Chorus into ChorusGen
   sorts (Fin 1), (Fin (3 * 1 + 1)), (ByzNSet (3 * 1 + 1)), (Fin 2),
+        Unit, ChorusMonitor.MV, Unit,
         Chorus.Phase_IndT, Chorus.PathChoice_IndT
-  theory (Chorus.Theory.mk (fun j => j == 0) (fun _ => true))
+  theory (Chorus.Theory.mk (fun j => j == 0) (fun _ => true)
+            ChorusMonitor.mvalPos ChorusMonitor.mvalNeg ())
   byz emptyByz4
 -- ▲▲▲ emits ChorusGen.{Th,St,Lbl,chThy,stInhab,cnext,cinit,initStates,step} ▲▲▲
 
@@ -49,6 +63,8 @@ namespace ChorusMonitorGen
 abbrev ND := Fin (3 * 1 + 1)
 abbrev NS := ByzNSet (3 * 1 + 1)
 abbrev MR := Fin 2
+abbrev MV := ChorusMonitor.MV
+abbrev MS := Unit
 abbrev Lbl := ChorusGen.Lbl
 abbrev St := ChorusGen.St
 
@@ -72,6 +88,7 @@ def initState : Option St := ChorusGen.initStates.head?
     emits only observable actions; the monitor bridges `commit_sign_*` /
     `commit_assign_*` by applying every enabled internal action to a fixpoint. -/
 def internalCandidates : List Lbl :=
+  Chorus.Label.mvba_step () ::
   (List.finRange (3 * 1 + 1)).flatMap fun i =>
   (List.finRange (3 * 1 + 1)).flatMap fun j =>
     [Chorus.Label.commit_sign_neg i j, Chorus.Label.commit_assign_neg i j]
@@ -106,12 +123,14 @@ private def dNSet (j : Json) : Except String NS := do
   let fins ← arr.toList.mapM fun e => e.getNat? >>= toFin (3 * 1 + 1)
   mkNSet ((fins.dedup).mergeSort (fun a b => decide (a ≤ b)))
 
+private def dMValue (j : Json) : Except String MV := ChorusMonitor.decodeMV j
+private def dMState (j : Json) : Except String MS := ChorusMonitor.decodeMState j
+
 def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   match act, args with
   | "advance_to_deadline", []        => pure .advance_to_deadline
   | "advance_to_fb_arm", []          => pure .advance_to_fb_arm
   | "advance_to_mvba_arm", []        => pure .advance_to_mvba_arm
-  | "mvba_terminate", []             => pure .mvba_terminate
   | "propose", [a, b]                => do pure (.propose (← dNode a) (← dRoot b))
   | "deliver_chunk_assigned", [a,b,c]=> do pure (.deliver_chunk_assigned (← dNode a) (← dNode b) (← dRoot c))
   | "record_chunk", [a,b,c]          => do pure (.record_chunk (← dNode a) (← dNode b) (← dRoot c))
@@ -126,8 +145,13 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "fb_sign_pos", [a,b,c,d,e]       => do pure (.fb_sign_pos (← dNode a) (← dNode b) (← dRoot c) (← dNSet d) (← dNSet e))
   | "fb_sign_neg", [a,b,c]           => do pure (.fb_sign_neg (← dNode a) (← dNode b) (← dNSet c))
   | "cast_fallback_vote", [a]        => do pure (.cast_fallback_vote (← dNode a))
-  | "mvba_decide_pos", [a,b]         => do pure (.mvba_decide_pos (← dNode a) (← dRoot b))
-  | "mvba_decide_neg", [a]           => do pure (.mvba_decide_neg (← dNode a))
+  -- the MVBA instance (`docs/Monitor.md` §8: the oracle step is silent, the
+  -- decision handlers cannot fire under the silent instance)
+  | "mvba_step", [a]                 => do pure (.mvba_step (← dMState a))
+  | "mvba_propose", [a,b,c]          => do pure (.mvba_propose (← dNode a) (← dMValue b) (← dMState c))
+  | "on_mvba_decide_pos", [a,b,c,d]  => do pure (.on_mvba_decide_pos (← dNode a) (← dNode b) (← dRoot c) (← dMValue d))
+  | "on_mvba_decide_neg", [a,b,c]    => do pure (.on_mvba_decide_neg (← dNode a) (← dNode b) (← dMValue c))
+  | "mvba_terminate", [a,b]          => do pure (.mvba_terminate (← dNode a) (← dMValue b))
   | "redisseminate_chunk", [a,b,c]   => do pure (.redisseminate_chunk (← dNode a) (← dNode b) (← dRoot c))
   | "cast_fb_commit", [a]            => do pure (.cast_fb_commit (← dNode a))
   | "commit_assign_pos", [a,b,c]     => do pure (.commit_assign_pos (← dNode a) (← dNode b) (← dRoot c))

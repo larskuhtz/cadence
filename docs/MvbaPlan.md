@@ -99,10 +99,11 @@ hypothesis left. The MVBA already has its two classes:
 | `MVBASafety party value state byz` | `Valid`; `init`, `step`, `trans`, `reachable` and their closure axioms; the observable `decided` with `decided_mono`, `init_decided`; `agreement`, `integrity`, `external_validity` at reachable states |
 | `MVBA … extends MVBASafety` | inputs `propose`, `abandon` with observables `proposed`, `abandoned`, `sent`, their monotonicity, effects, frames and initial conditions; `clock`, `Admissible`, `admissible_exists`; the bound `ℓ`; `termination`, `quiescence` over timed runs |
 
-**Chorus does not consume the class.** Alone among the consumers it inlines
+**Chorus did not consume the class** (the situation this plan started from;
+closed by step 6 on 2026-09-10 — §6, §8). Alone among the consumers it inlined
 the oracle's properties as guards of three actions — `mvba_decide_pos`,
 `mvba_decide_neg`, `mvba_terminate` over the relations `mvba_decided_pos`,
-`mvba_decided_neg`, `mvba_complete` — and the transcription is audited by
+`mvba_decided_neg`, `mvba_complete` — and the transcription was audited by
 reading ([`CompositionContracts.md`](./CompositionContracts.md) §8, the
 table). The reason is not the class's shape. The paper's `Valid B` is a
 function of the meta-block, which *carries* its certificates; Chorus checks
@@ -436,6 +437,14 @@ driven by a Chorus action (§6).
 
 ## 6. Chorus consumes the class — the expensive step
 
+*Landed 2026-09-10 on branch `worktree-mvba-consumption`, as specified
+below; the status trail is §8 step 6. Two departures from the letter of
+this section, both recorded there: the handlers carry no `¬ mvba_complete`
+guard (the recorded vector is frozen after termination by the invariants
+instead), and `mvba_propose`'s trigger is the proposer's own
+(`fbcert ∨ complete_fast_metablock i`, which implies `mvba_invoked`)
+rather than the derived `mvba_invoked`.*
+
 *Re-planned 2026-09-10, after the Veil integration of 2026-09-09/10
 ([`History.md`](./History.md), the three rows "the composition is emitted
 now", "step lemmas and step properties", "the interface redesign"). What
@@ -659,8 +668,38 @@ Each step names its exit criterion and what it costs to rebuild.
    the Chorus cold re-solve and touches the monitor. *Re-planned
    2026-09-10 for the integrated Veil (§6): the inputs are driven from the
    fragment, the composition files need no action lists, and the monitor
-   is the one genuinely new cost. Next up, on branch
-   `worktree-mvba-consumption`.*
+   is the one genuinely new cost.* **Done 2026-09-10** (branch
+   `worktree-mvba-consumption`; `History.md` has the ledger row with the
+   measurements). What landed, against §6: the three sorts and the two
+   projections with their assumptions; `instantiate mvba` after `nset`;
+   `mvba_st` seeded from an immutable `mvba_init_state` under
+   `[mvba_init]`, carried by `[mvba_reachable]`; `mvba_step`,
+   `mvba_propose`, `on_mvba_decide_pos`/`_neg` with the bridge,
+   `mvba_terminate (i v)`; the two tie invariants; the agreement guards
+   gone and `mvba_decided_pos_unique`/`_neg_excl` proven from the class.
+   The spikes are `spikes/09_mvba_consumer_ok.lean` (green) and
+   `10_mvba_consumer_no_tie.lean` (exactly three `❌`, at the handlers).
+   Chorus went from 38 to 40 actions and gained three invariants; the four
+   manual cells of the retired `MvbaDecidePos`/`MvbaDecideNeg` files moved
+   to `OnMvbaDecidePos`/`OnMvbaDecideNeg` with only their `intro` pattern
+   changed, and no other cell needed a manual proof. `System.lean` fills
+   the constraint with `Mvba.mvbaSafety thM` (`mvalue := node → Option
+   merkle_root`, `mstate` the model's abstract state, `mmsg := Mvba.Msg`),
+   `system_positional_log_safety` gains `thM` and the `view` sort, and
+   `chorusTheory_assumptions` shows the two projection assumptions are
+   theorems at that instantiation. Two consequences worth knowing:
+   `Chorus.lean` now imports `Interfaces.lean` (a contract edit rebuilds
+   the Chorus family — `Interfaces.lean`, "Why this file"), and the monitor
+   runs a *silent* MVBA stub, so its MVBA leg is a coverage gap
+   (`Monitor.md` §8) and the published alphabet changed. Two departures
+   from §6's letter: the handlers do not require `¬ mvba_complete` (after
+   `mvba_terminate` the recorded vector is frozen as a set by
+   `mvba_complete_per_proposer` + uniqueness + exclusion, which is what
+   `cast_fb_commit`'s read needs — `ChorusDesign.md` §3.1), and
+   `mvba_propose` requires the proposer's *own* trigger, `fbcert` from the
+   fallback arm on or its own `complete_fast_metablock` at the MVBA arm
+   (which implies `mvba_invoked` and is what the paper's rule says), so
+   that step 7 can state premise (i) per validator.
 7. **Liveness skeleton** (§3), on the hooks left in place.
 
 Steps 2–5 are self-contained and touch no existing model. Step 6 is

@@ -98,7 +98,8 @@ emitter which *reconstructed* the schedule would have masked: see the
 
 | File | Role |
 |---|---|
-| [`Cadence/Monitor/ChorusMonitor.lean`](../Cadence/Monitor/ChorusMonitor.lean) | the hand-written monitor: instantiation, a 38-constructor JSONL→`Label` decoder, the trace fold, and a `main` reading JSONL from stdin. **The test oracle.** |
+| [`Cadence/Monitor/ChorusMonitor.lean`](../Cadence/Monitor/ChorusMonitor.lean) | the hand-written monitor: instantiation, a JSONL→`Label` decoder with one arm per constructor, the trace fold, and a `main` reading JSONL from stdin. **The test oracle.** |
+| [`Cadence/Monitor/MvbaStub.lean`](../Cadence/Monitor/MvbaStub.lean) | the stand-in for Chorus's MVBA class constraint (since 2026-09-10 Chorus `instantiate`s `MVBASafety` over three abstract sorts): state and message `Unit`, the value a finite entry-vector record with the two projections Chorus's `Theory` needs, and a *silent* instance of the class that never decides — a consistent model of `MVBASafety` under which every guard reading it is decidable. Shared by both monitors; its coverage consequence is §8. |
 | [`Cadence/Monitor/ChorusMonitorGen.lean`](../Cadence/Monitor/ChorusMonitorGen.lean) | the same monitor with its instantiation produced by Veil's `#gen_monitor` instead of hand-written. Must agree with the oracle on every fixture. |
 | [`Cadence/Monitor/Alphabet.lean`](../Cadence/Monitor/Alphabet.lean) | the published alphabet: the monitor's alphabet **is** the constructors of `Chorus.Label`, reflected mechanically so it cannot drift from the model. Each action is tagged **observable** (Stage A emits it) or **internal** (Stage B inserts it). |
 | [`Cadence/Monitor/TraceMutate.lean`](../Cadence/Monitor/TraceMutate.lean) | the trace-mutation tool: corrupt a valid trace in a way that models a class of implementation bug. |
@@ -146,8 +147,16 @@ One JSON object per line, positional arguments:
 ```
 
 `args` may be omitted when empty. Node and merkle-root arguments are integers
-(`Fin 4` / `Fin 2`); a node set is a JSON array of integers. Blank lines and
-lines starting with `//` or `#` are ignored.
+(`Fin 4` / `Fin 2`); a node set is a JSON array of integers; an MVBA value
+(the entry vector) is a JSON array of four entries, each a root index or
+`null`; the MVBA's abstract state is not observable and is written `null`
+(`mvba_step` takes exactly `[null]`). Blank lines and lines starting with
+`//` or `#` are ignored. The alphabet the emitter must follow is served by
+`--alphabet` and changed on 2026-09-10 with the MVBA's consumption as a
+class constraint: the oracle actions `mvba_decide_pos`/`mvba_decide_neg`
+and the nullary `mvba_terminate` are gone, replaced by `mvba_step`,
+`mvba_propose`, `on_mvba_decide_pos`, `on_mvba_decide_neg` and a binary
+`mvba_terminate`.
 
 ## 6. Validation: mutation testing
 
@@ -230,10 +239,31 @@ pins the nondeterminism at the monitored components' boundary. See
 [ChorusDesign.md](./ChorusDesign.md) §3 and
 [Architecture.md](./Architecture.md) §4.
 
+**The MVBA leg is a coverage gap.** Since 2026-09-10 Chorus consumes the
+MVBA as the class constraint `MVBASafety` over three abstract sorts
+(`docs/MvbaPlan.md` §6), and no implementation event corresponds to them:
+the MVBA's internal state and messages are not observable at the Chorus
+trace boundary, and the emitter does not emit decisions. The monitor
+therefore instantiates the constraint with the **silent stub** of
+[`Cadence/Monitor/MvbaStub.lean`](../Cadence/Monitor/MvbaStub.lean) —
+state and message `Unit`, a `decided` relation that never holds — under
+which the oracle step `mvba_step` is a silent no-op (tagged *internal*, so
+Stage B absorbs it) and the decision handlers `on_mvba_decide_*` and
+`mvba_terminate` can **never be enabled**: a trace carrying a fallback-path
+decision is rejected at the first handler. That is a limit of the monitor,
+not of the model — the model's MVBA is the verified `Mvba` instance
+(`Cadence/System.lean`) — and closing it means giving the monitor a real
+MVBA leg: either a concrete executable `MVBASafety` instance driven by
+MVBA-level trace events (the `Mvba` model's own extracted actions would
+do), or an emitter that observes decisions at the `MVBA.decide` interface
+so that a decision event can seed a `decided`-true stub state. The fixtures
+under `traces/` are fast-path only and never reach the MVBA, so they are
+unaffected.
+
 Future scope, in rough order: positive-path emission; finer per-message
 emission (individual votes and casts observed at the network boundary rather
-than derived from the certificates); multi-slot (Conductor) traces; and
-Byzantine validate-vs-admit tagging.
+than derived from the certificates); the MVBA leg above; multi-slot
+(Conductor) traces; and Byzantine validate-vs-admit tagging.
 
 ## 9. Where the emitter lives
 

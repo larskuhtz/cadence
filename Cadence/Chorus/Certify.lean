@@ -16,8 +16,10 @@ import Cadence.Chorus.Proofs.BroadcastCommitqcNeg
 import Cadence.Chorus.Proofs.FbSignPos
 import Cadence.Chorus.Proofs.FbSignNeg
 import Cadence.Chorus.Proofs.CastFallbackVote
-import Cadence.Chorus.Proofs.MvbaDecidePos
-import Cadence.Chorus.Proofs.MvbaDecideNeg
+import Cadence.Chorus.Proofs.MvbaStep
+import Cadence.Chorus.Proofs.MvbaPropose
+import Cadence.Chorus.Proofs.OnMvbaDecidePos
+import Cadence.Chorus.Proofs.OnMvbaDecideNeg
 import Cadence.Chorus.Proofs.MvbaTerminate
 import Cadence.Chorus.Proofs.RedisseminateChunk
 import Cadence.Chorus.Proofs.CastFbCommit
@@ -60,12 +62,12 @@ info: 'Chorus.invariants_of_reachable' depends on axioms: [propext, Classical.ch
 #print axioms Chorus.invariants_of_reachable
 
 /- `#veil_status` (M7): the machine-checked trust table — every registry
-cell (3 822 action × invariant obligations + 39 doesNotThrow) has a real,
-statement-matching, kernel-checked theorem in the import closure, over
-exactly the standard axioms. Run `#veil_status Chorus table`
+cell (the action × property obligations, the step-property cells and one
+doesNotThrow per action) has a real, statement-matching, kernel-checked
+theorem in the import closure, over exactly the standard axioms. Run `#veil_status Chorus table`
 interactively for the per-cell table (theorem, defining file, per-cell
 axiom set; expect minutes at this scale). -/
 
-/-- info: #veil_status Chorus: 3899/3899 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Chorus: 4222/4222 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Chorus

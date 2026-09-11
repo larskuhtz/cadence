@@ -1,21 +1,30 @@
 import Cadence.Chorus
 import Cadence.ProofPrelude
 
-/-! # `Chorus` proofs — action `mvba_decide_neg`
+/-! # `Chorus` proofs — action `on_mvba_decide_neg`
 
 Scaffolded by `#gen_proof_files Chorus`; yours to edit. Proves every
-registered VC of `mvba_decide_neg` cross-file from the module's persisted VC registry
+registered VC of `on_mvba_decide_neg` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 `Certify.lean`'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Chorus mvba_decide_neg <property> by <tac>` lines
+Manual cells go on `#prove_vc Chorus on_mvba_decide_neg <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
 false` is written out below, and the shared blocks from
 `Cadence/ProofPrelude.lean` record what each of the other options is
-for. -/
+for.
+
+The two manual cells are ported from the retired oracle action
+`mvba_decide_neg` (2026-09-10, `docs/MvbaPlan.md` §6) with only the `intro`
+pattern changed (the handler's guards precede the bridge `require`, which is
+the evidence hypothesis `hev`): the commitQC-versus-negative-decision quorum
+intersection, and the proposal-inclusion step that a negative decision for
+an on-time correct proposer is impossible — its evidence would contain an
+honest negative vote or fallback entry, or an EquivCert on a proposer that
+signed one root. -/
 
 open Veil Chorus Veil.InvProjection
 
@@ -28,14 +37,14 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
-#prove_vc Chorus mvba_decide_neg commitqc_pos_mvba_neg_excl by
+#prove_vc Chorus on_mvba_decide_neg commitqc_pos_mvba_neg_excl by
   unveil_local
   inv_have h_msg_commitqc_pos_votes := msg_commitqc_pos_votes
   inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
   inv_have h_msg_commitqc_pos_backed := msg_commitqc_pos_backed
   inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   inv_have h_commitqc_pos_mvba_neg_excl := commitqc_pos_mvba_neg_excl
-  intro _hphase _hcompl _hprop _hinvoked hev _hnodec J M hqc
+  intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev J M hqc
   refine ⟨?_, h_commitqc_pos_mvba_neg_excl J M hqc⟩
   rintro rfl
   rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩
@@ -50,14 +59,13 @@ namespace Chorus.Proofs
     have hy := hqf c hc2
     rw [hcf] at hy; simp at hy
 
-
-#prove_vc Chorus mvba_decide_neg inclusion_no_mvba_neg by
+#prove_vc Chorus on_mvba_decide_neg inclusion_no_mvba_neg by
   unveil_local
   inv_have h_inclusion_no_honest_vote_neg := inclusion_no_honest_vote_neg
   inv_have h_inclusion_no_honest_fb_neg := inclusion_no_honest_fb_neg
   inv_have h_proposer_unique_root := proposer_unique_root
   inv_have h_inclusion_no_mvba_neg := inclusion_no_mvba_neg
-  intro _hphase _hcompl _hprop _hinvoked hev _hnodec J M hbyzJ hpropJ hall hwe
+  intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev J M hbyzJ hpropJ hall hwe
   refine ⟨?_, h_inclusion_no_mvba_neg J M hbyzJ hpropJ hall hwe⟩
   rintro rfl
   rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨harm, -⟩
@@ -75,6 +83,6 @@ namespace Chorus.Proofs
       rw [hx] at hy; simp at hy
     · exact hm12 (h_proposer_unique_root j m1 m2 hbyzJ hp1 hp2)
 
-#prove_action Chorus mvba_decide_neg
+#prove_action Chorus on_mvba_decide_neg
 
 end Chorus.Proofs
