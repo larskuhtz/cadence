@@ -434,8 +434,11 @@ Recorded so they are not re-derived (all reproduced by the spikes or the code):
   C.field` withholds a field from the solver while it stays a declared
   axiom of the class, with the withheld fields listed once per module. This
   development withholds nothing — the two-level split is what keeps the
-  instantiated fragment first-order — but the attribute is the escape hatch
-  if a field ever has to live in a class the models instantiate.
+  instantiated fragment first-order, and when Chorus's consumption of
+  `MVBASafety` slowed its step-property cells on CI, withholding the twelve
+  axioms Chorus never uses was measured and found to buy nothing
+  (`Dependencies.md` §7) — but the attribute is the escape hatch if a field
+  ever has to live in a class the models instantiate.
 * `instantiate` must precede `#gen_state`, so a class cannot mention the
   module's own `State`; the design sidesteps this because the contract's
   state is a module *parameter* (`type ostate`). A later `instantiate` *can*
