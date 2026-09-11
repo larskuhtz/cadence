@@ -554,6 +554,7 @@ design document disagree.
 
 | | |
 |---|---|
+| The rendered documentation site: what is on it, what it costs, and what it is worth as evidence | [docs/Documentation.md](./docs/Documentation.md) |
 | Using the published images; **what a prebuilt `.olean` proves**, and the audit ladder | [docs/Container.md](./docs/Container.md) |
 | What the forked Veil provides beyond upstream, and why | [docs/Dependencies.md](./docs/Dependencies.md) |
 | The model-conformance monitor (implementation traces against the model) | [docs/Monitor.md](./docs/Monitor.md) |

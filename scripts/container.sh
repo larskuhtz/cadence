@@ -12,6 +12,10 @@
 #   scripts/container.sh monitor       model-conformance monitor suites over the
 #                                     trace fixtures (docs/Monitor.md; needs a
 #                                     `verify` first after any source edit)
+#   scripts/container.sh docs          render the sources as a browsable site
+#                                     into ./site, with the trust boundary
+#                                     derived from the compiled environment
+#                                     (scripts/docs.sh; docs/Documentation.md)
 #   scripts/container.sh shell         interactive shell in the workspace
 #   scripts/container.sh pull [image ...]
 #                                      fetch or refresh published images
@@ -280,6 +284,19 @@ case "${1:-verify}" in
     IMAGE="${IMAGE:-cadence-verified}"
     run_in_container <<'PAYLOAD' ;;
 bash scripts/revalidate.sh /tmp
+PAYLOAD
+  docs)
+    # Render the Lean sources as a browsable site (scripts/docs.sh) and derive
+    # the trust boundary from the compiled environment. Runs against the
+    # `verified` image because doc-gen4 reads this project's `.olean`s rather
+    # than re-elaborating its sources: the cost here is doc-gen4's own build
+    # plus one analysis pass over the import closure, not a re-verification.
+    #
+    # Needs network the first time, to resolve the `-Kenv=dev` documentation
+    # dependency; the site lands in ./site via the workspace mount.
+    IMAGE="${IMAGE:-cadence-verified}"
+    run_in_container <<'PAYLOAD' ;;
+bash scripts/docs.sh "$WORKSPACE/site"
 PAYLOAD
   monitor)
     # Run the model-conformance monitor suites (docs/Monitor.md): every trace
