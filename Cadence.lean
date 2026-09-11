@@ -39,9 +39,9 @@ build-checked pin. If any end theorem ever came to depend on an extra axiom
 hand-added assumption — this file would stop compiling.
 
 Reading it top to bottom answers one question: *what exactly has been
-proven, and what is it proven from?* The prose story is in
-[README.md](./README.md); the verification architecture, the methods, and the
-complete inventory of what is **not** in Lean is
+proven, and what is it proven from?* [README.md](./README.md) is the
+orientation document; the verification architecture, the methods, and the
+complete inventory of what is **not** in Lean are
 [docs/Architecture.md](./docs/Architecture.md).
 
 ## The end results
@@ -67,7 +67,7 @@ complete inventory of what is **not** in Lean is
 | `Mvba.mvbaSafety` | `Cadence/Mvba/Compose.lean` | Mvba ⊨ `MVBASafety` — the state-level fragment of the paper's MVBA module contract (agreement, integrity, external validity, the monotonicity of `decided`), every field proven from the model's own transition system. The object Chorus consumes as its `mvba` constraint, plugged in by `Cadence/System.lean` (`docs/MvbaPlan.md` §6) |
 | `Mvba.mvba_of_temporal` | `Cadence/Mvba/Compose.lean` | given an instance of `MVBATemporal` **at the proven fragment** — the clock, the admissible-run model and `ℓ_MVBA`-Termination — Mvba is a full `MVBA`. This development has no such instance; those four fields are the whole of what is *not* proven about the instantiation, since the inputs (`propose`, `abandon`), their observables, effects and frames, and **Quiescence** in one-step form are all proven into the fragment. The smallest gap of the three implementations |
 
-Two further build-checked claims are pinned where they are made, because
+Three further build-checked claims are pinned where they are made, because
 their form is not an axiom footprint:
 
 * **Completeness of the per-VC evidence.** `#veil_status Chorus` (in

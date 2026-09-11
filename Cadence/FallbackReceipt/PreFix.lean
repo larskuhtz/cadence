@@ -5,7 +5,7 @@ import Cadence.Tooling
 
 Companion to [`FallbackReceipt.lean`](../FallbackReceipt.lean) (read its
 header first): the *pre-fix* fallback receipt/propose layer — the rules
-`alg:fallback` carried **before** the 2026-07-07 fix — with the §7.2
+`alg:fallback` carried **before** the v2 fix — with the §7.2
 finding (`docs/ChorusDesign.md` §7.2) reproduced mechanically. "Pre-fix" now has
 a public referent: these are the receipt rules as published in **`arXiv:2607.02275v1`**
 (2026-07-02), whose `alg_fallback.tex` harvests `Ev(pid)` only from received
@@ -204,8 +204,8 @@ pigeonhole closes every case (`build_totality_of_reachable` in
 `FallbackReceipt/Totality.lean`,
 kernel-checked for every `n = 3f+1`).
 
-The `#guard_msgs` below pins the checker's counterexample — found
-2026-07-07, and exactly the §7.2 scenario (node 0 is the Byzantine
+The `#guard_msgs` below pins the checker's counterexample — exactly
+the §7.2 scenario (node 0 is the Byzantine
 sender ≘ "D", node 3 ≘ "A" with the positive entry for root 0 ≘ `ρ₁`,
 node 1 ≘ "C" with the negative entry): the violation IS the expected
 result of this file. If a change makes this build green, the pre-fix

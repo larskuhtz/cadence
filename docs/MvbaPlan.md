@@ -1,22 +1,26 @@
-# MVBA instantiation — plan
+# MVBA instantiation — plan and decision record
 
-*A plan with a status trail, not a status document. It records what the
-work is, what had to be decided before it started, and which choices would
-quietly foreclose later work if made carelessly; each step of §8 carries a
-note saying whether and how it landed (steps 2, 3 and 5 landed 2026-09-08 on
-branch `worktree-mvba-instantiation`; what is proven now is in
-[`../README.md`](../README.md) and [`../Cadence.lean`](../Cadence.lean)).
-Revised 2026-09-04, after the contract composition landed in `master`
-([`CompositionContracts.md`](./CompositionContracts.md)); the first draft's
-contract-fix step is gone and its analysis is superseded (§10).*
+*A plan with a status trail, not a status document. The work it describes is
+complete; the document is kept for the decisions behind it — which
+specification the model is read against and how that reference is pinned
+(§0), why the contract's value is instantiated at the entry vector (§1.2),
+what the liveness step must not design out (§3), and how non-vacuity is
+established (§4). Each step of §8 carries a note saying whether and how it
+landed.*
 
-The MVBA is the last oracle in Chorus's trust base whose provider could
-plausibly become a model. `mod:mvba` in the published paper is an interface
-and five properties with no algorithm, which is why the development consumes
-it under (A-mvba) and why `ℓ_MVBA` is a parametric hole
-([`Bounds.md`](./Bounds.md) §1). The paper's internal implementation track
-specifies a concrete leader-based protocol with its own correctness section,
-so for the first time there is something to model.
+**Where to read what.** The MVBA model's own design rationale — types,
+state, actions, abstractions and the safety argument — is the header of
+[`../Cadence/Mvba.lean`](../Cadence/Mvba.lean), which is authoritative. What
+the model proves and what it still owes is
+[`CompositionContracts.md`](./CompositionContracts.md) §4 and §5. What is
+proven overall is [`../README.md`](../README.md) and
+[`../Cadence.lean`](../Cadence.lean).
+
+`mod:mvba` in the published paper is an interface and five properties with no
+algorithm, which is why `ℓ_MVBA` is a parametric hole
+([`Bounds.md`](./Bounds.md) §1). The paper repository's internal
+implementation track specifies a concrete leader-based protocol with its own
+correctness section, which is what this model formalises.
 
 ## 0. The specification, and the commit to pin it to
 
@@ -104,7 +108,7 @@ closed by step 6 on 2026-09-10 — §6, §8). Alone among the consumers it inlin
 the oracle's properties as guards of three actions — `mvba_decide_pos`,
 `mvba_decide_neg`, `mvba_terminate` over the relations `mvba_decided_pos`,
 `mvba_decided_neg`, `mvba_complete` — and the transcription was audited by
-reading ([`CompositionContracts.md`](./CompositionContracts.md) §8, the
+reading ([`CompositionContracts.md`](./CompositionContracts.md) §7, the
 table). The reason is not the class's shape. The paper's `Valid B` is a
 function of the meta-block, which *carries* its certificates; Chorus checks
 a decided entry's certificate against its own network relations
@@ -143,7 +147,7 @@ objects; the guard says what a valid certificate *means* in a model where
 signatures are network relations. It has exactly the shape of the
 Conductor's one stated bridge — the median-range `require` of `acs_decide`,
 justified by an upper-level class field through `Windows.lean`
-([`CompositionContracts.md`](./CompositionContracts.md) §8 item 3). It is
+([`CompositionContracts.md`](./CompositionContracts.md) §7 item 3). It is
 sound in both directions that matter: it removes no real behaviour (public
 verifiability means the receiver *can* re-check, and `external_validity`
 guarantees the check passes against a correct MVBA), and if the MVBA were
@@ -726,7 +730,7 @@ published paper, pinned to a paper-repository commit);
 [`Architecture.md`](./Architecture.md) §4
 items 2 and 3 (the MVBA leaves the "no instance exists" list; the bridge
 joins the ACS median bridge) and the file-family table;
-[`CompositionContracts.md`](./CompositionContracts.md) §8 item 1 (closed,
+[`CompositionContracts.md`](./CompositionContracts.md) §7 item 1 (closed,
 with the bridge named); [`TODO.md`](./TODO.md) § Contract composition and
 § Soundness; [`ChorusDesign.md`](./ChorusDesign.md) §4 "MVBA as an oracle"
 and §9 item 1; [`Bounds.md`](./Bounds.md) §1 (the hole has a referent);

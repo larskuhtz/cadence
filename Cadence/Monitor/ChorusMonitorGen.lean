@@ -13,7 +13,7 @@ fixtures and they must agree.
 `scoped`, so the command has to be activated with `open scoped
 Veil.GenMonitor`.
 
-Chorus's MVBA class constraint (since 2026-09-10) is filled by instance
+Chorus's MVBA class constraint is filled by instance
 synthesis: the `instance` below registers the silent stub of
 `Monitor/MvbaStub.lean` at exactly the fault pattern the generated executor
 asks for (`#gen_monitor` has an override only for the `ByzNodeSet` instance).

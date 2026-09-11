@@ -6,9 +6,10 @@ import Cadence.Interfaces
 The provider step of the MVBA instantiation (`docs/MvbaPlan.md` §5): the
 `Mvba` transition system ([`Mvba.lean`](../Mvba.lean)), packaged as the
 state-level MVBA contract of [`Interfaces.lean`](../Interfaces.lean) —
-the class Chorus consumes as its `mvba` constraint (plan step 6, landed
-2026-09-10; [`System.lean`](../System.lean) plugs this instance in) —
-together with the join toward the full `MVBA` class. This is the only file of the `Mvba` family that imports
+the class Chorus consumes as its `mvba` constraint
+([`System.lean`](../System.lean) plugs this instance in) —
+together with the join toward the full `MVBA` class. This is the only file of
+the `Mvba` family that imports
 `Cadence.Interfaces`, on the pattern of
 [`Chorus/Compose.lean`](../Chorus/Compose.lean).
 

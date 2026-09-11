@@ -25,8 +25,8 @@ two assumed primitive bounds:
 * **The parametric holes**: `ℓ_MVBA` (`mod:mvba`) and the ACS's `ℓ`
   (`mod:acs`) are *assumed module properties*, stated as deterministic
   bounds — an idealisation, since the randomised constructions satisfy
-  them only in expectation / with high probability. Since 2026-09 the first
-  hole has a referent in this development: the MVBA instantiation of the
+  them only in expectation / with high probability. The first hole has a
+  referent in this development: the MVBA instantiation of the
   paper repository's internal supplement is modelled
   ([`Cadence/Mvba.lean`](../Cadence/Mvba.lean)), and `ℓ_MVBA` is the field
   `ℓ` of `MVBATemporal`
@@ -142,8 +142,8 @@ deferred absent a clear benefit.
 ## 4. Tooling constraints (recorded from practice)
 
 Observed while building a Veil model of a different, inherently timed
-protocol (2026-08; recorded here so the constraints inform the decision,
-not as Veil documentation — tool-side work belongs in the fork):
+protocol. They are recorded here so that they inform the decision above;
+tool-side work belongs in the Veil fork, not in this repository.
 
 * Veil has no support for `Real` time, although the SMT solvers and Lean
   itself would allow it. Workable substitute: time as an abstract ordered
@@ -156,8 +156,9 @@ not as Veil documentation — tool-side work belongs in the fork):
 * A viable escape hatch exists: disable SMT and prove all VCs in plain
   Lean. For that (much simpler) protocol this was efficient — most VCs
   were one-liners. It is **not** an attractive route for Chorus, whose
-  combinatorial/discrete core (quorum reasoning over 98 properties ×
-  39 actions) is exactly where SMT earns its keep.
+  combinatorial/discrete core (quorum reasoning at the scale of
+  [`Architecture.md`](./Architecture.md) §2) is exactly where SMT earns its
+  keep.
 
 None of these constraints bites route (a): the add-on schedule theorem is
 plain Lean over an abstract order, outside the Veil pipeline entirely.

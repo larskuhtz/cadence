@@ -6,8 +6,7 @@ import Cadence.Tooling
 
 *Note: opening this file in a Lean-enabled editor re-runs its verification
 sweep in the language server (~1 min, one SMT solve per VC). Prefer
-`lake build Cadence.Cadence`; see `README.md` § "Opening the files in an
-editor".*
+`lake build Cadence.Cadence`; see `README.md` § "Working on the models".*
 
 This module is the paper's `algorithm:cadence`: the thin layer that wires a
 single **Orchestrator** instance `O` and one **SlotConsensus** instance
@@ -369,9 +368,8 @@ notify the orchestrator — `O.complete(s)` is an *input transition* of the
 orchestrator's state, `orch.complete`, whose post-state the action picks —
 and abandon the instance (recorded locally). The handler fires only for
 slots `i` has opened ("early finalizations buffered", `line:upon-finalize`)
-and once per slot. Everything the old oracle action *required* of the
-finalization — agreement, inclusion — is now the contract's business, not a
-guard. -/
+and once per slot. The properties of the finalization itself — agreement,
+inclusion — are the contract's business and appear in no guard here. -/
 action on_finalize (i : node) (s : slot) (v : pvector) (os_next : ostate) {
   require ¬ fm.byz i
   -- Handler guard: fires only once `s ∈ opened_i`.
@@ -672,9 +670,10 @@ set_option veil.cache.proofs true
 /- Solver budget for this module's in-file sweep: three times Veil's 60 s
 default, for the same reason the proof files carry it
 (`Cadence/ProofPrelude.lean`) — the budget has to hold on the slowest
-machine that runs cold, which is CI's 4-core runner, not a workstation. On
-2026-09-10 this module's slowest cell, `enter_window × bounded_tail`, ran
-there at 95% of the 60 s budget. It is a *completed* solve, so the remedy
+machine that runs cold, which is CI's 4-core runner, not a workstation. At
+the last measurement this module's slowest cell,
+`enter_window × bounded_tail`, ran there at 95% of the 60 s budget. It is a
+*completed* solve, so the remedy
 is the budget; a cell that starts needing minutes is diverging, and that
 wants a manual proof instead.
 

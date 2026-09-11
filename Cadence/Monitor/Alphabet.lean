@@ -15,7 +15,7 @@ Produces two string defs consumed by the monitor CLI (`Monitor/ChorusMonitor.lea
 Instance encoded here: n = 3f+1 = 4, f = 1, roots = 2, slots = 1 (matches
 `Monitor/ChorusMonitor.lean`). The argument sorts are `node`, `merkle_root`,
 `nodeset` — small bounded non-negative integers / sets of them — and, since
-Chorus consumes the MVBA as a class constraint (2026-09-10), the MVBA's
+Chorus consumes the MVBA as a class constraint, the MVBA's
 `mvalue` (the entry vector: four entries, each a root index or null) and
 `mstate` (the instance's abstract state, not observable: always null). No
 action takes a `slot`/`Phase`/`PathChoice`/`mmsg` argument. No floats,
