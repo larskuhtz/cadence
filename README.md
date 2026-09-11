@@ -34,28 +34,25 @@ paper module is a type class in
 Veil model that **implements** one contract and **consumes** the contracts
 below it.
 
-```
-  MCP Safety for the composed system                     Cadence/System.lean
-  (no contract hypothesis left)
-        ▲
-  MCP Safety for the glue over any modules          Cadence/Composition.lean
-  meeting the contracts
-        ▲
-  ┌─────┴──────────────────────────────────┐
-  │  Cadence — extreme-pipelining glue     │            Cadence/Cadence.lean
-  │  consumes OrchestratorSafety, SlotConsensusSafety
-  └──┬──────────────────────────────┬──────┘
-     │                              │
-  ┌──┴─────────────────────┐  ┌─────┴──────────────────────────┐
-  │ Conductor              │  │ Chorus                         │
-  │ ⊨ OrchestratorSafety   │  │ ⊨ SlotConsensusSafety          │
-  │ consumes ACSSafety     │  │ consumes MVBASafety            │
-  │   Cadence/Conductor.lean│ │   Cadence/Chorus.lean           │
-  └──┬─────────────────────┘  └─────┬──────────────────────────┘
-     │ no implementation            │
-     ▼ (a standard primitive:       ▼
-    ASSUMED   its contract is assumed)   Mvba ⊨ MVBASafety
-                                          Cadence/Mvba.lean
+```mermaid
+flowchart BT
+    MVBA["Mvba ⊨ MVBASafety<br/>Cadence/Mvba.lean"]
+    ACS["ACS — assumed<br/>a standard primitive,<br/>no implementation here"]
+    CHOR["Chorus ⊨ SlotConsensusSafety<br/>Cadence/Chorus.lean<br/>consumes MVBASafety"]
+    COND["Conductor ⊨ OrchestratorSafety<br/>Cadence/Conductor.lean<br/>consumes ACSSafety"]
+    GLUE["Cadence — extreme-pipelining glue<br/>Cadence/Cadence.lean<br/>consumes OrchestratorSafety,<br/>SlotConsensusSafety"]
+    POS["MCP Safety for the glue over any<br/>modules meeting the contracts<br/>Cadence/Composition.lean"]
+    SYS["MCP Safety for the composed system<br/>no contract hypothesis left<br/>Cadence/System.lean"]
+
+    MVBA --> CHOR
+    ACS -.-> COND
+    CHOR --> GLUE
+    COND --> GLUE
+    GLUE --> POS
+    POS --> SYS
+
+    classDef assumed stroke-dasharray:4 3
+    class ACS assumed
 ```
 
 | Layer | Paper | Model | Proves | Consumes |
@@ -70,8 +67,10 @@ The receipt layer implements no contract: it refines one step *inside*
 Chorus's fallback path — assembling a valid meta-block from received receipts
 — at a finer per-validator grain than the Chorus model uses.
 
-Every arrow is a Lean instance, not a correspondence argued in prose. What
-each implementation does **not** prove of its contract is the field list of a
+Each arrow reads "fills the contract constraint above it", and each is a Lean
+instance rather than a correspondence argued in prose — except the dashed
+one, which marks the single contract nothing here implements. What each
+implementation does **not** prove of its contract is the field list of a
 class it supplies no instance of; see
 [docs/CompositionContracts.md](./docs/CompositionContracts.md) §5.
 
@@ -389,24 +388,26 @@ contract does not import the module that implements it — it imports only
 `Interfaces.lean`. The instances are joined up afterwards, and exactly one
 file imports all three legs:
 
-```
-                          Interfaces.lean          the module contracts
-                                 │                 (imported by every consumer)
-        ┌────────────────┬───────┴───────┬──────────────────┐
-        ▼                ▼               ▼                  ▼
-   Cadence.lean    Conductor.lean    Chorus.lean      Mvba/Compose.lean
-    (the glue)                           │                  ▲
-        └───────┬────────┘          Chorus/Proofs/      Mvba/Certify.lean
-                ▼                        │                  ▲
-         Composition.lean          Chorus/Certify.lean   Mvba/Proofs/
-   Conductor ⊨ OrchestratorSafety        │                  ▲
-   positional MCP Safety            Chorus/Compose.lean   Mvba.lean
-                │                  Chorus ⊨ SlotConsensusSafety
-                │                        │                  │
-                └────────────────────────┴──────────────────┘
-                                 ▼
-                            System.lean
-              the glue's MCP Safety at all three instances
+```mermaid
+flowchart TD
+    IF["Interfaces.lean<br/>the module contracts"]
+
+    IF --> GLUE["Cadence.lean<br/>the glue"]
+    IF --> COND["Conductor.lean"]
+    IF --> CHOR["Chorus.lean"]
+    IF --> CCOMP["Chorus/Compose.lean<br/>Chorus ⊨ SlotConsensusSafety"]
+    IF --> MCOMP["Mvba/Compose.lean<br/>Mvba ⊨ MVBASafety"]
+
+    GLUE --> COMP["Composition.lean<br/>Conductor ⊨ OrchestratorSafety<br/>positional MCP Safety"]
+    COND --> COMP
+
+    CHOR --> CPROOFS["Chorus/Proofs/"] --> CCERT["Chorus/Certify.lean"] --> CCOMP
+
+    MVBA["Mvba.lean"] --> MPROOFS["Mvba/Proofs/"] --> MCERT["Mvba/Certify.lean"] --> MCOMP
+
+    COMP --> SYS["System.lean<br/>the glue's MCP Safety<br/>at all three instances"]
+    CCOMP --> SYS
+    MCOMP --> SYS
 ```
 
 Two consequences worth noting. `Cadence.lean` and `Conductor.lean` import no

@@ -57,31 +57,30 @@ instance, which Chorus consumes as a class constraint and
 Each paper module is a type class in
 [Cadence/Interfaces.lean](../Cadence/Interfaces.lean); each layer of the
 protocol is a Veil model that *implements* one contract and *consumes* the
-contracts below it. The implication chain runs bottom-up, and every arrow is
-a Lean instance rather than a correspondence argued in prose:
+contracts below it. The implication chain runs bottom-up: each arrow reads
+"fills the contract constraint above it", and each is a Lean instance rather
+than a correspondence argued in prose. The one dashed arrow marks the one
+contract this development does not implement.
 
-```
-  Cadence.system_positional_log_safety                        System.lean
-  MCP Safety for the composed system — no contract hypothesis left
-                          ▲ instantiated at the instances below
-  Cadence.positional_log_safety                          Composition.lean
-  MCP Safety for the glue over ANY modules meeting the contracts
-                          ▲
-          ┌───────────────┴──────────────────┐
-          │  Cadence — the pipelining glue   │            Cadence.lean
-          │  instantiate orch : OrchestratorSafety
-          │  instantiate sc   : SlotConsensusSafety
-          └──────┬───────────────────────┬───┘
-       filled by │                       │ filled by
-  ┌──────────────┴────────────┐  ┌───────┴────────────────────────┐
-  │ Conductor.orchestratorSafety│ │ Chorus.slotConsensusSafety     │
-  │   Conductor.lean            │ │   Chorus.lean + Chorus/Proofs/ │
-  │   instantiate acs : ACSSafety│ │  instantiate mvba : MVBASafety │
-  └──────────────┬──────────────┘ └───────┬────────────────────────┘
-                 │ no implementation      │ filled by
-                 ▼ (standard primitive:   ▼
-              ASSUMED   §4 item 3)     Mvba.mvbaSafety
-                                        Mvba.lean + Mvba/Proofs/
+```mermaid
+flowchart BT
+    MVBA["Mvba.mvbaSafety<br/>Mvba.lean + Mvba/Proofs/"]
+    ACS["ACS — no implementation<br/>a standard primitive; its contract<br/>is assumed (§4 item 3)"]
+    CHOR["Chorus.slotConsensusSafety<br/>Chorus.lean + Chorus/Proofs/<br/>instantiate mvba : MVBASafety"]
+    COND["Conductor.orchestratorSafety<br/>Conductor.lean<br/>instantiate acs : ACSSafety"]
+    GLUE["Cadence — the pipelining glue<br/>Cadence.lean<br/>instantiate orch : OrchestratorSafety<br/>instantiate sc : SlotConsensusSafety"]
+    POS["Cadence.positional_log_safety<br/>Composition.lean<br/>MCP Safety over any modules<br/>meeting the contracts"]
+    SYS["Cadence.system_positional_log_safety<br/>System.lean<br/>MCP Safety for the composed system;<br/>no contract hypothesis left"]
+
+    MVBA -- "fills mvba" --> CHOR
+    ACS -. "fills acs" .-> COND
+    CHOR -- "fills sc" --> GLUE
+    COND -- "fills orch" --> GLUE
+    GLUE --> POS
+    POS -- "instantiated at the instances below" --> SYS
+
+    classDef assumed stroke-dasharray:4 3
+    class ACS assumed
 ```
 
 | Paper module | Contract class | Implementation | Instance | Still owed |

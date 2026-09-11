@@ -54,24 +54,22 @@ four properties) is `p2_problem_definition.tex`.
 
 ## 2. Architecture: three modules + a class layer
 
-```
-                    ┌────────────────────────────────────────────┐
-   plain Lean /     │ MCP positional-log safety, ℓ-liveness,     │
-   meta layer       │ c-censorship-resistance (timed statements) │
-                    └───────────────▲────────────────────────────┘
-                                    │ derived from
-                    ┌───────────────┴────────────────────────────┐
-   Veil module      │ Cadence (glue, = algorithm:cadence)        │
-                    │ slot-indexed MCP safety, skip agreement,   │
-                    │ per-slot inclusion lift, hiding reduction  │
-                    └───▲──────────────────────────▲─────────────┘
-      instantiates      │ SlotConsensusSafety      │ OrchestratorSafety
-      as a constraint   │                          │
-        ┌───────────────┴───────────┐  ┌───────────┴───────────────┐
-        │ Chorus                    │  │ Conductor                 │
-        │ ⊨ SlotConsensusSafety     │  │ ⊨ OrchestratorSafety      │
-        │ instantiates MVBASafety   │  │ instantiates ACSSafety    │
-        └───────────────────────────┘  └───────────────────────────┘
+```mermaid
+flowchart BT
+    subgraph impl [" "]
+        CHOR["Chorus<br/>⊨ SlotConsensusSafety<br/>instantiates MVBASafety"]
+        COND["Conductor<br/>⊨ OrchestratorSafety<br/>instantiates ACSSafety"]
+    end
+    subgraph veil ["Veil module"]
+        GLUE["Cadence (the glue, = algorithm:cadence)<br/>slot-indexed MCP safety, skip agreement,<br/>per-slot inclusion lift, hiding reduction"]
+    end
+    subgraph meta ["plain Lean / meta layer"]
+        TOP["MCP positional-log safety, ℓ-liveness,<br/>c-censorship-resistance (timed statements)"]
+    end
+
+    CHOR -- "instantiated as a constraint:<br/>SlotConsensusSafety" --> GLUE
+    COND -- "instantiated as a constraint:<br/>OrchestratorSafety" --> GLUE
+    GLUE -- "derived from" --> TOP
 ```
 
 The **contract pattern** (`CompositionContracts.md`) is the same at every
