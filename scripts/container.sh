@@ -235,6 +235,13 @@ if [ ! -d "$WORKSPACE/.lake/packages" ]; then
 fi
 cd "$WORKSPACE" || exit 2
 # Sources come from the read-only mount; .lake is the volume and must survive.
+# Mirror, do not overlay: the image's checkout may hold files the sources no
+# longer have (a deleted proof file, say), and `scripts/revalidate.sh` globs
+# the proof directories — an overlay would leave the stale file in place and
+# fail the stage on a module the sources never mention (2026-09-11). So the
+# workspace's own tree is removed first, `.lake` and `.git` excepted.
+find "$WORKSPACE" -maxdepth 1 -mindepth 1 ! -name .lake ! -name .git \
+     -exec rm -rf {} +
 find /src -maxdepth 1 -mindepth 1 ! -name .lake ! -name .git \
      ! -name .veilcache-seed -exec cp -a {} "$WORKSPACE/" \;
 PREAMBLE
