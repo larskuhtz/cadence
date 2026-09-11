@@ -17,7 +17,7 @@ false` is written out below, and the shared blocks from
 `Cadence/ProofPrelude.lean` record what each of the other options is
 for. -/
 
-open Veil Chorus Veil.InvProjection
+open Veil Chorus
 
 -- The no-trusted-solver rule (README.md) stays written out per proof file so
 -- it remains greppable; the shared blocks below are defined and documented
@@ -35,12 +35,12 @@ explicitly witnessed quorums, closed by the recorded backing invariants.
 The cell restates the canonical VC statement from the registry, so the
 `#prove_action` below consumes it as-is after a statement check; the
 invariant conjuncts it needs are named, not indexed
-(`inv_have`, `Cadence/ProofPrelude.lean`). -/
+(`veil_inv_have`). -/
 #prove_vc Chorus aggregate_fastqc_pos spec_fastqc_pos_mvba_pos_unique by
   unveil_local
-  inv_have h_mvba_decided_pos_backed := mvba_decided_pos_backed
-  inv_have h_msg_fb_pos_sig_backed := msg_fb_pos_sig_backed
-  inv_have h_spec_fastqc_pos_mvba_pos_unique := spec_fastqc_pos_mvba_pos_unique
+  veil_inv_have h_mvba_decided_pos_backed := mvba_decided_pos_backed
+  veil_inv_have h_msg_fb_pos_sig_backed := msg_fb_pos_sig_backed
+  veil_inv_have h_spec_fastqc_pos_mvba_pos_unique := spec_fastqc_pos_mvba_pos_unique
   intro _hbyz_i hsup_q hq_sigs hne1 hne2 hne3 hnie I J M M' hbyz_I hfq hmv
   by_cases hnew : i = I ∧ j = J ∧ m = M
   · obtain ⟨rfl, rfl, rfl⟩ := hnew

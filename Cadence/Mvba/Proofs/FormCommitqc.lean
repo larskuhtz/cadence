@@ -17,7 +17,7 @@ false` is written out below, and the shared block from
 `Cadence/ProofPrelude.lean` record what each of the other options is
 for. -/
 
-open Veil Mvba Veil.InvProjection
+open Veil Mvba
 
 -- The no-trusted-solver rule (README.md) stays written out per proof file so
 -- it remains greppable; the shared block below is defined and documented in
@@ -42,15 +42,15 @@ member of that quorum committed there, which `no_block` refutes from
 `lem:commit-provenance` and `rem:lock-monotonicity`. -/
 #prove_vc Mvba form_commitqc commitqc_agree by
   unveil_local
-  inv_have h_honest_commit_accepted := honest_commit_accepted
-  inv_have h_accepted_unique := accepted_unique
-  inv_have h_local_prepqc_backed := local_prepqc_backed
-  inv_have h_local_prepqc_unique := local_prepqc_unique
-  inv_have h_commitqc_backed := commitqc_backed
-  inv_have h_commitqc_implies_prepqc := commitqc_implies_prepqc
-  inv_have h_commit_no_later_noqc_timeout := commit_no_later_noqc_timeout
-  inv_have h_commit_later_timeout_carries_lock := commit_later_timeout_carries_lock
-  inv_have h_blocks := prepqc_blocks_lower_commits
+  veil_inv_have h_honest_commit_accepted := honest_commit_accepted
+  veil_inv_have h_accepted_unique := accepted_unique
+  veil_inv_have h_local_prepqc_backed := local_prepqc_backed
+  veil_inv_have h_local_prepqc_unique := local_prepqc_unique
+  veil_inv_have h_commitqc_backed := commitqc_backed
+  veil_inv_have h_commitqc_implies_prepqc := commitqc_implies_prepqc
+  veil_inv_have h_commit_no_later_noqc_timeout := commit_no_later_noqc_timeout
+  veil_inv_have h_commit_later_timeout_carries_lock := commit_later_timeout_carries_lock
+  veil_inv_have h_blocks := prepqc_blocks_lower_commits
   clear hinv
   intro hsup_q hq V V' E E' hc1 hc2
   -- An honest validator that committed `E0` in `V0` is not blocked there:

@@ -17,7 +17,7 @@ false` is written out below, and the shared blocks from
 `Cadence/ProofPrelude.lean` record what each of the other options is
 for. -/
 
-open Veil Chorus Veil.InvProjection
+open Veil Chorus
 
 -- The no-trusted-solver rule (README.md) stays written out per proof file so
 -- it remains greppable; the shared blocks below are defined and documented
@@ -30,12 +30,12 @@ namespace Chorus.Proofs
 
 #prove_vc Chorus broadcast_commitqc_pos commitqc_pos_mvba_consistent by
   unveil_local
-  inv_have h_commit_pos_sig_from_local_fastqc := commit_pos_sig_from_local_fastqc
-  inv_have h_local_fastqc_pos_backed := local_fastqc_pos_backed
-  inv_have h_mvba_decided_pos_backed := mvba_decided_pos_backed
-  inv_have h_vote_unique_pos := vote_unique_pos
-  inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
-  inv_have h_commitqc_pos_mvba_consistent := commitqc_pos_mvba_consistent
+  veil_inv_have h_commit_pos_sig_from_local_fastqc := commit_pos_sig_from_local_fastqc
+  veil_inv_have h_local_fastqc_pos_backed := local_fastqc_pos_backed
+  veil_inv_have h_mvba_decided_pos_backed := mvba_decided_pos_backed
+  veil_inv_have h_vote_unique_pos := vote_unique_pos
+  veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
+  veil_inv_have h_commitqc_pos_mvba_consistent := commitqc_pos_mvba_consistent
   intro hsup_q hq J M1 M2 hqc hmv
   by_cases hnew : j = J ∧ m = M1
   · obtain ⟨rfl, rfl⟩ := hnew
@@ -58,7 +58,7 @@ namespace Chorus.Proofs
 
 #prove_vc Chorus broadcast_commitqc_pos progress_fallback_signing by
   unveil_local
-  inv_have h_progress_fallback_signing := progress_fallback_signing
+  veil_inv_have h_progress_fallback_signing := progress_fallback_signing
   intro _hsup_q _hq
   exact h_progress_fallback_signing
 

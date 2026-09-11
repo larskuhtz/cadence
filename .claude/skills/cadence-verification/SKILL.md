@@ -82,7 +82,7 @@ cache options at the top.
 
 1. Build the model: `lake build Cadence.Chorus` (~90 s — it runs no sweep).
 2. Open a scratch file mirroring a proof file's head: `import Cadence.Chorus`,
-   `import Cadence.ProofPrelude`, `open Veil Chorus Veil.InvProjection`,
+   `import Cadence.ProofPrelude`, `open Veil Chorus`,
    `set_option veil.smt.trust false`, `veil_proof_options`,
    `veil_large_clump_budgets`.
 3. Put `#prove_vc Chorus <action> <property> by <tac>` cells in it and run
@@ -107,13 +107,15 @@ actions' proof files, before the `#prove_action` that consumes them after a
 statement check. The statement always comes from the model's registry —
 never write one by hand.
 
-* Open a cell with `unveil_local` (`Cadence/ProofPrelude.lean`), not
+* Open a cell with `unveil_local` (Veil's, no `open` beyond `Veil`), not
   `unveil`: same goal shape, ~0.4 s instead of ~22 s, because it leaves the
   invariant clump unsimplified. Project the conjuncts the proof needs with
-  `inv_have h := <invariant>` — by name, no `.2` chains; a model change
+  `veil_inv_have h := <invariant>` — by name, no `.2` chains; a model change
   that invalidates the lookup fails loudly at elaboration. If a cell's VC
   is not in local-WP form (`veil_apply_local_wp` fails), fall back to
-  `unveil`.
+  `unveil`. These two are also what the discharger's own cheap rung runs
+  (`veil_solve_frame`), so a manual cell starts from the same goal the
+  automatic path gives up on.
 * A failing cell in a proof file already retries through the built-in ladder
   (perturbed solver seeds, then the alternative two-state encoding) before it
   is reported. Only write a manual proof once that ladder has genuinely failed
@@ -122,7 +124,8 @@ never write one by hand.
 ## 5. Adding or changing an invariant
 
 1. Put it where it reads best — position in the model is thematic, not
-   load-bearing: the manual cells project conjuncts by name (`inv_have`),
+   load-bearing: the manual cells project conjuncts by name
+   (`veil_inv_have`),
    so inserting or reordering re-indexes nothing, and any change to the
    clump changes every VC statement either way.
 2. Rebuild the model, then the proof family. Statement-changing edits
