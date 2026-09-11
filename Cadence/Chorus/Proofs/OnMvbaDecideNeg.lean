@@ -26,7 +26,7 @@ an on-time correct proposer is impossible — its evidence would contain an
 honest negative vote or fallback entry, or an EquivCert on a proposer that
 signed one root. -/
 
-open Veil Chorus Veil.InvProjection
+open Veil Chorus
 
 -- The no-trusted-solver rule (README.md) stays written out per proof file so
 -- it remains greppable; the shared blocks below are defined and documented
@@ -39,11 +39,11 @@ namespace Chorus.Proofs
 
 #prove_vc Chorus on_mvba_decide_neg commitqc_pos_mvba_neg_excl by
   unveil_local
-  inv_have h_msg_commitqc_pos_votes := msg_commitqc_pos_votes
-  inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
-  inv_have h_msg_commitqc_pos_backed := msg_commitqc_pos_backed
-  inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
-  inv_have h_commitqc_pos_mvba_neg_excl := commitqc_pos_mvba_neg_excl
+  veil_inv_have h_msg_commitqc_pos_votes := msg_commitqc_pos_votes
+  veil_inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
+  veil_inv_have h_msg_commitqc_pos_backed := msg_commitqc_pos_backed
+  veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
+  veil_inv_have h_commitqc_pos_mvba_neg_excl := commitqc_pos_mvba_neg_excl
   intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev J M hqc
   refine ⟨?_, h_commitqc_pos_mvba_neg_excl J M hqc⟩
   rintro rfl
@@ -61,10 +61,10 @@ namespace Chorus.Proofs
 
 #prove_vc Chorus on_mvba_decide_neg inclusion_no_mvba_neg by
   unveil_local
-  inv_have h_inclusion_no_honest_vote_neg := inclusion_no_honest_vote_neg
-  inv_have h_inclusion_no_honest_fb_neg := inclusion_no_honest_fb_neg
-  inv_have h_proposer_unique_root := proposer_unique_root
-  inv_have h_inclusion_no_mvba_neg := inclusion_no_mvba_neg
+  veil_inv_have h_inclusion_no_honest_vote_neg := inclusion_no_honest_vote_neg
+  veil_inv_have h_inclusion_no_honest_fb_neg := inclusion_no_honest_fb_neg
+  veil_inv_have h_proposer_unique_root := proposer_unique_root
+  veil_inv_have h_inclusion_no_mvba_neg := inclusion_no_mvba_neg
   intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev J M hbyzJ hpropJ hall hwe
   refine ⟨?_, h_inclusion_no_mvba_neg J M hbyzJ hpropJ hall hwe⟩
   rintro rfl

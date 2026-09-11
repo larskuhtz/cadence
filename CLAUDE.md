@@ -118,7 +118,14 @@ History: [docs/History.md](./docs/History.md).
   654 s to 389 s. `precompileModules`, by contrast, was measured three ways
   and is a dead end here (654 / 688 / 702 s).
   [docs/Dependencies.md](./docs/Dependencies.md) § "Native shared libraries"
-  has both tables.
+  has both tables. All of that is the **warm** path. The **cold** path has a
+  different and much larger lever, and since 2026-09-10 it is already pulled:
+  `veil.vc.cheapRung` closes 80–91% of a Chorus proof file's cells without
+  calling cvc5 at all, because they are frame obligations
+  ([docs/Dependencies.md](./docs/Dependencies.md) § 2 has the per-file A/B).
+  So establish which path a slow build is on before optimising it — a
+  from-scratch CI run and a local rebuild are now limited by different
+  things.
 * **Toggling `veil.smt.foldBoolAtoms` needs a cold re-solve.** Cache entries
   are keyed by VC statement and the fold changes only the proof *term*, so
   warm hits keep replaying whichever shape produced them — flip the option and
@@ -147,9 +154,15 @@ History: [docs/History.md](./docs/History.md).
   kernel-checked). Grepping only `❌` silently hides failures.
 * Proof cache: `.lake/build/veilcache/`, safe to delete at any time, age-GC'd
   after 14 days. **Every hit is kernel-checked** — the cache skips search, not
-  checking. A warm re-validation of the whole suite — project oleans deleted,
-  cache kept — is ~6½ min at the default `BATCH=6`, peaking at 12 GB resident;
-  a cold one re-solves ~4 000 VCs in ~15 min at `BATCH=3`.
+  checking. Since the cheap rung (above) the cache holds only the
+  *solver-touched* cells — a cell the rung closes was never searched for, so
+  there is nothing to store — which is why a build log now reads mostly `✅`
+  where it used to read mostly `♻`. Measured 2026-09-10 on this machine: a
+  **cold** re-validation of the whole suite is 15 min 25 s at `BATCH=3`
+  (26 374 ✅, peak 10.8 GB) and stores 2 990 entries; a **warm** one — every
+  project olean deleted, cache kept — is 12 min 46 s at `BATCH=6`
+  (23 433 ✅ / 3 327 ♻, peak 15.2 GB), of which 486 s is the three model
+  rebuilds plus the root audit module rather than proof-family work.
 * **The cache hides derivation drift.** Entries are keyed by VC statement,
   not by proof script: a kernel-replay hit consumes a `#prove_vc … by <tac>`
   cell *without elaborating the tactic*, so a warm green build proves the
@@ -265,16 +278,20 @@ measurements and the audit ladder:
   2026-08 audit response); do not add a fourth without updating that section
   and [docs/Architecture.md](./docs/Architecture.md) §4.
 * **Invariants live in the model; proofs live in the proof files.** Manual
-  cells do not index the invariant clump by hand: `inv_have h := <invariant>`
-  / `inv% hinv <invariant>`
-  ([`Cadence/ProofPrelude.lean`](./Cadence/ProofPrelude.lean)) look the
-  conjunct up *by name*, deriving its position from the model's own
-  `Invariants` at elaboration time and checking that the clump and the
-  invariant list still have the same length. Adding, removing or reordering
-  a `safety`/`invariant` therefore needs no re-indexing in the proof files
-  (it still changes every VC statement, so the family still re-solves), and
-  a stale name is an elaboration error rather than a silently wrong
-  conjunct.
+  cells do not index the invariant clump by hand: Veil's
+  `veil_inv_have h := <invariant>` looks the conjunct up *by name*,
+  deriving its position from the model's own `Invariants` at elaboration
+  time and checking that the clump and the invariant list still have the
+  same length. Adding, removing or reordering a `safety`/`invariant`
+  therefore needs no re-indexing in the proof files (it still changes every
+  VC statement, so the family still re-solves), and a stale name is an
+  elaboration error rather than a silently wrong conjunct. The same lookup
+  is the second half of the discharger's cheap rung, so one authority — the
+  model's own declaration order — indexes the hand-written and the generated
+  proofs alike. (`veil_inv_have` and `unveil_local` were this repository's
+  own tactics until 2026-09-10; they are Veil's now, and
+  [`Cadence/ProofPrelude.lean`](./Cadence/ProofPrelude.lean) carries only
+  the two option blocks.)
 * **`Chorus.lean` needs `maxRecDepth` raised twice, for different reasons.**
   Before the action declarations: action bodies elaborate one nested
   `openStateAround` per statement, so depth scales with the longest body and

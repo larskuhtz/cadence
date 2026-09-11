@@ -17,7 +17,7 @@ false` is written out below, and the shared blocks from
 `Cadence/ProofPrelude.lean` record what each of the other options is
 for. -/
 
-open Veil Chorus Veil.InvProjection
+open Veil Chorus
 
 -- The no-trusted-solver rule (README.md) stays written out per proof file so
 -- it remains greppable; the shared blocks below are defined and documented
@@ -31,11 +31,11 @@ namespace Chorus.Proofs
 
 #prove_vc Chorus byz_sign_vote_pos fb_neg_no_pos_quorum by
   unveil_local
-  inv_have h_fb_neg_sig_has_witness := fb_neg_sig_has_witness
-  inv_have h_fb_neg_qv_backed := fb_neg_qv_backed
-  inv_have h_fb_neg_qv_is_proposer := fb_neg_qv_is_proposer
-  inv_have h_fb_neg_qv_no_pos_quorum := fb_neg_qv_no_pos_quorum
-  inv_have h_vote_cast_entries := vote_cast_entries
+  veil_inv_have h_fb_neg_sig_has_witness := fb_neg_sig_has_witness
+  veil_inv_have h_fb_neg_qv_backed := fb_neg_qv_backed
+  veil_inv_have h_fb_neg_qv_is_proposer := fb_neg_qv_is_proposer
+  veil_inv_have h_fb_neg_qv_no_pos_quorum := fb_neg_qv_no_pos_quorum
+  veil_inv_have h_vote_cast_entries := vote_cast_entries
   intro _hbyz_r _hchunk hne1 hne2 hne3 hnie R J M hbyzR hfb x hsup_x
   -- Pre-state no-equivocation from the post-state hypotheses (pre-state
   -- signatures persist into the post state).

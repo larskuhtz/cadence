@@ -2234,8 +2234,8 @@ total proposal vector, which requires this completeness fact about
 reachable states.
 
 NOTE: the manual cells in `Chorus/Proofs/` project the assembled
-`Invariants` clump *by declaration name* (`inv_have`,
-`Cadence/ProofPrelude.lean`), so new `safety`/`invariant` declarations
+`Invariants` clump *by declaration name* (Veil's `veil_inv_have`), so
+new `safety`/`invariant` declarations
 may go wherever they read best — the lookup re-derives every index at
 elaboration time and fails loudly if a name disappears. -/
 invariant [local_committed_complete]

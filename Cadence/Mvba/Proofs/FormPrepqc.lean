@@ -17,7 +17,7 @@ false` is written out below, and the shared block from
 `Cadence/ProofPrelude.lean` record what each of the other options is
 for. -/
 
-open Veil Mvba Veil.InvProjection
+open Veil Mvba
 
 -- The no-trusted-solver rule (README.md) stays written out per proof file so
 -- it remains greppable; the shared block below is defined and documented in
@@ -40,18 +40,18 @@ left `V` without a view-`≥ V` lock; if the lock is of view `V` itself,
 `n` holds the view-`V` certificate, which is on `e ≠ E` by certificate
 uniqueness; otherwise the lock's own certificate is of a view strictly
 between `V` and `v`, and the invariant at *that* certificate finishes. The
-conjuncts are projected by name (`inv_have`, `Cadence/ProofPrelude.lean`);
+conjuncts are projected by name (`veil_inv_have`);
 the `#prove_action` below consumes the cell after a statement check. -/
 #prove_vc Mvba form_prepqc prepqc_blocks_lower_commits by
   unveil_local
-  inv_have h_honest_prepare_accepted := honest_prepare_accepted
-  inv_have h_accepted_justified := accepted_justified
-  inv_have h_tc_nolock_backed := tc_nolock_backed
-  inv_have h_tc_lock_backed := tc_lock_backed
-  inv_have h_honest_timeout_qc_held := honest_timeout_qc_held
-  inv_have h_timeout_qc_backed := timeout_qc_backed
-  inv_have h_prepqc_unique := prepqc_unique
-  inv_have h_blocks := prepqc_blocks_lower_commits
+  veil_inv_have h_honest_prepare_accepted := honest_prepare_accepted
+  veil_inv_have h_accepted_justified := accepted_justified
+  veil_inv_have h_tc_nolock_backed := tc_nolock_backed
+  veil_inv_have h_tc_lock_backed := tc_lock_backed
+  veil_inv_have h_honest_timeout_qc_held := honest_timeout_qc_held
+  veil_inv_have h_timeout_qc_backed := timeout_qc_backed
+  veil_inv_have h_prepqc_unique := prepqc_unique
+  veil_inv_have h_blocks := prepqc_blocks_lower_commits
   clear hinv
   intro hsup_q hq W V E' E Q hpq hlt hne hsup_Q
   by_cases hnew : v = W ∧ e = E'

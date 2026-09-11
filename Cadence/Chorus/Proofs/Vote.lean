@@ -17,7 +17,7 @@ false` is written out below, and the shared blocks from
 `Cadence/ProofPrelude.lean` record what each of the other options is
 for. -/
 
-open Veil Chorus Veil.InvProjection
+open Veil Chorus
 
 -- The no-trusted-solver rule (README.md) stays written out per proof file so
 -- it remains greppable; the shared blocks below are defined and documented
@@ -47,11 +47,11 @@ after a statement check. -/
 #prove_vc Chorus vote fb_neg_no_pos_quorum by
   unveil_local
   intro hbyz_i _hphase hvoted hne1 hne2 hne3 hnie R J M hbyz_R hfbneg x hsup
-  inv_have hsig_voted := vote_sig_pos_implies_voted
-  inv_have hcast_voted := vote_cast_implies_voted
-  inv_have hwitness := fb_neg_sig_has_witness
-  inv_have hqv_backed := fb_neg_qv_backed
-  inv_have hqv_no_pos := fb_neg_qv_no_pos_quorum
+  veil_inv_have hsig_voted := vote_sig_pos_implies_voted
+  veil_inv_have hcast_voted := vote_cast_implies_voted
+  veil_inv_have hwitness := fb_neg_sig_has_witness
+  veil_inv_have hqv_backed := fb_neg_qv_backed
+  veil_inv_have hqv_no_pos := fb_neg_qv_no_pos_quorum
   clear hinv
   -- The voter `i` has no pre-state vote signatures: it has not voted yet.
   have hno_sig_i : ∀ j m, st.msg_vote_pos_sig i j m = false := by

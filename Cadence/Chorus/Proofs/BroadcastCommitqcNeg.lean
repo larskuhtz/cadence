@@ -17,7 +17,7 @@ false` is written out below, and the shared blocks from
 `Cadence/ProofPrelude.lean` record what each of the other options is
 for. -/
 
-open Veil Chorus Veil.InvProjection
+open Veil Chorus
 
 -- The no-trusted-solver rule (README.md) stays written out per proof file so
 -- it remains greppable; the shared blocks below are defined and documented
@@ -30,12 +30,12 @@ namespace Chorus.Proofs
 
 #prove_vc Chorus broadcast_commitqc_neg commitqc_neg_mvba_pos_excl by
   unveil_local
-  inv_have h_commit_neg_sig_from_local_fastqc := commit_neg_sig_from_local_fastqc
-  inv_have h_local_fastqc_neg_backed := local_fastqc_neg_backed
-  inv_have h_mvba_decided_pos_backed := mvba_decided_pos_backed
-  inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
-  inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
-  inv_have h_commitqc_neg_mvba_pos_excl := commitqc_neg_mvba_pos_excl
+  veil_inv_have h_commit_neg_sig_from_local_fastqc := commit_neg_sig_from_local_fastqc
+  veil_inv_have h_local_fastqc_neg_backed := local_fastqc_neg_backed
+  veil_inv_have h_mvba_decided_pos_backed := mvba_decided_pos_backed
+  veil_inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
+  veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
+  veil_inv_have h_commitqc_neg_mvba_pos_excl := commitqc_neg_mvba_pos_excl
   intro hsup_q hq J M hqcneg
   refine Bool.eq_false_iff.mpr fun hb => ?_
   by_cases hnew : j = J

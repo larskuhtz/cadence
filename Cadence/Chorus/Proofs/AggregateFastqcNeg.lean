@@ -17,7 +17,7 @@ false` is written out below, and the shared blocks from
 `Cadence/ProofPrelude.lean` record what each of the other options is
 for. -/
 
-open Veil Chorus Veil.InvProjection
+open Veil Chorus
 
 -- The no-trusted-solver rule (README.md) stays written out per proof file so
 -- it remains greppable; the shared blocks below are defined and documented
@@ -37,8 +37,8 @@ proposer the evidence comes from `local_fastqc_pos_backed` /
 action's own witnessed vote quorum. -/
 #prove_vc Chorus aggregate_fastqc_neg fastqc_complete_implies_mvba_evidence by
   unveil_local
-  inv_have h_local_fastqc_pos_backed := local_fastqc_pos_backed
-  inv_have h_local_fastqc_neg_backed := local_fastqc_neg_backed
+  veil_inv_have h_local_fastqc_pos_backed := local_fastqc_pos_backed
+  veil_inv_have h_local_fastqc_neg_backed := local_fastqc_neg_backed
   intro _hbyz_i hsup_q hq I hbyz_I hmeta J hprop_J
   rcases hmeta J hprop_J with ⟨M, hpos⟩ | hneg
   · exact Or.inl ⟨M, h_local_fastqc_pos_backed I J M hbyz_I hpos⟩

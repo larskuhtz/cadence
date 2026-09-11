@@ -27,7 +27,7 @@ quorum, exactly as the oracle's external-validity guard was. Only the
 `is_proposer j`, `mvba_invoked`, `mvba.decided mvba_st i v`, `mval_pos v j m`
 and then the bridge. -/
 
-open Veil Chorus Veil.InvProjection
+open Veil Chorus
 
 -- The no-trusted-solver rule (README.md) stays written out per proof file so
 -- it remains greppable; the shared blocks below are defined and documented
@@ -40,11 +40,11 @@ namespace Chorus.Proofs
 
 #prove_vc Chorus on_mvba_decide_pos commitqc_pos_mvba_consistent by
   unveil_local
-  inv_have h_msg_commitqc_pos_votes := msg_commitqc_pos_votes
-  inv_have h_vote_unique_pos := vote_unique_pos
-  inv_have h_msg_commitqc_pos_backed := msg_commitqc_pos_backed
-  inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
-  inv_have h_commitqc_pos_mvba_consistent := commitqc_pos_mvba_consistent
+  veil_inv_have h_msg_commitqc_pos_votes := msg_commitqc_pos_votes
+  veil_inv_have h_vote_unique_pos := vote_unique_pos
+  veil_inv_have h_msg_commitqc_pos_backed := msg_commitqc_pos_backed
+  veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
+  veil_inv_have h_commitqc_pos_mvba_consistent := commitqc_pos_mvba_consistent
   intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev J M1 M2 hqc hmv
   by_cases hnew : j = J ∧ m = M2
   · obtain ⟨rfl, rfl⟩ := hnew
@@ -63,11 +63,11 @@ namespace Chorus.Proofs
 
 #prove_vc Chorus on_mvba_decide_pos commitqc_neg_mvba_pos_excl by
   unveil_local
-  inv_have h_msg_commitqc_neg_votes := msg_commitqc_neg_votes
-  inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
-  inv_have h_msg_commitqc_neg_backed := msg_commitqc_neg_backed
-  inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
-  inv_have h_commitqc_neg_mvba_pos_excl := commitqc_neg_mvba_pos_excl
+  veil_inv_have h_msg_commitqc_neg_votes := msg_commitqc_neg_votes
+  veil_inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
+  veil_inv_have h_msg_commitqc_neg_backed := msg_commitqc_neg_backed
+  veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
+  veil_inv_have h_commitqc_neg_mvba_pos_excl := commitqc_neg_mvba_pos_excl
   intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev J M hqc
   refine ⟨?_, h_commitqc_neg_mvba_pos_excl J M hqc⟩
   rintro rfl rfl

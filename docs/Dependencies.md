@@ -78,6 +78,64 @@ consequence of it.
 
 ### 2. Keeping the solver out of the trust base, affordably
 
+* **A cheap non-SMT first rung in every invariant-preservation discharger**
+  (`veil.vc.cheapRung`, on by default; taken up 2026-09-10). Most cells in a
+  Veil development are *frame* obligations — the action writes nothing the
+  invariant reads — and after the local-WP bridge such a goal is already the
+  invariant at the pre-state behind the action's guards, because the WP
+  simplification has eliminated the untouched post-state fields. Nothing is
+  then left to prove but the right conjunct. So each cell's discharger term
+  is a two-rung ladder, `by first | veil_solve_frame <invariant> |
+  veil_solve_wp`: the cheap branch is **tried, never predicted**, and a miss
+  falls through to the solver. Both paths end in a kernel-checked term and no
+  VC statement moves, so this changes *how* cells are proven, not what is
+  proven — and for the cells it closes it takes cvc5, and cvc5's proof
+  reconstruction, out of the loop entirely. On Chorus 96% of
+  (action, property) pairs are footprint-disjoint, and measured here that is
+  what the rung collects. Per Chorus proof file, `veil.report.cheapRung`'s
+  hit rate against a cold A/B of the same file with the rung off (both arms
+  at `veil.cache.proofs false`, one file at a time):
+
+  | proof file | closed without a solver | rung on | rung off |
+  |---|---|---|---|
+  | `commit_assign_pos` | 90/101 (89%) | 23 s | 37 s |
+  | `record_chunk` | 81/101 (80%) | 23 s | 35 s |
+  | `fb_sign_neg` | 92/101 (91%) | 30 s | 41 s |
+  | `vote` (the `foldBoolAtoms false` file) | 64/100 (64%) | 45 s | — |
+
+  Three things are worth reading off it. The wall-clock saving understates
+  the change: for four cells in five cvc5 is not called at all, and neither
+  is its proof reconstruction, so what is left is a small kernel-checked
+  projection instead of a reconstructed `unsat` derivation. The rung is
+  *cheap when it loses* — the files where it collects least are the ones
+  whose actions write most, which is exactly where the solver has real work
+  to do. And these figures are a **floor** on what a real build saves: each
+  arm above ran one file alone with every core free, which is the condition
+  most favourable to the SMT arm, whose per-cell queries parallelise; in a
+  staged build at `BATCH=3` or more the solver arm competes for the cores
+  the cheap arm barely uses.
+
+  One structural consequence, worth knowing before reading a build log: a
+  cell the rung closes never reaches the **proof cache**, because nothing was
+  searched for. After a cold re-validation the cache therefore holds only the
+  solver-touched cells — measured here 2 990 entries where a pre-rung suite
+  reported over 22 000 replays — and on the next build the rung's cells
+  re-run the rung instead of replaying a stored term. So a warm build's
+  output is mostly ✅ where it used to be mostly ♻, at a comparable per-cell
+  cost (the rung's ~0.1 s against a folded cell's ~79 ms of replay), and the
+  saving this buys is concentrated on the **cold** path — which is the path
+  CI runs, and the one that used to cost hours.
+  The rung's two halves are also what this project's manual cells are written
+  with, and were this repository's own tactics (`Cadence/ProofPrelude.lean`)
+  until Veil took them over with the rung: **`unveil_local`**, the goal-only
+  counterpart of `unveil` that leaves the ~100-conjunct invariant clump
+  unsimplified (~0.4 s a cell against ~22 s — `unveil`'s closing `veil_simp
+  at *` is what dominates at this clump size), and **`veil_inv_have h :=
+  <invariant>`**, which projects a clump conjunct *by declaration name*, with
+  the index derived from the module's own assembled `Invariants` and a
+  conjunct-count check that fails loudly rather than projecting the wrong
+  one. `Cadence/ProofPrelude.lean` now carries only this project's two option
+  blocks.
 * **Proof caching with kernel replay** (`veil.cache.proofs`,
   `veil.cache.kernelReplay`). Reconstructed proof terms are stored on disk
   keyed by the goal statement, and replayed on a later build. The cache never

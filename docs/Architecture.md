@@ -411,7 +411,7 @@ cold). The quorum-intersection cells that SMT cannot find are manual
 `#prove_vc … by <tactic>` cells in their actions' proof files, consumed
 after a statement check — the statement itself always comes from the
 registry, and the tactics project invariant conjuncts by name
-(`Cadence/ProofPrelude.lean`), so nothing in a proof file restates or
+(Veil's `veil_inv_have`), so nothing in a proof file restates or
 hand-indexes what the model declares. `<Model>/Certify.lean` composes the per-action lemmas
 (`#gen_composition`) into `invariants_of_reachable` plus named
 per-property projections, pins the axiom base, and re-audits the whole
