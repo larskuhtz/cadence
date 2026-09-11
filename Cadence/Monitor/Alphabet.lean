@@ -13,10 +13,13 @@ Produces two string defs consumed by the monitor CLI (`Monitor/ChorusMonitor.lea
   (`--rust-emitter-stub`).
 
 Instance encoded here: n = 3f+1 = 4, f = 1, roots = 2, slots = 1 (matches
-`Monitor/ChorusMonitor.lean`). Only `node`, `merkle_root`, `nodeset` occur as argument
-sorts (no action takes a `slot`/`Phase`/`PathChoice` argument), and all are
-small bounded non-negative integers / sets of them — no floats, strings, or
-wide arithmetic — so the value encoding is unambiguous.
+`Monitor/ChorusMonitor.lean`). The argument sorts are `node`, `merkle_root`,
+`nodeset` — small bounded non-negative integers / sets of them — and, since
+Chorus consumes the MVBA as a class constraint (2026-09-10), the MVBA's
+`mvalue` (the entry vector: four entries, each a root index or null) and
+`mstate` (the instance's abstract state, not observable: always null). No
+action takes a `slot`/`Phase`/`PathChoice`/`mmsg` argument. No floats,
+strings, or wide arithmetic — the value encoding is unambiguous.
 -/
 import Cadence.Chorus
 open Lean Lean.Meta Lean.Elab.Command
@@ -54,9 +57,10 @@ def reflectActions (labelName : Name) : MetaM (Array (String × Array String)) :
 private def q (s : String) : String := "\"" ++ s ++ "\""
 
 /-- Actions the emitter does NOT emit — the monitor inserts them (Stage B). Kept
-    in step with `internalCandidates` in `Monitor/ChorusMonitor.lean`. -/
+    in step with `internalCandidates` in `Monitor/ChorusMonitor.lean`. The
+    MVBA's oracle step is silent (`docs/Monitor.md` §8). -/
 def internalActionNames : List String :=
-  ["commit_sign_pos", "commit_sign_neg", "commit_assign_pos", "commit_assign_neg"]
+  ["commit_sign_pos", "commit_sign_neg", "commit_assign_pos", "commit_assign_neg", "mvba_step"]
 
 def isInternal (a : String) : Bool := internalActionNames.contains a
 
@@ -79,18 +83,27 @@ def alphabetJsonOf (acts : Array (String × Array String)) : String :=
       ++ q "domain" ++ ": " ++ q "0..1" ++ "},\n"
     ++ "    " ++ q "nodeset" ++ ": {" ++ q "encoding" ++ ": " ++ q "array<uint>" ++ ", "
       ++ q "element" ++ ": " ++ q "node" ++ ", "
-      ++ q "note" ++ ": " ++ q "strictly ascending; a subset of node" ++ "}\n"
+      ++ q "note" ++ ": " ++ q "strictly ascending; a subset of node" ++ "},\n"
+    ++ "    " ++ q "mvalue" ++ ": {" ++ q "encoding" ++ ": " ++ q "array<uint|null>" ++ ", "
+      ++ q "length" ++ ": 4, "
+      ++ q "note" ++ ": " ++ q "the MVBA value: one entry per node, a root index (positive entry) or null (negative)" ++ "},\n"
+    ++ "    " ++ q "mstate" ++ ": {" ++ q "encoding" ++ ": " ++ q "null" ++ ", "
+      ++ q "note" ++ ": " ++ q "the MVBA instance's abstract state; not observable, always null" ++ "}\n"
     ++ "  },\n"
     ++ "  " ++ q "actions" ++ ": [\n"
     ++ ",\n".intercalate actLines ++ "\n"
     ++ "  ]\n"
     ++ "}"
 
-/-- Rust type + per-argument formatting for a sort. -/
-private def sortRust (s : String) : String × Bool :=  -- (rustType, isNodeset)
+/-- How a sort travels in the Rust stub: its parameter type, and how the
+    argument is formatted into the JSON line (`none` = no parameter, emit
+    the literal). -/
+private def sortRust (s : String) : Option String × (String → String) :=
   match s with
-  | "nodeset" => ("&[u64]", true)
-  | _         => ("u64", false)   -- node, merkle_root
+  | "nodeset" => (some "&[u64]", fun nm => "fmt_nodeset(" ++ nm ++ ")")
+  | "mvalue"  => (some "&[Option<u64>]", fun nm => "fmt_mvalue(" ++ nm ++ ")")
+  | "mstate"  => (none, fun _ => "\"null\"")   -- not observable
+  | _         => (some "u64", fun nm => nm)       -- node, merkle_root
 
 /-- `(paramDecls, placeholders, formatArgs)` for a constructor's argument sorts,
     naming each argument `<sort><k>` (k = index among same-sort arguments). -/
@@ -103,10 +116,10 @@ private def rustArgs (sorts : Array String) : String × String × String := Id.r
     let k := counts.getD s 0
     counts := counts.insert s (k + 1)
     let nm := s ++ toString k
-    let (ty, isNs) := sortRust s
-    params := params ++ [nm ++ ": " ++ ty]
+    let (ty?, fmt) := sortRust s
+    if let some ty := ty? then params := params ++ [nm ++ ": " ++ ty]
     phs := phs ++ ["{}"]
-    fas := fas ++ [if isNs then "fmt_nodeset(" ++ nm ++ ")" else nm]
+    fas := fas ++ [fmt nm]
   return (", ".intercalate params, ", ".intercalate phs, ", ".intercalate fas)
 
 private def rustMethod (name : String) (sorts : Array String) : String :=
@@ -136,7 +149,15 @@ def rustStubOf (acts : Array (String × Array String)) : String :=
     ++ "//\n"
     ++ "// Instance: n = 3f+1 = 4, f = 1, roots = 2, slots = 1.\n"
     ++ "// Sort encodings:  node, merkle_root : u64 (node in 0..3, root in 0..1);\n"
-    ++ "//                  nodeset : &[u64], strictly ascending, a subset of node.\n"
+    ++ "//                  nodeset : &[u64], strictly ascending, a subset of node;\n"
+    ++ "//                  mvalue  : &[Option<u64>] of length 4 — the MVBA's entry vector,\n"
+    ++ "//                            one entry per node, Some(root) positive, None negative;\n"
+    ++ "//                  mstate  : the MVBA instance's abstract state — not observable,\n"
+    ++ "//                            no parameter, emitted as null.\n"
+    ++ "// The MVBA actions (mvba_propose, on_mvba_decide_*, mvba_terminate) are in the\n"
+    ++ "// alphabet but the monitor runs a silent MVBA stub, so traces carrying them are\n"
+    ++ "// rejected at the handlers (docs/Monitor.md §8) — emit them once the monitor\n"
+    ++ "// gains a real MVBA leg.\n"
     ++ "// All values are small bounded non-negative integers / sets of them — no\n"
     ++ "// floats, strings, or wide arithmetic, so encoding is unambiguous. The\n"
     ++ "// monitor validates domains and reports any out-of-range value as an\n"
@@ -147,6 +168,11 @@ def rustStubOf (acts : Array (String × Array String)) : String :=
     ++ "// matching points in your simulation.\n\n"
     ++ "fn fmt_nodeset(xs: &[u64]) -> String {\n"
     ++ "    let inner = xs.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(\", \");\n"
+    ++ "    format!(\"[{}]\", inner)\n"
+    ++ "}\n\n"
+    ++ "fn fmt_mvalue(xs: &[Option<u64>]) -> String {\n"
+    ++ "    let inner = xs.iter().map(|x| match x { Some(m) => m.to_string(), None => \"null\".to_string() })\n"
+    ++ "        .collect::<Vec<_>>().join(\", \");\n"
     ++ "    format!(\"[{}]\", inner)\n"
     ++ "}\n\n"
     ++ "pub trait ChorusTrace {\n"

@@ -215,9 +215,37 @@ without restating it — and what makes a badly-shaped field fatal.
   solver: it stays a declared axiom of the class, the consuming module
   verifies, and each check command reports the withheld fields once per
   module — so the trust statement stays one line ("every axiom of the
-  instantiated classes except these"). This project does not withhold
+  instantiated classes except these"). It applies to `Prop` fields only; a
+  data field is never a hypothesis. This project does not withhold
   anything today; the attribute is the escape hatch for a field that must
-  live in the class but need not reach the solver.
+  live in the class but need not reach the solver. **The measurement
+  behind that "nothing"** (2026-09-11), taken when Chorus started consuming
+  `MVBASafety` and every one of its axioms became a hypothesis of every
+  Chorus cell (`docs/MvbaPlan.md` §6): CI's cold solve of the Chorus family
+  on the 4-core runner at `BATCH=1`, before (run 34528363622) and after
+  (run 34551700787) —
+
+  | cell / file | before | with the MVBA constraint |
+  |---|---|---|
+  | `vote × committed_pos_frozen` | 61.4 s (34% of 180 s) | 119.5 s (66%) |
+  | `fb_sign_neg × inclusion_no_honest_fb_neg` | 53.0 s | 51.1 s |
+  | the other `× committed_pos_frozen` step cells | 33–37 s | 38–47 s |
+  | `Proofs/Vote.lean` | 143 s | 334 s |
+  | a typical proof file | 90–105 s | 110–130 s |
+
+  Nothing timed out and no cell needed a retry. The step-property cells —
+  one per action, the largest verification conditions in the family —
+  are the ones that slowed, so the twelve `MVBASafety` axioms Chorus's
+  proofs never use (`sent_mono`, `quiescence`, `external_validity`, the
+  monotonicity, effects, frames and initial conditions of
+  `proposed`/`abandoned`, `abandon_trans`) were tried as a `veil_smt_ignore`
+  set on the worst cell, cold, in a scratch A/B (`scripts/scratch.sh` with
+  `veil.cache.proofs false`, two runs each): **10.4 / 9.8 s with every
+  axiom, 10.0 / 9.8 s with the twelve withheld** — no effect. The cost is
+  the sorts, the class's load-bearing axioms and the larger clump, not the
+  unused fields, so nothing is withheld; if the `vote` step cell ever
+  approaches the budget the remedy is a manual proof of that cell, not
+  the attribute (`CLAUDE.md` § Build, "slow versus divergent").
 * **A readable rejection for an `assumption` over mutable state.** An
   `assumption` is a background axiom and ranges over the immutable part of
   the state only; naming a mutable component in one used to fail with

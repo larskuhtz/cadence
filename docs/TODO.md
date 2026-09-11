@@ -7,7 +7,7 @@ The authoritative, numbered list of Chorus-side open items is
 lifts); this file collects the cross-cutting ones and the model-hygiene
 wishlist.
 
-## Contract composition — done 2026-09-04, with three named seams left
+## Contract composition — done 2026-09-04, the MVBA consumed 2026-09-10, two named seams left
 
 **Implemented**: the module contracts are two-level type classes over an
 explicit abstract state ([`CompositionContracts.md`](./CompositionContracts.md)),
@@ -18,19 +18,22 @@ fields of an `…Temporal` class it supplies no instance of, and
 `Cadence.system_positional_log_safety` composes MCP Safety at both instances
 with no contract hypothesis left. What remains, in the order worth taking:
 
-* **Chorus's MVBA oracle as a class constraint.** The provider exists since
-  2026-09-08: `Mvba.mvbaSafety` (`Cadence/Mvba/Compose.lean`) instantiates
-  `MVBASafety` from the leader-based protocol of the paper repository's
-  internal supplement (`Cadence/Mvba.lean`), every field proven, with only
-  the timed fields left. Chorus still inlines the properties as guards
-  of `mvba_decide_*`, and the transcription is audited by reading (table in
-  [`CompositionContracts.md`](./CompositionContracts.md) §8). The obstacle is
-  the model's abstraction of validity — a predicate on Chorus's *state*
-  (certificates as network relations), which a class parameter cannot
-  mention. The route is [`MvbaPlan.md`](./MvbaPlan.md) §6: the class over
-  an abstract state, an oracle step, and a decision handler carrying the
-  certificate check as the one stated bridge; every Chorus verification
-  condition changes, so it is its own piece of work (step 6).
+* ~~**Chorus's MVBA oracle as a class constraint.**~~ Done 2026-09-10
+  ([`MvbaPlan.md`](./MvbaPlan.md) §6, step 6): Chorus `instantiate`s
+  `MVBASafety` over an abstract state, advances it by an oracle step,
+  drives `propose`, and two per-entry decision handlers transport a
+  correct validator's decision into the existing records; the records'
+  agreement is proven from the class, and `System.lean` plugs in
+  `Mvba.mvbaSafety`. What is left of it is **one stated bridge** of the
+  same kind as the ACS median bridge below — the handlers' certificate
+  check against Chorus's network relations, the interpretation of the
+  class's `Valid` in Chorus's vocabulary
+  ([`CompositionContracts.md`](./CompositionContracts.md) §8 item 1) —
+  and its completeness direction is what the liveness step (step 7) has
+  to name. Follow-ups the step left: the monitor's MVBA leg is a
+  coverage gap ([`Monitor.md`](./Monitor.md) §8), and `Chorus.lean` now
+  imports `Interfaces.lean`, so a contract edit rebuilds the Chorus
+  family (`Interfaces.lean`, "Why this file").
 * **Chorus's participation interface.** `mod:slotconsensus`'s
   `participate`/`abandon`/`propose` are absent from the model, so the whole
   of `SlotConsensus`'s upper level except Hiding's protocol half is unproven
@@ -174,7 +177,7 @@ analogous candidates were *not* applied:
 | `cast_commit` = `commit_sign_pos` + `commit_sign_neg` + `cast_fast_commit` | Deferred | A/B `#check_vc cast_commit agreement_pos` ran in 1420 s wall / 245 s user CPU. Most likely the wall-time blowup was discharger-scheduler contention rather than genuine SMT cost (245 s of CPU against 1 420 s of wall). With the two new `commit_pos_sig_unique` / `commit_pos_sig_neg_excl` lemmas now stated explicitly, a re-test via `#check_action cast_commit` (bundles VCs under one awaiter — less contention surface) is the right next experiment. If that's clean, integrate. |
 | `fb_vote` = `fb_sign_pos` + `fb_sign_neg` + `cast_fallback_vote` | Not attempted | Bulk update body is more complex than vote/cast_commit because each per-proposer fb-sign decision depends on an *existential* quorum witness (`∃ q : nodeset, …`). Plausibly tractable as an atomic action but the quantifier shape is genuinely different. Worth its own A/B. |
 | `commit` = `commit_assign_pos` + `commit_assign_neg` + `finalize_commit` | Not attempted | Same shape as `cast_commit`; touches `agreement_pos` directly. If the `cast_commit` re-test goes well after the lemma additions, this is the natural next candidate. |
-| `mvba` = `mvba_decide_pos` + `mvba_decide_neg` + `mvba_terminate` | Not attempted | The MVBA per-proposer decisions are gated by certificate-evidence preconditions (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, etc., post-Build-#10) — combining into one atomic action means the precondition becomes "every proposer has *some* evidence", which is the `mvba_terminate` precondition today. Should compose cleanly. |
+| `mvba` = `on_mvba_decide_pos` + `on_mvba_decide_neg` + `mvba_terminate` | Not attempted — and since 2026-09-10 deliberately *not* wanted | The decision handlers transport a correct validator's decision off the abstract MVBA state entry by entry (`MvbaPlan.md` §6: per-entry handlers keep every update a monotone `:= true` and let `#gen_proof_files` map proof files one for one); a bulk transport of the whole vector would be one action with a `∀ J`-quantified update over the two projections. Possible, but it trades the monotone-update shape for one fewer action. |
 
 The pattern for each is the same as `vote`/`cast_commit`: replace the
 three actions with one atomic action whose body has universally-quantified

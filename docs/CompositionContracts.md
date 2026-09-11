@@ -5,8 +5,9 @@ used to be stated, the design that replaced them, what is now machine-checked
 about the composition, and — named, in one place — what is not. Implemented
 2026-09-04 (branch `worktree-composition-contracts`); the code is
 [`../Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) (the contracts),
-[`../Cadence/Cadence.lean`](../Cadence/Cadence.lean) and
-[`../Cadence/Conductor.lean`](../Cadence/Conductor.lean) (the consumers),
+[`../Cadence/Cadence.lean`](../Cadence/Cadence.lean),
+[`../Cadence/Conductor.lean`](../Cadence/Conductor.lean) and, since
+2026-09-10, [`../Cadence/Chorus.lean`](../Cadence/Chorus.lean) (the consumers),
 [`../Cadence/Composition.lean`](../Cadence/Composition.lean) and
 [`../Cadence/Chorus/Compose.lean`](../Cadence/Chorus/Compose.lean) (the
 instances and the joins toward the full contracts), and [`../Cadence/System.lean`](../Cadence/System.lean)
@@ -144,12 +145,40 @@ first slot is bracketed from below by a *correct* pair of the decided set,
 which is the quantitative half of ACS validity through the median lemma of
 `Windows.lean` — cardinality is outside the first-order fragment (§8).
 
-**Chorus is unchanged as a model.** Its MVBA oracle stays inlined for a
-reason that is not the class's shape (§8).
+**Chorus** (`Chorus.lean`) consumes `MVBASafety` the same way since
+2026-09-10 (`docs/MvbaPlan.md` §6): `instantiate mvba : MVBASafety node
+mvalue mmsg mstate (fun i => nset.is_byz i = true)` after its `nset`, one
+abstract state `individual mvba_st : mstate` seeded from an immutable
+`mvba_init_state` with `assumption [mvba_init]` and carried as
+`invariant [mvba_reachable]`, the oracle step `mvba_step`, the driven
+input `mvba_propose` (the paper's `MVBA[s].propose(B_i)`, under the
+proposer's own trigger and with `Valid B_i` as guards; `abandon` stays
+undriven — the single-slot model never abandons the instance), and two
+**per-entry decision handlers** `on_mvba_decide_pos` / `on_mvba_decide_neg`
+that transport a correct validator's decision `mvba.decided mvba_st i v`
+into the module's existing per-proposer records through the two immutable
+projections `mval_pos v j m` / `mval_neg v j` of the opaque value sort
+(the value is the entry vector; the projections carry two assumptions,
+functional and exclusive, discharged by `System.lean` at `v j = some m` /
+`v j = none`). The records' agreement, which the retired oracle actions
+*enforced by guards*, is now *proven* from the class's `agreement` through
+two tie invariants (every record is the projection of some correct
+validator's decision). **One bridge** remains a stated `require`,
+deliberately, and it is the MVBA counterpart of the ACS median bridge
+(§8): each handler verifies the decided entry's certificate against
+Chorus's network relations — `vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧
+fbcert)`, resp. the negative form — which is what the class's `Valid`
+*means* in a model whose signatures are network relations, and which a
+class parameter fixed before the module's state exists cannot say.
+`spikes/09_mvba_consumer_ok.lean` and `10_mvba_consumer_no_tie.lean` are
+the shape experiment and its negative control. The cost was the full
+Chorus cold re-solve, every verification condition having changed; what
+it bought is recorded in §8.
 
-Both consumers re-solved cold and green: the glue 177 conditions (7 actions ×
+All three consumers re-solved cold and green: the glue 177 conditions (7 actions ×
 24 properties, plus the initializer and both reachability traces), the
-Conductor 170 (7 × 20). Nothing was weakened; three glue invariants changed
+Conductor 170 (7 × 20), Chorus at the count pinned by `#veil_status Chorus`
+(`Cadence/Chorus/Certify.lean`). Nothing was weakened; three glue invariants changed
 name because the concept they track changed (`delivered` is the handler's
 record of a finalization, `pending := delivered ∧ ¬ appended`).
 
@@ -174,7 +203,7 @@ record of a finalization, `pending := delivered ∧ ¬ appended`).
   `proposal_inclusion` are the 2026-07 proofs over the named reachability
   projections; `on_time` is `all_honest_recorded`; and the step-level fields
   (`finalized_mono`, `on_time_mono`, `init_finalized`) rest on four uniform
-  two-state lemmas over all 38 actions — including that a committed
+  two-state lemmas over all 40 actions — including that a committed
   validator's entries are *frozen*, because `commit_assign_*` require
   `¬ local_committed i`.
 * **`Mvba.mvbaSafety th : MVBASafety node value (Mvba.State …) (fun i =>
@@ -294,14 +323,22 @@ docstrings.
 
 `Cadence.system_positional_log_safety` (`System.lean`) is the glue's
 `positional_log_safety` instantiated at `Conductor.orchestratorSafety thC` and
-`Chorus.slotConsensusSafety thS`: MCP Safety for the glue running the
-Conductor's and Chorus's own transition systems, with **no contract
-hypothesis left**. What remains are the two modules' configurations and one
-hypothesis `hbyz` that the system's fault model and Chorus's
+`Chorus.slotConsensusSafety thS` — the latter with Chorus's own MVBA
+constraint filled by `Mvba.mvbaSafety thM` (`mstate` the `Mvba` model's
+abstract state, `mvalue := node → Option merkle_root`, `mmsg := Mvba.Msg`):
+MCP Safety for the glue running the Conductor's and Chorus's own transition
+systems, Chorus running the `Mvba` model's, with **no contract hypothesis
+left**. What remains are the three modules' configurations (`thC`, `thS`,
+`thM`) and one hypothesis `hbyz` that the system's fault model and Chorus's
 `ByzNodeSet.is_byz` agree — the transport that brings Chorus's instance to
 the shared `byz` (`SlotConsensusSafety.castByz`, a rewrite along a
-propositional equality of predicates). No temporal obligation enters: MCP
-Safety is a safety property and needs only the two proven fragments.
+propositional equality of predicates). No transport is needed between
+Chorus and the MVBA: both are stated against `nset.is_byz`. Chorus's three
+`assumption`s enter as the `assumptions` conjunct of its instance's `init`;
+at the entry-vector projections two of them are theorems, so the one
+genuine hypothesis among them is that the abstract MVBA state Chorus starts
+from is initial (`chorusTheory_assumptions`). No temporal obligation enters:
+MCP Safety is a safety property and needs only the proven fragments.
 
 ## 7. Evidence
 
@@ -317,33 +354,39 @@ state. The step-level technique graduated straight into the code
 
 ## 8. What this does not close — the remaining seams, named
 
-1. **Chorus's MVBA oracle is inlined, not a class constraint.** The
-   *provider* side is closed: `Mvba.mvbaSafety` (`Mvba/Compose.lean`, §4)
-   instantiates `MVBASafety` from the leader-based protocol of the paper
-   repository's internal supplement with every field proven, and
-   only the timed fields are left (§5). What is still open
-   is the *consumer* side: Chorus's `mvba_decide_*` guards are the
-   transcription of the class's fields, audited by reading:
+1. **The MVBA bridge** (*closed as a seam 2026-09-10; what remains is a
+   bridge of the same kind as item 3*). Until then Chorus consumed the MVBA
+   as an oracle — three actions whose guards transcribed the class's
+   fields, audited by reading:
 
-   | `MVBASafety` field | Chorus guard (`mvba_decide_pos` / `mvba_decide_neg`) |
+   | `MVBASafety` field | the retired oracle's guard (`mvba_decide_pos` / `mvba_decide_neg`) |
    |---|---|
    | `agreement`, `integrity` | `∀ m2, mvba_decided_pos j m2 → m = m2`, `¬ mvba_decided_neg j` / `∀ m, ¬ mvba_decided_pos j m`, plus `¬ mvba_complete` |
    | `external_validity` | `vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)` / `vote_quorum_neg j ∨ ((fb_quorum_neg j ∨ equiv_evidence j) ∧ fbcert)` |
    | `decided_mono`, `init_decided` | the relations are only ever set; `after_init` clears them |
 
-   The obstacle is not the class's shape. The paper's `Valid B` is a
-   function of the meta-block, which *carries* its certificates; Chorus
-   checks a decided entry's certificate against its own network relations —
-   a predicate on Chorus's **state**, which a class parameter declared before
-   `#gen_state` cannot mention. Closing this means either carrying
-   certificates in the value type or restating the evidence guards as the
-   class's `Valid`; either changes every Chorus verification condition. The
-   route chosen is `docs/MvbaPlan.md` §6 (step 6, its own piece of work):
-   Chorus instantiates `MVBASafety` over an abstract state, advances it by
-   an oracle step, and a decision handler transports a correct validator's
-   decision into the existing records with **one stated bridge** — the
-   certificate check against Chorus's network relations — the same shape as
-   the ACS median bridge (item 3).
+   Since `docs/MvbaPlan.md` §6 landed (§3 above), the first and third rows
+   are gone: agreement and integrity are the class's axioms, used by the
+   solver; monotonicity and the initial condition are the class's
+   `decided_mono` / `init_decided` along the oracle step. The second row
+   is what remains, and it remains **by design**: each decision handler
+   `require`s the decided entry's certificate against Chorus's network
+   relations. The paper's `Valid B` is a function of the meta-block, which
+   *carries* its certificates; Chorus's certificate predicate is a fact
+   about Chorus's **state**, which a class parameter declared before
+   `#gen_state` cannot mention, so the guard is the interpretation of the
+   class's `Valid` in Chorus's vocabulary — a bridge, not a restatement,
+   documented at the handlers (`Chorus.lean`, "The MVBA instance") and in
+   `ChorusDesign.md` §4, and stated in exactly three places: the two
+   handlers, and as the caller's obligation in `mvba_propose`'s validity
+   guards. It is sound in both directions that matter (it removes no
+   behaviour of a correct MVBA, by `external_validity` and public
+   verifiability; and it is safety-conservative if the MVBA were wrong).
+   What the liveness step will have to name is its completeness direction
+   — a decided entry's certificate is network-visible — which is what
+   enables the handler (`MvbaPlan.md` §3). The instance behind the
+   constraint is `Mvba.mvbaSafety` (§4), so the MVBA is no longer an
+   assumed contract anywhere in the composed system.
 2. **Chorus has no participation interface**, so `SlotConsensusTemporal`
    carries the whole of it; and the glue's records of the inputs it does not
    drive (`sc_abandoned`, `proposed`) are its own, as the paper's local
@@ -391,8 +434,11 @@ Recorded so they are not re-derived (all reproduced by the spikes or the code):
   C.field` withholds a field from the solver while it stays a declared
   axiom of the class, with the withheld fields listed once per module. This
   development withholds nothing — the two-level split is what keeps the
-  instantiated fragment first-order — but the attribute is the escape hatch
-  if a field ever has to live in a class the models instantiate.
+  instantiated fragment first-order, and when Chorus's consumption of
+  `MVBASafety` slowed its step-property cells on CI, withholding the twelve
+  axioms Chorus never uses was measured and found to buy nothing
+  (`Dependencies.md` §7) — but the attribute is the escape hatch if a field
+  ever has to live in a class the models instantiate.
 * `instantiate` must precede `#gen_state`, so a class cannot mention the
   module's own `State`; the design sidesteps this because the contract's
   state is a module *parameter* (`type ostate`). A later `instantiate` *can*

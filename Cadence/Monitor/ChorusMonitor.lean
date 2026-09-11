@@ -15,11 +15,21 @@ JSONL line format (positional args):
   {"action": "aggregate_fastqc_pos", "args": [0, 0, 1, [0,1,2]]}
   {"action": "advance_to_deadline"}                 -- args optional when empty
 Args: node/merkle_root are ints (Fin 4 / Fin 2); a nodeset is a JSON array of
-ints (subset of {0,1,2,3}).  Blank lines and lines beginning with `//` or `#`
-are ignored.
+ints (subset of {0,1,2,3}); an MVBA value (entry vector) is a JSON array of
+four entries, each a root index or null; the MVBA's abstract state is not
+observable and is written null.  Blank lines and lines beginning with `//` or
+`#` are ignored.
+
+The MVBA that Chorus consumes as a class constraint (since 2026-09-10) is
+instantiated here by the *silent* stub of `Monitor/MvbaStub.lean`: state and
+message `Unit`, a decision relation that never holds. Its consequence — the
+decision handlers and `mvba_terminate` are never enabled, so the MVBA leg of
+the fallback path is outside this monitor's coverage — is recorded in
+`docs/Monitor.md` §8.
 -/
 import Cadence.Chorus
 import Cadence.Monitor.Alphabet
+import Cadence.Monitor.MvbaStub
 import Cadence.ByzQuorum
 open Veil Veil.Extract
 open scoped Chorus
@@ -41,12 +51,16 @@ abbrev SL := Fin 1
 abbrev ND := Fin (3 * 1 + 1)
 abbrev NS := ByzNSet (3 * 1 + 1)
 abbrev MR := Fin 2
+-- The MVBA's abstract sorts at the silent stub (`Monitor/MvbaStub.lean`):
+-- state and message `Unit`, the value the finite entry vector `MV`.
+abbrev MS := Unit
+abbrev MM := Unit
 abbrev PH := Chorus.Phase_IndT
 abbrev PC := Chorus.PathChoice_IndT
 
-abbrev Th  := Chorus.Theory SL ND NS MR PH PC
-abbrev St  := Chorus.State (Chorus.FieldConcreteType SL ND NS MR PH PC)
-abbrev Lbl := Chorus.Label SL ND NS MR PH PC
+abbrev Th  := Chorus.Theory SL ND NS MR MS MV MM PH PC
+abbrev St  := Chorus.State (Chorus.FieldConcreteType SL ND NS MR MS MV MM PH PC)
+abbrev Lbl := Chorus.Label SL ND NS MR MS MV MM PH PC
 
 /-- Empty Byzantine set at n = 3f+1 = 4, f = 1: all four nodes honest.  A valid
     ≤f instantiation (the model's safety theorem is universal over ≤f Byzantine,
@@ -61,8 +75,10 @@ def emptyByz4 : ByzNodeSet ND NS :=
     model proposer node 0 (the impl indexes proposals `0..num_proposals`,
     decoupled from node identity; here `num_proposals = 1`).  Every root is
     well-encoded (second field): the fixtures' proposals are honestly
-    encoded, and the sim's DA layer produces no invalid encodings. -/
-def chThy : Th := Chorus.Theory.mk (fun j => j == 0) (fun _ => true)
+    encoded, and the sim's DA layer produces no invalid encodings. The
+    entry-vector projections are the stub's (`v j = some m` / `v j = none`),
+    and the MVBA's initial state is the only `Unit`. -/
+def chThy : Th := Chorus.Theory.mk (fun j => j == 0) (fun _ => true) mvalPos mvalNeg ()
 
 /-- Explicit specialized Inhabited seed — avoids the pathological `Inhabited St`
     search (this is what `#model_check` does via `inhabσ`). -/
@@ -71,13 +87,15 @@ def stInhab : Inhabited St := Chorus.instInhabitedStateFieldConcreteType
 
 /-- The extracted per-label executable step at this concrete instance. -/
 def cnext (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := emptyByz4)
-    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR) (Phase := PH) (PathChoice := PC) lbl
+  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := emptyByz4) (mvba := silentMvba _)
+    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
+    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 
 /-- The extracted initializer at this instance. -/
 def cinit : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.initializer.ext.extracted (ρ := Th) (σ := St) (nset := emptyByz4)
-    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR) (Phase := PH) (PathChoice := PC)
+  Chorus.initializer.ext.extracted (ρ := Th) (σ := St) (nset := emptyByz4) (mvba := silentMvba _)
+    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
+    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC)
 
 def initState : Option St :=
   (extractValidStates cinit chThy stInhab.default).filterMap id |>.head?
@@ -112,8 +130,11 @@ the model *enables*, so it cannot manufacture unjustified state (a cast with no
 prior FastQC still fails, because `commit_sign` is not enabled). See
 `docs/Monitor.md` §3–§3.1. -/
 
-/-- Internal actions the emitter does not emit; the monitor bridges them. -/
+/-- Internal actions the emitter does not emit; the monitor bridges them.
+    The MVBA's oracle step is one of them: under the silent stub it is always
+    enabled and never changes the state, so it is a no-op here. -/
 def internalCandidates : List Lbl :=
+  Chorus.Label.mvba_step () ::
   (List.finRange (3 * 1 + 1)).flatMap fun i =>
   (List.finRange (3 * 1 + 1)).flatMap fun j =>
     [Chorus.Label.commit_sign_neg i j, Chorus.Label.commit_assign_neg i j]
@@ -154,6 +175,9 @@ private def dNSet (j : Json) : Except String NS := do
   let fins ← arr.toList.mapM fun e => e.getNat? >>= toFin (3 * 1 + 1)
   mkNSet ((fins.dedup).mergeSort (fun a b => decide (a ≤ b)))
 
+private def dMValue (j : Json) : Except String MV := decodeMV j
+private def dMState (j : Json) : Except String MS := decodeMState j
+
 /-- Decode one `(act, args)` pair into a concrete `Lbl`. -/
 def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   match act, args with
@@ -161,7 +185,6 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "advance_to_deadline", []        => pure .advance_to_deadline
   | "advance_to_fb_arm", []          => pure .advance_to_fb_arm
   | "advance_to_mvba_arm", []        => pure .advance_to_mvba_arm
-  | "mvba_terminate", []             => pure .mvba_terminate
   -- honest fast / propose path
   | "propose", [a, b]                => do pure (.propose (← dNode a) (← dRoot b))
   | "deliver_chunk_assigned", [a,b,c]=> do pure (.deliver_chunk_assigned (← dNode a) (← dNode b) (← dRoot c))
@@ -178,8 +201,13 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "fb_sign_pos", [a,b,c,d,e]       => do pure (.fb_sign_pos (← dNode a) (← dNode b) (← dRoot c) (← dNSet d) (← dNSet e))
   | "fb_sign_neg", [a,b,c]           => do pure (.fb_sign_neg (← dNode a) (← dNode b) (← dNSet c))
   | "cast_fallback_vote", [a]        => do pure (.cast_fallback_vote (← dNode a))
-  | "mvba_decide_pos", [a,b]         => do pure (.mvba_decide_pos (← dNode a) (← dRoot b))
-  | "mvba_decide_neg", [a]           => do pure (.mvba_decide_neg (← dNode a))
+  -- the MVBA instance (`docs/Monitor.md` §8: the oracle step is silent, the
+  -- decision handlers cannot fire under the silent instance)
+  | "mvba_step", [a]                 => do pure (.mvba_step (← dMState a))
+  | "mvba_propose", [a,b,c]          => do pure (.mvba_propose (← dNode a) (← dMValue b) (← dMState c))
+  | "on_mvba_decide_pos", [a,b,c,d]  => do pure (.on_mvba_decide_pos (← dNode a) (← dNode b) (← dRoot c) (← dMValue d))
+  | "on_mvba_decide_neg", [a,b,c]    => do pure (.on_mvba_decide_neg (← dNode a) (← dNode b) (← dMValue c))
+  | "mvba_terminate", [a,b]          => do pure (.mvba_terminate (← dNode a) (← dMValue b))
   | "redisseminate_chunk", [a,b,c]   => do pure (.redisseminate_chunk (← dNode a) (← dNode b) (← dRoot c))
   | "cast_fb_commit", [a]            => do pure (.cast_fb_commit (← dNode a))
   | "commit_assign_pos", [a,b,c]     => do pure (.commit_assign_pos (← dNode a) (← dNode b) (← dRoot c))
@@ -288,17 +316,21 @@ def byz3 : ByzNodeSet ND NS := Cadence.byzNodeSetFinGen (3 * 1 + 1) 1 (by decide
 -- Per-instance executors: the guard `Decidable`s need the instance fixed, so
 -- these cannot be one function polymorphic over the instance.
 def cnextB0 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz0)
-    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR) (Phase := PH) (PathChoice := PC) lbl
+  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz0) (mvba := silentMvba _)
+    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
+    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 def cnextB1 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz1)
-    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR) (Phase := PH) (PathChoice := PC) lbl
+  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz1) (mvba := silentMvba _)
+    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
+    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 def cnextB2 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz2)
-    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR) (Phase := PH) (PathChoice := PC) lbl
+  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz2) (mvba := silentMvba _)
+    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
+    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 def cnextB3 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz3)
-    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR) (Phase := PH) (PathChoice := PC) lbl
+  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz3) (mvba := silentMvba _)
+    (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
+    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 
 def runExec (prog : VeilMultiExecM Std.Format ℤ Th St Unit) (st : St) : StepResult :=
   match extractAllOutcomes prog chThy st with
@@ -411,7 +443,7 @@ implementation diverged from the model" distinct from "the emitter and the model
 disagree on the alphabet". -/
 
 def versionText : String :=
-  "chorus-monitor 0.1 — Chorus model-conformance monitor (instance n = 3f+1 = 4, f = 1)"
+  "chorus-monitor 0.2 — Chorus model-conformance monitor (instance n = 3f+1 = 4, f = 1; MVBA silent)"
 
 def usageText : String :=
   "chorus-monitor — check whether the Veil Chorus model accepts a trace.\n\n" ++

@@ -16,15 +16,19 @@ the concrete instance family at every `n = 3f+1`.
 > * a commit certificate exists for **every** proposer, formed from honest
 >   votes alone (the fast-dominant route, no MVBA involved), or
 > * the MVBA stands **invoked** (one of the paper's two triggers holds) with
->   decide-enabling evidence for **every** proposer — the conclusion's
->   evidence disjunction is, verbatim, the external-validity `require` of
->   `mvba_decide_pos` / `mvba_decide_neg` in the model.
+>   certified evidence for **every** proposer — the conclusion's evidence
+>   disjunction is, verbatim, the certificate check of the model's decision
+>   handlers `on_mvba_decide_pos` / `on_mvba_decide_neg` (the one stated
+>   bridge to the `MVBASafety` constraint) and the validity guard of
+>   `mvba_propose`, so it is exactly what enables a correct validator to
+>   propose a certified meta-block.
 
 This is what turns the meta-argument's case analysis into a lookup: the
 temporal glue that remains is only *"(F-justice) drives every honest
-validator to the saturation hypothesis"* and *"(A-mvba) consumes the right
-disjunct"* — no reasoning about populations, paths or certificates is left
-outside Lean. The branch structure inside the proof is exactly the doc's:
+validator to the saturation hypothesis"*, *"(F-justice) on `mvba_propose`
+turns the right disjunct into every correct validator's proposal"* and
+*"(A-mvba) — the instance's Termination — decides"* — no reasoning about
+populations, paths or certificates is left outside Lean. The branch structure inside the proof is exactly the doc's:
 all-fast ⇒ `commitqc_of_honest_fast_dominant` per proposer; some honest
 fast-caster ⇒ its commit signatures back a complete fast meta-block
 (case-(a) trigger) and network-visible vote quorums
@@ -42,8 +46,9 @@ open Classical ByzNodeSet
 
 section Progress
 
-variable {slot merkle_root Phase PathChoice : Type}
+variable {slot merkle_root mstate mvalue mmsg Phase PathChoice : Type}
   [Inhabited slot] [Inhabited merkle_root]
+  [Inhabited mstate] [Inhabited mvalue] [Inhabited mmsg]
   [Inhabited Phase] [Inhabited PathChoice]
   [Phase_Enum : Chorus.Phase_EnumClass Phase]
   [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
@@ -51,42 +56,55 @@ variable {slot merkle_root Phase PathChoice : Type}
   (is_byz : Fin n → Prop) [DecidablePred is_byz]
   (hbyz : (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length ≤ f)
   [node_inhabited : Inhabited (Fin n)]
+  -- The MVBA contract Chorus consumes, at the concrete quorum instance's
+  -- fault pattern (the module's `mvba` class constraint).
+  [mvba : MVBASafety (Fin n) mvalue mmsg mstate
+    (fun i => (byzNodeSetFin n f hf is_byz hbyz).is_byz i = true)]
 
 /- Apply a generated `Chorus` declaration at the canonical `Classical`
 instantiation, at the concrete quorum instance family (cf. the identical
 local macros of `Pigeonhole.lean` and `Counting.lean`). -/
 local macro "cpv%" t:ident args:term:max* : term =>
   `(@$t
-    (Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice)
-    (Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice))
+    (Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice)
+    (Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice))
     slot (fun a b => Classical.propDecidable (a = b)) inferInstance
     (Fin n) (fun a b => Classical.propDecidable (a = b)) inferInstance
     (ByzNSet n) (fun a b => Classical.propDecidable (a = b)) inferInstance
     merkle_root (fun a b => Classical.propDecidable (a = b)) inferInstance
-    (byzNodeSetFin n f hf is_byz hbyz)
+    mstate (fun a b => Classical.propDecidable (a = b)) inferInstance
+    mvalue (fun a b => Classical.propDecidable (a = b)) inferInstance
+    mmsg (fun a b => Classical.propDecidable (a = b)) inferInstance
+    (byzNodeSetFin n f hf is_byz hbyz) mvba
     Phase (fun a b => Classical.propDecidable (a = b)) inferInstance inferInstance
     PathChoice (fun a b => Classical.propDecidable (a = b)) inferInstance inferInstance
-    (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice)
-    (fun ff => @Chorus.instAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice
+    (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice)
+    (fun ff => @Chorus.instAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b)) ff)
-    (fun ff => @Chorus.instLawfulAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b)) ff)
+      (fun a b => Classical.propDecidable (a = b)) ff)
+    (fun ff => @Chorus.instLawfulAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) ff)
     instIsSubStateOfRefl instIsSubReaderOfRefl
     $args*)
 
 /- The abstract field representation at the canonical instances. -/
 local macro "pafr%" fld:ident : term =>
-  `(@Chorus.instAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice
+  `(@Chorus.instAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+    (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+    (fun a b => Classical.propDecidable (a = b))
     $fld)
 
-variable (st : Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice))
+variable (st : Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice))
 
 /-- `r` has cast (broadcast) its fast commit vote (`msg_commit_cast`). -/
 private abbrev pCast (r : Fin n) : Prop :=
@@ -125,11 +143,12 @@ every honest validator has cast its path vote with the per-proposer entries
 that cast required (*saturation* — what (F-justice) eventually delivers),
 either a commitQC exists for every proposer from honest votes alone, or
 `mvba_invoked` holds together with, for every proposer, evidence in exactly
-the external-validity form of `mvba_decide_pos` / `mvba_decide_neg`. -/
+the certificate form of the decision handlers' bridge `require` and of
+`mvba_propose`'s validity guards. -/
 theorem progress_dichotomy_of_saturation
-    {th : Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice}
-    {st : Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice)}
-    (hreach : (Chorus.relationalTransitionSystem slot (Fin n) (ByzNSet n) merkle_root Phase PathChoice
+    {th : Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice}
+    {st : Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice)}
+    (hreach : (Chorus.relationalTransitionSystem slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice
       (nset := byzNodeSetFin n f hf is_byz hbyz)).reachable th st)
     (hsat : ∀ r : Fin n, ¬ is_byz r →
       (pCast n st r ∧ ∀ j : Fin n, th.is_proposer j = true →

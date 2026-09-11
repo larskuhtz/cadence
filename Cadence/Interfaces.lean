@@ -12,7 +12,7 @@ type classes, lifted from the paper's module specifications
 | `mod:slotconsensus` (per-slot consensus) | `SlotConsensus` | Chorus ([`Chorus.lean`](./Chorus.lean)) |
 | `mod:orchestrator_2` (slot scheduling) | `Orchestrator` | Conductor ([`Conductor.lean`](./Conductor.lean)) |
 | `mod:acs` (agreement on a core set) | `ACS` | out of scope (a standard primitive) |
-| `mod:mvba` (multi-valued Byzantine agreement) | `MVBA` | Mvba ([`Mvba.lean`](./Mvba.lean) — the leader-based protocol of the paper repository's internal supplement; instance provided, not yet consumed by Chorus) |
+| `mod:mvba` (multi-valued Byzantine agreement) | `MVBA` | Mvba ([`Mvba.lean`](./Mvba.lean) — the leader-based protocol of the paper repository's internal supplement; consumed by Chorus as its `mvba` constraint, instantiated in [`System.lean`](./System.lean)) |
 
 Every class states the **whole** of the paper's module: its interface (inputs
 and outputs), and every one of its properties — safety, liveness, and the
@@ -113,10 +113,16 @@ Each module `X` is two classes over a shared skeleton.
 
 `Chorus.lean` imports [`Primitives.lean`](./Primitives.lean) (the cryptographic
 primitive classes), so extending that file would invalidate Chorus's compiled
-artefact and force the 3 861-cell family to rebuild. The module contracts live
-here, imported only by `Cadence.lean`, `Conductor.lean` and the composition
-files, which keeps editing the small models cheap. `MVBA` moved here from
-`Primitives.lean` for the same reason (2026-09). Do not move them back. -/
+artefact and force the whole proof family to rebuild. The module contracts
+were put here, imported only by `Cadence.lean`, `Conductor.lean` and the
+composition files, to keep editing the small models cheap; `MVBA` moved here
+from `Primitives.lean` for the same reason (2026-09). **Since 2026-09-10
+`Chorus.lean` imports this file too** — it consumes `MVBASafety` as a class
+constraint — so an edit here now rebuilds the Chorus family as well (a warm
+replay from the proof cache when no VC statement changes, a cold re-solve
+otherwise). The contracts change rarely; if that ever stops being true, the
+MVBA classes can move to a file of their own that `Chorus.lean` imports
+alone. Do not move them back into `Primitives.lean`. -/
 
 /-! ## Shared vocabulary -/
 
@@ -731,22 +737,23 @@ included, which is why they sit in the fragment. What the full class still
 owes is exactly `MVBATemporal`: the clock, the admissible-run model, `ℓ` and
 Termination.
 
-**Chorus does not yet consume this class as a constraint** — alone among
-the consumers it inlines the oracle's properties as guards of its
-`mvba_decide_*` actions ([`Chorus.lean`](./Chorus.lean), "MVBA oracle"). The
-reason is not the class's shape but the model's abstraction of validity:
-the paper's `Valid B` is a function of the meta-block, which *carries* its
-certificates, while Chorus checks a decided entry's certificate against its
-own network relations (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`)
-— a predicate on Chorus's *state*, which a class parameter declared before
-the module's state exists cannot mention. Closing that seam — the plan's
-step 6, `docs/MvbaPlan.md` §6: the class over an abstract state, an oracle
-step, and a decision handler carrying the certificate check as the one
-stated bridge — changes every Chorus verification condition and is its own
-piece of work ([`docs/CompositionContracts.md`](../docs/CompositionContracts.md)
-§8). Until then the transcription seam between these fields and Chorus's
-guards is audited by reading — the two are listed side by side in that
-section.
+**Chorus consumes this class as a constraint** (since 2026-09-10,
+`docs/MvbaPlan.md` §6): `instantiate mvba : MVBASafety node mvalue mmsg
+mstate (fun i => nset.is_byz i = true)` over an abstract state `mvba_st`,
+advanced by the oracle step `mvba_step` and the driven input
+`mvba_propose`, with two per-entry decision handlers reading
+`mvba.decided` off the state ([`Chorus.lean`](./Chorus.lean), "The MVBA
+instance"). The value is the entry vector, which Chorus reads through two
+immutable projections `mval_pos`/`mval_neg` of an opaque sort;
+[`System.lean`](./System.lean) instantiates all of it at `Mvba.mvbaSafety`.
+One thing is deliberately *not* a field of this class: the paper's `Valid
+B` is a function of the meta-block, which *carries* its certificates, while
+Chorus checks a decided entry's certificate against its own network
+relations (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`) — a
+predicate on Chorus's *state*, which a class parameter declared before the
+module's state exists cannot mention. That check is the handlers' one
+stated bridge, the MVBA counterpart of the Conductor's ACS median bridge
+([`docs/CompositionContracts.md`](../docs/CompositionContracts.md) §8).
 
 ### Obligation table
 

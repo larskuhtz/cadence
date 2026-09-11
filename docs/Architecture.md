@@ -67,7 +67,7 @@ Current state, all green:
 
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
-| `Cadence/Chorus.lean` | 38 | 9 safety + 89 invariants | 3 861 | cvc5, **proof-reconstructed** (kernel-checked), + 11 manual Lean proofs for e-matching-divergent cells |
+| `Cadence/Chorus.lean` | 40 | 9 safety + 92 invariants + 1 step property | 4 222 | cvc5, **proof-reconstructed** (kernel-checked), + 11 manual Lean proofs for e-matching-divergent cells; the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
 | `Cadence/Cadence.lean` | 6 | 4 safety + 20 invariants | 175 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
 | `Cadence/Conductor.lean` | 7 | 5 safety + 15 invariants | 168 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
 | `Cadence/FallbackReceipt.lean` | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
@@ -148,7 +148,7 @@ quantitative obligation over explicit runs
   [Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean) — in
   any reachable state where every honest validator has cast its path
   vote, per-proposer commitQCs from honest votes alone, or the MVBA
-  invoked with evidence in the `mvba_decide_*` guard form); its
+  invoked with evidence in the form of the decision handlers' bridge); its
   counting inputs — certificate formation and the fast-dominant
   commitQC ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)),
   the evidence pigeonhole
@@ -229,17 +229,24 @@ relations, and it takes a human to confirm each use is positive.
    of "a continuously enabled fair action eventually fires":
    (F-justice) — weak fairness of honest actions (weak suffices:
    enabledness is monotone in this model); (F-byz) — Byzantine actions
-   are unfair; (A-mvba) — the MVBA primitive's own termination once
-   invoked with valid proposals (probability-1, paper-level), whose
+   are unfair; (A-mvba) — the MVBA instance's own termination once every
+   correct validator has proposed (probability-1, paper-level), whose
    protocol-side premises are theorem conclusions; the per-validator
    implementation refinement of the proposal build is the receipt
-   layer (§5). Since the MVBA instantiation was modelled
-   ([Cadence/Mvba.lean](../Cadence/Mvba.lean)), the primitive's
-   Termination is also stated *formally*, over that model's own transition
-   system, as the class field `MVBATemporal.termination`
-   ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean), item 4);
-   (A-mvba) remains the assumption at Chorus's level until Chorus consumes
-   the instance (item 3).
+   layer (§5). Since Chorus consumes the MVBA as the class constraint
+   `MVBASafety`, instantiated at the verified model
+   ([Cadence/Mvba.lean](../Cadence/Mvba.lean); item 3), (A-mvba) is
+   exactly the field `MVBATemporal.termination` **at `Mvba.mvbaSafety`**
+   ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean), item 4) —
+   an obligation over the model's own transition system, of which the
+   untimed model has no instance yet — together with (F-justice) on
+   Chorus's `mvba_propose` (premise (i): every correct validator proposes)
+   and on the decision handlers, whose enabledness has one leg the class
+   does not give: the *completeness direction of the bridge* (a decided
+   entry's certificate is on Chorus's network — what "publicly
+   verifiable" means; `ChorusDesign.md` §7 item 4). Decomposing (A-mvba)
+   into the instance's fair-progress theorems is `docs/MvbaPlan.md` §8
+   step 7.
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive;
    [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS`
@@ -250,20 +257,32 @@ relations, and it takes a human to confirm each use is positive.
    class constraint, so it assumes exactly the class, with one stated
    bridge (the median-range `require` of `acs_decide`, justified by the
    class's quantitative validity through `Windows.lean`). The `MVBA`
-   contract has left this list on the *provider* side: `Mvba.mvbaSafety`
+   contract has **left this list on both sides**: `Mvba.mvbaSafety`
    ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) instantiates
    its state-level fragment from the leader-based protocol of the paper
    repository's internal supplement ([Cadence/Mvba.lean](../Cadence/Mvba.lean);
    the referent is pinned in that header and is not yet part of the
-   published paper), every field proven, and `Mvba.mvba_of_temporal` leaves
-   only the timed fields (item 4). What remains is the *consumption*: the
-   MVBA is the one contract still consumed by *inlined guards* (Chorus's
-   `mvba_decide_*`); the transcription is tabulated against the class in
-   [CompositionContracts.md](./CompositionContracts.md) §8, the reason it is
-   not yet a constraint — validity is a predicate on Chorus's own state —
-   is recorded at the class, and the consumption, with one stated bridge
-   (the decision handler's certificate check) joining the ACS median
-   bridge, is `docs/MvbaPlan.md` §6. Note what is *not* on this list:
+   published paper), every field proven, `Mvba.mvba_of_temporal` leaves
+   only the timed fields (item 4), and since 2026-09-10 Chorus *consumes*
+   the class as a constraint (`instantiate mvba : MVBASafety …`,
+   `docs/MvbaPlan.md` §6) with `Cadence/System.lean` filling it with that
+   instance — so no MVBA property is assumed anywhere in the composed
+   system. What that consumption leaves is **one stated bridge**, of the
+   same kind as the ACS median bridge: Chorus's decision handlers
+   `require` the decided entry's certificate against Chorus's own network
+   relations (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, resp.
+   the negative form), which is what the class's `Valid` — a parameter
+   fixed before the module's state exists — *means* in a model whose
+   signatures are network relations. It is documented at the handlers
+   (`Cadence/Chorus.lean`), in `ChorusDesign.md` §4 and in
+   [CompositionContracts.md](./CompositionContracts.md) §8 item 1; it
+   removes no behaviour of a correct MVBA (public verifiability plus
+   `external_validity`) and is safety-conservative if the MVBA were wrong.
+   Chorus's two assumptions about the entry-vector projections
+   (`mval_pos_functional`, `mval_pos_neg_excl`) are theorems at the
+   instantiation (`Cadence/System.lean`, `chorusTheory_assumptions`); the
+   one genuine hypothesis is that the abstract MVBA state Chorus starts
+   from is initial. Note what is *not* on this list:
    the `ByzNodeSet` quorum/counting interface is **not** an assumption
    gap — its axioms are Lean-proven for the concrete `byzNodeSetFin`
    instance family, which covers every deployment size `n = 3f+1` with
@@ -361,7 +380,7 @@ file:
 |---|---|---|
 | `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_temporal` (`Cadence/Composition.lean`) | `propext, Classical.choice, Quot.sound` | ✓ |
 | `Cadence.system_positional_log_safety` (`Cadence/System.lean`) | same | ✓ |
-| `Chorus.invariants_of_reachable` + per-property projections (`Cadence/Chorus/Certify.lean`) | same | ✓ + `#veil_status`: 3899/3899 real |
+| `Chorus.invariants_of_reachable` + per-property projections (`Cadence/Chorus/Certify.lean`) | same | ✓ + `#veil_status`: 4222/4222 real |
 | `FallbackReceipt.invariants_of_reachable` (`Cadence/FallbackReceipt/Certify.lean`) | same | ✓ + `#veil_status`: 220/220 real |
 | `FallbackReceipt.build_totality_of_reachable` (`Cadence/FallbackReceipt/Totality.lean`) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` (`Cadence/Chorus/Compose.lean`) | same | ✓ |

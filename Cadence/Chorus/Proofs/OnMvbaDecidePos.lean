@@ -1,21 +1,31 @@
 import Cadence.Chorus
 import Cadence.ProofPrelude
 
-/-! # `Chorus` proofs — action `mvba_decide_pos`
+/-! # `Chorus` proofs — action `on_mvba_decide_pos`
 
 Scaffolded by `#gen_proof_files Chorus`; yours to edit. Proves every
-registered VC of `mvba_decide_pos` cross-file from the module's persisted VC registry
+registered VC of `on_mvba_decide_pos` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 `Certify.lean`'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Chorus mvba_decide_pos <property> by <tac>` lines
+Manual cells go on `#prove_vc Chorus on_mvba_decide_pos <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
 false` is written out below, and the shared blocks from
 `Cadence/ProofPrelude.lean` record what each of the other options is
-for. -/
+for.
+
+The two manual cells are the quorum-intersection arguments of the
+commitQC-versus-decision family, ported from the retired oracle action
+`mvba_decide_pos` (2026-09-10, `docs/MvbaPlan.md` §6): the handler's bridge
+`require` — the decided entry's certificate against the network — is the
+evidence hypothesis `hev` the arguments intersect with the commitQC's
+quorum, exactly as the oracle's external-validity guard was. Only the
+`intro` pattern changed: the handler's guards are `¬ is_byz i`, the phase,
+`is_proposer j`, `mvba_invoked`, `mvba.decided mvba_st i v`, `mval_pos v j m`
+and then the bridge. -/
 
 open Veil Chorus Veil.InvProjection
 
@@ -28,14 +38,14 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
-#prove_vc Chorus mvba_decide_pos commitqc_pos_mvba_consistent by
+#prove_vc Chorus on_mvba_decide_pos commitqc_pos_mvba_consistent by
   unveil_local
   inv_have h_msg_commitqc_pos_votes := msg_commitqc_pos_votes
   inv_have h_vote_unique_pos := vote_unique_pos
   inv_have h_msg_commitqc_pos_backed := msg_commitqc_pos_backed
   inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   inv_have h_commitqc_pos_mvba_consistent := commitqc_pos_mvba_consistent
-  intro _hphase _hcompl _hprop _hinvoked hev _hagree _hnneg J M1 M2 hqc hmv
+  intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev J M1 M2 hqc hmv
   by_cases hnew : j = J ∧ m = M2
   · obtain ⟨rfl, rfl⟩ := hnew
     rcases hev with ⟨Q2, hQ2_sup, hQ2⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩
@@ -51,15 +61,14 @@ namespace Chorus.Proofs
   · have hmv' : st.mvba_decided_pos J M2 = true := hmv (fun h1 h2 => hnew ⟨h1, h2⟩)
     exact h_commitqc_pos_mvba_consistent J M1 M2 hqc hmv'
 
-
-#prove_vc Chorus mvba_decide_pos commitqc_neg_mvba_pos_excl by
+#prove_vc Chorus on_mvba_decide_pos commitqc_neg_mvba_pos_excl by
   unveil_local
   inv_have h_msg_commitqc_neg_votes := msg_commitqc_neg_votes
   inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
   inv_have h_msg_commitqc_neg_backed := msg_commitqc_neg_backed
   inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   inv_have h_commitqc_neg_mvba_pos_excl := commitqc_neg_mvba_pos_excl
-  intro _hphase _hcompl _hprop _hinvoked hev _hagree _hnneg J M hqc
+  intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev J M hqc
   refine ⟨?_, h_commitqc_neg_mvba_pos_excl J M hqc⟩
   rintro rfl rfl
   rcases hev with ⟨Q2, hQ2_sup, hQ2⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩
@@ -74,6 +83,6 @@ namespace Chorus.Proofs
     have hy := hqf c hc2
     rw [hcf] at hy; simp at hy
 
-#prove_action Chorus mvba_decide_pos
+#prove_action Chorus on_mvba_decide_pos
 
 end Chorus.Proofs

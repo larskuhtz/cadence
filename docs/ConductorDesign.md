@@ -74,7 +74,7 @@ four properties) is `p2_problem_definition.tex`.
         ┌───────────────┴───────────┐  ┌───────────┴───────────────┐
         │ Chorus                    │  │ Conductor                 │
         │ ⊨ SlotConsensus           │  │ ⊨ Orchestrator            │
-        │ (MVBA as oracle)          │  │ (ACS as oracle)           │
+        │ (MVBA as constraint)      │  │ (ACS as constraint)       │
         └───────────────────────────┘  └───────────────────────────┘
 ```
 
@@ -92,8 +92,9 @@ fields of the `…Temporal` class over the safety instance, stated over runs,
 and each implementation's unproven subset is exactly the field list of that
 class, of which it has no instance. Each module is verified
 independently against the contract; the instances and the composed theorem
-are §5. (The MVBA inside Chorus is the one consumed sub-protocol still
-inlined as oracle guards — the reason is recorded at the class.)
+are §5. (The MVBA inside Chorus followed the same pattern on 2026-09-10 —
+`docs/MvbaPlan.md` §6 — with the decision handlers' certificate check as
+its one stated bridge, the counterpart of the ACS median bridge.)
 
 ### The class layer (`Cadence/Interfaces.lean`)
 
@@ -127,9 +128,11 @@ fields, not substitutes for them.
   (`mod:orchestrator_2`); Integrity's timing half is first-order and sits in
   the fragment. Instance: `Conductor.orchestratorSafety`; no instance of
   `OrchestratorTemporal` at it.
-* `MVBA` — agreement, integrity, external validity in the fragment;
-  ℓ_MVBA-termination, quiescence in the full class (`mod:mvba`). No
-  instance; Chorus inlines it (see the class for why).
+* `MVBA` — agreement, integrity, external validity, the two inputs and
+  one-step quiescence in the fragment; ℓ_MVBA-termination in the temporal
+  class (`mod:mvba`). Instance: `Mvba.mvbaSafety`
+  (`Cadence/Mvba/Compose.lean`), consumed by Chorus and plugged in by
+  `Cadence/System.lean`; no instance of `MVBATemporal` at it.
 
 ## 3. The Conductor Veil module
 

@@ -6,9 +6,9 @@ import Cadence.Interfaces
 The provider step of the MVBA instantiation (`docs/MvbaPlan.md` §5): the
 `Mvba` transition system ([`Mvba.lean`](../Mvba.lean)), packaged as the
 state-level MVBA contract of [`Interfaces.lean`](../Interfaces.lean) —
-the class Chorus is scheduled to consume as its `mvba` constraint (plan
-step 6, not part of this file) — together with the join toward the
-full `MVBA` class. This is the only file of the `Mvba` family that imports
+the class Chorus consumes as its `mvba` constraint (plan step 6, landed
+2026-09-10; [`System.lean`](../System.lean) plugs this instance in) —
+together with the join toward the full `MVBA` class. This is the only file of the `Mvba` family that imports
 `Cadence.Interfaces`, on the pattern of
 [`Chorus/Compose.lean`](../Chorus/Compose.lean).
 
@@ -57,6 +57,11 @@ inductive Msg (view value : Type) where
   | commit (v : view) (e : value)
   | timeout_qc (v w : view) (e : value)
   | timeout_noqc (v : view)
+
+/-- A consumer that holds the message sort as an opaque parameter needs it
+inhabited (Chorus's `[Inhabited mmsg]`); a view suffices for a witness. -/
+instance {view value : Type} [Inhabited view] : Inhabited (Msg view value) :=
+  ⟨.timeout_noqc default⟩
 
 open Classical
 
