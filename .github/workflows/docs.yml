@@ -1,0 +1,91 @@
+# Render the Lean sources as a browsable site and publish it to GitHub Pages.
+#
+# What this is for: an auditor reading the formalization needs the models'
+# prose (the long `/-! … -/` headers), the declarations they describe, and the
+# boundary between what the kernel checks and what is assumed. This workflow
+# renders all three — the first two with `doc-gen4`, the third derived from the
+# compiled environment by `scripts/TrustSurface.lean`.
+#
+# Why it runs in the `cadence-verified` image: doc-gen4 reads `.olean`s rather
+# than re-elaborating sources, and that image already holds this project's.
+# Running here costs the doc-gen4 build plus the analysis pass, not a
+# re-verification — so this job is minutes, not the hours `verify` is sized for.
+#
+# The published site is documentation, not evidence. It carries no weight in
+# any theorem's trust base: `verify` and `check` remain the gates. The one
+# exception is deliberate — `scripts/docs.sh` fails the build if any end
+# result's axiom footprint has drifted, so a broken pin cannot be published
+# quietly.
+#
+# Runs on the default branch only. A pull request that changes the sources is
+# gated by `verify`; republishing the site per PR would serve no one.
+name: docs
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+  pages: write
+  id-token: write
+
+# Never let two deployments race; the later commit's site is the correct one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - name: Check out the sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Log in to the container registry
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # doc-gen4 is pinned behind `-Kenv=dev`, so this resolves it (and its
+      # four additive dependencies) inside the image before building.
+      - name: Render the documentation
+        env:
+          RUNTIME: docker
+          LEAN_NUM_THREADS: 4
+        run: |
+          scripts/container.sh docs 2>&1 | tee docs.log
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
+        with:
+          path: site
+
+      - name: Upload the build log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docs-log
+          path: docs.log
+          if-no-files-found: warn
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
