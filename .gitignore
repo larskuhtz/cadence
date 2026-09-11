@@ -17,3 +17,6 @@
 # Editor / OS noise
 .vscode/
 .DS_Store
+
+# Generated documentation site (scripts/docs.sh)
+site/

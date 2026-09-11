@@ -39,6 +39,17 @@ require Loom from git "https://github.com/larskuhtz/loom" @ "v4.32.0-for-veil-la
 
 require veil from git "https://github.com/larskuhtz/veil" @ "port/integration"
 
+/- The documentation generator, behind a config flag so it never enters the
+normal build: `lake build` neither resolves nor builds it. Rendering the docs
+is `lake -Kenv=dev build Cadence:docs`, which `scripts/docs.sh` wraps.
+
+It is pinned to the tag matching this project's toolchain. Its five
+dependencies are additive — the only one this tree already has, `Cli`, is
+pinned at the same revision — so adding it changes no existing manifest entry
+and leaves the Mathlib cache intact. -/
+meta if get_config? env = some "dev" then
+require «doc-gen4» from git "https://github.com/leanprover/doc-gen4" @ "v4.32.0"
+
 /-- The whole development: models, per-action proof families, composition
 certificates, end theorems, and the model-conformance monitor.
 
