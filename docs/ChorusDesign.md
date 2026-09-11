@@ -45,9 +45,8 @@ Finalization occurs via one of two *commitment proofs*
   the slot.
 
 The model is **single-slot**: state and messages are not
-slot-parameterised, since per-slot instances are independent. (An earlier
-revision carried an explicit `slot` parameter on every relation; it was
-dropped as redundant. The `slot` type is retained as a placeholder.)
+slot-parameterised, since per-slot instances are independent. The `slot` type
+is retained as a placeholder for a possible multi-slot extension.
 
 ## 2. Type-level structure
 
@@ -112,7 +111,7 @@ network relations. Auditing Chorus, the property split is:
 | `msg_commit_cast` | ✓ | ✗ — six self-row reads: `¬ msg_commit_cast i` for the acting validator `i` (see "Self-row negative reads" below) |
 | `local_fastqc_*` | ✓ | ✗ (negative observations of own state) |
 | `mvba_st : mstate` | (the contract's `decided_mono`: decisions only accrue along `mvba.step`/`mvba.propose`) | ✓ — consulted only through `mvba.decided`, in positive position, by the decision handlers and `mvba_terminate` |
-| `mvba_decided_*`, `mvba_complete` | ✓ | ✓ for honest actions' network-style reads; `cast_fb_commit`'s post-termination read is a scoped exception (see below). The records are written by the decision handlers, which do not read them at all — the agreement guards of the pre-2026-09-10 oracle actions, formerly a second scoped exception, went with the oracle |
+| `mvba_decided_*`, `mvba_complete` | ✓ | ✓ for honest actions' network-style reads; `cast_fb_commit`'s post-termination read is a scoped exception (see below). The records are written by the decision handlers, which never read them |
 | `phase : Phase` enum | (forward-only, see below) | ✓ |
 | `local_entry_pos/neg`, `local_voted`, `local_path`, `local_committed*` | ✓ | ✗ |
 
@@ -131,11 +130,10 @@ parameter): `∀ M q, ¬(q ⊆ qv ∧ q positive-signs M ∧ …)`. The negation
 ranges over the witnessed subset only, so a validator may still
 negative-sign although a positive quorum exists outside `qv` — the
 behaviours asynchrony makes real are retained (the abstraction stays
-conservative). This replaces an earlier guard that negated over the
-*global* signature state, which excluded real behaviours.
+conservative). A guard negating over the *global* signature state would not
+be conservative: it would exclude real behaviours.
 
-**The `cast_fb_commit` decided-vector read (added 2026-07-07 with the
-fallback commit round).** The commit-round action universally
+**The `cast_fb_commit` decided-vector read.** The commit-round action universally
 quantifies over the decided entries
 (`∀ J M, is_proposer J → mvba_decided_pos J M → msg_chunk_received i J M`),
 i.e. consults `mvba_decided_pos` on the left of an implication.
@@ -150,10 +148,7 @@ validator holds the complete vector `B'` from its single `decide(B')`
 delivery: the paper's handler enumerates exactly this frozen,
 locally-known object (`line:fb-commit-foreach`). Growth of the recorded
 set can therefore never disable the action at any state where it is
-enabled. (Before 2026-09-10 the freeze was a guard — the oracle actions
-required `¬ mvba_complete` — and those actions' own agreement guards
-were a second oracle-internal negative read; both went with the oracle,
-see §4.)
+enabled.
 
 **Self-row negative reads (`msg_proposer_signed`, `msg_commit_cast`).**
 Seven guards read a network relation negatively where the row consulted
@@ -181,9 +176,7 @@ monotone read differ from what the real validator observes about
 itself. Semantically these are the local checks "I have not already
 proposed / already cast" that any real validator performs on its own
 state. Network tuples produced by *other* participants can never
-disable these guards. (Recorded explicitly after the 2026-08 external
-audit, whose re-run of this hand audit found the two relations
-previously mis-tabled as pure (M-frame) ✓.)
+disable these guards.
 
 The network relations satisfy **both** properties elsewhere. The
 per-validator local state relations satisfy only (M-update): they appear
@@ -359,19 +352,18 @@ establish, and prove the protocol consequence asynchronously:
   `m`" is still taken as decodable (`chunk_quorum` reads `isDecoded` at
   the chunk-count threshold), and a Byzantine proposer can still
   deliver `f+1` mutually-inconsistent chunks — but the fallback layer
-  now sees the verdict the real DA would reach on them. Agreement and
-  proposal inclusion never depended on the check (agreement rests on
-  quorum intersection over root-opaque certificates; an on-time honest
-  proposer's root passes the check by the `all_honest_recorded`
-  premise's encoding half).
+  sees the verdict the real DA would reach on them. Agreement and proposal
+  inclusion do not depend on the check: agreement rests on quorum
+  intersection over root-opaque certificates, and an on-time honest
+  proposer's root passes the check by the encoding half of the
+  `all_honest_recorded` premise.
 
-  History: until 2026-08-19 the check was wholly unmodelled, which made
-  the omission silently load-bearing for the speculative-finality
-  properties — they were provable under `no_equivocation` alone only
-  because invalid encodings could not exist. Found by the 2026-08
-  external audit (Finding 1); the properties now take the paper's full
-  culprit set (`no_equivocation` + `no_invalid_encoding`), closing that
-  finding at the model level.
+  Modelling the verdict is load-bearing for the **speculative-finality**
+  properties. If invalid encodings cannot exist in the model, those
+  properties are provable under `no_equivocation` alone — a stronger claim
+  than the paper makes, since the paper names an invalidly encoded root as a
+  second culprit case. With `well_encoded` present they take the paper's full
+  culprit set, `no_equivocation` + `no_invalid_encoding`.
 
 ## 3.5 State locality contract
 
@@ -548,9 +540,8 @@ deadline vote.
 
 ### The MVBA as a class constraint
 
-Since 2026-09-10 (`MvbaPlan.md` §6, step 6) Chorus consumes the MVBA
-(`mod:mvba`, `p2_mvba.tex`) exactly as the glue consumes the slot
-consensus and the Conductor the ACS
+Chorus consumes the MVBA (`mod:mvba`, `p2_mvba.tex`) exactly as the glue
+consumes the slot consensus and the Conductor the ACS
 ([`CompositionContracts.md`](./CompositionContracts.md) §3): the
 state-level contract `MVBASafety` of
 [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) is a **class
@@ -564,9 +555,6 @@ The instance is the verified leader-based model
 ([`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean)), plugged in
 by [`Cadence/System.lean`](../Cadence/System.lean); both are stated against
 the same `nset.is_byz`, so no fault-model transport is needed between them.
-Until then the MVBA was an *oracle*: three actions whose `require`s
-transcribed the class's fields, audited by reading — the record of that
-transcription is `CompositionContracts.md` §8 item 1.
 
 **The value is the entry vector.** `mod:mvba` decides a meta-block; the
 supplement proves agreement at the entries level, and Chorus works per
@@ -617,29 +605,27 @@ removes no real behaviour (a correct MVBA's decision passes the check,
 by `external_validity` and public verifiability), and if the MVBA were
 wrong the handler would simply not fire — safety-conservative.
 `mvba_decided_pos_backed` / `mvba_decided_neg_backed` persist the
-evidence a record carried; the evidence conditions are deliberately
+evidence a record carried. The evidence conditions are deliberately
 certificate-checkable network predicates, *not* conditions on honest
-validators' internal state, because the MVBA can only verify what a
-proposal carries. (An earlier revision of the oracle instead required
-MVBA decisions to be consistent with every honest validator's aggregated
-FastQCs — a non-implementable gate, then documented as a "model fidelity
-concession". It is gone: with commitQC-based finalization the paper's own
-asynchronous agreement argument goes through, see §6.) The bridge is
+validators' internal state: the MVBA can only verify what a proposal
+carries, so a gate referring to honest validators' aggregated FastQCs would
+not be implementable. None is needed — with commitQC-based finalization the
+paper's own asynchronous agreement argument goes through (§6). The bridge is
 stated in three places and nowhere else: the two handlers in
 `Cadence/Chorus.lean`, and — as the same disjunction — the validity guards
 of `mvba_propose`, where it is the caller's obligation rather than the
 receiver's check.
 
-**What the class buys.** Agreement of the records — `mvba_decided_pos_unique`,
-`mvba_decided_pos_neg_excl` — used to be *enforced* by the oracle actions'
-guards; it is now *proven* from the class's `agreement` at the reachable
-abstract state (`mvba_reachable`), through two **tie invariants**
-(`mvba_decided_pos_tied`, `mvba_decided_neg_tied`: every record is the
-projection of some correct validator's decision) and the two `mval_*`
-assumptions. This is where `Mvba.mvbaSafety` enters Chorus's trust base in
-place of the oracle's firing rules. `spikes/09_mvba_consumer_ok.lean` /
+**What the class buys.** Agreement of the records —
+`mvba_decided_pos_unique`, `mvba_decided_pos_neg_excl` — is *proven* from the
+class's `agreement` at the reachable abstract state (`mvba_reachable`),
+through two **tie invariants** (`mvba_decided_pos_tied`,
+`mvba_decided_neg_tied`: every record is the projection of some correct
+validator's decision) and the two `mval_*` assumptions. This is how
+`Mvba.mvbaSafety` enters Chorus's trust base: the decision handlers assert no
+agreement property of their own. `spikes/09_mvba_consumer_ok.lean` and
 `10_mvba_consumer_no_tie.lean` are the shape experiment and its negative
-control: without the ties, uniqueness fails at exactly the handlers.
+control; without the ties, uniqueness fails at exactly the handlers.
 
 **Two invocation triggers.** The paper invokes MVBA under two triggers
 (`alg:fallback`): the fallback trigger — `|M_i| ≥ 2f+1` fallback votes,
@@ -767,7 +753,7 @@ commitQC in an honest validator with both `msg_commit_cast` and
 (`commit_cast_fallback_sig_excl`). Pure quorum reasoning, valid under
 full asynchrony.
 
-*Correspondence note (2026-07-07 revision).* The paper's restructured
+*Correspondence with the paper's argument.* The paper's
 `prop:agreement-entries` argues the fallback cases through the *commit
 round*: two `fbCommitQC`s intersect in an honest commit-voter, who
 commit-votes once, for the entries of its single MVBA decision (MVBA
@@ -858,7 +844,7 @@ on the `local_fb_neg_qv` history variable — plus `fb_neg_no_pos_quorum`,
 `spec_fastqc_pos_no_mvba_neg`, `spec_fastqc_pos_mvba_pos_unique` (same
 two hypotheses).
 
-### 6.7 Fallback commit round (added 2026-07-07)
+### 6.7 Fallback commit round
 
 `fbcommit_sig_backed` (an honest commit vote postdates the decision
 vector it signs — `line:fb-mvba-decide` precedes `line:fb-commitvote`),
@@ -917,9 +903,9 @@ model-side encoding is the "Liveness" section of
    meta-block by aggregation, whose guard witness is *definitionally*
    the dichotomy's vote-quorum evidence (`vote_quorum_pos`'s definition
    and `aggregate_fastqc_pos`'s requires are the same two lines). The
-   instance then decides at every correct validator ((A-mvba) — since
-   2026-09-10 the class field `MVBATemporal.termination` at
-   `Mvba.mvbaSafety`, of which the untimed model has no instance yet),
+   instance then decides at every correct validator ((A-mvba) — the class
+   field `MVBATemporal.termination` at `Mvba.mvbaSafety`, of which the
+   untimed model has no instance),
    and the handlers and `mvba_terminate` record the decision
    (`mvba_complete`). The handlers' one enabledness leg the class does
    not give is the bridge's completeness direction — a decided entry's
@@ -1017,12 +1003,16 @@ in the Veil fork ([`Liveness.md`](./Liveness.md) §3 points to it).
 Safety properties are unaffected by all of this: they hold in every
 reachable state regardless of scheduling.
 
-### 7.2 Confirmed paper-side bug behind (A-mvba) — EquivCert harvest omission (2026-07-06; fixed upstream 2026-07-07)
+### 7.2 A liveness bug in the v1 receipt rules: the EquivCert harvest omission
 
-An external report (independently re-verified against the LaTeX sources
-in `papers/cadence`, 2026-07-06) shows that **(A-mvba) is not
-implementable by the paper's pseudocode as written**. The bug is a
-liveness/termination bug in `alg_fallback.tex`; safety is unaffected.
+*A record of the one protocol bug this line of work has found. It was
+reported by a parallel verification effort using Rocq, confirmed here against
+the LaTeX sources, and fixed in the paper's v2. The rules discussed below are
+v1's; the fix is described at the end.*
+
+The finding is that **(A-mvba) is not implementable by the v1 pseudocode as
+written**. The bug is a liveness/termination bug in `alg_fallback.tex`;
+safety is unaffected.
 
 **The bug.** The `FallbackVote` receive handler accepts a carried
 EquivCert as valid evidence but never harvests it into `Ev(pid)` — the
@@ -1064,8 +1054,8 @@ closing the argument per-validator requires counting the Byzantine
 votes' entries too, i.e. harvesting carried certificates *including
 EquivCerts*.
 
-**Resolution (2026-07-07).** Fixed upstream and published as
-**`arXiv:2607.02275v2`**, so the before/after is a public diff:
+**The fix.** Published as **`arXiv:2607.02275v2`**, so the before/after is a
+public diff:
 `arxiv.org/e-print/2607.02275v1` against `…v2`, where `alg_fallback.tex`
 carries both changes below.
 
@@ -1093,27 +1083,24 @@ feeds one of the three build cases, and the upgrade/propose race is
 structurally eliminated (no standing upgrade rules remain). "`B` is
 valid by construction" is a proved statement.
 
-**Which half of the fix is load-bearing:** the atomic build alone is
-not enough. Without the receipt restriction a validator still *accepts*
-carried EquivCerts without counting them, leaving the counting hole
-open; it is the restriction at `line:fb-accept` that closes it. The
-algorithm description in the paragraphs above is the v1 one, retained
-as the record of the finding.
+**Which half of the fix is load-bearing:** the atomic build alone is not
+enough. Without the receipt restriction a validator still *accepts* carried
+EquivCerts without counting them, leaving the counting hole open; it is the
+restriction at `line:fb-accept` that closes it.
 
 **Mechanised:**
 [`Cadence/FallbackReceipt/PreFix.lean`](../Cadence/FallbackReceipt/PreFix.lean)
 reproduces the counterexample above mechanically (a model-checker
 violation at `n = 4, f = 1` whose trace is exactly this scenario), and
-[`Cadence/FallbackReceipt.lean`](../Cadence/FallbackReceipt.lean) verifies the shipped
-design ("valid by construction" by SMT for all `n`; the per-validator
+[`Cadence/FallbackReceipt.lean`](../Cadence/FallbackReceipt.lean) verifies the
+v2 design ("valid by construction" by SMT for all `n`; the per-validator
 counting argument exhaustively at `n = 4, f = 1`).
 
-The v2 revision that fixed this also reshaped the surrounding
-machinery — the MVBA module interface (§`mod:mvba`), the fallback
-commit round (§6.7), and an explicit participation convention. The
-model tracks all three, and no proven safety invariant of it is
-contradicted by any of them. One v2 guard is worth naming because the
-model depends on it: a positive vote is accepted only if it carries its
+The v2 revision also reshaped the surrounding machinery: the MVBA module
+interface (§`mod:mvba`), the fallback commit round (§6.7), and an explicit
+participation convention. The model tracks all three, and none of them
+contradicts a proven safety invariant. One v2 guard is worth naming because
+the model depends on it: a positive vote is accepted only if it carries its
 *sender's assigned* chunk (`byz_sign_vote_pos` requires
 `msg_chunk_received r j m`), which is what makes
 `vote_pos_quorum_implies_decodable`'s reading of `isDecoded` honest —
@@ -1156,11 +1143,11 @@ f+1 accepted positive votes pin f+1 *distinct* chunks.
   the certificate `⟨equiv, s, j, ρ₁, σ_{p,1}, ρ₂, σ_{p,2}⟩`. The
   fallback votes through which an implementation *observes* the two
   signed roots are visibility plumbing the monotone network abstracts
-  away. This abstraction is where the paper-side liveness bug of §7.2
-  hid (received EquivCerts were dropped by the harvest rules — a
-  failure of the observation step this model cannot express). Since
-  the 2026-07-07 paper revision the abstraction is *aligned* rather
-  than merely benign: fallback votes carry only FastQCs or the
+  away. This abstraction is where the v1 liveness bug of §7.2 hid:
+  received EquivCerts were dropped by the harvest rules, a failure of the
+  observation step this model cannot express. Against v2 the abstraction is
+  *aligned* rather than merely benign: fallback votes carry only FastQCs or
+  the
   sender's own signed entry — exactly this model's
   `msg_fb_pos_sig`/`msg_fb_neg_sig` vocabulary — and EquivCerts /
   FallbackQCs exist only as objects assembled at propose time from the
@@ -1195,14 +1182,13 @@ These are places the model could go further. Nothing here is a gap in what
 the development *claims* — see [`TODO.md`](./TODO.md) for the cross-cutting
 list, and §§10.1–10.3 below for the bigger lifts.
 
-1. Instantiate the abstract classes of `Cadence/Primitives.lean` (e.g. an
-   example `ByzNodeSet` model instantiation of the whole module) to
-   demonstrate satisfiability of the axioms end-to-end. The `MVBA` contract
-   (now in `Cadence/Interfaces.lean`) has its instance since 2026-09-08 —
-   `Mvba.mvbaSafety` / `Mvba.mvba_of_temporal` in
-   [`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean) — and Chorus
-   consumes it since 2026-09-10 (§4); `ThresholdIBE` is the one still
-   without.
+1. Instantiate the abstract classes of `Cadence/Primitives.lean` (for
+   instance an example model instantiation of the whole module) to
+   demonstrate satisfiability of the axioms end-to-end. `ThresholdIBE` is the
+   one primitive class still without a model instance; the `MVBA` contract,
+   which lives in `Cadence/Interfaces.lean`, has `Mvba.mvbaSafety` /
+   `Mvba.mvba_of_temporal` ([`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean)),
+   consumed by Chorus (§4).
 
 2. Move the explicit `is_proposer` immutable relation to a derivation
    from a VRF-output relation, once a `VRF` primitive class exists in
@@ -1225,10 +1211,10 @@ list, and §§10.1–10.3 below for the bigger lifts.
 
 ### 10.1 Making the network assumption explicit and proven
 
-The async-soundness argument in §3.2–§3.3 is currently a **meta-level
-claim**: it depends on the (M-update)+(M-frame) contract of §3.1.1,
-which Veil does not enforce. We would much rather have the simulation
-be a *theorem in the system*. Two avenues:
+The async-soundness argument in §3.2–§3.3 is a **meta-level claim**: it
+depends on the (M-update)+(M-frame) contract of §3.1.1, which Veil does not
+enforce. Making the simulation a theorem in the system would remove the
+largest item of [`Architecture.md`](./Architecture.md) §4. Two routes:
 
 **(a) Model the network explicitly.** Introduce a per-recipient
 delivery relation `delivered_to i σ` and precondition every consuming

@@ -43,13 +43,12 @@ Each module `X` is two classes over a shared skeleton.
   fabricate inputs. Every field is first-order — no quantification over
   functions or runs — because this is the fragment a **Veil module
   `instantiate`s as a class constraint**, and Veil hands every axiom of an
-  instantiated class to the SMT solver verbatim (which is what lets the
-  consumer *use* the contract instead of restating it; it is also why a
-  non-first-order field here is fatal — the check commands reject one by
-  class and field name before any solver starts, and before the 2026-09 Veil
-  bump it aborted *every* verification condition of the consuming module.
+  instantiated class to the SMT solver verbatim. That is what lets the
+  consumer *use* the contract instead of restating it, and it is also why a
+  non-first-order field here is fatal: the check commands reject one by class
+  and field name before any solver starts.
   `attribute [veil_smt_ignore] C.field` is the escape hatch, unused here;
-  `docs/CompositionContracts.md` §10 and `spikes/03_*.lean` have the detail).
+  `CLAUDE.md` and `spikes/03_*.lean` have the detail).
 * **`XTemporal … [S : XSafety …]`** — everything else the paper promises,
   stated **over the safety instance**: every field mentions `S.init`,
   `S.trans`, `S.reachable` or one of `S`'s observables, so a temporal
@@ -111,18 +110,17 @@ Each module `X` is two classes over a shared skeleton.
 
 ## Why this file, and not `Primitives.lean`
 
-`Chorus.lean` imports [`Primitives.lean`](./Primitives.lean) (the cryptographic
-primitive classes), so extending that file would invalidate Chorus's compiled
-artefact and force the whole proof family to rebuild. The module contracts
-were put here, imported only by `Cadence.lean`, `Conductor.lean` and the
-composition files, to keep editing the small models cheap; `MVBA` moved here
-from `Primitives.lean` for the same reason (2026-09). **Since 2026-09-10
-`Chorus.lean` imports this file too** — it consumes `MVBASafety` as a class
-constraint — so an edit here now rebuilds the Chorus family as well (a warm
+`Chorus.lean` imports [`Primitives.lean`](./Primitives.lean) (the
+cryptographic primitive classes), so a contract kept there would invalidate
+Chorus's compiled artefact on every contract edit. Keeping the contracts in
+their own file bounds that cost.
+
+`Chorus.lean` does import *this* file, since it consumes `MVBASafety` as a
+class constraint, so an edit here rebuilds the Chorus family too — a warm
 replay from the proof cache when no VC statement changes, a cold re-solve
-otherwise). The contracts change rarely; if that ever stops being true, the
-MVBA classes can move to a file of their own that `Chorus.lean` imports
-alone. Do not move them back into `Primitives.lean`. -/
+otherwise. The contracts change rarely; if that stops being true, the MVBA
+classes can move to a file of their own that `Chorus.lean` imports alone. Do
+not move them back into `Primitives.lean`. -/
 
 /-! ## Shared vocabulary -/
 
@@ -403,7 +401,7 @@ class SlotConsensus (slot validator proposal pvector state time message : Type)
 /-! ### Slot consensus with the Chorus timing strengthenings
 
 `d_tot`-**totality** (`prop:chorus-totality`; `d_tot = Δ` since the
-2026-07-07 revision) and `ℓ`-**termination** (`lemma:chorus-termination`,
+v2 revision) and `ℓ`-**termination** (`lemma:chorus-termination`,
 `ℓ = 5Δ + ℓ_MVBA`) are not part of `mod:slotconsensus`: they are properties of
 Chorus that the Conductor's totality and recovery proofs consume
 (`lemma:conductor-totality`, through `Φ_oc = ℓ_chorus + d_tot`). Both are
@@ -737,9 +735,10 @@ included, which is why they sit in the fragment. What the full class still
 owes is exactly `MVBATemporal`: the clock, the admissible-run model, `ℓ` and
 Termination.
 
-**Chorus consumes this class as a constraint** (since 2026-09-10,
-`docs/MvbaPlan.md` §6): `instantiate mvba : MVBASafety node mvalue mmsg
-mstate (fun i => nset.is_byz i = true)` over an abstract state `mvba_st`,
+**Chorus consumes this class as a constraint**
+(`docs/CompositionContracts.md` §3): `instantiate mvba : MVBASafety node
+mvalue mmsg mstate (fun i => nset.is_byz i = true)` over an abstract state
+`mvba_st`,
 advanced by the oracle step `mvba_step` and the driven input
 `mvba_propose`, with two per-entry decision handlers reading
 `mvba.decided` off the state ([`Chorus.lean`](./Chorus.lean), "The MVBA
@@ -753,7 +752,7 @@ relations (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`) — a
 predicate on Chorus's *state*, which a class parameter declared before the
 module's state exists cannot mention. That check is the handlers' one
 stated bridge, the MVBA counterpart of the Conductor's ACS median bridge
-([`docs/CompositionContracts.md`](../docs/CompositionContracts.md) §8).
+([`docs/CompositionContracts.md`](../docs/CompositionContracts.md) §7).
 
 ### Obligation table
 

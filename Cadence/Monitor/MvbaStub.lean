@@ -1,9 +1,9 @@
 /-
 The monitor's stand-in for Chorus's MVBA constraint.
 
-Since 2026-09-10 Chorus consumes the MVBA as the class constraint
+Chorus consumes the MVBA as the class constraint
 `instantiate mvba : MVBASafety node mvalue mmsg mstate …` over three abstract
-sorts (`docs/MvbaPlan.md` §6). A concrete monitor instance has to fix them,
+sorts. A concrete monitor instance has to fix them,
 and no implementation event corresponds to any of them: the MVBA's internal
 state and messages are not observable at the Chorus trace boundary, and the
 implementation's decision handler is not emitted yet (`docs/Monitor.md` §8).

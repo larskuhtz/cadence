@@ -46,10 +46,10 @@ repository. (`papers/` is gitignored. Note the flat layout: the e-print has
 `alg_da.tex` where the paper repository now has `src/alg_da.tex`.)
 
 The paper repository carries **no release tags**, so which commit is which
-arXiv version is recorded once, in [`../README.md`](../README.md) § "Which
-paper revision is which source revision" — established by exactly this
-comparison, run over every `.tex` file rather than a sample. Tagging that
-repository would make the table redundant, which would be an improvement.
+arXiv version is recorded once, in [`../README.md`](../README.md)
+§ "Paper Revisions" — established by exactly this comparison, run over every
+`.tex` file rather than a sample. Tagging that repository would make the
+table redundant.
 
 **Result on 2026-09-03.** All five algorithm floats, `p2_framework`,
 `p2_mvba` and `p2_problem_definition` are byte-identical. `p2_chorus` and
@@ -165,12 +165,11 @@ slot numbers.
 
 `mod:mvba` in the published paper is an interface — `propose`, `abandon`,
 `decide` — plus five properties (Agreement, Integrity, External validity,
-`ℓ_MVBA`-Termination, Quiescence). It specifies no algorithm, which is why
-this development consumed the MVBA as an oracle under (A-mvba) until
-2026-09-10 — since then Chorus consumes the class `MVBASafety`, instantiated
-at the supplement's leader-based model (`Mvba.mvbaSafety`, plugged in by
-`Cadence/System.lean`), and (A-mvba) is the instance's own Termination
-([`Architecture.md`](./Architecture.md) §4 item 2) — and why `ℓ_MVBA` is a
+`ℓ_MVBA`-Termination, Quiescence). It specifies no algorithm. Chorus therefore
+consumes the class `MVBASafety`, instantiated at the supplement's
+leader-based model (`Mvba.mvbaSafety`, plugged in by `Cadence/System.lean`),
+with (A-mvba) being that instance's own Termination
+([`Architecture.md`](./Architecture.md) §4 item 2); `ℓ_MVBA` remains a
 parametric hole ([`Bounds.md`](./Bounds.md) §1).
 
 The supplement now closes that hole on paper. `sec:mvba-instantiation`
@@ -182,25 +181,23 @@ atomic reload. `subsec:mvba-correctness` discharges the module's properties
 with roughly fifteen lemmas, `thm:agreement` and `thm:termination`, the
 latter at `O(fΔ)`.
 
-Three consequences for this repository, the second of which has since been
-acted on:
+Three consequences for this repository:
 
 1. `ℓ_MVBA` acquires a concrete candidate value, `O(fΔ)`. It stays a paper
    quantity — the models are untimed — but
    [`Bounds.md`](./Bounds.md)'s "parametric hole" now has a referent.
 2. The open item of instantiating the primitive classes end-to-end
    ([`ChorusDesign.md`](./ChorusDesign.md) §9) acquired a concrete target,
-   and it is done (2026-09-08): [`Cadence/Mvba.lean`](../Cadence/Mvba.lean)
+   and it has been carried out: [`Cadence/Mvba.lean`](../Cadence/Mvba.lean)
    is a Veil model of `alg:mvba` (views, timeouts, timeout certificates, the
    lock), read against paper-repository commit `026dc8b` and pinned to it in
    the model's header, and [`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean)
    discharges `MVBASafety` (`Mvba.mvbaSafety`, every field) and, given the
-   timed level, the full `MVBA` (`Mvba.mvba_of_temporal`) — the class
-   lives in [`Interfaces.lean`](../Cadence/Interfaces.lean) since the
-   contract composition of 2026-09-04. This is the one model in the
-   development whose referent is the supplement rather than the published
+   timed level, the full `MVBA` (`Mvba.mvba_of_temporal`); the class lives in
+   [`Interfaces.lean`](../Cadence/Interfaces.lean). This is the one model in
+   the development whose referent is the supplement rather than the published
    paper; [`MvbaPlan.md`](./MvbaPlan.md) §0 says what that does and does not
-   commit to. Chorus's consumption of the instance is the plan's step 6.
+   commit to. Chorus consumes the instance as a class constraint.
 3. **An agreement-level observation.** `mod:mvba` states Agreement as
    metablock equality, and `Interfaces.lean`'s `MVBASafety.agreement` mirrors
    it as value equality. The supplement's `thm:agreement` proves the weaker

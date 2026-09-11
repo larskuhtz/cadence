@@ -20,7 +20,7 @@ four entries, each a root index or null; the MVBA's abstract state is not
 observable and is written null.  Blank lines and lines beginning with `//` or
 `#` are ignored.
 
-The MVBA that Chorus consumes as a class constraint (since 2026-09-10) is
+The MVBA that Chorus consumes as a class constraint is
 instantiated here by the *silent* stub of `Monitor/MvbaStub.lean`: state and
 message `Unit`, a decision relation that never holds. Its consequence — the
 decision handlers and `mvba_terminate` are never enabled, so the MVBA leg of

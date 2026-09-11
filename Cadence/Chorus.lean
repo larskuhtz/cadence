@@ -65,8 +65,8 @@ The paper establishes six slot-consensus properties for Chorus
   is single-slot, so every commit is a commit *for this slot* by
   construction.
 * **Termination** (`lemma:chorus-termination`) — the model is untimed, so
-  the `ℓ = 5Δ + ℓ_MVBA` bound is out of scope. Since the 2026-07-07
-  revision the paper's termination is *conditioned* on Δ-synchronized
+  the `ℓ = 5Δ + ℓ_MVBA` bound is out of scope. Since v2 the paper's
+  termination is *conditioned* on Δ-synchronized
   participation (`def:delta-synchronized-participation`), discharged
   within Cadence by Conductor totality
   (`cor:chorus-correctness-within-cadence`); this single-slot model has
@@ -288,7 +288,7 @@ relation msg_decrypt_share (r : node)
 -- Validator `r` has signed and broadcast a fallback commit vote
 -- `⟨FallbackCommitVote, s, entries(B'), σ_r⟩` (`alg:fallback`
 -- `line:fb-commitvote`) — the extra commit round the fallback path runs
--- after an MVBA decision (2026-07-07 paper revision; an MVBA decision no
+-- after an MVBA decision (paper's v2 revision; an MVBA decision no
 -- longer finalizes by itself). The entry vector is left implicit in the
 -- relation: an honest validator signs exactly the MVBA-decided entries
 -- (`line:fb-mvba-decide` binds `E = entries(B')`), which the oracle's
@@ -342,12 +342,12 @@ transported (`line:fb-mvba-decide` delivers the whole vector at once), and
 gates the fallback commit round.
 
 The records' agreement — `mvba_decided_pos_unique`,
-`mvba_decided_pos_neg_excl` — is no longer enforced by the handlers'
-guards: it is *proven* from the class's `agreement` at the reachable
-abstract state, through the two tie invariants (`mvba_decided_pos_tied`,
-`mvba_decided_neg_tied`) that every record is the projection of some
-correct validator's decision. This is where `Mvba.mvbaSafety` enters
-Chorus's trust base in place of the old oracle's firing rules.
+`mvba_decided_pos_neg_excl` — is not enforced by the handlers' guards: it is
+*proven* from the class's `agreement` at the reachable abstract state,
+through the two tie invariants (`mvba_decided_pos_tied`,
+`mvba_decided_neg_tied`) that every record is the projection of some correct
+validator's decision. This is how `Mvba.mvbaSafety` enters Chorus's trust
+base.
 
 `mvba_st` is oracle state (category (A) of the state-locality contract,
 `docs/ChorusDesign.md` §3.5): it is consulted only through the contract's
@@ -797,7 +797,7 @@ votes and has not cast a fast commit vote enters the fallback path
 (`line:fb-pathvote-guard`): for each proposer it casts a fallback signed
 entry, then broadcasts its fallback vote. On the wire a fallback vote
 carries, per proposer, only a FastQC or the *sender's own* signed entry —
-the receipt rule rejects anything else (`line:fb-accept`, the 2026-07-07
+the receipt rule rejects anything else (`line:fb-accept`, the v2
 receipt restriction) and harvests carried FastQCs (`line:fb-harvest`).
 EquivCerts and FallbackQCs exist only as objects assembled at propose
 time from the signed entries in `M_i` (the atomic build,
@@ -967,7 +967,7 @@ and the module consumes the state-level fragment as the class constraint
   verifies the entry's certificate against the network:
   `vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, resp. the
   negative form. This is a **bridge, not a restatement**
-  (`docs/MvbaPlan.md` §1.1, `docs/CompositionContracts.md` §8): the
+  (`docs/MvbaPlan.md` §1.1, `docs/CompositionContracts.md` §7): the
   class's `external_validity` says the decided value is `Valid`; the guard
   says what a valid certificate *means* in a model whose signatures are
   network relations — `Valid` is a class parameter fixed before this
@@ -984,8 +984,8 @@ and the module consumes the state-level fragment as the class constraint
   entry is already recorded. This is the model shadow of
   `line:fb-mvba-decide` delivering `B'` at once, and it is what gates the
   fallback commit round (`cast_fb_commit` requires `mvba_complete`).
-* **What the class buys.** The old oracle's agreement guards are gone.
-  `mvba_decided_pos_unique` and `mvba_decided_pos_neg_excl` stay as
+* **What the class buys.** No handler asserts an agreement property of its
+  own. `mvba_decided_pos_unique` and `mvba_decided_pos_neg_excl` are kept as
   invariants (downstream cells e-match on them) and are *proven* from
   `mvba.agreement` at `mvba_reachable`, through the tie invariants and the
   two `mval_*` assumptions: records from different correct validators'
@@ -994,9 +994,9 @@ and the module consumes the state-level fragment as the class constraint
   `fbcommit_sig_phase`); the property itself is a field of `MVBASafety`
   the instance proves.
 
-The paper's agreement proof (`prop:agreement-entries`, restructured in
-the 2026-07-07 revision) runs through `fbCommitQC`/`commitQC` quorum
-intersections plus MVBA Integrity; the model takes the MVBA's agreement
+The paper's agreement proof (`prop:agreement-entries`) runs through
+`fbCommitQC`/`commitQC` quorum intersections plus MVBA Integrity; the model
+takes the MVBA's agreement
 from the class and recovers the fast-vs-fallback case as a pure quorum
 argument: a commitQC and an `FBCert` are two supermajorities whose honest
 common member would have had to vote both paths — structurally
@@ -1071,7 +1071,7 @@ action mvba_terminate (i : node) (v : mvalue) {
 /-! ## Fallback commit round (`alg:fallback`,
 `line:fb-mvba-decide`–`line:fb-finalize`)
 
-An MVBA decision does not finalize by itself (2026-07-07 paper revision):
+An MVBA decision does not finalize by itself (paper's v2 revision):
 upon `MVBA[s].decide(B')` each decider first waits, for every positive
 FallbackQC entry `⟨s, j, m⟩` in `B'`, until it has received and validated
 its own assigned chunk under `m` — re-broadcasting that chunk, so the
@@ -1149,7 +1149,7 @@ proof): a fast commit certificate (`line:fast-recv-commitqc` /
 (`line:fb-recv-commit` / `line:fb-finalize`). Both are transferable, and
 finalization on receipt has no active-participation precondition, so the
 precondition is existence of the certificate on the network. An MVBA
-decision alone does *not* finalize (2026-07-07 paper revision — the
+decision alone does *not* finalize (paper's v2 revision — the
 fallback commit round above sits between decision and finalization);
 since the entries an `fbCommitQC` carries are the MVBA-decided vector
 (see `msg_fbcommit_sig`), the model's fallback finalization route is the
@@ -1263,7 +1263,7 @@ action byz_sign_vote_pos (r : node) (j : node) (m : merkle_root) {
   -- discarded by every honest receiver. (The receive handler's guard —
   -- `alg:fast-path-certification`: the carried chunk must have the
   -- sender's chunk index and match the entry's root — was tightened to
-  -- say exactly this in the 2026-07-07 paper revision; this requirement
+  -- say exactly this in the paper's v2 revision; this requirement
   -- anticipated it, and it is what makes `f+1` accepted positive votes
   -- pin `f+1` *distinct* chunks, i.e. `vote_pos_quorum_implies_decodable`
   -- honest about `isDecoded`.)
@@ -1411,10 +1411,9 @@ reachable state free of vote and proposer equivocation
 (`no_equivocation`) in which no proposer has committed to an
 invalidly encoded root (`no_invalid_encoding`), a validator's own
 positive FastQC — its speculative value — agrees with every finalized
-commit. (Formerly stated under `no_equivocation` alone, which sufficed
-only while the DA re-encode check was unmodelled — the 2026-08 external
-audit's Finding 1; `fb_sign_neg` now admits the re-encode-failure case
-and the hypothesis matches the paper's.) -/
+commit. Both hypotheses are needed: `no_equivocation` alone would suffice
+only in a model where invalid encodings cannot exist, and `fb_sign_neg`
+admits the re-encode-failure case (`docs/ChorusDesign.md` §3.4). -/
 
 safety [speculative_agreement_pos]
   no_equivocation → no_invalid_encoding →
@@ -2022,7 +2021,7 @@ model, indexed by the action's category:
   ([`Mvba/Compose.lean`](./Mvba/Compose.lean)) — of which the untimed
   model provides no instance; decomposing (A-mvba) into that field plus
   the instance's fair-progress theorems is the liveness step
-  (`docs/MvbaPlan.md` §3, §8 step 7). The probability-1 termination of the
+  (`docs/MvbaPlan.md` §3). The probability-1 termination of the
   underlying randomised primitive is a paper-level argument
   (`docs/Liveness.md`). The assumption's protocol-side surroundings are
   theorems:

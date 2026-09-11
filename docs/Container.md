@@ -218,7 +218,7 @@ macOS from any checkout path. What the container buys:
 * **Nothing to build.** The `verified` image already holds this project's
   oleans, produced by a run that printed `ALL STAGES GREEN` inside the image
   build. Tier 1 costs a pull and 4 minutes; a first native build re-solves
-  ~4 000 verification conditions.
+  every verification condition ([`Architecture.md`](./Architecture.md) §2).
 * **A fixed environment.** The toolchain, the system `clang`/`libc++` that
   cvc5's FFI shim needs, and every dependency revision are pinned in the
   image, so CI, a reviewer and an auditor run the identical tree.

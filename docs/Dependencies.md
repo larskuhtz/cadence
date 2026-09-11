@@ -93,7 +93,7 @@ consequence of it.
   to run under the scheduler's lock for every VC on every refresh, which is
   quadratic in the number of VCs; and completed solver tasks retained their
   proof witnesses. Both are invisible at textbook scale and both are fatal at
-  Chorus's ~4 000-VC scale.
+  Chorus's scale ([`Architecture.md`](./Architecture.md) §2).
 
 ### 3. Persisting proofs as ordinary Lean theorems
 
@@ -219,9 +219,9 @@ without restating it — and what makes a badly-shaped field fatal.
   data field is never a hypothesis. This project does not withhold
   anything today; the attribute is the escape hatch for a field that must
   live in the class but need not reach the solver. **The measurement
-  behind that "nothing"** (2026-09-11), taken when Chorus started consuming
-  `MVBASafety` and every one of its axioms became a hypothesis of every
-  Chorus cell (`docs/MvbaPlan.md` §6): CI's cold solve of the Chorus family
+  behind that "nothing"**, taken when Chorus began consuming `MVBASafety`
+  and every one of its axioms became a hypothesis of every
+  Chorus cell: CI's cold solve of the Chorus family
   on the 4-core runner at `BATCH=1`, before (run 34528363622) and after
   (run 34551700787) —
 

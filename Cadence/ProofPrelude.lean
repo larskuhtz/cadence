@@ -38,7 +38,7 @@ and keeping the literal in every file keeps it greppable.
   any cell needs 180 s to solve, but because the budget has to be sized for
   the *slowest machine that runs the family cold*, and that is CI (a 4-core
   `ubuntu-24.04-arm` runner at `BATCH=1`, with no proof cache), not a
-  workstation. Measured 2026-09-10 on the same file and runner:
+  workstation. Measured on the same file and runner:
   `fb_sign_neg × inclusion_no_honest_fb_neg` takes 6.2–17.0 s here, 52.8 s
   on CI before the step properties landed (88% of the old budget) and
   62.5 s after them — a *completed* solve that overran, with its TR retry

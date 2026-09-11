@@ -25,7 +25,7 @@ Four Veil models plus support files, mirroring the paper's architecture:
   action by `Cadence/Chorus/Proofs/<Action>.lean`, and
   `Cadence/Chorus/Certify.lean` composes them. Model-only build ~2 min. It
   consumes the MVBA as the class constraint `instantiate mvba : MVBASafety
-  …` over an abstract state (since 2026-09-10; `docs/MvbaPlan.md` §6), with
+  …` over an abstract state (`docs/CompositionContracts.md` §3), with
   two per-entry decision handlers whose certificate check against the
   network is the **one stated bridge**, so it imports `Interfaces.lean` —
   which means an edit to the contracts now rebuilds the Chorus family. Do
@@ -55,7 +55,7 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `Mvba.mvbaSafety : MVBASafety …` plus `Mvba.mvba_of_temporal` in
   `Compose.lean` — the only Mvba file importing `Interfaces.lean`.
   Chorus consumes the class, and `System.lean` fills its constraint with
-  `Mvba.mvbaSafety` (`docs/MvbaPlan.md` §6); the value is the entry
+  `Mvba.mvbaSafety`; the value is the entry
   vector `node → Option merkle_root`.
   The lock-persistence lemma is not inductive; the clump carries the
   Paxos-EPR-style `prepqc_blocks_lower_commits` (the header explains).

@@ -7,8 +7,7 @@ import Cadence.Tooling
 
 *Note: opening this file in a Lean-enabled editor re-runs its verification
 sweep in the language server (~1 min, one SMT solve per VC). Prefer
-`lake build Cadence.Conductor`; see `README.md` § "Opening the files in an
-editor".*
+`lake build Cadence.Conductor`; see `README.md` § "Working on the models".*
 
 Veil model of the Conductor, the orchestrator instantiation of the Cadence
 extreme-pipelining framework. Reference:
@@ -145,7 +144,7 @@ development supplies no instance of.
 |---|---|
 | `open_prefix_agreement` | `safety [open_prefix_agreement]` |
 | Integrity "at most once" (`opened_mono`) | `opened` is only ever set, proven action by action from the transition bodies |
-| Integrity "not before starting time" (`integrity_timing`) | `safety [opened_after_start]` (+ synchronized-clocks assumption); first-order, so it is a field of the *fragment* since 2026-09-09 |
+| Integrity "not before starting time" (`integrity_timing`) | `safety [opened_after_start]` (+ synchronized-clocks assumption); first-order, so it is a field of the *fragment* |
 | Monotonicity (`monotonicity`) | `[open_local_order]` + the `open_slot` guard |
 | the observables' frames (`completed_step_frame`, `complete_frame`, `complete_effect`) | the transition bodies: only `complete_slot` touches `completed`, and only its own pair |
 | `B`-boundedness, `B = 2W − p` | **unproven** — `safety [bounded_tail]` is the interval form; the count needs widths the model keeps meta |
@@ -760,9 +759,10 @@ step_property [monotonicity] {
 /- Solver budget for this module's in-file sweep: three times Veil's 60 s
 default, for the same reason the proof files carry it
 (`Cadence/ProofPrelude.lean`) — the budget has to hold on the slowest
-machine that runs cold, which is CI's 4-core runner, not a workstation. On
-2026-09-10 this module's slowest cell, `enter_window × bounded_tail`, ran
-there at 95% of the 60 s budget. It is a *completed* solve, so the remedy
+machine that runs cold, which is CI's 4-core runner, not a workstation. At
+the last measurement this module's slowest cell,
+`enter_window × bounded_tail`, ran there at 95% of the 60 s budget. It is a
+*completed* solve, so the remedy
 is the budget; a cell that starts needing minutes is diverging, and that
 wants a manual proof instead.
 

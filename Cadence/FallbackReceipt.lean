@@ -1,7 +1,7 @@
 import Veil
 import Cadence.Tooling
 
-/-! # FallbackReceipt — the fallback receipt/propose layer (shipped design)
+/-! # FallbackReceipt — the fallback receipt/propose layer (the paper's v2 design)
 
 *This is a **model file** of the verified-module file family
 (`docs/Architecture.md` §6): it elaborates the transition system and
@@ -15,14 +15,14 @@ background `doesNotThrow` checks and the bounded model check.*
 
 Mechanisation of the layer behind the bug record in `docs/ChorusDesign.md`
 §7.2: the per-validator receipt of `FallbackVote`s and the once-only
-MVBA propose with the atomic per-proposer build, exactly as the paper
-*shipped* it on 2026-07-07 (`alg:fallback`) — the receipt restriction at
+MVBA propose with the atomic per-proposer build, exactly as the paper's
+**v2** states it (`alg:fallback`) — the receipt restriction at
 `line:fb-accept` (a vote is accepted only if every entry is a valid
 FastQC or the sender's *own* valid fallback signed entry), FastQC
 harvesting at `line:fb-harvest`, and the atomic build at
 `line:fb-build-entry`–`line:fb-formqc`. The companion module
 `FallbackReceipt/PreFix.lean` models the
-*pre-fix* rules and mechanically refutes them.
+**v1** (pre-fix) rules and mechanically refutes them.
 
 This module is deliberately *per-validator*: it models one (correct)
 receiving validator `i` — its `M_i`, its `Ev` harvest, its build. The
@@ -239,7 +239,7 @@ action deliver_entry_neg (r : node) (p : proposer) {
   carried_neg r p := true
 }
 
-/- Receipt (`line:fb-accept`, the 2026-07-07 restriction): the first
+/- Receipt (`line:fb-accept`, the v2 restriction): the first
 `FallbackVote` from `r` joins `M_i` iff it carries, for every proposer,
 a valid FastQC or `r`'s own valid signed entry. (Votes carrying anything
 else — e.g. an EquivCert, cf. the pre-fix module — are rejected; in this

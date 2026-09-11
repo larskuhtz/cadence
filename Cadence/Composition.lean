@@ -87,8 +87,8 @@ both discovered the hard way:
    elaboration instead of reconstructing it, which is why the two inductions
    are now one command each.
 3. The step-level contract fields relate *two* states, which no invariant
-   cell states — but since 2026-09-10 almost none of them is hand-written
-   either. Whatever the update records determine comes from Veil's
+   cell states, but almost none of them is hand-written either.
+   Whatever the update records determine comes from Veil's
    generated step lemmas (`<relation>.mono`, `<action>.frame_<f>`,
    `<f>.init`), and what needs the invariants at the pre-state — the paper's
    Monotonicity — is a `step_property` in `Conductor.lean`, checked per

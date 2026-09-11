@@ -193,10 +193,9 @@ class MerkleTree (leaf : Type) (root : Type) (proof : Type) where
 /-! ## Where the MVBA contract lives
 
 The MVBA is a *module* contract (`mod:mvba`), not a cryptographic primitive,
-and it is stated with the other module contracts in
-[`Interfaces.lean`](./Interfaces.lean) (`MVBASafety`/`MVBA`) since 2026-09.
-It used to live here; it moved because `Chorus.lean` imports this file, so
-any edit to a contract kept here would force the whole Chorus proof family
-to rebuild. Chorus consumes the MVBA as an inlined oracle
-(`Chorus.lean`, "MVBA oracle"); why it does not yet take the class as a
-constraint is recorded at the class. -/
+so it is stated with the other module contracts in
+[`Interfaces.lean`](./Interfaces.lean) (`MVBASafety` / `MVBA`) rather than
+here. Chorus consumes `MVBASafety` as a class constraint (`Chorus.lean`,
+"The MVBA contract, as a class constraint"), and
+[`System.lean`](./System.lean) fills it with the verified `Mvba` model's
+instance. -/
