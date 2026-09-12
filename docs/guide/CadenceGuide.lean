@@ -1,21 +1,19 @@
 /-
 The guide to reading the Cadence formalization.
 
-This is a Verso document, which means it is a Lean program: every
-`{name …}` below is resolved against the compiled development, so a renamed
-declaration breaks this build rather than rotting a link, and every
-`{docstring …}` is the real docstring from the source rather than a
-paraphrase of it.
+A Verso document, and so a Lean program: every `{InlineLean.name …}` is
+resolved against the compiled development and every `{docstring …}` is the
+real docstring from the source, so a renamed declaration breaks this build
+rather than rotting a link.
 
-The guide deliberately states **no facts of its own** — no counts, no
-measurements, no status claims. Those live in `docs/` and in the generated
-trust boundary, and the guide points at them. Its job is to make the sources
-readable, not to be a second source of truth.
+The guide carries no facts of its own — no counts, no measurements, no status
+claims. Those live in `docs/` and in the generated trust boundary. Simplified
+code blocks are illustrations, and the real declaration always follows.
 -/
 import VersoManual
 
--- Imported for the sake of the references below: `{name …}` resolves in this
--- module's environment, so the guide sees what the development compiled.
+-- The guide resolves its references in this module's environment, so it
+-- imports what it talks about.
 import Cadence.Composition
 import Cadence.System
 
@@ -29,121 +27,133 @@ set_option pp.rawOnError true
 shortTitle := "Reading Cadence"
 %%%
 
-This guide is for a reviewer who wants to read the Lean sources of the Cadence
-verification and understand what they say. It is not the documentation of
-record: the design documents under `docs/` are comprehensive, and the sources
-themselves are the source of truth. This guide is the thing that makes them
-approachable — it introduces the vocabulary, shows how the pieces fit, and
-points at the places that matter.
+This guide introduces the Lean sources of the Cadence verification: the
+vocabulary they are written in, how the pieces fit together, and which places
+matter. Comprehensive and more technical documentation is in the `docs/`
+folder.
 
-It assumes you know BFT consensus. It assumes nothing about Lean, and nothing
-about Veil, the domain-specific language the protocol models are written in.
+It assumes you know BFT consensus, and nothing about Lean or about Veil, the
+language the protocol models are written in.
 
-You do not need to read any proof. A theorem in Lean holds when the kernel
-accepts it, relative to the axioms it uses, so what an auditor has to read is
-the _statements_, the _model_ they are about, and the _axioms_ they rest on.
-Everything below is aimed at those three.
+You can skip the proofs. A theorem in Lean holds once the kernel accepts it,
+relative to the axioms it uses, so what an auditor reads is the _statements_,
+the _model_ they are about, and the _axioms_ they rest on.
 
-# Start with the smallest model
+# The smallest model
 
-The development has five protocol models. Four of them are large. The fifth —
-the pipelining glue — is small, has no cryptography, no quorums and no clock
-arithmetic, and yet it proves the property the whole system exists for. It is
-the right place to learn to read the others.
+Start with `Cadence/Cadence.lean`, the pipelining glue. It is the paper's
+`algorithm:cadence`: the layer that runs one slot-consensus instance per slot
+under an orchestrator and assembles their outputs into a log. It has six
+actions, no cryptography, no quorums and no clock arithmetic — and it proves
+the property the whole system exists for.
 
-The glue is the paper's `algorithm:cadence`: the layer that runs one slot
-consensus instance per slot under an orchestrator, and assembles their outputs
-into a log. Its source is `Cadence/Cadence.lean`.
+That property is log agreement: two correct validators never hold different
+entries at the same position. In outline:
 
-## What it proves
+```
+theorem positional_log_safety :
+    reachable st →
+    ¬ byz i → ¬ byz j →
+    entryAt i p = some v →
+    entryAt j p = some w →
+    v = w
+```
 
-The top-level correctness property of a multiple-concurrent-proposer protocol
-is that correct validators never disagree about the log. In the formalization
-that is:
+The real statement adds what the outline leaves out: the module's type
+parameters, the fault model, and the two interfaces the glue is verified
+against.
 
 {docstring Cadence.positional_log_safety}
 
-Two things in that statement are worth dwelling on, because they are the shape
-of every result in this development.
-
-First, it is stated *for any* orchestrator and slot consensus that satisfy
-their contracts — not for the Conductor and Chorus specifically. The glue is
-verified against interfaces, so its theorem is about a family of systems.
-
-Second, that generality is discharged elsewhere. The composed statement, with
-the real implementations plugged in and no interface assumption left, is:
+Read that as a theorem about a _family_ of systems: it holds for any
+orchestrator and any slot consensus meeting their interfaces, rather than for
+the Conductor and Chorus specifically. Plugging in the real implementations,
+so that no interface assumption remains, happens in `Cadence/System.lean`:
 
 {docstring Cadence.system_positional_log_safety}
 
 # How a model is written
 
-A Veil model is a state machine. Three kinds of declaration make it up, and
-recognising them is most of what it takes to read one.
+A Veil model is a state machine, and three kinds of declaration make it up.
 
-* *State* — `relation` and `individual` declarations. These are the mutable
-  facts the protocol tracks. In the glue they are things like which slots a
-  validator has opened and what it has appended to its log.
-* *Actions* — `action` declarations. These are the protocol's steps. Each
-  has guards, written `require`, and updates. An action may fire whenever its
-  guards hold; nothing forces it to.
-* *Properties* — `safety` and `invariant` declarations. A `safety` is
-  something the protocol promises; an `invariant` is a helper, needed to make
-  the promises provable by induction but not itself interesting.
+* `relation` and `individual` declare the _state_ — the facts the protocol
+  tracks.
+* `action` declares a _step_, with guards written `require` and updates
+  written `:=`. An action may fire whenever its guards hold; nothing forces
+  it to.
+* `safety` declares something the protocol promises. `invariant` declares a
+  helper needed to make the promises provable by induction.
 
-The glue has six actions. Their names are collected, by the tool, into a type
-of labels — {InlineLean.name Cadence.Label}`Cadence.Label`, one constructor per
-action, which you can read as the model's alphabet. It carries no
-documentation of its own, because it is generated rather than written: that is
-the first sign of the boundary described next.
+Simplified to the shape, the glue's append step and its agreement property
+look like this:
 
-Everything else in the file is one of the three kinds above, or a comment
-explaining a modelling decision. That is the whole surface.
+```
+relation appended (i : node) (s : slot) (v : pvector)
 
-## Why the elaborated form looks different
+action append (i : node) (s : slot) (v : pvector) = {
+  require finalized i s v        -- the slot consensus decided v for s
+  require ready_to_append i s    -- every earlier slot is resolved
+  appended i s v := true
+}
 
-Reading the _generated_ Lean rather than the source is not recommended, and it
-is worth knowing why. Veil is a surface language: a declaration such as
-`action append` elaborates mechanically into a family of Lean definitions —
-transition relations, frame conditions, label constructors — with names and
-shapes chosen by the translation rather than by a human. Those definitions are
-what the kernel checks, and they are correct, but they are not written to be
-read.
+safety [log_agreement]
+  ∀ i j s v w, ¬ byz i → ¬ byz j →
+    appended i s v → appended j s w → v = w
+```
 
-So: read the model sources, and use the generated artefacts only when you want
-to confirm that something exists. This guide links to the sources.
+The real `append` carries more bookkeeping and `ready_to_append` is spelled
+out over the glue's own relations, but the shape is this: a guarded update,
+and a property quantified over correct validators.
 
-# Contracts, and what the glue assumes
+Everything else in a model file is one of those three kinds, or a comment
+explaining a modelling decision.
 
-The glue does not contain a slot consensus or an orchestrator. It _consumes_
-them, through the two interfaces the paper specifies. In the source this is an
-`instantiate` line, and the effect is that every property of the interface is
-available to the prover as an axiom, while the glue's own code can only reach
-the sub-protocol through the operations the interface declares.
+Veil elaborates each declaration into Lean definitions — transition
+relations, frame conditions, label constructors — chosen by the translation
+rather than written by hand. The kernel checks those; people should read the
+model sources. One generated artefact is worth knowing by name, because it is
+the model's alphabet: {InlineLean.name Cadence.Label}`Cadence.Label` has one
+constructor per action.
 
-The two interfaces it consumes are {InlineLean.name OrchestratorSafety}`OrchestratorSafety`
-and {InlineLean.name SlotConsensusSafety}`SlotConsensusSafety`. Both are Lean type classes,
-declared in `Cadence/Interfaces.lean`, which is worth reading next: it states
-every property of every module of the protocol, whether or not this development
-proves it.
+# Contracts, and what is assumed
 
-That last point is the heart of the audit surface, and it is deliberate. Each
-paper module is split into two classes: a state-level fragment that the models
-consume and the implementations prove, and a temporal level carrying the timing
-and liveness obligations. The implementations provide instances of the first.
-For the second — {InlineLean.name SlotConsensusTemporal}`SlotConsensusTemporal` and its
-siblings — this development provides *no instance at all*, and that absence
-is the complete statement of what it does not prove.
+The glue contains neither a slot consensus nor an orchestrator. It consumes
+them through the interfaces the paper specifies, written in the source as
+`instantiate`:
 
-Nothing has to be believed about that; it is derivable, and the generated trust
-boundary derives it.
+```
+instantiate orch : OrchestratorSafety node slot ostate time fm.byz
+instantiate sc   : SlotConsensusSafety slot node proposal pvector scstate fm.byz
+```
 
-# Where to go from here
+Two things follow. Every property of the interface becomes available to the
+prover, so the glue's proofs use them directly instead of restating them. And
+the glue reaches the sub-protocol only through the operations the interface
+declares, so it cannot depend on how either one works inside.
 
-* `Cadence/Interfaces.lean` — the module contracts, and so the vocabulary the
+The interfaces are Lean type classes in `Cadence/Interfaces.lean`, the
+natural next file to read: it states every property of every module of the
+protocol, whether or not this development proves it.
+
+Each paper module is split in two. A state-level fragment —
+{InlineLean.name OrchestratorSafety}`OrchestratorSafety`,
+{InlineLean.name SlotConsensusSafety}`SlotConsensusSafety` — is what the
+models consume and the implementations prove. A temporal level carries the
+timing and liveness obligations. For the temporal level, including
+{InlineLean.name SlotConsensusTemporal}`SlotConsensusTemporal`, this
+development supplies no instance, and that absence is the full statement of
+what it leaves unproven.
+
+The generated trust boundary derives which contracts have an instance, so
+that claim can be checked rather than taken.
+
+# Where to go next
+
+* `Cadence/Interfaces.lean` — the module contracts, and the vocabulary the
   rest of the development is stated in.
-* `Cadence/Conductor.lean` — the next model up in size, and the one the glue's
-  orchestrator interface is instantiated by.
-* `Cadence/Chorus.lean` — the large one: per-slot consensus, where the
-  cryptography and the quorum reasoning live.
-* `docs/Architecture.md` §4 — the inventory of everything the machine does not
-  establish. Short, and the checklist an auditor works through.
+* `Cadence/Conductor.lean` — the next model up in size, and the one that
+  provides the glue's orchestrator instance.
+* `Cadence/Chorus.lean` — per-slot consensus, where the cryptography and the
+  quorum reasoning live.
+* `docs/Architecture.md` §4 — everything the machine does not establish, in
+  one list. This is the auditor's checklist.
