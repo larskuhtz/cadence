@@ -1,0 +1,54 @@
+/* Guide theme: a small override of Verso's custom properties.
+ *
+ * Verso's defaults render everything in black, including Lean code. This adds
+ * enough colour to make syntax highlighting do its job, and nothing else —
+ * the palette is three hues plus grey, and it is applied only to code, links
+ * and headings. Copied into the rendered site by scripts/guide.sh. */
+
+:root {
+    /* Body text a touch off pure black; headings darker for contrast. */
+    --verso-text-color: #1c1e21;
+    --verso-structure-color: #10131a;
+
+    /* Syntax highlighting. Keywords carry the weight, constants the hue,
+     * variables stay quiet so that binder-heavy signatures stay readable. */
+    --verso-code-color: #24292f;
+    --verso-code-keyword-color: #6f42c1;
+    --verso-code-keyword-weight: 600;
+    --verso-code-const-color: #0550ae;
+    --verso-code-var-color: #57606a;
+
+    --verso-selected-color: #dbeafe;
+}
+
+/* Links: one accent, underlined on hover only. */
+a { color: #0b57d0; }
+a:hover { text-decoration: underline; }
+
+/* Long theorem signatures are the main readability risk on these pages:
+ * give code blocks room and let them scroll rather than wrap mid-binder. */
+pre, code { font-size: 0.93em; }
+pre { overflow-x: auto; }
+
+/* Illustrative (non-elaborated) blocks are visually distinct from real Lean,
+ * so a reader can tell a simplification from the genuine article. */
+pre:not([class*="hl"]) {
+    background: #f6f8fa;
+    border-left: 3px solid #d0d7de;
+    padding: 0.7rem 0.9rem;
+    border-radius: 3px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --verso-text-color: #e6edf3;
+        --verso-structure-color: #f0f6fc;
+        --verso-code-color: #e6edf3;
+        --verso-code-keyword-color: #d2a8ff;
+        --verso-code-const-color: #79c0ff;
+        --verso-code-var-color: #9aa5b1;
+        --verso-selected-color: #1f2937;
+    }
+    a { color: #79c0ff; }
+    pre:not([class*="hl"]) { background: #161b22; border-left-color: #30363d; }
+}
