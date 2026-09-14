@@ -255,7 +255,7 @@ in [`Cadence.lean`](../Cadence.lean)).
 The list is meant to be *checkable for completeness* rather than taken on
 trust. Every assumption below has a **name**, and the named fairness and
 oracle axioms — (F-justice), (F-byz), (A-mvba), (A-sc-termination),
-(A-sc-totality) — appear verbatim in the Lean sources at the points where
+(A-sc-totality), (A-leader-rotation) — appear verbatim in the Lean sources at the points where
 they are consumed, so `grep -rn '(A-' Cadence/` enumerates the consumers
 and would expose an axiom that had crept in without being listed here. The
 network contract (item 1) is the exception and the reason item 1 comes
@@ -304,7 +304,22 @@ relations, and it takes a human to confirm each use is positive.
    verifiable" means; `ChorusDesign.md` §7 item 4). Decomposing (A-mvba)
    into the MVBA instance's own fair-progress theorems is open work
    ([TODO.md](./TODO.md) § Liveness; the design constraints it must respect
-   are [MvbaPlan.md](./MvbaPlan.md) §3).
+   are [MvbaPlan.md](./MvbaPlan.md) §3). That work has begun, and it has put
+   one assumption on this list in an unusual place:
+   **(A-leader-rotation)** — `Mvba.lean`'s `assumption
+   [leader_honest_cofinal]`, that above every view there is an honest-led
+   one. It is the model-level stand-in for round-robin rotation over
+   `n = 3f+1` with at most `f` Byzantine leaders, and it is stated as a
+   model `assumption` rather than as a hypothesis of the liveness theorems
+   because the fair-progress invariants it will serve are sweep cells and
+   only a model `assumption` reaches the solver. The price is that it is a
+   conjunct of `assumptions th`, hence of `Mvba.mvbaSafety`'s `init`: the
+   MVBA's three **safety** results are now claimed for leader schedules
+   with cofinally many honest leaders rather than for every schedule.
+   Nothing in their proofs needs it (the family was proven without it and
+   re-solved unchanged with it), so the narrowing is formal rather than
+   material — but it is a narrowing, and it is why the assumption is
+   listed here and not only in [MvbaPlan.md](./MvbaPlan.md) §3.3.
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive;
    [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS`

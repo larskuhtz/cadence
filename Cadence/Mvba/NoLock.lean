@@ -49,6 +49,21 @@ mutant, hence of `Mvba.lean` with the lock check deleted. The restrictions:
    only shrinks the reachable set. (The three honest leader actions are
    kept verbatim; the theory makes the Byzantine node the leader of every
    view, so they are simply never enabled.)
+4. **The dropped assumption `leader_honest_cofinal`**, and this one is
+   *not* of the same kind: 1–3 remove behaviours, whereas omitting an
+   assumption **admits more theories**, and the theory below is one of
+   them — node 0 is Byzantine and leads both views, so honest leaders are
+   not cofinal in `Fin 2`. What is refuted here is therefore the mutant
+   *without* that assumption. The refutation carries to the mutant with
+   it, because the assumption constrains only the immutable leader
+   schedule at views this run never enters: replay the same 28
+   transitions at `view := Fin 3` with an honest leader at view 2 and
+   every step is a step of the assumption-carrying mutant. That larger
+   instance is not checked — a third view multiplies the search — so the
+   embedding is an argument on this page rather than a machine-checked
+   one. It is an argument about the *mutation test*: `Mvba.lean`'s safety
+   is proven, never model-checked, and nothing about it rests on this
+   file.
 
 Everything else — the honest protocol steps, the certificate assemblies
 with their `2f+1` guards, the view change — is verbatim from `Mvba.lean`
@@ -395,7 +410,9 @@ Exhaustive exploration at `n = 4`, `f = 1` (node 0 Byzantine — the default
 `ByzNodeSet` instance for `Fin (3 * f + 1)` makes the first `f` nodes
 Byzantine — and, by the theory below, the leader of every view), two
 values, two views; the theory is the one the checker is given (it
-enumerates no others), and it satisfies `leader_functional`. Expected
+enumerates no others), and it satisfies `leader_functional` — but not
+`Mvba.lean`'s `leader_honest_cofinal`, which this model does not declare
+(header, restriction 4). Expected
 outcome: **violation** of `agreement`, with the trace described in the
 header. The same run is impossible in `Mvba.lean`: its `handle_preprepare`
 rejects the view-2 proposal against the lock, and `Mvba/Certify.lean`

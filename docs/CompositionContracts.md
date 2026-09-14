@@ -317,6 +317,14 @@ instance's `init`. Two of them — the entry-vector projections
 instantiation (`chorusTheory_assumptions`); the one genuine hypothesis among
 them is that the abstract MVBA state Chorus starts from is initial.
 
+The MVBA's two `assumption`s enter its own instance the same way, as the
+`assumptions` conjunct of `mvbaSafety.init`: `leader_functional` (the leader
+schedule is a function) and `leader_honest_cofinal` (above every view there
+is an honest-led one). The second is a *liveness* assumption sitting in a
+safety instance's `init`, which is a deliberate trade recorded at the
+declaration and in [Architecture.md](./Architecture.md) §4 item 2
+(A-leader-rotation).
+
 No temporal obligation enters: MCP Safety is a safety property and needs only
 the proven fragments.
 
