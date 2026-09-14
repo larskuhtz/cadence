@@ -43,7 +43,10 @@ outside Lean.
   disabled outright; what replaces the argument there, and why the answer
   is still weak fairness but for a different reason, is
   [`MvbaPlan.md`](./MvbaPlan.md) §3.1 and §3.2, with the disabling facts
-  proven in [`Cadence/Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean).
+  proven in [`Cadence/Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean)
+  and the measure they are progress in — a lexicographic rank that no
+  transition can raise — in
+  [`Cadence/Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean).
 * **(F-byz)** — Byzantine actions (the `byz_*` family) are unfair:
   progress never relies on adversarial help, which makes the discharged
   content strictly stronger than deadlock freedom.

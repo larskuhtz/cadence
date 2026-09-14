@@ -395,12 +395,17 @@ closes the chain inside it. So the fairness classes stay exactly as in
 Chorus, and only the justification for their *sufficiency* differs:
 quarantine by assumption, not monotonicity.
 
-### 3.3 The ranking, and the one assumption the model is missing
+### 3.3 The ranking, and the one assumption the model was missing
+
+*Landed 2026-09-14: the assumption is in
+[`../Cadence/Mvba.lean`](../Cadence/Mvba.lean) and the ranking is
+[`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean). One correction this section
+needed, and one finding from building the rank, are marked below.*
 
 Termination rests on reaching a view whose leader is honest. The model
-assumes only `leader_functional` — `leader` is a functional immutable
-relation with no rotation or coverage property — so that fact has no source
-today and an assumption has to be added. The weakest form that serves is
+assumed only `leader_functional` — `leader` is a functional immutable
+relation with no rotation or coverage property — so that fact had no source
+and an assumption had to be added. The weakest form that serves is
 cofinality of the honest leaders:
 
 ```
@@ -414,12 +419,50 @@ at most `f` Byzantine leaders. Deriving it from an explicit rotation would
 need arithmetic on views, which the model deliberately excludes (§2.2:
 `vord.zero` / `vord.next` only, no arithmetic reaches the solver), so it is
 recorded as a named assumption rather than a derived lemma, and joins the
-trust base alongside the other named assumptions.
+trust base alongside the other named assumptions. Its inventory name is
+**(A-leader-rotation)** ([`Architecture.md`](./Architecture.md) §4 item 2).
+
+**Where it lands, and why that is the price of the placement.** A model
+`assumption` is a conjunct of `assumptions th`, which `Mvba/Compose.lean`
+takes as part of `mvbaSafety.init`; reachability carries it too. So a
+*liveness* assumption is now in the trust base of `agreement`, `integrity`
+and `external_validity`, which are claimed for leader schedules with
+cofinally many honest leaders rather than for every schedule. That is a
+real narrowing of a safety statement and it is deliberate: the fair-progress
+invariants of §3.5 step 3 are sweep cells, and only a model `assumption`
+reaches the solver. Nothing in the safety proofs needs it — the whole family
+was proven without it and re-solved unchanged with it, at
+`#veil_status Mvba` 725/725 — so the narrowing is formal rather than
+material. The alternative, a plain-Lean hypothesis on the liveness theorems
+only, buys back the generality and forecloses step 3; if step 3 turns out
+not to need it in a cell, moving it back is a one-line change plus a
+re-solve.
+
+One consequence outside the model: [`Mvba/NoLock.lean`](../Cadence/Mvba/NoLock.lean),
+the lock-check mutation test, does **not** declare it — its theory makes the
+Byzantine node the leader of both of its two views, so the assumption is
+false there. Dropping an assumption *widens* the theory set, unlike that
+file's other three restrictions, so its header now carries the embedding
+argument as restriction 4.
 
 With it the ranking is lexicographic: first the distance to the next
-honest-led view (finite by `leader_honest_cofinal`), then, at a fixed view,
-the residual of unset node-indexed tuples. Two finiteness questions arise
-in the second component, and they have different answers.
+honest-led view, then, at a fixed view, the residual of unset node-indexed
+tuples. Both components are the same count — *how many entries of a finite
+index list do not yet satisfy a monotone predicate* — which is why
+[`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean) defines it once as `residual`
+and everything else there is a few lines. Three finiteness questions arise,
+and they have three different answers.
+
+**Correction (2026-09-14): "finite by `leader_honest_cofinal`" was wrong.**
+Cofinality gives a *target* — above any view there is an honest-led one —
+and says nothing about how many views lie between here and it.
+`TotalOrderWithMinimum` says nothing either: its order may have an infinite
+ascending chain below a bound (ω + ω is a model of the class), and then no
+measure on views is well-founded and the first component does not exist. So
+the views to be counted are an **explicit `List view` parameter** of the
+rank, exactly as the quorum's members are, and producing one that covers
+the interval up to the target is an obligation of the run-level theorem
+(step 4), not something the abstract order hands out.
 
 * **The value dimension needs nothing.** An earlier draft of this section
   proposed constraining `value` to be finite. That was wrong twice over: it
@@ -460,6 +503,21 @@ in the second component, and they have different answers.
   since such systems do not scale in committee size. So this one carries
   operational content rather than being a finiteness trick.
 
+  **What it does not reach, found while building the rank.** A quorum's
+  members include Byzantine nodes, so a residual over them is only useful
+  for relations a Byzantine node can also supply. That is exactly true of
+  the three the rank counts — `msg_prepare`, `msg_commit` and "has sent
+  some `Timeout`", the guards of the model's three certificate assemblies
+  (`byz_prepare`, `byz_commit`, `byz_timeout_*` supply them) — and exactly
+  false of the honest-only relations of the per-validator chain
+  (`accepted`, `local_prepqc`, `decided`): a residual over a quorum could
+  never reach zero on those, so ranking them would need a second, honest-
+  side node enumeration. It is not added. Those steps are each one
+  once-only action of one validator, so what carries them is a chain of
+  eventualities under weak fairness rather than a count; if step 4 finds
+  it needs the count anyway, the enumeration goes in as another explicit
+  hypothesis, never silently.
+
 ### 3.4 What becomes formal, and where the seam is
 
 The statement machinery already exists and does not have to be built:
@@ -473,10 +531,10 @@ none of the work below blocks on the fork's liveness branch.
 
 | Artefact | Kind | Notes |
 |---|---|---|
-| "guard held, then failed ⇒ the rank strictly increased" | plain Lean — **landed**, [`Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean) | Proven from the model alone; **no scheduling assumption enters**. The machine-checked replacement for §3.1(a)'s Chorus prose. It needed no `step_property` and adds no verification conditions: every `Mvba` relation is written only `true`, so M13's generated `<rel>.mono` covers the growth, and of the six guards only `in_view` needs the transition at all — the other five hold of any pair of states. `#veil_status Mvba` is unchanged |
+| "guard held, then failed ⇒ the rank strictly decreased" (the rank is a residual, so progress *lowers* it; this row said "increased" before the measure existed) | plain Lean — **landed**, [`Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean) | Proven from the model alone; **no scheduling assumption enters**. The machine-checked replacement for §3.1(a)'s Chorus prose. It needed no `step_property` and adds no verification conditions: every `Mvba` relation is written only `true`, so M13's generated `<rel>.mono` covers the growth, and of the six guards only `in_view` needs the transition at all — the other five hold of any pair of states. `#veil_status Mvba` is unchanged |
 | Fair-progress invariants | sweep cells | Mirroring Chorus's "Fair progress" invariants |
-| `leader_honest_cofinal` | model `assumption` | The one new axiom (§3.3) |
-| The ranking and its decrease | plain Lean | Well-founded on §3.3's order |
+| `leader_honest_cofinal` | model `assumption` — **landed** | The one new axiom (§3.3), inventory name (A-leader-rotation). Changed every VC statement; the family re-solved green and `#veil_status Mvba` stayed at 725 (an assumption changes statements, not cells) |
+| The ranking and its decrease | plain Lean — **landed**, [`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean) | `rank` = (view gap, assembly residual) in `Prod.Lex`; `rank_noninc` over *every* transition, one strict-decrease theorem per kind of progress, and a "rank zero is exactly the guard" lemma per component. No scheduling assumption enters |
 | "Every correct validator eventually decides" | plain-Lean theorem over `Run` | Bound-erased sibling of `MVBATemporal.termination` |
 
 **The seam, stated once.** The run-level theorem takes (F-justice), (F-byz),
@@ -496,18 +554,25 @@ absent.
    [`Liveness.md`](./Liveness.md) §2 now scopes Chorus's monotone-enabledness
    justification to Chorus, so the two models' arguments are not conflated.
    It cost no verification conditions (see §3.4).
-2. **The plain-Lean core.** `leader_honest_cofinal`; the ranking and its
-   decrease theorem. §3.3's finiteness question is settled: the value
-   dimension needs nothing, and the node dimension is `ByzNodeSetEnum`,
-   already landed in [`ByzQuorum.lean`](../Cadence/ByzQuorum.lean).
+2. ~~**The plain-Lean core.**~~ **Landed.** `leader_honest_cofinal` is in
+   the model and [`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean) has the
+   ranking, its well-foundedness, its non-increase over every transition,
+   four strict-decrease theorems and the rank-zero-is-the-guard lemmas.
+   The finiteness questions are settled three ways, and one of them is a
+   correction to §3.3: the value dimension needs nothing, the node
+   dimension is `ByzNodeSetEnum`
+   ([`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)), and the **view**
+   dimension needs a finite list of views that cofinality does not
+   supply — so the rank takes one as a parameter.
 3. **Fair-progress invariants in the sweep.** Where the solver cost lands;
    budget manual cells, and expect the growing clump to tip formerly green
    cells into divergence (the `cadence-verification` skill, §5 item 3).
 4. **The run-level theorem**, assembling 1–3 under the §3.4 hypotheses.
 
-Step 1 moved no pin. Step 3 does — each added invariant costs one cell per
-action — and step 2's `leader_honest_cofinal` changes every VC statement and
-re-solves the family once.
+Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
+statement and re-solved the family once, but an assumption is a hypothesis
+of each cell rather than a cell, so `#veil_status Mvba` stayed at 725. Step
+3 will move it — each added invariant costs one cell per action.
 
 ### 3.6 Design constraints that must not be violated
 
