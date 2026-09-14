@@ -437,7 +437,7 @@ none of the work below blocks on the fork's liveness branch.
 
 | Artefact | Kind | Notes |
 |---|---|---|
-| "guard held, then failed ⇒ the rank strictly increased", per action | `step_property`, kernel-checked | Proven from the transition relation alone; **no scheduling assumption enters**. It is the machine-checked replacement for §3.1(a)'s Chorus prose. One cell per action |
+| "guard held, then failed ⇒ the rank strictly increased" | plain Lean — **landed**, [`Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean) | Proven from the model alone; **no scheduling assumption enters**. The machine-checked replacement for §3.1(a)'s Chorus prose. It needed no `step_property` and adds no verification conditions: every `Mvba` relation is written only `true`, so M13's generated `<rel>.mono` covers the growth, and of the six guards only `in_view` needs the transition at all — the other five hold of any pair of states. `#veil_status Mvba` is unchanged |
 | Fair-progress invariants | sweep cells | Mirroring Chorus's "Fair progress" invariants |
 | `leader_honest_cofinal` | model `assumption` | The one new axiom (§3.3) |
 | The ranking and its decrease | plain Lean | Well-founded on §3.3's order |
@@ -455,9 +455,11 @@ absent.
 
 ### 3.5 Order of work
 
-1. **Fairness structure made formal.** The `step_property` row above, plus
-   this section's audit reflected in [`Liveness.md`](./Liveness.md), so the
-   two models' justifications are not conflated.
+1. ~~**Fairness structure made formal.**~~ **Landed.** The disabling facts
+   are [`Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean), and
+   [`Liveness.md`](./Liveness.md) §2 now scopes Chorus's monotone-enabledness
+   justification to Chorus, so the two models' arguments are not conflated.
+   It cost no verification conditions (see §3.4).
 2. **The plain-Lean core.** `leader_honest_cofinal`; the ranking and its
    decrease theorem; settle §3.3's finiteness question first.
 3. **Fair-progress invariants in the sweep.** Where the solver cost lands;
@@ -465,9 +467,9 @@ absent.
    cells into divergence (the `cadence-verification` skill, §5 item 3).
 4. **The run-level theorem**, assembling 1–3 under the §3.4 hypotheses.
 
-Each added invariant or `step_property` costs one cell per action, so the
-`#veil_status Mvba` pin moves at every step; adding `leader_honest_cofinal`
-changes every VC statement and re-solves the family once.
+Step 1 moved no pin. Step 3 does — each added invariant costs one cell per
+action — and step 2's `leader_honest_cofinal` changes every VC statement and
+re-solves the family once.
 
 ### 3.6 Design constraints that must not be violated
 

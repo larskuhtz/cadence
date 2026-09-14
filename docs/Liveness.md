@@ -36,7 +36,14 @@ outside Lean.
   fairness suffices because the model is monotone: enabledness is itself
   monotone, so the enable/disable toggle that strong fairness exists for
   cannot occur. ((F-compassion) is reserved vocabulary for the
-  non-monotone implementation and never invoked.)
+  non-monotone implementation and never invoked.) **This justification is
+  specific to Chorus and does not generalise**: it holds because a slot is
+  one-shot and its state purely accumulating. `Mvba` runs views, so nine of
+  its honest actions are guarded by the current view and eleven can be
+  disabled outright; what replaces the argument there, and why the answer
+  is still weak fairness but for a different reason, is
+  [`MvbaPlan.md`](./MvbaPlan.md) §3.1 and §3.2, with the disabling facts
+  proven in [`Cadence/Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean).
 * **(F-byz)** — Byzantine actions (the `byz_*` family) are unfair:
   progress never relies on adversarial help, which makes the discharged
   content strictly stronger than deadlock freedom.
@@ -55,7 +62,10 @@ outside Lean.
 The well-founded ranking that makes the chain terminate is structural:
 per-slot state is finite and all relations are monotone, so every fair
 firing strictly shrinks the residual of unset tuples. It rests on the same
-monotonicity audit as the network contract.
+monotonicity audit as the network contract. Finiteness is what makes it
+work, so this ranking is also Chorus-specific: `Mvba`'s view type is
+unbounded and needs the different, lexicographic ranking of
+[`MvbaPlan.md`](./MvbaPlan.md) §3.3.
 
 ## 3. What would close the rest
 
