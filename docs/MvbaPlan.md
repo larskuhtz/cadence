@@ -331,8 +331,148 @@ already uses: fair-progress invariants inside the sweep, the state-level
 content kernel-checked, the temporal step carried by named assumptions
 ([`Liveness.md`](./Liveness.md)).
 
-**Deferred, but it must not be designed out.** Two choices would foreclose
-it:
+### 3.1 Two Chorus arguments do not transfer (audited 2026-09-14)
+
+Chorus's liveness rests on two facts that [`Liveness.md`](./Liveness.md)
+states in prose, both true there because a Chorus slot is one-shot and its
+state purely accumulating. **Neither holds for `Mvba`.** Copying either
+across would weaken the claim silently, so both are recorded here.
+
+**(a) Enabledness is not monotone.** `Liveness.md` justifies weak fairness
+with "enabledness is itself monotone, so the enable/disable toggle that
+strong fairness exists for cannot occur". In `Mvba` that toggle occurs:
+
+| Guard | Appears in | Falsified by |
+|---|---|---|
+| `in_view i v` (ghost: `v` is the maximum `entered` view) | nine honest actions | `sync_view` / `sync_view_adopt` entering a higher view |
+| `¬ timed_out i v` | `adopt_prepqc`, `send_commit` | `timeout_qc` / `timeout_noqc` at the same validator |
+| `∀ W, voted i W → vord.lt W v` | both Pre-Prepare handlers | voting at a view `≥ v` |
+| `∀ W E, local_prepqc i W E → vord.lt W v` | `adopt_prepqc` | adopting a lock at a view `≥ v` |
+| `∀ V, entered i V → vord.le V pv` | `sync_view`, `sync_view_adopt` | entering a higher view |
+| `∀ W E, ¬ local_prepqc i W E` | `timeout_noqc` | adopting any lock |
+
+Eleven of the nineteen honest actions carry at least one, nine of them
+through `in_view` alone. (`¬ abandoned i`, on thirteen of them, is
+anti-monotone too, but belongs to a different category: `abandon` is a
+contract *input*, and every liveness claim here is already conditioned on
+correct parties not abandoning.) The relations underneath are all monotone;
+it is the *guards* that are anti-monotone,
+which is the ordinary shape of a view-change protocol and not a modelling
+defect — §3.6's "keep view-indexed state monotone" is satisfied, and is what
+keeps the disabling analysable at all.
+
+**(b) The residual ranking is unavailable.** `Liveness.md`'s well-founded
+ranking is "per-slot state is finite and all relations are monotone, so
+every fair firing strictly shrinks the residual of unset tuples". `view` is
+an unbounded `TotalOrderWithMinimum`, so `Mvba`'s reachable state space is
+infinite: a run can always advance into a fresh view and mint new unset
+tuples. §3.3 replaces the ranking.
+
+### 3.2 Two levels, kept apart
+
+**Model level — the scheduling assumptions.** Each action carries a fairness
+class, stated in the model rather than inferred from its shape: **unfair**
+for the `byz_*` family (F-byz), **weakly fair** for the honest actions
+(F-justice). Every liveness proof needs such assumptions, and making them
+explicit at model level is hygiene independent of what is derived from them;
+they are also what the fork's fairness annotations will carry once they
+exist ([`Liveness.md`](./Liveness.md) §3).
+
+**Claim level — what those assumptions can and cannot deliver.** §3.1(a) has
+a consequence that is easy to misread as an argument about fairness
+*strength*, and is not. Because `entered` and `timed_out` are monotone, a
+guard falsified in §3.1(a)'s table never becomes true again: each
+`(action, parameters)` instance is enabled over a single window and is
+permanently dead afterwards. Per-instance enabledness is therefore
+non-monotone **and non-recurrent**, so strengthening (F-justice) to strong
+fairness adds nothing at this level — an instance enabled only finitely
+often fails strong fairness's premise as well. The missing power is not a
+fairness class: it is the premise that *some* view's window is long enough
+for the prepare → commit → decide chain to close. That is (A-viewsync)
+below, the untimed stand-in for `thm:termination`'s after-GST Δ-synchrony.
+Given it, the guards in that window are stable and plain weak fairness
+closes the chain inside it. So the fairness classes stay exactly as in
+Chorus, and only the justification for their *sufficiency* differs:
+quarantine by assumption, not monotonicity.
+
+### 3.3 The ranking, and the one assumption the model is missing
+
+Termination rests on reaching a view whose leader is honest. The model
+assumes only `leader_functional` — `leader` is a functional immutable
+relation with no rotation or coverage property — so that fact has no source
+today and an assumption has to be added. The weakest form that serves is
+cofinality of the honest leaders:
+
+```
+assumption [leader_honest_cofinal]
+  ∀ (V : view), ∃ (W : view) (L : node),
+    vord.le V W ∧ leader W L ∧ ¬ is_byz L
+```
+
+It is the model-level stand-in for round-robin rotation over `n = 3f+1` with
+at most `f` Byzantine leaders. Deriving it from an explicit rotation would
+need arithmetic on views, which the model deliberately excludes (§2.2:
+`vord.zero` / `vord.next` only, no arithmetic reaches the solver), so it is
+recorded as a named assumption rather than a derived lemma, and joins the
+trust base alongside the other named assumptions.
+
+With it the ranking is lexicographic: first the distance to the next
+honest-led view (finite by `leader_honest_cofinal`), then, at a fixed view,
+the residual of unset node-indexed tuples. **The second component is the
+part of this plan needing the most care**: `value` is an opaque sort and
+therefore not finite, so the residual must be taken over tuples at a fixed
+view and a fixed proposed value, not over the relation extents. Settle this
+before step 3 of §3.5.
+
+### 3.4 What becomes formal, and where the seam is
+
+The statement machinery already exists and does not have to be built:
+[`Interfaces.lean`](../Cadence/Interfaces.lean) has `Run`, `TimedRun` with
+`clock_mono` and `clock_unbounded` (the non-Zeno condition), `byTime` and
+`byGstBound`, and `MVBATemporal.termination` is already the formal timed
+statement of the bounded claim. Veil's limitation is that its VC pipeline
+cannot *discharge* temporal goals, not that Lean cannot state or prove them:
+`Composition.lean` already does plain-Lean induction over `reachable`, so
+none of the work below blocks on the fork's liveness branch.
+
+| Artefact | Kind | Notes |
+|---|---|---|
+| "guard held, then failed ⇒ the rank strictly increased", per action | `step_property`, kernel-checked | Proven from the transition relation alone; **no scheduling assumption enters**. It is the machine-checked replacement for §3.1(a)'s Chorus prose. One cell per action |
+| Fair-progress invariants | sweep cells | Mirroring Chorus's "Fair progress" invariants |
+| `leader_honest_cofinal` | model `assumption` | The one new axiom (§3.3) |
+| The ranking and its decrease | plain Lean | Well-founded on §3.3's order |
+| "Every correct validator eventually decides" | plain-Lean theorem over `Run` | Bound-erased sibling of `MVBATemporal.termination` |
+
+**The seam, stated once.** The run-level theorem takes (F-justice), (F-byz),
+(A-viewsync) and (F-avail) as **explicit Lean hypotheses**. Nothing
+meta-theoretic then remains inside the proof; the meta-theory is exactly the
+claim that a deployment satisfies those hypotheses, which is where
+[`Liveness.md`](./Liveness.md) §2 already puts Chorus's. Keeping them as
+hypotheses of a statement rather than as `axiom`s is what makes the seam
+auditable without reading the proof, and it is the same discipline as the
+`…Temporal` classes: an unproven obligation is visible as a hypothesis, not
+absent.
+
+### 3.5 Order of work
+
+1. **Fairness structure made formal.** The `step_property` row above, plus
+   this section's audit reflected in [`Liveness.md`](./Liveness.md), so the
+   two models' justifications are not conflated.
+2. **The plain-Lean core.** `leader_honest_cofinal`; the ranking and its
+   decrease theorem; settle §3.3's finiteness question first.
+3. **Fair-progress invariants in the sweep.** Where the solver cost lands;
+   budget manual cells, and expect the growing clump to tip formerly green
+   cells into divergence (the `cadence-verification` skill, §5 item 3).
+4. **The run-level theorem**, assembling 1–3 under the §3.4 hypotheses.
+
+Each added invariant or `step_property` costs one cell per action, so the
+`#veil_status Mvba` pin moves at every step; adding `leader_honest_cofinal`
+changes every VC statement and re-solves the family once.
+
+### 3.6 Design constraints that must not be violated
+
+Two choices would foreclose all of the above. Both are currently satisfied,
+and neither may be traded away for a safety-side simplification.
 
 * **Do not model view advancement as unguarded nondeterminism.** Letting any
   validator jump to any higher view is safety-sound — it only adds
@@ -344,20 +484,20 @@ it:
   is enabled, not timed).
 * **Keep view-indexed state monotone.** Accumulating relations
   (`entered i v`, `voted i v`, `local_prepqc i v e`) rather than mutable
-  current-view fields. Veil's monotone framework is what makes enabledness
-  monotone, which is why weak (F-justice) suffices; a mutable counter would
-  break that and pull strong fairness — currently *not invoked* anywhere —
-  into the argument.
+  current-view fields. This is what makes §3.1(a)'s disabling analysable —
+  every falsified guard is falsified by a monotone relation growing — and a
+  mutable counter would destroy it.
 
-Name the assumptions from the start even while the ranking is unfinished:
+The named assumptions, fixed now even though the ranking is unfinished:
 (F-justice) on the message handlers and assembly actions; (F-byz) for the
-adversary; a view-synchronisation assumption standing in for after-GST
-Δ-synchrony (`thm:termination`'s "all correct validators enter view `v+1`
-within Δ of one another"); and **(F-avail)**, new with `026dc8b`, standing
-in for `Δ_sync`: `avail_ready i e` eventually holds for every accepted
-`e` (`lem:avail-progress`). Then the liveness work is additive rather than
-a re-encoding — and once it exists, Chorus's (A-mvba) decomposes into these
-plus the MVBA's own fair-progress theorems.
+adversary; **(A-viewsync)**, the view-synchronisation assumption standing in
+for after-GST Δ-synchrony (`thm:termination`'s "all correct validators enter
+view `v+1` within Δ of one another"), whose role §3.2 makes precise; and
+**(F-avail)**, new with `026dc8b`, standing in for `Δ_sync`: `avail_ready i
+e` eventually holds for every accepted `e` (`lem:avail-progress`). Then the
+liveness work is additive rather than a re-encoding — and once it exists,
+Chorus's (A-mvba) decomposes into these plus the MVBA's own fair-progress
+theorems.
 
 ## 4. Vacuity
 
