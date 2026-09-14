@@ -23,7 +23,13 @@ yet part of the published paper.** It has neither tags nor versions, so this
 model pins the **paper-repository commit it was read against:
 `026dc8b` (2026-09-03)**; a later change to `alg_mvba.tex` or to
 `subsec:mvba-correctness` is the trigger to re-read the model against the
-new commit and move this pin (`docs/MvbaPlan.md` §0). What an auditor can
+new commit and move this pin (`docs/MvbaPlan.md` §0). *Re-checked against
+paper-repository `b838e17` (2026-09-14): `alg_mvba.tex` and the whole of
+`sec:mvba-instantiation`, `subsec:mvba-correctness` included, are
+byte-identical to `026dc8b`, so the pin is current and the trigger has not
+fired. The 19 intervening commits rewrite the practical Conductor
+instantiation and its recovery layer, and tag Chorus's proposer signatures;
+none of that is in this model's scope.* What an auditor can
 check without the supplement is the contract the model is proven against —
 `safety [agreement]`, `[integrity]`, `[external_validity]` are the three
 safety properties of `mod:mvba`; what needs the supplement is the model's
