@@ -214,6 +214,28 @@ relation avail_ready (i : node) (e : value)
 assumption [leader_functional]
   ∀ (V : view) (L L' : node), leader V L → leader V L' → L = L'
 
+/- **Honest leaders are cofinal**, **(A-leader-rotation)** — the
+model-level stand-in for round-robin
+rotation over `n = 3f+1` with at most `f` Byzantine leaders
+(`docs/MvbaPlan.md` §3.3). Deriving it from an explicit rotation would need
+arithmetic on views, which this model excludes by design (the header: only
+`vord.zero` and `vord.next`, no arithmetic reaches the solver), so it is a
+named assumption.
+
+It is a **liveness** assumption, and it is declared here rather than carried
+as a hypothesis of the liveness theorems for one reason: the fair-progress
+invariants of `docs/MvbaPlan.md` §3.5 step 3 are sweep cells, and only a
+model `assumption` reaches the solver. The price is that it joins the trust
+base of the *safety* results too — `Mvba/Compose.lean`'s `mvbaSafety` takes
+`assumptions th` as part of its `init`, so agreement, integrity and external
+validity are now claimed for leader schedules with cofinally many honest
+leaders rather than for every schedule. Nothing in their proofs needs it;
+the narrowing is formal, not material, and it is recorded in
+`docs/Architecture.md` §4 with the other named assumptions. -/
+assumption [leader_honest_cofinal]
+  ∀ (V : view), ∃ (W : view) (L : node),
+    vord.le V W ∧ leader W L ∧ ¬ is_byz L
+
 /-! ## Derived state (ghosts) -/
 
 -- The current view is the maximum entered view (a negative observation of
