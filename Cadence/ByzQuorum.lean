@@ -19,6 +19,37 @@ eight `ByzNodeSet` axioms then hold for the whole family `n ≥ 3f+1`
 
 namespace Cadence
 
+/-! ## Quorum enumerability — what liveness needs and safety does not
+
+`ByzNodeSet` axiomatises quorums by **intersection alone**: every one of its
+eight fields says that two sets of a given strength share a member of some
+kind, and not one of them says anything about a quorum's size or about how
+to enumerate it. That is exactly right for safety, which only ever consumes
+an intersection, and it is why every safety theorem in this development
+holds for an abstract `node` of any cardinality.
+
+Liveness is different, and this is the first place the difference bites.
+Assembling a certificate takes one firing per member — `Mvba.form_prepqc`
+requires `∀ r, member r q → msg_prepare r v e` — so weak fairness produces
+it in finite time only if a quorum has finitely many members. This class is
+the minimal statement of that, and it is kept **separate from
+`ByzNodeSet`** for two reasons: nothing on the safety side should acquire a
+cardinality assumption it does not need, and a liveness theorem should
+carry the requirement as a *visible hypothesis* rather than inherit it
+silently ([`docs/MvbaPlan.md`](../docs/MvbaPlan.md) §3.3).
+
+It is discharged, never assumed, wherever the validator set is concrete: a
+`ByzNSet n` quorum *is* a sorted list, so `byzNodeSetFinGen_enum` below
+supplies it for the whole family `n ≥ 3f+1`. A committee is finite in the
+strict sense — proof-of-stake systems do not scale in committee size — so
+the resulting bound is the protocol's own parameter, not a cardinality
+trick. -/
+class ByzNodeSetEnum (node nset : Type) (B : ByzNodeSet node nset) where
+  /-- A quorum's members, as a finite list. -/
+  members : nset → List node
+  /-- `members` enumerates exactly the quorum's membership. -/
+  mem_members : ∀ (a : node) (s : nset), B.member a s = true ↔ a ∈ members s
+
 section
 
 variable (n f : Nat) (hf : 3 * f + 1 ≤ n)
@@ -156,6 +187,18 @@ instance byzNodeSetFinGen_greater_than_third_dec :
   ∀ a, Decidable (ByzNodeSet.greater_than_third _ (self := byzNodeSetFinGen n f hf is_byz hbyz) a) := by
   dsimp +instances [byzNodeSetFinGen] ; intros ; infer_instance
 
+/-- The concrete discharge: a `ByzNSet n` quorum is a sorted list, so its
+membership enumerates. `B` is an explicit parameter of `ByzNodeSetEnum`, so
+this is a witness a liveness theorem is *given*, not one instance search
+supplies behind its back. -/
+@[implicit_reducible]
+def byzNodeSetFinGen_enum :
+    ByzNodeSetEnum (Fin n) (ByzNSet n) (byzNodeSetFinGen n f hf is_byz hbyz) where
+  members s := s.val
+  mem_members a s := by
+    dsimp +instances [byzNodeSetFinGen]
+    simp
+
 end
 
 /-! ## Instantiation sanity checks
@@ -175,5 +218,12 @@ example : ByzNodeSet (Fin 6) (ByzNSet 6) :=
 -- (threshold `n − f = 3 = 2f+1`) — the monitor's current instantiation.
 example : ByzNodeSet (Fin 4) (ByzNSet 4) :=
   byzNodeSetFinGen 4 1 (by decide) (fun _ => False) (by decide)
+
+-- The liveness-side enumerability witness exists at the same instance, so a
+-- liveness theorem carrying `ByzNodeSetEnum` as a hypothesis is discharged,
+-- not merely assumed, wherever the committee is concrete.
+example : ByzNodeSetEnum (Fin 4) (ByzNSet 4)
+    (byzNodeSetFinGen 4 1 (by decide) (fun _ => False) (by decide)) :=
+  byzNodeSetFinGen_enum 4 1 (by decide) (fun _ => False) (by decide)
 
 end Cadence

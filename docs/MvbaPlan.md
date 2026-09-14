@@ -418,11 +418,47 @@ trust base alongside the other named assumptions.
 
 With it the ranking is lexicographic: first the distance to the next
 honest-led view (finite by `leader_honest_cofinal`), then, at a fixed view,
-the residual of unset node-indexed tuples. **The second component is the
-part of this plan needing the most care**: `value` is an opaque sort and
-therefore not finite, so the residual must be taken over tuples at a fixed
-view and a fixed proposed value, not over the relation extents. Settle this
-before step 3 of §3.5.
+the residual of unset node-indexed tuples. Two finiteness questions arise
+in the second component, and they have different answers.
+
+* **The value dimension needs nothing.** An earlier draft of this section
+  proposed constraining `value` to be finite. That was wrong twice over: it
+  is unnecessary, and it would have been the wrong *kind* of assumption — a
+  cardinality bound standing in for an argument, true in theory and empty
+  in practice, the way "enumerating every value of a 64-bit register
+  terminates" is true and empty. It is unnecessary because the model
+  already proves `accepted_unique`: an honest validator accepts at most one
+  value per view, and every value-indexed relation it writes
+  (`local_prepqc`, `msg_prepare`, `msg_commit`) is gated on
+  `accepted i v e`. The value dimension collapses to a singleton **by
+  protocol, not by cardinality**. A Byzantine leader may flood
+  `msg_preprepare` with unboundedly many values; nothing honest follows it,
+  and the rank reads honest state only.
+* **The node dimension does need finiteness, and this is the first place in
+  the development where anything does.** `ByzNodeSet` axiomatises quorums
+  by intersection alone and says nothing about size — which is exactly why
+  every safety theorem here holds for an abstract `node` of any
+  cardinality. Liveness cannot inherit that: assembling a certificate takes
+  one firing per member (`form_prepqc` requires
+  `∀ r, member r q → msg_prepare r v e`), so weak fairness delivers it in
+  finite time only for finite quorums. The asymmetry is worth stating
+  plainly — **safety consumes a quorum intersection, liveness must assemble
+  a quorum.**
+
+  The requirement is `ByzNodeSetEnum`
+  ([`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)): a quorum's members as a
+  list, with `member` agreeing with list membership. It is a *separate*
+  class taking the `ByzNodeSet` as an **explicit** parameter, so a liveness
+  theorem carries it as a visible hypothesis instead of inheriting it
+  silently, and nothing on the safety side acquires a cardinality
+  assumption it does not need. `byzNodeSetFinGen_enum` discharges it for
+  the whole family `n ≥ 3f+1`, where a quorum *is* a sorted list; the file
+  carries a concrete witness at `n = 4` beside the existing instantiation
+  checks. Here the bound is the committee size times the view distance —
+  the protocol's own parameter, and the shape of `thm:termination`'s
+  `O(fΔ)` — and a proof-of-stake committee is finite in the strict sense,
+  since such systems do not scale in committee size. So this one carries
+  operational content rather than being a finiteness trick.
 
 ### 3.4 What becomes formal, and where the seam is
 
@@ -461,7 +497,9 @@ absent.
    justification to Chorus, so the two models' arguments are not conflated.
    It cost no verification conditions (see §3.4).
 2. **The plain-Lean core.** `leader_honest_cofinal`; the ranking and its
-   decrease theorem; settle §3.3's finiteness question first.
+   decrease theorem. §3.3's finiteness question is settled: the value
+   dimension needs nothing, and the node dimension is `ByzNodeSetEnum`,
+   already landed in [`ByzQuorum.lean`](../Cadence/ByzQuorum.lean).
 3. **Fair-progress invariants in the sweep.** Where the solver cost lands;
    budget manual cells, and expect the growing clump to tip formerly green
    cells into divergence (the `cadence-verification` skill, §5 item 3).
