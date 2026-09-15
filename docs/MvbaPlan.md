@@ -827,6 +827,17 @@ absent.
    all, because the guard's negation *is* the conclusion — a validator whose
    views are no longer all below `pv` has already advanced past it.
 
+   **A view is closed only by a correct validator.** The fact that makes the
+   honest-led view unskippable, and the one place the liveness side consumes
+   a quorum *intersection* rather than assembling a quorum. A timeout
+   certificate is backed by a `2f+1` quorum of `Timeout`s (`msg_tc_backed`,
+   new, then the two `tc_*_backed`); every such quorum contains a correct
+   member; and a correct validator's `Timeout` for a view means it timed out
+   there. So a view cannot be closed behind the correct validators' backs —
+   which is exactly what lets (A-viewsync) keep a run *inside* the good view,
+   since it forbids a correct validator timing out there before deciding and
+   without one no certificate for that view can exist.
+
    **Where the tally stands.** Every link is proven: the decision chain from
    the honest leader's proposal to every correct validator deciding, and the
    view-change chain that closes a stalled view and advances past it. Twelve

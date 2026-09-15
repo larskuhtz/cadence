@@ -1197,6 +1197,63 @@ theorem eventually_entered_above_of_tc
         enabled_sync_view hi ⟨E₀, hin' n hn⟩ (hnab n hn) hnext (htc' n hn) (hbelow n hn))
   exact hcon (n + 1) v (by omega) (sync_view_effect (hfire ▸ r.steps n)) hlt
 
+/-! ## A view is closed only by a correct validator
+
+The fact that makes the honest-led view unskippable, and the one place the
+quorum *intersection* axioms are used on the liveness side rather than the
+assembly ones. Everything else here assembles quorums; this consumes one.
+
+A timeout certificate for `V` is backed by a `2f+1` quorum of `Timeout`
+messages (`msg_tc_backed`, then `tc_nolock_backed` or `tc_lock_backed`).
+Every such quorum contains a correct member
+(`supermajority_contains_honest_greater_than_third` followed by
+`greater_than_third_one_honest`), and a correct validator's `Timeout` for
+`V` means it timed out there (`honest_timeout_noqc_timed_out`,
+`honest_timeout_qc_timed_out`). So a view cannot be closed behind the
+correct validators' backs — which is exactly what lets (A-viewsync) keep a
+run inside the good view: it forbids a correct validator timing out there
+before deciding, and without one no certificate for that view can exist. -/
+
+/-- **A timeout certificate implies a correct validator timed out.** -/
+theorem exists_honest_timed_out_of_tc
+    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
+    {V : view} (htc : st.msg_tc V = true) :
+    ∃ R, ¬ nset.is_byz R = true ∧ st.timed_out R V = true := by
+  -- The certificate is one of the two the assemblies build …
+  have hq : ∃ q, nset.supermajority q ∧ ∀ p, nset.member p q = true →
+      (st.msg_timeout_noqc p V = true ∨ ∃ W' E', st.msg_timeout_qc p V W' E' = true) := by
+    rcases Mvba.reachable_msg_tc_backed hr V htc with hnl | ⟨W, E, hlock⟩
+    · obtain ⟨q, hsm, hall⟩ := Mvba.reachable_tc_nolock_backed hr V hnl
+      exact ⟨q, hsm, fun p hp => Or.inl (hall p hp)⟩
+    · obtain ⟨-, -, q, hsm, hall⟩ := Mvba.reachable_tc_lock_backed hr V W E hlock
+      refine ⟨q, hsm, fun p hp => ?_⟩
+      rcases hall p hp with h | ⟨W', E', h, -⟩
+      · exact Or.inl h
+      · exact Or.inr ⟨W', E', h⟩
+  obtain ⟨q, hsm, hall⟩ := hq
+  -- … and every `2f+1` quorum contains a correct member.
+  obtain ⟨t, hgt, hsub⟩ := nset.supermajority_contains_honest_greater_than_third q hsm
+  obtain ⟨R, hRt, hRhon⟩ := nset.greater_than_third_one_honest t hgt
+  obtain ⟨hRq, -⟩ := hsub R hRt
+  refine ⟨R, (hsub R hRt).2, ?_⟩
+  rcases hall R hRq with h | ⟨W', E', h⟩
+  · exact Mvba.reachable_honest_timeout_noqc_timed_out hr R V (hsub R hRt).2 h
+  · exact Mvba.reachable_honest_timeout_qc_timed_out hr R V W' E' (hsub R hRt).2 h
+
+/-- The same for a lock-carrying certificate, which `sync_view_adopt` reads
+instead of `msg_tc`. -/
+theorem exists_honest_timed_out_of_tc_lock
+    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
+    {V W : view} {E : value} (hlock : st.tc_lock V W E = true) :
+    ∃ R, ¬ nset.is_byz R = true ∧ st.timed_out R V = true := by
+  obtain ⟨-, -, q, hsm, hall⟩ := Mvba.reachable_tc_lock_backed hr V W E hlock
+  obtain ⟨t, hgt, hsub⟩ := nset.supermajority_contains_honest_greater_than_third q hsm
+  obtain ⟨R, hRt, hRhon⟩ := nset.greater_than_third_one_honest t hgt
+  refine ⟨R, (hsub R hRt).2, ?_⟩
+  rcases hall R (hsub R hRt).1 with h | ⟨W', E', h, -⟩
+  · exact Mvba.reachable_honest_timeout_noqc_timed_out hr R V (hsub R hRt).2 h
+  · exact Mvba.reachable_honest_timeout_qc_timed_out hr R V W' E' (hsub R hRt).2 h
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
