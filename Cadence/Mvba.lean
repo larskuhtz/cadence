@@ -995,7 +995,7 @@ advanced" into "a certificate for the view below existed", and with
 `exists_honest_timed_out_of_tc` that becomes "a correct validator had timed
 out there" — the induction showing a run cannot climb past the honest-led
 view while no correct validator has decided
-(`Mvba/Liveness.lean`, `entered_le_of_no_decision`). -/
+(`Mvba/Liveness.lean`, `entered_le_of_no_timeout`). -/
 step_property [entered_needs_certificate] {
   ∀ (I : node) (V : view),
     ¬ is_byz I ∧ ¬ entered I V ∧ entered' I V →

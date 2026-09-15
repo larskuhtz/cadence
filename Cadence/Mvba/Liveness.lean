@@ -224,13 +224,22 @@ def FTimeout (r : MvbaRun th) : Prop :=
 
 /-- **(A-viewsync)** — *the timeout is long enough.* There is an honest-led
 view that every correct validator enters, and in which no correct validator
-times out before it has decided.
+times out before a commit certificate exists.
 
 This is the untimed stand-in for `thm:termination`'s after-GST Δ-synchrony
-together with its view-timeout bound. The "before it has decided" is
-load-bearing and is the correction §3.2 needed: the flat form ("no correct
-validator times out in the good view") contradicts weak fairness of
-`timeout_qc`, and the claim would hold vacuously.
+together with its view-timeout bound — the paper's own sentence is "no
+correct validator times out of a correct-leader view before the decision
+completes", under a timeout exceeding `Δ_R + 3Δ + max(Δ, Δ_sync)`.
+
+Two things about the shape. The "before …" is load-bearing: the flat form
+("no correct validator times out in the good view") contradicts weak
+fairness of `timeout_qc` outright, and the claim would then hold vacuously.
+And the consequent is a **commit certificate**, not a decision — weaker than
+both the paper's sentence and an earlier version of this definition, and
+enough, because `eventually_decided_of_commitqc` turns a certificate into
+every correct validator deciding using (F-justice) alone. Weakening it this
+way also stops the premise mentioning `decided`, so it constrains the
+network rather than naming the conclusion.
 
 The entry clause is conditioned on the validator having *participated*. A
 correct validator that never calls `propose` never enters any view, so
@@ -253,7 +262,7 @@ def AViewSync (r : MvbaRun th) : Prop :=
     (∀ i, ¬ nset.is_byz i = true → (∃ (n : Nat) (E : value), (r.at' n).input i E = true) →
       ∃ n, (r.at' n).entered i W = true) ∧
     (∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
-      ∃ E, (r.at' n).decided i E = true)
+      ∃ (V : view) (E : value), (r.at' n).msg_commitqc V E = true)
 
 /-- **(F-avail)** — the availability shares arrive. A correct validator that
 accepted a vector eventually has `avail_ready` for it, which is
@@ -1323,14 +1332,16 @@ theorem init_not_entered
   (repeat (obtain ⟨-, hinit⟩ := hinit))
   mvba_effect
 
-/-- **The good view is not overshot.** If no correct validator ever decides,
-then no correct validator is ever in a view above `W`, for any `W` whose
-timeouts (A-viewsync) rules out before a decision. -/
-theorem entered_le_of_no_decision
+/-- **The good view is not overshot.** If no correct validator ever times
+out in `W`, none is ever in a view above it.
+
+The hypothesis used to be "no correct validator ever decides"; weakening
+(A-viewsync) to speak of certificates moved that condition into the caller,
+and this induction turned out not to need it at all — only that the good
+view is never abandoned. -/
+theorem entered_le_of_no_timeout
     (r : MvbaRun th) {W : view}
-    (hvs : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
-      ∃ E, (r.at' n).decided i E = true)
-    (hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true) :
+    (hvs : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true → False) :
     ∀ (n : Nat) (j : node) (V : view), ¬ nset.is_byz j = true →
       (r.at' n).entered j V = true → vord.le V W := by
   intro n
@@ -1359,8 +1370,7 @@ theorem entered_le_of_no_decision
     -- decision.
     have hPVne : ¬ PV = W := by
       rintro rfl
-      obtain ⟨E, hE⟩ := hvs R n hR hRto
-      exact hnodec R n E hR hE
+      exact hvs R n hR hRto
     -- So `PV < W`, and `V` is the least view above `PV`.
     exact ((vord.next_def PV V).mp hnext).2 W ((vord.le_lt PV W).mpr ⟨hPV, hPVne⟩)
 
@@ -1371,11 +1381,14 @@ conjuncts come from three different places, which is worth seeing laid out
 because it is the whole role of (A-viewsync):
 
 * `¬ abandoned` — from `NoEarlyAbandon`, a caller premise;
-* `¬ timed_out i W` — from (A-viewsync)'s second clause, which allows a
-  correct validator to time out in the good view only after deciding;
+* `¬ timed_out i W` — from (A-viewsync)'s second clause. The lemma takes
+  that already reduced to "no correct validator times out in `W`", because
+  which form the premise has is the caller's business: with the certificate
+  form it is the first link that closes the gap, and stating it this way
+  keeps the two independent;
 * `InView i W` — the hard one, and the only one needing a run-level
   argument. `entered i W` is monotone, so it holds ever after; that *no
-  higher view* is entered is `entered_le_of_no_decision`.
+  higher view* is entered is `entered_le_of_no_timeout`.
 
 All three are conditioned on the same thing: that no correct validator ever
 decides. That is not a limitation but the shape of the eventual proof — the
@@ -1385,8 +1398,7 @@ decision already and nothing to settle. -/
 /-- **`SettledIn` from (A-viewsync), while nobody has decided.** -/
 theorem settledIn_of_no_decision
     (r : MvbaRun th) {W : view}
-    (hvs : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
-      ∃ E, (r.at' n).decided i E = true)
+    (hvs : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true → False)
     (hna : NoEarlyAbandon r)
     (hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true)
     {i : node} (hi : ¬ nset.is_byz i = true) {N : Nat}
@@ -1396,10 +1408,8 @@ theorem settledIn_of_no_decision
     r.mono (P := fun s => s.entered i W = true)
       (fun m hm => Mvba.entered.mono (r.steps m) i W hm) hentered
   refine fun n hn => ⟨⟨hent n hn, ?_⟩, ?_, ?_⟩
-  · exact fun V hV => entered_le_of_no_decision r hvs hnodec n i V hi hV
-  · intro hto
-    obtain ⟨E, hE⟩ := hvs i n hi hto
-    exact hnodec i n E hi hE
+  · exact fun V hV => entered_le_of_no_timeout r hvs n i V hi hV
+  · exact fun hto => hvs i n hi hto
   · intro hab
     obtain ⟨E, hE⟩ := hna i n hi hab
     exact hnodec i n E hi hE
@@ -1411,8 +1421,7 @@ theorem needs, since it starts every member's chain from the same `N`. -/
 theorem exists_settled_quorum_of_no_decision
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
     (r : MvbaRun th) {W : view} {q : nodeset}
-    (hvs : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
-      ∃ E, (r.at' n).decided i E = true)
+    (hvs : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true → False)
     (hna : NoEarlyAbandon r)
     (hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true)
     (hcorrect : ∀ p, nset.member p q = true → ¬ nset.is_byz p = true)
@@ -1558,7 +1567,7 @@ theorem terminates_of_good_view
     (hnext : vord.next pv W)
     (henter : ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).entered i W = true)
     (hnto : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
-      ∃ E, (r.at' n).decided i E = true) :
+      ∃ (V : view) (E : value), (r.at' n).msg_commitqc V E = true) :
     Terminates r := by
   by_cases hdec : ∃ (j : node) (n : Nat) (E : value),
       ¬ nset.is_byz j = true ∧ (r.at' n).decided j E = true
@@ -1577,9 +1586,26 @@ theorem terminates_of_good_view
   · push Not at hdec
     have hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true :=
       fun j n E hj => hdec j n E hj
+    -- (A-viewsync) gives a *certificate* where the argument below wants a
+    -- contradiction; the first link bridges the two, and needs only
+    -- (F-justice). This is the whole reason the premise can be the weaker
+    -- of the two forms.
+    have hto : ∀ i n, ¬ nset.is_byz i = true →
+        (r.at' n).timed_out i W = true → False := by
+      intro i n hi hti
+      obtain ⟨V, E, hV⟩ := hnto i n hi hti
+      obtain ⟨m, E₀, hm⟩ := hap i hi
+      obtain ⟨k, Ek, hk⟩ :=
+        eventually_decided_of_commitqc r hfj hna hi
+          (r.mono (P := fun s => s.input i E₀ = true)
+            (fun j hj => Mvba.input.mono (r.steps j) i E₀ hj) hm _ (Nat.le_max_left m n))
+          (r.mono (P := fun s => s.msg_commitqc V E = true)
+            (fun j hj => Mvba.msg_commitqc.mono (r.steps j) V E hj) hV _
+            (Nat.le_max_right m n))
+      exact hnodec i k Ek hi hk
     -- The honest quorum, settled at one index.
     obtain ⟨Nq, hq⟩ :=
-      exists_settled_quorum_of_no_decision enum r hnto hna hnodec
+      exists_settled_quorum_of_no_decision enum r hto hna hnodec
         hqe.honestQuorum_correct
         (fun p hp => henter p (hqe.honestQuorum_correct p hp))
     -- The leader, settled at its own.
@@ -1594,7 +1620,7 @@ theorem terminates_of_good_view
     have h3 : Nt ≤ max Nq (max Nl Nt) :=
       Nat.le_trans (Nat.le_max_right Nl Nt) (Nat.le_max_right _ _)
     have hsl : SettledIn r l W (max Nq (max Nl Nt)) :=
-      settledIn_of_no_decision r hnto hna hnodec hl
+      settledIn_of_no_decision r hto hna hnodec hl
         (r.mono (P := fun s => s.entered l W = true)
           (fun k hk => Mvba.entered.mono (r.steps k) l W hk) hNl _ h2)
     -- Carried forward to the common index, monotonically.
@@ -1919,10 +1945,10 @@ info: 'Mvba.eventually_entered_above_of_tc' depends on axioms: [propext, Classic
 #print axioms Mvba.eventually_entered_above_of_tc
 
 /--
-info: 'Mvba.entered_le_of_no_decision' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.entered_le_of_no_timeout' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.entered_le_of_no_decision
+#print axioms Mvba.entered_le_of_no_timeout
 
 /--
 info: 'Mvba.exists_settled_quorum_of_no_decision' depends on axioms: [propext, Classical.choice, Quot.sound]

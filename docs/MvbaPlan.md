@@ -863,7 +863,7 @@ absent.
    is the whole role of (A-viewsync) laid out: `¬ abandoned` from
    `NoEarlyAbandon`; `¬ timed_out i W` from (A-viewsync)'s second clause;
    and `InView i W` from monotonicity of `entered` together with
-   `entered_le_of_no_decision`. `exists_settled_quorum_of_no_decision` then
+   `entered_le_of_no_timeout`. `exists_settled_quorum_of_no_decision` then
    brings the whole honest quorum to a common index, the finite-family lift
    once more.
 
@@ -967,7 +967,18 @@ absent.
    green, and no `#veil_status` count moved — a class axiom changes every
    VC's statement but adds no cell.
 
-   **(A-viewsync) now names the good view's predecessor**, i.e. requires it
+   **(A-viewsync) is weaker than the paper's sentence.** The paper says "no
+   correct validator times out of a correct-leader view before the decision
+   completes"; the premise here says *before a commit certificate exists*,
+   which is weaker and enough — `eventually_decided_of_commitqc` turns a
+   certificate into every correct validator deciding using (F-justice)
+   alone. It also stops the premise mentioning `decided`, so it constrains
+   the network rather than naming the conclusion. A consequence fell out:
+   the overshoot induction never needed the no-decision condition at all,
+   only that the good view is not abandoned, and is now
+   `entered_le_of_no_timeout`.
+
+   **(A-viewsync) also names the good view's predecessor**, i.e. requires it
    to be above view 1. That is what the paper's own proof does — "View 1 is
    exceptional … We therefore analyze below a later view entered through a
    timeout certificate" — and it costs nothing, since (A-leader-rotation)
