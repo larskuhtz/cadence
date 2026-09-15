@@ -916,6 +916,29 @@ invariant [honest_timeout_qc_held]
   ∀ (R : node) (V W : view) (E : value),
     ¬ is_byz R → msg_timeout_qc R V W E → local_prepqc R W E
 
+/- **Timing out means having sent a `Timeout`.** The converse of the two
+below, and the direction liveness needs: (F-timeout) delivers the local
+`timedOut_i` flag, while the certificate assemblies read the *messages*.
+
+Both timeout actions set the flag and send the message in one step, and
+nothing else sets the flag. -/
+invariant [timed_out_implies_message]
+  ∀ (R : node) (V : view),
+    ¬ is_byz R → timed_out R V →
+      msg_timeout_noqc R V ∨ ∃ W E, msg_timeout_qc R V W E
+
+/- **A carried certificate is never of a view above the `Timeout` that
+carries it** (`line:mvba:derived`: one that is counts as no certificate at
+all). A Byzantine sender is held to it by `byz_timeout_qc`'s guard; an
+honest one gets it from `local_prepqc_within_entered` at its current view.
+
+Liveness needs it for `form_tc_lock`'s `vord.le w v`, the last of that
+action's guards not already available when the timeout quorum is in
+hand. -/
+invariant [timeout_qc_view_le]
+  ∀ (R : node) (V W : view) (E : value),
+    msg_timeout_qc R V W E → vord.le W V
+
 /- … and records `timedOut_i` in a view the sender had entered. -/
 invariant [honest_timeout_qc_timed_out]
   ∀ (R : node) (V W : view) (E : value),
