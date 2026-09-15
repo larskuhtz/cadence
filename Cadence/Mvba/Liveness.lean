@@ -1491,6 +1491,68 @@ theorem terminates_of_good_view
     obtain ⟨nR, ER, hR⟩ := hterm R hRq.2
     exact absurd hR (hnodec R nR ER hRq.2)
 
+/-! ## Climbing the view order terminates
+
+The last hypothesis of `terminates_of_good_view` is a timeout certificate
+below the good view, and getting one means a run must *climb* to that view.
+Climbing is unbounded in a way nothing else here is — a validator advances
+one view at a time and the order has no top — so this is the one place a
+**measure** is needed rather than another eventuality, and it is where
+[`Rank.lean`](./Rank.lean)'s first component is finally consumed.
+
+`viewGap Vs st i` counts the views of `Vs` that `i` has not yet entered. It
+never grows (`viewGap_le`), and entering a fresh view of `Vs` strictly
+lowers it (`residual_lt_of_new`). So a run in which the validator keeps
+advancing *into* `Vs` reaches gap zero in finitely many advances, and gap
+zero is "every view of `Vs` has been entered" — the target among them.
+
+The finiteness that makes this work is `Vs` being a list, which is the
+§3.3 correction: cofinality of honest leaders gives the *target* and says
+nothing about how many views lie below it, so the list is a parameter. Here
+is where that parameter earns its keep. -/
+
+/-- **A non-increasing measure that can always be lowered reaches zero.**
+Strong induction on the gap; no protocol content, which is the point — the
+climbing argument is separated from what makes each step possible. -/
+theorem eventually_viewGap_zero
+    (r : MvbaRun th) (Vs : List view) (i : node)
+    (hstep : ∀ N, viewGap Vs (r.at' N) i ≠ 0 →
+      ∃ n, N ≤ n ∧ viewGap Vs (r.at' n) i < viewGap Vs (r.at' N) i) :
+    ∀ N, ∃ n, N ≤ n ∧ viewGap Vs (r.at' n) i = 0 := by
+  intro N
+  generalize hk : viewGap Vs (r.at' N) i = k
+  induction k using Nat.strong_induction_on generalizing N with
+  | _ k ih =>
+    by_cases h0 : k = 0
+    · exact ⟨N, Nat.le_refl N, by omega⟩
+    · obtain ⟨n, hn, hlt⟩ := hstep N (by omega)
+      obtain ⟨m, hm, hm0⟩ := ih (viewGap Vs (r.at' n) i) (by omega) n rfl
+      exact ⟨m, Nat.le_trans hn hm, hm0⟩
+
+/-- **Entering a fresh view of the list is a strict decrease.** The bridge
+from the protocol steps to the measure: `eventually_entered_above_of_tc`
+produces a newly entered view, and if it is one of the counted ones the gap
+has gone down. -/
+theorem viewGap_lt_of_entered_fresh
+    (r : MvbaRun th) (Vs : List view) (i : node) {N n : Nat} (hNn : N ≤ n)
+    {u : view} (hu : u ∈ Vs)
+    (h0 : (r.at' N).entered i u = false) (h1 : (r.at' n).entered i u = true) :
+    viewGap Vs (r.at' n) i < viewGap Vs (r.at' N) i :=
+  residual_lt_of_new
+    (fun w hw => r.mono (P := fun s => s.entered i w = true)
+      (fun m hm => Mvba.entered.mono (r.steps m) i w hm) hw n hNn)
+    hu (by simp [h0]) h1
+
+/-- **The target view is reached.** Gap zero means every view of `Vs` has
+been entered, so if the target is in the list, the validator is in it. -/
+theorem eventually_entered_of_climbing
+    (r : MvbaRun th) (Vs : List view) (i : node) {W : view} (hW : W ∈ Vs)
+    (hstep : ∀ N, viewGap Vs (r.at' N) i ≠ 0 →
+      ∃ n, N ≤ n ∧ viewGap Vs (r.at' n) i < viewGap Vs (r.at' N) i) :
+    ∃ n, (r.at' n).entered i W = true := by
+  obtain ⟨n, -, hz⟩ := eventually_viewGap_zero r Vs i hstep 0
+  exact ⟨n, entered_of_viewGap_zero hz hW⟩
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -1599,3 +1661,9 @@ info: 'Mvba.terminates_of_good_view' depends on axioms: [propext, Classical.choi
 -/
 #guard_msgs in
 #print axioms Mvba.terminates_of_good_view
+
+/--
+info: 'Mvba.eventually_entered_of_climbing' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_entered_of_climbing

@@ -889,11 +889,33 @@ absent.
    `honest_preprepare_justified`, that the proposal carries what
    `handle_preprepare` checks. `#veil_status Mvba` **725 → 1124**.
 
-   **One hypothesis stands between this and `TerminationClaim`**: `htc`, a
-   timeout certificate below the good view. Closing it means iterating the
-   view-change links up the view order, which is where `Rank.lean`'s view
-   component and its explicit `List view` — the §3.3 correction — are finally
-   consumed, together with (F-timeout) and (A-leader-rotation).
+   **Climbing the view order terminates**, and this is where `Rank.lean`'s
+   first component is finally consumed. Climbing is unbounded in a way
+   nothing else in the proof is — a validator advances one view at a time and
+   the order has no top — so it is the one place a *measure* is needed rather
+   than another eventuality. `viewGap` never grows and entering a fresh
+   counted view strictly lowers it, so a validator that keeps advancing into
+   the list reaches gap zero, which is "every counted view has been entered":
+   `eventually_viewGap_zero` (a measure argument with no protocol content in
+   it, deliberately) and `eventually_entered_of_climbing`.
+
+   The finiteness that makes this work is `Vs` being a **list**, which is
+   the §3.3 correction paying off: cofinality gives the target and says
+   nothing about how many views lie below it, so the list is a parameter,
+   and here is where that parameter earns its keep.
+
+   **What is left** is the per-step premise that argument takes: that a
+   validator sitting in a view eventually advances into the next *counted*
+   one. Its two halves are the view closing — (F-timeout) fires the timers,
+   then the timeout quorum assembles — and the advance, which is
+   `eventually_entered_above_of_tc`, already proven. The gap between
+   (F-timeout) and the assembly is a known one: (F-timeout) yields the local
+   `timed_out` flag, while the assembly guards read the `Timeout`
+   *messages*, and the clump has the converse direction only
+   (`honest_timeout_*_timed_out`). The general case also needs
+   `form_tc_lock`, whose guard selects the member carrying the highest
+   certificate — a finite maximum over the quorum, in the same spirit as
+   `eventually_forall` but over the view order.
 
    **Where the tally stands.** Every link is proven: the decision chain from
    the honest leader's proposal to every correct validator deciding, and the
