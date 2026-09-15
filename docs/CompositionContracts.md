@@ -343,6 +343,24 @@ the proven fragments.
    which is safety-conservative. The liveness argument has to name its
    *completeness* direction — that a decided entry's certificate is
    network-visible — which is what enables the handler.
+
+   **Since `MVBASafety.propose_valid` (2026-09-15) the input half of this
+   bridge has teeth, and that is worth being precise about.** The MVBA now
+   *enforces* validity on `propose`, so at the composed instance Chorus's
+   `mvba_propose` can fire only when the MVBA's `Valid` holds of the vector
+   — and Chorus establishes validity in *its own* vocabulary (entries
+   certificate-backed, one per proposer), which is not identified with the
+   class parameter. Nothing proven is affected: the composed safety theorem
+   is parametric in the MVBA theory, and at a `valid` that accepts
+   everything the system behaves as before. What now depends on the bridge
+   is **non-vacuity**: if the two notions of validity did not coincide, the
+   composed system could not propose at all, and no current check would say
+   so. Before the field was added the same mismatch was harmless, because
+   the MVBA accepted anything. Giving the bridge teeth is the right
+   direction — a wrong `Valid` should stop the system rather than admit
+   invalid blocks — but it moves the bridge from "documented and inert" to
+   "documented and load-bearing for liveness", which is why it is written
+   down here and not only at the field.
 2. **Chorus has no participation interface**, so `SlotConsensusTemporal`
    carries the whole of it; and the glue's records of the inputs it does not
    drive (`sc_abandoned`, `proposed`) are its own, as the paper's local
