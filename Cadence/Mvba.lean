@@ -924,6 +924,30 @@ invariant [prepqc_blocks_lower_commits]
     msg_prepqc W E' → vord.lt V W → ¬ E = E' → nset.supermajority Q →
       ∃ n, nset.member n Q ∧ ¬ is_byz n ∧ blocked n V E
 
+/-! ## Step properties
+
+Two-state facts, checked per action like an invariant
+(`docs/Architecture.md`; `CLAUDE.md`'s three sources for two-state facts,
+source (2)). One so far. -/
+
+/- **A newly entered view is view 1, or the successor of a view that already
+has a timeout certificate.** The three actions that grow `entered` are
+`propose`, which enters `vord.zero`, and the two `sync_view` variants, whose
+guards read `msg_tc pv` and `tc_lock pv w e` at the pre-state.
+
+Liveness needs it, and needs it as a *step* property rather than an
+invariant because it relates the two states: it is what turns "a validator
+advanced" into "a certificate for the view below existed", and with
+`exists_honest_timed_out_of_tc` that becomes "a correct validator had timed
+out there" — the induction showing a run cannot climb past the honest-led
+view while no correct validator has decided
+(`Mvba/Liveness.lean`, `entered_le_of_no_decision`). -/
+step_property [entered_needs_certificate] {
+  ∀ (I : node) (V : view),
+    ¬ is_byz I ∧ ¬ entered I V ∧ entered' I V →
+      V = vord.zero ∨
+        ∃ PV, vord.next PV V ∧ (msg_tc PV ∨ ∃ W E, tc_lock PV W E) }
+
 /- Proof reconstruction ON (this module only): captured at `#gen_spec`,
 so it governs the background `doesNotThrow` dischargers this file still
 runs. The invariant proofs live in the proof-file family, which sets the

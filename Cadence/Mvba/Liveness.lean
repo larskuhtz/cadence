@@ -1254,6 +1254,76 @@ theorem exists_honest_timed_out_of_tc_lock
   · exact Mvba.reachable_honest_timeout_noqc_timed_out hr R V (hsub R hRt).2 h
   · exact Mvba.reachable_honest_timeout_qc_timed_out hr R V W' E' (hsub R hRt).2 h
 
+/-! ## The good view is not skipped
+
+The induction the two previous sections were for, and the last structural
+step before `SettledIn` can be discharged.
+
+**While no correct validator has decided, no correct validator can be in a
+view above the honest-led one.** Climbing past a view needs a certificate
+for it (`entered_needs_certificate`, the model's one step property), a
+certificate needs a correct validator to have timed out there
+(`exists_honest_timed_out_of_tc`), and a correct validator timing out in the
+good view has, by (A-viewsync), already decided. The induction closes
+because a validator only ever times out in a view it has entered
+(`timed_out_entered`), so the certificate's view is itself covered by the
+induction hypothesis.
+
+Note what this does *not* assume: nothing about how many views there are,
+and no ranking. It is a plain induction on the run index. `Rank.lean`'s view
+component measures *progress toward* the good view; this says the run cannot
+overshoot it, which is the other half and the one (A-viewsync) is for. -/
+
+/-- The initializer enters no view. -/
+theorem init_not_entered
+    (hinit : (Mvba.relationalTransitionSystem node nodeset value view).init th st)
+    (i : node) (V : view) : ¬ st.entered i V = true := by
+  simp only [Mvba.relationalTransitionSystem, Mvba.Init] at hinit
+  simp only [Mvba.initializer.ext.tr] at hinit
+  (repeat (obtain ⟨-, hinit⟩ := hinit))
+  mvba_effect
+
+/-- **The good view is not overshot.** If no correct validator ever decides,
+then no correct validator is ever in a view above `W`, for any `W` whose
+timeouts (A-viewsync) rules out before a decision. -/
+theorem entered_le_of_no_decision
+    (r : MvbaRun th) {W : view}
+    (hvs : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
+      ∃ E, (r.at' n).decided i E = true)
+    (hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true) :
+    ∀ (n : Nat) (j : node) (V : view), ¬ nset.is_byz j = true →
+      (r.at' n).entered j V = true → vord.le V W := by
+  intro n
+  induction n with
+  | zero => exact fun j V _ hV => absurd hV (init_not_entered r.starts j V)
+  | succ n ih =>
+    intro j V hj hV
+    -- Either the view was already entered — the induction hypothesis — …
+    by_cases hprev : (r.at' n).entered j V = true
+    · exact ih j V hj hprev
+    -- … or this step entered it, and then a certificate for the view below
+    -- existed, hence a correct validator had timed out there.
+    rcases Mvba.reachable_entered_needs_certificate_step (r.reachable n) (r.steps n)
+      j V ⟨hj, hprev, hV⟩ with rfl | ⟨PV, hnext, hcert⟩
+    · exact vord.zero_lt W
+    have hto : ∃ R, ¬ nset.is_byz R = true ∧ (r.at' n).timed_out R PV = true := by
+      rcases hcert with htc | ⟨Wc, Ec, hlock⟩
+      · exact exists_honest_timed_out_of_tc (r.reachable n) htc
+      · exact exists_honest_timed_out_of_tc_lock (r.reachable n) hlock
+    obtain ⟨R, hR, hRto⟩ := hto
+    -- That validator had entered `PV`, so `PV ≤ W` by the induction hypothesis …
+    have hPV : vord.le PV W :=
+      ih R PV hR (Mvba.reachable_timed_out_entered (r.reachable n) R PV hR hRto)
+    -- … and `PV = W` is impossible, because it would mean a correct validator
+    -- timed out in the good view, which (A-viewsync) allows only after a
+    -- decision.
+    have hPVne : ¬ PV = W := by
+      rintro rfl
+      obtain ⟨E, hE⟩ := hvs R n hR hRto
+      exact hnodec R n E hR hE
+    -- So `PV < W`, and `V` is the least view above `PV`.
+    exact ((vord.next_def PV V).mp hnext).2 W ((vord.le_lt PV W).mpr ⟨hPV, hPVne⟩)
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -1344,3 +1414,9 @@ info: 'Mvba.eventually_entered_above_of_tc' depends on axioms: [propext, Classic
 -/
 #guard_msgs in
 #print axioms Mvba.eventually_entered_above_of_tc
+
+/--
+info: 'Mvba.entered_le_of_no_decision' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.entered_le_of_no_decision
