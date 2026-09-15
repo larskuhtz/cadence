@@ -518,6 +518,114 @@ theorem eventually_msg_commit_of_settled
           (hacc' n hn) (hloc' n hn) (hs n hn).2.1 (hncs n hn) (hav' n hn))
   exact hcon (n + 1) (by omega) (send_commit_effect (hfire ▸ r.steps n)).2
 
+/-! ## And the link before that: a validator adopts the view's certificate
+
+`adopt_prepqc` has the same three anti-monotone guards as `send_commit`, two
+of them again covered by `SettledIn`. The third is the lock-view bound
+`∀ W E, local_prepqc i W E → W < v`, and it is handled the same way — not
+assumed, because its failure is the goal — but the argument that its failure
+*is* the goal takes three of the model's invariants rather than one:
+
+* `local_prepqc_within_entered` (new, and the third cell liveness buys) pins
+  the offending certificate's view to at most `v`;
+* the guard's failure gives "not below `v`", so the view is `v` exactly;
+* `local_prepqc_backed` sends it to `msg_prepqc v E`, and `prepqc_unique`
+  — all prepare certificates of a view are on one vector — identifies `E`
+  with the `e` the link is about.
+
+So a validator in view `v` whose lock-view guard has lapsed is holding the
+very certificate the argument was waiting for. -/
+
+/-- **`adopt_prepqc`'s guards are its enabledness.** -/
+theorem enabled_adopt_prepqc {i : node} {v : view} {e : value}
+    (hi : ¬ nset.is_byz i = true)
+    (hin : ∃ E, st.input i E = true)
+    (hab : ¬ st.abandoned i = true)
+    (hview : InView st i v)
+    (hqc : st.msg_prepqc v e = true)
+    (hacc : st.accepted i v e = true)
+    (hlow : ∀ W E, st.local_prepqc i W E = true → vord.lt W v)
+    (hnto : ¬ st.timed_out i v = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.adopt_prepqc i v e) := by
+  mvba_enabled
+  exact ⟨_, hi, hin, hab, hview.1, hview.2, hqc, hacc, hlow, hnto, rfl⟩
+
+/-- **`adopt_prepqc`'s effect**: the certificate is held. -/
+theorem adopt_prepqc_effect {i : node} {v : view} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.adopt_prepqc i v e) st') : st'.local_prepqc i v e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  mvba_effect
+
+/-- **A lapsed lock-view guard is the adoption itself.** At a reachable state
+where `i` is in view `v` and a prepare certificate of `v` on `e` exists, the
+guard `∀ W E, local_prepqc i W E → W < v` can fail only by `i` holding that
+very certificate. This is where the three invariants are used. -/
+theorem local_prepqc_of_guard_lapsed
+    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value}
+    (hview : InView st i v) (hqc : st.msg_prepqc v e = true)
+    (hlapse : ¬ ∀ W E, st.local_prepqc i W E = true → vord.lt W v) :
+    st.local_prepqc i v e = true := by
+  -- Some held certificate is not below `v` …
+  obtain ⟨W, E, hWE, hnlt⟩ : ∃ W E, st.local_prepqc i W E = true ∧ ¬ vord.lt W v := by
+    by_contra hc
+    exact hlapse (fun W E h => by
+      by_contra hlt
+      exact hc ⟨W, E, h, hlt⟩)
+  -- … and none is above it, so it is at `v`.
+  have hle : vord.le W v :=
+    Mvba.reachable_local_prepqc_within_entered hr i W E v hi hWE hview.2
+  have hWv : W = v := by
+    rcases (vord.le_lt W v) with ⟨_, hmk⟩
+    by_contra hne
+    exact hnlt (hmk ⟨hle, hne⟩)
+  subst hWv
+  -- All prepare certificates of a view are on one vector.
+  have hbacked := Mvba.reachable_local_prepqc_backed hr i W E hi hWE
+  have := Mvba.reachable_prepqc_unique hr W E e hbacked hqc
+  subst this
+  exact hWE
+
+/-- **The `adopt_prepqc` link.** A correct validator settled in view `v` that
+has accepted `e` there, with a prepare certificate of `v` on `e` on the
+network, holds that certificate. -/
+theorem eventually_local_prepqc_of_settled
+    (r : MvbaRun th) (hfj : FJustice r)
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value} {N : Nat}
+    (hs : SettledIn r i v N)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
+    (hqc : (r.at' N).msg_prepqc v e = true)
+    (hacc : (r.at' N).accepted i v e = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).local_prepqc i v e = true := by
+  by_contra hcon
+  push Not at hcon
+  have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
+    r.mono (P := fun s => s.input i E₀ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
+  have hqc' : ∀ n, N ≤ n → (r.at' n).msg_prepqc v e = true :=
+    r.mono (P := fun s => s.msg_prepqc v e = true)
+      (fun m hm => Mvba.msg_prepqc.mono (r.steps m) v e hm) hqc
+  have hacc' : ∀ n, N ≤ n → (r.at' n).accepted i v e = true :=
+    r.mono (P := fun s => s.accepted i v e = true)
+      (fun m hm => Mvba.accepted.mono (r.steps m) i v e hm) hacc
+  -- The anti-monotone guard: if it lapses, the adoption has happened.
+  have hlow : ∀ n, N ≤ n →
+      ∀ W E, (r.at' n).local_prepqc i W E = true → vord.lt W v := by
+    intro n hn
+    by_contra hlapse
+    exact hcon n hn
+      (local_prepqc_of_guard_lapsed (r.reachable n) hi (hs n hn).1 (hqc' n hn) hlapse)
+  obtain ⟨n, hn, hfire⟩ :=
+    hfj (.adopt_prepqc i v e)
+      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (fun n hn =>
+        enabled_adopt_prepqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
+          (hqc' n hn) (hacc' n hn) (hlow n hn) (hs n hn).2.1)
+  exact hcon (n + 1) (by omega) (adopt_prepqc_effect (hfire ▸ r.steps n))
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -572,3 +680,9 @@ info: 'Mvba.eventually_msg_commit_of_settled' depends on axioms: [propext, Class
 -/
 #guard_msgs in
 #print axioms Mvba.eventually_msg_commit_of_settled
+
+/--
+info: 'Mvba.eventually_local_prepqc_of_settled' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_local_prepqc_of_settled

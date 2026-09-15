@@ -700,9 +700,32 @@ absent.
    vector in a view where `commit_sent` already holds, which both
    `Pre-Prepare` handlers forbid through `∀ W, voted i W → W < v`. **They
    were found by writing the proof, not guessed**, and neither was the
-   invariant predicted before starting. `#veil_status Mvba` moves
-   **725 → 775** (two invariants × 25 action-like entries); the family
-   re-solved green.
+   invariant predicted before starting.
+
+   **A fourth link, and a third cell.**
+   `eventually_local_prepqc_of_settled` — a correct validator settled in a
+   view, having accepted `e` there with a prepare certificate of that view on
+   `e` on the network, adopts it. Same two anti-monotone guards from
+   `SettledIn`, plus the lock-view bound
+   `∀ W E, local_prepqc i W E → W < v`, handled the same way: its failure is
+   the goal. Showing that took `local_prepqc_within_entered` (new) to pin
+   the offending certificate's view to at most `v`, then
+   `local_prepqc_backed` and `prepqc_unique` (both already in the clump) to
+   pin its value.
+
+   That invariant is stated against an arbitrary upper bound on the entered
+   views, not against the current view: `in_view` asserts a *maximum*
+   entered view whose existence is not first-order derivable, and the first
+   attempt — phrased with `in_view` — was rejected at `sync_view` for exactly
+   that reason. The bound form is also the shape of `sync_view`'s own guard,
+   which makes the induction direct, and it removed a fourth invariant the
+   `in_view` form had needed at `propose`.
+
+   `#veil_status Mvba` moves **725 → 800** (three invariants × 25
+   action-like entries); every re-solve green. Three of the four links are
+   now bought; the running tally of what liveness costs the sweep is three
+   cells' worth of invariants, all three of them for anti-monotone guards
+   and none of them safety-relevant.
 
 Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
 statement and re-solved the family once, but an assumption is a hypothesis

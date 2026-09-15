@@ -680,6 +680,26 @@ invariant [local_prepqc_backed]
   ∀ (R : node) (W : view) (E : value),
     ¬ is_byz R → local_prepqc R W E → msg_prepqc W E
 
+/- **A held certificate never outruns the views its holder has entered.**
+Stated against an arbitrary upper bound `U` on the entered views rather than
+against the current view: `in_view` asserts a *maximum* entered view, whose
+existence is not first-order derivable, and the bound form is also exactly
+the shape of `sync_view`'s guard, which is what makes the induction direct.
+Applying it at `U := v` for a validator in view `v` recovers the reading
+"every held certificate is of view at most `v`".
+
+The third invariant **liveness** asked for (`docs/MvbaPlan.md` §3.5 step 3).
+`adopt_prepqc`'s guard `∀ W E, local_prepqc i W E → W < v` is anti-monotone,
+so a fairness argument has to know what its failure means: with this, a
+failure at a validator in view `v` pins the offending certificate to view
+`v` exactly, and `local_prepqc_backed` with `prepqc_unique` then pins its
+value — so the guard can only die by the adoption the argument was waiting
+for (`Mvba/Liveness.lean`, `eventually_local_prepqc_of_settled`). -/
+invariant [local_prepqc_within_entered]
+  ∀ (R : node) (W : view) (E : value) (U : view),
+    ¬ is_byz R → local_prepqc R W E → (∀ V, entered R V → vord.le V U) →
+      vord.le W U
+
 /- Certificates are adopted with strictly increasing views
 (`line:mvba:tfp-guard`, `line:mvba:sv-adopt`), so one per view. -/
 invariant [local_prepqc_unique]
