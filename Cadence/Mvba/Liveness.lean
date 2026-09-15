@@ -63,6 +63,44 @@ of the good view, just not before deciding, and `decide`'s own guard
 race. Together they are the untimed content of the supplement's
 "the view timeout exceeds `Δ_R + 3Δ + max(Δ, Δ_sync)`".
 
+### Why (F-timeout) is a premise and not a consequence
+
+It looks as though weak fairness should give it, and **it would**: a
+validator sitting in a view it has not decided in has one of the two timeout
+actions continuously enabled, so justice would fire it. (F-timeout) is
+primitive here only because the timers are outside `JusticeLabel`, and it
+would be a theorem if they were in it.
+
+They are outside for a reason that is *not* the one above. Putting them
+under justice does not contradict (A-viewsync) in the form stated here — it
+**trivialises** it. Weak fairness would force a timeout in the good view;
+(A-viewsync) says a timeout there implies a decision; so the two together
+give "every correct validator in the good view decides" immediately, with no
+protocol reasoning at all. The chain of links below would become dead code,
+proved past rather than used. (The *flat* form of (A-viewsync), "no correct
+validator times out in the good view", is the stronger failure: with justice
+on the timers it is not merely trivialising but unsatisfiable.)
+
+### What is actually missing: the timer
+
+The real protocol does not leave the choice between timing out and making
+progress to the scheduler. `timeout` is enabled only once the timer has
+*expired*, and the timeout duration is chosen to exceed the chain's latency
+after GST. This model drops exactly that (`docs/MvbaPlan.md` §3.6: "abstract
+the *timing* only — `timeout i v` is enabled, not timed"), which is why the
+scheduler can fire a timeout at any moment and why the discipline has to be
+restored by assumption.
+
+So the honest summary is that **(A-viewsync) is the price of an untimed
+model, and (F-timeout) is an artefact of paying it**. A model carrying a
+timer would let both timeout actions be weakly fair without trivialising
+anything, would make (F-timeout) a theorem, and would shrink (A-viewsync) to
+a statement relating the timeout duration to the chain's latency — which is
+what the paper assumes and is strictly more honest than what is assumed
+here. The assumption does not disappear; it changes shape. That is the
+design this section should be revisited against, and
+[`docs/TODO.md`](../../docs/TODO.md) § Liveness records it.
+
 The inputs `propose` and `abandon` are the *caller's*, not the scheduler's
 (`Mvba/Compose.lean`'s `Label.isInput`), so no fairness is assumed of them.
 That every correct validator proposes is `AllPropose`, a premise of the

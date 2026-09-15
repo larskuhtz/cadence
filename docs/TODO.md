@@ -112,6 +112,28 @@ come first.
 
 ## Liveness
 
+* **Revisit the timer abstraction, which is what (A-viewsync) pays for.**
+  `Mvba`'s two timeout actions are outside the weak-fairness class, and the
+  reason is not that fairness on them is *inconsistent* but that it would
+  **trivialise** the termination theorem: justice would force a timeout in
+  the good view, (A-viewsync) says a timeout there implies a decision, and
+  the two together give the conclusion with no protocol reasoning. So
+  (F-timeout) has to be assumed although weak fairness would otherwise prove
+  it.
+
+  The cause is that the model abstracts *when* a timeout fires
+  ([`MvbaPlan.md`](./MvbaPlan.md) §3.6) — in the protocol `timeout` is enabled
+  only once the timer has expired, and the duration is chosen to exceed the
+  chain's latency after GST. A model carrying a timer would let both timeout
+  actions be weakly fair without trivialising anything, would make
+  (F-timeout) a theorem, and would shrink (A-viewsync) to a statement
+  relating the timeout duration to that latency — which is what the paper
+  assumes, and strictly weaker than what is assumed now. The assumption does
+  not disappear; it changes shape and becomes checkable against
+  `thm:termination`'s own constants. Weigh that against §3.6's reason for
+  staying untimed, and against the cost of a clock in a model whose safety
+  proofs currently need none.
+
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
   meta-axioms become premises of a Lean theorem rather than named
   assumptions. This is the single largest reduction of

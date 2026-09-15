@@ -201,6 +201,15 @@ theorem propose_effect_tr {i : node} {e : value}
     Proposed st' i e := by
   mvba_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); mvba_field_simp
 
+/-- `propose(e)` carries a valid `e` — the model's own guard, which is the
+supplement's precondition on the call (`Mvba.lean`'s `propose`). -/
+theorem propose_valid_tr {i : node} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.propose i e) st') : th.valid e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, hv, -⟩ := htr
+  exact hv
+
 /-- `abandon()` at `i` records `abandoned i`. -/
 theorem abandon_effect_tr {i : node}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.abandon i) st') :
@@ -287,6 +296,7 @@ noncomputable def mvbaSafety :
   abandoned_mono _ _ p hn h := abandoned_mono_tr th hn.choose_spec p h
   sent_mono _ _ p m hn h := sent_mono_tr th hn.choose_spec p m h
   propose_effect _ _ _ _ h := propose_effect_tr th h
+  propose_valid _ _ _ _ h := propose_valid_tr th h
   abandon_effect _ _ _ h := abandon_effect_tr th h
   proposed_step_frame _ _ p v h _ := proposed_frame_internal th h.choose_spec.1 h.choose_spec.2 p v
   abandoned_step_frame _ _ p h _ := abandoned_frame_internal th h.choose_spec.1 h.choose_spec.2 p
