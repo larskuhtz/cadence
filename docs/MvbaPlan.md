@@ -946,9 +946,23 @@ absent.
    theorem, from seven named premises and the two quorum classes, with the
    standard axiom pin.
 
-   One premise joined the list after it was written and is recorded rather
-   than absorbed: **(F-timeout)**, because §3.2's two fairness classes turned
-   out to be inconsistent with (A-viewsync) — the correction is in §3.2.
+   **The model now carries the view timer as an abstract phase marker**, and
+   that settled the fairness question §3.2 had to work around. `timer_expired
+   i v` is set by the environment action `expire_timer` and guards both
+   timeout actions: a clock with exactly one tick and no arithmetic. With
+   it the two `timeout_*` actions are no longer perpetually enabled, so they
+   rejoin the weak-fairness class like every other honest action, and only
+   the *marker* is left outside it — when a timer runs out being the one
+   piece of timing an untimed model cannot derive.
+
+   Three consequences. (A-viewsync)'s second clause now constrains
+   `expire_timer`, so it mentions neither `decided` nor `timed_out` and just
+   relates two events: the timer running out and a certificate existing.
+   The **(F-timeout) premise is gone** — it was added when the two-class
+   scheme failed, the proof never used it, since (A-viewsync) asserts entry
+   into the good view outright, and an unused premise only weakens the
+   theorem; it returns when the climb is used to derive that entry.
+   `TerminationClaim` is down to **five** premises.
 
    **Input validity went the other way, and is now in the contract.** It was
    briefly a seventh premise. It is instead

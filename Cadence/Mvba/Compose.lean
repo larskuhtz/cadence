@@ -117,6 +117,20 @@ def Label.isInput : Mvba.Label node nodeset value view → Prop
   | .abandon _ => True
   | _ => False
 
+omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset vord in
+/-- `Label.isInput` names the two input constructors, in a form that
+survives leaving this module.
+
+The definition itself does not: since the label type reached twenty-five
+constructors Lean compiles its `match` to a bit-testing `Label.rec`, whose
+equation lemmas are available here but do not let `Label.isInput (.decide …)`
+reduce in an importing file. Consumers should case on this lemma rather than
+unfold the definition — `Mvba/Liveness.lean` does. -/
+theorem Label.isInput_cases {l : Mvba.Label node nodeset value view}
+    (h : Label.isInput l) :
+    (∃ i e, l = .propose i e) ∨ (∃ i, l = .abandon i) := by
+  cases l <;> simp_all [Label.isInput]
+
 variable (th : Mvba.Theory node nodeset value view)
 
 /-! ### Step-level facts, uniformly over all 24 actions

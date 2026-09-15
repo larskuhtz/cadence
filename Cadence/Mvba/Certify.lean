@@ -9,6 +9,7 @@ import Cadence.Mvba.Proofs.HandlePreprepare
 import Cadence.Mvba.Proofs.FormPrepqc
 import Cadence.Mvba.Proofs.AdoptPrepqc
 import Cadence.Mvba.Proofs.BecomeAvailReady
+import Cadence.Mvba.Proofs.ExpireTimer
 import Cadence.Mvba.Proofs.SendCommit
 import Cadence.Mvba.Proofs.FormCommitqc
 import Cadence.Mvba.Proofs.Decide
@@ -49,9 +50,9 @@ info: 'Mvba.invariants_of_reachable' depends on axioms: [propext, Classical.choi
 has a real, statement-matching, kernel-checked theorem in the import
 closure, over exactly the standard axioms. Run `#veil_status Mvba table`
 interactively for the per-cell table (theorem, defining file, per-cell
-axiom set). The count is (3 `safety` + 43 `invariant` + the per-action
-`doesNotThrow` cell) × (24 actions + the initializer), plus one
-`step_property` × 24 actions — a step relates two states, so unlike an
+axiom set). The count is (3 `safety` + 45 `invariant` + the per-action
+`doesNotThrow` cell) × (25 actions + the initializer), plus one
+`step_property` × 25 actions — a step relates two states, so unlike an
 invariant it has no cell at the initializer.
 
 **Eighteen of the invariants are there for liveness rather than safety**
@@ -107,6 +108,6 @@ antecedent; `docs/TODO.md` § Liveness has the alternative.
 and `form_tc_lock` additionally checks that a carried certificate is not of
 a view above the `Timeout` carrying it. -/
 
-/-- info: #veil_status Mvba: 1199/1199 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Mvba: 1273/1273 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Mvba
