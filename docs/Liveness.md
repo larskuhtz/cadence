@@ -46,7 +46,15 @@ outside Lean.
   proven in [`Cadence/Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean)
   and the measure they are progress in — a lexicographic rank that no
   transition can raise — in
-  [`Cadence/Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean). `Mvba` also needs a
+  [`Cadence/Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean). **`Mvba`'s
+  bound-erased termination is now proven** from named premises:
+  `Mvba.termination` in
+  [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean), over the
+  run vocabulary of [`Cadence/Fairness.lean`](../Cadence/Fairness.lean). It
+  is the first liveness result in this development that is a *theorem*
+  rather than a state-level fragment with the temporal step left to a named
+  axiom — the scheduling assumptions are hypotheses of the statement, which
+  is the discipline §2 of this document asks for. `Mvba` also needs a
   *third* scheduling class that Chorus does not: its two timeout actions are
   timers whose firing time the model abstracts away, so weak fairness on them
   would force a timeout out of every view. They are governed by (F-timeout)

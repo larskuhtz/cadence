@@ -5,10 +5,18 @@ import Cadence.Fairness
 /-! # Mvba.Liveness — the run-level target, and the assumptions it rests on
 
 [`docs/MvbaPlan.md`](../../docs/MvbaPlan.md) §3.4 and §3.5 step 4. This file
-**states** the bound-erased termination claim and every premise it takes. It
-does not prove it: `TerminationClaim` below is a `Prop`-valued *definition*,
-so the file is green without a `sorry` and the target is citable, greppable
-and type-checked from the day it is written rather than existing as prose.
+states the bound-erased termination claim, every premise it takes, **and its
+proof**: `Mvba.termination : TerminationClaim th`.
+
+`TerminationClaim` is a `Prop`-valued *definition*, written down before any
+of the proof existed. That was the point of the ordering: the target and its
+premises were fixed, type-checked and citable in advance rather than
+accumulating as a proof went along, so nothing could quietly become a
+hypothesis because a proof turned out to need it. Two premises did join the
+list afterwards and both are recorded as such — (F-timeout), because §3.2's
+two fairness classes turned out to be inconsistent, and `InputsValid`,
+because a fresh proposal's validity is the caller's obligation and no model
+fact supplies it.
 
 Everything a human has to believe is therefore a named `Prop` in this file,
 each with a docstring and each appearing as an explicit hypothesis of the
@@ -188,10 +196,20 @@ validator times out in the good view") contradicts weak fairness of
 The entry clause is conditioned on the validator having *participated*. A
 correct validator that never calls `propose` never enters any view, so
 without that condition this premise would quietly entail `AllPropose`, and
-two premises that look independent would not be. Each of the six is meant to
-be readable on its own. -/
+two premises that look independent would not be. Each of the premises is
+meant to be readable on its own.
+
+The good view is required to be **above the first**, by naming its
+predecessor `PV`. That is not a convenience: `thm:termination`'s proof makes
+the same restriction in as many words — "View 1 is exceptional because
+validators enter it when their local `propose` call occurs, and those calls
+need not be Δ-synchronized … We therefore analyze below a later view entered
+through a timeout certificate", the exceptional case contributing only a
+further `O(Δ)`. It costs nothing, because (A-leader-rotation) puts an
+honest-led view above *every* view, view 1 included. -/
 def AViewSync (r : MvbaRun th) : Prop :=
-  ∃ (W : view) (L : node),
+  ∃ (W PV : view) (L : node),
+    vord.next PV W ∧
     th.leader W L = true ∧ ¬ nset.is_byz L = true ∧
     (∀ i, ¬ nset.is_byz i = true → (∃ (n : Nat) (E : value), (r.at' n).input i E = true) →
       ∃ n, (r.at' n).entered i W = true) ∧
@@ -255,14 +273,15 @@ def Terminates (r : MvbaRun th) : Prop :=
 this is the `Prop` that §3.5 step 4 has to prove, written down so that its
 premises are fixed, type-checked and citable before the proof exists.
 
-The six premises are exactly the file's named definitions, in the order the
-header's table lists them. What is deliberately *absent* is any quorum
-machinery: `ByzNodeSetEnum` and `ByzNodeSetHonestQuorum` are what a proof
-needs, not part of the claim. -/
+The seven premises are exactly the file's named definitions. What is
+deliberately *absent* is any quorum machinery: `ByzNodeSetEnum` and
+`ByzNodeSetHonestQuorum` are what a **proof** needs to assemble certificates,
+not part of what is claimed, and they appear as hypotheses of `termination`
+below rather than here. -/
 def TerminationClaim (th : Theory node nodeset value view) : Prop :=
   ∀ r : MvbaRun th,
     FJustice r → FTimeout r → AViewSync r → FAvail r →
-    AllPropose r → NoEarlyAbandon r →
+    AllPropose r → NoEarlyAbandon r → InputsValid r →
       Terminates r
 
 /-! ## The last link of the chain
@@ -1769,6 +1788,25 @@ theorem eventually_tc_of_timed_out_quorum
                   hWle⟩))
     exact hcon (n + 1) (by omega) (form_tc_lock_effect (hfire ▸ r.steps n))
 
+/-! ## The claim, proven
+
+`TerminationClaim` was written down before any of its proof existed, so that
+its premises were fixed in advance rather than discovered. Here it is
+discharged.
+
+Everything it needs is above; what this adds is only the unpacking. The one
+place the two do not line up by themselves is participation: (A-viewsync)
+conditions its entry clause on a validator having proposed, and `AllPropose`
+supplies that. -/
+
+theorem termination
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset) :
+    TerminationClaim th := by
+  rintro r hfj - ⟨W, PV, l, hnext, hlead, hl, henter, hnto⟩ hav hap hna hiv
+  exact terminates_of_good_view enum hqe r hfj hav hna hap hiv hlead hl hnext
+    (fun i hi => henter i hi (hap i hi)) hnto
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -1877,6 +1915,12 @@ info: 'Mvba.terminates_of_good_view' depends on axioms: [propext, Classical.choi
 -/
 #guard_msgs in
 #print axioms Mvba.terminates_of_good_view
+
+/--
+info: 'Mvba.termination' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.termination
 
 /--
 info: 'Mvba.eventually_entered_of_climbing' depends on axioms: [propext, Classical.choice, Quot.sound]
