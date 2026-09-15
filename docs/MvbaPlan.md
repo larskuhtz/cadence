@@ -735,16 +735,37 @@ absent.
    or after the adoption — so the two are brought to a common index by
    monotonicity.
 
-   **Where the tally stands.** Six links proven, three invariants bought
-   (75 cells), all three for anti-monotone guards and none safety-relevant.
-   What is left is the *quorum-wide* half rather than the per-validator one:
-   every correct validator accepting the leader's proposal (so the prepare
-   quorum assembles, and then the commit quorum), and discharging
-   `SettledIn` from (A-viewsync). The acceptance step is where the next
-   invariants are expected — `handle_preprepare`'s vote guard
-   `∀ W, voted i W → W < v` is anti-monotone like the two before it, and its
-   failure is only the goal if an honest leader proposes at most one vector
-   per view, which the clump does not yet say.
+   **The acceptance, and the last per-validator link.**
+   `eventually_accepted_of_settled` — a correct validator settled in `v`,
+   with the honest leader of `v` having proposed a valid justified `e`,
+   accepts it and sends its `Prepare`. The most expensive link: its vote
+   guard `∀ W, voted i W → W < v` is anti-monotone like the two before it,
+   but a vote is a weaker thing than a lock, so showing its failure *is* the
+   goal took five invariants rather than one — `voted_within_entered` to pin
+   the lapse to `v`, `voted_implies_accepted_proposal` to turn a
+   non-timeout vote into an acceptance, and
+   `voted_implies_leader_proposed`, `honest_preprepare_unique`,
+   `honest_preprepare_proposed` to make that inductive. The last two are the
+   formal content of `thm:termination`'s "the correct leader broadcasts a
+   single valid proposal". A sixth, `accepted_implies_prepare`, is the one
+   that is not about a guard: the analysis yields `accepted` and the prepare
+   quorum needs `msg_prepare`, which the handlers set in the same step.
+
+   **This link is the first that does not hold for an arbitrary view**, and
+   that is not an artefact: under a Byzantine leader two correct validators
+   really can accept different vectors, which is why the protocol needs an
+   honest-led view and why (A-viewsync) produces one.
+
+   **Where the tally stands.** Seven links proven — the per-validator chain
+   is complete, from the leader's proposal to the decision — and nine
+   invariants bought (`#veil_status Mvba` **725 → 950**), every re-solve
+   green. All but one are for anti-monotone guards, and none is
+   safety-relevant. What is left is the *quorum-wide* half: lifting the
+   per-validator chain to every correct validator so the prepare and then
+   the commit quorum assemble (which is where
+   `ByzNodeSetHonestQuorum` finally earns its place), the leader's own
+   proposal step, and discharging `SettledIn` from (A-viewsync) together
+   with the view-change chain under (F-timeout).
 
 Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
 statement and re-solved the family once, but an assumption is a hypothesis

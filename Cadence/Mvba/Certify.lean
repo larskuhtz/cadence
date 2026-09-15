@@ -49,16 +49,32 @@ info: 'Mvba.invariants_of_reachable' depends on axioms: [propext, Classical.choi
 has a real, statement-matching, kernel-checked theorem in the import
 closure, over exactly the standard axioms. Run `#veil_status Mvba table`
 interactively for the per-cell table (theorem, defining file, per-cell
-axiom set). The count is (3 `safety` + 28 `invariant` + the per-action
-`doesNotThrow` cell) × (24 actions + the initializer). Three of the
-invariants are there for **liveness** rather than safety, and all three
-exist to keep an *anti-monotone* guard analysable — a fairness argument has
-to know that such a guard can only die by the progress it was waiting for
-(`Mvba/Liveness.lean`, `docs/MvbaPlan.md` §3.5 step 3):
-`commit_sent_implies_voted` and `commit_sent_backed` for `send_commit`'s
-`¬ commit_sent i v`, and `local_prepqc_within_entered` for
-`adopt_prepqc`'s `∀ W E, local_prepqc i W E → W < v`. -/
+axiom set). The count is (3 `safety` + 34 `invariant` + the per-action
+`doesNotThrow` cell) × (24 actions + the initializer).
 
-/-- info: #veil_status Mvba: 800/800 real; axioms: propext, Classical.choice, Quot.sound -/
+**Nine of the invariants are there for liveness rather than safety**
+(`docs/MvbaPlan.md` §3.5 step 3, `Mvba/Liveness.lean`). Every one of them
+exists to make an *anti-monotone* guard analysable: a fairness argument has
+to know that such a guard can only die by the progress it was waiting for,
+and the model's safety proof never had to ask where a guard's failure came
+from. By guard:
+
+* `send_commit`'s `¬ commit_sent i v` — `commit_sent_backed`, with
+  `commit_sent_implies_voted` to make it inductive;
+* `adopt_prepqc`'s `∀ W E, local_prepqc i W E → W < v` —
+  `local_prepqc_within_entered`;
+* `handle_preprepare`'s `∀ W, voted i W → W < v` —
+  `voted_implies_accepted_proposal`, resting on `voted_within_entered`,
+  `voted_implies_leader_proposed`, `honest_preprepare_unique` and
+  `honest_preprepare_proposed`. Those last two are the formal content of
+  `thm:termination`'s "the correct leader broadcasts a single valid
+  proposal".
+
+`accepted_implies_prepare` is the ninth, and the one exception to the
+pattern: it is not about a guard but about a *conclusion* — the acceptance
+link's guard analysis yields `accepted`, while the prepare quorum needs
+`msg_prepare`, and the two handlers set them in the same step. -/
+
+/-- info: #veil_status Mvba: 950/950 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Mvba
