@@ -227,9 +227,16 @@ view that every correct validator enters, and in which no correct validator
 times out before a commit certificate exists.
 
 This is the untimed stand-in for `thm:termination`'s after-GST Δ-synchrony
-together with its view-timeout bound — the paper's own sentence is "no
-correct validator times out of a correct-leader view before the decision
-completes", under a timeout exceeding `Δ_R + 3Δ + max(Δ, Δ_sync)`.
+together with its view-timeout bound. **In the paper the corresponding
+sentence is a consequence, not an assumption**: `subsec:mvba-protocol` fixes
+the view timeout to exceed `Δ_R + 3Δ + max(Δ, Δ_sync)` after GST, and
+`thm:termination` derives from it that "no correct validator times out of a
+correct-leader view before the decision completes". What is assumed there is
+a relation between constants; what is assumed here is its conclusion,
+because an untimed model cannot state the premise. That is the strongest
+argument for the timer item of [`docs/TODO.md`](../../docs/TODO.md)
+§ Liveness — with a phase marker the premise becomes statable as an ordering
+constraint, and this premise becomes a consequence here too.
 
 Two things about the shape. The "before …" is load-bearing: the flat form
 ("no correct validator times out in the good view") contradicts weak

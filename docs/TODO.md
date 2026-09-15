@@ -112,8 +112,12 @@ come first.
 
 ## Liveness
 
-* **A non-vacuity instrument at the *composition* level.** Every check of
-  this kind in the repository is per-model: eight `sat trace` blocks across
+* **A non-vacuity instrument at the *composition* level.** The reason one is
+  needed at all is that non-vacuity does not compose —
+  [`CompositionContracts.md`](./CompositionContracts.md) §7, "Vacuity does
+  not compose", states why, and why the principled fix is liveness rather
+  than a better contract. This item is the cheap standing check, not the
+  answer. Every instrument of this kind in the repository is per-model: eight `sat trace` blocks across
   `Cadence`, `Conductor` and `Mvba`, plus the two `#model_check`s. There is
   **none** for the composed system — `System.lean`, `Composition.lean` and
   the two `Compose.lean` files contain no reachability witness at all. So a

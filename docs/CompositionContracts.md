@@ -378,6 +378,39 @@ the proven fragments.
    that, and the definition is one line to audit.
 5. **The two fault patterns** meet in `hbyz` (§6) — a hypothesis, not a proof.
 
+### Vacuity does not compose
+
+Safety is universally quantified over behaviours, so it composes: if a
+provider is safe in all of its behaviours and the consumer only drives it
+where the contract allows, the composition is safe. **Non-vacuity is
+existential, and existentials do not compose.** A provider's witness — the
+run in which it does something interesting — may rest on inputs the consumer
+can never supply, and then the composition is vacuous although both parts
+are not.
+
+What the contracts here give is *for all implementations of the class, the
+composed system is safe*, together with *there exists an implementation for
+which it is non-vacuous*. What would be wanted is *for all safe and
+non-vacuous implementations, the composed system is safe and non-vacuous*.
+That is not available, and strengthening the class would not deliver it:
+an implementation can be non-vacuous in isolation and still never reach
+anything interesting under the input profile its consumer produces. To close
+that, non-vacuity would have to be indexed by the admissible input profile —
+and a property of the form "under every admissible input, something
+eventually happens" is liveness. The strengthened-contract route collapses
+into the liveness route rather than being an alternative to it.
+
+Two consequences, both practical. **A per-model non-vacuity witness does not
+certify the composition**, so the `sat trace` blocks in the module files are
+evidence about the modules and nothing more; a witness has to be exhibited
+for the composed system as well
+([`TODO.md`](./TODO.md) § Soundness). And **the principled fix is liveness**:
+once a provider's own progress theorem is discharged and its consumer's
+corresponding assumption with it, non-vacuity along that path stops being a
+question about witnesses. [`Mvba.termination`](../Cadence/Mvba/Liveness.lean)
+is that theorem for the MVBA; what is still open is Chorus's (A-mvba)
+([`Architecture.md`](./Architecture.md) §4 item 2).
+
 ## 8. Reproductions
 
 The runnable experiments behind the design are in
