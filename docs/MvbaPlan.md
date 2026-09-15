@@ -804,15 +804,37 @@ absent.
    It is recorded here rather than assumed silently, and will join the
    premise list when the composition needs it.
 
-   **Where the tally stands.** Every link of the decision chain is proven,
-   from the honest leader's proposal to every correct validator deciding, on
-   twelve invariants (`#veil_status Mvba` **725 → 1025**), every re-solve
-   green; all but four are for anti-monotone guards and none is
-   safety-relevant. What remains is not the chain at all but the two
-   premises that put a run *into* a good view: discharging `SettledIn`
-   from (A-viewsync), and the view-change chain under (F-timeout) that
-   carries a run from view 1 to the honest-led view (A-leader-rotation)
-   promises.
+   **The validity premise, checked against the specification
+   (2026-09-14).** The supplement is clear and Cadence satisfies it. `propose`
+   has a validity precondition, `thm:termination` relies on it in as many
+   words ("the leader proposes its input `B_l`, which is a valid \metablock
+   by the precondition of `propose`"), `Interfaces.lean` documents it on
+   `MVBASafety.propose`, and Chorus's `mvba_propose` enforces it with three
+   `require` clauses. What is missing is only the *transmission*:
+   `Mvba.propose` does not record validity, so this side restates it as the
+   named premise `InputsValid`. Whether to close that with a
+   `require valid e` on `Mvba.propose` or to discharge the premise at the
+   composition is a decision, recorded in [`TODO.md`](./TODO.md) § Liveness.
+
+   **The view change.** The other half of liveness, and the one the decision
+   chain cannot supply: what carries a run *out of* a stalled view.
+   `eventually_tc_of_timeout_quorum` assembles the certificate and
+   `eventually_entered_above_of_tc` advances a validator past the closed
+   view. The timers themselves are not a link — they fire by (F-timeout),
+   which §3.2 explains cannot be weak fairness. Neither step costs an
+   invariant, and `sync_view` is the cleanest instance of the whole pattern:
+   its anti-monotone guard `∀ V, entered i V → V ≤ pv` needs no invariant at
+   all, because the guard's negation *is* the conclusion — a validator whose
+   views are no longer all below `pv` has already advanced past it.
+
+   **Where the tally stands.** Every link is proven: the decision chain from
+   the honest leader's proposal to every correct validator deciding, and the
+   view-change chain that closes a stalled view and advances past it. Twelve
+   invariants (`#veil_status Mvba` **725 → 1025**), every re-solve green; all
+   but four are for anti-monotone guards and none is safety-relevant. What
+   remains is the *assembly*: discharging `SettledIn` for the good view from
+   (A-viewsync), and iterating the view change up to that view — which is
+   where (A-leader-rotation) and the rank's first component finally meet.
 
 Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
 statement and re-solved the family once, but an assumption is a hypothesis

@@ -212,6 +212,28 @@ validator has invoked propose", and this is that. -/
 def AllPropose (r : MvbaRun th) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ (n : Nat) (E : value), (r.at' n).input i E = true
 
+/-- **The caller's third premise**: what correct validators propose is valid.
+
+Checked against the specification 2026-09-14, and it is the paper's premise
+rather than an artefact here. `subsec:mvba-protocol` gives `propose` a
+validity precondition, and `thm:termination`'s proof leans on it in as many
+words — the leader "proposes its input `B_l`, which is a valid \metablock by
+the precondition of `propose`". `Cadence/Interfaces.lean` carries it as the
+docstring of `MVBASafety.propose`, and the consumer enforces it: Chorus's
+`mvba_propose` spells `Valid B_i` out as three `require` clauses.
+
+What is missing is only the *transmission*. `Mvba.propose` records the input
+without recording its validity, so a proof on this side cannot see what
+Chorus has already guaranteed, and the premise has to be restated here. The
+alternative — a `require valid e` on `Mvba.propose`, which the supplement's
+precondition would justify — would make it a model fact and delete this
+definition, at the cost of a stronger precondition on the composition;
+`docs/TODO.md` carries the decision. A *re*-proposal needs none of this:
+`prepqc_valid` shows a certified lock is valid whatever the caller did. -/
+def InputsValid (r : MvbaRun th) : Prop :=
+  ∀ (i : node) (n : Nat) (E : value), ¬ nset.is_byz i = true →
+    (r.at' n).input i E = true → th.valid E = true
+
 /-- **The caller's second premise**: no correct validator is abandoned before
 it decides. `thm:termination`'s "if no correct validator is externally
 abandoned before deciding"; `abandon` is a contract *input*, so this is a
@@ -1060,6 +1082,121 @@ theorem eventually_preprepare_of_settled_leader
             (hnl' n hn) (hin' n hn) (hnp n hn))
     exact hcon (n + 1) E₀ (by omega) (leader_propose_fresh_effect (hfire ▸ r.steps n))
 
+/-! ## The view change
+
+The other half of liveness, and the one the decision chain cannot supply:
+what carries a run *out of* a view whose leader is silent or faulty, and so
+towards the honest-led view (A-leader-rotation) promises.
+
+Three steps, of which only the middle two are theorems. The timers fire by
+(F-timeout), which is an assumption and not a link — §3.2 explains why weak
+fairness on `timeout_qc` would be worse than useless. Given that they have
+fired, the rest is the familiar shape: a quorum of timeouts assembles a
+certificate, and the certificate lets a validator advance.
+
+Neither step costs a new invariant. `sync_view`'s guard
+`∀ V, entered i V → V ≤ pv` is anti-monotone, but its failure is the goal
+outright — a validator whose views are no longer all below `pv` has already
+advanced past `pv`, which is what the step was for. That is the cleanest
+instance of the pattern in the file: no invariant is needed because the
+guard's negation *is* the conclusion. -/
+
+/-- **`form_tc_nolock`'s guards are its enabledness.** -/
+theorem enabled_form_tc_nolock {v : view} {q : nodeset}
+    (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → st.msg_timeout_noqc p v = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.form_tc_nolock v q) := by
+  mvba_enabled
+  exact ⟨_, hsm, hall, rfl⟩
+
+/-- **`form_tc_nolock`'s effect**: the view is closed by a certificate. -/
+theorem form_tc_nolock_effect {v : view} {q : nodeset}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.form_tc_nolock v q) st') : st'.msg_tc v = true := by
+  mvba_tr htr
+  obtain ⟨-, -, rfl⟩ := htr
+  mvba_effect
+
+/-- **The timeout-certificate link.** A supermajority all of whose members
+have sent their lock-free `Timeout` for `v` closes the view. -/
+theorem eventually_tc_of_timeout_quorum
+    (r : MvbaRun th) (hfj : FJustice r)
+    {N : Nat} {v : view} {q : nodeset} (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_timeout_noqc p v = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).msg_tc v = true := by
+  by_contra hcon
+  push Not at hcon
+  have hall' : ∀ n, N ≤ n → ∀ p, nset.member p q = true →
+      (r.at' n).msg_timeout_noqc p v = true := by
+    intro n hn p hp
+    exact r.mono (P := fun s => s.msg_timeout_noqc p v = true)
+      (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm) (hall p hp) n hn
+  obtain ⟨n, hn, hfire⟩ :=
+    hfj (.form_tc_nolock v q)
+      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (fun n hn => enabled_form_tc_nolock hsm (hall' n hn))
+  exact hcon (n + 1) (by omega) (form_tc_nolock_effect (hfire ▸ r.steps n))
+
+/-- **`sync_view`'s guards are its enabledness.** -/
+theorem enabled_sync_view {i : node} {pv v : view}
+    (hi : ¬ nset.is_byz i = true)
+    (hin : ∃ E, st.input i E = true)
+    (hab : ¬ st.abandoned i = true)
+    (hnext : vord.next pv v)
+    (htc : st.msg_tc pv = true)
+    (hbelow : ∀ V, st.entered i V = true → vord.le V pv) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.sync_view i pv v) := by
+  mvba_enabled
+  exact ⟨_, hi, hin, hab, hnext, htc, hbelow, rfl⟩
+
+/-- **`sync_view`'s effect**: the next view is entered. -/
+theorem sync_view_effect {i : node} {pv v : view}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.sync_view i pv v) st') : st'.entered i v = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
+  mvba_effect
+
+/-- **The view-advance link.** Given a timeout certificate for `pv`, a
+correct validator that has proposed and is not abandoned ends up having
+entered some view strictly above `pv`.
+
+The conclusion is stated that way — "some view above `pv`" rather than
+"`pv + 1`" — because both outcomes are progress and the guard's failure
+gives the first directly: either the validator syncs into `pv + 1`, or it
+was already past `pv`, in which case there is nothing to do. -/
+theorem eventually_entered_above_of_tc
+    (r : MvbaRun th) (hfj : FJustice r)
+    {i : node} (hi : ¬ nset.is_byz i = true) {pv v : view} {N : Nat}
+    (hnext : vord.next pv v)
+    (hnab : ∀ n, N ≤ n → ¬ (r.at' n).abandoned i = true)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
+    (htc : (r.at' N).msg_tc pv = true) :
+    ∃ (n : Nat) (V : view), N ≤ n ∧ (r.at' n).entered i V = true ∧ vord.lt pv V := by
+  have hlt : vord.lt pv v := ((vord.next_def pv v).mp hnext).1
+  by_contra hcon
+  push Not at hcon
+  have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
+    r.mono (P := fun s => s.input i E₀ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
+  have htc' : ∀ n, N ≤ n → (r.at' n).msg_tc pv = true :=
+    r.mono (P := fun s => s.msg_tc pv = true)
+      (fun m hm => Mvba.msg_tc.mono (r.steps m) pv hm) htc
+  -- The anti-monotone guard, and the cleanest case of the pattern: its
+  -- failure *is* the conclusion.
+  have hbelow : ∀ n, N ≤ n → ∀ V, (r.at' n).entered i V = true → vord.le V pv := by
+    intro n hn V hV
+    by_contra hnle
+    exact hcon n V hn hV (lt_of_not_le hnle)
+  obtain ⟨n, hn, hfire⟩ :=
+    hfj (.sync_view i pv v)
+      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (fun n hn =>
+        enabled_sync_view hi ⟨E₀, hin' n hn⟩ (hnab n hn) hnext (htc' n hn) (hbelow n hn))
+  exact hcon (n + 1) v (by omega) (sync_view_effect (hfire ▸ r.steps n)) hlt
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -1144,3 +1281,9 @@ info: 'Mvba.eventually_preprepare_of_settled_leader' depends on axioms: [propext
 -/
 #guard_msgs in
 #print axioms Mvba.eventually_preprepare_of_settled_leader
+
+/--
+info: 'Mvba.eventually_entered_above_of_tc' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_entered_above_of_tc
