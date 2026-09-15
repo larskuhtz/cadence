@@ -359,7 +359,14 @@ relations, and it takes a human to confirm each use is positive.
    the `ByzNodeSet` quorum/counting interface is **not** an assumption
    gap — its axioms are Lean-proven for the concrete `byzNodeSetFin`
    instance family, which covers every deployment size `n = 3f+1` with
-   any Byzantine set of size `≤ f`. An end-to-end example instantiation
+   any Byzantine set of size `≤ f`. The two liveness-side extensions in
+   [Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean) — `ByzNodeSetEnum`
+   (a quorum's members as a list) and `ByzNodeSetHonestQuorum` (a
+   supermajority of correct validators, which the intersection axioms do
+   not give) — are not gaps either, and are deliberately *outside*
+   `ByzNodeSet` so that no safety theorem acquires them: both are
+   discharged for the same `n ≥ 3f+1` family, and a liveness theorem
+   carries whichever it uses as a visible hypothesis. An end-to-end example instantiation
    of the remaining class stack (a `ThresholdIBE` model instance) is open
    work ([ChorusDesign.md](./ChorusDesign.md) §9).
 4. **Temporal/quantitative module obligations**: totality, termination,
