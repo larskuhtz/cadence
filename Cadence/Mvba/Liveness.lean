@@ -12,12 +12,13 @@ proof**: `Mvba.termination : TerminationClaim th`.
 of the proof existed. That was the point of the ordering: the target and its
 premises were fixed, type-checked and citable in advance rather than
 accumulating as a proof went along, so nothing could quietly become a
-hypothesis because a proof turned out to need it. One premise did join the
-list afterwards and is recorded as such: (F-timeout), because §3.2's two
-fairness classes turned out to be inconsistent. A second candidate,
-validity of the callers' inputs, went the other way — it is part of the
-contract with the consumer, so it became a guard of `Mvba.propose` (the
-supplement's own precondition) instead of a premise here.
+hypothesis because a proof turned out to need it. The list moved twice afterwards and both moves are recorded. A
+(F-timeout) premise was added when §3.2's two fairness classes turned out
+not to work, and removed again once the model carried a timer and the proof
+was seen never to use it. Validity of the callers' inputs went the other
+way: it is part of the contract with the consumer, so it became
+`MVBASafety.propose_valid` and a guard of `Mvba.propose` (the supplement's
+own precondition) rather than a premise here.
 
 Everything a human has to believe is therefore a named `Prop` in this file,
 each with a docstring and each appearing as an explicit hypothesis of the
@@ -49,9 +50,17 @@ into the two halves it always had:
 | class | labels | what is assumed |
 |---|---|---|
 | unfair | `ByzLabel` | nothing — (F-byz) |
-| weakly fair | `JusticeLabel` | (F-justice) |
-| timer | `TimerLabel` | (F-timeout) *and* (A-viewsync) |
-| input | `Label.isInput` | nothing here — a premise of the claim, not fairness |
+| weakly fair | `JusticeLabel`, the two `timeout_*` among them | (F-justice) |
+| timer | `TimerLabel`, i.e. `expire_timer` | (A-viewsync) |
+| input | `InputLabel` | nothing here — a premise of the claim, not fairness |
+
+**There is no premise saying views eventually close.** An earlier
+(F-timeout) said so, and the proof never used it: (A-viewsync) asserts that
+every correct validator *enters* the good view, so nothing here has to
+carry a run there. It was dropped rather than left standing, since an unused
+premise only weakens the theorem. It returns the moment (A-viewsync) is
+weakened to have the entry derived instead — which is what the climbing
+section exists for.
 
 (F-timeout) is "the timeout is finite": a correct validator that has not
 decided eventually times out of every view it enters, which is what closes a
@@ -153,21 +162,38 @@ def ByzLabel : Mvba.Label node nodeset value view → Prop
   | .byz_timeout_noqc .. => True
   | _ => False
 
-/-- The two timer labels. They are honest actions, but the model abstracts
-away *when* they fire, so they carry no weak-fairness hypothesis and are
-governed by (F-timeout) and (A-viewsync) instead — the header says why weak
-fairness on them would make the claim vacuous. -/
+/-- The timer label. Just `expire_timer`, the environment action that marks
+a validator's view timer as run out.
+
+The two `timeout_*` actions used to be here. They are ordinary honest
+actions again now that the model carries the marker: they are guarded on it,
+so they are not perpetually enabled, and weak fairness on them is sound —
+see the header. What carries no fairness hypothesis is the *marker*, because
+when a timer expires is the one piece of timing an untimed model cannot
+derive. -/
 def TimerLabel : Mvba.Label node nodeset value view → Prop
-  | .timeout_qc .. => True
-  | .timeout_noqc .. => True
+  | .expire_timer .. => True
+  | _ => False
+
+/-- The two contract inputs. This restates `Mvba/Compose.lean`'s
+`Label.isInput` rather than using it, and the reason is mechanical, not a
+disagreement about what an input is: since the label type reached
+twenty-five constructors that definition's `match` no longer reduces outside
+its own module, so `¬ Label.isInput (.decide …)` cannot be discharged here.
+The two are tied together by `not_justice_of_input` below, through
+`Label.isInput_cases`, so a drift between them is caught rather than
+silent. -/
+def InputLabel : Mvba.Label node nodeset value view → Prop
+  | .propose .. => True
+  | .abandon .. => True
   | _ => False
 
 /-- The labels (F-justice) covers: the honest message handlers, the
-certificate assemblies, the view changes and the environment's availability
-action — everything that is neither the adversary's, nor a timer, nor the
-caller's input. -/
+certificate assemblies, the view changes, the timeouts and the environment's
+availability action — everything that is neither the adversary's, nor the
+timer, nor the caller's input. -/
 def JusticeLabel (l : Mvba.Label node nodeset value view) : Prop :=
-  ¬ ByzLabel l ∧ ¬ TimerLabel l ∧ ¬ Label.isInput l
+  ¬ ByzLabel l ∧ ¬ TimerLabel l ∧ ¬ InputLabel l
 
 /-- **(F-byz), machine-checked at the only level it can be**: no label the
 adversary controls is subject to a fairness hypothesis. -/
@@ -178,16 +204,37 @@ theorem not_justice_of_byz (l : Mvba.Label node nodeset value view)
 theorem not_justice_of_timer (l : Mvba.Label node nodeset value view)
     (h : TimerLabel l) : ¬ JusticeLabel l := fun hj => hj.2.1 h
 
-/-- And the caller's inputs are not scheduled here either. -/
+/-- And the caller's inputs are not scheduled here either — stated against
+`Mvba/Compose.lean`'s `Label.isInput`, which is what ties `InputLabel` to the
+module's own notion of an input. -/
 theorem not_justice_of_input (l : Mvba.Label node nodeset value view)
-    (h : Label.isInput l) : ¬ JusticeLabel l := fun hj => hj.2.2 h
+    (h : Label.isInput l) : ¬ JusticeLabel l := by
+  rcases Label.isInput_cases h with ⟨i, e, rfl⟩ | ⟨i, rfl⟩
+  · exact fun hj => hj.2.2 trivial
+  · exact fun hj => hj.2.2 trivial
 
-/-- The classification is exhaustive: every label is scheduled by exactly one
-of the four disciplines. Proven by cases over the model's own label type, so
-it cannot drift from the action list. -/
+/-- The classification is exhaustive: every label falls under one of the four
+disciplines.
+
+Exhaustiveness is *by construction* — `JusticeLabel` is defined as the
+negation of the other three — so this is a classical case split and checks
+nothing about the action list. What does the checking is the two `match`
+definitions above, which are non-exhaustive matches over the model's own
+label type: adding an action and forgetting it lands it in `JusticeLabel`
+silently, and the guard against that is reading them, not this lemma.
+(A `cases l` proof used to stand here and verified no more; it stopped
+elaborating when the twenty-fifth action pushed `Label.isInput`'s match past
+the point where Lean generates its equation lemmas.) -/
 theorem label_classified (l : Mvba.Label node nodeset value view) :
-    JusticeLabel l ∨ ByzLabel l ∨ TimerLabel l ∨ Label.isInput l := by
-  cases l <;> simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]
+    JusticeLabel l ∨ ByzLabel l ∨ TimerLabel l ∨ InputLabel l := by
+  classical
+  by_cases hb : ByzLabel l
+  · exact Or.inr (Or.inl hb)
+  by_cases ht : TimerLabel l
+  · exact Or.inr (Or.inr (Or.inl ht))
+  by_cases hi : InputLabel l
+  · exact Or.inr (Or.inr (Or.inr hi))
+  exact Or.inl ⟨hb, ht, hi⟩
 
 end Labels
 
@@ -212,19 +259,9 @@ action. The one scheduling assumption of the ordinary kind. -/
 def FJustice (r : MvbaRun th) : Prop :=
   ∀ l, JusticeLabel l → WeaklyFair r l
 
-/-- **(F-timeout)** — *the timeout is finite.* A correct validator that never
-decides eventually times out of every view it enters. This is what closes a
-view whose leader is faulty or silent, and so what lets the view counter
-advance at all; without it a run may stall in view 1 forever. -/
-def FTimeout (r : MvbaRun th) : Prop :=
-  ∀ (i : node) (V : view) (n : Nat), ¬ nset.is_byz i = true →
-    (r.at' n).entered i V = true →
-    (∀ m E, ¬ (r.at' m).decided i E = true) →
-      ∃ m, (r.at' m).timed_out i V = true
-
 /-- **(A-viewsync)** — *the timeout is long enough.* There is an honest-led
-view that every correct validator enters, and in which no correct validator
-times out before a commit certificate exists.
+view that every correct validator enters, and in which no correct
+validator's **timer runs out** before a commit certificate exists.
 
 This is the untimed stand-in for `thm:termination`'s after-GST Δ-synchrony
 together with its view-timeout bound. **In the paper the corresponding
@@ -238,15 +275,24 @@ argument for the timer item of [`docs/TODO.md`](../../docs/TODO.md)
 § Liveness — with a phase marker the premise becomes statable as an ordering
 constraint, and this premise becomes a consequence here too.
 
-Two things about the shape. The "before …" is load-bearing: the flat form
-("no correct validator times out in the good view") contradicts weak
-fairness of `timeout_qc` outright, and the claim would then hold vacuously.
-And the consequent is a **commit certificate**, not a decision — weaker than
+Three things about the shape, each of which took a wrong version first.
+
+The antecedent is `timer_expired`, the environment's marker, not
+`timed_out`. That is what the marker is *for*: the premise now constrains
+when a timer may run out, which is a statement about the environment, and
+the protocol's own timeout actions are left to weak fairness like every
+other honest action. `timed_out_implies_timer` carries it to the timeouts.
+
+The consequent is a **commit certificate**, not a decision — weaker than
 both the paper's sentence and an earlier version of this definition, and
 enough, because `eventually_decided_of_commitqc` turns a certificate into
-every correct validator deciding using (F-justice) alone. Weakening it this
-way also stops the premise mentioning `decided`, so it constrains the
-network rather than naming the conclusion.
+every correct validator deciding using (F-justice) alone. So the premise
+mentions neither `decided` nor `timed_out`: it relates two events, the
+timer running out and a certificate existing.
+
+And the "before …" is load-bearing: a flat form ("the timer never runs out
+in the good view") would be unsatisfiable once anything forces timers to
+expire, and the claim would hold vacuously.
 
 The entry clause is conditioned on the validator having *participated*. A
 correct validator that never calls `propose` never enters any view, so
@@ -268,7 +314,7 @@ def AViewSync (r : MvbaRun th) : Prop :=
     th.leader W L = true ∧ ¬ nset.is_byz L = true ∧
     (∀ i, ¬ nset.is_byz i = true → (∃ (n : Nat) (E : value), (r.at' n).input i E = true) →
       ∃ n, (r.at' n).entered i W = true) ∧
-    (∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
+    (∀ i n, ¬ nset.is_byz i = true → (r.at' n).timer_expired i W = true →
       ∃ (V : view) (E : value), (r.at' n).msg_commitqc V E = true)
 
 /-- **(F-avail)** — the availability shares arrive. A correct validator that
@@ -306,7 +352,7 @@ def Terminates (r : MvbaRun th) : Prop :=
 this is the `Prop` that §3.5 step 4 has to prove, written down so that its
 premises are fixed, type-checked and citable before the proof exists.
 
-The six premises are exactly the file's named definitions. Input validity
+The five premises are exactly the file's named definitions. Input validity
 is **not** among them, and deliberately: it is part of the contract between
 the consumer and this module, so it lives in `Mvba.propose`'s guard where
 Chorus's `mvba_propose` already meets it, rather than being restated here as
@@ -317,7 +363,7 @@ not part of what is claimed, and they appear as hypotheses of `termination`
 below rather than here. -/
 def TerminationClaim (th : Theory node nodeset value view) : Prop :=
   ∀ r : MvbaRun th,
-    FJustice r → FTimeout r → AViewSync r → FAvail r →
+    FJustice r → AViewSync r → FAvail r →
     AllPropose r → NoEarlyAbandon r →
       Terminates r
 
@@ -411,7 +457,7 @@ theorem eventually_decided_of_commitqc
       (fun m hm => Mvba.msg_commitqc.mono (r.steps m) v e hm) hqc
   -- So `decide i v e` is enabled from `N` on, and weak fairness fires it.
   obtain ⟨n, hn, hfire⟩ :=
-    hfj (.decide i v e) (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+    hfj (.decide i v e) (⟨fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => enabled_decide hi ⟨E₀, hin' n hn⟩ (hab n) (hqc' n hn) (fun E => hcon n E))
   exact hcon (n + 1) e (decide_effect (hfire ▸ r.steps n))
 
@@ -465,7 +511,7 @@ theorem eventually_commitqc_of_commit_quorum
       (fun m hm => Mvba.msg_commit.mono (r.steps m) p v e hm) (hall p hp) n hn
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_commitqc v e q)
-      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (⟨fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => enabled_form_commitqc hsm (hall' n hn))
   exact hcon (n + 1) (by omega) (form_commitqc_effect (hfire ▸ r.steps n))
 
@@ -590,7 +636,7 @@ theorem eventually_msg_commit_of_settled
       (Mvba.reachable_commit_sent_backed (r.reachable n) i v e hi hcs (hacc' n hn))
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.send_commit i v e)
-      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (⟨fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn =>
         enabled_send_commit hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           (hacc' n hn) (hloc' n hn) (hs n hn).2.1 (hncs n hn) (hav' n hn))
@@ -698,7 +744,7 @@ theorem eventually_local_prepqc_of_settled
       (local_prepqc_of_guard_lapsed (r.reachable n) hi (hs n hn).1 (hqc' n hn) hlapse)
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.adopt_prepqc i v e)
-      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (⟨fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn =>
         enabled_adopt_prepqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           (hqc' n hn) (hacc' n hn) (hlow n hn) (hs n hn).2.1)
@@ -749,7 +795,7 @@ theorem eventually_prepqc_of_prepare_quorum
       (fun m hm => Mvba.msg_prepare.mono (r.steps m) p v e hm) (hall p hp) n hn
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_prepqc v e q)
-      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (⟨fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => enabled_form_prepqc hsm (hall' n hn))
   exact hcon (n + 1) (by omega) (form_prepqc_effect (hfire ▸ r.steps n))
 
@@ -910,7 +956,7 @@ theorem eventually_accepted_of_settled
       (Mvba.reachable_accepted_implies_prepare (r.reachable n) i v e hi hacc)
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.handle_preprepare i l pv v e)
-      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (⟨fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn =>
         enabled_handle_preprepare hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           hnext hlead (hpp' n hn) hvalid (hjust' n hn) (hvote n hn))
@@ -1122,7 +1168,7 @@ theorem eventually_preprepare_of_settled_leader
         (fun m hm => Mvba.tc_lock.mono (r.steps m) pv w e hm) hw
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.leader_repropose l pv v w e)
-        (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+        (⟨fun h => h, fun h => h, fun h => h⟩) N
         (fun n hn =>
           enabled_leader_repropose hl ⟨E₀, hin' n hn⟩ (hs n hn).2.2 hnext hlead
             (hs n hn).1 (hw' n hn) (hnp n hn))
@@ -1132,7 +1178,7 @@ theorem eventually_preprepare_of_settled_leader
         (fun m hm => Mvba.tc_nolock.mono (r.steps m) pv hm) hnl
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.leader_propose_fresh l pv v E₀)
-        (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+        (⟨fun h => h, fun h => h, fun h => h⟩) N
         (fun n hn =>
           enabled_leader_propose_fresh hl (hs n hn).2.2 hnext hlead (hs n hn).1
             (hnl' n hn) (hin' n hn) (hnp n hn))
@@ -1190,7 +1236,7 @@ theorem eventually_tc_of_timeout_quorum
       (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm) (hall p hp) n hn
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_tc_nolock v q)
-      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (⟨fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => enabled_form_tc_nolock hsm (hall' n hn))
   exact hcon (n + 1) (by omega) (form_tc_nolock_effect (hfire ▸ r.steps n))
 
@@ -1248,7 +1294,7 @@ theorem eventually_entered_above_of_tc
     exact hcon n V hn hV (lt_of_not_le hnle)
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.sync_view i pv v)
-      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (⟨fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn =>
         enabled_sync_view hi ⟨E₀, hin' n hn⟩ (hnab n hn) hnext (htc' n hn) (hbelow n hn))
   exact hcon (n + 1) v (by omega) (sync_view_effect (hfire ▸ r.steps n)) hlt
@@ -1573,7 +1619,7 @@ theorem terminates_of_good_view
     (hlead : th.leader W l = true) (hl : ¬ nset.is_byz l = true)
     (hnext : vord.next pv W)
     (henter : ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).entered i W = true)
-    (hnto : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
+    (hnto : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timer_expired i W = true →
       ∃ (V : view) (E : value), (r.at' n).msg_commitqc V E = true) :
     Terminates r := by
   by_cases hdec : ∃ (j : node) (n : Nat) (E : value),
@@ -1600,7 +1646,10 @@ theorem terminates_of_good_view
     have hto : ∀ i n, ¬ nset.is_byz i = true →
         (r.at' n).timed_out i W = true → False := by
       intro i n hi hti
-      obtain ⟨V, E, hV⟩ := hnto i n hi hti
+      -- The premise speaks of the timer; the model says a validator that has
+      -- timed out had one that ran out.
+      obtain ⟨V, E, hV⟩ :=
+        hnto i n hi (Mvba.reachable_timed_out_implies_timer (r.reachable n) i W hi hti)
       obtain ⟨m, E₀, hm⟩ := hap i hi
       obtain ⟨k, Ek, hk⟩ :=
         eventually_decided_of_commitqc r hfj hna hi
@@ -1829,7 +1878,7 @@ theorem eventually_tc_of_timed_out_quorum
       Mvba.reachable_timeout_qc_view_le (r.reachable N) r₀ v w e hq₀
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.form_tc_lock v q r₀ w e)
-        (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+        (⟨fun h => h, fun h => h, fun h => h⟩) N
         (fun n hn =>
           enabled_form_tc_lock hsm ((enum.mem_members r₀ q).mpr hr₀) (hq₀' n hn)
             (hpq' n hn) hle (fun p hp => by
@@ -1856,7 +1905,7 @@ theorem termination
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
     (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset) :
     TerminationClaim th := by
-  rintro r hfj - ⟨W, PV, l, hnext, hlead, hl, henter, hnto⟩ hav hap hna
+  rintro r hfj ⟨W, PV, l, hnext, hlead, hl, henter, hnto⟩ hav hap hna
   exact terminates_of_good_view enum hqe r hfj hav hna hap hlead hl hnext
     (fun i hi => henter i hi (hap i hi)) hnto
 
@@ -1883,7 +1932,9 @@ end Mvba
 Definitions and four facts about the label classification; the target itself
 is a definition, so nothing here asserts termination. -/
 
-/-- info: 'Mvba.label_classified' depends on axioms: [propext] -/
+/--
+info: 'Mvba.label_classified' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
 #guard_msgs in
 #print axioms Mvba.label_classified
 

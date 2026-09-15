@@ -119,6 +119,18 @@ the environment relation `avail_ready i e` (`AvailReady_i`).
   timeout carrying `⊥`. The model lets a Byzantine sender send the `⊥`
   form instead (`byz_timeout_qc` requires `w ≤ v`), and the assembly
   guards need no filter.
+* **The view timer is an abstract phase marker.** `timer_expired i v` is
+  set by the environment action `expire_timer` and guards both timeout
+  actions. It is a clock with exactly one tick — before the timeout, after
+  the timeout — and no arithmetic, which is what an *untimed* model can
+  carry. Without it the timeout actions are always enabled in the current
+  view, the scheduler chooses freely between timing out and making progress,
+  and the timing discipline has to be restored by an assumption naming the
+  protocol's own conclusion; with it, the choice is the environment's, the
+  timeout actions are weakly fair like every other honest action, and the
+  assumption becomes an ordering constraint on `expire_timer`
+  (`docs/MvbaPlan.md` §3.2, `Mvba/Liveness.lean`). Safety is untouched: a
+  guard only removes behaviours.
 * **`timeout` covers the timer and the `f+1` echo rule**
   (`line:mvba:timeout-send`, `line:mvba:ht-send`): both send the same
   message under the same local update; the rule that *enables* the second
@@ -216,6 +228,9 @@ relation proposed_in (l : node) (v : view)
 relation decided (i : node) (e : value)
 relation abandoned (i : node)
 relation avail_ready (i : node) (e : value)
+-- The view timer, as an abstract phase marker: `timer_expired i v` says
+-- `i`'s timer for view `v` has run out. See the header.
+relation timer_expired (i : node) (v : view)
 
 #gen_state
 
@@ -299,6 +314,7 @@ after_init {
   decided I E := false
   abandoned I := false
   avail_ready I E := false
+  timer_expired I V := false
 }
 
 /-! ## Inputs (`mod:mvba`) -/
@@ -439,6 +455,22 @@ action adopt_prepqc (i : node) (v : view) (e : value) {
   local_prepqc i v e := true
 }
 
+/- **The view timer runs out.** The environment marks `i`'s timer for a view
+it has entered as expired; the two timeout actions are guarded on it.
+
+This is the whole of the timing that reaches the model — a phase marker, not
+a clock: one tick, from before the timeout to after it. What it buys is
+stated in the header: it takes the *choice* of timing out away from the
+scheduler, so the timeout actions can be weakly fair like every other honest
+action instead of being always enabled, and the timing assumption becomes an
+ordering constraint on this action rather than a claim about the protocol's
+outcome. Monotone, and safety-neutral: it only removes behaviours from the
+timeout actions. -/
+action expire_timer (i : node) (v : view) {
+  require entered i v
+  timer_expired i v := true
+}
+
 /- The environment supplies `i`'s availability shares for `e`
 (`AvailReady_i`; `lem:avail-progress` bounds when). Unguarded. -/
 action become_avail_ready (i : node) (e : value) {
@@ -494,6 +526,7 @@ action timeout_qc (i : node) (v : view) (w : view) (e : value) {
   require ∃ E, input i E
   require ¬ abandoned i
   require in_view i v
+  require timer_expired i v
   require ¬ timed_out i v
   require local_prepqc i w e
   require ∀ W E, local_prepqc i W E → vord.le W w
@@ -508,6 +541,7 @@ action timeout_noqc (i : node) (v : view) {
   require ∃ E, input i E
   require ¬ abandoned i
   require in_view i v
+  require timer_expired i v
   require ¬ timed_out i v
   require ∀ W E, ¬ local_prepqc i W E
   timed_out i v := true
@@ -927,6 +961,16 @@ invariant [honest_timeout_qc_held]
   ∀ (R : node) (V W : view) (E : value),
     ¬ is_byz R → msg_timeout_qc R V W E → local_prepqc R W E
 
+/- **Timing out means the timer had expired.** Both timeout actions are
+guarded on the marker, and nothing else sets `timed_out`.
+
+This is what lets the timing assumption be stated about `expire_timer` — the
+environment's action — rather than about the protocol's own outcome
+(`Mvba/Liveness.lean`, (A-viewsync)). -/
+invariant [timed_out_implies_timer]
+  ∀ (R : node) (V : view),
+    ¬ is_byz R → timed_out R V → timer_expired R V
+
 /- **Timing out means having sent a `Timeout`.** The converse of the two
 below, and the direction liveness needs: (F-timeout) delivers the local
 `timedOut_i` flag, while the certificate assemblies read the *messages*.
@@ -1034,6 +1078,11 @@ set_option synthInstance.maxHeartbeats 2000000
 set_option synthInstance.maxSize 4096
 set_option maxRecDepth 8192
 
+/- The traces grew a step when the view timer became an explicit action, and
+a trace's cost is superlinear in its length: the longest is now thirteen
+steps and exceeds the default elaboration budget at `isDefEq`. -/
+set_option maxHeartbeats 4000000
+
 #gen_spec
 
 /-! ## Non-vacuity witnesses (`docs/MvbaPlan.md` §4 item 1)
@@ -1061,6 +1110,7 @@ sat trace {
 -- without a lock; a decision under a correct leader in view 2.
 sat trace {
   propose
+  expire_timer
   timeout_noqc
   form_tc_nolock
   sync_view
@@ -1088,6 +1138,7 @@ sat trace {
   handle_preprepare_first
   form_prepqc
   adopt_prepqc
+  expire_timer
   timeout_qc
   form_tc_lock
   sync_view
