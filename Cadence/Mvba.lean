@@ -638,6 +638,19 @@ invariant [honest_preprepare_proposed]
   ∀ (L : node) (V : view) (E : value),
     ¬ is_byz L → msg_preprepare L V E → proposed_in L V
 
+/- The converse of `honest_preprepare_proposed`: `proposedIn_l` is backed by
+the `Pre-Prepare` it records, the two being set in the same step by all
+three leader actions.
+
+Liveness needs it for the same reason it needed `commit_sent_backed`: the
+leader actions' `¬ proposed_in l v` guard is anti-monotone, so a fairness
+argument has to know that the guard can only die by the proposal it was
+waiting for (`Mvba/Liveness.lean`,
+`eventually_preprepare_of_settled_leader`). -/
+invariant [proposed_in_backed]
+  ∀ (L : node) (V : view),
+    ¬ is_byz L → proposed_in L V → ∃ E, msg_preprepare L V E
+
 /- An honest leader proposes at most one vector per view. -/
 invariant [honest_preprepare_unique]
   ∀ (L : node) (V : view) (E E' : value),
@@ -835,6 +848,17 @@ invariant [commitqc_implies_prepqc]
 invariant [commitqc_agree]
   ∀ (V V' : view) (E E' : value),
     msg_commitqc V E → msg_commitqc V' E' → E = E'
+
+/- A prepare certificate is on a valid vector, by the same argument as
+`commitqc_valid`: the `2f+1` signers contain an honest one, which accepted
+the vector, and `accepted_valid` applies.
+
+Liveness needs it where safety did not: `leader_repropose` re-proposes the
+lock a timeout certificate carries **without** re-checking validity (the
+supplement's `Recover`), while `handle_preprepare` requires `valid e`, so
+the re-proposal is accepted only because the lock was valid all along. -/
+invariant [prepqc_valid]
+  ∀ (V : view) (E : value), msg_prepqc V E → valid E
 
 /- A commit certificate is on a valid vector: an honest signer accepted it. -/
 invariant [commitqc_valid]
