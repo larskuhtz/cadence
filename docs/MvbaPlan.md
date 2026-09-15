@@ -858,6 +858,32 @@ absent.
    family always has — and it moves the pin by 24 rather than 25, a step
    having no cell at the initializer.
 
+   **`SettledIn`, discharged.** Every link above assumed it; now it is
+   derived, and its three conjuncts come from three different places, which
+   is the whole role of (A-viewsync) laid out: `¬ abandoned` from
+   `NoEarlyAbandon`; `¬ timed_out i W` from (A-viewsync)'s second clause;
+   and `InView i W` from monotonicity of `entered` together with
+   `entered_le_of_no_decision`. `exists_settled_quorum_of_no_decision` then
+   brings the whole honest quorum to a common index, the finite-family lift
+   once more.
+
+   All three conjuncts are conditioned on no correct validator having
+   decided. That is not a limitation but the shape of the eventual run-level
+   proof, which splits on exactly that: in the other branch a decision
+   already exists, `decided_backed` turns it into a certificate, and the
+   first link finishes.
+
+   **What the final assembly still needs**, and it is the validity finding
+   coming back: the view-level theorem wants `valid E` of the leader's
+   proposal, and the leader link supplies only the proposal. Closing that
+   without touching `propose` looks like one more invariant — "an honest
+   leader's proposal is valid **if every correct validator's input is**",
+   whose antecedent is `InputsValid` carried inside the clump and whose two
+   cases are already available (`prepqc_valid` for a re-proposal, the
+   antecedent for a fresh one). Then the assembly is composition only. The
+   other open end is unchanged: getting a timeout certificate for the view
+   below the good one, i.e. iterating the view change up to it.
+
    **Where the tally stands.** Every link is proven: the decision chain from
    the honest leader's proposal to every correct validator deciding, and the
    view-change chain that closes a stalled view and advances past it. Twelve
