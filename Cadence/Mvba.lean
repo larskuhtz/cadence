@@ -643,6 +643,34 @@ invariant [proposed_in_backed]
   ∀ (L : node) (V : view),
     ¬ is_byz L → proposed_in L V → ∃ E, msg_preprepare L V E
 
+/- **An honest leader's proposal is valid, if the callers' inputs are.**
+The two fresh cases propose the leader's own input, whose validity is the
+caller's obligation and nothing this model can check — so it is carried as
+the antecedent rather than asserted. The re-proposal case needs no help from
+it: `tc_lock_backed` and `prepqc_valid` show a certified lock is valid
+whatever the callers did.
+
+Liveness needs it because `handle_preprepare` requires `valid e`, so a
+proposal no correct validator can accept is a wasted view
+(`Mvba/Liveness.lean`, and `docs/TODO.md` § Liveness on whether to make the
+antecedent a `require` on `propose` instead). -/
+invariant [honest_preprepare_valid]
+  ∀ (L : node) (V : view) (E : value),
+    ¬ is_byz L → msg_preprepare L V E →
+      (∀ (I : node) (E' : value), ¬ is_byz I → input I E' → valid E') →
+        valid E
+
+/- **And it carries the justification the handler checks.** Above view 1 an
+honest leader proposes either a lock of the previous view
+(`leader_repropose`) or its own input against a lock-free certificate
+(`leader_propose_fresh`) — which are exactly the two disjuncts of
+`handle_preprepare`'s `lock_available pv e ∨ tc_nolock pv`. In view 1 there
+is no previous view, and `vord.next PV vord.zero` is impossible. -/
+invariant [honest_preprepare_justified]
+  ∀ (L : node) (V : view) (E : value) (PV : view),
+    ¬ is_byz L → msg_preprepare L V E → vord.next PV V →
+      lock_available PV E ∨ tc_nolock PV
+
 /- An honest leader proposes at most one vector per view. -/
 invariant [honest_preprepare_unique]
   ∀ (L : node) (V : view) (E E' : value),

@@ -1389,6 +1389,108 @@ theorem exists_settled_quorum_of_no_decision
             (Nat.le_max_right 0 n)⟩)
   exact ⟨N, fun p hp => settledIn_of_no_decision r hvs hna hnodec (hcorrect p hp) (hall p hp)⟩
 
+/-! ## The assembly
+
+Everything above, in one theorem: **if a run reaches an honest-led view with
+a timeout certificate below it, every correct validator decides.**
+
+The proof is a dichotomy, and both branches are already built.
+
+* *Some correct validator has decided.* Then `decided_backed` turns that into
+  a commit certificate, and the very first link —
+  `eventually_decided_of_commitqc` — carries it to every correct validator.
+  No view reasoning at all.
+* *None has.* Then `SettledIn` is available for the honest quorum and for
+  the leader, the leader proposes, its proposal is one the handlers accept
+  (`honest_preprepare_valid`, `honest_preprepare_justified`), and
+  `terminates_of_settled_honest_view` concludes — which contradicts the
+  branch's own assumption, since the honest quorum is non-empty. So this
+  branch is vacuous, which is the right outcome: a run that reaches a good
+  view cannot fail to decide.
+
+What is *not* here is how a run reaches that view. `htc` — a timeout
+certificate below the good view — is the last hypothesis standing between
+this and `TerminationClaim`, and closing it means iterating the view-change
+links up the view order, which is where `Rank.lean`'s view component and its
+explicit `List view` finally get consumed. -/
+
+theorem terminates_of_good_view
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset)
+    (r : MvbaRun th) (hfj : FJustice r) (hav : FAvail r) (hna : NoEarlyAbandon r)
+    (hap : AllPropose r) (hiv : InputsValid r)
+    {W : view} {l : node} {pv : view}
+    (hlead : th.leader W l = true) (hl : ¬ nset.is_byz l = true)
+    (hnext : vord.next pv W)
+    (henter : ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).entered i W = true)
+    (hnto : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
+      ∃ E, (r.at' n).decided i E = true)
+    (htc : ∃ n, (r.at' n).msg_tc pv = true) :
+    Terminates r := by
+  by_cases hdec : ∃ (j : node) (n : Nat) (E : value),
+      ¬ nset.is_byz j = true ∧ (r.at' n).decided j E = true
+  -- Branch one: a decision already exists, so a certificate does.
+  · obtain ⟨j, nj, Ej, hj, hEj⟩ := hdec
+    obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed (r.reachable nj) j Ej hj hEj
+    intro i hi
+    obtain ⟨m, E, hm⟩ := hap i hi
+    exact eventually_decided_of_commitqc r hfj hna hi
+      (r.mono (P := fun s => s.input i E = true)
+        (fun k hk => Mvba.input.mono (r.steps k) i E hk) hm _ (Nat.le_max_left m nj))
+      (r.mono (P := fun s => s.msg_commitqc V Ej = true)
+        (fun k hk => Mvba.msg_commitqc.mono (r.steps k) V Ej hk) hV _
+        (Nat.le_max_right m nj))
+  -- Branch two: nobody has decided — which the good view makes impossible.
+  · push Not at hdec
+    have hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true :=
+      fun j n E hj => hdec j n E hj
+    -- The honest quorum, settled at one index.
+    obtain ⟨Nq, hq⟩ :=
+      exists_settled_quorum_of_no_decision enum r hnto hna hnodec
+        hqe.honestQuorum_correct
+        (fun p hp => henter p (hqe.honestQuorum_correct p hp))
+    -- The leader, settled at its own.
+    obtain ⟨Nl, hNl⟩ := henter l hl
+    obtain ⟨Nt, hNt⟩ := htc
+    -- One index for all three.
+    have h1 : Nq ≤ max Nq (max Nl Nt) := Nat.le_max_left _ _
+    have h2 : Nl ≤ max Nq (max Nl Nt) :=
+      Nat.le_trans (Nat.le_max_left Nl Nt) (Nat.le_max_right _ _)
+    have h3 : Nt ≤ max Nq (max Nl Nt) :=
+      Nat.le_trans (Nat.le_max_right Nl Nt) (Nat.le_max_right _ _)
+    have hsl : SettledIn r l W (max Nq (max Nl Nt)) :=
+      settledIn_of_no_decision r hnto hna hnodec hl
+        (r.mono (P := fun s => s.entered l W = true)
+          (fun k hk => Mvba.entered.mono (r.steps k) l W hk) hNl _ h2)
+    -- The certificate below the good view, in the form the leader reads.
+    have hjust : (∃ w e, (r.at' (max Nq (max Nl Nt))).tc_lock pv w e = true) ∨
+        (r.at' (max Nq (max Nl Nt))).tc_nolock pv = true := by
+      have hNt' : (r.at' (max Nq (max Nl Nt))).msg_tc pv = true :=
+        r.mono (P := fun s => s.msg_tc pv = true)
+          (fun k hk => Mvba.msg_tc.mono (r.steps k) pv hk) hNt _ h3
+      rcases Mvba.reachable_msg_tc_backed (r.reachable _) pv hNt' with h | ⟨w, e, h⟩
+      · exact Or.inr h
+      · exact Or.inl ⟨w, e, h⟩
+    -- The leader proposes, and what it proposes the handlers accept.
+    obtain ⟨n₀, E₀, hn₀, hpp⟩ :=
+      eventually_preprepare_of_settled_leader r hfj hl hsl hnext hlead hjust
+    have hvalid : th.valid E₀ = true :=
+      Mvba.reachable_honest_preprepare_valid (r.reachable n₀) l W E₀ hl hpp
+        (fun i E hi hin => hiv i n₀ E hi hin)
+    have hjust₀ : (∃ w, (r.at' n₀).tc_lock pv w E₀ = true) ∨
+        (r.at' n₀).tc_nolock pv = true :=
+      Mvba.reachable_honest_preprepare_justified (r.reachable n₀) l W E₀ pv hl hpp hnext
+    -- The view decides — contradicting this branch.
+    have hterm : Terminates r :=
+      terminates_of_settled_honest_view enum r hfj hav hna hqe hap hl hnext hlead hpp
+        hvalid hjust₀
+        (fun p hp => (hq p hp).later (Nat.le_trans h1 hn₀))
+    obtain ⟨R, hRq⟩ :=
+      nset.greater_than_third_one_honest hqe.honestQuorum
+        (nset.supermajority_greater_than_third _ hqe.honestQuorum_supermajority)
+    obtain ⟨nR, ER, hR⟩ := hterm R hRq.2
+    exact absurd hR (hnodec R nR ER hRq.2)
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -1491,3 +1593,9 @@ info: 'Mvba.exists_settled_quorum_of_no_decision' depends on axioms: [propext, C
 -/
 #guard_msgs in
 #print axioms Mvba.exists_settled_quorum_of_no_decision
+
+/--
+info: 'Mvba.terminates_of_good_view' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.terminates_of_good_view

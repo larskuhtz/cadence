@@ -49,12 +49,12 @@ info: 'Mvba.invariants_of_reachable' depends on axioms: [propext, Classical.choi
 has a real, statement-matching, kernel-checked theorem in the import
 closure, over exactly the standard axioms. Run `#veil_status Mvba table`
 interactively for the per-cell table (theorem, defining file, per-cell
-axiom set). The count is (3 `safety` + 38 `invariant` + the per-action
+axiom set). The count is (3 `safety` + 40 `invariant` + the per-action
 `doesNotThrow` cell) × (24 actions + the initializer), plus one
 `step_property` × 24 actions — a step relates two states, so unlike an
 invariant it has no cell at the initializer.
 
-**Thirteen of the invariants are there for liveness rather than safety**
+**Fifteen of the invariants are there for liveness rather than safety**
 (`docs/MvbaPlan.md` §3.5 step 3, `Mvba/Liveness.lean`). Every one of them
 exists to make an *anti-monotone* guard analysable: a fairness argument has
 to know that such a guard can only die by the progress it was waiting for,
@@ -94,8 +94,14 @@ too: a newly entered view is view 1 or the successor of one that already has
 a timeout certificate. It has to be a *step* property rather than an
 invariant because it relates the two states. Adding it is also what pushed
 this family past the default elaboration budgets — the proof files now carry
-`veil_large_clump_budgets`, as the Chorus family always has. -/
+`veil_large_clump_budgets`, as the Chorus family always has.
 
-/-- info: #veil_status Mvba: 1074/1074 real; axioms: propext, Classical.choice, Quot.sound -/
+The last two, `honest_preprepare_valid` and `honest_preprepare_justified`,
+say an honest leader's proposal is one the `Pre-Prepare` handler will accept.
+Validity is conditional on the callers' inputs being valid, which no model
+fact can supply — `propose` does not check it — so it is carried as an
+antecedent; `docs/TODO.md` § Liveness has the alternative. -/
+
+/-- info: #veil_status Mvba: 1124/1124 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Mvba
