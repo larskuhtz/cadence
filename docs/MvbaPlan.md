@@ -925,6 +925,21 @@ absent.
    assumption on the members — it holds of a quorum containing Byzantine
    ones.
 
+   **And the certificate below the good view is not a hypothesis at all.**
+   Entering a view above the first is only possible through `sync_view` or
+   `sync_view_adopt`, whose guards read that certificate at the pre-state —
+   so (A-viewsync)'s entry clause already implies it. Taking the *first*
+   moment the view was entered (`entered` is monotone and empty initially,
+   so a least index exists) and applying `entered_needs_certificate` there
+   gives `exists_justification_below_of_entered`, and
+   `terminates_of_good_view` now derives what it used to assume.
+
+   That also settles where the climbing machinery sits: it is **not** on the
+   path to `TerminationClaim`, because (A-viewsync) hands over the entry.
+   It is kept because weakening (A-viewsync) — the strongest of the six
+   premises — is the honest next target, and the climb is what would let a
+   run *derive* its entry into the good view instead of assuming it.
+
    **Where the tally stands.** Every link is proven: the decision chain from
    the honest leader's proposal to every correct validator deciding, and the
    view-change chain that closes a stalled view and advances past it. Twelve

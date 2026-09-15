@@ -1389,6 +1389,99 @@ theorem exists_settled_quorum_of_no_decision
             (Nat.le_max_right 0 n)⟩)
   exact ⟨N, fun p hp => settledIn_of_no_decision r hvs hna hnodec (hcorrect p hp) (hall p hp)⟩
 
+/-! ## Entering a view is evidence that the one below was closed
+
+`terminates_of_good_view` below asked for a timeout certificate under the
+good view. It turns out not to need one as a *hypothesis*: (A-viewsync)
+already says every correct validator enters the good view, and entering a
+view above the first is only possible through `sync_view` or
+`sync_view_adopt`, whose guards read that certificate at the pre-state. So
+the certificate is a **consequence** of the entry, not a further assumption.
+
+The argument needs the first moment the view was entered — `entered` is
+monotone and empty initially, so a least index exists — and there the step
+property `entered_needs_certificate` applies.
+
+This is also why the climbing machinery of the previous section is not on
+the path to `TerminationClaim`: (A-viewsync) hands over the entry, and the
+climb would be for *deriving* that entry rather than assuming it. It is kept
+because that is the honest next target — (A-viewsync) is the strongest of the
+six premises, and the climb is what would let it be weakened. -/
+
+section Predecessor
+
+variable {view : Type} [vord : TotalOrderWithMinimum view]
+
+/-- A view has at most one immediate predecessor. -/
+theorem next_unique {a b c : view} (hab : vord.next a c) (hbc : vord.next b c) :
+    a = b := by
+  have ha := (vord.next_def a c).mp hab
+  have hb := (vord.next_def b c).mp hbc
+  have hac := (vord.le_lt a c).mp ha.1
+  have hbc' := (vord.le_lt b c).mp hb.1
+  rcases vord.le_total a b with hle | hle
+  · by_contra hne
+    have hlt : vord.lt a b := (vord.le_lt a b).mpr ⟨hle, hne⟩
+    exact hbc'.2 (vord.le_antisymm b c hbc'.1 (ha.2 b hlt))
+  · by_contra hne
+    have hlt : vord.lt b a := (vord.le_lt b a).mpr ⟨hle, fun h => hne h.symm⟩
+    exact hac.2 (vord.le_antisymm a c hac.1 (hb.2 a hlt))
+
+/-- Nothing is the immediate predecessor of the least view. -/
+theorem not_next_zero {a : view} (h : vord.next a vord.zero) : False := by
+  have h1 := (vord.le_lt a vord.zero).mp ((vord.next_def a vord.zero).mp h).1
+  exact h1.2 (vord.le_antisymm a vord.zero h1.1 (vord.zero_lt a))
+
+end Predecessor
+
+section Entry
+
+variable {node nodeset value view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+  [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
+  {th : Theory node nodeset value view}
+
+/-- The first moment a view was entered. `entered` is monotone and empty at
+the initial state, so a least index exists and has a predecessor. -/
+theorem exists_first_entry (r : MvbaRun th) {i : node} {W : view} {n : Nat}
+    (hent : (r.at' n).entered i W = true) :
+    ∃ m, (r.at' m).entered i W = false ∧ (r.at' (m + 1)).entered i W = true := by
+  classical
+  have h : ∃ k, (r.at' k).entered i W = true := ⟨n, hent⟩
+  have hk := Nat.find_spec h
+  rcases Nat.eq_zero_or_pos (Nat.find h) with h0 | hpos
+  · rw [h0] at hk
+    exact absurd hk (init_not_entered r.starts i W)
+  · obtain ⟨m, hm⟩ : ∃ m, Nat.find h = m + 1 := ⟨Nat.find h - 1, by omega⟩
+    refine ⟨m, ?_, by rw [← hm]; exact hk⟩
+    have hmin := Nat.find_min h (m := m) (by omega)
+    cases hb : (r.at' m).entered i W with
+    | false => rfl
+    | true => exact absurd hb hmin
+
+/-- **Entering a view above the first means the one below it was closed**, in
+exactly the form the leader link reads: a lock of that view, or a lock-free
+certificate for it. -/
+theorem exists_justification_below_of_entered
+    (r : MvbaRun th) {i : node} (hi : ¬ nset.is_byz i = true) {pv W : view}
+    (hnext : vord.next pv W) {n : Nat} (hent : (r.at' n).entered i W = true) :
+    ∃ m, (∃ w e, (r.at' m).tc_lock pv w e = true) ∨
+      (r.at' m).tc_nolock pv = true := by
+  obtain ⟨m, hfalse, htrue⟩ := exists_first_entry r hent
+  have hfalse' : ¬ (r.at' m).entered i W = true := by simp [hfalse]
+  rcases Mvba.reachable_entered_needs_certificate_step (r.reachable m) (r.steps m)
+    i W ⟨hi, hfalse', htrue⟩ with rfl | ⟨PV, hPV, hcert⟩
+  · exact absurd hnext not_next_zero
+  · have hPVpv : PV = pv := next_unique hPV hnext
+    subst hPVpv
+    rcases hcert with htc | ⟨w, e, hlock⟩
+    · rcases Mvba.reachable_msg_tc_backed (r.reachable m) PV htc with hn | ⟨w, e, h⟩
+      · exact ⟨m, Or.inr hn⟩
+      · exact ⟨m, Or.inl ⟨w, e, h⟩⟩
+    · exact ⟨m, Or.inl ⟨w, e, hlock⟩⟩
+
+end Entry
+
 /-! ## The assembly
 
 Everything above, in one theorem: **if a run reaches an honest-led view with
@@ -1408,11 +1501,12 @@ The proof is a dichotomy, and both branches are already built.
   branch is vacuous, which is the right outcome: a run that reaches a good
   view cannot fail to decide.
 
-What is *not* here is how a run reaches that view. `htc` — a timeout
-certificate below the good view — is the last hypothesis standing between
-this and `TerminationClaim`, and closing it means iterating the view-change
-links up the view order, which is where `Rank.lean`'s view component and its
-explicit `List view` finally get consumed. -/
+The certificate below the good view is **not** a hypothesis: entering `W` is
+only possible through it, so (A-viewsync)'s entry clause already implies it
+(`exists_justification_below_of_entered`). What separates this from
+`TerminationClaim` is therefore only the shape of (A-viewsync) itself — the
+claim quantifies over runs and this theorem takes the good view and its
+leader as arguments. -/
 
 theorem terminates_of_good_view
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
@@ -1424,8 +1518,7 @@ theorem terminates_of_good_view
     (hnext : vord.next pv W)
     (henter : ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).entered i W = true)
     (hnto : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
-      ∃ E, (r.at' n).decided i E = true)
-    (htc : ∃ n, (r.at' n).msg_tc pv = true) :
+      ∃ E, (r.at' n).decided i E = true) :
     Terminates r := by
   by_cases hdec : ∃ (j : node) (n : Nat) (E : value),
       ¬ nset.is_byz j = true ∧ (r.at' n).decided j E = true
@@ -1451,7 +1544,9 @@ theorem terminates_of_good_view
         (fun p hp => henter p (hqe.honestQuorum_correct p hp))
     -- The leader, settled at its own.
     obtain ⟨Nl, hNl⟩ := henter l hl
-    obtain ⟨Nt, hNt⟩ := htc
+    -- The certificate below the good view is not assumed: entering `W` is
+    -- only possible through it.
+    obtain ⟨Nt, hNt⟩ := exists_justification_below_of_entered r hl hnext hNl
     -- One index for all three.
     have h1 : Nq ≤ max Nq (max Nl Nt) := Nat.le_max_left _ _
     have h2 : Nl ≤ max Nq (max Nl Nt) :=
@@ -1462,15 +1557,14 @@ theorem terminates_of_good_view
       settledIn_of_no_decision r hnto hna hnodec hl
         (r.mono (P := fun s => s.entered l W = true)
           (fun k hk => Mvba.entered.mono (r.steps k) l W hk) hNl _ h2)
-    -- The certificate below the good view, in the form the leader reads.
+    -- Carried forward to the common index, monotonically.
     have hjust : (∃ w e, (r.at' (max Nq (max Nl Nt))).tc_lock pv w e = true) ∨
         (r.at' (max Nq (max Nl Nt))).tc_nolock pv = true := by
-      have hNt' : (r.at' (max Nq (max Nl Nt))).msg_tc pv = true :=
-        r.mono (P := fun s => s.msg_tc pv = true)
-          (fun k hk => Mvba.msg_tc.mono (r.steps k) pv hk) hNt _ h3
-      rcases Mvba.reachable_msg_tc_backed (r.reachable _) pv hNt' with h | ⟨w, e, h⟩
-      · exact Or.inr h
-      · exact Or.inl ⟨w, e, h⟩
+      rcases hNt with ⟨w, e, h⟩ | h
+      · exact Or.inl ⟨w, e, r.mono (P := fun s => s.tc_lock pv w e = true)
+          (fun k hk => Mvba.tc_lock.mono (r.steps k) pv w e hk) h _ h3⟩
+      · exact Or.inr (r.mono (P := fun s => s.tc_nolock pv = true)
+          (fun k hk => Mvba.tc_nolock.mono (r.steps k) pv hk) h _ h3)
     -- The leader proposes, and what it proposes the handlers accept.
     obtain ⟨n₀, E₀, hn₀, hpp⟩ :=
       eventually_preprepare_of_settled_leader r hfj hl hsl hnext hlead hjust
