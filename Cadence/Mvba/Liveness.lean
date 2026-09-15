@@ -1553,6 +1553,128 @@ theorem eventually_entered_of_climbing
   obtain ⟨n, -, hz⟩ := eventually_viewGap_zero r Vs i hstep 0
   exact ⟨n, entered_of_viewGap_zero hz hW⟩
 
+/-! ## Closing a view
+
+The half of the climb that was still open. `eventually_entered_above_of_tc`
+advances a validator once a certificate exists; this produces one.
+
+The obstacle is `form_tc_lock`, whose guard names the member carrying the
+**highest** certificate — a maximum, where every other assembly in this file
+needed only a conjunction. It looked at first as though the maximum might
+not exist, since `byz_timeout_qc` lets a Byzantine member carry unboundedly
+many certificates and the monotone relations record no bound. That was
+wrong, and the reason is worth stating because it is what makes the whole
+step cheap: the guard asks each member for *some* carried certificate below
+the chosen one, so it is enough to pick **one per member** and maximise over
+those. The list of members is finite by `ByzNodeSetEnum`; nothing else needs
+to be.
+
+So the selection is an ordinary fold over a list, using only totality and
+transitivity of the view order, and it needs no invariant and no
+correctness assumption on the members. -/
+
+omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset in
+/-- **Either every member sent the lock-free `Timeout`, or one of them
+carries a certificate that dominates a choice from every other.** An
+induction over the member list; the four cases are the two for the head
+crossed with the two for the tail, and the only order reasoning is
+`le_total` and `le_trans`. -/
+theorem exists_dominating_timeout
+    {st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)} {v : view} :
+    ∀ (ms : List node), (∀ p ∈ ms, SentTimeout st p v) →
+      (∀ p ∈ ms, st.msg_timeout_noqc p v = true) ∨
+      ∃ (r₀ : node) (w : view) (e : value), r₀ ∈ ms ∧
+        st.msg_timeout_qc r₀ v w e = true ∧
+        ∀ p ∈ ms, st.msg_timeout_noqc p v = true ∨
+          ∃ W E, st.msg_timeout_qc p v W E = true ∧ vord.le W w
+  | [], _ => Or.inl (by simp)
+  | a :: ms, h => by
+    have htail := exists_dominating_timeout ms (fun p hp => h p (by simp [hp]))
+    rcases h a (by simp) with hna | ⟨wa, ea, hqa⟩
+    · rcases htail with hall | ⟨r₀, w, e, hr₀, hq₀, hdom⟩
+      · exact Or.inl (fun p hp => by
+          rcases List.mem_cons.mp hp with rfl | hp' <;> [exact hna; exact hall p hp'])
+      · refine Or.inr ⟨r₀, w, e, by simp [hr₀], hq₀, fun p hp => ?_⟩
+        rcases List.mem_cons.mp hp with rfl | hp' <;> [exact Or.inl hna; exact hdom p hp']
+    · rcases htail with hall | ⟨r₀, w, e, hr₀, hq₀, hdom⟩
+      · refine Or.inr ⟨a, wa, ea, by simp, hqa, fun p hp => ?_⟩
+        rcases List.mem_cons.mp hp with rfl | hp'
+        · exact Or.inr ⟨wa, ea, hqa, vord.le_refl wa⟩
+        · exact Or.inl (hall p hp')
+      · rcases vord.le_total wa w with hle | hle
+        · refine Or.inr ⟨r₀, w, e, by simp [hr₀], hq₀, fun p hp => ?_⟩
+          rcases List.mem_cons.mp hp with rfl | hp'
+          · exact Or.inr ⟨wa, ea, hqa, hle⟩
+          · exact hdom p hp'
+        · refine Or.inr ⟨a, wa, ea, by simp, hqa, fun p hp => ?_⟩
+          rcases List.mem_cons.mp hp with rfl | hp'
+          · exact Or.inr ⟨wa, ea, hqa, vord.le_refl wa⟩
+          · rcases hdom p hp' with hn | ⟨W, E, hW, hWle⟩
+            · exact Or.inl hn
+            · exact Or.inr ⟨W, E, hW, vord.le_trans W w wa hWle hle⟩
+
+/-- **`form_tc_lock`'s guards are its enabledness.** -/
+theorem enabled_form_tc_lock {v : view} {q : nodeset} {r₀ : node} {w : view} {e : value}
+    (hsm : nset.supermajority q) (hmem : nset.member r₀ q = true)
+    (hqc : st.msg_timeout_qc r₀ v w e = true)
+    (hpq : st.msg_prepqc w e = true) (hle : vord.le w v)
+    (hdom : ∀ p, nset.member p q = true → st.msg_timeout_noqc p v = true ∨
+      ∃ W E, st.msg_timeout_qc p v W E = true ∧ vord.le W w) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.form_tc_lock v q r₀ w e) := by
+  mvba_enabled
+  exact ⟨_, hsm, hmem, hqc, hpq, hle, hdom, rfl⟩
+
+theorem form_tc_lock_effect {v : view} {q : nodeset} {r₀ : node} {w : view} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.form_tc_lock v q r₀ w e) st') : st'.msg_tc v = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
+  mvba_effect
+
+/-- **A view all of whose quorum members have timed out gets closed.** The
+two assemblies together: whichever of them the timeouts allow, weak fairness
+fires it. This is the missing half of the climb — `eventually_entered_above_of_tc`
+supplies the other. -/
+theorem eventually_tc_of_timed_out_quorum
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (r : MvbaRun th) (hfj : FJustice r)
+    {N : Nat} {v : view} {q : nodeset} (hsm : nset.supermajority q)
+    (hto : ∀ p, nset.member p q = true → SentTimeout (r.at' N) p v) :
+    ∃ n, N ≤ n ∧ (r.at' n).msg_tc v = true := by
+  rcases exists_dominating_timeout (enum.members q)
+      (fun p hp => hto p ((enum.mem_members p q).mpr hp)) with hall | ⟨r₀, w, e, hr₀, hq₀, hdom⟩
+  -- No lock anywhere: the lock-free assembly applies.
+  · exact eventually_tc_of_timeout_quorum r hfj hsm
+      (fun p hp => hall p ((enum.mem_members p q).mp hp))
+  -- Otherwise the dominating member is `form_tc_lock`'s `r₀`.
+  · by_contra hcon
+    push Not at hcon
+    have hmono : ∀ (P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop),
+        (∀ m, P (r.at' m) → P (r.at' (m + 1))) → P (r.at' N) → ∀ n, N ≤ n → P (r.at' n) :=
+      fun P hp hPN n hn => r.mono (P := P) hp hPN n hn
+    have hq₀' := hmono (fun s => s.msg_timeout_qc r₀ v w e = true)
+      (fun m hm => Mvba.msg_timeout_qc.mono (r.steps m) r₀ v w e hm) hq₀
+    have hpq : (r.at' N).msg_prepqc w e = true :=
+      Mvba.reachable_timeout_qc_backed (r.reachable N) r₀ v w e hq₀
+    have hpq' := hmono (fun s => s.msg_prepqc w e = true)
+      (fun m hm => Mvba.msg_prepqc.mono (r.steps m) w e hm) hpq
+    have hle : vord.le w v :=
+      Mvba.reachable_timeout_qc_view_le (r.reachable N) r₀ v w e hq₀
+    obtain ⟨n, hn, hfire⟩ :=
+      hfj (.form_tc_lock v q r₀ w e)
+        (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+        (fun n hn =>
+          enabled_form_tc_lock hsm ((enum.mem_members r₀ q).mpr hr₀) (hq₀' n hn)
+            (hpq' n hn) hle (fun p hp => by
+              rcases hdom p ((enum.mem_members p q).mp hp) with hnq | ⟨W, E, hW, hWle⟩
+              · exact Or.inl (hmono (fun s => s.msg_timeout_noqc p v = true)
+                  (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm) hnq n hn)
+              · exact Or.inr ⟨W, E, hmono (fun s => s.msg_timeout_qc p v W E = true)
+                  (fun m hm => Mvba.msg_timeout_qc.mono (r.steps m) p v W E hm) hW n hn,
+                  hWle⟩))
+    exact hcon (n + 1) (by omega) (form_tc_lock_effect (hfire ▸ r.steps n))
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -1667,3 +1789,9 @@ info: 'Mvba.eventually_entered_of_climbing' depends on axioms: [propext, Classic
 -/
 #guard_msgs in
 #print axioms Mvba.eventually_entered_of_climbing
+
+/--
+info: 'Mvba.eventually_tc_of_timed_out_quorum' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_tc_of_timed_out_quorum

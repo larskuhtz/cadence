@@ -49,12 +49,12 @@ info: 'Mvba.invariants_of_reachable' depends on axioms: [propext, Classical.choi
 has a real, statement-matching, kernel-checked theorem in the import
 closure, over exactly the standard axioms. Run `#veil_status Mvba table`
 interactively for the per-cell table (theorem, defining file, per-cell
-axiom set). The count is (3 `safety` + 40 `invariant` + the per-action
+axiom set). The count is (3 `safety` + 42 `invariant` + the per-action
 `doesNotThrow` cell) × (24 actions + the initializer), plus one
 `step_property` × 24 actions — a step relates two states, so unlike an
 invariant it has no cell at the initializer.
 
-**Fifteen of the invariants are there for liveness rather than safety**
+**Seventeen of the invariants are there for liveness rather than safety**
 (`docs/MvbaPlan.md` §3.5 step 3, `Mvba/Liveness.lean`). Every one of them
 exists to make an *anti-monotone* guard analysable: a fairness argument has
 to know that such a guard can only die by the progress it was waiting for,
@@ -100,8 +100,13 @@ The last two, `honest_preprepare_valid` and `honest_preprepare_justified`,
 say an honest leader's proposal is one the `Pre-Prepare` handler will accept.
 Validity is conditional on the callers' inputs being valid, which no model
 fact can supply — `propose` does not check it — so it is carried as an
-antecedent; `docs/TODO.md` § Liveness has the alternative. -/
+antecedent; `docs/TODO.md` § Liveness has the alternative.
 
-/-- info: #veil_status Mvba: 1124/1124 real; axioms: propext, Classical.choice, Quot.sound -/
+`timed_out_implies_message` and `timeout_qc_view_le` are for closing a view:
+(F-timeout) delivers the local flag while the assemblies read the messages,
+and `form_tc_lock` additionally checks that a carried certificate is not of
+a view above the `Timeout` carrying it. -/
+
+/-- info: #veil_status Mvba: 1174/1174 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Mvba

@@ -904,18 +904,26 @@ absent.
    nothing about how many views lie below it, so the list is a parameter,
    and here is where that parameter earns its keep.
 
-   **What is left** is the per-step premise that argument takes: that a
-   validator sitting in a view eventually advances into the next *counted*
-   one. Its two halves are the view closing — (F-timeout) fires the timers,
-   then the timeout quorum assembles — and the advance, which is
-   `eventually_entered_above_of_tc`, already proven. The gap between
-   (F-timeout) and the assembly is a known one: (F-timeout) yields the local
-   `timed_out` flag, while the assembly guards read the `Timeout`
-   *messages*, and the clump has the converse direction only
-   (`honest_timeout_*_timed_out`). The general case also needs
-   `form_tc_lock`, whose guard selects the member carrying the highest
-   certificate — a finite maximum over the quorum, in the same spirit as
-   `eventually_forall` but over the view order.
+   **Closing a view**, the other half of the climb, is now proven too:
+   `eventually_tc_of_timed_out_quorum`. Two invariants bridge (F-timeout) to
+   the assemblies — `timed_out_implies_message`, because the premise delivers
+   the local flag while the guards read the messages, and
+   `timeout_qc_view_le` for `form_tc_lock`'s last guard.
+
+   The interesting part was `form_tc_lock` itself, whose guard names the
+   member carrying the **highest** certificate — a maximum, where every other
+   assembly needed only a conjunction. It looked at first as though the
+   maximum might not exist: `byz_timeout_qc` lets a Byzantine member carry
+   unboundedly many certificates and the monotone relations record no bound.
+   **That was wrong**, and why is worth recording, because it is what makes
+   the step cheap: the guard asks each member for *some* carried certificate
+   below the chosen one, so it suffices to pick **one per member** and
+   maximise over those. Only the member list has to be finite, which
+   `ByzNodeSetEnum` already gives. The selection
+   (`exists_dominating_timeout`) is then an ordinary fold using totality and
+   transitivity of the view order, with no invariant and no correctness
+   assumption on the members — it holds of a quorum containing Byzantine
+   ones.
 
    **Where the tally stands.** Every link is proven: the decision chain from
    the honest leader's proposal to every correct validator deciding, and the
