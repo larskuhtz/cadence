@@ -950,16 +950,22 @@ absent.
    than absorbed: **(F-timeout)**, because §3.2's two fairness classes turned
    out to be inconsistent with (A-viewsync) — the correction is in §3.2.
 
-   **Input validity went the other way, and is now part of the interface.**
-   It was briefly a seventh premise; it is instead a `require valid e` on
-   `Mvba.propose`. That is what the supplement does — `subsec:mvba-protocol`
-   gives the call a validity precondition and `thm:termination` cites it —
-   and it is what the contract between Chorus and the MVBA already says,
-   Chorus's `mvba_propose` establishing `Valid B_i` with three `require`
-   clauses. Restating it as a liveness premise would have duplicated a
-   contract the composition enforces. `input_valid` is the invariant that
-   makes it available, and it holds of Byzantine callers too, `propose`
-   having no `is_byz` guard.
+   **Input validity went the other way, and is now in the contract.** It was
+   briefly a seventh premise. It is instead
+   `MVBASafety.propose_valid` in [`Interfaces.lean`](../Cadence/Interfaces.lean)
+   — the formal contract between Chorus and the MVBA — discharged by a
+   `require valid e` on `Mvba.propose`. That is what the supplement does
+   (`subsec:mvba-protocol` gives the call a validity precondition and
+   `thm:termination` cites it) and what the composition already enforced on
+   the consumer's side, Chorus's `mvba_propose` establishing `Valid B_i`
+   with three `require` clauses. `input_valid` is the invariant that makes
+   it available inside the model, and it holds of Byzantine callers too,
+   `propose` having no `is_byz` guard.
+
+   Adding a field to `MVBASafety` re-solves the Chorus family, since Veil
+   hands every axiom of an instantiated class to the solver; it did so
+   green, and no `#veil_status` count moved — a class axiom changes every
+   VC's statement but adds no cell.
 
    **(A-viewsync) now names the good view's predecessor**, i.e. requires it
    to be above view 1. That is what the paper's own proof does — "View 1 is

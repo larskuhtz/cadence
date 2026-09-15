@@ -310,11 +310,11 @@ Once per validator.
 rather than assumed: `subsec:mvba-protocol` gives the call a validity
 precondition and `thm:termination`'s proof relies on it in as many words
 ("the leader proposes its input `B_l`, which is a valid \metablock by the
-precondition of `propose`"). It belongs here because it is part of the
-*contract* between the consumer and this module, and Chorus's
-`mvba_propose` already establishes it on its side — carrying it as a
-separate liveness premise instead would have restated a contract the
-composition already enforces. -/
+precondition of `propose`"). It belongs here because it discharges
+`MVBASafety.propose_valid`, the contract field in
+`Cadence/Interfaces.lean` that states the same thing at the interface —
+Chorus establishes it on its side with three `require` clauses, and this is
+where the implementation meets it. -/
 action propose (i : node) (e : value) {
   require ∀ E, ¬ input i E
   require ¬ abandoned i

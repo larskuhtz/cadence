@@ -834,6 +834,16 @@ class MVBASafety (party value message state : Type) (byz : party → Prop)
   abandoned_mono : ∀ st st' p, trans st st' → abandoned st p → abandoned st' p
   sent_mono : ∀ st st' p m, trans st st' → sent st p m → sent st' p m
   propose_effect : ∀ st p v st', propose st p v st' → proposed st' p v
+  /-- **External validity of the input.** `propose(v)` carries a valid `v`.
+
+      This is the caller's half of the contract and it is stated here rather
+      than left to a docstring, because both sides need it: a consumer must
+      establish it to call `propose` at all, and an implementation may rely
+      on it — `Mvba`'s termination does, since a leader that proposed an
+      invalid vector would have its view rejected by every correct validator
+      and wasted. `subsec:mvba-protocol` gives the call the same
+      precondition, and `thm:termination` reasons from it. -/
+  propose_valid : ∀ st p v st', propose st p v st' → Valid v
   abandon_effect : ∀ st p st', abandon st p st' → abandoned st' p
   proposed_step_frame : ∀ st st' p v, step st st' → ¬ byz p →
     (proposed st' p v ↔ proposed st p v)
