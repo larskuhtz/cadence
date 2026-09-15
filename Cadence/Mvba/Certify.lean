@@ -49,13 +49,16 @@ info: 'Mvba.invariants_of_reachable' depends on axioms: [propext, Classical.choi
 has a real, statement-matching, kernel-checked theorem in the import
 closure, over exactly the standard axioms. Run `#veil_status Mvba table`
 interactively for the per-cell table (theorem, defining file, per-cell
-axiom set). The count is (3 `safety` + 27 `invariant` + the per-action
-`doesNotThrow` cell) × (24 actions + the initializer). Two of the invariants
-— `commit_sent_implies_voted` and `commit_sent_backed` — are there for
-**liveness** rather than safety: they are what keeps `send_commit`'s
-anti-monotone `¬ commit_sent i v` guard analysable
-(`Mvba/Liveness.lean`, `docs/MvbaPlan.md` §3.5 step 3). -/
+axiom set). The count is (3 `safety` + 28 `invariant` + the per-action
+`doesNotThrow` cell) × (24 actions + the initializer). Three of the
+invariants are there for **liveness** rather than safety, and all three
+exist to keep an *anti-monotone* guard analysable — a fairness argument has
+to know that such a guard can only die by the progress it was waiting for
+(`Mvba/Liveness.lean`, `docs/MvbaPlan.md` §3.5 step 3):
+`commit_sent_implies_voted` and `commit_sent_backed` for `send_commit`'s
+`¬ commit_sent i v`, and `local_prepqc_within_entered` for
+`adopt_prepqc`'s `∀ W E, local_prepqc i W E → W < v`. -/
 
-/-- info: #veil_status Mvba: 775/775 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Mvba: 800/800 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Mvba
