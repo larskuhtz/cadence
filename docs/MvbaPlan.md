@@ -838,6 +838,26 @@ absent.
    since it forbids a correct validator timing out there before deciding and
    without one no certificate for that view can exist.
 
+   **The good view is not skipped.** The induction those two facts were
+   for, and the last structural step before `SettledIn` can be discharged:
+   *while no correct validator has decided, none can be in a view above the
+   honest-led one*. Climbing past a view needs a certificate for it — the
+   model's one `step_property`, `entered_needs_certificate`, which has to be
+   a step rather than an invariant because it relates the two states — a
+   certificate needs a correct validator to have timed out there, and a
+   correct validator timing out in the good view has, by (A-viewsync),
+   already decided. The induction closes because a validator only times out
+   in a view it entered, so the certificate's view is itself covered by the
+   hypothesis.
+
+   It assumes nothing about how many views there are and uses no ranking:
+   `Rank.lean`'s view component measures progress *toward* the good view,
+   and this says a run cannot *overshoot* it. Adding the step property is
+   also what pushed the family past the default elaboration budgets — the
+   Mvba proof files now carry `veil_large_clump_budgets`, as the Chorus
+   family always has — and it moves the pin by 24 rather than 25, a step
+   having no cell at the initializer.
+
    **Where the tally stands.** Every link is proven: the decision chain from
    the honest leader's proposal to every correct validator deciding, and the
    view-change chain that closes a stalled view and advances past it. Twelve
