@@ -626,6 +626,97 @@ theorem eventually_local_prepqc_of_settled
           (hqc' n hn) (hacc' n hn) (hlow n hn) (hs n hn).2.1)
   exact hcon (n + 1) (by omega) (adopt_prepqc_effect (hfire ▸ r.steps n))
 
+/-! ## The prepare assembly, and the per-validator chain closed
+
+`form_prepqc` is the commit assembly's twin — both guards monotone, so the
+proof is the one from `eventually_commitqc_of_commit_quorum` with the
+relation changed. With it the whole **per-validator** half of a view's work
+composes into one statement: from a prepare quorum to that validator's
+`Commit`, through adoption and the availability premise.
+
+What is left after this is the quorum-wide half (every correct validator
+doing the same, so that the *commit* quorum assembles), the acceptance that
+puts `accepted i v e` in place, and discharging `SettledIn`. -/
+
+/-- **`form_prepqc`'s guards are its enabledness.** -/
+theorem enabled_form_prepqc {v : view} {e : value} {q : nodeset}
+    (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → st.msg_prepare p v e = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.form_prepqc v e q) := by
+  mvba_enabled
+  exact ⟨_, hsm, hall, rfl⟩
+
+/-- **`form_prepqc`'s effect**: the prepare certificate is on the network. -/
+theorem form_prepqc_effect {v : view} {e : value} {q : nodeset}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.form_prepqc v e q) st') : st'.msg_prepqc v e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, rfl⟩ := htr
+  mvba_effect
+
+/-- **The prepare-assembly link.** A supermajority all of whose members have
+sent their `Prepare` on `(v, e)` yields a prepare certificate. -/
+theorem eventually_prepqc_of_prepare_quorum
+    (r : MvbaRun th) (hfj : FJustice r)
+    {N : Nat} {v : view} {e : value} {q : nodeset} (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p v e = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).msg_prepqc v e = true := by
+  by_contra hcon
+  push Not at hcon
+  have hall' : ∀ n, N ≤ n → ∀ p, nset.member p q = true →
+      (r.at' n).msg_prepare p v e = true := by
+    intro n hn p hp
+    exact r.mono (P := fun s => s.msg_prepare p v e = true)
+      (fun m hm => Mvba.msg_prepare.mono (r.steps m) p v e hm) (hall p hp) n hn
+  obtain ⟨n, hn, hfire⟩ :=
+    hfj (.form_prepqc v e q)
+      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (fun n hn => enabled_form_prepqc hsm (hall' n hn))
+  exact hcon (n + 1) (by omega) (form_prepqc_effect (hfire ▸ r.steps n))
+
+/-- Being settled from `N` on is being settled from any later point on. -/
+theorem SettledIn.later {r : MvbaRun th} {i : node} {v : view} {N M : Nat}
+    (hs : SettledIn r i v N) (h : N ≤ M) : SettledIn r i v M :=
+  fun n hn => hs n (Nat.le_trans h hn)
+
+/-- **The per-validator chain, closed.** A correct validator settled in view
+`v` that has accepted `e` there sends its `Commit` on `(v, e)`, given only a
+prepare certificate of that view — which a prepare quorum produces.
+
+This composes three links and the availability premise: adopt the
+certificate, wait for the shares, send. The index juggling is the only
+fiddly part, and it is only that `FAvail` reports no ordering: availability
+may arrive before or after the adoption, so the two are brought to a common
+index by monotonicity. -/
+theorem eventually_msg_commit_of_prepqc
+    (r : MvbaRun th) (hfj : FJustice r) (hav : FAvail r)
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value} {N : Nat}
+    (hs : SettledIn r i v N)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
+    (hqc : (r.at' N).msg_prepqc v e = true)
+    (hacc : (r.at' N).accepted i v e = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).msg_commit i v e = true := by
+  -- Adopt the certificate.
+  obtain ⟨n₁, hn₁, hloc⟩ := eventually_local_prepqc_of_settled r hfj hi hs hin hqc hacc
+  -- The availability shares arrive, at an index `FAvail` does not order.
+  obtain ⟨m, hm⟩ := hav i N v e hi hacc
+  -- Bring both to a common point, monotonically.
+  have h₁ : n₁ ≤ max n₁ m := Nat.le_max_left n₁ m
+  have h₂ : m ≤ max n₁ m := Nat.le_max_right n₁ m
+  have hN : N ≤ max n₁ m := Nat.le_trans hn₁ h₁
+  obtain ⟨k, hk, hres⟩ :=
+    eventually_msg_commit_of_settled r hfj hi (hs.later hN)
+      (r.mono (P := fun s => s.input i E₀ = true)
+        (fun j hj => Mvba.input.mono (r.steps j) i E₀ hj) hin _ hN)
+      (r.mono (P := fun s => s.accepted i v e = true)
+        (fun j hj => Mvba.accepted.mono (r.steps j) i v e hj) hacc _ hN)
+      (r.mono (P := fun s => s.local_prepqc i v e = true)
+        (fun j hj => Mvba.local_prepqc.mono (r.steps j) i v e hj) hloc _ h₁)
+      (r.mono (P := fun s => s.avail_ready i e = true)
+        (fun j hj => Mvba.avail_ready.mono (r.steps j) i e hj) hm _ h₂)
+  exact ⟨k, Nat.le_trans hN hk, hres⟩
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -686,3 +777,9 @@ info: 'Mvba.eventually_local_prepqc_of_settled' depends on axioms: [propext, Cla
 -/
 #guard_msgs in
 #print axioms Mvba.eventually_local_prepqc_of_settled
+
+/--
+info: 'Mvba.eventually_msg_commit_of_prepqc' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_msg_commit_of_prepqc

@@ -722,10 +722,29 @@ absent.
    `in_view` form had needed at `propose`.
 
    `#veil_status Mvba` moves **725 → 800** (three invariants × 25
-   action-like entries); every re-solve green. Three of the four links are
-   now bought; the running tally of what liveness costs the sweep is three
-   cells' worth of invariants, all three of them for anti-monotone guards
-   and none of them safety-relevant.
+   action-like entries); every re-solve green.
+
+   **The prepare assembly, and the per-validator chain closed.**
+   `eventually_prepqc_of_prepare_quorum` is the commit assembly's twin —
+   both guards monotone, so it costs nothing new. With it,
+   `eventually_msg_commit_of_prepqc` composes the whole **per-validator**
+   half of a view's work into one statement: a correct validator settled in
+   `v` that has accepted `e` there sends its `Commit`, given only a prepare
+   certificate of that view. Three links plus (F-avail), and the only fiddly
+   part is that (F-avail) reports no ordering — the shares may arrive before
+   or after the adoption — so the two are brought to a common index by
+   monotonicity.
+
+   **Where the tally stands.** Six links proven, three invariants bought
+   (75 cells), all three for anti-monotone guards and none safety-relevant.
+   What is left is the *quorum-wide* half rather than the per-validator one:
+   every correct validator accepting the leader's proposal (so the prepare
+   quorum assembles, and then the commit quorum), and discharging
+   `SettledIn` from (A-viewsync). The acceptance step is where the next
+   invariants are expected — `handle_preprepare`'s vote guard
+   `∀ W, voted i W → W < v` is anti-monotone like the two before it, and its
+   failure is only the goal if an honest leader proposes at most one vector
+   per view, which the clump does not yet say.
 
 Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
 statement and re-solved the family once, but an assumption is a hypothesis
