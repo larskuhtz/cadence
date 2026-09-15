@@ -96,6 +96,32 @@ theorem mono (r : LRun sys th) {P : σ → Prop}
   | base => exact hP
   | succ n _ ih => exact hstep n ih
 
+/-- **A finite family of eventualities is one eventuality.** If each entry
+of a *finite list* eventually satisfies a monotone predicate, then at some
+single index they all do.
+
+This is the formal content of "liveness must assemble a quorum": weak
+fairness delivers each member's message eventually, and a quorum guard needs
+them all *at the same state*. Monotonicity makes the conjunction stable and
+finiteness makes it collapse — with an infinite index list only finitely
+many have arrived at any finite point, and the guard never fires. It is why
+liveness needs `ByzNodeSetEnum` and safety does not
+([`ByzQuorum.lean`](./ByzQuorum.lean)). -/
+theorem eventually_forall (r : LRun sys th) {α : Type v} (P : α → σ → Prop)
+    (hmono : ∀ a n, P a (r.at' n) → P a (r.at' (n + 1))) (N : Nat) :
+    ∀ (xs : List α), (∀ a ∈ xs, ∃ n, N ≤ n ∧ P a (r.at' n)) →
+      ∃ n, N ≤ n ∧ ∀ a ∈ xs, P a (r.at' n)
+  | [], _ => ⟨N, Nat.le_refl N, by simp⟩
+  | a :: xs, h => by
+    obtain ⟨na, hna, hPa⟩ := h a (by simp)
+    obtain ⟨nx, hnx, hPx⟩ :=
+      eventually_forall r P hmono N xs (fun b hb => h b (by simp [hb]))
+    refine ⟨max na nx, Nat.le_trans hna (Nat.le_max_left _ _), fun b hb => ?_⟩
+    rcases List.mem_cons.mp hb with rfl | hb'
+    · exact r.mono (P := P b) (fun m hm => hmono b m hm) hPa _ (Nat.le_max_left _ _)
+    · exact r.mono (P := fun s => P b s)
+        (fun m hm => hmono b m hm) (hPx b hb') _ (Nat.le_max_right _ _)
+
 /-! ### Temporal vocabulary
 
 Only the three shapes the fork's proposal keeps: eventually, always, and

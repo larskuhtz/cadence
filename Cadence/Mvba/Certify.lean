@@ -49,10 +49,10 @@ info: 'Mvba.invariants_of_reachable' depends on axioms: [propext, Classical.choi
 has a real, statement-matching, kernel-checked theorem in the import
 closure, over exactly the standard axioms. Run `#veil_status Mvba table`
 interactively for the per-cell table (theorem, defining file, per-cell
-axiom set). The count is (3 `safety` + 34 `invariant` + the per-action
+axiom set). The count is (3 `safety` + 35 `invariant` + the per-action
 `doesNotThrow` cell) × (24 actions + the initializer).
 
-**Nine of the invariants are there for liveness rather than safety**
+**Ten of the invariants are there for liveness rather than safety**
 (`docs/MvbaPlan.md` §3.5 step 3, `Mvba/Liveness.lean`). Every one of them
 exists to make an *anti-monotone* guard analysable: a fairness argument has
 to know that such a guard can only die by the progress it was waiting for,
@@ -73,8 +73,11 @@ from. By guard:
 `accepted_implies_prepare` is the ninth, and the one exception to the
 pattern: it is not about a guard but about a *conclusion* — the acceptance
 link's guard analysis yields `accepted`, while the prepare quorum needs
-`msg_prepare`, and the two handlers set them in the same step. -/
+`msg_prepare`, and the two handlers set them in the same step.
+`entered_implies_input` is the tenth, and likewise not about a guard: it
+lets a liveness theorem read the participation premise off a validator's
+being in a view, rather than carry it separately. -/
 
-/-- info: #veil_status Mvba: 950/950 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Mvba: 975/975 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Mvba
