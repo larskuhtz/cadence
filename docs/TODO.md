@@ -112,6 +112,25 @@ come first.
 
 ## Liveness
 
+* **Decide how MVBA input validity crosses the seam.** Settled as a *fact*
+  on 2026-09-14 and open only as a design choice. The supplement gives
+  `propose` a validity precondition and `thm:termination` relies on it
+  ("the leader proposes its input `B_l`, which is a valid \metablock by the
+  precondition of `propose`"); `Interfaces.lean` documents it on
+  `MVBASafety.propose`; and Chorus's `mvba_propose` enforces it with three
+  `require` clauses. But `Mvba.propose` does not record it, so the MVBA's
+  own liveness proof cannot use what the consumer already guarantees, and
+  `Mvba/Liveness.lean` restates it as the premise `InputsValid`. Two ways to
+  close that: add `require valid e` to `Mvba.propose` — faithful to the
+  supplement's precondition, makes the premise a model fact, and strengthens
+  the precondition `System.lean`'s composition must discharge — or leave the
+  premise and discharge it at the composition from Chorus's guards. The
+  first is cheaper to use and the second changes no model; neither is
+  obviously right, which is why this is a decision and not a task. Without
+  it, an honest leader may propose an invalid vector, no correct validator
+  accepts it (`handle_preprepare` requires `valid e`) and its view is
+  wasted.
+
 The fair-progress *safety content* is machine-checked, and the case split
 is one theorem — `progress_dichotomy_of_saturation`,
 `Cadence/Chorus/Progress.lean` — leaving exactly two temporal steps
