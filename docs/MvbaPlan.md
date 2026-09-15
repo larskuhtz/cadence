@@ -946,14 +946,20 @@ absent.
    theorem, from seven named premises and the two quorum classes, with the
    standard axiom pin.
 
-   Two premises joined the list after it was written, and both are recorded
-   rather than absorbed. **(F-timeout)**, because §3.2's two fairness classes
-   turned out to be inconsistent with (A-viewsync) — the correction is in
-   §3.2. **`InputsValid`**, because a fresh proposal's validity is the
-   caller's obligation and no model fact supplies it; the supplement agrees
-   (`propose` has a validity precondition, and `thm:termination` cites it),
-   and [`TODO.md`](./TODO.md) § Liveness holds the decision about
-   transmitting it across the seam.
+   One premise joined the list after it was written and is recorded rather
+   than absorbed: **(F-timeout)**, because §3.2's two fairness classes turned
+   out to be inconsistent with (A-viewsync) — the correction is in §3.2.
+
+   **Input validity went the other way, and is now part of the interface.**
+   It was briefly a seventh premise; it is instead a `require valid e` on
+   `Mvba.propose`. That is what the supplement does — `subsec:mvba-protocol`
+   gives the call a validity precondition and `thm:termination` cites it —
+   and it is what the contract between Chorus and the MVBA already says,
+   Chorus's `mvba_propose` establishing `Valid B_i` with three `require`
+   clauses. Restating it as a liveness premise would have duplicated a
+   contract the composition enforces. `input_valid` is the invariant that
+   makes it available, and it holds of Byzantine callers too, `propose`
+   having no `is_byz` guard.
 
    **(A-viewsync) now names the good view's predecessor**, i.e. requires it
    to be above view 1. That is what the paper's own proof does — "View 1 is

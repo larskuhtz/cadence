@@ -304,10 +304,21 @@ after_init {
 /-! ## Inputs (`mod:mvba`) -/
 
 /- `propose(B_i)` — sets the input, enters view 1 and begins participation.
-Once per validator; `Valid B_i` is the caller's obligation. -/
+Once per validator.
+
+`require valid e` is the supplement's precondition on `propose`, checked
+rather than assumed: `subsec:mvba-protocol` gives the call a validity
+precondition and `thm:termination`'s proof relies on it in as many words
+("the leader proposes its input `B_l`, which is a valid \metablock by the
+precondition of `propose`"). It belongs here because it is part of the
+*contract* between the consumer and this module, and Chorus's
+`mvba_propose` already establishes it on its side — carrying it as a
+separate liveness premise instead would have restated a contract the
+composition already enforces. -/
 action propose (i : node) (e : value) {
   require ∀ E, ¬ input i E
   require ¬ abandoned i
+  require valid e
   input i e := true
   entered i vord.zero := true
 }
@@ -651,22 +662,22 @@ invariant [proposed_in_backed]
   ∀ (L : node) (V : view),
     ¬ is_byz L → proposed_in L V → ∃ E, msg_preprepare L V E
 
-/- **An honest leader's proposal is valid, if the callers' inputs are.**
-The two fresh cases propose the leader's own input, whose validity is the
-caller's obligation and nothing this model can check — so it is carried as
-the antecedent rather than asserted. The re-proposal case needs no help from
-it: `tc_lock_backed` and `prepqc_valid` show a certified lock is valid
-whatever the callers did.
+/- Inputs are valid, which is now `propose`'s guard rather than a premise
+carried by the liveness theorems. It holds of Byzantine validators too:
+`propose` is the contract's input and has no `is_byz` guard, so the check
+applies to whoever calls it. -/
+invariant [input_valid]
+  ∀ (R : node) (E : value), input R E → valid E
+
+/- **An honest leader's proposal is valid.** The two fresh cases propose the
+leader's own input (`input_valid`); the re-proposal case offers a certified
+lock, which `tc_lock_backed` and `prepqc_valid` show is valid.
 
 Liveness needs it because `handle_preprepare` requires `valid e`, so a
-proposal no correct validator can accept is a wasted view
-(`Mvba/Liveness.lean`, and `docs/TODO.md` § Liveness on whether to make the
-antecedent a `require` on `propose` instead). -/
+proposal no correct validator can accept is a wasted view. -/
 invariant [honest_preprepare_valid]
   ∀ (L : node) (V : view) (E : value),
-    ¬ is_byz L → msg_preprepare L V E →
-      (∀ (I : node) (E' : value), ¬ is_byz I → input I E' → valid E') →
-        valid E
+    ¬ is_byz L → msg_preprepare L V E → valid E
 
 /- **And it carries the justification the handler checks.** Above view 1 an
 honest leader proposes either a lock of the previous view

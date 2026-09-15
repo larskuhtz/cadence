@@ -12,11 +12,12 @@ proof**: `Mvba.termination : TerminationClaim th`.
 of the proof existed. That was the point of the ordering: the target and its
 premises were fixed, type-checked and citable in advance rather than
 accumulating as a proof went along, so nothing could quietly become a
-hypothesis because a proof turned out to need it. Two premises did join the
-list afterwards and both are recorded as such — (F-timeout), because §3.2's
-two fairness classes turned out to be inconsistent, and `InputsValid`,
-because a fresh proposal's validity is the caller's obligation and no model
-fact supplies it.
+hypothesis because a proof turned out to need it. One premise did join the
+list afterwards and is recorded as such: (F-timeout), because §3.2's two
+fairness classes turned out to be inconsistent. A second candidate,
+validity of the callers' inputs, went the other way — it is part of the
+contract with the consumer, so it became a guard of `Mvba.propose` (the
+supplement's own precondition) instead of a premise here.
 
 Everything a human has to believe is therefore a named `Prop` in this file,
 each with a docstring and each appearing as an explicit hypothesis of the
@@ -230,28 +231,6 @@ validator has invoked propose", and this is that. -/
 def AllPropose (r : MvbaRun th) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ (n : Nat) (E : value), (r.at' n).input i E = true
 
-/-- **The caller's third premise**: what correct validators propose is valid.
-
-Checked against the specification 2026-09-14, and it is the paper's premise
-rather than an artefact here. `subsec:mvba-protocol` gives `propose` a
-validity precondition, and `thm:termination`'s proof leans on it in as many
-words — the leader "proposes its input `B_l`, which is a valid \metablock by
-the precondition of `propose`". `Cadence/Interfaces.lean` carries it as the
-docstring of `MVBASafety.propose`, and the consumer enforces it: Chorus's
-`mvba_propose` spells `Valid B_i` out as three `require` clauses.
-
-What is missing is only the *transmission*. `Mvba.propose` records the input
-without recording its validity, so a proof on this side cannot see what
-Chorus has already guaranteed, and the premise has to be restated here. The
-alternative — a `require valid e` on `Mvba.propose`, which the supplement's
-precondition would justify — would make it a model fact and delete this
-definition, at the cost of a stronger precondition on the composition;
-`docs/TODO.md` carries the decision. A *re*-proposal needs none of this:
-`prepqc_valid` shows a certified lock is valid whatever the caller did. -/
-def InputsValid (r : MvbaRun th) : Prop :=
-  ∀ (i : node) (n : Nat) (E : value), ¬ nset.is_byz i = true →
-    (r.at' n).input i E = true → th.valid E = true
-
 /-- **The caller's second premise**: no correct validator is abandoned before
 it decides. `thm:termination`'s "if no correct validator is externally
 abandoned before deciding"; `abandon` is a contract *input*, so this is a
@@ -273,15 +252,19 @@ def Terminates (r : MvbaRun th) : Prop :=
 this is the `Prop` that §3.5 step 4 has to prove, written down so that its
 premises are fixed, type-checked and citable before the proof exists.
 
-The seven premises are exactly the file's named definitions. What is
-deliberately *absent* is any quorum machinery: `ByzNodeSetEnum` and
+The six premises are exactly the file's named definitions. Input validity
+is **not** among them, and deliberately: it is part of the contract between
+the consumer and this module, so it lives in `Mvba.propose`'s guard where
+Chorus's `mvba_propose` already meets it, rather than being restated here as
+a premise of every liveness theorem. What is also deliberately *absent* is
+any quorum machinery: `ByzNodeSetEnum` and
 `ByzNodeSetHonestQuorum` are what a **proof** needs to assemble certificates,
 not part of what is claimed, and they appear as hypotheses of `termination`
 below rather than here. -/
 def TerminationClaim (th : Theory node nodeset value view) : Prop :=
   ∀ r : MvbaRun th,
     FJustice r → FTimeout r → AViewSync r → FAvail r →
-    AllPropose r → NoEarlyAbandon r → InputsValid r →
+    AllPropose r → NoEarlyAbandon r →
       Terminates r
 
 /-! ## The last link of the chain
@@ -1531,7 +1514,7 @@ theorem terminates_of_good_view
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
     (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset)
     (r : MvbaRun th) (hfj : FJustice r) (hav : FAvail r) (hna : NoEarlyAbandon r)
-    (hap : AllPropose r) (hiv : InputsValid r)
+    (hap : AllPropose r)
     {W : view} {l : node} {pv : view}
     (hlead : th.leader W l = true) (hl : ¬ nset.is_byz l = true)
     (hnext : vord.next pv W)
@@ -1589,7 +1572,6 @@ theorem terminates_of_good_view
       eventually_preprepare_of_settled_leader r hfj hl hsl hnext hlead hjust
     have hvalid : th.valid E₀ = true :=
       Mvba.reachable_honest_preprepare_valid (r.reachable n₀) l W E₀ hl hpp
-        (fun i E hi hin => hiv i n₀ E hi hin)
     have hjust₀ : (∃ w, (r.at' n₀).tc_lock pv w E₀ = true) ∨
         (r.at' n₀).tc_nolock pv = true :=
       Mvba.reachable_honest_preprepare_justified (r.reachable n₀) l W E₀ pv hl hpp hnext
@@ -1803,8 +1785,8 @@ theorem termination
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
     (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset) :
     TerminationClaim th := by
-  rintro r hfj - ⟨W, PV, l, hnext, hlead, hl, henter, hnto⟩ hav hap hna hiv
-  exact terminates_of_good_view enum hqe r hfj hav hna hap hiv hlead hl hnext
+  rintro r hfj - ⟨W, PV, l, hnext, hlead, hl, henter, hnto⟩ hav hap hna
+  exact terminates_of_good_view enum hqe r hfj hav hna hap hlead hl hnext
     (fun i hi => henter i hi (hap i hi)) hnto
 
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
