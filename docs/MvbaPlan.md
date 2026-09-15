@@ -936,9 +936,39 @@ absent.
 
    That also settles where the climbing machinery sits: it is **not** on the
    path to `TerminationClaim`, because (A-viewsync) hands over the entry.
-   It is kept because weakening (A-viewsync) — the strongest of the six
-   premises — is the honest next target, and the climb is what would let a
-   run *derive* its entry into the good view instead of assuming it.
+   It is kept because weakening (A-viewsync) — the strongest of the premises
+   — is the honest next target, and the climb is what would let a run
+   *derive* its entry into the good view instead of assuming it.
+
+5. **The claim, proven.** `Mvba.termination : TerminationClaim th`
+   ([`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean)). Step 4 is
+   complete: the bound-erased sibling of `MVBATemporal.termination` is a
+   theorem, from seven named premises and the two quorum classes, with the
+   standard axiom pin.
+
+   Two premises joined the list after it was written, and both are recorded
+   rather than absorbed. **(F-timeout)**, because §3.2's two fairness classes
+   turned out to be inconsistent with (A-viewsync) — the correction is in
+   §3.2. **`InputsValid`**, because a fresh proposal's validity is the
+   caller's obligation and no model fact supplies it; the supplement agrees
+   (`propose` has a validity precondition, and `thm:termination` cites it),
+   and [`TODO.md`](./TODO.md) § Liveness holds the decision about
+   transmitting it across the seam.
+
+   **(A-viewsync) now names the good view's predecessor**, i.e. requires it
+   to be above view 1. That is what the paper's own proof does — "View 1 is
+   exceptional … We therefore analyze below a later view entered through a
+   timeout certificate" — and it costs nothing, since (A-leader-rotation)
+   puts an honest-led view above every view.
+
+   **What the proof does *not* rest on**, worth stating because it was not
+   obvious in advance: no bound on the number of views, no ranking (the rank
+   is used only in the climbing section, which is off this path), no
+   finiteness of `node`, and no cardinality assumption anywhere. The two
+   quorum classes are the whole of what liveness needs beyond safety's
+   interface, and they enter at exactly two places — the finite index list
+   for assembling a quorum, and a quorum of correct validators so that
+   progress never rests on Byzantine help.
 
    **Where the tally stands.** Every link is proven: the decision chain from
    the honest leader's proposal to every correct validator deciding, and the
