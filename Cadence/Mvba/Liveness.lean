@@ -1324,6 +1324,71 @@ theorem entered_le_of_no_decision
     -- So `PV < W`, and `V` is the least view above `PV`.
     exact ((vord.next_def PV V).mp hnext).2 W ((vord.le_lt PV W).mpr ⟨hPV, hPVne⟩)
 
+/-! ## `SettledIn`, discharged
+
+Every link above assumed `SettledIn`. Here it is *derived*, and the three
+conjuncts come from three different places, which is worth seeing laid out
+because it is the whole role of (A-viewsync):
+
+* `¬ abandoned` — from `NoEarlyAbandon`, a caller premise;
+* `¬ timed_out i W` — from (A-viewsync)'s second clause, which allows a
+  correct validator to time out in the good view only after deciding;
+* `InView i W` — the hard one, and the only one needing a run-level
+  argument. `entered i W` is monotone, so it holds ever after; that *no
+  higher view* is entered is `entered_le_of_no_decision`.
+
+All three are conditioned on the same thing: that no correct validator ever
+decides. That is not a limitation but the shape of the eventual proof — the
+run-level theorem splits on exactly that, and in the other branch there is a
+decision already and nothing to settle. -/
+
+/-- **`SettledIn` from (A-viewsync), while nobody has decided.** -/
+theorem settledIn_of_no_decision
+    (r : MvbaRun th) {W : view}
+    (hvs : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
+      ∃ E, (r.at' n).decided i E = true)
+    (hna : NoEarlyAbandon r)
+    (hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true)
+    {i : node} (hi : ¬ nset.is_byz i = true) {N : Nat}
+    (hentered : (r.at' N).entered i W = true) :
+    SettledIn r i W N := by
+  have hent : ∀ n, N ≤ n → (r.at' n).entered i W = true :=
+    r.mono (P := fun s => s.entered i W = true)
+      (fun m hm => Mvba.entered.mono (r.steps m) i W hm) hentered
+  refine fun n hn => ⟨⟨hent n hn, ?_⟩, ?_, ?_⟩
+  · exact fun V hV => entered_le_of_no_decision r hvs hnodec n i V hi hV
+  · intro hto
+    obtain ⟨E, hE⟩ := hvs i n hi hto
+    exact hnodec i n E hi hE
+  · intro hab
+    obtain ⟨E, hE⟩ := hna i n hi hab
+    exact hnodec i n E hi hE
+
+/-- **The whole honest quorum settled, at one index.** The finite-family lift
+once more: each member enters the good view at its own point, and
+`eventually_quorum` brings them to a common one — which the view-level
+theorem needs, since it starts every member's chain from the same `N`. -/
+theorem exists_settled_quorum_of_no_decision
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (r : MvbaRun th) {W : view} {q : nodeset}
+    (hvs : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
+      ∃ E, (r.at' n).decided i E = true)
+    (hna : NoEarlyAbandon r)
+    (hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true)
+    (hcorrect : ∀ p, nset.member p q = true → ¬ nset.is_byz p = true)
+    (henter : ∀ p, nset.member p q = true → ∃ n, (r.at' n).entered p W = true) :
+    ∃ N, ∀ p, nset.member p q = true → SettledIn r p W N := by
+  obtain ⟨N, -, hall⟩ :=
+    eventually_quorum enum r (fun p s => s.entered p W = true)
+      (fun p m hm => Mvba.entered.mono (r.steps m) p W hm)
+      (fun p hp => by
+        obtain ⟨n, hn⟩ := henter p hp
+        exact ⟨max 0 n, Nat.zero_le _,
+          r.mono (P := fun s => s.entered p W = true)
+            (fun j hj => Mvba.entered.mono (r.steps j) p W hj) hn _
+            (Nat.le_max_right 0 n)⟩)
+  exact ⟨N, fun p hp => settledIn_of_no_decision r hvs hna hnodec (hcorrect p hp) (hall p hp)⟩
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -1420,3 +1485,9 @@ info: 'Mvba.entered_le_of_no_decision' depends on axioms: [propext, Classical.ch
 -/
 #guard_msgs in
 #print axioms Mvba.entered_le_of_no_decision
+
+/--
+info: 'Mvba.exists_settled_quorum_of_no_decision' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.exists_settled_quorum_of_no_decision
