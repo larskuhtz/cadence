@@ -810,6 +810,18 @@ invariant [timeout_qc_backed]
   ∀ (R : node) (V W : view) (E : value),
     msg_timeout_qc R V W E → msg_prepqc W E
 
+/- A timeout certificate is one of the two the assemblies build. The two
+`form_tc_*` actions set `msg_tc` together with `tc_nolock` or `tc_lock`, and
+nothing else sets it.
+
+Liveness needs it to get from `sync_view`'s guard — which reads `msg_tc pv`
+— to the timeout quorum behind it, and from there to a *correct* validator
+that has timed out in `pv`. That is the step showing a run cannot advance
+past the honest-led view without some correct validator timing out there,
+which (A-viewsync) forbids before deciding (`Mvba/Liveness.lean`). -/
+invariant [msg_tc_backed]
+  ∀ (V : view), msg_tc V → tc_nolock V ∨ ∃ W E, tc_lock V W E
+
 invariant [tc_nolock_backed]
   ∀ (V : view), tc_nolock V →
     ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_timeout_noqc r V
