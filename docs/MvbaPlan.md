@@ -873,16 +873,27 @@ absent.
    already exists, `decided_backed` turns it into a certificate, and the
    first link finishes.
 
-   **What the final assembly still needs**, and it is the validity finding
-   coming back: the view-level theorem wants `valid E` of the leader's
-   proposal, and the leader link supplies only the proposal. Closing that
-   without touching `propose` looks like one more invariant — "an honest
-   leader's proposal is valid **if every correct validator's input is**",
-   whose antecedent is `InputsValid` carried inside the clump and whose two
-   cases are already available (`prepqc_valid` for a re-proposal, the
-   antecedent for a fresh one). Then the assembly is composition only. The
-   other open end is unchanged: getting a timeout certificate for the view
-   below the good one, i.e. iterating the view change up to it.
+   **The assembly.** `terminates_of_good_view`: *if a run reaches an
+   honest-led view with a timeout certificate below it, every correct
+   validator decides.* A dichotomy, both branches already built — if some
+   correct validator has decided, `decided_backed` makes that a certificate
+   and the first link carries it to everyone, with no view reasoning at all;
+   if none has, `SettledIn` is available, the leader proposes, and the
+   view-level theorem concludes, contradicting the branch. That the second
+   branch is vacuous is the right outcome: a run that reaches a good view
+   cannot fail to decide.
+
+   Closing the validity gap took the two invariants the previous note
+   predicted — `honest_preprepare_valid`, conditional on the callers' inputs
+   being valid (which no model fact can supply, so it is an antecedent), and
+   `honest_preprepare_justified`, that the proposal carries what
+   `handle_preprepare` checks. `#veil_status Mvba` **725 → 1124**.
+
+   **One hypothesis stands between this and `TerminationClaim`**: `htc`, a
+   timeout certificate below the good view. Closing it means iterating the
+   view-change links up the view order, which is where `Rank.lean`'s view
+   component and its explicit `List view` — the §3.3 correction — are finally
+   consumed, together with (F-timeout) and (A-leader-rotation).
 
    **Where the tally stands.** Every link is proven: the decision chain from
    the honest leader's proposal to every correct validator deciding, and the
