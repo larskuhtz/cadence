@@ -15,42 +15,67 @@ Two components, ordered lexicographically.
 * **The view gap** — how many of a given list of views the validator has not
   yet entered. Zero exactly when it has entered all of them, in particular
   the honest-led view the run is waiting for.
-* **The assembly residual** — at a fixed view and value, how many members of
-  a quorum still owe their `Prepare`, their `Commit`, and their `Timeout`:
-  the three `2f+1` obligations of the model's three certificate assemblies.
-  The first two summands are exactly the message guards of `form_prepqc`
-  and `form_commitqc`, so zero there means the decision route
-  (`msg_prepqc` → `adopt` → `msg_commitqc` → `decide`) is unblocked at the
-  quorum. The third is weaker on purpose: it is what the two `form_tc_*`
-  guards have in *common* — the member has sent some `Timeout` for the view
-  — which each then refines, so zero there is necessary for a `TC_{s,v}`
-  and not sufficient (`SentTimeout` below says exactly what is missing).
-  That third summand is the view-change route, and the view-change route is
-  how the *first* component advances past view 1: `entered` grows only at
-  `propose` (view 1) and at `sync_view` / `sync_view_adopt`, both of which
-  need a timeout certificate of the previous view.
+* **The view-local residual** — at a fixed view and value, how much of that
+  view's work is outstanding. It is a sum of seven counts of one shape, over
+  two index lists:
 
-Both are `residual`s of one shape: *how many entries of a finite index list
-do not yet satisfy a monotone predicate*. Everything below is that shape plus
-the model's generated monotonicity lemmas, which is why each theorem is a few
-lines and says exactly one thing.
+  | over | counting | the step it measures |
+  |---|---|---|
+  | a quorum `q` | `msg_prepare r v e` | `form_prepqc`'s guard |
+  | | `msg_commit r v e` | `form_commitqc`'s guard |
+  | | `SentTimeout st r v` | what the two `form_tc_*` guards share |
+  | the honest core of `q` | `accepted r v e` | `handle_preprepare` |
+  | | `local_prepqc r v e` | `adopt_prepqc` / `sync_view_adopt` |
+  | | `avail_ready r e` | `become_avail_ready` |
+  | | `decided r e` | `decide` |
+
+Everything is one `residual`: *how many entries of a finite index list do not
+yet satisfy a monotone predicate*. That, plus the model's generated
+monotonicity lemmas, is why each theorem below is a few lines and says
+exactly one thing. The seven are summed rather than nested lexicographically
+because each is independently non-increasing, so progress in any one lowers
+the sum and no priority between them has to be invented.
+
+## Two index lists, and why one of them is a sub-quorum
+
+A quorum contains Byzantine members, so a residual over `q` can only reach
+zero for relations a Byzantine member can also supply. That is exactly true
+of the first three — `byz_prepare`, `byz_commit` and `byz_timeout_*` supply
+them — and exactly false of the last four, which only an honest validator
+ever sets. Counting those over `q` would give a bottom no run can reach.
+
+They are counted over the **honest core** of `q` instead: the `f+1`
+all-honest subset that any `2f+1` quorum contains, which is the quorum
+interface's own
+`ByzNodeSet.supermajority_contains_honest_greater_than_third`
+(`exists_honest_core` below). The subset is itself an `nset`, so the *same*
+`ByzNodeSetEnum` enumerates it — the honest dimension needs no second
+enumeration hypothesis, and none is added.
+
+What the honest core does not reach is the difference between `f+1` and the
+`2f+1` correct validators, and it does not need to: `decide`'s guard is
+per-validator and, once some `msg_commitqc v e` exists, holds at every
+correct validator that has not decided. The count drives certificate
+formation, which is the part that needs a quorum; the remaining validators
+each need one weakly-fair firing, a chain of eventualities rather than a
+count.
 
 ## Where the finiteness comes from — and a §3.3 correction
 
 `MvbaPlan.md` §3.3 settled the finiteness question in two dimensions and got
 a third one wrong. All three are visible in the types here.
 
-* **The value dimension needs nothing.** `assemblyGap` is taken at a fixed
+* **The value dimension needs nothing.** Every count is taken at a fixed
   `(v, e)`, which is sound because the model proves `accepted_unique`: an
   honest validator accepts at most one value per view, and every relation it
   writes is gated on that acceptance. The value dimension collapses by
   protocol, not by cardinality.
 * **The node dimension is `ByzNodeSetEnum`**
   ([`ByzQuorum.lean`](../ByzQuorum.lean)): a quorum's members as a list. It
-  is an **explicit parameter** of `assemblyGap` and of every theorem about
-  it, never an instance, so a liveness result carries it as a visible
-  hypothesis and nothing on the safety side acquires a cardinality
-  assumption it does not need.
+  is an **explicit parameter** of every definition and theorem that uses it,
+  never an instance, so a liveness result carries it as a visible hypothesis
+  and nothing on the safety side acquires a cardinality assumption it does
+  not need. One `ByzNodeSetEnum` serves both index lists, as above.
 * **The view dimension needs finiteness too, and §3.3 said it came from
   `leader_honest_cofinal`. It does not.** Cofinality gives a *target* — above
   any view there is an honest-led one (`exists_honest_leader_above` below,
@@ -65,33 +90,15 @@ a third one wrong. All three are visible in the types here.
   view to the honest-led target, and cannot pretend the model's abstract
   order handed it one.
 
-## What is deliberately *not* ranked
-
-The per-validator chain steps — `handle_preprepare`, `adopt_prepqc`,
-`become_avail_ready`, `send_commit`, `decide` — are not summands, and the
-reason is not oversight.
-
-They are not assemblies: each is one once-only action of one validator, so
-what carries them is a chain of eventualities under weak fairness, not a
-count. Counting them anyway would need an enumeration of the **correct**
-validators, and `ByzNodeSetEnum` does not give one: it enumerates a *quorum*,
-whose members include Byzantine nodes, and the relations those steps write
-(`accepted`, `local_prepqc`, `decided`) are honest-only — a residual over a
-quorum's members could never reach zero. That is the open item recorded
-against §3.3, and adding a second, honest-side node enumeration is the
-decision that would settle it; it is left visible rather than papered over.
-The three summands that *are* here are exactly the relations a Byzantine
-member can also supply (`byz_prepare`, `byz_commit`, `byz_timeout_*`), so
-their bottom is reachable, which is what makes them worth ranking.
-
-## What is not here at all
+## What is not here
 
 No scheduling assumption, and no run. A rank that never increases and
 strictly decreases on progress is a statement about single transitions; that
 fair firings eventually drive it to `0` needs (F-justice), (A-viewsync) and
 (F-avail), which enter at §3.5 step 4 as explicit hypotheses of the run-level
-theorem. The one thing consumed beyond the model's transitions is
-`leader_honest_cofinal`, and only in `exists_honest_leader_above`.
+theorem. The one thing consumed beyond the model's transitions and its quorum
+interface is `leader_honest_cofinal`, and only in
+`exists_honest_leader_above`.
 
 **Sign convention.** The rank is a residual — *what is left to do* — so
 progress makes it **decrease**. (§3.4's table said "the rank strictly
@@ -102,13 +109,13 @@ namespace Mvba
 
 /-! ## The residual, once
 
-Both components are the same count, so it is defined and reasoned about once.
-The predicate is a `Prop`, not a `Bool`, because one of the three assembly
-obligations is the disjunction the `form_tc_*` guards share — a validator has
-sent *some* `Timeout` for the view — whose existential quantifier over an
-abstract sort has no decision procedure. `Classical.propDecidable` supplies
-the one canonical instance, so every `residual` term is built the same way
-and the arithmetic below sees one atom per summand.
+All seven counts are the same count, so it is defined and reasoned about
+once. The predicate is a `Prop`, not a `Bool`, because one of them is the
+disjunction the `form_tc_*` guards share — a validator has sent *some*
+`Timeout` for the view — whose existential quantifier over an abstract sort
+has no decision procedure. `Classical.propDecidable` supplies the one
+canonical instance, so every `residual` term is built the same way and the
+arithmetic below sees one atom per summand.
 
 The five lemmas are the whole interface: zero means the predicate holds
 everywhere on the list, a head entry counts iff it fails the predicate,
@@ -189,7 +196,7 @@ end Order
 `Nat × Nat` lexicographically, well-founded because both components are.
 Naming it once keeps every decrease theorem below in the same relation. -/
 
-/-- The order the rank decreases in: the view gap first, the assembly
+/-- The order the rank decreases in: the view gap first, the view-local
 residual second. -/
 abbrev RankLt : Nat × Nat → Nat × Nat → Prop := Prod.Lex (· < ·) (· < ·)
 
@@ -205,7 +212,31 @@ theorem rankLt_of {a a' b b' : Nat} (h1 : a' ≤ a) (h2 : a' = a → b' < b) :
     subst heq
     exact Prod.Lex.right _ (h2 rfl)
 
-/-! ## The two components -/
+/-! ## The honest core of a quorum -/
+
+section Core
+
+variable {node nodeset : Type} [nset : ByzNodeSet node nodeset]
+
+/-- **Projection onto an honest sub-quorum.** Every `2f+1` quorum contains an
+`f+1` subset all of whose members are honest members of it: at most `f` of
+its members are Byzantine, and `(2f+1) − f = f+1`. This is
+`ByzNodeSet.supermajority_contains_honest_greater_than_third`, an axiom of
+the quorum interface that the `n ≥ 3f+1` instance family proves
+([`ByzQuorum.lean`](../ByzQuorum.lean)), so it costs nothing new.
+
+The subset is itself an `nset`, which is the point: the same
+`ByzNodeSetEnum` enumerates it, so `chainGap`'s honest-only counts are
+finite for exactly the reason `assemblyGap`'s are, with no second
+enumeration hypothesis. -/
+theorem exists_honest_core (q : nodeset) (hq : nset.supermajority q) :
+    ∃ hc : nodeset, nset.greater_than_third hc ∧
+      ∀ r, nset.member r hc = true → nset.member r q = true ∧ ¬ nset.is_byz r = true :=
+  nset.supermajority_contains_honest_greater_than_third q hq
+
+end Core
+
+/-! ## The components -/
 
 section Defs
 
@@ -230,11 +261,10 @@ noncomputable def viewGap (Vs : List view)
     (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (i : node) : Nat :=
   residual Vs (fun v => st.entered i v = true)
 
-/-- **The assembly component.** At view `v` on value `e`: how many members of
-the quorum `q` still owe their `Prepare`, their `Commit` and their `Timeout`
-— the three `2f+1` guards of the model's three certificate assemblies. This
-is where liveness needs `ByzNodeSetEnum` and safety does not: **safety
-consumes a quorum intersection, liveness must assemble a quorum.** -/
+/-- **The quorum assemblies**, over the members of `q`: who still owes a
+`Prepare`, a `Commit` and a `Timeout` at `(v, e)`. This is where liveness
+needs `ByzNodeSetEnum` and safety does not: **safety consumes a quorum
+intersection, liveness must assemble a quorum.** -/
 noncomputable def assemblyGap (enum : Cadence.ByzNodeSetEnum node nodeset nset)
     (q : nodeset) (v : view) (e : value)
     (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Nat :=
@@ -242,25 +272,39 @@ noncomputable def assemblyGap (enum : Cadence.ByzNodeSetEnum node nodeset nset)
     + residual (enum.members q) (fun r => st.msg_commit r v e = true)
     + residual (enum.members q) (fun r => SentTimeout st r v)
 
+/-- **The per-validator chain**, over the members of an honest core `hc`: who
+has not yet accepted the proposal, adopted the view's certificate, had its
+availability shares delivered, or decided. These are honest-only relations,
+which is why the index list is the honest core and not the quorum (the
+header, and `exists_honest_core`). -/
+noncomputable def chainGap (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (hc : nodeset) (v : view) (e : value)
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Nat :=
+  residual (enum.members hc) (fun r => st.accepted r v e = true)
+    + residual (enum.members hc) (fun r => st.local_prepqc r v e = true)
+    + residual (enum.members hc) (fun r => st.avail_ready r e = true)
+    + residual (enum.members hc) (fun r => st.decided r e = true)
+
 /-- The lexicographic rank of a state, for validator `i` waiting on the views
-`Vs`, and on quorum `q`'s assemblies at `(v, e)`. -/
+`Vs`, on quorum `q`'s assemblies at `(v, e)`, and on the chain at `q`'s
+honest core `hc`. -/
 noncomputable def rank (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (e : value)
     (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Nat × Nat :=
-  (viewGap Vs st i, assemblyGap enum q v e st)
+  (viewGap Vs st i, assemblyGap enum q v e st + chainGap enum hc v e st)
 
 end Defs
 
 /-! ## Rank zero is exactly the guard
 
 A ranking earns its keep only if its bottom is the thing being waited for.
-Each component has that property, and none of these needs a transition. -/
+Every component has that property, and none of these needs a transition. -/
 
 section Zero
 
 variable {node nodeset value view : Type} [nset : ByzNodeSet node nodeset]
   {st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
-  {enum : Cadence.ByzNodeSetEnum node nodeset nset} {q : nodeset} {v : view} {e : value}
+  {enum : Cadence.ByzNodeSetEnum node nodeset nset} {q hc : nodeset} {v : view} {e : value}
 
 omit nset in
 /-- View gap `0`: the validator has entered every view of the list — in
@@ -269,31 +313,71 @@ theorem entered_of_viewGap_zero {Vs : List view} {i : node}
     (h : viewGap Vs st i = 0) {u : view} (hu : u ∈ Vs) : st.entered i u = true :=
   residual_eq_zero_iff.mp h u hu
 
-/-- Assembly residual `0`, first third: the message guard of `form_prepqc`
-on `q`. (Its other guard, `supermajority q`, is a fact about `q` alone and
-is the caller's to supply; the same holds of the two lemmas below.) -/
+/-- Assembly residual `0`: the message guard of `form_prepqc` on `q`. (Its
+other guard, `supermajority q`, is a fact about `q` alone and the caller's to
+supply; the same holds of the lemmas below.) -/
 theorem prepare_quorum_of_assemblyGap_zero (h : assemblyGap enum q v e st = 0)
     (r : node) (hr : nset.member r q = true) : st.msg_prepare r v e = true := by
   have hz : residual (enum.members q) (fun r => st.msg_prepare r v e = true) = 0 := by
     simp only [assemblyGap] at h; omega
   exact residual_eq_zero_iff.mp hz r ((enum.mem_members r q).mp hr)
 
-/-- Assembly residual `0`, second third: the message guard of
-`form_commitqc` on `q`. -/
+/-- Assembly residual `0`: the message guard of `form_commitqc` on `q`. -/
 theorem commit_quorum_of_assemblyGap_zero (h : assemblyGap enum q v e st = 0)
     (r : node) (hr : nset.member r q = true) : st.msg_commit r v e = true := by
   have hz : residual (enum.members q) (fun r => st.msg_commit r v e = true) = 0 := by
     simp only [assemblyGap] at h; omega
   exact residual_eq_zero_iff.mp hz r ((enum.mem_members r q).mp hr)
 
-/-- Assembly residual `0`, last third: every member of `q` has sent a
-`Timeout` for `v` — the obligation the two `form_tc_*` assemblies share, so
-this is necessary for either and sufficient for neither (`SentTimeout`). -/
+/-- Assembly residual `0`: every member of `q` has sent a `Timeout` for `v` —
+the obligation the two `form_tc_*` assemblies share, so this is necessary for
+either and sufficient for neither (`SentTimeout`). -/
 theorem timeout_quorum_of_assemblyGap_zero (h : assemblyGap enum q v e st = 0)
     (r : node) (hr : nset.member r q = true) : SentTimeout st r v := by
   have hz : residual (enum.members q) (fun r => SentTimeout st r v) = 0 := by
     simp only [assemblyGap] at h; omega
   exact residual_eq_zero_iff.mp hz r ((enum.mem_members r q).mp hr)
+
+/-- Chain residual `0`: every member of the honest core accepted `e` in `v`. -/
+theorem accepted_of_chainGap_zero (h : chainGap enum hc v e st = 0)
+    (r : node) (hr : nset.member r hc = true) : st.accepted r v e = true := by
+  have hz : residual (enum.members hc) (fun r => st.accepted r v e = true) = 0 := by
+    simp only [chainGap] at h; omega
+  exact residual_eq_zero_iff.mp hz r ((enum.mem_members r hc).mp hr)
+
+/-- Chain residual `0`: every member of the honest core holds the view's
+certificate on `e`. -/
+theorem local_prepqc_of_chainGap_zero (h : chainGap enum hc v e st = 0)
+    (r : node) (hr : nset.member r hc = true) : st.local_prepqc r v e = true := by
+  have hz : residual (enum.members hc) (fun r => st.local_prepqc r v e = true) = 0 := by
+    simp only [chainGap] at h; omega
+  exact residual_eq_zero_iff.mp hz r ((enum.mem_members r hc).mp hr)
+
+/-- Chain residual `0`: every member of the honest core has its availability
+shares for `e` — `send_commit`'s environment precondition. -/
+theorem avail_ready_of_chainGap_zero (h : chainGap enum hc v e st = 0)
+    (r : node) (hr : nset.member r hc = true) : st.avail_ready r e = true := by
+  have hz : residual (enum.members hc) (fun r => st.avail_ready r e = true) = 0 := by
+    simp only [chainGap] at h; omega
+  exact residual_eq_zero_iff.mp hz r ((enum.mem_members r hc).mp hr)
+
+/-- Chain residual `0`, the payoff: every member of the honest core has
+decided `e`. -/
+theorem decided_of_chainGap_zero (h : chainGap enum hc v e st = 0)
+    (r : node) (hr : nset.member r hc = true) : st.decided r e = true := by
+  have hz : residual (enum.members hc) (fun r => st.decided r e = true) = 0 := by
+    simp only [chainGap] at h; omega
+  exact residual_eq_zero_iff.mp hz r ((enum.mem_members r hc).mp hr)
+
+/-- The bottom of the chain component is a real decision, not an artefact of
+the encoding: an honest core is `greater_than_third`, hence non-empty of
+honest members, so a zero chain residual exhibits a **correct** validator
+that has decided `e`. -/
+theorem exists_honest_decided_of_chainGap_zero
+    (hgt : nset.greater_than_third hc) (h : chainGap enum hc v e st = 0) :
+    ∃ r, ¬ nset.is_byz r = true ∧ st.decided r e = true := by
+  obtain ⟨r, hmem, hhon⟩ := nset.greater_than_third_one_honest hc hgt
+  exact ⟨r, hhon, decided_of_chainGap_zero h r hmem⟩
 
 end Zero
 
@@ -301,7 +385,7 @@ end Zero
 
 Every `Mvba` relation is written only `true`, so M13's generated
 `<relation>.mono` lemmas — hypothesis-free, kernel-checked, emitted at
-`#gen_spec` — carry both components across an arbitrary transition. No
+`#gen_spec` — carry every component across an arbitrary transition. No
 invariant and no guard is involved, which is why this holds of *every*
 transition, the Byzantine ones included: the adversary can drive the rank
 down but never up. -/
@@ -338,40 +422,54 @@ theorem assemblyGap_le
   simp only [assemblyGap]
   omega
 
+theorem chainGap_le
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset) (hc : nodeset) (v : view) (e : value) :
+    chainGap enum hc v e st' ≤ chainGap enum hc v e st := by
+  have ha := residual_le (fun r => Mvba.accepted.mono htr r v e) (enum.members hc)
+  have hl := residual_le (fun r => Mvba.local_prepqc.mono htr r v e) (enum.members hc)
+  have hv := residual_le (fun r => Mvba.avail_ready.mono htr r e) (enum.members hc)
+  have hd := residual_le (fun r => Mvba.decided.mono htr r e) (enum.members hc)
+  simp only [chainGap]
+  omega
+
 /-- **The rank never increases along a transition** — it either stays put or
 strictly decreases. -/
 theorem rank_noninc
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q : nodeset) (v : view) (e : value) :
-    rank Vs enum i q v e st' = rank Vs enum i q v e st ∨
-      RankLt (rank Vs enum i q v e st') (rank Vs enum i q v e st) := by
+    (i : node) (q hc : nodeset) (v : view) (e : value) :
+    rank Vs enum i q hc v e st' = rank Vs enum i q hc v e st ∨
+      RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+  have hA := assemblyGap_le htr enum q v e
+  have hC := chainGap_le htr enum hc v e
   rcases Nat.lt_or_ge (viewGap Vs st' i) (viewGap Vs st i) with h | h
   · exact Or.inr (Prod.Lex.left _ _ h)
   · have heq : viewGap Vs st' i = viewGap Vs st i :=
       Nat.le_antisymm (viewGap_le htr Vs i) h
-    rcases Nat.lt_or_ge (assemblyGap enum q v e st') (assemblyGap enum q v e st) with h2 | h2
+    rcases Nat.lt_or_ge (assemblyGap enum q v e st' + chainGap enum hc v e st')
+      (assemblyGap enum q v e st + chainGap enum hc v e st) with h2 | h2
     · exact Or.inr (by simp only [rank, heq]; exact Prod.Lex.right _ h2)
-    · have h2eq : assemblyGap enum q v e st' = assemblyGap enum q v e st :=
-        Nat.le_antisymm (assemblyGap_le htr enum q v e) h2
+    · have h2eq : assemblyGap enum q v e st' + chainGap enum hc v e st'
+          = assemblyGap enum q v e st + chainGap enum hc v e st := by omega
       exact Or.inl (by simp only [rank, heq, h2eq])
 
 /-! ## The rank strictly decreases
 
 One theorem per way of making progress, each taking the *fresh* witness — the
 tuple unset before the step and set after it — which is exactly what
-[`Progress.lean`](./Progress.lean)'s disabling lemmas produce. The three
-assembly theorems share a proof: the view gap cannot have grown, so either it
-shrank (and the first component decides) or it is unchanged and the
-strictly-smaller summand decides. -/
+[`Progress.lean`](./Progress.lean)'s disabling lemmas produce. They share a
+proof: the view gap cannot have grown, so either it shrank (and the first
+component decides) or it is unchanged, and then the one summand that strictly
+dropped decides against the six that cannot have grown. -/
 
 /-- Entering a view of the list. -/
 theorem rank_lt_of_entered
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (e : value)
     {u : view} (hu : u ∈ Vs) (h0 : st.entered i u = false) (h1 : st'.entered i u = true) :
-    RankLt (rank Vs enum i q v e st') (rank Vs enum i q v e st) :=
+    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) :=
   Prod.Lex.left _ _
     (residual_lt_of_new (fun w => Mvba.entered.mono htr i w) hu (by simp [h0]) h1)
 
@@ -379,14 +477,15 @@ theorem rank_lt_of_entered
 theorem rank_lt_of_prepare
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (e : value)
     {r : node} (hr : nset.member r q = true)
     (h0 : st.msg_prepare r v e = false) (h1 : st'.msg_prepare r v e = true) :
-    RankLt (rank Vs enum i q v e st') (rank Vs enum i q v e st) := by
+    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
   refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
-  have hp := residual_lt_of_new (fun r' => Mvba.msg_prepare.mono htr r' v e)
+  have hC := chainGap_le htr enum hc v e
+  have hlt := residual_lt_of_new (fun r' => Mvba.msg_prepare.mono htr r' v e)
     ((enum.mem_members r q).mp hr) (by simp [h0]) h1
-  have hc := residual_le (fun r' => Mvba.msg_commit.mono htr r' v e) (enum.members q)
+  have hc2 := residual_le (fun r' => Mvba.msg_commit.mono htr r' v e) (enum.members q)
   have ht := residual_le (fun r' => sentTimeout_mono htr r' v) (enum.members q)
   simp only [assemblyGap]
   omega
@@ -395,13 +494,14 @@ theorem rank_lt_of_prepare
 theorem rank_lt_of_commit
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (e : value)
     {r : node} (hr : nset.member r q = true)
     (h0 : st.msg_commit r v e = false) (h1 : st'.msg_commit r v e = true) :
-    RankLt (rank Vs enum i q v e st') (rank Vs enum i q v e st) := by
+    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
   refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
+  have hC := chainGap_le htr enum hc v e
   have hp := residual_le (fun r' => Mvba.msg_prepare.mono htr r' v e) (enum.members q)
-  have hc := residual_lt_of_new (fun r' => Mvba.msg_commit.mono htr r' v e)
+  have hlt := residual_lt_of_new (fun r' => Mvba.msg_commit.mono htr r' v e)
     ((enum.mem_members r q).mp hr) (by simp [h0]) h1
   have ht := residual_le (fun r' => sentTimeout_mono htr r' v) (enum.members q)
   simp only [assemblyGap]
@@ -413,16 +513,92 @@ component advances past view 1. -/
 theorem rank_lt_of_timeout
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (e : value)
     {r : node} (hr : nset.member r q = true)
     (h0 : ¬ SentTimeout st r v) (h1 : SentTimeout st' r v) :
-    RankLt (rank Vs enum i q v e st') (rank Vs enum i q v e st) := by
+    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
   refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
+  have hC := chainGap_le htr enum hc v e
   have hp := residual_le (fun r' => Mvba.msg_prepare.mono htr r' v e) (enum.members q)
-  have hc := residual_le (fun r' => Mvba.msg_commit.mono htr r' v e) (enum.members q)
-  have ht := residual_lt_of_new (fun r' => sentTimeout_mono htr r' v)
+  have hc2 := residual_le (fun r' => Mvba.msg_commit.mono htr r' v e) (enum.members q)
+  have hlt := residual_lt_of_new (fun r' => sentTimeout_mono htr r' v)
     ((enum.mem_members r q).mp hr) h0 h1
   simp only [assemblyGap]
+  omega
+
+/-- An honest-core member accepting the proposal (`handle_preprepare`). -/
+theorem rank_lt_of_accepted
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (i : node) (q hc : nodeset) (v : view) (e : value)
+    {r : node} (hr : nset.member r hc = true)
+    (h0 : st.accepted r v e = false) (h1 : st'.accepted r v e = true) :
+    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+  refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
+  have hA := assemblyGap_le htr enum q v e
+  have hlt := residual_lt_of_new (fun r' => Mvba.accepted.mono htr r' v e)
+    ((enum.mem_members r hc).mp hr) (by simp [h0]) h1
+  have hl := residual_le (fun r' => Mvba.local_prepqc.mono htr r' v e) (enum.members hc)
+  have hv := residual_le (fun r' => Mvba.avail_ready.mono htr r' e) (enum.members hc)
+  have hd := residual_le (fun r' => Mvba.decided.mono htr r' e) (enum.members hc)
+  simp only [chainGap]
+  omega
+
+/-- An honest-core member adopting the view's certificate (`adopt_prepqc`,
+`sync_view_adopt`). -/
+theorem rank_lt_of_adopt
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (i : node) (q hc : nodeset) (v : view) (e : value)
+    {r : node} (hr : nset.member r hc = true)
+    (h0 : st.local_prepqc r v e = false) (h1 : st'.local_prepqc r v e = true) :
+    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+  refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
+  have hA := assemblyGap_le htr enum q v e
+  have ha := residual_le (fun r' => Mvba.accepted.mono htr r' v e) (enum.members hc)
+  have hlt := residual_lt_of_new (fun r' => Mvba.local_prepqc.mono htr r' v e)
+    ((enum.mem_members r hc).mp hr) (by simp [h0]) h1
+  have hv := residual_le (fun r' => Mvba.avail_ready.mono htr r' e) (enum.members hc)
+  have hd := residual_le (fun r' => Mvba.decided.mono htr r' e) (enum.members hc)
+  simp only [chainGap]
+  omega
+
+/-- An honest-core member's availability shares arriving
+(`become_avail_ready`; the (F-avail) hook). -/
+theorem rank_lt_of_avail_ready
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (i : node) (q hc : nodeset) (v : view) (e : value)
+    {r : node} (hr : nset.member r hc = true)
+    (h0 : st.avail_ready r e = false) (h1 : st'.avail_ready r e = true) :
+    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+  refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
+  have hA := assemblyGap_le htr enum q v e
+  have ha := residual_le (fun r' => Mvba.accepted.mono htr r' v e) (enum.members hc)
+  have hl := residual_le (fun r' => Mvba.local_prepqc.mono htr r' v e) (enum.members hc)
+  have hlt := residual_lt_of_new (fun r' => Mvba.avail_ready.mono htr r' e)
+    ((enum.mem_members r hc).mp hr) (by simp [h0]) h1
+  have hd := residual_le (fun r' => Mvba.decided.mono htr r' e) (enum.members hc)
+  simp only [chainGap]
+  omega
+
+/-- An honest-core member deciding (`decide`) — the last step, and the one the
+whole rank is aimed at. -/
+theorem rank_lt_of_decided
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (i : node) (q hc : nodeset) (v : view) (e : value)
+    {r : node} (hr : nset.member r hc = true)
+    (h0 : st.decided r e = false) (h1 : st'.decided r e = true) :
+    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+  refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
+  have hA := assemblyGap_le htr enum q v e
+  have ha := residual_le (fun r' => Mvba.accepted.mono htr r' v e) (enum.members hc)
+  have hl := residual_le (fun r' => Mvba.local_prepqc.mono htr r' v e) (enum.members hc)
+  have hv := residual_le (fun r' => Mvba.avail_ready.mono htr r' e) (enum.members hc)
+  have hlt := residual_lt_of_new (fun r' => Mvba.decided.mono htr r' e)
+    ((enum.mem_members r hc).mp hr) (by simp [h0]) h1
+  simp only [chainGap]
   omega
 
 /-! ## Leaving a view is progress
@@ -454,12 +630,12 @@ rather than a silent assumption. -/
 theorem rank_lt_of_leaving_view
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q : nodeset) (v : view) (e : value) (w : view)
+    (i : node) (q hc : nodeset) (v : view) (e : value) (w : view)
     (h : InView st i w) (h' : ¬ InView st' i w)
     (hcover : ∀ W, vord.lt w W → st.entered i W = false → st'.entered i W = true → W ∈ Vs) :
-    RankLt (rank Vs enum i q v e st') (rank Vs enum i q v e st) := by
+    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
   obtain ⟨W, hlt, h0, h1⟩ := entered_fresh_above_of_in_view_disabled htr i w h h'
-  exact rank_lt_of_entered htr Vs enum i q v e (hcover W hlt h0 h1) h0 h1
+  exact rank_lt_of_entered htr Vs enum i q hc v e (hcover W hlt h0 h1) h0 h1
 
 /-! ## The target view
 
@@ -490,9 +666,14 @@ end Mvba
 
 /-! ## The pinned trust base
 
-Plain Lean over the model's generated monotonicity lemmas and, in the last
-theorem only, one model assumption: the standard trio and nothing else — no
-`sorryAx`, no solver. -/
+Plain Lean over the model's generated monotonicity lemmas, the quorum
+interface, and — in the last theorem only — one model assumption: the
+standard trio and nothing else, no `sorryAx`, no solver.
+
+One pin reads differently on purpose. `exists_honest_core` is a direct
+projection of a `ByzNodeSet` field, so it depends on **no** axioms at all —
+a strictly smaller footprint than the trio, and the machine-checked form of
+"projecting a quorum onto its honest core costs nothing new". -/
 
 /--
 info: 'Mvba.rank_noninc' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -507,16 +688,26 @@ info: 'Mvba.rank_lt_of_timeout' depends on axioms: [propext, Classical.choice, Q
 #print axioms Mvba.rank_lt_of_timeout
 
 /--
+info: 'Mvba.rank_lt_of_decided' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.rank_lt_of_decided
+
+/--
 info: 'Mvba.rank_lt_of_leaving_view' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Mvba.rank_lt_of_leaving_view
 
+/-- info: 'Mvba.exists_honest_core' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Mvba.exists_honest_core
+
 /--
-info: 'Mvba.timeout_quorum_of_assemblyGap_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.exists_honest_decided_of_chainGap_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.timeout_quorum_of_assemblyGap_zero
+#print axioms Mvba.exists_honest_decided_of_chainGap_zero
 
 /--
 info: 'Mvba.exists_honest_leader_above_of_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]

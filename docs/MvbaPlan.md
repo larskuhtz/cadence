@@ -414,12 +414,23 @@ assumption [leader_honest_cofinal]
     vord.le V W ∧ leader W L ∧ ¬ is_byz L
 ```
 
-It is the model-level stand-in for round-robin rotation over `n = 3f+1` with
-at most `f` Byzantine leaders. Deriving it from an explicit rotation would
-need arithmetic on views, which the model deliberately excludes (§2.2:
-`vord.zero` / `vord.next` only, no arithmetic reaches the solver), so it is
-recorded as a named assumption rather than a derived lemma, and joins the
-trust base alongside the other named assumptions. Its inventory name is
+**It is not invented here.** The supplement states the property outright at
+`subsec:mvba-protocol` — "The leader schedule guarantees that every `f+1`
+consecutive views contain a correct leader" — and `thm:termination`'s proof
+counts with it ("at most `f` faulty-leader views can precede a correct-leader
+view"), which is where the `O(fΔ)` comes from. The algorithm block says only
+that `\Leader` is "a deterministic public function", so the coverage property
+is easy to miss there; it is in the surrounding prose. Cofinality is the
+weakest untimed consequence: it keeps "a correct leader is always still
+ahead" and drops the bound, which is right for a model that claims no
+latency. So this assumption is **weaker** than what the paper assumes, not an
+addition to it.
+
+Deriving even cofinality from an explicit rotation would need arithmetic on
+views, which the model deliberately excludes (§2.2: `vord.zero` /
+`vord.next` only, no arithmetic reaches the solver), so it is recorded as a
+named assumption rather than a derived lemma, and joins the trust base
+alongside the other named assumptions. Its inventory name is
 **(A-leader-rotation)** ([`Architecture.md`](./Architecture.md) §4 item 2).
 
 **Where it lands, and why that is the price of the placement.** A model
@@ -433,10 +444,19 @@ invariants of §3.5 step 3 are sweep cells, and only a model `assumption`
 reaches the solver. Nothing in the safety proofs needs it — the whole family
 was proven without it and re-solved unchanged with it, at
 `#veil_status Mvba` 725/725 — so the narrowing is formal rather than
-material. The alternative, a plain-Lean hypothesis on the liveness theorems
-only, buys back the generality and forecloses step 3; if step 3 turns out
-not to need it in a cell, moving it back is a one-line change plus a
-re-solve.
+material.
+
+**This placement is a bet on step 3, and it is reversible.** The alternative
+is to carry cofinality as a plain-Lean hypothesis of the liveness theorems,
+alongside (F-justice), (F-byz), (A-viewsync) and (F-avail) where §3.4 puts
+the rest of the seam; that keeps the safety statements fully general and
+gives up only the ability to use it *inside a sweep cell*. Whether step 3
+needs it there is not yet known and looks doubtful: cofinality is a property
+of the immutable `leader` relation, not of the state, and an inductive
+invariant is a state predicate — the target view is chosen in the run-level
+argument, which is plain Lean. If step 3 confirms that, moving the
+assumption out is a one-line change plus a re-solve, and it also removes the
+`NoLock.lean` wrinkle below.
 
 One consequence outside the model: [`Mvba/NoLock.lean`](../Cadence/Mvba/NoLock.lean),
 the lock-check mutation test, does **not** declare it — its theory makes the
@@ -503,20 +523,27 @@ the interval up to the target is an obligation of the run-level theorem
   since such systems do not scale in committee size. So this one carries
   operational content rather than being a finiteness trick.
 
-  **What it does not reach, found while building the rank.** A quorum's
-  members include Byzantine nodes, so a residual over them is only useful
-  for relations a Byzantine node can also supply. That is exactly true of
-  the three the rank counts — `msg_prepare`, `msg_commit` and "has sent
-  some `Timeout`", the guards of the model's three certificate assemblies
-  (`byz_prepare`, `byz_commit`, `byz_timeout_*` supply them) — and exactly
-  false of the honest-only relations of the per-validator chain
-  (`accepted`, `local_prepqc`, `decided`): a residual over a quorum could
-  never reach zero on those, so ranking them would need a second, honest-
-  side node enumeration. It is not added. Those steps are each one
-  once-only action of one validator, so what carries them is a chain of
-  eventualities under weak fairness rather than a count; if step 4 finds
-  it needs the count anyway, the enumeration goes in as another explicit
-  hypothesis, never silently.
+  **Two index lists, one enumeration.** A quorum's members include
+  Byzantine nodes, so a residual over them can only reach zero for
+  relations a Byzantine node can also supply — true of the three assembly
+  guards the rank counts (`byz_prepare`, `byz_commit`, `byz_timeout_*`
+  supply `msg_prepare`, `msg_commit` and "has sent some `Timeout`"), false
+  of the honest-only relations of the per-validator chain (`accepted`,
+  `local_prepqc`, `decided`), whose bottom over a quorum no run could
+  reach.
+
+  That does **not** call for a second enumeration hypothesis, as a first
+  draft of `Rank.lean` claimed. `ByzNodeSet` already projects a `2f+1`
+  quorum onto an all-honest `f+1` sub-quorum
+  (`supermajority_contains_honest_greater_than_third`, proven for the whole
+  `n ≥ 3f+1` family), and that sub-quorum **is** an `nset`, so the same
+  `ByzNodeSetEnum` enumerates it. The honest-only counts are therefore
+  taken over the honest core, and the rank needs exactly one enumeration
+  (`Mvba/Rank.lean`, `exists_honest_core`, which depends on no axioms at
+  all). What the honest core leaves out — the gap between `f+1` and the
+  `2f+1` correct validators — needs no count: once a `CommitQC` exists,
+  `decide`'s guard is per-validator, so each remaining correct validator
+  needs one weakly-fair firing.
 
 ### 3.4 What becomes formal, and where the seam is
 
@@ -534,7 +561,7 @@ none of the work below blocks on the fork's liveness branch.
 | "guard held, then failed ⇒ the rank strictly decreased" (the rank is a residual, so progress *lowers* it; this row said "increased" before the measure existed) | plain Lean — **landed**, [`Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean) | Proven from the model alone; **no scheduling assumption enters**. The machine-checked replacement for §3.1(a)'s Chorus prose. It needed no `step_property` and adds no verification conditions: every `Mvba` relation is written only `true`, so M13's generated `<rel>.mono` covers the growth, and of the six guards only `in_view` needs the transition at all — the other five hold of any pair of states. `#veil_status Mvba` is unchanged |
 | Fair-progress invariants | sweep cells | Mirroring Chorus's "Fair progress" invariants |
 | `leader_honest_cofinal` | model `assumption` — **landed** | The one new axiom (§3.3), inventory name (A-leader-rotation). Changed every VC statement; the family re-solved green and `#veil_status Mvba` stayed at 725 (an assumption changes statements, not cells) |
-| The ranking and its decrease | plain Lean — **landed**, [`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean) | `rank` = (view gap, assembly residual) in `Prod.Lex`; `rank_noninc` over *every* transition, one strict-decrease theorem per kind of progress, and a "rank zero is exactly the guard" lemma per component. No scheduling assumption enters |
+| The ranking and its decrease | plain Lean — **landed**, [`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean) | `rank` = (view gap, view-local residual) in `Prod.Lex`, the second component a sum of seven counts of one shape — three quorum assemblies over `q`, four chain steps over `q`'s honest core. `rank_noninc` over *every* transition (Byzantine included), one strict-decrease theorem per kind of progress, and a "rank zero is exactly the guard" lemma per count, down to "some correct validator has decided". No scheduling assumption enters |
 | "Every correct validator eventually decides" | plain-Lean theorem over `Run` | Bound-erased sibling of `MVBATemporal.termination` |
 
 **The seam, stated once.** The run-level theorem takes (F-justice), (F-byz),
@@ -561,9 +588,10 @@ absent.
    The finiteness questions are settled three ways, and one of them is a
    correction to §3.3: the value dimension needs nothing, the node
    dimension is `ByzNodeSetEnum`
-   ([`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)), and the **view**
-   dimension needs a finite list of views that cofinality does not
-   supply — so the rank takes one as a parameter.
+   ([`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)) — one enumeration, used
+   both for a quorum and for the honest core `ByzNodeSet` projects out of
+   it — and the **view** dimension needs a finite list of views that
+   cofinality does not supply, so the rank takes one as a parameter.
 3. **Fair-progress invariants in the sweep.** Where the solver cost lands;
    budget manual cells, and expect the growing clump to tip formerly green
    cells into divergence (the `cadence-verification` skill, §5 item 3).

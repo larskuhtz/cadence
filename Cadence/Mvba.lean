@@ -223,12 +223,15 @@ assumption [leader_functional]
   ∀ (V : view) (L L' : node), leader V L → leader V L' → L = L'
 
 /- **Honest leaders are cofinal**, **(A-leader-rotation)** — the
-model-level stand-in for round-robin
-rotation over `n = 3f+1` with at most `f` Byzantine leaders
-(`docs/MvbaPlan.md` §3.3). Deriving it from an explicit rotation would need
-arithmetic on views, which this model excludes by design (the header: only
-`vord.zero` and `vord.next`, no arithmetic reaches the solver), so it is a
-named assumption.
+untimed weakening of a property the supplement
+states outright (`subsec:mvba-protocol`: "The leader schedule guarantees
+that every `f+1` consecutive views contain a correct leader"), which is
+what `thm:termination` counts with to reach its `O(fΔ)` bound. Cofinality
+drops the quantitative part and keeps only what an untimed model can use
+(`docs/MvbaPlan.md` §3.3). Deriving even that from an explicit rotation
+would need arithmetic on views, which this model excludes by design (the
+header: only `vord.zero` and `vord.next`, no arithmetic reaches the
+solver), so it is a named assumption rather than a derived lemma.
 
 It is a **liveness** assumption, and it is declared here rather than carried
 as a hypothesis of the liveness theorems for one reason: the fair-progress
