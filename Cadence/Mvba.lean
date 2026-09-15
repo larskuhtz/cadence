@@ -605,12 +605,42 @@ safety [external_validity]
 rows below; the header explains the one departure (`lem:lock-persistence`
 is a corollary, `prepqc_blocks_lower_commits` is the inductive form). -/
 
+/-! ### The honest leader's single proposal
+
+Two invariants **liveness** asked for (`docs/MvbaPlan.md` §3.5 step 3), and
+the formal content of `thm:termination`'s "the correct leader broadcasts a
+single valid proposal `x_v`". Safety never needed them — it does not care
+how many vectors a leader offers, only what a certificate proves — which is
+why the clump said nothing about `msg_preprepare` until now. -/
+
+/- An honest `Pre-Prepare` is recorded in `proposedIn_l`, which is what the
+three leader actions check before sending. Support for the uniqueness
+below: without it the `¬ proposed_in l v` guard cannot rule out an earlier
+proposal. -/
+invariant [honest_preprepare_proposed]
+  ∀ (L : node) (V : view) (E : value),
+    ¬ is_byz L → msg_preprepare L V E → proposed_in L V
+
+/- An honest leader proposes at most one vector per view. -/
+invariant [honest_preprepare_unique]
+  ∀ (L : node) (V : view) (E E' : value),
+    ¬ is_byz L → msg_preprepare L V E → msg_preprepare L V E' → E = E'
+
 /-! ### `lem:vote-uniqueness` — one `Prepare` per view, on the accepted vector -/
 
 /- An honest `Prepare` is on the vector its sender accepted in that view. -/
 invariant [honest_prepare_accepted]
   ∀ (R : node) (V : view) (E : value),
     ¬ is_byz R → msg_prepare R V E → accepted R V E
+
+/- The converse of `honest_prepare_accepted`: accepting and sending the
+`Prepare` are the same step in both handlers, so for an honest validator the
+two relations agree. Liveness needs this direction — the acceptance link's
+guard analysis yields `accepted`, while the prepare quorum needs
+`msg_prepare` (`Mvba/Liveness.lean`). -/
+invariant [accepted_implies_prepare]
+  ∀ (R : node) (V : view) (E : value),
+    ¬ is_byz R → accepted R V E → msg_prepare R V E
 
 /- Accepting raised `lastVotedView_i` to the view (`line:mvba:hp-record`),
 which is what makes the acceptance unique per view. -/
@@ -621,6 +651,50 @@ invariant [accepted_implies_voted]
 invariant [accepted_unique]
   ∀ (R : node) (V : view) (E E' : value),
     ¬ is_byz R → accepted R V E → accepted R V E' → E = E'
+
+/- **A vote never outruns the views its holder has entered**, in the same
+bound form as `local_prepqc_within_entered` and for the same reason: both
+ways of voting — accepting a proposal and timing out — happen in the
+current view.
+
+The third guard-analysis invariant liveness needs. `handle_preprepare`'s
+`∀ W, voted i W → W < v` is anti-monotone, and this pins a lapse to the
+current view rather than one above it. -/
+invariant [voted_within_entered]
+  ∀ (R : node) (W : view) (U : view),
+    ¬ is_byz R → voted R W → (∀ V, entered R V → vord.le V U) → vord.le W U
+
+/- **A vote that is not a timeout means the leader has already proposed.**
+Accepting is the only other way to vote, and it requires the leader's
+`Pre-Prepare`, which for an honest leader is recorded in `proposedIn_l`
+(`honest_preprepare_proposed`).
+
+Support for the next one, and the case the solver found: at the three
+leader actions the guard is `¬ proposed_in l v`, so this is what makes
+"nobody can have voted in `v` yet" available there — without it, a
+validator that had somehow voted before the honest leader's first proposal
+could not be ruled out. -/
+invariant [voted_implies_leader_proposed]
+  ∀ (R : node) (V : view) (L : node),
+    ¬ is_byz R → voted R V → ¬ timed_out R V →
+      leader V L → ¬ is_byz L → proposed_in L V
+
+/- **And a vote that is not a timeout is an acceptance of the leader's
+proposal.** A validator votes in a view in exactly two ways
+(`line:mvba:hp-record`, `line:mvba:timeout-send`), and the timeout sets
+`timedOut_i` in the same step — so an honest validator that has voted in `V`
+without timing out there accepted, and under an honest leader what it
+accepted is the one vector that leader proposed
+(`honest_preprepare_unique`, with `leader_functional`).
+
+This completes the lapse analysis for `handle_preprepare`'s vote guard: at a
+validator settled in `V`, the guard can only die by the acceptance the
+argument was waiting for (`Mvba/Liveness.lean`,
+`eventually_accepted_of_settled`). -/
+invariant [voted_implies_accepted_proposal]
+  ∀ (R : node) (V : view) (L : node) (E : value),
+    ¬ is_byz R → voted R V → ¬ timed_out R V →
+      leader V L → ¬ is_byz L → msg_preprepare L V E → accepted R V E
 
 /- `lem:external-validity`'s premise: only valid vectors are accepted
 (`line:mvba:pp-guard`). -/

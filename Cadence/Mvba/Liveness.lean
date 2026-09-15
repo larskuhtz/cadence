@@ -717,6 +717,128 @@ theorem eventually_msg_commit_of_prepqc
         (fun j hj => Mvba.avail_ready.mono (r.steps j) i e hj) hm _ h₂)
   exact ⟨k, Nat.le_trans hN hk, hres⟩
 
+/-! ## The acceptance, and the whole per-validator chain
+
+`handle_preprepare` is the last per-validator link, and the most expensive:
+its vote guard `∀ W, voted i W → W < v` is anti-monotone like the two
+before it, but showing that its failure *is* the goal takes five invariants
+rather than one, because a vote is a weaker thing than a lock. The chain is:
+
+* `voted_within_entered` pins a lapse to view `v` rather than one above it,
+  exactly as `local_prepqc_within_entered` did for the lock;
+* at `v`, the validator is not timed out (`SettledIn`), and voting without
+  timing out is accepting — `voted_implies_accepted_proposal`;
+* what it accepted is what the leader proposed, because an honest leader
+  proposes once per view (`honest_preprepare_unique`, with
+  `honest_preprepare_proposed` and `voted_implies_leader_proposed` making
+  that inductive).
+
+The honest leader is where this link differs from every earlier one: it is
+the first that does not hold for an arbitrary view. That is not an artefact
+— under a Byzantine leader two correct validators really can accept
+different vectors, which is why the protocol needs an honest-led view at
+all, and why (A-viewsync) produces one. -/
+
+/-- **`handle_preprepare`'s guards are its enabledness.** -/
+theorem enabled_handle_preprepare {i l : node} {pv v : view} {e : value}
+    (hi : ¬ nset.is_byz i = true)
+    (hin : ∃ E, st.input i E = true)
+    (hab : ¬ st.abandoned i = true)
+    (hview : InView st i v)
+    (hnext : vord.next pv v)
+    (hlead : th.leader v l = true)
+    (hpp : st.msg_preprepare l v e = true)
+    (hvalid : th.valid e = true)
+    (hjust : (∃ w, st.tc_lock pv w e = true) ∨ st.tc_nolock pv = true)
+    (hvote : ∀ W, st.voted i W = true → vord.lt W v) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.handle_preprepare i l pv v e) := by
+  mvba_enabled
+  exact ⟨_, hi, hin, hab, hview.1, hview.2, hnext, hlead, hpp, hvalid, hjust, hvote, rfl⟩
+
+/-- **`handle_preprepare`'s effect**: the vector is accepted and the
+`Prepare` is sent. -/
+theorem handle_preprepare_effect {i l : node} {pv v : view} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.handle_preprepare i l pv v e) st') :
+    st'.accepted i v e = true ∧ st'.msg_prepare i v e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  constructor <;> mvba_effect
+
+/-- **A lapsed vote guard is the acceptance itself**, under an honest
+leader. At a reachable state where `i` is settled in view `v` and the
+honest leader of `v` has proposed `e`, the guard
+`∀ W, voted i W → W < v` can fail only by `i` having accepted `e`. -/
+theorem accepted_of_vote_guard_lapsed
+    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
+    {i l : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value}
+    (hview : InView st i v) (hnto : ¬ st.timed_out i v = true)
+    (hlead : th.leader v l = true) (hl : ¬ nset.is_byz l = true)
+    (hpp : st.msg_preprepare l v e = true)
+    (hlapse : ¬ ∀ W, st.voted i W = true → vord.lt W v) :
+    st.accepted i v e = true := by
+  obtain ⟨W, hW, hnlt⟩ : ∃ W, st.voted i W = true ∧ ¬ vord.lt W v := by
+    by_contra hc
+    exact hlapse (fun W h => by
+      by_contra hlt
+      exact hc ⟨W, h, hlt⟩)
+  have hle : vord.le W v := Mvba.reachable_voted_within_entered hr i W v hi hW hview.2
+  have hWv : W = v := by
+    rcases (vord.le_lt W v) with ⟨_, hmk⟩
+    by_contra hne
+    exact hnlt (hmk ⟨hle, hne⟩)
+  subst hWv
+  exact Mvba.reachable_voted_implies_accepted_proposal hr i W l e hi hW hnto hlead hl hpp
+
+/-- **The acceptance link.** A correct validator settled in view `v`, with
+the honest leader of `v` having proposed a valid `e` justified by the
+previous view's timeout certificate, accepts `e` and sends its `Prepare`. -/
+theorem eventually_accepted_of_settled
+    (r : MvbaRun th) (hfj : FJustice r)
+    {i l : node} (hi : ¬ nset.is_byz i = true) {pv v : view} {e : value} {N : Nat}
+    (hs : SettledIn r i v N)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
+    (hnext : vord.next pv v)
+    (hlead : th.leader v l = true) (hl : ¬ nset.is_byz l = true)
+    (hpp : (r.at' N).msg_preprepare l v e = true)
+    (hvalid : th.valid e = true)
+    (hjust : (∃ w, (r.at' N).tc_lock pv w e = true) ∨ (r.at' N).tc_nolock pv = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).accepted i v e = true ∧ (r.at' n).msg_prepare i v e = true := by
+  by_contra hcon
+  push Not at hcon
+  have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
+    r.mono (P := fun s => s.input i E₀ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
+  have hpp' : ∀ n, N ≤ n → (r.at' n).msg_preprepare l v e = true :=
+    r.mono (P := fun s => s.msg_preprepare l v e = true)
+      (fun m hm => Mvba.msg_preprepare.mono (r.steps m) l v e hm) hpp
+  have hjust' : ∀ n, N ≤ n →
+      (∃ w, (r.at' n).tc_lock pv w e = true) ∨ (r.at' n).tc_nolock pv = true := by
+    rcases hjust with ⟨w, hw⟩ | hnl
+    · exact fun n hn => Or.inl ⟨w, r.mono (P := fun s => s.tc_lock pv w e = true)
+        (fun m hm => Mvba.tc_lock.mono (r.steps m) pv w e hm) hw n hn⟩
+    · exact fun n hn => Or.inr (r.mono (P := fun s => s.tc_nolock pv = true)
+        (fun m hm => Mvba.tc_nolock.mono (r.steps m) pv hm) hnl n hn)
+  -- The anti-monotone guard: if it lapses, the acceptance has happened, and
+  -- the `Prepare` goes with it (`honest_prepare_accepted`'s converse is the
+  -- action's own effect, so the two arrive together or not at all).
+  have hvote : ∀ n, N ≤ n → ∀ W, (r.at' n).voted i W = true → vord.lt W v := by
+    intro n hn
+    by_contra hlapse
+    have hacc := accepted_of_vote_guard_lapsed (r.reachable n) hi (hs n hn).1
+      (hs n hn).2.1 hlead hl (hpp' n hn) hlapse
+    exact hcon n hn hacc
+      (Mvba.reachable_accepted_implies_prepare (r.reachable n) i v e hi hacc)
+  obtain ⟨n, hn, hfire⟩ :=
+    hfj (.handle_preprepare i l pv v e)
+      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (fun n hn =>
+        enabled_handle_preprepare hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
+          hnext hlead (hpp' n hn) hvalid (hjust' n hn) (hvote n hn))
+  obtain ⟨ha, hp⟩ := handle_preprepare_effect (hfire ▸ r.steps n)
+  exact hcon (n + 1) (by omega) ha hp
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -783,3 +905,9 @@ info: 'Mvba.eventually_msg_commit_of_prepqc' depends on axioms: [propext, Classi
 -/
 #guard_msgs in
 #print axioms Mvba.eventually_msg_commit_of_prepqc
+
+/--
+info: 'Mvba.eventually_accepted_of_settled' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_accepted_of_settled
