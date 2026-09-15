@@ -112,6 +112,30 @@ come first.
 
 ## Liveness
 
+* **A non-vacuity instrument at the *composition* level.** Every check of
+  this kind in the repository is per-model: eight `sat trace` blocks across
+  `Cadence`, `Conductor` and `Mvba`, plus the two `#model_check`s. There is
+  **none** for the composed system — `System.lean`, `Composition.lean` and
+  the two `Compose.lean` files contain no reachability witness at all. So a
+  guard that becomes unsatisfiable only *at the instantiation*, where one
+  module's parameter meets another's state, would not fail a build: the
+  invariants would hold vacuously and every pin would stay green.
+
+  That is not hypothetical. Adding `MVBASafety.propose_valid` made Chorus's
+  `mvba_propose` depend, at the composed instance, on a bridge between two
+  notions of validity that nothing identifies
+  ([`CompositionContracts.md`](./CompositionContracts.md) §7 item 1). The
+  composed safety theorem is unaffected, being parametric in the MVBA
+  theory, but nothing would have reported it either way.
+
+  The instrument to build: instantiate the composed system at concrete
+  finite sorts and either `#model_check` a run that reaches a decision, or
+  pin a `sat trace` through `propose` → `mvba_propose` → a decision handler.
+  Either turns "the seams admit a real execution" from an argument into a
+  build-checked fact, and it is the only one of
+  [`MvbaPlan.md`](./MvbaPlan.md) §4's four instruments that does not already
+  exist in some form.
+
 * **Revisit the timer abstraction, which is what (A-viewsync) pays for.**
   `Mvba`'s two timeout actions are outside the weak-fairness class, and the
   reason is not that fairness on them is *inconsistent* but that it would
@@ -123,16 +147,32 @@ come first.
 
   The cause is that the model abstracts *when* a timeout fires
   ([`MvbaPlan.md`](./MvbaPlan.md) §3.6) — in the protocol `timeout` is enabled
-  only once the timer has expired, and the duration is chosen to exceed the
-  chain's latency after GST. A model carrying a timer would let both timeout
-  actions be weakly fair without trivialising anything, would make
-  (F-timeout) a theorem, and would shrink (A-viewsync) to a statement
-  relating the timeout duration to that latency — which is what the paper
-  assumes, and strictly weaker than what is assumed now. The assumption does
-  not disappear; it changes shape and becomes checkable against
-  `thm:termination`'s own constants. Weigh that against §3.6's reason for
-  staying untimed, and against the cost of a clock in a model whose safety
-  proofs currently need none.
+  only once the timer has expired.
+
+  **A quantitative clock is not the only way back, and §3.6 does not argue
+  against the cheaper one.** What §3.6 actually argues is that view
+  *advancement* must stay gated by timeout certificates rather than being
+  unguarded nondeterminism; "abstract the timing only" is asserted next to
+  it, not justified. An abstract **phase marker** — a monotone
+  `timer_expired i v`, set by an environment action, with both `timeout_*`
+  guarded on it — violates nothing §3.6 argues for, needs no clock and no
+  arithmetic, and changes the shape of the premises for the better:
+
+  * the timeout actions can then join the weak-fairness class without
+    trivialising anything, because they are not enabled until the marker is
+    set, and (F-timeout) becomes a fairness assumption on the *marker* — a
+    statement about the environment, not about the protocol;
+  * (A-viewsync) stops mentioning `decided`. Today it reads "a timeout in
+    the good view implies a decision", which is what makes it trivialising
+    under justice and uncomfortable to read; with a marker it reads "in the
+    good view the marker is not set before the commit certificate exists" —
+    an ordering constraint between two events, which is what the timing
+    assumption actually is.
+
+  The assumption does not disappear either way; a marker makes it local and
+  stops it naming the conclusion. Cost: one relation, one environment
+  action, a guard on each timeout action, and a re-solve. Worth weighing
+  before any more is built on (A-viewsync) in its current form.
 
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
   meta-axioms become premises of a Lean theorem rather than named
