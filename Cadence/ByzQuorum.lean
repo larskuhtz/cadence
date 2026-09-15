@@ -19,7 +19,7 @@ eight `ByzNodeSet` axioms then hold for the whole family `n ≥ 3f+1`
 
 namespace Cadence
 
-/-! ## Quorum enumerability — what liveness needs and safety does not
+/-! ## The constructive side — what liveness needs and safety does not
 
 `ByzNodeSet` axiomatises quorums by **intersection alone**: every one of its
 eight fields says that two sets of a given strength share a member of some
@@ -43,12 +43,49 @@ It is discharged, never assumed, wherever the validator set is concrete: a
 supplies it for the whole family `n ≥ 3f+1`. A committee is finite in the
 strict sense — proof-of-stake systems do not scale in committee size — so
 the resulting bound is the protocol's own parameter, not a cardinality
-trick. -/
+trick.
+
+`ByzNodeSetHonestQuorum` below is the second requirement of the same kind,
+and the two are kept apart for the same reason they are kept out of
+`ByzNodeSet`: a theorem should carry what it uses. The ranking of
+[`Mvba/Rank.lean`](./Mvba/Rank.lean) needs enumerability alone; only a
+run-level theorem, which must exhibit the quorum that actually assembles,
+needs the second. -/
 class ByzNodeSetEnum (node nset : Type) (B : ByzNodeSet node nset) where
   /-- A quorum's members, as a finite list. -/
   members : nset → List node
   /-- `members` enumerates exactly the quorum's membership. -/
   mem_members : ∀ (a : node) (s : nset), B.member a s = true ↔ a ∈ members s
+
+/-! ### A quorum of correct validators
+
+All eight `ByzNodeSet` axioms are *intersection* statements: two sets of a
+given strength share a member of some kind. Not one of them says that a
+supermajority of **correct** validators exists. Safety never needs that — it
+consumes quorums the adversary may have helped to form, and the intersection
+axioms are exactly what makes the consumption sound — so the base class is
+right to omit it.
+
+Liveness cannot. Under (F-byz) the Byzantine actions are unfair, so progress
+may not rely on adversarial sends; every certificate the termination
+argument needs (`Mvba.form_prepqc`, `form_commitqc`, the two `form_tc_*`)
+must therefore be assembled out of correct validators alone, and that is
+possible only if the correct validators contain a supermajority. With
+`n ≥ 3f+1` and at most `f` Byzantine there are `n − f ≥ 2f+1` of them, so
+this is true at every real committee — it is simply not a consequence of the
+intersection axioms.
+
+The class is *constructive*: it hands over the quorum rather than asserting
+that one exists, because a run-level proof has to instantiate the assembly
+guards with a particular `q`. Like `ByzNodeSetEnum` it takes the
+`ByzNodeSet` as an **explicit** parameter, so nothing on the safety side
+acquires it by instance search, and `byzNodeSetFinGen_honest` discharges it
+for the whole family. -/
+class ByzNodeSetHonestQuorum (node nset : Type) (B : ByzNodeSet node nset) where
+  /-- A distinguished quorum, all of whose members are correct. -/
+  honestQuorum : nset
+  honestQuorum_supermajority : B.supermajority honestQuorum
+  honestQuorum_correct : ∀ (a : node), B.member a honestQuorum = true → ¬ B.is_byz a = true
 
 section
 
@@ -199,6 +236,29 @@ def byzNodeSetFinGen_enum :
     dsimp +instances [byzNodeSetFinGen]
     simp
 
+/-- The concrete discharge of `ByzNodeSetHonestQuorum`: the correct
+validators of `Fin n`, as the sorted list of those the predicate does not
+mark. Its length is `n` minus the Byzantine count, hence at least `n − f`,
+which is the `n`-scaled supermajority threshold exactly. -/
+@[implicit_reducible]
+def byzNodeSetFinGen_honest :
+    ByzNodeSetHonestQuorum (Fin n) (ByzNSet n) (byzNodeSetFinGen n f hf is_byz hbyz) where
+  honestQuorum :=
+    ⟨(List.ofFn (n := n) id).filter (fun a => !decide (is_byz a)),
+     List.Pairwise.filter _ (by simp)⟩
+  honestQuorum_supermajority := by
+    show n ≤ _ + f
+    have hsplit := List.length_eq_length_filter_add
+      (l := List.ofFn (n := n) id) (fun a => decide (is_byz a))
+    simp only [List.length_ofFn] at hsplit
+    simp only
+    omega
+  honestQuorum_correct := by
+    intro a ha
+    dsimp +instances [byzNodeSetFinGen] at ha ⊢
+    simp at ha ⊢
+    tauto
+
 end
 
 /-! ## Instantiation sanity checks
@@ -225,5 +285,12 @@ example : ByzNodeSet (Fin 4) (ByzNSet 4) :=
 example : ByzNodeSetEnum (Fin 4) (ByzNSet 4)
     (byzNodeSetFinGen 4 1 (by decide) (fun _ => False) (by decide)) :=
   byzNodeSetFinGen_enum 4 1 (by decide) (fun _ => False) (by decide)
+
+-- And so does the constructive quorum of correct validators, at a committee
+-- that actually has a Byzantine member (`n = 5`, `f = 1`, node 0 faulty):
+-- the remaining four are a supermajority under the `n`-scaled threshold.
+example : ByzNodeSetHonestQuorum (Fin 5) (ByzNSet 5)
+    (byzNodeSetFinGen 5 1 (by decide) (fun i => i.val = 0) (by decide)) :=
+  byzNodeSetFinGen_honest 5 1 (by decide) (fun i => i.val = 0) (by decide)
 
 end Cadence

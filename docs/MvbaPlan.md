@@ -540,7 +540,21 @@ the interval up to the target is an obligation of the run-level theorem
   `ByzNodeSetEnum` enumerates it. The honest-only counts are therefore
   taken over the honest core, and the rank needs exactly one enumeration
   (`Mvba/Rank.lean`, `exists_honest_core`, which depends on no axioms at
-  all). What the honest core leaves out — the gap between `f+1` and the
+  all).
+
+  A **second** constructive requirement does appear one level up, and it
+  is landed rather than deferred: under (F-byz) progress may not rely on
+  Byzantine sends, so a run-level proof has to assemble the certificates
+  out of correct validators alone — which needs a supermajority *of*
+  correct validators, and no `ByzNodeSet` axiom gives one (all eight are
+  intersection statements). `ByzNodeSetHonestQuorum`
+  ([`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)) is that, in the same
+  shape as `ByzNodeSetEnum`: a separate class over an explicit
+  `ByzNodeSet`, constructive (it hands over the quorum, since a proof must
+  instantiate the assembly guards with one), discharged at
+  `byzNodeSetFinGen_honest` for the whole `n ≥ 3f+1` family. Two small
+  siblings rather than one bundle, so a theorem carries what it uses: the
+  ranking needs enumerability only. What the honest core leaves out — the gap between `f+1` and the
   `2f+1` correct validators — needs no count: once a `CommitQC` exists,
   `decide`'s guard is per-validator, so each remaining correct validator
   needs one weakly-fair firing.
