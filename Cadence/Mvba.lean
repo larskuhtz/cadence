@@ -605,6 +605,15 @@ safety [external_validity]
 rows below; the header explains the one departure (`lem:lock-persistence`
 is a corollary, `prepqc_blocks_lower_commits` is the inductive form). -/
 
+/- Entering a view requires having proposed: `propose` sets `input` and
+enters view 1 in the same step, and both `sync_view` variants require
+`∃ E, input i E`. Liveness uses it to read the participation premise off
+`SettledIn` rather than carrying it as a second hypothesis
+(`Mvba/Liveness.lean`). -/
+invariant [entered_implies_input]
+  ∀ (R : node) (V : view),
+    ¬ is_byz R → entered R V → ∃ E, input R E
+
 /-! ### The honest leader's single proposal
 
 Two invariants **liveness** asked for (`docs/MvbaPlan.md` §3.5 step 3), and

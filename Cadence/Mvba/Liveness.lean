@@ -839,6 +839,112 @@ theorem eventually_accepted_of_settled
   obtain ⟨ha, hp⟩ := handle_preprepare_effect (hfire ▸ r.steps n)
   exact hcon (n + 1) (by omega) ha hp
 
+/-! ## The quorum-wide lift, and a view that decides
+
+Everything so far has been about one validator. A certificate needs a
+*quorum* of them to have acted **at the same state**, and that is a
+different kind of step: weak fairness gives each member's message
+eventually, at its own index, and the assembly guard needs one index where
+all of them have arrived.
+
+`Fairness.lean`'s `eventually_forall` is that step, and it is where
+finiteness is finally consumed: monotone predicates over a **finite list**
+collapse a family of eventualities into one. `ByzNodeSetEnum` supplies the
+list, and `ByzNodeSetHonestQuorum` supplies a quorum whose members are all
+correct — which matters because under (F-byz) no progress may rest on a
+Byzantine member sending anything. Both are hypotheses of the theorems
+below and of nothing else in the development. -/
+
+/-- **Lift a per-member eventuality to the whole quorum.** -/
+theorem eventually_quorum (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (r : MvbaRun th) {q : nodeset} {N : Nat}
+    (P : node → Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop)
+    (hmono : ∀ p n, P p (r.at' n) → P p (r.at' (n + 1)))
+    (h : ∀ p, nset.member p q = true → ∃ n, N ≤ n ∧ P p (r.at' n)) :
+    ∃ n, N ≤ n ∧ ∀ p, nset.member p q = true → P p (r.at' n) := by
+  obtain ⟨n, hn, hall⟩ :=
+    r.eventually_forall P hmono N (enum.members q)
+      (fun p hp => h p ((enum.mem_members p q).mpr hp))
+  exact ⟨n, hn, fun p hp => hall p ((enum.mem_members p q).mp hp)⟩
+
+/-- **A view with an honest leader decides**, given that its correct quorum
+is settled there and the leader has proposed.
+
+This is the whole of `thm:termination`'s "correct-leader view" paragraph,
+bound erased: every member of the honest quorum accepts the proposal and
+prepares, the prepare certificate forms, each of them adopts it and
+commits, the commit certificate forms, and then *every* correct validator
+that has proposed decides — not only the quorum's members, because `decide`
+accepts a certificate of any view and needs nothing local.
+
+The hypotheses are the six premises' content specialised to one view, plus
+the two quorum classes. `SettledIn` is still assumed rather than derived;
+discharging it for the view (A-viewsync) produces is what remains. -/
+theorem terminates_of_settled_honest_view
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (r : MvbaRun th) (hfj : FJustice r) (hav : FAvail r) (hna : NoEarlyAbandon r)
+    (hq : Cadence.ByzNodeSetHonestQuorum node nodeset nset)
+    (hap : AllPropose r)
+    {l : node} (hl : ¬ nset.is_byz l = true) {pv v : view} {e : value} {N : Nat}
+    (hnext : vord.next pv v)
+    (hlead : th.leader v l = true)
+    (hpp : (r.at' N).msg_preprepare l v e = true)
+    (hvalid : th.valid e = true)
+    (hjust : (∃ w, (r.at' N).tc_lock pv w e = true) ∨ (r.at' N).tc_nolock pv = true)
+    (hs : ∀ p, nset.member p hq.honestQuorum = true → SettledIn r p v N) :
+    Terminates r := by
+  have hcorrect : ∀ p, nset.member p hq.honestQuorum = true → ¬ nset.is_byz p = true :=
+    hq.honestQuorum_correct
+  -- (1) Every member accepts and prepares — at its own index …
+  have hstep1 : ∀ p, nset.member p hq.honestQuorum = true →
+      ∃ n, N ≤ n ∧ ((r.at' n).accepted p v e = true ∧
+        (r.at' n).msg_prepare p v e = true) := by
+    intro p hp
+    obtain ⟨E₀, hE₀⟩ :=
+      Mvba.reachable_entered_implies_input (r.reachable N) p v (hcorrect p hp)
+        ((hs p hp N (Nat.le_refl N)).1).1
+    obtain ⟨n, hn, ha, hpr⟩ :=
+      eventually_accepted_of_settled r hfj (hcorrect p hp) (hs p hp) hE₀ hnext hlead hl
+        hpp hvalid hjust
+    exact ⟨n, hn, ha, hpr⟩
+  -- … and, being finitely many, at one index.
+  obtain ⟨n₁, hn₁, hall₁⟩ :=
+    eventually_quorum enum r
+      (fun p s => s.accepted p v e = true ∧ s.msg_prepare p v e = true)
+      (fun p m hm => ⟨Mvba.accepted.mono (r.steps m) p v e hm.1,
+        Mvba.msg_prepare.mono (r.steps m) p v e hm.2⟩)
+      hstep1
+  -- (2) The prepare certificate forms.
+  obtain ⟨n₂, hn₂, hqc⟩ :=
+    eventually_prepqc_of_prepare_quorum r hfj hq.honestQuorum_supermajority
+      (fun p hp => (hall₁ p hp).2)
+  -- (3) Every member commits — again at its own index, then at one.
+  have hstep3 : ∀ p, nset.member p hq.honestQuorum = true →
+      ∃ n, n₂ ≤ n ∧ (r.at' n).msg_commit p v e = true := by
+    intro p hp
+    obtain ⟨E₀, hE₀⟩ :=
+      Mvba.reachable_entered_implies_input (r.reachable n₂) p v (hcorrect p hp)
+        ((hs p hp n₂ (Nat.le_trans hn₁ hn₂)).1).1
+    exact eventually_msg_commit_of_prepqc r hfj hav (hcorrect p hp)
+      ((hs p hp).later (Nat.le_trans hn₁ hn₂)) hE₀ hqc
+      (r.mono (P := fun s => s.accepted p v e = true)
+        (fun m hm => Mvba.accepted.mono (r.steps m) p v e hm) (hall₁ p hp).1 _ hn₂)
+  obtain ⟨n₃, hn₃, hall₃⟩ :=
+    eventually_quorum enum r (fun p s => s.msg_commit p v e = true)
+      (fun p m hm => Mvba.msg_commit.mono (r.steps m) p v e hm) hstep3
+  -- (4) The commit certificate forms …
+  obtain ⟨n₄, hn₄, hcqc⟩ :=
+    eventually_commitqc_of_commit_quorum r hfj hq.honestQuorum_supermajority hall₃
+  -- … and every correct validator that has proposed decides on it.
+  intro i hi
+  obtain ⟨m, E, hm⟩ := hap i hi
+  exact eventually_decided_of_commitqc r hfj hna hi
+    (r.mono (P := fun s => s.input i E = true)
+      (fun j hj => Mvba.input.mono (r.steps j) i E hj) hm _ (Nat.le_max_left m n₄))
+    (r.mono (P := fun s => s.msg_commitqc v e = true)
+      (fun j hj => Mvba.msg_commitqc.mono (r.steps j) v e hj) hcqc _
+      (Nat.le_max_right m n₄))
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -911,3 +1017,9 @@ info: 'Mvba.eventually_accepted_of_settled' depends on axioms: [propext, Classic
 -/
 #guard_msgs in
 #print axioms Mvba.eventually_accepted_of_settled
+
+/--
+info: 'Mvba.terminates_of_settled_honest_view' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.terminates_of_settled_honest_view

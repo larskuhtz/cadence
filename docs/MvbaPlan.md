@@ -756,16 +756,37 @@ absent.
    really can accept different vectors, which is why the protocol needs an
    honest-led view and why (A-viewsync) produces one.
 
-   **Where the tally stands.** Seven links proven — the per-validator chain
-   is complete, from the leader's proposal to the decision — and nine
-   invariants bought (`#veil_status Mvba` **725 → 950**), every re-solve
-   green. All but one are for anti-monotone guards, and none is
-   safety-relevant. What is left is the *quorum-wide* half: lifting the
-   per-validator chain to every correct validator so the prepare and then
-   the commit quorum assemble (which is where
-   `ByzNodeSetHonestQuorum` finally earns its place), the leader's own
-   proposal step, and discharging `SettledIn` from (A-viewsync) together
-   with the view-change chain under (F-timeout).
+   **The quorum-wide lift, and a view that decides.** A certificate needs a
+   *quorum* to have acted **at the same state**, which is a different kind
+   of step from everything above: weak fairness gives each member's message
+   at its own index. [`Fairness.lean`](../Cadence/Fairness.lean)'s
+   `eventually_forall` closes that gap and is where finiteness is finally
+   consumed — monotone predicates over a **finite list** collapse a family
+   of eventualities into one. That is "liveness must assemble a quorum"
+   made formal, and it is the whole reason `ByzNodeSetEnum` exists.
+
+   `terminates_of_settled_honest_view` is the payoff: **a view with an
+   honest leader decides**, given that its correct quorum is settled there
+   and the leader has proposed. Bound erased, this is the whole of
+   `thm:termination`'s correct-leader-view paragraph — every member of the
+   honest quorum accepts and prepares, the prepare certificate forms, each
+   adopts and commits, the commit certificate forms, and then *every*
+   correct validator that has proposed decides, not only the quorum's
+   members, because `decide` accepts a certificate of any view and needs
+   nothing local. Both quorum classes are used here and nowhere else:
+   `ByzNodeSetEnum` for the finite index list,
+   `ByzNodeSetHonestQuorum` for a quorum whose members are all correct —
+   which matters because under (F-byz) no progress may rest on a Byzantine
+   member sending anything.
+
+   **Where the tally stands.** The view-level theorem is proven, on ten
+   invariants (`#veil_status Mvba` **725 → 975**), every re-solve green;
+   all but two are for anti-monotone guards and none is safety-relevant.
+   What remains is not the chain but its *premises*: discharging
+   `SettledIn` for the view (A-viewsync) produces, getting the honest
+   leader to propose in the first place (its own three actions, plus the
+   justification a re-proposal needs), and the view-change chain under
+   (F-timeout) that carries a run from view 1 to the good view.
 
 Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
 statement and re-solved the family once, but an assumption is a hypothesis
