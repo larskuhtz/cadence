@@ -84,6 +84,18 @@ def toRun (r : LRun sys th) : Run σ (sys.init th) (sys.next th) where
   starts := r.starts
   steps n := ⟨r.lbl n, r.steps n⟩
 
+/-- **A predicate preserved by every step holds ever after.** The bridge
+from a per-transition monotonicity lemma — which is what Veil's `#gen_spec`
+emits — to a statement about the rest of the run. Every argument over a run
+needs it and none should re-derive it. -/
+theorem mono (r : LRun sys th) {P : σ → Prop}
+    (hstep : ∀ n, P (r.at' n) → P (r.at' (n + 1)))
+    {N : Nat} (hP : P (r.at' N)) : ∀ n, N ≤ n → P (r.at' n) := by
+  intro n hn
+  induction n, hn using Nat.le_induction with
+  | base => exact hP
+  | succ n _ ih => exact hstep n ih
+
 /-! ### Temporal vocabulary
 
 Only the three shapes the fork's proposal keeps: eventually, always, and

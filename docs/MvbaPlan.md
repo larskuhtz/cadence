@@ -652,6 +652,30 @@ absent.
    derived from the proof's stuck points than guessed. **Open:** the six
    premises are argued consistent, not proven so.
 
+   **The proof has started, from the end of the chain backwards.** Two links
+   are proven, and both report the same thing to step 3 — *no invariant
+   needed*:
+
+   * `eventually_decided_of_commitqc` — once a commit certificate exists, a
+     correct validator that proposed and is never abandoned decides. Uses
+     (F-justice) alone: no timer assumption, no view synchronisation, no
+     quorum machinery, and no leader schedule, because `decide` accepts a
+     certificate of any view.
+   * `eventually_commitqc_of_commit_quorum` — a supermajority all of whose
+     members have sent their `Commit` yields the certificate; composed with
+     the first and with `Rank.lean`'s `commit_quorum_of_assemblyGap_zero`
+     into `eventually_decided_of_assemblyGap_zero`, which mentions no
+     certificate at all: **if the commit dimension of the rank bottoms out
+     on a supermajority, every correct participating validator decides.**
+
+   That is the rank being used rather than merely defined, and it fixes the
+   shape of the remaining links: a residual reaches zero, an assembly becomes
+   enabled, weak fairness fires it, the next residual is one step closer. The
+   three mechanics they share — discharging enabledness from an action's
+   guards, reading a firing's effect off the post-state, and consuming
+   (F-justice) — are worked out once in
+   [`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) and reused.
+
 Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
 statement and re-solved the family once, but an assumption is a hypothesis
 of each cell rather than a cell, so `#veil_status Mvba` stayed at 725. Step
