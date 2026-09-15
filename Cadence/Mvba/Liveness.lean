@@ -414,6 +414,110 @@ theorem eventually_decided_of_assemblyGap_zero
     (r.mono (P := fun s => s.input i E₀ = true)
       (fun k hk => Mvba.input.mono (r.steps k) i E₀ hk) hin m hm) hqc
 
+/-! ## The link before *that*: a validator sends its `Commit`
+
+Here the shape changes, and the change is the whole content of §3.1(a).
+Every guard of the two links above was monotone, so "enabled once" meant
+"enabled ever after" and weak fairness applied directly. `send_commit` has
+three guards that are **anti-monotone** — `in_view i v`, `¬ timed_out i v`,
+`¬ commit_sent i v` — and each has to be handled differently:
+
+* `in_view` and `¬ timed_out` are assumed, as `SettledIn`. They are what
+  (A-viewsync) exists to discharge for the good view, and they cannot be
+  proven here because a validator may legitimately sync past a view.
+* `¬ commit_sent i v` is **not** assumed, because it is the one whose
+  falsification is the goal. Keeping it analysable is what the two new
+  invariants in the model are for: if the guard dies, the validator has
+  already sent the `Commit` this link was waiting for, so the conclusion
+  holds anyway. That is `commit_sent_backed`, and
+  `commit_sent_implies_voted` is what makes it inductive — a validator that
+  has sent its `Commit` in `v` cannot accept a different vector in `v`,
+  because both `Pre-Prepare` handlers require `∀ W, voted i W → W < v`.
+
+Those two invariants are the first cells §3.5 step 3 buys, and they were
+found by writing this proof rather than guessed. -/
+
+/-- `i` is **settled in view `v` from `N` on**: at every index from `N` it is
+in view `v`, has not timed out there, and has not been abandoned.
+
+These are exactly the anti-monotone guards the honest per-validator actions
+of a view share — `Progress.lean`'s table of §3.1(a) — so the links take one
+named hypothesis rather than three unnamed ones, and discharging it for the
+good view is precisely what (A-viewsync) and `NoEarlyAbandon` are for. -/
+def SettledIn (r : MvbaRun th) (i : node) (v : view) (N : Nat) : Prop :=
+  ∀ n, N ≤ n →
+    InView (r.at' n) i v ∧ ¬ (r.at' n).timed_out i v = true ∧
+      ¬ (r.at' n).abandoned i = true
+
+/-- **`send_commit`'s guards are its enabledness.** -/
+theorem enabled_send_commit {i : node} {v : view} {e : value}
+    (hi : ¬ nset.is_byz i = true)
+    (hin : ∃ E, st.input i E = true)
+    (hab : ¬ st.abandoned i = true)
+    (hview : InView st i v)
+    (hacc : st.accepted i v e = true)
+    (hloc : st.local_prepqc i v e = true)
+    (hnto : ¬ st.timed_out i v = true)
+    (hncs : ¬ st.commit_sent i v = true)
+    (hav : st.avail_ready i e = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.send_commit i v e) := by
+  mvba_enabled
+  exact ⟨_, hi, hin, hab, hview.1, hview.2, hacc, hloc, hnto, hncs, hav, rfl⟩
+
+/-- **`send_commit`'s effect**: the flag is set and the `Commit` is sent, in
+the same step — which is what `commit_sent_backed` lifts to an invariant. -/
+theorem send_commit_effect {i : node} {v : view} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.send_commit i v e) st') :
+    st'.commit_sent i v = true ∧ st'.msg_commit i v e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  constructor <;> mvba_effect
+
+/-- **The `send_commit` link.** A correct validator settled in view `v` that
+has accepted `e` there, holds the view's certificate on it and has its
+availability shares, sends its `Commit` on `(v, e)`.
+
+The `commit_sent` guard is discharged rather than assumed: if it dies, the
+model's `commit_sent_backed` says the `Commit` is already on the network, so
+the conclusion holds either way. -/
+theorem eventually_msg_commit_of_settled
+    (r : MvbaRun th) (hfj : FJustice r)
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value} {N : Nat}
+    (hs : SettledIn r i v N)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
+    (hacc : (r.at' N).accepted i v e = true)
+    (hloc : (r.at' N).local_prepqc i v e = true)
+    (hav : (r.at' N).avail_ready i e = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).msg_commit i v e = true := by
+  by_contra hcon
+  push Not at hcon
+  have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
+    r.mono (P := fun s => s.input i E₀ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
+  have hacc' : ∀ n, N ≤ n → (r.at' n).accepted i v e = true :=
+    r.mono (P := fun s => s.accepted i v e = true)
+      (fun m hm => Mvba.accepted.mono (r.steps m) i v e hm) hacc
+  have hloc' : ∀ n, N ≤ n → (r.at' n).local_prepqc i v e = true :=
+    r.mono (P := fun s => s.local_prepqc i v e = true)
+      (fun m hm => Mvba.local_prepqc.mono (r.steps m) i v e hm) hloc
+  have hav' : ∀ n, N ≤ n → (r.at' n).avail_ready i e = true :=
+    r.mono (P := fun s => s.avail_ready i e = true)
+      (fun m hm => Mvba.avail_ready.mono (r.steps m) i e hm) hav
+  -- The one anti-monotone guard that is not assumed: if it dies, we are done.
+  have hncs : ∀ n, N ≤ n → ¬ (r.at' n).commit_sent i v = true := by
+    intro n hn hcs
+    exact hcon n hn
+      (Mvba.reachable_commit_sent_backed (r.reachable n) i v e hi hcs (hacc' n hn))
+  obtain ⟨n, hn, hfire⟩ :=
+    hfj (.send_commit i v e)
+      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (fun n hn =>
+        enabled_send_commit hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
+          (hacc' n hn) (hloc' n hn) (hs n hn).2.1 (hncs n hn) (hav' n hn))
+  exact hcon (n + 1) (by omega) (send_commit_effect (hfire ▸ r.steps n)).2
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -462,3 +566,9 @@ info: 'Mvba.eventually_decided_of_assemblyGap_zero' depends on axioms: [propext,
 -/
 #guard_msgs in
 #print axioms Mvba.eventually_decided_of_assemblyGap_zero
+
+/--
+info: 'Mvba.eventually_msg_commit_of_settled' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_msg_commit_of_settled

@@ -676,6 +676,34 @@ absent.
    (F-justice) — are worked out once in
    [`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) and reused.
 
+   **A third link, and the first cells step 3 buys.**
+   `eventually_msg_commit_of_settled` — a correct validator settled in a
+   view, having accepted `e`, holding the view's certificate on it and with
+   its availability shares, sends its `Commit`. Here the shape changes:
+   every guard of the first two links was monotone, so "enabled once" meant
+   "enabled ever after", whereas `send_commit` has three anti-monotone
+   guards and each needs its own treatment.
+
+   `in_view i v` and `¬ timed_out i v` are *assumed*, bundled as the named
+   `SettledIn` — they are what (A-viewsync) exists to discharge, and they
+   cannot be proven here because a validator may legitimately sync past a
+   view. `¬ commit_sent i v` is *not* assumed, because its falsification is
+   the goal, and keeping it analysable needed two new model invariants:
+
+   * `commit_sent_implies_voted` — a validator that has sent its `Commit` in
+     `v` had voted there;
+   * `commit_sent_backed` — and the `Commit` it sent is on the vector it
+     accepted, so if the guard dies the conclusion holds anyway.
+
+   The second is the one liveness wanted; the first is what makes it
+   inductive, by ruling out the case the solver found — accepting a fresh
+   vector in a view where `commit_sent` already holds, which both
+   `Pre-Prepare` handlers forbid through `∀ W, voted i W → W < v`. **They
+   were found by writing the proof, not guessed**, and neither was the
+   invariant predicted before starting. `#veil_status Mvba` moves
+   **725 → 775** (two invariants × 25 action-like entries); the family
+   re-solved green.
+
 Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
 statement and re-solved the family once, but an assumption is a hypothesis
 of each cell rather than a cell, so `#veil_status Mvba` stayed at 725. Step

@@ -644,6 +644,29 @@ invariant [honest_commit_accepted]
   ∀ (R : node) (V : view) (E : value),
     ¬ is_byz R → msg_commit R V E → accepted R V E ∧ local_prepqc R V E
 
+/- `commitSent_i` implies the sender had voted in the view — it accepted
+there first (`accepted_implies_voted`). On its own this says little; it is
+what makes the next one inductive, by ruling out the one case that breaks
+it: a validator that has already sent its `Commit` in `v` cannot then accept
+a *different* vector in `v`, because both `Pre-Prepare` handlers require
+`∀ W, voted i W → W < v`. -/
+invariant [commit_sent_implies_voted]
+  ∀ (R : node) (V : view), ¬ is_byz R → commit_sent R V → voted R V
+
+/- The converse direction, and the first invariant **liveness** asked for
+rather than safety (`docs/MvbaPlan.md` §3.5 step 3): `commitSent_i` is
+backed by the `Commit` it records. `send_commit`'s `¬ commit_sent i v` guard
+is anti-monotone, so a fairness argument has to know that the only way the
+guard dies is the send it was waiting for — otherwise the guard could lapse
+with nothing on the network and weak fairness would deliver nothing
+(`Mvba/Liveness.lean`, `eventually_msg_commit_of_settled`). Stated against
+the accepted vector rather than as `∃ E, msg_commit R V E` to keep it
+quantifier-free in the conclusion; `accepted_unique` makes the two
+equivalent at reachable states. -/
+invariant [commit_sent_backed]
+  ∀ (R : node) (V : view) (E : value),
+    ¬ is_byz R → commit_sent R V → accepted R V E → msg_commit R V E
+
 /- A held certificate is a network certificate. -/
 invariant [local_prepqc_backed]
   ∀ (R : node) (W : view) (E : value),
