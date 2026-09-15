@@ -243,6 +243,177 @@ def TerminationClaim (th : Theory node nodeset value view) : Prop :=
     AllPropose r → NoEarlyAbandon r →
       Terminates r
 
+/-! ## The last link of the chain
+
+The first piece of the proof, and the one that fixes the shape of all the
+others: **once a commit certificate exists, a correct participating
+validator decides.** It reduces the whole claim to "a commit certificate
+eventually exists", and it is where the three mechanics the rest will reuse
+are worked out — how an action's enabledness is discharged from its guards,
+how a firing's effect is read off, and how (F-justice) is consumed.
+
+Nothing here needs an invariant. That is itself information for §3.5 step 3:
+this link adds nothing to the sweep, and the cells will be bought by the
+links that cannot say the same. -/
+
+/-- Expose an action's transition body in `h` — `Mvba/Compose.lean`'s
+`mvba_tr`, repeated here rather than exported because it is a two-line local
+tactic and the two files have no other reason to depend on each other. -/
+local macro "mvba_tr" h:ident : tactic =>
+  `(tactic| (simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct] at $h:ident
+             simp only [trSimp] at $h:ident))
+
+/-- Turn an enabledness goal into the action's guards: the same unfolding as
+`mvba_tr`, on the goal. What is left is `∃ st', <guards> ∧ <update> = st'`,
+so the guards *are* enabledness and the post-state is determined. -/
+local macro "mvba_enabled" : tactic =>
+  `(tactic| simp only [Enabled, Mvba.relationalTransitionSystem, Mvba.Next,
+      Mvba.NextAct, trSimp])
+
+/-- Evaluate the field-representation `set`/`get` pair at the canonical
+representation, to read a firing's effect off the post-state. -/
+local macro "mvba_effect" : tactic =>
+  `(tactic| simp +unfoldPartialApp [Veil.FieldRepresentation.set,
+      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate,
+      Veil.FieldUpdatePat.match, Veil.IteratedArrow.curry,
+      Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
+      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id])
+
+variable {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+
+/-- **`decide`'s guards are its enabledness.** Stated in the plain accessor
+spelling the rest of the development uses, so it composes with the generated
+`<relation>.mono` lemmas without a translation step. -/
+theorem enabled_decide {i : node} {v : view} {e : value}
+    (hi : ¬ nset.is_byz i = true)
+    (hin : ∃ E, st.input i E = true)
+    (hab : ¬ st.abandoned i = true)
+    (hqc : st.msg_commitqc v e = true)
+    (hnd : ∀ E, ¬ st.decided i E = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.decide i v e) := by
+  mvba_enabled
+  exact ⟨_, hi, hin, hab, hqc, hnd, rfl⟩
+
+/-- **`decide`'s effect.** A `decide i v e` step leaves `i` deciding `e`. -/
+theorem decide_effect {i : node} {v : view} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.decide i v e) st') : st'.decided i e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, rfl⟩ := htr
+  mvba_effect
+
+/-- **The last link.** A correct validator that has proposed, is never
+abandoned before deciding, and for which *some* commit certificate exists at
+*some* point, decides.
+
+Only (F-justice) is used: no timer assumption, no view synchronisation, no
+quorum machinery. `decide` accepts a certificate of any view, so the leader
+schedule plays no part either — which is why this link is the one that can
+be proven before the others exist. -/
+theorem eventually_decided_of_commitqc
+    (r : MvbaRun th) (hfj : FJustice r) (hna : NoEarlyAbandon r)
+    {i : node} (hi : ¬ nset.is_byz i = true)
+    {N : Nat} {E₀ : value} (hin : (r.at' N).input i E₀ = true)
+    {v : view} {e : value} (hqc : (r.at' N).msg_commitqc v e = true) :
+    ∃ (n : Nat) (E : value), (r.at' n).decided i E = true := by
+  by_contra hcon
+  push Not at hcon
+  -- `i` never decides — hence, by the caller's premise, is never abandoned.
+  have hab : ∀ n, ¬ (r.at' n).abandoned i = true := by
+    intro n habn
+    obtain ⟨E, hE⟩ := hna i n hi habn
+    exact hcon n E hE
+  -- The input and the certificate persist, by the generated monotonicity.
+  have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
+    r.mono (P := fun s => s.input i E₀ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
+  have hqc' : ∀ n, N ≤ n → (r.at' n).msg_commitqc v e = true :=
+    r.mono (P := fun s => s.msg_commitqc v e = true)
+      (fun m hm => Mvba.msg_commitqc.mono (r.steps m) v e hm) hqc
+  -- So `decide i v e` is enabled from `N` on, and weak fairness fires it.
+  obtain ⟨n, hn, hfire⟩ :=
+    hfj (.decide i v e) (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (fun n hn => enabled_decide hi ⟨E₀, hin' n hn⟩ (hab n) (hqc' n hn) (fun E => hcon n E))
+  exact hcon (n + 1) e (decide_effect (hfire ▸ r.steps n))
+
+/-! ## The link before it, and the first use of the rank
+
+`form_commitqc` is the assembly that produces the certificate the last link
+consumes. Its guard is exactly the second summand of `Rank.lean`'s
+`assemblyGap` reaching zero — so the two compose into a statement with no
+mention of certificates at all: **if the commit dimension of the rank ever
+bottoms out on a supermajority, every correct participating validator
+decides.**
+
+That is the rank being *used*, not merely defined, and it is the shape every
+remaining link will have: a residual reaches zero, an assembly becomes
+enabled, weak fairness fires it, and the next residual is one step closer.
+Like the last link, neither of these needs an invariant. -/
+
+/-- **`form_commitqc`'s guards are its enabledness.** -/
+theorem enabled_form_commitqc {v : view} {e : value} {q : nodeset}
+    (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → st.msg_commit p v e = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.form_commitqc v e q) := by
+  mvba_enabled
+  exact ⟨_, hsm, hall, rfl⟩
+
+/-- **`form_commitqc`'s effect**: the certificate is on the network. -/
+theorem form_commitqc_effect {v : view} {e : value} {q : nodeset}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.form_commitqc v e q) st') : st'.msg_commitqc v e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, rfl⟩ := htr
+  mvba_effect
+
+/-- **The assembly link.** A supermajority all of whose members have sent
+their `Commit` on `(v, e)` yields a commit certificate. The index is
+reported so that the links compose: the certificate appears at or after the
+point the commits were observed, which is what lets the next link's
+premises be transported to it. -/
+theorem eventually_commitqc_of_commit_quorum
+    (r : MvbaRun th) (hfj : FJustice r)
+    {N : Nat} {v : view} {e : value} {q : nodeset} (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_commit p v e = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).msg_commitqc v e = true := by
+  by_contra hcon
+  push Not at hcon
+  have hall' : ∀ n, N ≤ n → ∀ p, nset.member p q = true →
+      (r.at' n).msg_commit p v e = true := by
+    intro n hn p hp
+    exact r.mono (P := fun s => s.msg_commit p v e = true)
+      (fun m hm => Mvba.msg_commit.mono (r.steps m) p v e hm) (hall p hp) n hn
+  obtain ⟨n, hn, hfire⟩ :=
+    hfj (.form_commitqc v e q)
+      (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+      (fun n hn => enabled_form_commitqc hsm (hall' n hn))
+  exact hcon (n + 1) (by omega) (form_commitqc_effect (hfire ▸ r.steps n))
+
+/-- **The rank's commit dimension bottoming out entails termination for one
+validator.** The composition of the two links above with
+`Rank.lean`'s `commit_quorum_of_assemblyGap_zero`: no certificate is
+mentioned, only the residual.
+
+`enum` appears because `assemblyGap` is defined over an enumerated quorum —
+the proof-side requirement of [`ByzQuorum.lean`](../ByzQuorum.lean), carried
+as a visible hypothesis exactly as intended. -/
+theorem eventually_decided_of_assemblyGap_zero
+    (r : MvbaRun th) (hfj : FJustice r) (hna : NoEarlyAbandon r)
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    {q : nodeset} (hsm : nset.supermajority q)
+    {N : Nat} {v : view} {e : value}
+    (hz : assemblyGap enum q v e (r.at' N) = 0)
+    {i : node} (hi : ¬ nset.is_byz i = true)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true) :
+    ∃ (n : Nat) (E : value), (r.at' n).decided i E = true := by
+  obtain ⟨m, hm, hqc⟩ := eventually_commitqc_of_commit_quorum r hfj hsm
+    (fun p hp => commit_quorum_of_assemblyGap_zero hz p hp)
+  exact eventually_decided_of_commitqc r hfj hna hi
+    (r.mono (P := fun s => s.input i E₀ = true)
+      (fun k hk => Mvba.input.mono (r.steps k) i E₀ hk) hin m hm) hqc
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -279,3 +450,15 @@ info: 'Mvba.terminates_iff_eventually' depends on axioms: [propext, Classical.ch
 -/
 #guard_msgs in
 #print axioms Mvba.terminates_iff_eventually
+
+/--
+info: 'Mvba.eventually_decided_of_commitqc' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_decided_of_commitqc
+
+/--
+info: 'Mvba.eventually_decided_of_assemblyGap_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_decided_of_assemblyGap_zero
