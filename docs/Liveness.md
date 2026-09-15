@@ -46,7 +46,14 @@ outside Lean.
   proven in [`Cadence/Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean)
   and the measure they are progress in — a lexicographic rank that no
   transition can raise — in
-  [`Cadence/Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean).
+  [`Cadence/Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean). `Mvba` also needs a
+  *third* scheduling class that Chorus does not: its two timeout actions are
+  timers whose firing time the model abstracts away, so weak fairness on them
+  would force a timeout out of every view. They are governed by (F-timeout)
+  and (A-viewsync) instead —
+  [`MvbaPlan.md`](./MvbaPlan.md) §3.2's correction, with the classification
+  machine-checked in
+  [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean).
 * **(F-byz)** — Byzantine actions (the `byz_*` family) are unfair:
   progress never relies on adversarial help, which makes the discharged
   content strictly stronger than deadlock freedom.

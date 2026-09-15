@@ -371,12 +371,41 @@ tuples. §3.3 replaces the ranking.
 ### 3.2 Two levels, kept apart
 
 **Model level — the scheduling assumptions.** Each action carries a fairness
-class, stated in the model rather than inferred from its shape: **unfair**
-for the `byz_*` family (F-byz), **weakly fair** for the honest actions
-(F-justice). Every liveness proof needs such assumptions, and making them
-explicit at model level is hygiene independent of what is derived from them;
-they are also what the fork's fairness annotations will carry once they
-exist ([`Liveness.md`](./Liveness.md) §3).
+class. Every liveness proof needs such assumptions, and naming them is
+hygiene independent of what is derived from them; they are also what the
+fork's fairness annotations will carry once they exist
+([`Liveness.md`](./Liveness.md) §3).
+
+> **Correction (2026-09-14): two classes are not enough, and the pair this
+> section first fixed — unfair `byz_*`, weakly fair everything else honest —
+> is *inconsistent* with (A-viewsync).** `timeout_qc` and `timeout_noqc` are
+> honest actions, so the old pair made them weakly fair; but §3.6 abstracts
+> the *timing* of a timeout away, so a correct validator holding a lock has
+> `timeout_qc` continuously enabled in its current view, and weak fairness
+> then forces it to time out of **every** view — the good one included. The
+> flat reading of (A-viewsync), "no correct validator times out in the good
+> view", contradicts that outright, and a contradictory premise set makes the
+> claim vacuous rather than hard.
+>
+> The timers are therefore their own class, and the timing assumption splits
+> into the two halves it always had: **(F-timeout)**, the timeout is finite —
+> a correct validator that never decides eventually times out of every view
+> it enters, which is what closes a stalled view at all; and
+> **(A-viewsync)**, the timeout is long enough — in the good view no correct
+> validator times out *before it has decided*. Those two are compatible. The
+> classification is machine-checked in
+> [`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) (`ByzLabel`,
+> `TimerLabel`, `JusticeLabel`, `Label.isInput`, with `label_classified`
+> proving the four exhaust the label type by cases over the model's own
+> action list).
+
+The classes, then: **unfair** for the `byz_*` family (F-byz); **weakly
+fair** for the honest message handlers, certificate assemblies, view changes
+and the availability action (F-justice); **timer** for the two timeouts,
+governed by (F-timeout) and (A-viewsync); and the two contract inputs
+`propose` / `abandon`, which are the *caller's* and carry no fairness at all
+— that every correct validator proposes is a premise of the claim, as it is
+in `thm:termination`.
 
 **Claim level — what those assumptions can and cannot deliver.** §3.1(a) has
 a consequence that is easy to misread as an argument about fairness
@@ -391,9 +420,10 @@ fairness class: it is the premise that *some* view's window is long enough
 for the prepare → commit → decide chain to close. That is (A-viewsync)
 below, the untimed stand-in for `thm:termination`'s after-GST Δ-synchrony.
 Given it, the guards in that window are stable and plain weak fairness
-closes the chain inside it. So the fairness classes stay exactly as in
-Chorus, and only the justification for their *sufficiency* differs:
-quarantine by assumption, not monotonicity.
+closes the chain inside it. So the *weak-fairness* class stays as in
+Chorus, and only the justification for its sufficiency differs — quarantine
+by assumption, not monotonicity — while the timers move out of it for the
+reason the correction above gives.
 
 ### 3.3 The ranking, and the one assumption the model was missing
 
@@ -576,7 +606,7 @@ none of the work below blocks on the fork's liveness branch.
 | Fair-progress invariants | sweep cells | Mirroring Chorus's "Fair progress" invariants |
 | `leader_honest_cofinal` | model `assumption` — **landed** | The one new axiom (§3.3), inventory name (A-leader-rotation). Changed every VC statement; the family re-solved green and `#veil_status Mvba` stayed at 725 (an assumption changes statements, not cells) |
 | The ranking and its decrease | plain Lean — **landed**, [`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean) | `rank` = (view gap, view-local residual) in `Prod.Lex`, the second component a sum of seven counts of one shape — three quorum assemblies over `q`, four chain steps over `q`'s honest core. `rank_noninc` over *every* transition (Byzantine included), one strict-decrease theorem per kind of progress, and a "rank zero is exactly the guard" lemma per count, down to "some correct validator has decided". No scheduling assumption enters |
-| "Every correct validator eventually decides" | plain-Lean theorem over `Run` | Bound-erased sibling of `MVBATemporal.termination` |
+| "Every correct validator eventually decides" | plain-Lean theorem over a labelled run — **stated**, [`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) | `TerminationClaim`, a `Prop`-valued *definition*: the target and its six premises are type-checked and citable before the proof exists. Bound-erased sibling of `MVBATemporal.termination`. The fairness vocabulary it is built from is [`Fairness.lean`](../Cadence/Fairness.lean) |
 
 **The seam, stated once.** The run-level theorem takes (F-justice), (F-byz),
 (A-viewsync) and (F-avail) as **explicit Lean hypotheses**. Nothing
@@ -610,6 +640,17 @@ absent.
    budget manual cells, and expect the growing clump to tip formerly green
    cells into divergence (the `cadence-verification` skill, §5 item 3).
 4. **The run-level theorem**, assembling 1–3 under the §3.4 hypotheses.
+   **Its statement has landed ahead of steps 3 and 4's proofs**, deliberately:
+   [`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) defines
+   `TerminationClaim` and each of its six premises as a named `Prop`, and
+   [`Fairness.lean`](../Cadence/Fairness.lean) the labelled runs, enabledness
+   and weak/strong fairness it is built from — in the shape the fork's
+   planned `fairness justice` / `response p ⇝ q` syntax would generate, so
+   the statements survive the tool growing that syntax. Writing it first is
+   what exposed §3.2's fairness-class error, and it is what should drive
+   step 3: an invariant costs one cell per action, so the list is better
+   derived from the proof's stuck points than guessed. **Open:** the six
+   premises are argued consistent, not proven so.
 
 Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
 statement and re-solved the family once, but an assumption is a hypothesis
