@@ -183,11 +183,18 @@ This is the untimed stand-in for `thm:termination`'s after-GST Δ-synchrony
 together with its view-timeout bound. The "before it has decided" is
 load-bearing and is the correction §3.2 needed: the flat form ("no correct
 validator times out in the good view") contradicts weak fairness of
-`timeout_qc`, and the claim would hold vacuously. -/
+`timeout_qc`, and the claim would hold vacuously.
+
+The entry clause is conditioned on the validator having *participated*. A
+correct validator that never calls `propose` never enters any view, so
+without that condition this premise would quietly entail `AllPropose`, and
+two premises that look independent would not be. Each of the six is meant to
+be readable on its own. -/
 def AViewSync (r : MvbaRun th) : Prop :=
   ∃ (W : view) (L : node),
     th.leader W L = true ∧ ¬ nset.is_byz L = true ∧
-    (∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).entered i W = true) ∧
+    (∀ i, ¬ nset.is_byz i = true → (∃ (n : Nat) (E : value), (r.at' n).input i E = true) →
+      ∃ n, (r.at' n).entered i W = true) ∧
     (∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true →
       ∃ E, (r.at' n).decided i E = true)
 
