@@ -945,6 +945,121 @@ theorem terminates_of_settled_honest_view
       (fun j hj => Mvba.msg_commitqc.mono (r.steps j) v e hj) hcqc _
       (Nat.le_max_right m n₄))
 
+/-! ## The leader proposes
+
+The last link, and the first at the *leader's* end rather than a follower's.
+Its anti-monotone guard is `¬ proposed_in l v`, handled exactly as
+`¬ commit_sent i v` was: not assumed, because its falsification is the goal,
+with `proposed_in_backed` saying the guard can only die by the proposal the
+argument was waiting for.
+
+Both ways of proposing above the first view are covered, and which applies is
+decided by the previous view's timeout certificate, as the protocol decides
+it: with a lock, `leader_repropose` re-offers the locked vector; without one,
+`leader_propose_fresh` offers the leader's own input.
+
+**What this link deliberately does not claim.** It gives a proposal, not a
+*valid* one. For a re-proposal validity is a theorem — `prepqc_valid` on the
+lock the certificate carries — but for a fresh proposal it is not available
+at all: `leader_propose_fresh` requires `input l e` and nothing more, and
+`propose` does not check validity either, the model's header being explicit
+that "`Valid B_i` is the caller's obligation". So an honest leader really can
+propose an invalid vector, no correct validator will accept it
+(`handle_preprepare` requires `valid e`), and its view is wasted. That is a
+genuine premise of `thm:termination` rather than a gap here, and it belongs
+with the other caller premises (`AllPropose`, `NoEarlyAbandon`) when the
+composition needs it. -/
+
+/-- **`leader_repropose`'s guards are its enabledness.** -/
+theorem enabled_leader_repropose {l : node} {pv v w : view} {e : value}
+    (hl : ¬ nset.is_byz l = true)
+    (hin : ∃ E, st.input l E = true)
+    (hab : ¬ st.abandoned l = true)
+    (hnext : vord.next pv v)
+    (hlead : th.leader v l = true)
+    (hview : InView st l v)
+    (hlock : st.tc_lock pv w e = true)
+    (hnp : ¬ st.proposed_in l v = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.leader_repropose l pv v w e) := by
+  mvba_enabled
+  exact ⟨_, hl, hin, hab, hnext, hlead, hview.1, hview.2, hlock, hnp, rfl⟩
+
+/-- **`leader_propose_fresh`'s guards are its enabledness.** -/
+theorem enabled_leader_propose_fresh {l : node} {pv v : view} {e : value}
+    (hl : ¬ nset.is_byz l = true)
+    (hab : ¬ st.abandoned l = true)
+    (hnext : vord.next pv v)
+    (hlead : th.leader v l = true)
+    (hview : InView st l v)
+    (hnl : st.tc_nolock pv = true)
+    (hinp : st.input l e = true)
+    (hnp : ¬ st.proposed_in l v = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.leader_propose_fresh l pv v e) := by
+  mvba_enabled
+  exact ⟨_, hl, hab, hnext, hlead, hview.1, hview.2, hnl, hinp, hnp, rfl⟩
+
+theorem leader_repropose_effect {l : node} {pv v w : view} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.leader_repropose l pv v w e) st') : st'.msg_preprepare l v e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  mvba_effect
+
+theorem leader_propose_fresh_effect {l : node} {pv v : view} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.leader_propose_fresh l pv v e) st') : st'.msg_preprepare l v e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  mvba_effect
+
+/-- **The leader link.** An honest leader settled in a view above the first,
+whose previous view carries a timeout certificate, proposes. -/
+theorem eventually_preprepare_of_settled_leader
+    (r : MvbaRun th) (hfj : FJustice r)
+    {l : node} (hl : ¬ nset.is_byz l = true) {pv v : view} {N : Nat}
+    (hs : SettledIn r l v N)
+    (hnext : vord.next pv v)
+    (hlead : th.leader v l = true)
+    (hjust : (∃ w e, (r.at' N).tc_lock pv w e = true) ∨ (r.at' N).tc_nolock pv = true) :
+    ∃ (n : Nat) (E : value), N ≤ n ∧ (r.at' n).msg_preprepare l v E = true := by
+  -- The leader has an input, because it is in a view.
+  obtain ⟨E₀, hE₀⟩ :=
+    Mvba.reachable_entered_implies_input (r.reachable N) l v hl
+      ((hs N (Nat.le_refl N)).1).1
+  have hin' : ∀ n, N ≤ n → (r.at' n).input l E₀ = true :=
+    r.mono (P := fun s => s.input l E₀ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) l E₀ hm) hE₀
+  by_contra hcon
+  push Not at hcon
+  -- The anti-monotone guard: if it lapses, the leader has already proposed.
+  have hnp : ∀ n, N ≤ n → ¬ (r.at' n).proposed_in l v = true := by
+    intro n hn hp
+    obtain ⟨E', hE'⟩ := Mvba.reachable_proposed_in_backed (r.reachable n) l v hl hp
+    exact hcon n E' hn hE'
+  rcases hjust with ⟨w, e, hw⟩ | hnl
+  · have hw' : ∀ n, N ≤ n → (r.at' n).tc_lock pv w e = true :=
+      r.mono (P := fun s => s.tc_lock pv w e = true)
+        (fun m hm => Mvba.tc_lock.mono (r.steps m) pv w e hm) hw
+    obtain ⟨n, hn, hfire⟩ :=
+      hfj (.leader_repropose l pv v w e)
+        (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+        (fun n hn =>
+          enabled_leader_repropose hl ⟨E₀, hin' n hn⟩ (hs n hn).2.2 hnext hlead
+            (hs n hn).1 (hw' n hn) (hnp n hn))
+    exact hcon (n + 1) e (by omega) (leader_repropose_effect (hfire ▸ r.steps n))
+  · have hnl' : ∀ n, N ≤ n → (r.at' n).tc_nolock pv = true :=
+      r.mono (P := fun s => s.tc_nolock pv = true)
+        (fun m hm => Mvba.tc_nolock.mono (r.steps m) pv hm) hnl
+    obtain ⟨n, hn, hfire⟩ :=
+      hfj (.leader_propose_fresh l pv v E₀)
+        (by simp [JusticeLabel, ByzLabel, TimerLabel, Label.isInput]) N
+        (fun n hn =>
+          enabled_leader_propose_fresh hl (hs n hn).2.2 hnext hlead (hs n hn).1
+            (hnl' n hn) (hin' n hn) (hnp n hn))
+    exact hcon (n + 1) E₀ (by omega) (leader_propose_fresh_effect (hfire ▸ r.steps n))
+
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
 `response [termination] … ↝ …` would generate. -/
@@ -1023,3 +1138,9 @@ info: 'Mvba.terminates_of_settled_honest_view' depends on axioms: [propext, Clas
 -/
 #guard_msgs in
 #print axioms Mvba.terminates_of_settled_honest_view
+
+/--
+info: 'Mvba.eventually_preprepare_of_settled_leader' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_preprepare_of_settled_leader

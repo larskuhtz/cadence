@@ -779,14 +779,40 @@ absent.
    which matters because under (F-byz) no progress may rest on a Byzantine
    member sending anything.
 
-   **Where the tally stands.** The view-level theorem is proven, on ten
-   invariants (`#veil_status Mvba` **725 → 975**), every re-solve green;
-   all but two are for anti-monotone guards and none is safety-relevant.
-   What remains is not the chain but its *premises*: discharging
-   `SettledIn` for the view (A-viewsync) produces, getting the honest
-   leader to propose in the first place (its own three actions, plus the
-   justification a re-proposal needs), and the view-change chain under
-   (F-timeout) that carries a run from view 1 to the good view.
+   **The leader proposes.** `eventually_preprepare_of_settled_leader` — an
+   honest leader settled in a view above the first, whose previous view
+   carries a timeout certificate, proposes. The anti-monotone guard is
+   `¬ proposed_in l v`, handled as `¬ commit_sent i v` was, with
+   `proposed_in_backed` (new) saying it can only die by the proposal the
+   argument was waiting for. Both ways of proposing are covered, and which
+   applies is decided by the previous view's certificate exactly as the
+   protocol decides it.
+
+   **A finding, and a premise it forces.** The link gives a proposal, not a
+   *valid* one, and that is not a gap in the proof. For a re-proposal
+   validity is a theorem — `prepqc_valid` (new) on the lock the certificate
+   carries, needed because `leader_repropose` re-offers a lock **without**
+   re-checking validity (the supplement's `Recover`) while
+   `handle_preprepare` requires `valid e`. For a *fresh* proposal there is
+   nothing to appeal to: `leader_propose_fresh` requires only `input l e`,
+   and `propose` does not check validity either — the model's header is
+   explicit that "`Valid B_i` is the caller's obligation". So an honest
+   leader can propose an invalid vector, no correct validator will accept
+   it, and its view is wasted. Termination therefore needs a caller premise
+   that correct validators propose valid vectors, alongside `AllPropose` and
+   `NoEarlyAbandon`; `mod:mvba`'s external validity is where it comes from.
+   It is recorded here rather than assumed silently, and will join the
+   premise list when the composition needs it.
+
+   **Where the tally stands.** Every link of the decision chain is proven,
+   from the honest leader's proposal to every correct validator deciding, on
+   twelve invariants (`#veil_status Mvba` **725 → 1025**), every re-solve
+   green; all but four are for anti-monotone guards and none is
+   safety-relevant. What remains is not the chain at all but the two
+   premises that put a run *into* a good view: discharging `SettledIn`
+   from (A-viewsync), and the view-change chain under (F-timeout) that
+   carries a run from view 1 to the honest-led view (A-leader-rotation)
+   promises.
 
 Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
 statement and re-solved the family once, but an assumption is a hypothesis
