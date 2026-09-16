@@ -1,8 +1,10 @@
-# Spikes — the evidence behind the contract redesign
+# Spikes — the evidence behind the contract redesign and the liveness leg
 
 Runnable experiments, kept because they are the evidence for
-[`../docs/CompositionContracts.md`](../docs/CompositionContracts.md) and
-because re-deriving them costs an afternoon. **Not part of the build**: the
+[`../docs/CompositionContracts.md`](../docs/CompositionContracts.md) (01–10)
+and for the Chorus run-level liveness leg of
+[`../docs/Liveness.md`](../docs/Liveness.md) §4 (11), and because
+re-deriving them costs an afternoon. **Not part of the build**: the
 library's globs cover `Cadence` and its submodules only, so nothing here is
 compiled by `lake build`.
 
@@ -32,6 +34,7 @@ tool.
 | `08_sc_tag_frame_removed.lean` | `exit 1`, exactly one `❌`: `sc_tagged` under `sc_step` | The negative control for 07: the same module with `tag_frame` deleted and nothing else. `sc_tagged` stops being inductive at exactly the action that moves a slot-consensus state, so 07's encoding is not proving itself for some other reason. Every other cell still passes — each assumes the clump at the pre-state — which is what an inductive counterexample looks like. |
 | `09_mvba_consumer_ok.lean` | `exit 0`, all `✅` | The shape in which Chorus consumes the **real** `MVBASafety` (`docs/MvbaPlan.md` §6), on a toy consumer: the contract instantiated with the `byz` argument a lambda over `nset.is_byz`; the value an opaque sort read through two immutable projection relations `mval_pos`/`mval_neg` with two assumptions (functional in the root; exclusive) — the system composition instantiates them at `v j = some m` / `v j = none`; the oracle step `mvba_step` and the driven input `mvba_propose`; a per-entry decision handler carrying the bridge `require` as a stand-in relation; and the consumer's per-proposer record uniqueness and pos/neg exclusion **discharged from `mvba.agreement`** through two *tie invariants* (every record is the projection of some correct validator's decision on the abstract state), with no agreement guard anywhere. |
 | `10_mvba_consumer_no_tie.lean` | `exit 1`, exactly three `❌`: `mvba_decided_pos_unique` under `on_mvba_decide_pos`, `mvba_decided_pos_neg_excl` under both handlers | The negative control for 09: the same module with the two tie invariants deleted and nothing else. Uniqueness and exclusion stop being inductive at exactly the actions that write a record, and nowhere else — so 09's discharge comes from the class's `agreement` through the ties, not from the bridge `require` or from some guard. |
+| `11_chorus_mvba_component.lean` | `exit 0`, three `#print axioms` at the standard trio | **The MVBA is a `Cadence.Component` of Chorus** at the instantiation `System.lean` uses (`mvba := Mvba.mvbaSafety thM`) — the reassessment evidence of [`../docs/Liveness.md`](../docs/Liveness.md) §4.2 after stage 1 of the Chorus run-level liveness leg. The five fields of the generic structure from `Cadence/Fairness.lean` come from the generated artefacts: `frame` from M13's `Chorus.<action>.frame_mvba_st` (all 38, one named `case` each — a `first | …` over them times out in `whnf`, and the `MVBASafety` instance has to be brought into scope with `letI` first), `step` from the two oracle actions' guards read off their transition bodies, and `init` from the initializer's transition by hand — `mvba_st` is seeded from the theory, not a literal, so M13 emits no `mvba_st.init`. No model change, no new cell. Stage 2 lands the same content as a real module. |
 
 **A note on 07's skeleton.** Spikes 07 and 08 give their contracts a shared
 `TSS` transition-system skeleton, which is the shape `Interfaces.lean` now
