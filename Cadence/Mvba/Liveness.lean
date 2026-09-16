@@ -1808,6 +1808,128 @@ theorem eventually_entered_of_climbing
   obtain ⟨n, -, hz⟩ := eventually_viewGap_zero r Vs i hstep 0
   exact ⟨n, entered_of_viewGap_zero hz hW⟩
 
+/-! ## An expired timer produces a `Timeout`
+
+The step that makes the timer marker pay off, and the first use of both
+`exists_greatest` and `eventually_no_new`.
+
+A validator that stays in a view with its timer run out will time out. Which
+of the two actions fires depends on whether it holds a certificate, and the
+awkward case is that it does: `timeout_qc` names the *highest* one, so the
+label moves as certificates are adopted and weak fairness has nothing fixed
+to bite on. Both halves of the fix come from the covering list — adoption
+stops (`eventually_no_new`, since held certificates accumulate and all lie
+below the current view), and once it has, a highest one exists
+(`exists_greatest`). From there a single label is continuously enabled and
+(F-justice) does the rest. -/
+
+/-- **`timeout_noqc`'s guards are its enabledness.** -/
+theorem enabled_timeout_noqc {i : node} {v : view}
+    (hi : ¬ nset.is_byz i = true)
+    (hin : ∃ E, st.input i E = true)
+    (hab : ¬ st.abandoned i = true)
+    (hview : InView st i v)
+    (htimer : st.timer_expired i v = true)
+    (hnto : ¬ st.timed_out i v = true)
+    (hno : ∀ W E, ¬ st.local_prepqc i W E = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.timeout_noqc i v) := by
+  mvba_enabled
+  exact ⟨_, hi, hin, hab, hview.1, hview.2, htimer, hnto, hno, rfl⟩
+
+/-- **`timeout_qc`'s guards are its enabledness.** -/
+theorem enabled_timeout_qc {i : node} {v w : view} {e : value}
+    (hi : ¬ nset.is_byz i = true)
+    (hin : ∃ E, st.input i E = true)
+    (hab : ¬ st.abandoned i = true)
+    (hview : InView st i v)
+    (htimer : st.timer_expired i v = true)
+    (hnto : ¬ st.timed_out i v = true)
+    (hloc : st.local_prepqc i w e = true)
+    (hmax : ∀ W E, st.local_prepqc i W E = true → vord.le W w) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.timeout_qc i v w e) := by
+  mvba_enabled
+  exact ⟨_, hi, hin, hab, hview.1, hview.2, htimer, hnto, hloc, hmax, rfl⟩
+
+theorem timeout_noqc_effect {i : node} {v : view}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.timeout_noqc i v) st') : st'.timed_out i v = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, -, -, rfl⟩ := htr
+  mvba_effect
+
+theorem timeout_qc_effect {i : node} {v w : view} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.timeout_qc i v w e) st') : st'.timed_out i v = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  mvba_effect
+
+/-- **An expired timer produces a `Timeout`.** A correct validator that stays
+in view `v`, is not abandoned, and whose timer for `v` has run out, times
+out — given a list covering the views at or below `v`, which is what bounds
+its held certificates. -/
+theorem eventually_timed_out_of_timer
+    (r : MvbaRun th) (hfj : FJustice r)
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {N : Nat}
+    (Vs : List view) (hcov : ∀ V, vord.le V v → V ∈ Vs)
+    (hview : ∀ n, N ≤ n → InView (r.at' n) i v)
+    (hnab : ∀ n, N ≤ n → ¬ (r.at' n).abandoned i = true)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
+    (htimer : (r.at' N).timer_expired i v = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).timed_out i v = true := by
+  classical
+  by_contra hcon
+  push Not at hcon
+  have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
+    r.mono (P := fun s => s.input i E₀ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
+  have htimer' : ∀ n, N ≤ n → (r.at' n).timer_expired i v = true :=
+    r.mono (P := fun s => s.timer_expired i v = true)
+      (fun m hm => Mvba.timer_expired.mono (r.steps m) i v hm) htimer
+  -- Every certificate this validator holds is of a view at or below `v`,
+  -- hence in the covering list.
+  have hheld : ∀ n, N ≤ n → ∀ W E, (r.at' n).local_prepqc i W E = true → W ∈ Vs :=
+    fun n hn W E hW => hcov W
+      (Mvba.reachable_local_prepqc_within_entered (r.reachable n) i W E v hi hW
+        (hview n hn).2)
+  -- Adoption stops.
+  obtain ⟨n₀, hn₀, hstab⟩ :=
+    eventually_no_new r (fun W s => ∃ E, s.local_prepqc i W E = true)
+      (fun W m ⟨E, hE⟩ => ⟨E, Mvba.local_prepqc.mono (r.steps m) i W E hE⟩) Vs N
+  by_cases hany : ∃ W E, (r.at' n₀).local_prepqc i W E = true
+  -- It holds one, so it holds a highest one, and that label stays enabled.
+  · obtain ⟨W₀, E₀', hW₀⟩ := hany
+    obtain ⟨w, -, ⟨e, he⟩, hmax⟩ :=
+      exists_greatest vord.le vord.le_total (fun a b c => vord.le_trans a b c)
+        (fun W => ∃ E, (r.at' n₀).local_prepqc i W E = true) Vs W₀
+        (hheld n₀ hn₀ W₀ E₀' hW₀) ⟨E₀', hW₀⟩
+    obtain ⟨n, hn, hfire⟩ :=
+      hfj (.timeout_qc i v w e) ⟨fun h => h, fun h => h, fun h => h⟩ n₀
+        (fun n hn =>
+          enabled_timeout_qc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
+            (hnab n (Nat.le_trans hn₀ hn)) (hview n (Nat.le_trans hn₀ hn))
+            (htimer' n (Nat.le_trans hn₀ hn)) (hcon n (Nat.le_trans hn₀ hn))
+            (r.mono (P := fun s => s.local_prepqc i w e = true)
+              (fun j hj => Mvba.local_prepqc.mono (r.steps j) i w e hj) he n hn)
+            (fun W E hWE => hmax W (hheld n (Nat.le_trans hn₀ hn) W E hWE)
+              (hstab n hn W (hheld n (Nat.le_trans hn₀ hn) W E hWE) ⟨E, hWE⟩)))
+    exact hcon (n + 1) (by omega) (timeout_qc_effect (hfire ▸ r.steps n))
+  -- It holds none, and by stability never will.
+  · push Not at hany
+    obtain ⟨n, hn, hfire⟩ :=
+      hfj (.timeout_noqc i v) ⟨fun h => h, fun h => h, fun h => h⟩ n₀
+        (fun n hn =>
+          enabled_timeout_noqc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
+            (hnab n (Nat.le_trans hn₀ hn)) (hview n (Nat.le_trans hn₀ hn))
+            (htimer' n (Nat.le_trans hn₀ hn)) (hcon n (Nat.le_trans hn₀ hn))
+            (fun W E hWE => by
+              obtain ⟨E', hE'⟩ :=
+                hstab n hn W (hheld n (Nat.le_trans hn₀ hn) W E hWE) ⟨E, hWE⟩
+              exact hany W E' hE'))
+    exact hcon (n + 1) (by omega) (timeout_noqc_effect (hfire ▸ r.steps n))
+
 /-! ## Closing a view
 
 The half of the climb that was still open. `eventually_entered_above_of_tc`
