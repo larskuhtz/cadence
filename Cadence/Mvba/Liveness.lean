@@ -1706,6 +1706,46 @@ theorem terminates_of_good_view
     obtain ⟨nR, ER, hR⟩ := hterm R hRq.2
     exact absurd hR (hnodec R nR ER hRq.2)
 
+/-! ## Monotone growth over a finite list stops
+
+The third use of the covering list, after counting (`residual`) and
+maximising (`exists_greatest`), and the one that makes weak fairness usable
+where a guard mentions a maximum.
+
+Weak fairness needs a *fixed* label to be continuously enabled. A validator's
+`timeout_qc i v w e` names its highest held certificate, so the label moves
+whenever a higher one is adopted, and no single label is continuously
+enabled while that keeps happening. It cannot keep happening: held
+certificates only accumulate, they all lie in the covering list, and a
+monotone family over a finite list stops growing. After it stops, the
+maximum is fixed and one label stays enabled.
+
+The proof is the `residual` measure again — growth strictly lowers it, so it
+can only happen finitely often — and nothing about the protocol enters. -/
+
+/-- **A monotone family over a finite list acquires no new members after
+some point.** -/
+theorem eventually_no_new (r : MvbaRun th) {α : Type}
+    (P : α → Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop)
+    (hmono : ∀ a n, P a (r.at' n) → P a (r.at' (n + 1))) (Vs : List α) :
+    ∀ N, ∃ n, N ≤ n ∧ ∀ m, n ≤ m → ∀ a, a ∈ Vs → P a (r.at' m) → P a (r.at' n) := by
+  classical
+  intro N
+  generalize hk : residual Vs (fun a => P a (r.at' N)) = k
+  induction k using Nat.strong_induction_on generalizing N with
+  | _ k ih =>
+    by_cases hstable : ∀ m, N ≤ m → ∀ a, a ∈ Vs → P a (r.at' m) → P a (r.at' N)
+    · exact ⟨N, Nat.le_refl N, hstable⟩
+    · push Not at hstable
+      obtain ⟨m, hm, a, ha, hPm, hPN⟩ := hstable
+      have hlt : residual Vs (fun a => P a (r.at' m)) <
+          residual Vs (fun a => P a (r.at' N)) :=
+        residual_lt_of_new
+          (fun b hb => r.mono (P := fun s => P b s) (fun j hj => hmono b j hj) hb m hm)
+          ha hPN hPm
+      obtain ⟨n, hn, hstab⟩ := ih (residual Vs (fun a => P a (r.at' m))) (by omega) m rfl
+      exact ⟨n, Nat.le_trans hm hn, hstab⟩
+
 /-! ## Climbing the view order terminates
 
 The last hypothesis of `terminates_of_good_view` is a timeout certificate
