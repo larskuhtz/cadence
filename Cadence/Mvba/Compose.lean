@@ -117,6 +117,20 @@ def Label.isInput : Mvba.Label node nodeset value view → Prop
   | .abandon _ => True
   | _ => False
 
+omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset vord in
+/-- `Label.isInput` names the two input constructors, in a form that
+survives leaving this module.
+
+The definition itself does not: since the label type reached twenty-five
+constructors Lean compiles its `match` to a bit-testing `Label.rec`, whose
+equation lemmas are available here but do not let `Label.isInput (.decide …)`
+reduce in an importing file. Consumers should case on this lemma rather than
+unfold the definition — `Mvba/Liveness.lean` does. -/
+theorem Label.isInput_cases {l : Mvba.Label node nodeset value view}
+    (h : Label.isInput l) :
+    (∃ i e, l = .propose i e) ∨ (∃ i, l = .abandon i) := by
+  cases l <;> simp_all [Label.isInput]
+
 variable (th : Mvba.Theory node nodeset value view)
 
 /-! ### Step-level facts, uniformly over all 24 actions
@@ -200,6 +214,15 @@ theorem propose_effect_tr {i : node} {e : value}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.propose i e) st') :
     Proposed st' i e := by
   mvba_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); mvba_field_simp
+
+/-- `propose(e)` carries a valid `e` — the model's own guard, which is the
+supplement's precondition on the call (`Mvba.lean`'s `propose`). -/
+theorem propose_valid_tr {i : node} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.propose i e) st') : th.valid e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, hv, -⟩ := htr
+  exact hv
 
 /-- `abandon()` at `i` records `abandoned i`. -/
 theorem abandon_effect_tr {i : node}
@@ -287,6 +310,7 @@ noncomputable def mvbaSafety :
   abandoned_mono _ _ p hn h := abandoned_mono_tr th hn.choose_spec p h
   sent_mono _ _ p m hn h := sent_mono_tr th hn.choose_spec p m h
   propose_effect _ _ _ _ h := propose_effect_tr th h
+  propose_valid _ _ _ _ h := propose_valid_tr th h
   abandon_effect _ _ _ h := abandon_effect_tr th h
   proposed_step_frame _ _ p v h _ := proposed_frame_internal th h.choose_spec.1 h.choose_spec.2 p v
   abandoned_step_frame _ _ p h _ := abandoned_frame_internal th h.choose_spec.1 h.choose_spec.2 p

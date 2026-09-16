@@ -317,6 +317,14 @@ instance's `init`. Two of them — the entry-vector projections
 instantiation (`chorusTheory_assumptions`); the one genuine hypothesis among
 them is that the abstract MVBA state Chorus starts from is initial.
 
+The MVBA's two `assumption`s enter its own instance the same way, as the
+`assumptions` conjunct of `mvbaSafety.init`: `leader_functional` (the leader
+schedule is a function) and `leader_honest_cofinal` (above every view there
+is an honest-led one). The second is a *liveness* assumption sitting in a
+safety instance's `init`, which is a deliberate trade recorded at the
+declaration and in [Architecture.md](./Architecture.md) §4 item 2
+(A-leader-rotation).
+
 No temporal obligation enters: MCP Safety is a safety property and needs only
 the proven fragments.
 
@@ -335,6 +343,24 @@ the proven fragments.
    which is safety-conservative. The liveness argument has to name its
    *completeness* direction — that a decided entry's certificate is
    network-visible — which is what enables the handler.
+
+   **Since `MVBASafety.propose_valid` (2026-09-15) the input half of this
+   bridge has teeth, and that is worth being precise about.** The MVBA now
+   *enforces* validity on `propose`, so at the composed instance Chorus's
+   `mvba_propose` can fire only when the MVBA's `Valid` holds of the vector
+   — and Chorus establishes validity in *its own* vocabulary (entries
+   certificate-backed, one per proposer), which is not identified with the
+   class parameter. Nothing proven is affected: the composed safety theorem
+   is parametric in the MVBA theory, and at a `valid` that accepts
+   everything the system behaves as before. What now depends on the bridge
+   is **non-vacuity**: if the two notions of validity did not coincide, the
+   composed system could not propose at all, and no current check would say
+   so. Before the field was added the same mismatch was harmless, because
+   the MVBA accepted anything. Giving the bridge teeth is the right
+   direction — a wrong `Valid` should stop the system rather than admit
+   invalid blocks — but it moves the bridge from "documented and inert" to
+   "documented and load-bearing for liveness", which is why it is written
+   down here and not only at the field.
 2. **Chorus has no participation interface**, so `SlotConsensusTemporal`
    carries the whole of it; and the glue's records of the inputs it does not
    drive (`sc_abandoned`, `proposed`) are its own, as the paper's local
@@ -351,6 +377,39 @@ the proven fragments.
    could be vacuous if it defined it as `False`; `admissible_exists` forbids
    that, and the definition is one line to audit.
 5. **The two fault patterns** meet in `hbyz` (§6) — a hypothesis, not a proof.
+
+### Vacuity does not compose
+
+Safety is universally quantified over behaviours, so it composes: if a
+provider is safe in all of its behaviours and the consumer only drives it
+where the contract allows, the composition is safe. **Non-vacuity is
+existential, and existentials do not compose.** A provider's witness — the
+run in which it does something interesting — may rest on inputs the consumer
+can never supply, and then the composition is vacuous although both parts
+are not.
+
+What the contracts here give is *for all implementations of the class, the
+composed system is safe*, together with *there exists an implementation for
+which it is non-vacuous*. What would be wanted is *for all safe and
+non-vacuous implementations, the composed system is safe and non-vacuous*.
+That is not available, and strengthening the class would not deliver it:
+an implementation can be non-vacuous in isolation and still never reach
+anything interesting under the input profile its consumer produces. To close
+that, non-vacuity would have to be indexed by the admissible input profile —
+and a property of the form "under every admissible input, something
+eventually happens" is liveness. The strengthened-contract route collapses
+into the liveness route rather than being an alternative to it.
+
+Two consequences, both practical. **A per-model non-vacuity witness does not
+certify the composition**, so the `sat trace` blocks in the module files are
+evidence about the modules and nothing more; a witness has to be exhibited
+for the composed system as well
+([`TODO.md`](./TODO.md) § Soundness). And **the principled fix is liveness**:
+once a provider's own progress theorem is discharged and its consumer's
+corresponding assumption with it, non-vacuity along that path stops being a
+question about witnesses. [`Mvba.termination`](../Cadence/Mvba/Liveness.lean)
+is that theorem for the MVBA; what is still open is Chorus's (A-mvba)
+([`Architecture.md`](./Architecture.md) §4 item 2).
 
 ## 8. Reproductions
 

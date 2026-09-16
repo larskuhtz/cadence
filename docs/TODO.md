@@ -112,13 +112,62 @@ come first.
 
 ## Liveness
 
-The fair-progress *safety content* is machine-checked, and the case split
-is one theorem — `progress_dichotomy_of_saturation`,
-`Cadence/Chorus/Progress.lean` — leaving exactly two temporal steps
-outside Lean: (F-justice) delivers its saturation hypothesis, (A-mvba)
-consumes its conclusion ([`ChorusDesign.md`](./ChorusDesign.md) §7 is what
-the Chorus encoding does, [`Liveness.md`](./Liveness.md) the approach to
-closing the rest). Remaining:
+* **A non-vacuity instrument at the *composition* level.** The reason one is
+  needed at all is that non-vacuity does not compose —
+  [`CompositionContracts.md`](./CompositionContracts.md) §7, "Vacuity does
+  not compose", states why, and why the principled fix is liveness rather
+  than a better contract. This item is the cheap standing check, not the
+  answer. Every instrument of this kind in the repository is per-model: eight `sat trace` blocks across
+  `Cadence`, `Conductor` and `Mvba`, plus the two `#model_check`s. There is
+  **none** for the composed system — `System.lean`, `Composition.lean` and
+  the two `Compose.lean` files contain no reachability witness at all. So a
+  guard that becomes unsatisfiable only *at the instantiation*, where one
+  module's parameter meets another's state, would not fail a build: the
+  invariants would hold vacuously and every pin would stay green.
+
+  That is not hypothetical. Adding `MVBASafety.propose_valid` made Chorus's
+  `mvba_propose` depend, at the composed instance, on a bridge between two
+  notions of validity that nothing identifies
+  ([`CompositionContracts.md`](./CompositionContracts.md) §7 item 1). The
+  composed safety theorem is unaffected, being parametric in the MVBA
+  theory, but nothing would have reported it either way.
+
+  The instrument to build: instantiate the composed system at concrete
+  finite sorts and either `#model_check` a run that reaches a decision, or
+  pin a `sat trace` through `propose` → `mvba_propose` → a decision handler.
+  Either turns "the seams admit a real execution" from an argument into a
+  build-checked fact, and it is the only one of
+  [`MvbaPlan.md`](./MvbaPlan.md) §4's four instruments that does not already
+  exist in some form.
+
+* **Try the timer-priority route, which would remove the good view from
+  the premises entirely.** (A-viewsync)'s second clause is indexed by the
+  good view and has a commit certificate as its consequent; both are forced
+  by the untimed abstraction, and [`MvbaPlan.md`](./MvbaPlan.md) §3.7 gives
+  the argument. The one clock-free alternative worth trying is a *priority*:
+  the timer for a view fires only when no honest non-input action of that
+  view is enabled. It is W-free and certificate-free, it would let the marker
+  be weakly fair, and the good view would come from (A-leader-rotation)
+  alone. §3.7 also lists the three obstacles — availability is not
+  view-indexed, a label-to-view projection is needed, and widening a
+  scheduling premise until the proof goes through is how one re-assumes the
+  conclusion — and the reason it may not be worth it: the clock makes
+  (A-viewsync) a theorem outright.
+
+* **Exhibit a run satisfying `Mvba.termination`'s five premises.** The
+  premise set is checked for consistency by argument, not by machine — the
+  header of [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean)
+  records that, and it is the one thing standing between the theorem and a
+  non-vacuity guarantee. The argument is short (the timer's finiteness
+  clause is scoped away from the good view precisely so that it and the
+  good view's clause cannot conflict, and the model's `sat trace` blocks
+  witness the protocol half), but an argument is not a build-checked fact.
+  What would make it one: a `TerminationClaim` instance at concrete finite
+  sorts, or a trace through the premises. Related to, but smaller than, the
+  composition-level instrument above — and **not worth a session of its
+  own**: `MVBATemporal.admissible_exists` requires constructing admissible
+  timed runs anyway, so the witness falls out of the bounds work
+  ([`Bounds.md`](./Bounds.md) §6.1) if that is picked up.
 
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
   meta-axioms become premises of a Lean theorem rather than named

@@ -25,6 +25,7 @@ import Cadence.FallbackReceipt.PreFix
 -- refutes the instantiation without its lock check.
 import Cadence.Mvba.Certify
 import Cadence.Mvba.Compose
+import Cadence.Mvba.Liveness
 import Cadence.Mvba.NoLock
 
 /-!
@@ -65,6 +66,7 @@ complete inventory of what is **not** in Lean are
 | `Mvba.invariants_of_reachable` | `Cadence/Mvba/Certify.lean` | every reachable state of the leader-based MVBA instantiation (`Cadence/Mvba.lean` — the protocol of the paper repository's *internal supplement*, pinned to a paper-repository commit in the model's header, not yet part of the published paper) satisfies all its declared safety properties and invariants |
 | `Mvba.reachable_agreement`, `Mvba.reachable_integrity`, `Mvba.reachable_external_validity` | `Cadence/Mvba/Certify.lean` | the three safety properties of `mod:mvba` at every reachable state — the supplement's `thm:agreement` at the entries level, integrity (a correct validator decides at most once), `lem:external-validity` |
 | `Mvba.mvbaSafety` | `Cadence/Mvba/Compose.lean` | Mvba ⊨ `MVBASafety` — the state-level fragment of the paper's MVBA module contract (agreement, integrity, external validity, the monotonicity of `decided`), every field proven from the model's own transition system. The object Chorus consumes as its `mvba` constraint, plugged in by `Cadence/System.lean` (`docs/MvbaPlan.md` §6) |
+| `Mvba.termination` | `Cadence/Mvba/Liveness.lean` | **bound-erased termination of the MVBA**: every correct validator eventually decides. Unlike every other row this is a *conditional* theorem, and the conditions are its point — five named premises, each a predicate on a run and each either fair scheduling or a sentence of the supplement ((F-justice), (A-viewsync), (F-avail), and the caller's two: all correct validators propose, none is abandoned before deciding), plus three classes that are hypotheses rather than axioms (`ByzNodeSetEnum`, `ByzNodeSetHonestQuorum`, `ViewOrderEnum`). It is **not** `MVBATemporal.termination`, which is stated over timed runs with `gst` and `ℓ` and still has no instance; it is that field's untimed shadow. `docs/Liveness.md` §2.1 says what it does and does not move in the trust base |
 | `Mvba.mvba_of_temporal` | `Cadence/Mvba/Compose.lean` | given an instance of `MVBATemporal` **at the proven fragment** — the clock, the admissible-run model and `ℓ_MVBA`-Termination — Mvba is a full `MVBA`. This development has no such instance; those four fields are the whole of what is *not* proven about the instantiation, since the inputs (`propose`, `abandon`), their observables, effects and frames, and **Quiescence** in one-step form are all proven into the fragment. The smallest gap of the three implementations |
 
 Three further build-checked claims are pinned where they are made, because
@@ -76,7 +78,7 @@ their form is not an axiom footprint:
   `Cadence/Mvba/Certify.lean`) walk each model's registry of
   verification conditions and report, per condition, whether a real,
   statement-matching, kernel-checked theorem is in scope. All three are
-  pinned: `4222/4222 real`, `220/220 real` and `725/725 real`, three
+  pinned: `4222/4222 real`, `220/220 real` and `1325/1325 real`, three
   axioms. That is the claim "nothing here is stubbed", as a command rather
   than as prose.
 * **The pre-fix receipt rules are broken.**
@@ -245,3 +247,9 @@ info: 'Mvba.mvba_of_temporal' depends on axioms: [propext, Classical.choice, Quo
 -/
 #guard_msgs in
 #print axioms Mvba.mvba_of_temporal
+
+/--
+info: 'Mvba.termination' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.termination

@@ -331,8 +331,821 @@ already uses: fair-progress invariants inside the sweep, the state-level
 content kernel-checked, the temporal step carried by named assumptions
 ([`Liveness.md`](./Liveness.md)).
 
-**Deferred, but it must not be designed out.** Two choices would foreclose
-it:
+### 3.1 Two Chorus arguments do not transfer (audited 2026-09-14)
+
+Chorus's liveness rests on two facts that [`Liveness.md`](./Liveness.md)
+states in prose, both true there because a Chorus slot is one-shot and its
+state purely accumulating. **Neither holds for `Mvba`.** Copying either
+across would weaken the claim silently, so both are recorded here.
+
+**(a) Enabledness is not monotone.** `Liveness.md` justifies weak fairness
+with "enabledness is itself monotone, so the enable/disable toggle that
+strong fairness exists for cannot occur". In `Mvba` that toggle occurs:
+
+| Guard | Appears in | Falsified by |
+|---|---|---|
+| `in_view i v` (ghost: `v` is the maximum `entered` view) | nine honest actions | `sync_view` / `sync_view_adopt` entering a higher view |
+| `¬ timed_out i v` | `adopt_prepqc`, `send_commit` | `timeout_qc` / `timeout_noqc` at the same validator |
+| `∀ W, voted i W → vord.lt W v` | both Pre-Prepare handlers | voting at a view `≥ v` |
+| `∀ W E, local_prepqc i W E → vord.lt W v` | `adopt_prepqc` | adopting a lock at a view `≥ v` |
+| `∀ V, entered i V → vord.le V pv` | `sync_view`, `sync_view_adopt` | entering a higher view |
+| `∀ W E, ¬ local_prepqc i W E` | `timeout_noqc` | adopting any lock |
+
+Eleven of the nineteen honest actions carry at least one, nine of them
+through `in_view` alone. (`¬ abandoned i`, on thirteen of them, is
+anti-monotone too, but belongs to a different category: `abandon` is a
+contract *input*, and every liveness claim here is already conditioned on
+correct parties not abandoning.) The relations underneath are all monotone;
+it is the *guards* that are anti-monotone,
+which is the ordinary shape of a view-change protocol and not a modelling
+defect — §3.6's "keep view-indexed state monotone" is satisfied, and is what
+keeps the disabling analysable at all.
+
+**(b) The residual ranking is unavailable.** `Liveness.md`'s well-founded
+ranking is "per-slot state is finite and all relations are monotone, so
+every fair firing strictly shrinks the residual of unset tuples". `view` is
+an unbounded `TotalOrderWithMinimum`, so `Mvba`'s reachable state space is
+infinite: a run can always advance into a fresh view and mint new unset
+tuples. §3.3 replaces the ranking.
+
+### 3.2 Two levels, kept apart
+
+**Model level — the scheduling assumptions.** Each action carries a fairness
+class. Every liveness proof needs such assumptions, and naming them is
+hygiene independent of what is derived from them; they are also what the
+fork's fairness annotations will carry once they exist
+([`Liveness.md`](./Liveness.md) §3).
+
+> **Correction (2026-09-14): two classes are not enough, and the pair this
+> section first fixed — unfair `byz_*`, weakly fair everything else honest —
+> is *inconsistent* with (A-viewsync).** `timeout_qc` and `timeout_noqc` are
+> honest actions, so the old pair made them weakly fair; but §3.6 abstracts
+> the *timing* of a timeout away, so a correct validator holding a lock has
+> `timeout_qc` continuously enabled in its current view, and weak fairness
+> then forces it to time out of **every** view — the good one included. The
+> flat reading of (A-viewsync), "no correct validator times out in the good
+> view", contradicts that outright, and a contradictory premise set makes the
+> claim vacuous rather than hard.
+>
+> The timers are therefore their own class, and the timing assumption splits
+> into the two halves it always had: **(F-timeout)**, the timeout is finite —
+> a correct validator that never decides eventually times out of every view
+> it enters, which is what closes a stalled view at all; and
+> **(A-viewsync)**, the timeout is long enough — in the good view no correct
+> validator times out *before it has decided*. Those two are compatible. The
+> classification is machine-checked in
+> [`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) (`ByzLabel`,
+> `TimerLabel`, `JusticeLabel`, `Label.isInput`, with `label_classified`
+> proving the four exhaust the label type by cases over the model's own
+> action list).
+
+> **Third correction (2026-09-15): the availability action is the
+> environment's too, and was wrongly inside the weakly fair class.**
+> `become_avail_ready` is *unguarded*, so weak fairness on it proves
+> (F-avail) outright — which made a premise of the claim redundant and, worse,
+> made the premise list say that MVBA termination needs nothing of the
+> availability layer. It needs it; the model just discharges it in one
+> unguarded line. `AvailLabel` is now its own class and
+> `not_justice_of_avail` pins the separation. The premise set is weaker for
+> it: the old pair implies the new one and not conversely.
+
+> **Second correction (2026-09-15): the split is between the timeout
+> actions and the *timer*, not between the timeouts and everything else.**
+> The correction above is right that two classes cannot work; where it put
+> the boundary turned out to be avoidable. The model now carries the view
+> timer as an abstract phase marker — `timer_expired i v`, set by the
+> environment action `expire_timer`, guarding both timeout actions — so a
+> timeout is no longer perpetually enabled, and the two `timeout_*` actions
+> rejoin the weak-fairness class like every other honest action. The third
+> class contains `expire_timer` alone. **(F-timeout) is gone with it**: the
+> finiteness of the timeout is now a clause of (A-viewsync) about the
+> marker, and it is scoped to the views other than the good one, because
+> untimed the two clauses would otherwise hand over the conclusion (§3.5
+> step 5 gives the argument).
+
+The classes, then: **unfair** for the `byz_*` family (F-byz); **weakly
+fair** for the honest message handlers, certificate assemblies, view changes
+and the two timeouts (F-justice); **timer** for `expire_timer` alone,
+governed by (A-viewsync)'s two clauses; **availability** for
+`become_avail_ready` alone, governed by (F-avail); and the two contract
+inputs `propose` / `abandon`, which are the *caller's* and carry no fairness
+at all — that every correct validator proposes is a premise of the claim, as
+it is in `thm:termination`. Five classes, and the two environment ones are
+separate from the scheduler's on purpose: each names a different party that
+has to deliver something.
+
+**Claim level — what those assumptions can and cannot deliver.** §3.1(a) has
+a consequence that is easy to misread as an argument about fairness
+*strength*, and is not. Because `entered` and `timed_out` are monotone, a
+guard falsified in §3.1(a)'s table never becomes true again: each
+`(action, parameters)` instance is enabled over a single window and is
+permanently dead afterwards. Per-instance enabledness is therefore
+non-monotone **and non-recurrent**, so strengthening (F-justice) to strong
+fairness adds nothing at this level — an instance enabled only finitely
+often fails strong fairness's premise as well. The missing power is not a
+fairness class: it is the premise that *some* view's window is long enough
+for the prepare → commit → decide chain to close. That is (A-viewsync)
+below, the untimed stand-in for `thm:termination`'s after-GST Δ-synchrony.
+Given it, the guards in that window are stable and plain weak fairness
+closes the chain inside it. So the *weak-fairness* class stays as in
+Chorus, and only the justification for its sufficiency differs — quarantine
+by assumption, not monotonicity — while the timers move out of it for the
+reason the correction above gives.
+
+### 3.3 The ranking, and the one assumption the model was missing
+
+*Landed 2026-09-14: the assumption is in
+[`../Cadence/Mvba.lean`](../Cadence/Mvba.lean) and the ranking is
+[`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean). One correction this section
+needed, and one finding from building the rank, are marked below.*
+
+Termination rests on reaching a view whose leader is honest. The model
+assumed only `leader_functional` — `leader` is a functional immutable
+relation with no rotation or coverage property — so that fact had no source
+and an assumption had to be added. The weakest form that serves is
+cofinality of the honest leaders:
+
+```
+assumption [leader_honest_cofinal]
+  ∀ (V : view), ∃ (W : view) (L : node),
+    vord.le V W ∧ leader W L ∧ ¬ is_byz L
+```
+
+**It is not invented here.** The supplement states the property outright at
+`subsec:mvba-protocol` — "The leader schedule guarantees that every `f+1`
+consecutive views contain a correct leader" — and `thm:termination`'s proof
+counts with it ("at most `f` faulty-leader views can precede a correct-leader
+view"), which is where the `O(fΔ)` comes from. The algorithm block says only
+that `\Leader` is "a deterministic public function", so the coverage property
+is easy to miss there; it is in the surrounding prose. Cofinality is the
+weakest untimed consequence: it keeps "a correct leader is always still
+ahead" and drops the bound, which is right for a model that claims no
+latency. So this assumption is **weaker** than what the paper assumes, not an
+addition to it.
+
+Deriving even cofinality from an explicit rotation would need arithmetic on
+views, which the model deliberately excludes (§2.2: `vord.zero` /
+`vord.next` only, no arithmetic reaches the solver), so it is recorded as a
+named assumption rather than a derived lemma, and joins the trust base
+alongside the other named assumptions. Its inventory name is
+**(A-leader-rotation)** ([`Architecture.md`](./Architecture.md) §4 item 2).
+
+**Where it lands, and why that is the price of the placement.** A model
+`assumption` is a conjunct of `assumptions th`, which `Mvba/Compose.lean`
+takes as part of `mvbaSafety.init`; reachability carries it too. So a
+*liveness* assumption is now in the trust base of `agreement`, `integrity`
+and `external_validity`, which are claimed for leader schedules with
+cofinally many honest leaders rather than for every schedule. That is a
+real narrowing of a safety statement and it is deliberate: the fair-progress
+invariants of §3.5 step 3 are sweep cells, and only a model `assumption`
+reaches the solver. Nothing in the safety proofs needs it — the whole family
+was proven without it and re-solved unchanged with it, at
+`#veil_status Mvba` 725/725 — so the narrowing is formal rather than
+material.
+
+**This placement is a bet on step 3, and it is reversible.** The alternative
+is to carry cofinality as a plain-Lean hypothesis of the liveness theorems,
+alongside (F-justice), (F-byz), (A-viewsync) and (F-avail) where §3.4 puts
+the rest of the seam; that keeps the safety statements fully general and
+gives up only the ability to use it *inside a sweep cell*. Whether step 3
+needs it there is not yet known and looks doubtful: cofinality is a property
+of the immutable `leader` relation, not of the state, and an inductive
+invariant is a state predicate — the target view is chosen in the run-level
+argument, which is plain Lean. If step 3 confirms that, moving the
+assumption out is a one-line change plus a re-solve, and it also removes the
+`NoLock.lean` wrinkle below.
+
+One consequence outside the model: [`Mvba/NoLock.lean`](../Cadence/Mvba/NoLock.lean),
+the lock-check mutation test, does **not** declare it — its theory makes the
+Byzantine node the leader of both of its two views, so the assumption is
+false there. Dropping an assumption *widens* the theory set, unlike that
+file's other three restrictions, so its header now carries the embedding
+argument as restriction 4.
+
+With it the ranking is lexicographic: first the distance to the next
+honest-led view, then, at a fixed view, the residual of unset node-indexed
+tuples. Both components are the same count — *how many entries of a finite
+index list do not yet satisfy a monotone predicate* — which is why
+[`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean) defines it once as `residual`
+and everything else there is a few lines. Three finiteness questions arise,
+and they have three different answers.
+
+**Correction (2026-09-14): "finite by `leader_honest_cofinal`" was wrong.**
+Cofinality gives a *target* — above any view there is an honest-led one —
+and says nothing about how many views lie between here and it.
+`TotalOrderWithMinimum` says nothing either: its order may have an infinite
+ascending chain below a bound (ω + ω is a model of the class), and then no
+measure on views is well-founded and the first component does not exist. So
+the views to be counted are an **explicit `List view` parameter** of the
+rank, exactly as the quorum's members are, and producing one that covers
+the interval up to the target is an obligation of the run-level theorem
+(step 4), not something the abstract order hands out.
+
+* **The value dimension needs nothing.** An earlier draft of this section
+  proposed constraining `value` to be finite. That was wrong twice over: it
+  is unnecessary, and it would have been the wrong *kind* of assumption — a
+  cardinality bound standing in for an argument, true in theory and empty
+  in practice, the way "enumerating every value of a 64-bit register
+  terminates" is true and empty. It is unnecessary because the model
+  already proves `accepted_unique`: an honest validator accepts at most one
+  value per view, and every value-indexed relation it writes
+  (`local_prepqc`, `msg_prepare`, `msg_commit`) is gated on
+  `accepted i v e`. The value dimension collapses to a singleton **by
+  protocol, not by cardinality**. A Byzantine leader may flood
+  `msg_preprepare` with unboundedly many values; nothing honest follows it,
+  and the rank reads honest state only.
+* **The node dimension does need finiteness, and this is the first place in
+  the development where anything does.** `ByzNodeSet` axiomatises quorums
+  by intersection alone and says nothing about size — which is exactly why
+  every safety theorem here holds for an abstract `node` of any
+  cardinality. Liveness cannot inherit that: assembling a certificate takes
+  one firing per member (`form_prepqc` requires
+  `∀ r, member r q → msg_prepare r v e`), so weak fairness delivers it in
+  finite time only for finite quorums. The asymmetry is worth stating
+  plainly — **safety consumes a quorum intersection, liveness must assemble
+  a quorum.**
+
+  The requirement is `ByzNodeSetEnum`
+  ([`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)): a quorum's members as a
+  list, with `member` agreeing with list membership. It is a *separate*
+  class taking the `ByzNodeSet` as an **explicit** parameter, so a liveness
+  theorem carries it as a visible hypothesis instead of inheriting it
+  silently, and nothing on the safety side acquires a cardinality
+  assumption it does not need. `byzNodeSetFinGen_enum` discharges it for
+  the whole family `n ≥ 3f+1`, where a quorum *is* a sorted list; the file
+  carries a concrete witness at `n = 4` beside the existing instantiation
+  checks. Here the bound is the committee size times the view distance —
+  the protocol's own parameter, and the shape of `thm:termination`'s
+  `O(fΔ)` — and a proof-of-stake committee is finite in the strict sense,
+  since such systems do not scale in committee size. So this one carries
+  operational content rather than being a finiteness trick.
+
+  **Two index lists, one enumeration.** A quorum's members include
+  Byzantine nodes, so a residual over them can only reach zero for
+  relations a Byzantine node can also supply — true of the three assembly
+  guards the rank counts (`byz_prepare`, `byz_commit`, `byz_timeout_*`
+  supply `msg_prepare`, `msg_commit` and "has sent some `Timeout`"), false
+  of the honest-only relations of the per-validator chain (`accepted`,
+  `local_prepqc`, `decided`), whose bottom over a quorum no run could
+  reach.
+
+  That does **not** call for a second enumeration hypothesis, as a first
+  draft of `Rank.lean` claimed. `ByzNodeSet` already projects a `2f+1`
+  quorum onto an all-honest `f+1` sub-quorum
+  (`supermajority_contains_honest_greater_than_third`, proven for the whole
+  `n ≥ 3f+1` family), and that sub-quorum **is** an `nset`, so the same
+  `ByzNodeSetEnum` enumerates it. The honest-only counts are therefore
+  taken over the honest core, and the rank needs exactly one enumeration
+  (`Mvba/Rank.lean`, `exists_honest_core`, which depends on no axioms at
+  all).
+
+  A **second** constructive requirement does appear one level up, and it
+  is landed rather than deferred: under (F-byz) progress may not rely on
+  Byzantine sends, so a run-level proof has to assemble the certificates
+  out of correct validators alone — which needs a supermajority *of*
+  correct validators, and no `ByzNodeSet` axiom gives one (all eight are
+  intersection statements). `ByzNodeSetHonestQuorum`
+  ([`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)) is that, in the same
+  shape as `ByzNodeSetEnum`: a separate class over an explicit
+  `ByzNodeSet`, constructive (it hands over the quorum, since a proof must
+  instantiate the assembly guards with one), discharged at
+  `byzNodeSetFinGen_honest` for the whole `n ≥ 3f+1` family. Two small
+  siblings rather than one bundle, so a theorem carries what it uses: the
+  ranking needs enumerability only. What the honest core leaves out — the gap between `f+1` and the
+  `2f+1` correct validators — needs no count: once a `CommitQC` exists,
+  `decide`'s guard is per-validator, so each remaining correct validator
+  needs one weakly-fair firing.
+
+### 3.4 What becomes formal, and where the seam is
+
+The statement machinery already exists and does not have to be built:
+[`Interfaces.lean`](../Cadence/Interfaces.lean) has `Run`, `TimedRun` with
+`clock_mono` and `clock_unbounded` (the non-Zeno condition), `byTime` and
+`byGstBound`, and `MVBATemporal.termination` is already the formal timed
+statement of the bounded claim. Veil's limitation is that its VC pipeline
+cannot *discharge* temporal goals, not that Lean cannot state or prove them:
+`Composition.lean` already does plain-Lean induction over `reachable`, so
+none of the work below blocks on the fork's liveness branch.
+
+| Artefact | Kind | Notes |
+|---|---|---|
+| "guard held, then failed ⇒ the rank strictly decreased" (the rank is a residual, so progress *lowers* it; this row said "increased" before the measure existed) | plain Lean — **landed**, [`Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean) | Proven from the model alone; **no scheduling assumption enters**. The machine-checked replacement for §3.1(a)'s Chorus prose. It needed no `step_property` and adds no verification conditions: every `Mvba` relation is written only `true`, so M13's generated `<rel>.mono` covers the growth, and of the six guards only `in_view` needs the transition at all — the other five hold of any pair of states. `#veil_status Mvba` is unchanged |
+| Fair-progress invariants | sweep cells | Mirroring Chorus's "Fair progress" invariants |
+| `leader_honest_cofinal` | model `assumption` — **landed** | The one new axiom (§3.3), inventory name (A-leader-rotation). Changed every VC statement; the family re-solved green and `#veil_status Mvba` stayed at 725 (an assumption changes statements, not cells) |
+| The ranking and its decrease | plain Lean — **landed**, [`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean) | `rank` = (view gap, view-local residual) in `Prod.Lex`, the second component a sum of seven counts of one shape — three quorum assemblies over `q`, four chain steps over `q`'s honest core. `rank_noninc` over *every* transition (Byzantine included), one strict-decrease theorem per kind of progress, and a "rank zero is exactly the guard" lemma per count, down to "some correct validator has decided". No scheduling assumption enters |
+| "Every correct validator eventually decides" | plain-Lean theorem over a labelled run — **stated**, [`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) | `TerminationClaim`, a `Prop`-valued *definition*: the target and its six premises are type-checked and citable before the proof exists. Bound-erased sibling of `MVBATemporal.termination`. The fairness vocabulary it is built from is [`Fairness.lean`](../Cadence/Fairness.lean) |
+
+**The seam, stated once.** The run-level theorem takes (F-justice), (F-byz),
+(A-viewsync) and (F-avail) as **explicit Lean hypotheses**. Nothing
+meta-theoretic then remains inside the proof; the meta-theory is exactly the
+claim that a deployment satisfies those hypotheses, which is where
+[`Liveness.md`](./Liveness.md) §2 already puts Chorus's. Keeping them as
+hypotheses of a statement rather than as `axiom`s is what makes the seam
+auditable without reading the proof, and it is the same discipline as the
+`…Temporal` classes: an unproven obligation is visible as a hypothesis, not
+absent.
+
+### 3.5 Order of work
+
+1. ~~**Fairness structure made formal.**~~ **Landed.** The disabling facts
+   are [`Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean), and
+   [`Liveness.md`](./Liveness.md) §2 now scopes Chorus's monotone-enabledness
+   justification to Chorus, so the two models' arguments are not conflated.
+   It cost no verification conditions (see §3.4).
+2. ~~**The plain-Lean core.**~~ **Landed.** `leader_honest_cofinal` is in
+   the model and [`Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean) has the
+   ranking, its well-foundedness, its non-increase over every transition,
+   four strict-decrease theorems and the rank-zero-is-the-guard lemmas.
+   The finiteness questions are settled three ways, and one of them is a
+   correction to §3.3: the value dimension needs nothing, the node
+   dimension is `ByzNodeSetEnum`
+   ([`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)) — one enumeration, used
+   both for a quorum and for the honest core `ByzNodeSet` projects out of
+   it — and the **view** dimension needs a finite list of views that
+   cofinality does not supply, so the rank takes one as a parameter.
+3. **Fair-progress invariants in the sweep.** Where the solver cost lands;
+   budget manual cells, and expect the growing clump to tip formerly green
+   cells into divergence (the `cadence-verification` skill, §5 item 3).
+4. **The run-level theorem**, assembling 1–3 under the §3.4 hypotheses.
+   **Its statement has landed ahead of steps 3 and 4's proofs**, deliberately:
+   [`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) defines
+   `TerminationClaim` and each of its six premises as a named `Prop`, and
+   [`Fairness.lean`](../Cadence/Fairness.lean) the labelled runs, enabledness
+   and weak/strong fairness it is built from — in the shape the fork's
+   planned `fairness justice` / `response p ⇝ q` syntax would generate, so
+   the statements survive the tool growing that syntax. Writing it first is
+   what exposed §3.2's fairness-class error, and it is what should drive
+   step 3: an invariant costs one cell per action, so the list is better
+   derived from the proof's stuck points than guessed. **Open:** the six
+   premises are argued consistent, not proven so.
+
+   **The proof has started, from the end of the chain backwards.** Two links
+   are proven, and both report the same thing to step 3 — *no invariant
+   needed*:
+
+   * `eventually_decided_of_commitqc` — once a commit certificate exists, a
+     correct validator that proposed and is never abandoned decides. Uses
+     (F-justice) alone: no timer assumption, no view synchronisation, no
+     quorum machinery, and no leader schedule, because `decide` accepts a
+     certificate of any view.
+   * `eventually_commitqc_of_commit_quorum` — a supermajority all of whose
+     members have sent their `Commit` yields the certificate; composed with
+     the first and with `Rank.lean`'s `commit_quorum_of_assemblyGap_zero`
+     into `eventually_decided_of_assemblyGap_zero`, which mentions no
+     certificate at all: **if the commit dimension of the rank bottoms out
+     on a supermajority, every correct participating validator decides.**
+
+   That is the rank being used rather than merely defined, and it fixes the
+   shape of the remaining links: a residual reaches zero, an assembly becomes
+   enabled, weak fairness fires it, the next residual is one step closer. The
+   three mechanics they share — discharging enabledness from an action's
+   guards, reading a firing's effect off the post-state, and consuming
+   (F-justice) — are worked out once in
+   [`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) and reused.
+
+   **A third link, and the first cells step 3 buys.**
+   `eventually_msg_commit_of_settled` — a correct validator settled in a
+   view, having accepted `e`, holding the view's certificate on it and with
+   its availability shares, sends its `Commit`. Here the shape changes:
+   every guard of the first two links was monotone, so "enabled once" meant
+   "enabled ever after", whereas `send_commit` has three anti-monotone
+   guards and each needs its own treatment.
+
+   `in_view i v` and `¬ timed_out i v` are *assumed*, bundled as the named
+   `SettledIn` — they are what (A-viewsync) exists to discharge, and they
+   cannot be proven here because a validator may legitimately sync past a
+   view. `¬ commit_sent i v` is *not* assumed, because its falsification is
+   the goal, and keeping it analysable needed two new model invariants:
+
+   * `commit_sent_implies_voted` — a validator that has sent its `Commit` in
+     `v` had voted there;
+   * `commit_sent_backed` — and the `Commit` it sent is on the vector it
+     accepted, so if the guard dies the conclusion holds anyway.
+
+   The second is the one liveness wanted; the first is what makes it
+   inductive, by ruling out the case the solver found — accepting a fresh
+   vector in a view where `commit_sent` already holds, which both
+   `Pre-Prepare` handlers forbid through `∀ W, voted i W → W < v`. **They
+   were found by writing the proof, not guessed**, and neither was the
+   invariant predicted before starting.
+
+   **A fourth link, and a third cell.**
+   `eventually_local_prepqc_of_settled` — a correct validator settled in a
+   view, having accepted `e` there with a prepare certificate of that view on
+   `e` on the network, adopts it. Same two anti-monotone guards from
+   `SettledIn`, plus the lock-view bound
+   `∀ W E, local_prepqc i W E → W < v`, handled the same way: its failure is
+   the goal. Showing that took `local_prepqc_within_entered` (new) to pin
+   the offending certificate's view to at most `v`, then
+   `local_prepqc_backed` and `prepqc_unique` (both already in the clump) to
+   pin its value.
+
+   That invariant is stated against an arbitrary upper bound on the entered
+   views, not against the current view: `in_view` asserts a *maximum*
+   entered view whose existence is not first-order derivable, and the first
+   attempt — phrased with `in_view` — was rejected at `sync_view` for exactly
+   that reason. The bound form is also the shape of `sync_view`'s own guard,
+   which makes the induction direct, and it removed a fourth invariant the
+   `in_view` form had needed at `propose`.
+
+   `#veil_status Mvba` moves **725 → 800** (three invariants × 25
+   action-like entries); every re-solve green.
+
+   **The prepare assembly, and the per-validator chain closed.**
+   `eventually_prepqc_of_prepare_quorum` is the commit assembly's twin —
+   both guards monotone, so it costs nothing new. With it,
+   `eventually_msg_commit_of_prepqc` composes the whole **per-validator**
+   half of a view's work into one statement: a correct validator settled in
+   `v` that has accepted `e` there sends its `Commit`, given only a prepare
+   certificate of that view. Three links plus (F-avail), and the only fiddly
+   part is that (F-avail) reports no ordering — the shares may arrive before
+   or after the adoption — so the two are brought to a common index by
+   monotonicity.
+
+   **The acceptance, and the last per-validator link.**
+   `eventually_accepted_of_settled` — a correct validator settled in `v`,
+   with the honest leader of `v` having proposed a valid justified `e`,
+   accepts it and sends its `Prepare`. The most expensive link: its vote
+   guard `∀ W, voted i W → W < v` is anti-monotone like the two before it,
+   but a vote is a weaker thing than a lock, so showing its failure *is* the
+   goal took five invariants rather than one — `voted_within_entered` to pin
+   the lapse to `v`, `voted_implies_accepted_proposal` to turn a
+   non-timeout vote into an acceptance, and
+   `voted_implies_leader_proposed`, `honest_preprepare_unique`,
+   `honest_preprepare_proposed` to make that inductive. The last two are the
+   formal content of `thm:termination`'s "the correct leader broadcasts a
+   single valid proposal". A sixth, `accepted_implies_prepare`, is the one
+   that is not about a guard: the analysis yields `accepted` and the prepare
+   quorum needs `msg_prepare`, which the handlers set in the same step.
+
+   **This link is the first that does not hold for an arbitrary view**, and
+   that is not an artefact: under a Byzantine leader two correct validators
+   really can accept different vectors, which is why the protocol needs an
+   honest-led view and why (A-viewsync) produces one.
+
+   **The quorum-wide lift, and a view that decides.** A certificate needs a
+   *quorum* to have acted **at the same state**, which is a different kind
+   of step from everything above: weak fairness gives each member's message
+   at its own index. [`Fairness.lean`](../Cadence/Fairness.lean)'s
+   `eventually_forall` closes that gap and is where finiteness is finally
+   consumed — monotone predicates over a **finite list** collapse a family
+   of eventualities into one. That is "liveness must assemble a quorum"
+   made formal, and it is the whole reason `ByzNodeSetEnum` exists.
+
+   `terminates_of_settled_honest_view` is the payoff: **a view with an
+   honest leader decides**, given that its correct quorum is settled there
+   and the leader has proposed. Bound erased, this is the whole of
+   `thm:termination`'s correct-leader-view paragraph — every member of the
+   honest quorum accepts and prepares, the prepare certificate forms, each
+   adopts and commits, the commit certificate forms, and then *every*
+   correct validator that has proposed decides, not only the quorum's
+   members, because `decide` accepts a certificate of any view and needs
+   nothing local. Both quorum classes are used here and nowhere else:
+   `ByzNodeSetEnum` for the finite index list,
+   `ByzNodeSetHonestQuorum` for a quorum whose members are all correct —
+   which matters because under (F-byz) no progress may rest on a Byzantine
+   member sending anything.
+
+   **The leader proposes.** `eventually_preprepare_of_settled_leader` — an
+   honest leader settled in a view above the first, whose previous view
+   carries a timeout certificate, proposes. The anti-monotone guard is
+   `¬ proposed_in l v`, handled as `¬ commit_sent i v` was, with
+   `proposed_in_backed` (new) saying it can only die by the proposal the
+   argument was waiting for. Both ways of proposing are covered, and which
+   applies is decided by the previous view's certificate exactly as the
+   protocol decides it.
+
+   **A finding, and a premise it forces.** The link gives a proposal, not a
+   *valid* one, and that is not a gap in the proof. For a re-proposal
+   validity is a theorem — `prepqc_valid` (new) on the lock the certificate
+   carries, needed because `leader_repropose` re-offers a lock **without**
+   re-checking validity (the supplement's `Recover`) while
+   `handle_preprepare` requires `valid e`. For a *fresh* proposal there is
+   nothing to appeal to: `leader_propose_fresh` requires only `input l e`,
+   and `propose` does not check validity either — the model's header is
+   explicit that "`Valid B_i` is the caller's obligation". So an honest
+   leader can propose an invalid vector, no correct validator will accept
+   it, and its view is wasted. Termination therefore needs a caller premise
+   that correct validators propose valid vectors, alongside `AllPropose` and
+   `NoEarlyAbandon`; `mod:mvba`'s external validity is where it comes from.
+   It is recorded here rather than assumed silently, and will join the
+   premise list when the composition needs it.
+
+   **The validity premise, checked against the specification
+   (2026-09-14).** The supplement is clear and Cadence satisfies it. `propose`
+   has a validity precondition, `thm:termination` relies on it in as many
+   words ("the leader proposes its input `B_l`, which is a valid \metablock
+   by the precondition of `propose`"), `Interfaces.lean` documents it on
+   `MVBASafety.propose`, and Chorus's `mvba_propose` enforces it with three
+   `require` clauses. What is missing is only the *transmission*:
+   `Mvba.propose` does not record validity, so this side restates it as the
+   named premise `InputsValid`. Whether to close that with a
+   `require valid e` on `Mvba.propose` or to discharge the premise at the
+   composition is a decision, recorded in [`TODO.md`](./TODO.md) § Liveness.
+
+   **The view change.** The other half of liveness, and the one the decision
+   chain cannot supply: what carries a run *out of* a stalled view.
+   `eventually_tc_of_timeout_quorum` assembles the certificate and
+   `eventually_entered_above_of_tc` advances a validator past the closed
+   view. The timers themselves are not a link — they fire because
+   (A-viewsync)'s first clause says they do, which §3.2 explains cannot be
+   weak fairness on the timeout actions. Neither step costs an
+   invariant, and `sync_view` is the cleanest instance of the whole pattern:
+   its anti-monotone guard `∀ V, entered i V → V ≤ pv` needs no invariant at
+   all, because the guard's negation *is* the conclusion — a validator whose
+   views are no longer all below `pv` has already advanced past it.
+
+   **A view is closed only by a correct validator.** The fact that makes the
+   honest-led view unskippable, and the one place the liveness side consumes
+   a quorum *intersection* rather than assembling a quorum. A timeout
+   certificate is backed by a `2f+1` quorum of `Timeout`s (`msg_tc_backed`,
+   new, then the two `tc_*_backed`); every such quorum contains a correct
+   member; and a correct validator's `Timeout` for a view means it timed out
+   there. So a view cannot be closed behind the correct validators' backs —
+   which is exactly what lets (A-viewsync) keep a run *inside* the good view,
+   since it forbids a correct validator timing out there before deciding and
+   without one no certificate for that view can exist.
+
+   **The good view is not skipped.** The induction those two facts were
+   for, and the last structural step before `SettledIn` can be discharged:
+   *while no correct validator has decided, none can be in a view above the
+   honest-led one*. Climbing past a view needs a certificate for it — the
+   model's one `step_property`, `entered_needs_certificate`, which has to be
+   a step rather than an invariant because it relates the two states — a
+   certificate needs a correct validator to have timed out there, and a
+   correct validator timing out in the good view has, by (A-viewsync),
+   already decided. The induction closes because a validator only times out
+   in a view it entered, so the certificate's view is itself covered by the
+   hypothesis.
+
+   It assumes nothing about how many views there are and uses no ranking:
+   `Rank.lean`'s view component measures progress *toward* the good view,
+   and this says a run cannot *overshoot* it. Adding the step property is
+   also what pushed the family past the default elaboration budgets — the
+   Mvba proof files now carry `veil_large_clump_budgets`, as the Chorus
+   family always has — and it moves the pin by 24 rather than 25, a step
+   having no cell at the initializer.
+
+   **`SettledIn`, discharged.** Every link above assumed it; now it is
+   derived, and its three conjuncts come from three different places, which
+   is the whole role of (A-viewsync) laid out: `¬ abandoned` from
+   `NoEarlyAbandon`; `¬ timed_out i W` from (A-viewsync)'s second clause;
+   and `InView i W` from monotonicity of `entered` together with
+   `entered_le_of_no_timeout`. `exists_settled_quorum_of_no_decision` then
+   brings the whole honest quorum to a common index, the finite-family lift
+   once more.
+
+   All three conjuncts are conditioned on no correct validator having
+   decided. That is not a limitation but the shape of the eventual run-level
+   proof, which splits on exactly that: in the other branch a decision
+   already exists, `decided_backed` turns it into a certificate, and the
+   first link finishes.
+
+   **The assembly.** `terminates_of_good_view`: *if a run reaches an
+   honest-led view with a timeout certificate below it, every correct
+   validator decides.* A dichotomy, both branches already built — if some
+   correct validator has decided, `decided_backed` makes that a certificate
+   and the first link carries it to everyone, with no view reasoning at all;
+   if none has, `SettledIn` is available, the leader proposes, and the
+   view-level theorem concludes, contradicting the branch. That the second
+   branch is vacuous is the right outcome: a run that reaches a good view
+   cannot fail to decide.
+
+   Closing the validity gap took the two invariants the previous note
+   predicted — `honest_preprepare_valid`, conditional on the callers' inputs
+   being valid (which no model fact can supply, so it is an antecedent), and
+   `honest_preprepare_justified`, that the proposal carries what
+   `handle_preprepare` checks. `#veil_status Mvba` **725 → 1124**.
+
+   **Climbing the view order terminates**, and this is where `Rank.lean`'s
+   first component is finally consumed. Climbing is unbounded in a way
+   nothing else in the proof is — a validator advances one view at a time and
+   the order has no top — so it is the one place a *measure* is needed rather
+   than another eventuality. `viewGap` never grows and entering a fresh
+   counted view strictly lowers it, so a validator that keeps advancing into
+   the list reaches gap zero, which is "every counted view has been entered":
+   `eventually_viewGap_zero` (a measure argument with no protocol content in
+   it, deliberately) and `eventually_entered_of_climbing`.
+
+   The finiteness that makes this work is `Vs` being a **list**, which is
+   the §3.3 correction paying off: cofinality gives the target and says
+   nothing about how many views lie below it, so the list is a parameter,
+   and here is where that parameter earns its keep.
+
+   **Closing a view**, the other half of the climb, is now proven too:
+   `eventually_tc_of_timed_out_quorum`. Two invariants bridge the local
+   timeout to the assemblies — `timed_out_implies_message`, because the
+   timeout actions set the flag while the guards read the messages, and
+   `timeout_qc_view_le` for `form_tc_lock`'s last guard.
+
+   The interesting part was `form_tc_lock` itself, whose guard names the
+   member carrying the **highest** certificate — a maximum, where every other
+   assembly needed only a conjunction. It looked at first as though the
+   maximum might not exist: `byz_timeout_qc` lets a Byzantine member carry
+   unboundedly many certificates and the monotone relations record no bound.
+   **That was wrong**, and why is worth recording, because it is what makes
+   the step cheap: the guard asks each member for *some* carried certificate
+   below the chosen one, so it suffices to pick **one per member** and
+   maximise over those. Only the member list has to be finite, which
+   `ByzNodeSetEnum` already gives. The selection
+   (`exists_dominating_timeout`) is then an ordinary fold using totality and
+   transitivity of the view order, with no invariant and no correctness
+   assumption on the members — it holds of a quorum containing Byzantine
+   ones.
+
+   **And the certificate below the good view is not a hypothesis at all.**
+   Entering a view above the first is only possible through `sync_view` or
+   `sync_view_adopt`, whose guards read that certificate at the pre-state —
+   so (A-viewsync)'s entry clause already implies it. Taking the *first*
+   moment the view was entered (`entered` is monotone and empty initially,
+   so a least index exists) and applying `entered_needs_certificate` there
+   gives `exists_justification_below_of_entered`, and
+   `terminates_of_good_view` now derives what it used to assume.
+
+   That also settles where the climbing machinery sits: it is **not** on the
+   path to `TerminationClaim`, because (A-viewsync) hands over the entry.
+   It is kept because weakening (A-viewsync) — the strongest of the premises
+   — is the honest next target, and the climb is what would let a run
+   *derive* its entry into the good view instead of assuming it.
+
+5. **The claim, proven.** `Mvba.termination : TerminationClaim th`
+   ([`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean)). Step 4 is
+   complete: the bound-erased sibling of `MVBATemporal.termination` is a
+   theorem, from **five** named premises and three classes, with the
+   standard axiom pin.
+
+   **The model now carries the view timer as an abstract phase marker**, and
+   that settled the fairness question §3.2 had to work around. `timer_expired
+   i v` is set by the environment action `expire_timer` and guards both
+   timeout actions: a clock with exactly one tick and no arithmetic. With
+   it the two `timeout_*` actions are no longer perpetually enabled, so they
+   rejoin the weak-fairness class like every other honest action, and only
+   the *marker* is left outside it — when a timer runs out being the one
+   piece of timing an untimed model cannot derive.
+
+   Three consequences. (A-viewsync)'s second clause now constrains
+   `expire_timer`, so it mentions neither `decided` nor `timed_out` and just
+   relates two events: the timer running out and a certificate existing.
+   The **(F-timeout) premise is gone** — it was added when the two-class
+   scheme failed, the proof never used it, since (A-viewsync) asserts entry
+   into the good view outright, and an unused premise only weakens the
+   theorem; it returns when the climb is used to derive that entry.
+   `TerminationClaim` is down to **five** premises.
+
+   **(A-viewsync)'s entry clause is now derived.** The premise bundled two
+   things — that every correct validator *enters* the good view, and that no
+   timer runs out there before a certificate exists — and only the second
+   was about timing. The first is a theorem
+   (`eventually_entered_good`), and a structural reason it was reachable at
+   all is worth recording: deriving entry is view synchronisation, which
+   normally needs GST, but the network here is monotone, so a timeout
+   certificate is visible the moment it exists and a lagging validator can
+   `sync_view` straight to the front. The abstraction that makes safety
+   asynchronous is what makes this step free of Δ.
+
+   What it needs first is a **maximum**, twice over: `sync_view`'s guard
+   bounds the views a validator has entered, and `timeout_qc`'s names its
+   highest held certificate. Neither exists in an abstract
+   `TotalOrderWithMinimum`, where a bounded set need not have a greatest
+   element — the same wrinkle that forced `local_prepqc_within_entered` into
+   its bound form. Both become available once the candidates are known to
+   lie in the covering list, and `Rank.lean`'s `exists_greatest` is that
+   step: the second thing a finite index list gives you, beside `residual`.
+
+   The first link of that chain is proven:
+   `eventually_timed_out_of_timer` — a correct validator that stays in a
+   view, is not abandoned, and whose timer there has run out, times out. The
+   awkward case is that it holds a certificate, since `timeout_qc` names the
+   *highest* one and so the label moves as certificates are adopted, leaving
+   weak fairness nothing fixed to bite on. Both halves of the fix come from
+   the covering list: adoption stops (`eventually_no_new`, since held
+   certificates accumulate and all lie at or below the current view), and
+   once it has, a highest one exists (`exists_greatest`). Neither costs a
+   cell — the alternative, a `step_property` saying a new certificate is
+   adopted at the current view, would have cost 25 and tied the argument to
+   the action list.
+
+   **The climb, as it ended up.** `eventually_tc_below_good` is the whole
+   of it, and three things about its shape were not obvious in advance.
+
+   *It is about the quorum as a body, not about one validator catching up.*
+   Nothing moves a validator forward except a timeout certificate for the
+   view below it, and a certificate needs a quorum to have timed out in one
+   **common** view — so the measure counts the covered views the honest
+   quorum has entered, which only grows and is bounded. Two earlier
+   candidates were both wrong: `viewGap` counts views *not entered* and
+   never reaches zero once a validator legitimately skips one, and its
+   replacement `aheadGap` ("views above everything this validator has
+   entered") is right about skipping but still per-validator. Both were
+   written and both were discarded.
+
+   *The step is a dichotomy, not a chain.* Either some member reaches a
+   view no member had reached — the measure falls — or none ever does, and
+   then the quorum is pinned at the maximum `M`: everyone catches up to `M`
+   through the certificate that opened it, their timers run out, they all
+   time out, the view closes (`eventually_tc_of_timed_out_quorum`), and
+   somebody leaves it, contradicting "pinned". Only the second branch does
+   any protocol reasoning.
+
+   *Nobody can skip the good view*, which the entry clause used to grant
+   for free. `entered_le_of_no_timeout` is what supplies it: a view above
+   `W` needs a certificate for `W` or higher, which needs a correct
+   validator to have timed out there, which (A-viewsync) forbids until a
+   certificate exists.
+
+   **The premise that returned is the finiteness half of the timer**, and
+   it is scoped: *in every view below the good one*, a correct validator's
+   timer eventually runs out. Excluding the views above `W` is only
+   parsimony — the proof does not use them. Excluding `W` itself is forced,
+   and the reason is worth stating, because it is the one place the untimed
+   abstraction shows a seam. In the timed protocol both halves are about one object — every
+   view's timeout is finite, and the good view's exceeds the chain's
+   latency. Untimed, "exceeds the latency" can only be said as "not before
+   the certificate", so an unscoped finiteness clause would, together with
+   it, hand over a commit certificate outright and make the decision chain
+   dead code. Excluding the good view costs nothing: it is the view in
+   which the protocol succeeds, so the other clause's conditional is never
+   triggered.
+
+   **What the view order had to supply.** Two facts that
+   `TotalOrderWithMinimum` does not give, now named in
+   [`ViewOrder.lean`](../Cadence/ViewOrder.lean) as the class
+   `ViewOrderEnum`, discharged for `Nat`, and carried as a hypothesis of
+   the theorems exactly as the two quorum classes are: successors exist,
+   and the views at or below one are finitely many. The first is *not* a
+   proof convenience — `sync_view` is guarded on `vord.next pv v`, so a
+   view with nothing directly above it is a view no validator can leave.
+
+   **Two invariants**, both one step of one action read backwards and
+   neither safety-relevant (`#veil_status Mvba` **1273 → 1325**):
+   `input_implies_entered`, which is where the climb starts and what lets
+   `AllPropose` stay the paper's sentence rather than being widened; and
+   `tc_lock_implies_tc`, without which a validator holding a high
+   certificate is stranded — `sync_view_adopt`'s extra guard blocks it and
+   `sync_view` wants the bare `msg_tc` — so it doubles as the statement
+   that the two sync actions strand nobody.
+
+   **Input validity went the other way, and is now in the contract.** It was
+   briefly a seventh premise. It is instead
+   `MVBASafety.propose_valid` in [`Interfaces.lean`](../Cadence/Interfaces.lean)
+   — the formal contract between Chorus and the MVBA — discharged by a
+   `require valid e` on `Mvba.propose`. That is what the supplement does
+   (`subsec:mvba-protocol` gives the call a validity precondition and
+   `thm:termination` cites it) and what the composition already enforced on
+   the consumer's side, Chorus's `mvba_propose` establishing `Valid B_i`
+   with three `require` clauses. `input_valid` is the invariant that makes
+   it available inside the model, and it holds of Byzantine callers too,
+   `propose` having no `is_byz` guard.
+
+   Adding a field to `MVBASafety` re-solves the Chorus family, since Veil
+   hands every axiom of an instantiated class to the solver; it did so
+   green, and no `#veil_status` count moved — a class axiom changes every
+   VC's statement but adds no cell.
+
+   **(A-viewsync) is weaker than the paper's sentence.** The paper says "no
+   correct validator times out of a correct-leader view before the decision
+   completes"; the premise here says *before a commit certificate exists*,
+   which is weaker and enough — `eventually_decided_of_commitqc` turns a
+   certificate into every correct validator deciding using (F-justice)
+   alone. It also stops the premise mentioning `decided`, so it constrains
+   the network rather than naming the conclusion. A consequence fell out:
+   the overshoot induction never needed the no-decision condition at all,
+   only that the good view is not abandoned, and is now
+   `entered_le_of_no_timeout`.
+
+   **(A-viewsync) also names the good view's predecessor**, i.e. requires it
+   to be above view 1. That is what the paper's own proof does — "View 1 is
+   exceptional … We therefore analyze below a later view entered through a
+   timeout certificate" — and it costs nothing, since (A-leader-rotation)
+   puts an honest-led view above every view.
+
+   **What the proof does *not* rest on**, worth stating because it was not
+   obvious in advance: no bound on the number of views, no ranking (the rank
+   is used only in the climbing section, which is off this path), no
+   finiteness of `node`, and no cardinality assumption anywhere. The two
+   quorum classes are the whole of what liveness needs beyond safety's
+   interface, and they enter at exactly two places — the finite index list
+   for assembling a quorum, and a quorum of correct validators so that
+   progress never rests on Byzantine help.
+
+   **Where the tally stands.** Every link is proven: the decision chain from
+   the honest leader's proposal to every correct validator deciding, and the
+   view-change chain that closes a stalled view and advances past it. Twelve
+   invariants (`#veil_status Mvba` **725 → 1025**), every re-solve green; all
+   but four are for anti-monotone guards and none is safety-relevant. What
+   remains is the *assembly*: discharging `SettledIn` for the good view from
+   (A-viewsync), and iterating the view change up to that view — which is
+   where (A-leader-rotation) and the rank's first component finally meet.
+
+Steps 1 and 2 moved no pin: `leader_honest_cofinal` changed every VC
+statement and re-solved the family once, but an assumption is a hypothesis
+of each cell rather than a cell, so `#veil_status Mvba` stayed at 725. Step
+3 will move it — each added invariant costs one cell per action.
+
+### 3.6 Design constraints that must not be violated
+
+Two choices would foreclose all of the above. Both are currently satisfied,
+and neither may be traded away for a safety-side simplification.
 
 * **Do not model view advancement as unguarded nondeterminism.** Letting any
   validator jump to any higher view is safety-sound — it only adds
@@ -344,20 +1157,104 @@ it:
   is enabled, not timed).
 * **Keep view-indexed state monotone.** Accumulating relations
   (`entered i v`, `voted i v`, `local_prepqc i v e`) rather than mutable
-  current-view fields. Veil's monotone framework is what makes enabledness
-  monotone, which is why weak (F-justice) suffices; a mutable counter would
-  break that and pull strong fairness — currently *not invoked* anywhere —
-  into the argument.
+  current-view fields. This is what makes §3.1(a)'s disabling analysable —
+  every falsified guard is falsified by a monotone relation growing — and a
+  mutable counter would destroy it.
 
-Name the assumptions from the start even while the ranking is unfinished:
+The named assumptions, fixed now even though the ranking is unfinished:
 (F-justice) on the message handlers and assembly actions; (F-byz) for the
-adversary; a view-synchronisation assumption standing in for after-GST
-Δ-synchrony (`thm:termination`'s "all correct validators enter view `v+1`
-within Δ of one another"); and **(F-avail)**, new with `026dc8b`, standing
-in for `Δ_sync`: `avail_ready i e` eventually holds for every accepted
-`e` (`lem:avail-progress`). Then the liveness work is additive rather than
-a re-encoding — and once it exists, Chorus's (A-mvba) decomposes into these
-plus the MVBA's own fair-progress theorems.
+adversary; **(A-viewsync)**, the view-synchronisation assumption standing in
+for after-GST Δ-synchrony (`thm:termination`'s "all correct validators enter
+view `v+1` within Δ of one another"), whose role §3.2 makes precise; and
+**(F-avail)**, new with `026dc8b`, standing in for `Δ_sync`: `avail_ready i
+e` eventually holds for every accepted `e` (`lem:avail-progress`). Then the
+liveness work is additive rather than a re-encoding — and once it exists,
+Chorus's (A-mvba) decomposes into these plus the MVBA's own fair-progress
+theorems.
+
+### 3.7 Why the timing assumption has the shape it has
+
+(A-viewsync) is the strongest thing `Mvba.termination` assumes, and three
+objections to it are natural enough that the answers belong here rather than
+in a commit message. They turn out to have one root.
+
+**"The premise is indexed by the good view — isn't that most of the way to
+assuming the conclusion?"** It is a view-synchroniser interface, assumed.
+That is the standard decomposition for a partially-synchronous BFT liveness
+proof: a synchroniser delivers "eventually all correct validators are in the
+same view, it has an honest leader, and it lasts long enough", and the
+protocol proof consumes it. What is unusual here is that the development now
+derives **half** of that interface — the entry — and assumes only the
+duration. The `terminates_of_good_view_no_timeout` split is the check that
+the assumed half is not doing the protocol's work: its statement mentions no
+certificate.
+
+**"Why can the timer not simply be weakly fair, firing nondeterministically
+subject to ordering constraints?"** That is the right instinct, and the
+obstruction is not the timer — it is that the model has **no notion of
+duration for the constraint to be about**. The network here is asynchronous
+with fair links: a message is a monotone relation the sender sets and the
+receiver's handler reads, and the "delay" is however long the scheduler takes
+to run that handler, which weak fairness bounds only by *eventually*. So the
+decision chain has **no finite latency**, in steps or in anything else, and
+"the timeout exceeds the chain's latency" has no statable form. The only
+constraints expressible between the timer and the chain are orderings against
+chain *events* — and the chain event the protection must reach is the commit
+certificate, because `timed_out i v` disables `adopt_prepqc` and
+`send_commit` (`Mvba.lean`), so a timeout before the certificate kills the
+view. (A-viewsync)'s second clause is therefore not a chosen shape but the
+image of the paper's `Δ_W > Δ_R + 3Δ + max(Δ, Δ_sync)` under an abstraction
+that erased every quantity in it: **a round budget degenerates to an ordering
+constraint when the number of rounds is erased.** And once the clause has
+that shape, weak fairness on the marker would force its antecedent and hand
+over the certificate — so the marker's exclusion from `JusticeLabel` and the
+clause's shape are one fact seen twice, not two independent choices.
+
+**"Would an explicit GST marker fix it?"** Not on its own, and this is worth
+being precise about because it looks as though it should. GST buys *bounded
+delivery*, and "bounded" needs a Δ and a clock to mean anything. A boolean
+GST marker in an untimed model buys "after GST, delivery is eventual" — which
+fair links already give unconditionally, so the marker would partition the
+run and change nothing. GST earns its keep exactly when the clock arrives:
+then delivery after it is bounded, the chain acquires a finite latency,
+timeout growth makes some view's budget exceed it, and (A-viewsync) becomes a
+**theorem** rather than an assumption — both clauses of it, and the existence
+of the good view with them. That is the bounded phase
+([`Bounds.md`](./Bounds.md)), and it is the real answer to all three
+objections.
+
+**Chorus does the same thing one layer up**, which is worth knowing before
+treating this as an MVBA-specific compromise. The fuller comparison — why
+Chorus's phase markers can be weakly fair while this one cannot, and why the
+MVBA is where the stack's one unavoidable liveness assumption surfaces — is
+[`Liveness.md`](./Liveness.md) §2.1. `Chorus.lean`'s
+`all_honest_recorded` is, in its own comment, "the protocol-level shadow of
+the paper's proposal-inclusion premise (`prop:honest-positive-entry`)": the
+paper's synchrony hypothesis `s.deadline − Δ ≥ GST` is replaced by the
+protocol-level consequence it is there to deliver, and that consequence is
+assumed. No Cadence model carries a GST marker; GST appears only in
+[`Interfaces.lean`](../Cadence/Interfaces.lean)'s `TimedRun` (`gst`,
+`byGstBound`), where the *undischarged* temporal obligations are stated.
+
+**The one route that would weaken (A-viewsync) without a clock**, recorded
+because it is not obviously hopeless: replace the second clause by a
+*priority* — the timer for a view fires only when no honest non-input action
+of that view is enabled. That is W-free, certificate-free and uniform, it
+would let the marker be weakly fair, and the good view would then come from
+(A-leader-rotation) alone, so no premise would mention the good view at all.
+It cascades correctly in principle, because the chain's actions are
+self-disabling (`Progress.lean`) and `decide`'s guard `∀ E, ¬ decided i E`
+closes it. The obstacles are real and would have to be worked, not waved at:
+`become_avail_ready` is not view-indexed, so a view-scoped priority does not
+cover the wait for availability; the priority needs a label-to-view
+projection, a twenty-five-case definition alongside the four class
+definitions; and every gap found while making the proof go through is a place
+where a scheduling premise gets widened, which is how one re-assumes the
+conclusion by accident. It is also arguably *stronger* than the paper's
+assumption rather than weaker, since it forbids the timer firing even in a
+view whose chain is merely crawling. Worth weighing against simply waiting
+for the clock. [`TODO.md`](./TODO.md) § Liveness carries it.
+
 
 ## 4. Vacuity
 

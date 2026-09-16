@@ -24,6 +24,11 @@ open Veil Mvba
 -- `Cadence/ProofPrelude.lean`.
 set_option veil.smt.trust false
 veil_proof_options
+-- The clump passed the point where the default elaboration budgets
+-- suffice when liveness's invariants and the `entered_needs_certificate`
+-- step property went in; the Chorus family has carried this since it was
+-- written (`Cadence/ProofPrelude.lean`).
+veil_large_clump_budgets
 
 namespace Mvba.Proofs
 

@@ -118,7 +118,7 @@ here rather than repeating them.
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
 | `Cadence/Chorus.lean` | 40 | 9 safety + 92 invariants + 1 step property | 4 222 | cvc5, **proof-reconstructed** (kernel-checked), + 11 manual Lean proofs for e-matching-divergent cells; the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
-| `Cadence/Mvba.lean` | 24 | 3 safety + 25 invariants | 725 | cvc5, **proof-reconstructed** (kernel-checked), + 2 manual Lean proofs for the two argument-carrying cells (the lock-persistence step and cross-view certificate agreement) |
+| `Cadence/Mvba.lean` | 25 | 3 safety + 46 invariants + 1 step property | 1 325 | cvc5, **proof-reconstructed** (kernel-checked), + 2 manual Lean proofs for the two argument-carrying cells (the lock-persistence step and cross-view certificate agreement) |
 | `Cadence/FallbackReceipt.lean` | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
 | `Cadence/Conductor.lean` | 7 | 5 safety + 15 invariants + 3 step properties | 189 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
 | `Cadence/Cadence.lean` | 6 | 4 safety + 21 invariants | 182 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
@@ -255,7 +255,7 @@ in [`Cadence.lean`](../Cadence.lean)).
 The list is meant to be *checkable for completeness* rather than taken on
 trust. Every assumption below has a **name**, and the named fairness and
 oracle axioms — (F-justice), (F-byz), (A-mvba), (A-sc-termination),
-(A-sc-totality) — appear verbatim in the Lean sources at the points where
+(A-sc-totality), (A-leader-rotation) — appear verbatim in the Lean sources at the points where
 they are consumed, so `grep -rn '(A-' Cadence/` enumerates the consumers
 and would expose an axiom that had crept in without being listed here. The
 network contract (item 1) is the exception and the reason item 1 comes
@@ -304,7 +304,35 @@ relations, and it takes a human to confirm each use is positive.
    verifiable" means; `ChorusDesign.md` §7 item 4). Decomposing (A-mvba)
    into the MVBA instance's own fair-progress theorems is open work
    ([TODO.md](./TODO.md) § Liveness; the design constraints it must respect
-   are [MvbaPlan.md](./MvbaPlan.md) §3).
+   are [MvbaPlan.md](./MvbaPlan.md) §3). That work has begun, and it has put
+   one assumption on this list in an unusual place:
+   **(A-viewsync)** — a *view-synchroniser interface*, assumed: there is an
+   honest-led view whose timer is long enough. Half of that interface is
+   now derived rather than assumed (that every correct validator enters the
+   view — `Mvba.eventually_entered_good`); what is left is the duration, and
+   it cannot be derived in an untimed model because the decision chain has
+   no finite latency there to compare a timeout against. It becomes a
+   theorem in the bounded phase ([Bounds.md](./Bounds.md)); why its present
+   shape is forced, and why an explicit GST marker alone would not change
+   it, is [MvbaPlan.md](./MvbaPlan.md) §3.7. Chorus makes the same move one
+   layer up, replacing `s.deadline − Δ ≥ GST` by the protocol-level
+   consequence `all_honest_recorded`; no Cadence model carries a GST marker,
+   and GST appears only in `Interfaces.lean`'s `TimedRun`, where the
+   undischarged temporal obligations are stated. And
+   **(A-leader-rotation)** — `Mvba.lean`'s `assumption
+   [leader_honest_cofinal]`, that above every view there is an honest-led
+   one. It is the model-level stand-in for round-robin rotation over
+   `n = 3f+1` with at most `f` Byzantine leaders, and it is stated as a
+   model `assumption` rather than as a hypothesis of the liveness theorems
+   because the fair-progress invariants it will serve are sweep cells and
+   only a model `assumption` reaches the solver. The price is that it is a
+   conjunct of `assumptions th`, hence of `Mvba.mvbaSafety`'s `init`: the
+   MVBA's three **safety** results are now claimed for leader schedules
+   with cofinally many honest leaders rather than for every schedule.
+   Nothing in their proofs needs it (the family was proven without it and
+   re-solved unchanged with it), so the narrowing is formal rather than
+   material — but it is a narrowing, and it is why the assumption is
+   listed here and not only in [MvbaPlan.md](./MvbaPlan.md) §3.3.
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive;
    [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS`
@@ -344,7 +372,22 @@ relations, and it takes a human to confirm each use is positive.
    the `ByzNodeSet` quorum/counting interface is **not** an assumption
    gap — its axioms are Lean-proven for the concrete `byzNodeSetFin`
    instance family, which covers every deployment size `n = 3f+1` with
-   any Byzantine set of size `≤ f`. An end-to-end example instantiation
+   any Byzantine set of size `≤ f`. The three liveness-side extensions are
+   not gaps either, and are deliberately *outside* the interfaces the
+   models instantiate, so that no safety theorem acquires them; each is
+   discharged for a concrete witness, and a liveness theorem carries
+   whichever it uses as a visible hypothesis. Two are in
+   [Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean) — `ByzNodeSetEnum`
+   (a quorum's members as a list) and `ByzNodeSetHonestQuorum` (a
+   supermajority of correct validators, which the intersection axioms do
+   not give), both discharged for the same `n ≥ 3f+1` family. The third is
+   [Cadence/ViewOrder.lean](../Cadence/ViewOrder.lean)'s `ViewOrderEnum`,
+   the view dimension's counterpart, discharged for `Nat`: every view has
+   an immediate successor, and the views at or below one are finitely many.
+   The successor field is not a proof convenience — `Mvba.sync_view` is
+   guarded on `vord.next pv v`, so a view with nothing directly above it is
+   a view no validator can leave, and no assumption about scheduling or the
+   network would unstick it. An end-to-end example instantiation
    of the remaining class stack (a `ThresholdIBE` model instance) is open
    work ([ChorusDesign.md](./ChorusDesign.md) §9).
 4. **Temporal/quantitative module obligations**: totality, termination,
@@ -437,7 +480,7 @@ table can be read off one file:
 | `FallbackReceipt.build_totality_of_reachable` (`Cadence/FallbackReceipt/Totality.lean`) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` (`Cadence/Chorus/Compose.lean`) | same | ✓ |
 | `Chorus.evidence_pigeonhole_of_reachable` (`Cadence/Chorus/Pigeonhole.lean`) | same | ✓ |
-| `Mvba.invariants_of_reachable` + per-property projections (`Cadence/Mvba/Certify.lean`) | same | ✓ + `#veil_status`: 725/725 real |
+| `Mvba.invariants_of_reachable` + per-property projections (`Cadence/Mvba/Certify.lean`) | same | ✓ + `#veil_status`: 1325/1325 real |
 | `Mvba.mvbaSafety`, `Mvba.mvba_of_temporal` (`Cadence/Mvba/Compose.lean`) | same | ✓ |
 | the `FallbackReceiptPreFix` refutation (`Cadence/FallbackReceipt/PreFix.lean`) | expected model-checker violation (trace) | ✓ |
 | the `MvbaNoLock` refutation (`Cadence/Mvba/NoLock.lean`) | expected model-checker violation (trace) | ✓ |
