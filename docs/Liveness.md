@@ -99,6 +99,67 @@ work, so this ranking is also Chorus-specific: `Mvba`'s view type is
 unbounded and needs the different, lexicographic ranking of
 [`MvbaPlan.md`](./MvbaPlan.md) §3.3.
 
+## 2.1 Why `Mvba` assumes more than `Chorus`, and where that ends
+
+`Chorus`'s liveness rests on fairness plus the sub-protocol's own
+termination, and nothing that names a view or a deadline. `Mvba`'s rests on
+those plus (A-viewsync). The difference looks like a weakness of the MVBA
+proof and is not: it is the whole stack's one unavoidable assumption becoming
+visible at the layer that has to carry it.
+
+**The two models use the same timing device.** `Chorus.lean` has an abstract
+`Phase` — `pre_deadline → post_deadline → post_fb_arm → post_mvba_arm`,
+advanced by three non-deterministic actions — and `Mvba.lean` has
+`timer_expired`, the same device with one tick instead of three. Both replace
+wall-clock time by a monotone marker, and both gate real actions on it
+(`record_chunk` needs `pre_deadline`; the two `timeout_*` need
+`timer_expired`). So the shapes are the same.
+
+**Chorus's markers are weakly fair and `Mvba`'s is not**, and the reason is
+what each advance *does*. Chorus's phases move the protocol from one arm to
+the next: fast path, then fallback, then the MVBA arm. Advancing early
+forfeits the faster arm and nothing else — there is always somewhere to fall
+— and termination is then delegated to **(A-mvba)**, the sub-protocol's own.
+`Mvba`'s view *is* that last arm. A timer firing early forfeits the view, and
+the only thing to fall onto is another view; if every view's timer fires
+early, nothing terminates at all. There is no sub-protocol left to delegate
+to, so the assumption that *some* view survives its timeout has to be made
+here.
+
+That is FLP, paid where it must be. The paper pays it twice over, in the two
+MVBA options: the randomised primitive pays with probability-1 termination
+(no deductive framework here expresses that), and the supplement's
+leader-based protocol — the one modelled — pays with partial synchrony.
+(A-viewsync) is the untimed shadow of the second payment.
+
+**Chorus does have an (A-viewsync)-shaped premise; it is just somewhere
+else.** `all_honest_recorded` — "every honest validator recorded the positive
+entry", in the model's own words the protocol-level shadow of
+`s.deadline − Δ ≥ GST` — is exactly "the work finished before the marker
+advanced". It is carried as an **antecedent of the properties** (proposal
+inclusion, and the fair-progress invariants that rest on it) rather than as a
+run-level premise, and it buys *proposal inclusion* rather than termination,
+which is why it does not appear in a fairness list. The accounting differs;
+the assumption is of the same kind.
+
+**Where it ends.** What this work does to the stack's trust base is replace
+an unconditional consensus-termination assumption by a synchroniser interface
+plus a proof: (A-mvba) says "the MVBA terminates", `Mvba.termination` says
+"it terminates given (A-viewsync), (F-justice), (F-avail) and the callers'
+two premises", and half of (A-viewsync) — the entry — is itself derived.
+The replacement is not yet formal: `Mvba.termination` is the **bound-erased
+shadow** of `MVBATemporal.termination`, not that field, which is stated over
+timed runs with `gst` and `ℓ`. Connecting them is the bounded phase, and the
+untimed theorem is already in the right shape for it — every premise is a
+predicate on a run, so a timed layer discharges them as ordinary Lean
+theorems without touching the model, which is the pattern
+[`Bounds.md`](./Bounds.md) §6 sets out for Chorus. In that phase (A-viewsync)
+stops being an assumption: with a clock, bounded post-GST delivery gives the
+decision chain a finite latency, timeout growth makes some view's budget
+exceed it, and both of its clauses become theorems.
+[`MvbaPlan.md`](./MvbaPlan.md) §3.7 has the detail, including why no
+intermediate step — a GST marker without a clock, say — gets there earlier.
+
 ## 3. What would close the rest
 
 Veil has no fairness annotations and no quantification over runs, so the
