@@ -173,6 +173,57 @@ theorem residual_lt_of_new {α : Type u} {p q : α → Prop} (hpq : ∀ a, p a �
       · rw [residual_cons_of_neg xs hq, residual_cons_of_neg xs (fun hp => hq (hpq a hp))]
         omega
 
+/-! ## The other thing a finite index list gives you
+
+`residual` counts; this maximises. Both are consequences of the same
+parameter — a `List` of the things to range over — and the second is what a
+*view* argument needs that a *quorum* argument does not.
+
+Two guards of the model name a maximum: `sync_view`'s
+`∀ V, entered i V → V ≤ pv` asks for a bound on the views a validator has
+entered, and `timeout_qc`'s `∀ W E, local_prepqc i W E → W ≤ w` asks for its
+highest held certificate. Neither is available from an abstract
+`TotalOrderWithMinimum`, where a bounded set need not have a greatest
+element. Both become available once the candidates are known to lie in a
+finite list, which is exactly what the view parameter supplies. -/
+
+/-- **A non-empty selection from a finite list has a greatest element.**
+Stated for an arbitrary `le` with totality and transitivity, so it applies
+to the view order without dragging the model in. -/
+theorem exists_greatest {α : Type u} (le : α → α → Prop)
+    (total : ∀ a b, le a b ∨ le b a) (trans : ∀ a b c, le a b → le b c → le a c)
+    (p : α → Prop) :
+    ∀ (xs : List α) (a : α), a ∈ xs → p a →
+      ∃ m, m ∈ xs ∧ p m ∧ ∀ x, x ∈ xs → p x → le x m
+  | [], _, ha, _ => absurd ha (by simp)
+  | b :: xs, a, ha, hpa => by
+    classical
+    by_cases hrest : ∃ c, c ∈ xs ∧ p c
+    · obtain ⟨c, hc, hpc⟩ := hrest
+      obtain ⟨m, hm, hpm, hmax⟩ := exists_greatest le total trans p xs c hc hpc
+      by_cases hpb : p b
+      · rcases total b m with hbm | hmb
+        · exact ⟨m, by simp [hm], hpm, fun x hx hpx => by
+            rcases List.mem_cons.mp hx with rfl | hx' <;> [exact hbm; exact hmax x hx' hpx]⟩
+        · exact ⟨b, by simp, hpb, fun x hx hpx => by
+            rcases List.mem_cons.mp hx with rfl | hx'
+            · exact total x x |>.elim id id
+            · exact trans x m b (hmax x hx' hpx) hmb⟩
+      · exact ⟨m, by simp [hm], hpm, fun x hx hpx => by
+          rcases List.mem_cons.mp hx with rfl | hx'
+          · exact absurd hpx hpb
+          · exact hmax x hx' hpx⟩
+    · push Not at hrest
+      have hab : a = b := by
+        rcases List.mem_cons.mp ha with rfl | ha'
+        · rfl
+        · exact absurd hpa (hrest a ha')
+      subst hab
+      exact ⟨a, by simp, hpa, fun x hx hpx => by
+        rcases List.mem_cons.mp hx with rfl | hx'
+        · exact total x x |>.elim id id
+        · exact absurd hpx (hrest x hx')⟩
+
 /-! ## One order fact
 
 `Progress.lean` needs `¬ le → lt`; the freshness argument below needs the

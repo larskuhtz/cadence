@@ -964,6 +964,34 @@ absent.
    theorem; it returns when the climb is used to derive that entry.
    `TerminationClaim` is down to **five** premises.
 
+   **Next: derive (A-viewsync)'s entry clause.** The premise still bundles
+   two things — that every correct validator *enters* the good view, and
+   that no timer runs out there before a certificate exists — and only the
+   second is about timing. The first is derivable in this model, and a
+   structural reason is worth recording: deriving entry is view
+   synchronisation, which normally needs GST, but the network here is
+   monotone, so a timeout certificate is visible the moment it exists and a
+   lagging validator can `sync_view` straight to the front. The abstraction
+   that makes safety asynchronous is what makes this step free of Δ.
+
+   What it needs first is a **maximum**, twice over: `sync_view`'s guard
+   bounds the views a validator has entered, and `timeout_qc`'s names its
+   highest held certificate. Neither exists in an abstract
+   `TotalOrderWithMinimum`, where a bounded set need not have a greatest
+   element — the same wrinkle that forced `local_prepqc_within_entered` into
+   its bound form. Both become available once the candidates are known to
+   lie in the covering list, and `Rank.lean`'s `exists_greatest` is that
+   step: the second thing a finite index list gives you, beside `residual`.
+
+   The remaining chain, in order: held locks lie in the covering list, so a
+   maximal one exists and the validator can fire a timeout once its timer
+   expires; a quorum of them closes the view; laggards catch up through the
+   certificate; the maximum entered view strictly rises; and the measure
+   over the covering list bounds the climb. The premise that returns is the
+   *finiteness* half of the timer — that it does eventually run out — on
+   `expire_timer`, which is a direct translation of the paper's bounded
+   timeout into the unbounded regime.
+
    **Input validity went the other way, and is now in the contract.** It was
    briefly a seventh premise. It is instead
    `MVBASafety.propose_valid` in [`Interfaces.lean`](../Cadence/Interfaces.lean)
