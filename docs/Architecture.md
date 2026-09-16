@@ -118,7 +118,7 @@ here rather than repeating them.
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
 | `Cadence/Chorus.lean` | 40 | 9 safety + 92 invariants + 1 step property | 4 222 | cvc5, **proof-reconstructed** (kernel-checked), + 11 manual Lean proofs for e-matching-divergent cells; the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
-| `Cadence/Mvba.lean` | 24 | 3 safety + 25 invariants | 725 | cvc5, **proof-reconstructed** (kernel-checked), + 2 manual Lean proofs for the two argument-carrying cells (the lock-persistence step and cross-view certificate agreement) |
+| `Cadence/Mvba.lean` | 25 | 3 safety + 46 invariants + 1 step property | 1 325 | cvc5, **proof-reconstructed** (kernel-checked), + 2 manual Lean proofs for the two argument-carrying cells (the lock-persistence step and cross-view certificate agreement) |
 | `Cadence/FallbackReceipt.lean` | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
 | `Cadence/Conductor.lean` | 7 | 5 safety + 15 invariants + 3 step properties | 189 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
 | `Cadence/Cadence.lean` | 6 | 4 safety + 21 invariants | 182 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
@@ -359,14 +359,22 @@ relations, and it takes a human to confirm each use is positive.
    the `ByzNodeSet` quorum/counting interface is **not** an assumption
    gap — its axioms are Lean-proven for the concrete `byzNodeSetFin`
    instance family, which covers every deployment size `n = 3f+1` with
-   any Byzantine set of size `≤ f`. The two liveness-side extensions in
+   any Byzantine set of size `≤ f`. The three liveness-side extensions are
+   not gaps either, and are deliberately *outside* the interfaces the
+   models instantiate, so that no safety theorem acquires them; each is
+   discharged for a concrete witness, and a liveness theorem carries
+   whichever it uses as a visible hypothesis. Two are in
    [Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean) — `ByzNodeSetEnum`
    (a quorum's members as a list) and `ByzNodeSetHonestQuorum` (a
    supermajority of correct validators, which the intersection axioms do
-   not give) — are not gaps either, and are deliberately *outside*
-   `ByzNodeSet` so that no safety theorem acquires them: both are
-   discharged for the same `n ≥ 3f+1` family, and a liveness theorem
-   carries whichever it uses as a visible hypothesis. An end-to-end example instantiation
+   not give), both discharged for the same `n ≥ 3f+1` family. The third is
+   [Cadence/ViewOrder.lean](../Cadence/ViewOrder.lean)'s `ViewOrderEnum`,
+   the view dimension's counterpart, discharged for `Nat`: every view has
+   an immediate successor, and the views at or below one are finitely many.
+   The successor field is not a proof convenience — `Mvba.sync_view` is
+   guarded on `vord.next pv v`, so a view with nothing directly above it is
+   a view no validator can leave, and no assumption about scheduling or the
+   network would unstick it. An end-to-end example instantiation
    of the remaining class stack (a `ThresholdIBE` model instance) is open
    work ([ChorusDesign.md](./ChorusDesign.md) §9).
 4. **Temporal/quantitative module obligations**: totality, termination,
@@ -459,7 +467,7 @@ table can be read off one file:
 | `FallbackReceipt.build_totality_of_reachable` (`Cadence/FallbackReceipt/Totality.lean`) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` (`Cadence/Chorus/Compose.lean`) | same | ✓ |
 | `Chorus.evidence_pigeonhole_of_reachable` (`Cadence/Chorus/Pigeonhole.lean`) | same | ✓ |
-| `Mvba.invariants_of_reachable` + per-property projections (`Cadence/Mvba/Certify.lean`) | same | ✓ + `#veil_status`: 725/725 real |
+| `Mvba.invariants_of_reachable` + per-property projections (`Cadence/Mvba/Certify.lean`) | same | ✓ + `#veil_status`: 1325/1325 real |
 | `Mvba.mvbaSafety`, `Mvba.mvba_of_temporal` (`Cadence/Mvba/Compose.lean`) | same | ✓ |
 | the `FallbackReceiptPreFix` refutation (`Cadence/FallbackReceipt/PreFix.lean`) | expected model-checker violation (trace) | ✓ |
 | the `MvbaNoLock` refutation (`Cadence/Mvba/NoLock.lean`) | expected model-checker violation (trace) | ✓ |

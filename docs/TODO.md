@@ -140,43 +140,17 @@ come first.
   [`MvbaPlan.md`](./MvbaPlan.md) §4's four instruments that does not already
   exist in some form.
 
-* **Revisit the timer abstraction, which is what (A-viewsync) pays for.**
-  `Mvba`'s two timeout actions are outside the weak-fairness class, and the
-  reason is not that fairness on them is *inconsistent* but that it would
-  **trivialise** the termination theorem: justice would force a timeout in
-  the good view, (A-viewsync) says a timeout there implies a decision, and
-  the two together give the conclusion with no protocol reasoning. So
-  (F-timeout) has to be assumed although weak fairness would otherwise prove
-  it.
-
-  The cause is that the model abstracts *when* a timeout fires
-  ([`MvbaPlan.md`](./MvbaPlan.md) §3.6) — in the protocol `timeout` is enabled
-  only once the timer has expired.
-
-  **A quantitative clock is not the only way back, and §3.6 does not argue
-  against the cheaper one.** What §3.6 actually argues is that view
-  *advancement* must stay gated by timeout certificates rather than being
-  unguarded nondeterminism; "abstract the timing only" is asserted next to
-  it, not justified. An abstract **phase marker** — a monotone
-  `timer_expired i v`, set by an environment action, with both `timeout_*`
-  guarded on it — violates nothing §3.6 argues for, needs no clock and no
-  arithmetic, and changes the shape of the premises for the better:
-
-  * the timeout actions can then join the weak-fairness class without
-    trivialising anything, because they are not enabled until the marker is
-    set, and (F-timeout) becomes a fairness assumption on the *marker* — a
-    statement about the environment, not about the protocol;
-  * (A-viewsync) stops mentioning `decided`. Today it reads "a timeout in
-    the good view implies a decision", which is what makes it trivialising
-    under justice and uncomfortable to read; with a marker it reads "in the
-    good view the marker is not set before the commit certificate exists" —
-    an ordering constraint between two events, which is what the timing
-    assumption actually is.
-
-  The assumption does not disappear either way; a marker makes it local and
-  stops it naming the conclusion. Cost: one relation, one environment
-  action, a guard on each timeout action, and a re-solve. Worth weighing
-  before any more is built on (A-viewsync) in its current form.
+* **Exhibit a run satisfying `Mvba.termination`'s five premises.** The
+  premise set is checked for consistency by argument, not by machine — the
+  header of [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean)
+  records that, and it is the one thing standing between the theorem and a
+  non-vacuity guarantee. The argument is short (the timer's finiteness
+  clause is scoped away from the good view precisely so that it and the
+  good view's clause cannot conflict, and the model's `sat trace` blocks
+  witness the protocol half), but an argument is not a build-checked fact.
+  What would make it one: a `TerminationClaim` instance at concrete finite
+  sorts, or a trace through the premises. Related to, but smaller than, the
+  composition-level instrument above.
 
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
   meta-axioms become premises of a Lean theorem rather than named

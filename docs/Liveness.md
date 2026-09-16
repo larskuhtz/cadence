@@ -55,10 +55,18 @@ outside Lean.
   rather than a state-level fragment with the temporal step left to a named
   axiom — the scheduling assumptions are hypotheses of the statement, which
   is the discipline §2 of this document asks for. `Mvba` also needs a
-  *third* scheduling class that Chorus does not: its two timeout actions are
-  timers whose firing time the model abstracts away, so weak fairness on them
-  would force a timeout out of every view. They are governed by (F-timeout)
-  and (A-viewsync) instead —
+  *third* scheduling class that Chorus does not, and the reason is the
+  timeout: if a timeout action's guard says nothing about time, weak
+  fairness forces it to fire out of every view, including the one the
+  protocol is supposed to succeed in. The model therefore carries the view
+  timer as an **abstract phase marker** — `expire_timer`, a clock with
+  exactly one tick — and both timeout actions are guarded on it. With that
+  the timeouts are weakly fair like every other honest action, and the
+  third class contains the marker alone, governed by (A-viewsync): finite
+  in every view below the good one, and in the good one not before a commit
+  certificate exists. Those two clauses are the untimed skeleton of the
+  supplement's timeout discipline, and they are the *whole* of what
+  `Mvba.termination` assumes about timing —
   [`MvbaPlan.md`](./MvbaPlan.md) §3.2's correction, with the classification
   machine-checked in
   [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean).
