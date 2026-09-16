@@ -155,10 +155,14 @@ predicate on a run, so a timed layer discharges them as ordinary Lean
 theorems without touching the model, which is the pattern
 [`Bounds.md`](./Bounds.md) §6 sets out for Chorus. In that phase (A-viewsync)
 stops being an assumption: with a clock, bounded post-GST delivery gives the
-decision chain a finite latency, timeout growth makes some view's budget
-exceed it, and both of its clauses become theorems.
+decision chain a finite latency, a view whose budget exceeds it is reached
+within a bounded number of views, and both of its clauses become theorems.
 [`MvbaPlan.md`](./MvbaPlan.md) §3.7 has the detail, including why no
 intermediate step — a GST marker without a clock, say — gets there earlier.
+The phase is under way: its premises are workshopped and stated —
+[`Bounds.md`](./Bounds.md) §6.2, [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)
+— with the derivation of (A-viewsync) as the named target `AViewSyncClaim`;
+nothing there is proven yet.
 
 ## 3. What would close the rest
 
