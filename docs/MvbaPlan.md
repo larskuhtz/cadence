@@ -1224,7 +1224,10 @@ of the good view with them. That is the bounded phase
 objections.
 
 **Chorus does the same thing one layer up**, which is worth knowing before
-treating this as an MVBA-specific compromise. `Chorus.lean`'s
+treating this as an MVBA-specific compromise. The fuller comparison — why
+Chorus's phase markers can be weakly fair while this one cannot, and why the
+MVBA is where the stack's one unavoidable liveness assumption surfaces — is
+[`Liveness.md`](./Liveness.md) §2.1. `Chorus.lean`'s
 `all_honest_recorded` is, in its own comment, "the protocol-level shadow of
 the paper's proposal-inclusion premise (`prop:honest-positive-entry`)": the
 paper's synchrony hypothesis `s.deadline − Δ ≥ GST` is replaced by the
