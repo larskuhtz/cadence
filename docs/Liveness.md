@@ -99,7 +99,7 @@ work, so this ranking is also Chorus-specific: `Mvba`'s view type is
 unbounded and needs the different, lexicographic ranking of
 [`MvbaPlan.md`](./MvbaPlan.md) §3.3.
 
-## 2.1 Why `Mvba` assumes more than `Chorus`, and where that ends
+### 2.1 Why `Mvba` assumes more than `Chorus`, and where that ends
 
 `Chorus`'s liveness rests on fairness plus the sub-protocol's own
 termination, and nothing that names a view or a deadline. `Mvba`'s rests on
@@ -178,3 +178,88 @@ The paper's concrete Δ-bounds are a separate, *incomparable* layer — they
 assume strong partial synchrony, where the model's claims above need only
 eventual delivery. How the two relate, and the routes by which bounds
 could be brought into the model, is [`Bounds.md`](./Bounds.md).
+
+## 4. The next leg: Chorus at run level
+
+`Mvba.termination` is the pattern working at one layer. Applying it to
+Chorus is what retires **(A-mvba)** — and with it the last of the
+`(F-justice)`/`(F-byz)`/`(A-mvba)` meta-axioms — which
+[`TODO.md`](./TODO.md) calls the single largest reduction of
+[`Architecture.md`](./Architecture.md) §4 available. This section is the
+kick-off record so a fresh session does not re-derive the design.
+
+**Target.** A run-level theorem in the shape of `Mvba.termination`: every
+correct validator eventually finalizes every slot, from named premises, each
+a predicate on a run, with `Mvba.termination` consumed exactly where
+(A-mvba) sits today. Same discipline as `Mvba/Liveness.lean`: the premises
+are written down as named `Prop`s **before** the proof exists, so none can
+become a hypothesis because a proof needed it.
+
+**What is already there.** [`Cadence/Fairness.lean`](../Cadence/Fairness.lean)
+is generic over any `RelationalTransitionSystem`, so `LRun`, `WeaklyFair`,
+`eventually_forall` and the rest apply to Chorus unchanged. Chorus's
+fair-progress content is proven at state level (`Chorus.lean`'s liveness
+section), and the two hardest counting steps are already plain-Lean
+theorems: `progress_dichotomy_of_saturation` and
+`build_totality_of_reachable`. Chorus's phase markers are weakly fair, so
+unlike the MVBA there is no timing premise to invent — §2.1 says why.
+
+**Settle this first, because it is the whole design.** Chorus holds an
+*abstract* MVBA state and advances it with the oracle action `mvba_step`,
+which takes any transition the contract allows and is deliberately **outside**
+(F-justice) — its scheduling is the instance's own admissible-execution
+model. So consuming `Mvba.termination` needs a **projection**: from an
+`LRun` of the composed system (`System.lean`, where the abstract state is
+`Mvba.State`) to an `MvbaRun`, keeping only the steps at which the MVBA
+state moved, and a proof that weak fairness survives the re-indexing — a
+label continuously enabled in the projection was continuously enabled in the
+composed run. The premise that replaces (A-mvba) is then "the composed run's
+MVBA projection satisfies `Mvba.termination`'s premises", which is the
+untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
+**not** by weakening a class field: that rule is in
+[`../CLAUDE.md`](../CLAUDE.md) and it is what makes the absence of a
+`…Temporal` instance mean something.
+
+**Staging** (reassess after step 1, which is the risky one):
+
+1. The projection and the fairness transfer, generic, in `Fairness.lean`.
+2. Chorus's label classes and premises — one named `Prop` each, mirroring
+   `Mvba/Liveness.lean`'s four-class discipline and its `label_classified`.
+3. The fast-path chain to a commit certificate.
+4. The fallback and MVBA arms, the second consuming `Mvba.termination`
+   through the projection.
+5. The assembly, the `Cadence.lean` row and pin, and retiring (A-mvba) from
+   `Architecture.md` §4.
+
+**Cost warning.** If the argument needs new Chorus invariants, that is a
+4 222-cell family re-solve, not the MVBA's 1 325. Budget it before touching
+`Chorus.lean`, even for a comment.
+
+### 4.1 Running this leg and the bounds leg in parallel
+
+This leg and [`Bounds.md`](./Bounds.md) §6.1 are **independent**: neither
+needs the other's result, and the MVBA bounds leg discharges
+(A-viewsync) while this one consumes `Mvba.termination` as it already
+stands. Rules that keep them from colliding:
+
+* **Neither leg edits [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean).**
+  The bounds leg *instantiates* `MVBATemporal`, it does not change it; this
+  leg needs no class change. An edit there re-solves the Chorus family and
+  forces the other leg to rebase, so it is a decision to take jointly.
+* **[`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) is
+  read-only for both.** Both consume `Mvba.termination`; neither should need
+  to restate or reshape it.
+* **This leg owns `Fairness.lean` and everything under `Cadence/Chorus`**;
+  the bounds leg owns its own new files and puts *timed* run vocabulary in
+  one of them rather than in `Fairness.lean`.
+* **The projection is shared conceptual territory** — the bounds leg needs
+  the same relation between a composed run and an MVBA run, in its timed
+  form. This leg owns the definition; the bounds leg should refine it rather
+  than invent a second one.
+* Both will append rows and pins to `Cadence.lean` and paragraphs to these
+  docs. Expect small textual conflicts there and nothing worse.
+* **One expensive build at a time.** That constraint does not parallelise:
+  the machine runs one family re-solve at a time, and this leg's are the
+  large ones. Two sessions can think in parallel; they cannot both re-solve
+  in parallel.
+

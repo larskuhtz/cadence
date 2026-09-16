@@ -276,6 +276,11 @@ satisfiable. `MVBATemporal.admissible_exists` requires constructing admissible
 timed runs anyway, so that witness falls out of this leg rather than needing
 a session of its own. It is not worth doing separately.
 
+This leg can run **in parallel with** the Chorus run-level liveness leg;
+the rules that keep the two from colliding — and the one piece of design
+they share, the projection from a composed run to an MVBA run — are
+[`Liveness.md`](./Liveness.md) §4.1.
+
 **Staging**, in the shape of §6's:
 
 1. Timed runs over `Mvba`'s generated transition system, and the time
