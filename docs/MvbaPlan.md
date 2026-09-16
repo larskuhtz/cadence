@@ -983,14 +983,29 @@ absent.
    lie in the covering list, and `Rank.lean`'s `exists_greatest` is that
    step: the second thing a finite index list gives you, beside `residual`.
 
-   The remaining chain, in order: held locks lie in the covering list, so a
-   maximal one exists and the validator can fire a timeout once its timer
-   expires; a quorum of them closes the view; laggards catch up through the
-   certificate; the maximum entered view strictly rises; and the measure
-   over the covering list bounds the climb. The premise that returns is the
-   *finiteness* half of the timer — that it does eventually run out — on
-   `expire_timer`, which is a direct translation of the paper's bounded
-   timeout into the unbounded regime.
+   The first link of that chain is proven:
+   `eventually_timed_out_of_timer` — a correct validator that stays in a
+   view, is not abandoned, and whose timer there has run out, times out. The
+   awkward case is that it holds a certificate, since `timeout_qc` names the
+   *highest* one and so the label moves as certificates are adopted, leaving
+   weak fairness nothing fixed to bite on. Both halves of the fix come from
+   the covering list: adoption stops (`eventually_no_new`, since held
+   certificates accumulate and all lie at or below the current view), and
+   once it has, a highest one exists (`exists_greatest`). Neither costs a
+   cell — the alternative, a `step_property` saying a new certificate is
+   adopted at the current view, would have cost 25 and tied the argument to
+   the action list.
+
+   What remains: a quorum of those timeouts closes the view (already proven,
+   `eventually_tc_of_timed_out_quorum`); laggards catch up through the
+   certificate; the maximum entered view strictly rises; and a measure over
+   the covering list bounds the climb. That measure has to be **replaced**:
+   `viewGap` counts views *not entered*, which never reaches zero once a
+   validator legitimately skips one, so the climb needs "views above the
+   current maximum" instead. The premise that returns is the *finiteness*
+   half of the timer — that it does eventually run out — on `expire_timer`,
+   a direct translation of the paper's bounded timeout into the unbounded
+   regime.
 
    **Input validity went the other way, and is now in the contract.** It was
    briefly a seventh premise. It is instead
