@@ -57,7 +57,15 @@ whole of the timing assumption sits on the extra one:
 | unfair | `ByzLabel` | nothing — (F-byz) |
 | weakly fair | `JusticeLabel`, the two `timeout_*` among them | (F-justice) |
 | timer | `TimerLabel`, i.e. `expire_timer` | (A-viewsync), both clauses |
+| availability | `AvailLabel`, i.e. `become_avail_ready` | (F-avail) |
 | input | `InputLabel` | nothing here — a premise of the claim, not fairness |
+
+The availability row is a *fifth* class and was for a while wrongly folded
+into the second. `become_avail_ready` is unguarded, so weak fairness on it
+proves (F-avail) outright — which made a premise of the claim redundant and,
+worse, made the premise list say that MVBA termination needs nothing of the
+availability layer. It does; the model just happens to discharge it in one
+unguarded line. `not_justice_of_avail` pins the separation.
 
 **The timer is not weakly fair, and must not be.** Both halves of the
 supplement's timeout discipline are statements about *when* it may tick —
@@ -156,12 +164,31 @@ def InputLabel : Mvba.Label node nodeset value view → Prop
   | .abandon .. => True
   | _ => False
 
+/-- **(F-avail).** The availability layer's action. Like the timer it is the
+*environment's*, not the scheduler's: `become_avail_ready` stands for another
+sub-protocol delivering `i`'s shares, and the supplement bounds when
+(`lem:avail-progress`, `Δ_sync`).
+
+It has its own class for a reason worth stating, because the alternative
+looks tidier and is wrong. `become_avail_ready` is **unguarded**, so it is
+enabled at every state; leaving it inside `JusticeLabel` therefore made
+(F-avail) a *consequence* of (F-justice) rather than an assumption, and the
+premise list said MVBA termination needs nothing of the availability layer.
+That is false of the protocol and true only of the model, where availability
+is a one-line environment action. Splitting the class restores the
+dependency to the premise list, and weakens the premise set while it is at
+it: the old pair (justice over everything, plus (F-avail)) implies the new
+one and not conversely. -/
+def AvailLabel : Mvba.Label node nodeset value view → Prop
+  | .become_avail_ready .. => True
+  | _ => False
+
 /-- The labels (F-justice) covers: the honest message handlers, the
-certificate assemblies, the view changes, the timeouts and the environment's
-availability action — everything that is neither the adversary's, nor the
-timer, nor the caller's input. -/
+certificate assemblies, the view changes and the timeouts — everything that
+is neither the adversary's, nor the timer, nor the availability layer's, nor
+the caller's input. -/
 def JusticeLabel (l : Mvba.Label node nodeset value view) : Prop :=
-  ¬ ByzLabel l ∧ ¬ TimerLabel l ∧ ¬ InputLabel l
+  ¬ ByzLabel l ∧ ¬ TimerLabel l ∧ ¬ InputLabel l ∧ ¬ AvailLabel l
 
 /-- **(F-byz), machine-checked at the only level it can be**: no label the
 adversary controls is subject to a fairness hypothesis. -/
@@ -178,8 +205,14 @@ module's own notion of an input. -/
 theorem not_justice_of_input (l : Mvba.Label node nodeset value view)
     (h : Label.isInput l) : ¬ JusticeLabel l := by
   rcases Label.isInput_cases h with ⟨i, e, rfl⟩ | ⟨i, rfl⟩
-  · exact fun hj => hj.2.2 trivial
-  · exact fun hj => hj.2.2 trivial
+  · exact fun hj => hj.2.2.1 trivial
+  · exact fun hj => hj.2.2.1 trivial
+
+/-- And the availability layer's action is the environment's, so
+(F-justice) does not reach it either. This is the one that used to be
+missing. -/
+theorem not_justice_of_avail (l : Mvba.Label node nodeset value view)
+    (h : AvailLabel l) : ¬ JusticeLabel l := fun hj => hj.2.2.2 h
 
 /-- The classification is exhaustive: every label falls under one of the four
 disciplines.
@@ -194,15 +227,17 @@ silently, and the guard against that is reading them, not this lemma.
 elaborating when the twenty-fifth action pushed `Label.isInput`'s match past
 the point where Lean generates its equation lemmas.) -/
 theorem label_classified (l : Mvba.Label node nodeset value view) :
-    JusticeLabel l ∨ ByzLabel l ∨ TimerLabel l ∨ InputLabel l := by
+    JusticeLabel l ∨ ByzLabel l ∨ TimerLabel l ∨ InputLabel l ∨ AvailLabel l := by
   classical
   by_cases hb : ByzLabel l
   · exact Or.inr (Or.inl hb)
   by_cases ht : TimerLabel l
   · exact Or.inr (Or.inr (Or.inl ht))
   by_cases hi : InputLabel l
-  · exact Or.inr (Or.inr (Or.inr hi))
-  exact Or.inl ⟨hb, ht, hi⟩
+  · exact Or.inr (Or.inr (Or.inr (Or.inl hi)))
+  by_cases ha : AvailLabel l
+  · exact Or.inr (Or.inr (Or.inr (Or.inr ha)))
+  exact Or.inl ⟨hb, ht, hi, ha⟩
 
 end Labels
 
@@ -289,7 +324,11 @@ def AViewSync (r : MvbaRun th) : Prop :=
 /-- **(F-avail)** — the availability shares arrive. A correct validator that
 accepted a vector eventually has `avail_ready` for it, which is
 `send_commit`'s environment precondition. The supplement's `Δ_sync`
-(`lem:avail-progress`), with the bound erased. -/
+(`lem:avail-progress`), with the bound erased.
+
+It is a premise and not a consequence of (F-justice) because `AvailLabel` is
+its own fairness class — see there for why, since the model makes the
+opposite arrangement look free. -/
 def FAvail (r : MvbaRun th) : Prop :=
   ∀ (i : node) (n : Nat) (V : view) (E : value), ¬ nset.is_byz i = true →
     (r.at' n).accepted i V E = true → ∃ m, (r.at' m).avail_ready i E = true
@@ -426,7 +465,7 @@ theorem eventually_decided_of_commitqc
       (fun m hm => Mvba.msg_commitqc.mono (r.steps m) v e hm) hqc
   -- So `decide i v e` is enabled from `N` on, and weak fairness fires it.
   obtain ⟨n, hn, hfire⟩ :=
-    hfj (.decide i v e) (⟨fun h => h, fun h => h, fun h => h⟩) N
+    hfj (.decide i v e) (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => enabled_decide hi ⟨E₀, hin' n hn⟩ (hab n) (hqc' n hn) (fun E => hcon n E))
   exact hcon (n + 1) e (decide_effect (hfire ▸ r.steps n))
 
@@ -480,7 +519,7 @@ theorem eventually_commitqc_of_commit_quorum
       (fun m hm => Mvba.msg_commit.mono (r.steps m) p v e hm) (hall p hp) n hn
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_commitqc v e q)
-      (⟨fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => enabled_form_commitqc hsm (hall' n hn))
   exact hcon (n + 1) (by omega) (form_commitqc_effect (hfire ▸ r.steps n))
 
@@ -605,7 +644,7 @@ theorem eventually_msg_commit_of_settled
       (Mvba.reachable_commit_sent_backed (r.reachable n) i v e hi hcs (hacc' n hn))
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.send_commit i v e)
-      (⟨fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn =>
         enabled_send_commit hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           (hacc' n hn) (hloc' n hn) (hs n hn).2.1 (hncs n hn) (hav' n hn))
@@ -713,7 +752,7 @@ theorem eventually_local_prepqc_of_settled
       (local_prepqc_of_guard_lapsed (r.reachable n) hi (hs n hn).1 (hqc' n hn) hlapse)
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.adopt_prepqc i v e)
-      (⟨fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn =>
         enabled_adopt_prepqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           (hqc' n hn) (hacc' n hn) (hlow n hn) (hs n hn).2.1)
@@ -764,7 +803,7 @@ theorem eventually_prepqc_of_prepare_quorum
       (fun m hm => Mvba.msg_prepare.mono (r.steps m) p v e hm) (hall p hp) n hn
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_prepqc v e q)
-      (⟨fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => enabled_form_prepqc hsm (hall' n hn))
   exact hcon (n + 1) (by omega) (form_prepqc_effect (hfire ▸ r.steps n))
 
@@ -925,7 +964,7 @@ theorem eventually_accepted_of_settled
       (Mvba.reachable_accepted_implies_prepare (r.reachable n) i v e hi hacc)
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.handle_preprepare i l pv v e)
-      (⟨fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn =>
         enabled_handle_preprepare hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           hnext hlead (hpp' n hn) hvalid (hjust' n hn) (hvote n hn))
@@ -1137,7 +1176,7 @@ theorem eventually_preprepare_of_settled_leader
         (fun m hm => Mvba.tc_lock.mono (r.steps m) pv w e hm) hw
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.leader_repropose l pv v w e)
-        (⟨fun h => h, fun h => h, fun h => h⟩) N
+        (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
         (fun n hn =>
           enabled_leader_repropose hl ⟨E₀, hin' n hn⟩ (hs n hn).2.2 hnext hlead
             (hs n hn).1 (hw' n hn) (hnp n hn))
@@ -1147,7 +1186,7 @@ theorem eventually_preprepare_of_settled_leader
         (fun m hm => Mvba.tc_nolock.mono (r.steps m) pv hm) hnl
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.leader_propose_fresh l pv v E₀)
-        (⟨fun h => h, fun h => h, fun h => h⟩) N
+        (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
         (fun n hn =>
           enabled_leader_propose_fresh hl (hs n hn).2.2 hnext hlead (hs n hn).1
             (hnl' n hn) (hin' n hn) (hnp n hn))
@@ -1205,7 +1244,7 @@ theorem eventually_tc_of_timeout_quorum
       (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm) (hall p hp) n hn
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_tc_nolock v q)
-      (⟨fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => enabled_form_tc_nolock hsm (hall' n hn))
   exact hcon (n + 1) (by omega) (form_tc_nolock_effect (hfire ▸ r.steps n))
 
@@ -1263,7 +1302,7 @@ theorem eventually_entered_above_of_tc
     exact hcon n V hn hV (lt_of_not_le hnle)
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.sync_view i pv v)
-      (⟨fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn =>
         enabled_sync_view hi ⟨E₀, hin' n hn⟩ (hnab n hn) hnext (htc' n hn) (hbelow n hn))
   exact hcon (n + 1) v (by omega) (sync_view_effect (hfire ▸ r.steps n)) hlt
@@ -1714,7 +1753,7 @@ theorem eventually_timed_out_of_timer
         (fun W => ∃ E, (r.at' n₀).local_prepqc i W E = true) Vs W₀
         (hheld n₀ hn₀ W₀ E₀' hW₀) ⟨E₀', hW₀⟩
     obtain ⟨n, hn, hfire⟩ :=
-      hfj (.timeout_qc i v w e) ⟨fun h => h, fun h => h, fun h => h⟩ n₀
+      hfj (.timeout_qc i v w e) ⟨fun h => h, fun h => h, fun h => h, fun h => h⟩ n₀
         (fun n hn =>
           enabled_timeout_qc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
             (hnab n (Nat.le_trans hn₀ hn)) (hview n (Nat.le_trans hn₀ hn))
@@ -1727,7 +1766,7 @@ theorem eventually_timed_out_of_timer
   -- It holds none, and by stability never will.
   · push Not at hany
     obtain ⟨n, hn, hfire⟩ :=
-      hfj (.timeout_noqc i v) ⟨fun h => h, fun h => h, fun h => h⟩ n₀
+      hfj (.timeout_noqc i v) ⟨fun h => h, fun h => h, fun h => h, fun h => h⟩ n₀
         (fun n hn =>
           enabled_timeout_noqc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
             (hnab n (Nat.le_trans hn₀ hn)) (hview n (Nat.le_trans hn₀ hn))
@@ -1848,7 +1887,7 @@ theorem eventually_tc_of_timed_out_quorum
       Mvba.reachable_timeout_qc_view_le (r.reachable N) r₀ v w e hq₀
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.form_tc_lock v q r₀ w e)
-        (⟨fun h => h, fun h => h, fun h => h⟩) N
+        (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
         (fun n hn =>
           enabled_form_tc_lock hsm ((enum.mem_members r₀ q).mpr hr₀) (hq₀' n hn)
             (hpq' n hn) hle (fun p hp => by
@@ -2348,7 +2387,7 @@ end Mvba
 
 /-! ## The pinned trust base
 
-Definitions and four facts about the label classification; the target itself
+Definitions and five facts about the label classification; the target itself
 is a definition, so nothing here asserts termination. -/
 
 /--
@@ -2356,6 +2395,10 @@ info: 'Mvba.label_classified' depends on axioms: [propext, Classical.choice, Quo
 -/
 #guard_msgs in
 #print axioms Mvba.label_classified
+
+/-- info: 'Mvba.not_justice_of_avail' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Mvba.not_justice_of_avail
 
 /-- info: 'Mvba.not_justice_of_byz' depends on axioms: [propext] -/
 #guard_msgs in

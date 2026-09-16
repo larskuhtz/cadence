@@ -399,6 +399,16 @@ fork's fairness annotations will carry once they exist
 > proving the four exhaust the label type by cases over the model's own
 > action list).
 
+> **Third correction (2026-09-15): the availability action is the
+> environment's too, and was wrongly inside the weakly fair class.**
+> `become_avail_ready` is *unguarded*, so weak fairness on it proves
+> (F-avail) outright — which made a premise of the claim redundant and, worse,
+> made the premise list say that MVBA termination needs nothing of the
+> availability layer. It needs it; the model just discharges it in one
+> unguarded line. `AvailLabel` is now its own class and
+> `not_justice_of_avail` pins the separation. The premise set is weaker for
+> it: the old pair implies the new one and not conversely.
+
 > **Second correction (2026-09-15): the split is between the timeout
 > actions and the *timer*, not between the timeouts and everything else.**
 > The correction above is right that two classes cannot work; where it put
@@ -414,12 +424,15 @@ fork's fairness annotations will carry once they exist
 > step 5 gives the argument).
 
 The classes, then: **unfair** for the `byz_*` family (F-byz); **weakly
-fair** for the honest message handlers, certificate assemblies, view
-changes, the two timeouts and the availability action (F-justice);
-**timer** for `expire_timer` alone, governed by (A-viewsync)'s two clauses;
-and the two contract inputs `propose` / `abandon`, which are the *caller's*
-and carry no fairness at all — that every correct validator proposes is a
-premise of the claim, as it is in `thm:termination`.
+fair** for the honest message handlers, certificate assemblies, view changes
+and the two timeouts (F-justice); **timer** for `expire_timer` alone,
+governed by (A-viewsync)'s two clauses; **availability** for
+`become_avail_ready` alone, governed by (F-avail); and the two contract
+inputs `propose` / `abandon`, which are the *caller's* and carry no fairness
+at all — that every correct validator proposes is a premise of the claim, as
+it is in `thm:termination`. Five classes, and the two environment ones are
+separate from the scheduler's on purpose: each names a different party that
+has to deliver something.
 
 **Claim level — what those assumptions can and cannot deliver.** §3.1(a) has
 a consequence that is easy to misread as an argument about fairness
@@ -1158,6 +1171,87 @@ e` eventually holds for every accepted `e` (`lem:avail-progress`). Then the
 liveness work is additive rather than a re-encoding — and once it exists,
 Chorus's (A-mvba) decomposes into these plus the MVBA's own fair-progress
 theorems.
+
+### 3.7 Why the timing assumption has the shape it has
+
+(A-viewsync) is the strongest thing `Mvba.termination` assumes, and three
+objections to it are natural enough that the answers belong here rather than
+in a commit message. They turn out to have one root.
+
+**"The premise is indexed by the good view — isn't that most of the way to
+assuming the conclusion?"** It is a view-synchroniser interface, assumed.
+That is the standard decomposition for a partially-synchronous BFT liveness
+proof: a synchroniser delivers "eventually all correct validators are in the
+same view, it has an honest leader, and it lasts long enough", and the
+protocol proof consumes it. What is unusual here is that the development now
+derives **half** of that interface — the entry — and assumes only the
+duration. The `terminates_of_good_view_no_timeout` split is the check that
+the assumed half is not doing the protocol's work: its statement mentions no
+certificate.
+
+**"Why can the timer not simply be weakly fair, firing nondeterministically
+subject to ordering constraints?"** That is the right instinct, and the
+obstruction is not the timer — it is that the model has **no notion of
+duration for the constraint to be about**. The network here is asynchronous
+with fair links: a message is a monotone relation the sender sets and the
+receiver's handler reads, and the "delay" is however long the scheduler takes
+to run that handler, which weak fairness bounds only by *eventually*. So the
+decision chain has **no finite latency**, in steps or in anything else, and
+"the timeout exceeds the chain's latency" has no statable form. The only
+constraints expressible between the timer and the chain are orderings against
+chain *events* — and the chain event the protection must reach is the commit
+certificate, because `timed_out i v` disables `adopt_prepqc` and
+`send_commit` (`Mvba.lean`), so a timeout before the certificate kills the
+view. (A-viewsync)'s second clause is therefore not a chosen shape but the
+image of the paper's `Δ_W > Δ_R + 3Δ + max(Δ, Δ_sync)` under an abstraction
+that erased every quantity in it: **a round budget degenerates to an ordering
+constraint when the number of rounds is erased.** And once the clause has
+that shape, weak fairness on the marker would force its antecedent and hand
+over the certificate — so the marker's exclusion from `JusticeLabel` and the
+clause's shape are one fact seen twice, not two independent choices.
+
+**"Would an explicit GST marker fix it?"** Not on its own, and this is worth
+being precise about because it looks as though it should. GST buys *bounded
+delivery*, and "bounded" needs a Δ and a clock to mean anything. A boolean
+GST marker in an untimed model buys "after GST, delivery is eventual" — which
+fair links already give unconditionally, so the marker would partition the
+run and change nothing. GST earns its keep exactly when the clock arrives:
+then delivery after it is bounded, the chain acquires a finite latency,
+timeout growth makes some view's budget exceed it, and (A-viewsync) becomes a
+**theorem** rather than an assumption — both clauses of it, and the existence
+of the good view with them. That is the bounded phase
+([`Bounds.md`](./Bounds.md)), and it is the real answer to all three
+objections.
+
+**Chorus does the same thing one layer up**, which is worth knowing before
+treating this as an MVBA-specific compromise. `Chorus.lean`'s
+`all_honest_recorded` is, in its own comment, "the protocol-level shadow of
+the paper's proposal-inclusion premise (`prop:honest-positive-entry`)": the
+paper's synchrony hypothesis `s.deadline − Δ ≥ GST` is replaced by the
+protocol-level consequence it is there to deliver, and that consequence is
+assumed. No Cadence model carries a GST marker; GST appears only in
+[`Interfaces.lean`](../Cadence/Interfaces.lean)'s `TimedRun` (`gst`,
+`byGstBound`), where the *undischarged* temporal obligations are stated.
+
+**The one route that would weaken (A-viewsync) without a clock**, recorded
+because it is not obviously hopeless: replace the second clause by a
+*priority* — the timer for a view fires only when no honest non-input action
+of that view is enabled. That is W-free, certificate-free and uniform, it
+would let the marker be weakly fair, and the good view would then come from
+(A-leader-rotation) alone, so no premise would mention the good view at all.
+It cascades correctly in principle, because the chain's actions are
+self-disabling (`Progress.lean`) and `decide`'s guard `∀ E, ¬ decided i E`
+closes it. The obstacles are real and would have to be worked, not waved at:
+`become_avail_ready` is not view-indexed, so a view-scoped priority does not
+cover the wait for availability; the priority needs a label-to-view
+projection, a twenty-five-case definition alongside the four class
+definitions; and every gap found while making the proof go through is a place
+where a scheduling premise gets widened, which is how one re-assumes the
+conclusion by accident. It is also arguably *stronger* than the paper's
+assumption rather than weaker, since it forbids the timer firing even in a
+view whose chain is merely crawling. Worth weighing against simply waiting
+for the clock. [`TODO.md`](./TODO.md) § Liveness carries it.
+
 
 ## 4. Vacuity
 

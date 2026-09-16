@@ -64,7 +64,13 @@ outside Lean.
   the timeouts are weakly fair like every other honest action, and the
   third class contains the marker alone, governed by (A-viewsync): finite
   in every view below the good one, and in the good one not before a commit
-  certificate exists. Those two clauses are the untimed skeleton of the
+  certificate exists. A *fifth* class holds `become_avail_ready`, the
+  availability layer's action, governed by (F-avail): it is unguarded, so
+  leaving it under weak fairness would have proven (F-avail) and hidden the
+  MVBA's dependence on that layer behind "the scheduler is fair".
+  Why (A-viewsync) has the shape it does, why the marker cannot be weakly
+  fair, and why a GST marker alone would not change either, are
+  [`MvbaPlan.md`](./MvbaPlan.md) §3.7. Those two clauses are the untimed skeleton of the
   supplement's timeout discipline, and they are the *whole* of what
   `Mvba.termination` assumes about timing —
   [`MvbaPlan.md`](./MvbaPlan.md) §3.2's correction, with the classification
