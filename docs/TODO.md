@@ -164,7 +164,10 @@ come first.
   witness the protocol half), but an argument is not a build-checked fact.
   What would make it one: a `TerminationClaim` instance at concrete finite
   sorts, or a trace through the premises. Related to, but smaller than, the
-  composition-level instrument above.
+  composition-level instrument above — and **not worth a session of its
+  own**: `MVBATemporal.admissible_exists` requires constructing admissible
+  timed runs anyway, so the witness falls out of the bounds work
+  ([`Bounds.md`](./Bounds.md) §6.1) if that is picked up.
 
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
   meta-axioms become premises of a Lean theorem rather than named

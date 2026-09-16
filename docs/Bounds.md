@@ -166,8 +166,13 @@ plain Lean over an abstract order, outside the Veil pipeline entirely.
 ## 5. Recorded decision
 
 Bounds are currently out of scope ([`Architecture.md`](./Architecture.md)
-§4 item 4) and stay so until timing claims become a priority. When they
-do: route (a) first — cheap, no model change, pins the schedule
+§4 item 4) and stay so until timing claims become a priority. One input to
+that decision changed after this was written: the MVBA now has an untimed
+liveness theorem, so there is a leg of route (a) that **removes** an
+assumption rather than attaching a bound to one (§6.1). Whether that
+re-ranks bounds against the two items ahead of them in
+[`TODO.md`](./TODO.md) § Soundness is a call to make deliberately, not a
+consequence of the MVBA work. When they do go ahead: route (a) first — cheap, no model change, pins the schedule
 arithmetic; route (b) Conductor-first if in-model timing is wanted, with
 the three design costs above addressed up front; route (c) only against
 demonstrated benefit. Ordering relative to the L2S extension (the fork's
@@ -227,6 +232,67 @@ give or take):
 5. The composition: `cor:chorus-correctness-within-cadence` and the
    alternating-window non-circularity — the subtlest statement work and
    the highest-value single piece.
+
+### 6.1 The MVBA leg, which did not exist when the plan above was written
+
+Step 3 above treats `ℓ_MVBA` as a **per-seam hypothesis** — "the oracle seam
+completes within `ℓ_MVBA`" — because when this plan was written the MVBA had
+no liveness theorem to discharge it with. It has one now
+(`Mvba.termination`, [`Liveness.md`](./Liveness.md) §2.1), so there is a
+second leg available: *prove* `ℓ_MVBA` rather than assume it.
+
+**Why it is tractable.** The untimed theorem was built so that this would be
+the only remaining step. Every one of its five premises is a predicate on a
+run, so a timed layer discharges them as ordinary Lean theorems over timed
+runs of the same generated transition system — **no model change**, exactly
+the depth decision of §6. Two of the five are immediate under any reasonable
+timing model (the callers' premises are hypotheses either way), one is fair
+scheduling, and the work is entirely in (A-viewsync)'s two clauses.
+
+**What it needs that the Chorus leg does not.** The Chorus leg's time theory
+is a linear order with two abstract inflationary shifts, because its schedule
+is a fixed milestone table. The MVBA's is not fixed: the argument is that
+*timeouts grow* until one view's budget exceeds the chain's latency, so the
+time theory needs a **sequence** `Δ_v` unbounded relative to a fixed bound,
+not two constants. That is the one genuinely new piece of arithmetic, and it
+should be workshopped before any Lean, exactly as §6 says of the per-seam
+statements. Do not assume this leg is cheaper than the Chorus leg because the
+skeleton exists; it probably is not.
+
+**What it buys, and why it may still rank first.** It is the only piece of
+the bounds work that *removes an assumption* rather than attaching a bound to
+one. (A-viewsync) is the strongest premise of the liveness result and the
+only one not derivable in an untimed model ([`MvbaPlan.md`](./MvbaPlan.md)
+§3.7); with a clock both of its clauses become theorems — bounded post-GST
+delivery gives the decision chain a finite latency, timeout growth makes some
+view's budget exceed it, and (A-leader-rotation) supplies the honest leader.
+That in turn is what `MVBATemporal.termination` needs, which `Cadence.lean`
+calls "the smallest gap of the three implementations", and it is the formal
+version of the trust-base move §2.1 describes informally.
+
+**It also subsumes an open item.** [`TODO.md`](./TODO.md) § Liveness asks for
+a run witnessing that `Mvba.termination`'s five premises are jointly
+satisfiable. `MVBATemporal.admissible_exists` requires constructing admissible
+timed runs anyway, so that witness falls out of this leg rather than needing
+a session of its own. It is not worth doing separately.
+
+**Staging**, in the shape of §6's:
+
+1. Timed runs over `Mvba`'s generated transition system, and the time
+   theory with a growing timeout schedule. Reuses §6 step 1's scaffolding if
+   the Chorus leg went first.
+2. The chain latency bound: the links of `Mvba/Liveness.lean` from the
+   leader's `Pre-Prepare` to the commit certificate, each with a Δ attached.
+   Mostly plugging in proven theorems, and the cheap validation of the
+   scaffolding.
+3. The entry bound — every correct validator enters the good view within Δ
+   of the first — which is the quantitative refinement of
+   `eventually_entered_good`. The untimed argument's structure carries over
+   (the climb, the common view, the overshoot bound); the bounds are new.
+4. Discharge both (A-viewsync) clauses, then `MVBATemporal.termination`;
+   axiom pins, docs, and the `Cadence.lean` row moves from conditional to
+   a discharged instance.
+
 
 **Placement.** A sibling of the end-theorem files — e.g.
 `Cadence/Chorus/Schedule.lean` at the `Compose`/`Pigeonhole`/`Counting`
