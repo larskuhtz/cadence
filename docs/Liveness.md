@@ -224,10 +224,12 @@ untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
 
 1. ~~The projection and the fairness transfer, generic, in `Fairness.lean`.~~
    **Done, 2026-09-16** — §4.2 is the record and the reassessment.
-2. Chorus's label classes and premises — one named `Prop` each, mirroring
+2. ~~Chorus's label classes and premises — one named `Prop` each, mirroring
    `Mvba/Liveness.lean`'s four-class discipline and its `label_classified`;
-   and the `Component` instance for Chorus at the `Mvba` instantiation
-   (§4.2 has the recipe, validated in scratch).
+   and the `Component` instance for Chorus at the `Mvba` instantiation.~~
+   **Done, 2026-09-16** — [`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean);
+   §4.3 is the record, including the one premise the sketch above did not
+   foresee.
 3. The fast-path chain to a commit certificate.
 4. The fallback and MVBA arms, the second consuming `Mvba.termination`
    through the projection.
@@ -382,9 +384,10 @@ three sources and one hand proof:
   two halves of `Component.init`.
 
 So the shape is right and stage 2 is bounded work: the instance file, the
-label classes, and the premises. Nothing in this stage or in the validated
-instance touches `Chorus.lean`, `Interfaces.lean` or `Mvba/Liveness.lean`,
-and the 4 222-cell family is untouched.
+label classes, and the premises (§4.3 — done the same day, and the scratch
+instance graduated into it). Nothing in this stage touches `Chorus.lean`,
+`Interfaces.lean` or `Mvba/Liveness.lean`, and the 4 222-cell family is
+untouched.
 
 **What to watch in stages 3–5.** The `Scheduled` field makes the final
 theorem silent about runs in which the MVBA is stepped finitely often. That
@@ -392,3 +395,86 @@ is correct (it excludes unfair schedulers, as every fairness premise does),
 but it is a premise the paper does not spell out, so it must appear by name
 in `Architecture.md` §4 when (A-mvba) is retired, not be absorbed into
 "(F-justice)".
+
+### 4.3 Stage 2, done: the classification, the premises, the target
+
+*Record of 2026-09-16. The file is
+[`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean), a
+sibling of [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean)
+in shape and discipline; `grep -n '^def [A-Z]'` on it prints everything a
+human has to believe. Its header carries the reasoning at the point of
+use; this section is the audit summary and the one correction to §4's
+sketch.*
+
+**The classification.** Three `match` definitions over `Chorus.Label`:
+`ByzLabel` (the thirteen `byz_*` actions — (F-byz)), `OracleLabel` (the
+oracle step `mvba_step` alone), and `JusticeLabel` as their complement —
+(F-justice) — with `label_classified` pinning exhaustiveness and
+`not_justice_of_byz` / `not_justice_of_oracle` the disjointness. A fourth,
+`MvbaStepLabel` (`mvba_step` and `mvba_propose`), is the *component's* cut,
+not a fairness class: `mvba_propose` is Chorus's own weakly fair action
+that also advances the MVBA, and it appears in the projected run as the
+MVBA's `propose` input, which `Mvba.FJustice` excludes for exactly that
+reason. Against `Chorus.lean`'s prose list of (F-justice) actions the
+complement form also covers `deliver_chunk_assigned` and
+`broadcast_commitqc_*`, which §7 of `ChorusDesign.md` already uses as
+fair; the model's prose should be aligned the next time `Chorus.lean` is
+edited for another reason (a comment edit is a family re-solve).
+
+**The component instance.** `Chorus.mvbaComponent thS thM : Component
+(atMvba thM) thS mvbaRTS thM` — §4.2's recipe, landed: `frame` from the 38
+generated lemmas, `step` from the two oracle guards, `init` from the
+initializer, and no new cell.
+
+**The premises, one named `Prop` each**, over `ChorusRun thS thM` (a
+labelled run of Chorus with its MVBA constraint filled by `Mvba.mvbaSafety
+thM`, the instantiation `System.lean` uses):
+
+* **`FJustice`** — (F-justice): weak fairness of every `JusticeLabel`.
+* **`MvbaAdmissible`** — replaces (A-mvba): `∃ p : (mvbaComponent thS
+  thM).Projection r, Mvba.FJustice p.run ∧ Mvba.AViewSync p.run ∧
+  Mvba.FAvail p.run` — the run's MVBA projection satisfies the three
+  *scheduling* premises of `Mvba.termination`, stated with that file's
+  definitions. The theorem's other two premises — every correct validator
+  proposes, none is abandoned before deciding — are the caller's, and the
+  caller is Chorus, so stage 4 derives them rather than assuming them.
+* **`ValidBridge`** — **the premise §4 did not foresee.** The sketch
+  planned one bridge-side premise, the *completeness* direction ("a
+  decided vector's certificates are on the network", which enables the
+  decision handlers). Writing the claim down showed the *soundness*
+  direction is a premise too: `mvba_propose`'s last guard is the
+  contract's `propose`, and `Mvba.propose` requires `valid e` of its
+  input (`MVBASafety.propose_valid` — the "wart" `Interfaces.lean`
+  documents), while the MVBA theory's `valid` is a predicate on the
+  vector alone that nothing in the composed system relates to Chorus's
+  certificates. So a correct validator that has built a certified
+  meta-block can call `propose` only if certified vectors are `Valid`.
+  The premise therefore has two clauses, both at every point of the run
+  and both stated with `Certified` — `mvba_propose`'s three validity
+  guards verbatim, the first two of which are the handlers' bridge
+  `require`: certified ⇒ `Valid`, and decided by a correct validator ⇒
+  certified. It is the run-level form of the one stated bridge
+  (`CompositionContracts.md` §3, §7 item 1) and its content is the
+  cryptographic one — a `Valid` meta-block's certificates are genuine and
+  genuine certificates are `Valid` — which no class field can carry
+  because `Valid` is fixed before Chorus's state exists. The safety proofs
+  need neither direction.
+
+**The target.** `Terminates r`: every correct validator eventually has
+`local_committed` — `finalize_commit` fired for it — and
+`TerminationClaim thS thM := ∀ r, FJustice r → MvbaAdmissible r →
+ValidBridge r → Terminates r`. A definition, asserted nowhere; the theorem
+is stages 3–5's. Absent by design: any timing premise (§2.1), any
+`all_honest_recorded`-shaped premise (it buys proposal inclusion, not
+termination), and the quorum machinery (the concrete family the counting
+theorems are stated over, `byzNodeSetFin` at every `n = 3f+1`, and
+`Mvba.termination`'s three class hypotheses are hypotheses of the theorem,
+not part of the claim).
+
+**What to watch in stages 3–5**, in addition to §4.2's note on
+`Scheduled`: the theorem will be at the concrete quorum family and at
+`System.lean`'s `chorusTheory` (the entry-vector projections have to be the
+standard ones to *build* a proposal), so `TerminationClaim` stays generic
+and the theorem instantiates it; and `ValidBridge` must be named in
+`Architecture.md` §4 alongside `MvbaAdmissible` when (A-mvba) is retired —
+it is not a fairness assumption and must not be filed as one.
