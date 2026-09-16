@@ -104,10 +104,19 @@ fact can supply — `propose` does not check it — so it is carried as an
 antecedent; `docs/TODO.md` § Liveness has the alternative.
 
 `timed_out_implies_message` and `timeout_qc_view_le` are for closing a view:
-(F-timeout) delivers the local flag while the assemblies read the messages,
+the timer delivers the local flag while the assemblies read the messages,
 and `form_tc_lock` additionally checks that a carried certificate is not of
-a view above the `Timeout` carrying it. -/
+a view above the `Timeout` carrying it.
 
-/-- info: #veil_status Mvba: 1273/1273 real; axioms: propext, Classical.choice, Quot.sound -/
+The last two to arrive are what let the good view's entry be *derived*
+rather than assumed. `input_implies_entered` is `entered_implies_input` read
+backwards — having proposed means sitting in view 1 — which is where the
+climb starts; `tc_lock_implies_tc` says a recorded lock is also a plain
+timeout certificate, which is what keeps a validator holding a high
+certificate from being stranded by `sync_view_adopt`'s extra guard. Both are
+one step of one action read the other way round, and neither is a safety
+fact. -/
+
+/-- info: #veil_status Mvba: 1325/1325 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Mvba

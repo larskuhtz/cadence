@@ -659,6 +659,20 @@ invariant [entered_implies_input]
   ∀ (R : node) (V : view),
     ¬ is_byz R → entered R V → ∃ E, input R E
 
+/- … and the converse: having proposed means having entered view 1. The same
+single step of `propose` read the other way round, and `propose` is the only
+action that sets `input`.
+
+Liveness needs it to start the climb. (F-justice) can only move a validator
+that is *somewhere*, and the participation premise (`AllPropose`) says the
+caller invoked `propose` — which this turns into a view the validator sits
+in. Keeping it here rather than widening the premise is what lets that
+premise stay the paper's sentence ("once every correct validator has invoked
+propose") and nothing more. -/
+invariant [input_implies_entered]
+  ∀ (R : node) (E : value),
+    ¬ is_byz R → input R E → entered R vord.zero
+
 /-! ### The honest leader's single proposal
 
 Two invariants **liveness** asked for (`docs/MvbaPlan.md` §3.5 step 3), and
@@ -906,6 +920,22 @@ invariant [tc_lock_backed]
     msg_prepqc W E ∧ vord.le W V ∧
     ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q →
       msg_timeout_noqc r V ∨ ∃ W' E', msg_timeout_qc r V W' E' ∧ vord.le W' W
+
+/- **Every recorded lock is a timeout certificate.** The converse direction
+of `msg_tc_backed` for the lock case: `form_tc_lock` sets `tc_lock` and
+`msg_tc` in one step, so the two never come apart.
+
+Safety never asked, because it reads certificates only to *justify* things
+and a lock justifies more than a bare `msg_tc`. Liveness asks because
+`sync_view` is guarded on `msg_tc` while `sync_view_adopt` — the action a
+lock enables — carries the extra guard that the adopted certificate outrank
+every one already held. A validator holding a higher certificate can
+therefore advance only through `sync_view`, and without this invariant the
+model would let it be stuck at a view that has demonstrably closed. So this
+is also a statement that the two `sync_view` variants do not strand anyone
+(`Mvba/Liveness.lean`, `exists_tc_below_of_entered`). -/
+invariant [tc_lock_implies_tc]
+  ∀ (V W : view) (E : value), tc_lock V W E → msg_tc V
 
 /-! ### `lem:cert-uniqueness`, within a view and across views -/
 
