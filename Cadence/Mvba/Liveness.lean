@@ -1,6 +1,7 @@
 import Cadence.Mvba.Rank
 import Cadence.Mvba.Compose
 import Cadence.Fairness
+import Cadence.ViewOrder
 
 /-! # Mvba.Liveness — the run-level target, and the assumptions it rests on
 
@@ -24,8 +25,8 @@ Everything a human has to believe is therefore a named `Prop` in this file,
 each with a docstring and each appearing as an explicit hypothesis of the
 claim — never a side condition discovered by reading a proof.
 `grep -n '^def [A-Z]' Cadence/Mvba/Liveness.lean` prints the whole list: the
-four label classes, the six premises, the target and the claim, and nothing
-else.
+four label classes, the five premises, the target and the claim, and
+nothing else.
 
 ## The fairness classification, and a correction to §3.2
 
@@ -34,81 +35,47 @@ family (F-byz), weakly fair for the honest actions (F-justice). Writing the
 run-level statement down shows that two is not enough, and that the natural
 reading of the pair is **inconsistent**.
 
-`timeout_qc` and `timeout_noqc` are honest actions, so §3.2 puts them under
-(F-justice). But the model abstracts the *timing* of a timeout away (§3.6:
-"`timeout i v` is enabled, not timed"), so in the current view a correct
-validator holding a lock has `timeout_qc` **continuously enabled**. Weak
-fairness then forces it to fire — in every view, including the good one —
-and the obvious form of (A-viewsync), "no correct validator times out in the
-good view", contradicts it outright. A contradictory premise set does not
-make a theorem hard to prove; it makes it vacuous, which is the one outcome
-worth engineering against.
+The reason is the timeout. `timeout_qc` and `timeout_noqc` are honest
+actions, so §3.2 puts them under (F-justice); but if their guards say
+nothing about time, a correct validator in a view has one of them
+continuously enabled, weak fairness forces it to fire in *every* view
+including the good one, and any assumption that the good view survives its
+timeout contradicts that outright. A contradictory premise set does not make
+a theorem hard to prove; it makes it vacuous, which is the one outcome worth
+engineering against.
 
-So the timers are their **own class**, and the timing assumption is split
-into the two halves it always had:
+The fix was to put the timing back into the model, as little of it as the
+claim needs: `expire_timer i v` is an **abstract phase marker**, a clock with
+exactly one tick, from before the timeout to after it, and both timeout
+actions are guarded on it. With that the timeouts can be weakly fair like
+every other honest action; what they may no longer do is fire before the
+timer has run out. So there are three scheduling classes, not two, and the
+whole of the timing assumption sits on the extra one:
 
 | class | labels | what is assumed |
 |---|---|---|
 | unfair | `ByzLabel` | nothing — (F-byz) |
 | weakly fair | `JusticeLabel`, the two `timeout_*` among them | (F-justice) |
-| timer | `TimerLabel`, i.e. `expire_timer` | (A-viewsync) |
+| timer | `TimerLabel`, i.e. `expire_timer` | (A-viewsync), both clauses |
 | input | `InputLabel` | nothing here — a premise of the claim, not fairness |
 
-**There is no premise saying views eventually close.** An earlier
-(F-timeout) said so, and the proof never used it: (A-viewsync) asserts that
-every correct validator *enters* the good view, so nothing here has to
-carry a run there. It was dropped rather than left standing, since an unused
-premise only weakens the theorem. It returns the moment (A-viewsync) is
-weakened to have the entry derived instead — which is what the climbing
-section exists for.
+**The timer is not weakly fair, and must not be.** Both halves of the
+supplement's timeout discipline are statements about *when* it may tick —
+finite in every view, and in the good view not before the chain has produced
+a certificate — and (A-viewsync) is exactly that pair. Handing the marker to
+weak fairness instead would force a tick in the good view, and with the
+second clause that yields a commit certificate with no protocol reasoning at
+all: the chain of links below would become dead code, proved past rather
+than used. It is the same trivialisation the first clause is scoped away
+from the good view to avoid, and the argument is written out at
+`AViewSync`.
 
-(F-timeout) is "the timeout is finite": a correct validator that has not
-decided eventually times out of every view it enters, which is what closes a
-view a faulty leader has stalled. (A-viewsync) is "the timeout is long
-enough": in the good view no correct validator times out *before it has
-decided*. Stated that way the two are compatible — a validator may time out
-of the good view, just not before deciding, and `decide`'s own guard
-(`∀ E, ¬ decided i E`) is what makes that a stable situation rather than a
-race. Together they are the untimed content of the supplement's
-"the view timeout exceeds `Δ_R + 3Δ + max(Δ, Δ_sync)`".
-
-### Why (F-timeout) is a premise and not a consequence
-
-It looks as though weak fairness should give it, and **it would**: a
-validator sitting in a view it has not decided in has one of the two timeout
-actions continuously enabled, so justice would fire it. (F-timeout) is
-primitive here only because the timers are outside `JusticeLabel`, and it
-would be a theorem if they were in it.
-
-They are outside for a reason that is *not* the one above. Putting them
-under justice does not contradict (A-viewsync) in the form stated here — it
-**trivialises** it. Weak fairness would force a timeout in the good view;
-(A-viewsync) says a timeout there implies a decision; so the two together
-give "every correct validator in the good view decides" immediately, with no
-protocol reasoning at all. The chain of links below would become dead code,
-proved past rather than used. (The *flat* form of (A-viewsync), "no correct
-validator times out in the good view", is the stronger failure: with justice
-on the timers it is not merely trivialising but unsatisfiable.)
-
-### What is actually missing: the timer
-
-The real protocol does not leave the choice between timing out and making
-progress to the scheduler. `timeout` is enabled only once the timer has
-*expired*, and the timeout duration is chosen to exceed the chain's latency
-after GST. This model drops exactly that (`docs/MvbaPlan.md` §3.6: "abstract
-the *timing* only — `timeout i v` is enabled, not timed"), which is why the
-scheduler can fire a timeout at any moment and why the discipline has to be
-restored by assumption.
-
-So the honest summary is that **(A-viewsync) is the price of an untimed
-model, and (F-timeout) is an artefact of paying it**. A model carrying a
-timer would let both timeout actions be weakly fair without trivialising
-anything, would make (F-timeout) a theorem, and would shrink (A-viewsync) to
-a statement relating the timeout duration to the chain's latency — which is
-what the paper assumes and is strictly more honest than what is assumed
-here. The assumption does not disappear; it changes shape. That is the
-design this section should be revisited against, and
-[`docs/TODO.md`](../../docs/TODO.md) § Liveness records it.
+**There is no premise saying views eventually close, and none saying
+validators reach the good view.** Both were once on the list. The first
+— (F-timeout) — was dropped when the timer arrived and the proof turned out
+not to use it. The second was (A-viewsync)'s entry clause, and it is now a
+**theorem** (`eventually_entered_good`): the longest argument in the file,
+and the reason [`ViewOrder.lean`](../ViewOrder.lean) exists.
 
 The inputs `propose` and `abandon` are the *caller's*, not the scheduler's
 (`Mvba/Compose.lean`'s `Label.isInput`), so no fairness is assumed of them.
@@ -118,16 +85,17 @@ has invoked propose").
 
 ## What the claim does not mention
 
-`ByzNodeSetEnum` and `ByzNodeSetHonestQuorum` are absent from the statement
-and will appear as hypotheses of the eventual *theorem*. That split is the
-point: enumerability and a constructive quorum of correct validators are
-what a **proof** needs to assemble certificates
-([`ByzQuorum.lean`](../ByzQuorum.lean)), not part of what is being claimed.
+`ByzNodeSetEnum`, `ByzNodeSetHonestQuorum` and `ViewOrderEnum` are absent
+from the statement and appear as hypotheses of the *theorem*. That split is
+the point: enumerability, a constructive quorum of correct validators
+([`ByzQuorum.lean`](../ByzQuorum.lean)) and a discrete, finitely-generated
+view order ([`ViewOrder.lean`](../ViewOrder.lean)) are what a **proof** needs
+to assemble certificates and to count, not part of what is being claimed.
 
 ## Open: non-vacuity of the premise set
 
 The classification above removes the one contradiction found so far, but
-"these six premises are jointly satisfiable" is not yet proven. It needs a
+"these five premises are jointly satisfiable" is not yet proven. It needs a
 run exhibited, which is step 4's work and beyond it; the model's `sat trace`
 blocks witness the protocol half (a decision is reachable) and no more.
 Until then the premise set is checked for consistency by argument, not by
@@ -259,46 +227,44 @@ action. The one scheduling assumption of the ordinary kind. -/
 def FJustice (r : MvbaRun th) : Prop :=
   ∀ l, JusticeLabel l → WeaklyFair r l
 
-/-- **(A-viewsync)** — *the timeout is long enough.* There is an honest-led
-view that every correct validator enters, and in which no correct
-validator's **timer runs out** before a commit certificate exists.
+/-- **(A-viewsync)** — *the good view, and what its timer may do.* There is
+an honest-led view `W`, above the first, such that
 
-This is the untimed stand-in for `thm:termination`'s after-GST Δ-synchrony
-together with its view-timeout bound. **In the paper the corresponding
-sentence is a consequence, not an assumption**: `subsec:mvba-protocol` fixes
-the view timeout to exceed `Δ_R + 3Δ + max(Δ, Δ_sync)` after GST, and
-`thm:termination` derives from it that "no correct validator times out of a
-correct-leader view before the decision completes". What is assumed there is
-a relation between constants; what is assumed here is its conclusion,
-because an untimed model cannot state the premise. That is the strongest
-argument for the timer item of [`docs/TODO.md`](../../docs/TODO.md)
-§ Liveness — with a phase marker the premise becomes statable as an ordering
-constraint, and this premise becomes a consequence here too.
+* in **every other** view a correct validator's timer eventually runs out,
+  and
+* in `W` no correct validator's timer runs out before a commit certificate
+  exists.
 
-Three things about the shape, each of which took a wrong version first.
+Untimed, that is the whole of the supplement's timeout discipline: the first
+clause is "every view's timeout is finite", the second is "the good view's
+timeout exceeds the chain's latency after GST". Both speak only about the
+environment's timer — `expire_timer`, the model's phase marker — and neither
+mentions the protocol's outcome.
 
-The antecedent is `timer_expired`, the environment's marker, not
-`timed_out`. That is what the marker is *for*: the premise now constrains
-when a timer may run out, which is a statement about the environment, and
-the protocol's own timeout actions are left to weak fairness like every
-other honest action. `timed_out_implies_timer` carries it to the timeouts.
+**What is no longer here.** This premise used to also assert that every
+correct validator *enters* `W`, which is the strong, protocol-specific half:
+view synchronisation, assumed. It is now derived
+(`eventually_entered_good`), and what is left is a statement about when a
+timer may fire.
 
-The consequent is a **commit certificate**, not a decision — weaker than
-both the paper's sentence and an earlier version of this definition, and
-enough, because `eventually_decided_of_commitqc` turns a certificate into
-every correct validator deciding using (F-justice) alone. So the premise
-mentions neither `decided` nor `timed_out`: it relates two events, the
-timer running out and a certificate existing.
+**Why the first clause excludes `W`.** In the timed protocol the two clauses
+are about one object: every view's timeout is finite, and `W`'s exceeds the
+latency. Untimed, "exceeds the latency" can only be said as "not before the
+certificate" — and a finiteness clause covering `W` would then, together
+with it, hand over a commit certificate outright, which is the thing the
+decision chain is there to prove. Excluding the good view is what keeps the
+proof carrying its own weight, and it costs nothing: the good view is the one
+in which the protocol succeeds, so the second clause's conditional is simply
+never triggered.
 
-And the "before …" is load-bearing: a flat form ("the timer never runs out
-in the good view") would be unsatisfiable once anything forces timers to
-expire, and the claim would hold vacuously.
-
-The entry clause is conditioned on the validator having *participated*. A
-correct validator that never calls `propose` never enters any view, so
-without that condition this premise would quietly entail `AllPropose`, and
-two premises that look independent would not be. Each of the premises is
-meant to be readable on its own.
+**Why the consequent is a certificate.** It is weaker than the paper's
+sentence, which speaks of the decision, and enough, because
+`eventually_decided_of_commitqc` turns a certificate into every correct
+validator deciding using (F-justice) alone. So the premise mentions neither
+`decided` nor `timed_out`: it relates two events, a timer running out and a
+certificate existing. And the "before …" is load-bearing — a flat "the timer
+never runs out in `W`" would be unsatisfiable the moment anything forced
+timers to expire.
 
 The good view is required to be **above the first**, by naming its
 predecessor `PV`. That is not a convenience: `thm:termination`'s proof makes
@@ -312,10 +278,12 @@ def AViewSync (r : MvbaRun th) : Prop :=
   ∃ (W PV : view) (L : node),
     vord.next PV W ∧
     th.leader W L = true ∧ ¬ nset.is_byz L = true ∧
-    (∀ i, ¬ nset.is_byz i = true → (∃ (n : Nat) (E : value), (r.at' n).input i E = true) →
-      ∃ n, (r.at' n).entered i W = true) ∧
-    (∀ i n, ¬ nset.is_byz i = true → (r.at' n).timer_expired i W = true →
-      ∃ (V : view) (E : value), (r.at' n).msg_commitqc V E = true)
+    (∀ (i : node) (V : view), ¬ nset.is_byz i = true → V ≠ W →
+      (∃ n, (r.at' n).entered i V = true) →
+        ∃ n, (r.at' n).timer_expired i V = true) ∧
+    (∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
+      (r.at' n).timer_expired i W = true →
+        ∃ (V : view) (E : value), (r.at' n).msg_commitqc V E = true)
 
 /-- **(F-avail)** — the availability shares arrive. A correct validator that
 accepted a vector eventually has `avail_ready` for it, which is
@@ -1504,11 +1472,12 @@ The argument needs the first moment the view was entered — `entered` is
 monotone and empty initially, so a least index exists — and there the step
 property `entered_needs_certificate` applies.
 
-This is also why the climbing machinery of the previous section is not on
-the path to `TerminationClaim`: (A-viewsync) hands over the entry, and the
-climb would be for *deriving* that entry rather than assuming it. It is kept
-because that is the honest next target — (A-viewsync) is the strongest of the
-six premises, and the climb is what would let it be weakened. -/
+The same step property, read at the first entry, is what the **climb** uses
+in the other direction: `exists_tc_below_of_entered` keeps the certificate in
+the shape `sync_view` asks for rather than resolving it into a lock. Those
+two lemmas differ only in which of `msg_tc_backed` and `tc_lock_implies_tc`
+they apply, and they are stated separately because a reader of either
+should not have to carry the other. -/
 
 section Predecessor
 
@@ -1582,129 +1551,29 @@ theorem exists_justification_below_of_entered
       · exact ⟨m, Or.inl ⟨w, e, h⟩⟩
     · exact ⟨m, Or.inl ⟨w, e, hlock⟩⟩
 
+/-- **… and in the shape the climb wants**: the bare timeout certificate,
+which is what `sync_view` is guarded on.
+
+`exists_justification_below_of_entered` resolves the certificate into its two
+shapes because the leader link needs the lock; here the opposite is wanted,
+and `tc_lock_implies_tc` — a lock is also a timeout certificate, both set by
+the one step of `form_tc_lock` — is what makes the two interchangeable. -/
+theorem exists_tc_below_of_entered
+    (r : MvbaRun th) {i : node} (hi : ¬ nset.is_byz i = true) {pv W : view}
+    (hnext : vord.next pv W) {n : Nat} (hent : (r.at' n).entered i W = true) :
+    ∃ m, (r.at' m).msg_tc pv = true := by
+  obtain ⟨m, hfalse, htrue⟩ := exists_first_entry r hent
+  have hfalse' : ¬ (r.at' m).entered i W = true := by simp [hfalse]
+  rcases Mvba.reachable_entered_needs_certificate_step (r.reachable m) (r.steps m)
+    i W ⟨hi, hfalse', htrue⟩ with rfl | ⟨PV, hPV, hcert⟩
+  · exact absurd hnext not_next_zero
+  · have hPVpv : PV = pv := next_unique hPV hnext
+    subst hPVpv
+    rcases hcert with h | ⟨w, e, h⟩
+    · exact ⟨m, h⟩
+    · exact ⟨m, Mvba.reachable_tc_lock_implies_tc (r.reachable m) PV w e h⟩
+
 end Entry
-
-/-! ## The assembly
-
-Everything above, in one theorem: **if a run reaches an honest-led view with
-a timeout certificate below it, every correct validator decides.**
-
-The proof is a dichotomy, and both branches are already built.
-
-* *Some correct validator has decided.* Then `decided_backed` turns that into
-  a commit certificate, and the very first link —
-  `eventually_decided_of_commitqc` — carries it to every correct validator.
-  No view reasoning at all.
-* *None has.* Then `SettledIn` is available for the honest quorum and for
-  the leader, the leader proposes, its proposal is one the handlers accept
-  (`honest_preprepare_valid`, `honest_preprepare_justified`), and
-  `terminates_of_settled_honest_view` concludes — which contradicts the
-  branch's own assumption, since the honest quorum is non-empty. So this
-  branch is vacuous, which is the right outcome: a run that reaches a good
-  view cannot fail to decide.
-
-The certificate below the good view is **not** a hypothesis: entering `W` is
-only possible through it, so (A-viewsync)'s entry clause already implies it
-(`exists_justification_below_of_entered`). What separates this from
-`TerminationClaim` is therefore only the shape of (A-viewsync) itself — the
-claim quantifies over runs and this theorem takes the good view and its
-leader as arguments. -/
-
-theorem terminates_of_good_view
-    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset)
-    (r : MvbaRun th) (hfj : FJustice r) (hav : FAvail r) (hna : NoEarlyAbandon r)
-    (hap : AllPropose r)
-    {W : view} {l : node} {pv : view}
-    (hlead : th.leader W l = true) (hl : ¬ nset.is_byz l = true)
-    (hnext : vord.next pv W)
-    (henter : ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).entered i W = true)
-    (hnto : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timer_expired i W = true →
-      ∃ (V : view) (E : value), (r.at' n).msg_commitqc V E = true) :
-    Terminates r := by
-  by_cases hdec : ∃ (j : node) (n : Nat) (E : value),
-      ¬ nset.is_byz j = true ∧ (r.at' n).decided j E = true
-  -- Branch one: a decision already exists, so a certificate does.
-  · obtain ⟨j, nj, Ej, hj, hEj⟩ := hdec
-    obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed (r.reachable nj) j Ej hj hEj
-    intro i hi
-    obtain ⟨m, E, hm⟩ := hap i hi
-    exact eventually_decided_of_commitqc r hfj hna hi
-      (r.mono (P := fun s => s.input i E = true)
-        (fun k hk => Mvba.input.mono (r.steps k) i E hk) hm _ (Nat.le_max_left m nj))
-      (r.mono (P := fun s => s.msg_commitqc V Ej = true)
-        (fun k hk => Mvba.msg_commitqc.mono (r.steps k) V Ej hk) hV _
-        (Nat.le_max_right m nj))
-  -- Branch two: nobody has decided — which the good view makes impossible.
-  · push Not at hdec
-    have hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true :=
-      fun j n E hj => hdec j n E hj
-    -- (A-viewsync) gives a *certificate* where the argument below wants a
-    -- contradiction; the first link bridges the two, and needs only
-    -- (F-justice). This is the whole reason the premise can be the weaker
-    -- of the two forms.
-    have hto : ∀ i n, ¬ nset.is_byz i = true →
-        (r.at' n).timed_out i W = true → False := by
-      intro i n hi hti
-      -- The premise speaks of the timer; the model says a validator that has
-      -- timed out had one that ran out.
-      obtain ⟨V, E, hV⟩ :=
-        hnto i n hi (Mvba.reachable_timed_out_implies_timer (r.reachable n) i W hi hti)
-      obtain ⟨m, E₀, hm⟩ := hap i hi
-      obtain ⟨k, Ek, hk⟩ :=
-        eventually_decided_of_commitqc r hfj hna hi
-          (r.mono (P := fun s => s.input i E₀ = true)
-            (fun j hj => Mvba.input.mono (r.steps j) i E₀ hj) hm _ (Nat.le_max_left m n))
-          (r.mono (P := fun s => s.msg_commitqc V E = true)
-            (fun j hj => Mvba.msg_commitqc.mono (r.steps j) V E hj) hV _
-            (Nat.le_max_right m n))
-      exact hnodec i k Ek hi hk
-    -- The honest quorum, settled at one index.
-    obtain ⟨Nq, hq⟩ :=
-      exists_settled_quorum_of_no_decision enum r hto hna hnodec
-        hqe.honestQuorum_correct
-        (fun p hp => henter p (hqe.honestQuorum_correct p hp))
-    -- The leader, settled at its own.
-    obtain ⟨Nl, hNl⟩ := henter l hl
-    -- The certificate below the good view is not assumed: entering `W` is
-    -- only possible through it.
-    obtain ⟨Nt, hNt⟩ := exists_justification_below_of_entered r hl hnext hNl
-    -- One index for all three.
-    have h1 : Nq ≤ max Nq (max Nl Nt) := Nat.le_max_left _ _
-    have h2 : Nl ≤ max Nq (max Nl Nt) :=
-      Nat.le_trans (Nat.le_max_left Nl Nt) (Nat.le_max_right _ _)
-    have h3 : Nt ≤ max Nq (max Nl Nt) :=
-      Nat.le_trans (Nat.le_max_right Nl Nt) (Nat.le_max_right _ _)
-    have hsl : SettledIn r l W (max Nq (max Nl Nt)) :=
-      settledIn_of_no_decision r hto hna hnodec hl
-        (r.mono (P := fun s => s.entered l W = true)
-          (fun k hk => Mvba.entered.mono (r.steps k) l W hk) hNl _ h2)
-    -- Carried forward to the common index, monotonically.
-    have hjust : (∃ w e, (r.at' (max Nq (max Nl Nt))).tc_lock pv w e = true) ∨
-        (r.at' (max Nq (max Nl Nt))).tc_nolock pv = true := by
-      rcases hNt with ⟨w, e, h⟩ | h
-      · exact Or.inl ⟨w, e, r.mono (P := fun s => s.tc_lock pv w e = true)
-          (fun k hk => Mvba.tc_lock.mono (r.steps k) pv w e hk) h _ h3⟩
-      · exact Or.inr (r.mono (P := fun s => s.tc_nolock pv = true)
-          (fun k hk => Mvba.tc_nolock.mono (r.steps k) pv hk) h _ h3)
-    -- The leader proposes, and what it proposes the handlers accept.
-    obtain ⟨n₀, E₀, hn₀, hpp⟩ :=
-      eventually_preprepare_of_settled_leader r hfj hl hsl hnext hlead hjust
-    have hvalid : th.valid E₀ = true :=
-      Mvba.reachable_honest_preprepare_valid (r.reachable n₀) l W E₀ hl hpp
-    have hjust₀ : (∃ w, (r.at' n₀).tc_lock pv w E₀ = true) ∨
-        (r.at' n₀).tc_nolock pv = true :=
-      Mvba.reachable_honest_preprepare_justified (r.reachable n₀) l W E₀ pv hl hpp hnext
-    -- The view decides — contradicting this branch.
-    have hterm : Terminates r :=
-      terminates_of_settled_honest_view enum r hfj hav hna hqe hap hl hnext hlead hpp
-        hvalid hjust₀
-        (fun p hp => (hq p hp).later (Nat.le_trans h1 hn₀))
-    obtain ⟨R, hRq⟩ :=
-      nset.greater_than_third_one_honest hqe.honestQuorum
-        (nset.supermajority_greater_than_third _ hqe.honestQuorum_supermajority)
-    obtain ⟨nR, ER, hR⟩ := hterm R hRq.2
-    exact absurd hR (hnodec R nR ER hRq.2)
 
 /-! ## Monotone growth over a finite list stops
 
@@ -1745,98 +1614,6 @@ theorem eventually_no_new (r : MvbaRun th) {α : Type}
           ha hPN hPm
       obtain ⟨n, hn, hstab⟩ := ih (residual Vs (fun a => P a (r.at' m))) (by omega) m rfl
       exact ⟨n, Nat.le_trans hm hn, hstab⟩
-
-/-! ## Climbing the view order terminates
-
-Climbing is unbounded in a way nothing else in the proof is — a validator
-advances one view at a time and the order has no top — so this is the one
-place a **measure** is needed rather than another eventuality, and where
-[`Rank.lean`](./Rank.lean)'s counting is put to work on views.
-
-**The measure is not "views not yet entered".** That was the first attempt
-and it is wrong: a validator may legitimately skip views, syncing from view
-1 straight to view 5 on a certificate, and then never enters 2, 3 or 4, so
-such a count never reaches zero. What does work is counting the views still
-**ahead** of it — those strictly above everything it has entered. That falls
-as the validator advances, whether it advances one view or five, and its
-reaching zero says the validator has caught up with the whole list.
-
-The finiteness is the covering list again, and this is its fourth use after
-counting, maximising and stabilising. -/
-
-/-- `u` is still **ahead** of `i`: every view `i` has entered is strictly
-below it. Anti-monotone, so its negation is what gets counted. -/
-def Ahead (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
-    (i : node) (u : view) : Prop :=
-  ∀ V, st.entered i V = true → vord.lt V u
-
-/-- How many of the counted views are still ahead of `i`. -/
-noncomputable def aheadGap (Vs : List view)
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
-    (i : node) : Nat :=
-  residual Vs (fun u => ¬ Ahead st i u)
-
-/-- **A non-increasing measure that can always be lowered reaches zero.**
-Pure arithmetic on a sequence of naturals: no run, no protocol, which is the
-point — the climbing argument stays separate from what makes each step
-possible. -/
-theorem eventually_measure_zero (μ : Nat → Nat)
-    (hstep : ∀ N, μ N ≠ 0 → ∃ n, N ≤ n ∧ μ n < μ N) :
-    ∀ N, ∃ n, N ≤ n ∧ μ n = 0 := by
-  intro N
-  generalize hk : μ N = k
-  induction k using Nat.strong_induction_on generalizing N with
-  | _ k ih =>
-    by_cases h0 : k = 0
-    · exact ⟨N, Nat.le_refl N, by omega⟩
-    · obtain ⟨n, hn, hlt⟩ := hstep N (by omega)
-      obtain ⟨m, hm, hm0⟩ := ih (μ n) (by omega) n rfl
-      exact ⟨m, Nat.le_trans hn hm, hm0⟩
-
-section Climb
-
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
-  [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
-
-/-- The measure never grows: entering a view only removes views from those
-ahead. -/
-theorem aheadGap_le (r : MvbaRun th) (Vs : List view) (i : node) {m n : Nat}
-    (hmn : m ≤ n) : aheadGap Vs (r.at' n) i ≤ aheadGap Vs (r.at' m) i :=
-  residual_le
-    (fun _ hu hA => hu (fun V hV =>
-      hA V (r.mono (P := fun s => s.entered i V = true)
-        (fun j hj => Mvba.entered.mono (r.steps j) i V hj) hV n hmn)))
-    Vs
-
-/-- **Advancing lowers it.** If a view of the list was ahead and has since
-been entered, the measure has strictly fallen. -/
-theorem aheadGap_lt_of_entered (r : MvbaRun th) (Vs : List view) (i : node)
-    {m n : Nat} (hmn : m ≤ n) {u : view} (hu : u ∈ Vs)
-    (hahead : Ahead (r.at' m) i u) (hent : (r.at' n).entered i u = true) :
-    aheadGap Vs (r.at' n) i < aheadGap Vs (r.at' m) i :=
-  residual_lt_of_new
-    (fun _ hb hA => hb (fun V hV =>
-      hA V (r.mono (P := fun s => s.entered i V = true)
-        (fun j hj => Mvba.entered.mono (r.steps j) i V hj) hV n hmn)))
-    hu (fun hc => hc hahead)
-    (fun hA => absurd (hA u hent) (fun hlt => ((vord.le_lt u u).mp hlt).2 rfl))
-
-/-- **Measure zero is having caught up.** With every entered view at or below
-`W` and `W` counted, a zero measure means `W` itself has been entered. -/
-theorem entered_of_aheadGap_zero (r : MvbaRun th) (Vs : List view) (i : node)
-    {n : Nat} {W : view} (hW : W ∈ Vs)
-    (hle : ∀ V, (r.at' n).entered i V = true → vord.le V W)
-    (hz : aheadGap Vs (r.at' n) i = 0) : (r.at' n).entered i W = true := by
-  have hnA : ¬ Ahead (r.at' n) i W := residual_eq_zero_iff.mp hz W hW
-  by_contra hnot
-  exact hnA (fun V hV => by
-    refine (vord.le_lt V W).mpr ⟨hle V hV, ?_⟩
-    rintro rfl
-    exact hnot hV)
-
-end Climb
 
 /-! ## An expired timer produces a `Timeout`
 
@@ -2082,24 +1859,429 @@ theorem eventually_tc_of_timed_out_quorum
                   hWle⟩))
     exact hcon (n + 1) (by omega) (form_tc_lock_effect (hfire ▸ r.steps n))
 
+/-! ## Reaching the good view
+
+The longest argument in the file, and what turns (A-viewsync) from a
+synchronisation assumption into a statement about timers. Everything above
+either fixed the good view or assumed it had been entered; this derives the
+entry.
+
+**Why it is not one more eventuality.** Nothing moves a validator forward
+except a timeout certificate for the view below it, and a certificate needs
+a *quorum* to have timed out in **one common view**. So the argument is
+about the honest quorum as a body, and it runs on a measure — how many of
+the covered views the quorum has entered, which only grows and is bounded:
+
+1. every member has entered view 1 (`input_implies_entered`, from the
+   participation premise: having proposed *is* being in view 1);
+2. let `M` be the highest view any member has reached — `exists_greatest`
+   over the covering list, since a total order gives no maximum by itself;
+3. if `M` is the good view, the certificate below it already exists
+   (`exists_tc_below_of_entered`) and there is nothing left to do;
+4. otherwise either some member reaches a view no member had reached, which
+   **lowers the measure**, or no member ever does — in which case the quorum
+   is pinned at `M` for ever, and that is refuted: everyone catches up to `M`
+   through the certificate that opened it, their timers run out (the first
+   clause of (A-viewsync), available because `M` is *not* the good view),
+   they all time out, the view closes, and somebody leaves it.
+
+The good view's own clause enters upstream of all of this, as `hto`: no
+correct validator ever times out in `W`. That is what bounds the whole run
+at or below `W` (`entered_le_of_no_timeout`) and so keeps `M` inside the
+covering list — and it is also why nobody can *skip* the good view on the
+way past.
+
+**What the view order has to supply** is
+[`ViewOrder.lean`](../ViewOrder.lean): successors exist, and the views below
+one are finitely many. Neither is in `TotalOrderWithMinimum`. The first is
+not a proof convenience — `sync_view` is guarded on `vord.next pv v`, so a
+view with nothing directly above it is a view no validator can leave. -/
+
+/-- **A measure that can always be lowered while the goal is unmet reaches
+it.** Pure arithmetic on a sequence of naturals: no run and no protocol,
+which is the point — the climbing argument stays separate from whatever
+makes each individual step possible. -/
+theorem eventually_of_measure (μ : Nat → Nat) (G : Nat → Prop)
+    (hstep : ∀ N, ∃ n, N ≤ n ∧ (G n ∨ μ n < μ N)) : ∀ N, ∃ n, N ≤ n ∧ G n := by
+  intro N
+  generalize hk : μ N = k
+  induction k using Nat.strong_induction_on generalizing N with
+  | _ k ih =>
+    obtain ⟨n, hn, h⟩ := hstep N
+    rcases h with hG | hlt
+    · exact ⟨n, hn, hG⟩
+    · obtain ⟨m, hm, hG⟩ := ih (μ n) (by omega) n rfl
+      exact ⟨m, Nat.le_trans hn hm, hG⟩
+
+/-- **The view below the good one gets a timeout certificate.** The climb
+itself, by the measure described above. -/
+theorem eventually_tc_below_good
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset)
+    (vfin : Cadence.ViewOrderEnum view vord)
+    (r : MvbaRun th) (hfj : FJustice r) (hap : AllPropose r)
+    {W PV : view} (hnext : vord.next PV W)
+    (hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
+      ¬ (r.at' n).abandoned i = true)
+    (hto : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
+      (r.at' n).timed_out i W = true → False)
+    (hftimer : ∀ (i : node) (V : view), ¬ nset.is_byz i = true → V ≠ W →
+      (∃ n, (r.at' n).entered i V = true) →
+        ∃ n, (r.at' n).timer_expired i V = true) :
+    ∃ n, (r.at' n).msg_tc PV = true := by
+  classical
+  have hQc := hqe.honestQuorum_correct
+  have hQs := hqe.honestQuorum_supermajority
+  have hcov : ∀ V, vord.le V W → V ∈ vfin.below W := vfin.mem_below W
+  have hle : ∀ (n : Nat) (j : node) (V : view), ¬ nset.is_byz j = true →
+      (r.at' n).entered j V = true → vord.le V W := entered_le_of_no_timeout r hto
+  obtain ⟨R₀, hR₀⟩ :=
+    nset.greater_than_third_one_honest hqe.honestQuorum
+      (nset.supermajority_greater_than_third _ hQs)
+  -- The measure: covered views no member of the honest quorum has entered.
+  set P : Nat → view → Prop :=
+    fun n U => ∃ p, nset.member p hqe.honestQuorum = true ∧ (r.at' n).entered p U = true
+    with hP
+  have hPmono : ∀ {m n : Nat}, m ≤ n → ∀ U, P m U → P n U := by
+    rintro m n hmn U ⟨p, hp, hU⟩
+    exact ⟨p, hp, r.mono (P := fun s => s.entered p U = true)
+      (fun j hj => Mvba.entered.mono (r.steps j) p U hj) hU n hmn⟩
+  have hstep : ∀ N, ∃ n, N ≤ n ∧ ((r.at' n).msg_tc PV = true ∨
+      residual (vfin.below W) (P n) < residual (vfin.below W) (P N)) := by
+    intro N
+    -- Every member has entered view 1, at one index.
+    obtain ⟨N₁, hN₁, hzero⟩ :=
+      eventually_quorum enum r (N := N) (fun p s => s.entered p vord.zero = true)
+        (fun p m hm => Mvba.entered.mono (r.steps m) p vord.zero hm)
+        (fun p hp => by
+          obtain ⟨m, E, hm⟩ := hap p (hQc p hp)
+          exact ⟨max N m, Nat.le_max_left N m,
+            Mvba.reachable_input_implies_entered (r.reachable _) p E (hQc p hp)
+              (r.mono (P := fun s => s.input p E = true)
+                (fun j hj => Mvba.input.mono (r.steps j) p E hj) hm _
+                (Nat.le_max_right N m))⟩)
+    -- The greatest view any member has entered there.
+    obtain ⟨M, hMmem, hMent, hMmax⟩ :=
+      exists_greatest vord.le vord.le_total (fun a b c => vord.le_trans a b c)
+        (P N₁) (vfin.below W) vord.zero (hcov vord.zero (vord.zero_lt W))
+        ⟨R₀, hR₀.1, hzero R₀ hR₀.1⟩
+    obtain ⟨pM, hpMq, hpM⟩ := hMent
+    by_cases hMW : M = W
+    -- A member is already in the good view: the certificate below it exists.
+    · subst hMW
+      obtain ⟨m, hm⟩ := exists_tc_below_of_entered r (hQc pM hpMq) hnext hpM
+      exact ⟨max N₁ m, Nat.le_trans hN₁ (Nat.le_max_left _ _),
+        Or.inl (r.mono (P := fun s => s.msg_tc PV = true)
+          (fun j hj => Mvba.msg_tc.mono (r.steps j) PV hj) hm _
+          (Nat.le_max_right _ _))⟩
+    · have hMltW : vord.lt M W :=
+        (vord.le_lt M W).mpr ⟨hle N₁ pM M (hQc pM hpMq) hpM, hMW⟩
+      by_cases hup : ∃ (n : Nat) (U : view) (p : node), N₁ ≤ n ∧ U ∈ vfin.below W ∧
+          nset.member p hqe.honestQuorum = true ∧ (r.at' n).entered p U = true ∧
+          ∀ p', nset.member p' hqe.honestQuorum = true →
+            ¬ (r.at' N₁).entered p' U = true
+      -- Someone reached a view no member had: the measure fell.
+      · obtain ⟨n, U, p, hn, hU, hp, hent, hnew⟩ := hup
+        refine ⟨n, Nat.le_trans hN₁ hn, Or.inr ?_⟩
+        exact Nat.lt_of_lt_of_le
+          (residual_lt_of_new (hPmono hn) hU (fun ⟨p', hp', h'⟩ => hnew p' hp' h')
+            ⟨p, hp, hent⟩)
+          (residual_le (hPmono hN₁) (vfin.below W))
+      -- Nobody ever does — which the rest of this branch refutes.
+      · push Not at hup
+        exfalso
+        have hbound : ∀ n, N₁ ≤ n → ∀ p, nset.member p hqe.honestQuorum = true →
+            ∀ U, (r.at' n).entered p U = true → vord.le U M := by
+          intro n hn p hp U hU
+          have hUVs : U ∈ vfin.below W := hcov U (hle n p U (hQc p hp) hU)
+          obtain ⟨p', hp', h'⟩ := hup n U p hn hUVs hp hU
+          exact hMmax U hUVs ⟨p', hp', h'⟩
+        -- Every member catches up to `M`, through the certificate that
+        -- opened it.
+        have hcatch : ∃ N₂, N₁ ≤ N₂ ∧
+            ∀ p, nset.member p hqe.honestQuorum = true →
+              (r.at' N₂).entered p M = true := by
+          obtain ⟨m₀, hm₀f, hm₀t⟩ := exists_first_entry r hpM
+          have hm₀f' : ¬ (r.at' m₀).entered pM M = true := by simp [hm₀f]
+          rcases Mvba.reachable_entered_needs_certificate_step (r.reachable m₀)
+              (r.steps m₀) pM M ⟨hQc pM hpMq, hm₀f', hm₀t⟩ with rfl | ⟨PM, hPM, hc⟩
+          · exact ⟨N₁, Nat.le_refl _, hzero⟩
+          · have htc : (r.at' m₀).msg_tc PM = true := by
+              rcases hc with h | ⟨w, e, h⟩
+              · exact h
+              · exact Mvba.reachable_tc_lock_implies_tc (r.reachable m₀) PM w e h
+            refine eventually_quorum enum r (N := N₁)
+              (fun p s => s.entered p M = true)
+              (fun p m hm => Mvba.entered.mono (r.steps m) p M hm) (fun p hp => ?_)
+            obtain ⟨mp, Ep, hmp⟩ := hap p (hQc p hp)
+            obtain ⟨n, V, hn, hV, hlt⟩ :=
+              eventually_entered_above_of_tc r hfj (hQc p hp)
+                (N := max (max N₁ m₀) mp) hPM
+                (fun n _ => hnab p n (hQc p hp))
+                (r.mono (P := fun s => s.input p Ep = true)
+                  (fun j hj => Mvba.input.mono (r.steps j) p Ep hj) hmp _
+                  (Nat.le_max_right _ _))
+                (r.mono (P := fun s => s.msg_tc PM = true)
+                  (fun j hj => Mvba.msg_tc.mono (r.steps j) PM hj) htc _
+                  (Nat.le_trans (Nat.le_max_right N₁ m₀) (Nat.le_max_left _ _)))
+            have hNn : N₁ ≤ n :=
+              Nat.le_trans (Nat.le_trans (Nat.le_max_left N₁ m₀) (Nat.le_max_left _ _)) hn
+            exact ⟨n, hNn, vord.le_antisymm V M (hbound n hNn p hp V hV)
+              (((vord.next_def PM M).mp hPM).2 V hlt) ▸ hV⟩
+        obtain ⟨N₂, hN₂, hentM⟩ := hcatch
+        -- `M` is their current view from then on.
+        have hview : ∀ p, nset.member p hqe.honestQuorum = true →
+            ∀ n, N₂ ≤ n → InView (r.at' n) p M := by
+          intro p hp n hn
+          exact ⟨r.mono (P := fun s => s.entered p M = true)
+            (fun j hj => Mvba.entered.mono (r.steps j) p M hj) (hentM p hp) n hn,
+            fun V hV => hbound n (Nat.le_trans hN₂ hn) p hp V hV⟩
+        -- Their timers run out — the clause of (A-viewsync) that covers
+        -- every view but the good one, and `M` is not it.
+        obtain ⟨N₃, hN₃, htimer⟩ :=
+          eventually_quorum enum r (N := N₂) (fun p s => s.timer_expired p M = true)
+            (fun p m hm => Mvba.timer_expired.mono (r.steps m) p M hm)
+            (fun p hp => by
+              obtain ⟨n, hn⟩ := hftimer p M (hQc p hp) hMW ⟨N₂, hentM p hp⟩
+              exact ⟨max N₂ n, Nat.le_max_left _ _,
+                r.mono (P := fun s => s.timer_expired p M = true)
+                  (fun j hj => Mvba.timer_expired.mono (r.steps j) p M hj) hn _
+                  (Nat.le_max_right _ _)⟩)
+        -- … so they all time out …
+        obtain ⟨N₄, hN₄, hsent⟩ :=
+          eventually_quorum enum r (N := N₃) (fun p s => SentTimeout s p M)
+            (fun p m hm => by
+              rcases hm with h | ⟨w, e, h⟩
+              · exact Or.inl (Mvba.msg_timeout_noqc.mono (r.steps m) p M h)
+              · exact Or.inr ⟨w, e, Mvba.msg_timeout_qc.mono (r.steps m) p M w e h⟩)
+            (fun p hp => by
+              obtain ⟨mp, Ep, hmp⟩ := hap p (hQc p hp)
+              obtain ⟨n, hn, hti⟩ :=
+                eventually_timed_out_of_timer r hfj (hQc p hp) (N := max N₃ mp)
+                  (vfin.below W)
+                  (fun V hV => hcov V (vord.le_trans V M W hV
+                    ((vord.le_lt M W).mp hMltW).1))
+                  (fun n hn => hview p hp n
+                    (Nat.le_trans hN₃ (Nat.le_trans (Nat.le_max_left _ _) hn)))
+                  (fun n _ => hnab p n (hQc p hp))
+                  (r.mono (P := fun s => s.input p Ep = true)
+                    (fun j hj => Mvba.input.mono (r.steps j) p Ep hj) hmp _
+                    (Nat.le_max_right _ _))
+                  (r.mono (P := fun s => s.timer_expired p M = true)
+                    (fun j hj => Mvba.timer_expired.mono (r.steps j) p M hj)
+                    (htimer p hp) _ (Nat.le_max_left _ _))
+              exact ⟨n, Nat.le_trans (Nat.le_max_left _ _) hn,
+                Mvba.reachable_timed_out_implies_message (r.reachable n) p M
+                  (hQc p hp) hti⟩)
+        -- … the view closes …
+        obtain ⟨N₅, hN₅, htc⟩ :=
+          eventually_tc_of_timed_out_quorum enum r hfj hQs hsent
+        -- … and somebody leaves it, which the bound forbids.
+        obtain ⟨mp, Ep, hmp⟩ := hap R₀ hR₀.2
+        obtain ⟨n, V, hn, hV, hlt⟩ :=
+          eventually_entered_above_of_tc r hfj hR₀.2 (N := max N₅ mp)
+            (vfin.next_succ M)
+            (fun n _ => hnab R₀ n hR₀.2)
+            (r.mono (P := fun s => s.input R₀ Ep = true)
+              (fun j hj => Mvba.input.mono (r.steps j) R₀ Ep hj) hmp _
+              (Nat.le_max_right _ _))
+            (r.mono (P := fun s => s.msg_tc M = true)
+              (fun j hj => Mvba.msg_tc.mono (r.steps j) M hj) htc _
+              (Nat.le_max_left _ _))
+        have hNn : N₁ ≤ n :=
+          Nat.le_trans hN₂ (Nat.le_trans hN₃ (Nat.le_trans hN₄ (Nat.le_trans hN₅
+            (Nat.le_trans (Nat.le_max_left _ _) hn))))
+        exact ((vord.le_lt M V).mp hlt).2
+          (vord.le_antisymm M V ((vord.le_lt M V).mp hlt).1
+            (hbound n hNn R₀ hR₀.1 V hV))
+  obtain ⟨n, -, hn⟩ :=
+    eventually_of_measure (fun n => residual (vfin.below W) (P n))
+      (fun n => (r.at' n).msg_tc PV = true) hstep 0
+  exact ⟨n, hn⟩
+
+/-- **Every correct validator enters the good view.** What (A-viewsync) used
+to assume, in one step from the certificate below it: a validator that has
+proposed advances past `PV`, and it cannot advance further than `W`, because
+that would need a correct validator to have timed out there. -/
+theorem eventually_entered_good
+    (r : MvbaRun th) (hfj : FJustice r) (hap : AllPropose r)
+    {W PV : view} (hnext : vord.next PV W)
+    (hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
+      ¬ (r.at' n).abandoned i = true)
+    (hto : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
+      (r.at' n).timed_out i W = true → False)
+    (htc : ∃ n, (r.at' n).msg_tc PV = true) :
+    ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).entered i W = true := by
+  intro i hi
+  obtain ⟨m, hm⟩ := htc
+  obtain ⟨mp, E, hmp⟩ := hap i hi
+  obtain ⟨n, V, hn, hV, hlt⟩ :=
+    eventually_entered_above_of_tc r hfj hi (N := max m mp) hnext
+      (fun n _ => hnab i n hi)
+      (r.mono (P := fun s => s.input i E = true)
+        (fun j hj => Mvba.input.mono (r.steps j) i E hj) hmp _ (Nat.le_max_right _ _))
+      (r.mono (P := fun s => s.msg_tc PV = true)
+        (fun j hj => Mvba.msg_tc.mono (r.steps j) PV hj) hm _ (Nat.le_max_left _ _))
+  exact ⟨n, vord.le_antisymm V W (entered_le_of_no_timeout r hto n i V hi hV)
+    (((vord.next_def PV W).mp hnext).2 V hlt) ▸ hV⟩
+
+/-! ## The assembly
+
+Everything above, in one theorem: **if a run reaches an honest-led view with
+a timeout certificate below it, every correct validator decides.**
+
+The proof is a dichotomy, and both branches are already built.
+
+* *Some correct validator has decided.* Then `decided_backed` turns that into
+  a commit certificate, and the very first link —
+  `eventually_decided_of_commitqc` — carries it to every correct validator.
+  No view reasoning at all.
+* *None has.* Then `SettledIn` is available for the honest quorum and for
+  the leader, the leader proposes, its proposal is one the handlers accept
+  (`honest_preprepare_valid`, `honest_preprepare_justified`), and
+  `terminates_of_settled_honest_view` concludes — which contradicts the
+  branch's own assumption, since the honest quorum is non-empty. So this
+  branch is vacuous, which is the right outcome: a run that reaches a good
+  view cannot fail to decide.
+
+Neither the entry into the good view nor the certificate below it is a
+hypothesis. The entry is `eventually_entered_good`, the section above; the
+certificate follows from it, because entering `W` is only possible through
+one (`exists_justification_below_of_entered`). What separates this from
+`TerminationClaim` is therefore only the shape of (A-viewsync) itself — the
+claim quantifies over runs and this theorem takes the good view and its
+leader as arguments. -/
+
+theorem terminates_of_good_view
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset)
+    (vfin : Cadence.ViewOrderEnum view vord)
+    (r : MvbaRun th) (hfj : FJustice r) (hav : FAvail r) (hna : NoEarlyAbandon r)
+    (hap : AllPropose r)
+    {W : view} {l : node} {pv : view}
+    (hlead : th.leader W l = true) (hl : ¬ nset.is_byz l = true)
+    (hnext : vord.next pv W)
+    (hftimer : ∀ (i : node) (V : view), ¬ nset.is_byz i = true → V ≠ W →
+      (∃ n, (r.at' n).entered i V = true) →
+        ∃ n, (r.at' n).timer_expired i V = true)
+    (hnto : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timer_expired i W = true →
+      ∃ (V : view) (E : value), (r.at' n).msg_commitqc V E = true) :
+    Terminates r := by
+  by_cases hdec : ∃ (j : node) (n : Nat) (E : value),
+      ¬ nset.is_byz j = true ∧ (r.at' n).decided j E = true
+  -- Branch one: a decision already exists, so a certificate does.
+  · obtain ⟨j, nj, Ej, hj, hEj⟩ := hdec
+    obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed (r.reachable nj) j Ej hj hEj
+    intro i hi
+    obtain ⟨m, E, hm⟩ := hap i hi
+    exact eventually_decided_of_commitqc r hfj hna hi
+      (r.mono (P := fun s => s.input i E = true)
+        (fun k hk => Mvba.input.mono (r.steps k) i E hk) hm _ (Nat.le_max_left m nj))
+      (r.mono (P := fun s => s.msg_commitqc V Ej = true)
+        (fun k hk => Mvba.msg_commitqc.mono (r.steps k) V Ej hk) hV _
+        (Nat.le_max_right m nj))
+  -- Branch two: nobody has decided — which the good view makes impossible.
+  · push Not at hdec
+    have hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true :=
+      fun j n E hj => hdec j n E hj
+    -- (A-viewsync) gives a *certificate* where the argument below wants a
+    -- contradiction; the first link bridges the two, and needs only
+    -- (F-justice). This is the whole reason the premise can be the weaker
+    -- of the two forms.
+    have hto : ∀ i n, ¬ nset.is_byz i = true →
+        (r.at' n).timed_out i W = true → False := by
+      intro i n hi hti
+      -- The premise speaks of the timer; the model says a validator that has
+      -- timed out had one that ran out.
+      obtain ⟨V, E, hV⟩ :=
+        hnto i n hi (Mvba.reachable_timed_out_implies_timer (r.reachable n) i W hi hti)
+      obtain ⟨m, E₀, hm⟩ := hap i hi
+      obtain ⟨k, Ek, hk⟩ :=
+        eventually_decided_of_commitqc r hfj hna hi
+          (r.mono (P := fun s => s.input i E₀ = true)
+            (fun j hj => Mvba.input.mono (r.steps j) i E₀ hj) hm _ (Nat.le_max_left m n))
+          (r.mono (P := fun s => s.msg_commitqc V E = true)
+            (fun j hj => Mvba.msg_commitqc.mono (r.steps j) V E hj) hV _
+            (Nat.le_max_right m n))
+      exact hnodec i k Ek hi hk
+    -- Nobody is abandoned either, for the same reason.
+    have hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
+        ¬ (r.at' n).abandoned i = true := by
+      intro i n hi hab
+      obtain ⟨E, hE⟩ := hna i n hi hab
+      exact hnodec i n E hi hE
+    -- The good view is *reached*, not assumed.
+    have henter : ∀ i, ¬ nset.is_byz i = true →
+        ∃ n, (r.at' n).entered i W = true :=
+      eventually_entered_good r hfj hap hnext hnab hto
+        (eventually_tc_below_good enum hqe vfin r hfj hap hnext hnab hto hftimer)
+    -- The honest quorum, settled at one index.
+    obtain ⟨Nq, hq⟩ :=
+      exists_settled_quorum_of_no_decision enum r hto hna hnodec
+        hqe.honestQuorum_correct
+        (fun p hp => henter p (hqe.honestQuorum_correct p hp))
+    -- The leader, settled at its own.
+    obtain ⟨Nl, hNl⟩ := henter l hl
+    -- The certificate below the good view is not assumed: entering `W` is
+    -- only possible through it.
+    obtain ⟨Nt, hNt⟩ := exists_justification_below_of_entered r hl hnext hNl
+    -- One index for all three.
+    have h1 : Nq ≤ max Nq (max Nl Nt) := Nat.le_max_left _ _
+    have h2 : Nl ≤ max Nq (max Nl Nt) :=
+      Nat.le_trans (Nat.le_max_left Nl Nt) (Nat.le_max_right _ _)
+    have h3 : Nt ≤ max Nq (max Nl Nt) :=
+      Nat.le_trans (Nat.le_max_right Nl Nt) (Nat.le_max_right _ _)
+    have hsl : SettledIn r l W (max Nq (max Nl Nt)) :=
+      settledIn_of_no_decision r hto hna hnodec hl
+        (r.mono (P := fun s => s.entered l W = true)
+          (fun k hk => Mvba.entered.mono (r.steps k) l W hk) hNl _ h2)
+    -- Carried forward to the common index, monotonically.
+    have hjust : (∃ w e, (r.at' (max Nq (max Nl Nt))).tc_lock pv w e = true) ∨
+        (r.at' (max Nq (max Nl Nt))).tc_nolock pv = true := by
+      rcases hNt with ⟨w, e, h⟩ | h
+      · exact Or.inl ⟨w, e, r.mono (P := fun s => s.tc_lock pv w e = true)
+          (fun k hk => Mvba.tc_lock.mono (r.steps k) pv w e hk) h _ h3⟩
+      · exact Or.inr (r.mono (P := fun s => s.tc_nolock pv = true)
+          (fun k hk => Mvba.tc_nolock.mono (r.steps k) pv hk) h _ h3)
+    -- The leader proposes, and what it proposes the handlers accept.
+    obtain ⟨n₀, E₀, hn₀, hpp⟩ :=
+      eventually_preprepare_of_settled_leader r hfj hl hsl hnext hlead hjust
+    have hvalid : th.valid E₀ = true :=
+      Mvba.reachable_honest_preprepare_valid (r.reachable n₀) l W E₀ hl hpp
+    have hjust₀ : (∃ w, (r.at' n₀).tc_lock pv w E₀ = true) ∨
+        (r.at' n₀).tc_nolock pv = true :=
+      Mvba.reachable_honest_preprepare_justified (r.reachable n₀) l W E₀ pv hl hpp hnext
+    -- The view decides — contradicting this branch.
+    have hterm : Terminates r :=
+      terminates_of_settled_honest_view enum r hfj hav hna hqe hap hl hnext hlead hpp
+        hvalid hjust₀
+        (fun p hp => (hq p hp).later (Nat.le_trans h1 hn₀))
+    obtain ⟨R, hRq⟩ :=
+      nset.greater_than_third_one_honest hqe.honestQuorum
+        (nset.supermajority_greater_than_third _ hqe.honestQuorum_supermajority)
+    obtain ⟨nR, ER, hR⟩ := hterm R hRq.2
+    exact absurd hR (hnodec R nR ER hRq.2)
+
 /-! ## The claim, proven
 
 `TerminationClaim` was written down before any of its proof existed, so that
 its premises were fixed in advance rather than discovered. Here it is
 discharged.
 
-Everything it needs is above; what this adds is only the unpacking. The one
-place the two do not line up by themselves is participation: (A-viewsync)
-conditions its entry clause on a validator having proposed, and `AllPropose`
-supplies that. -/
+Everything it needs is above, and what this adds is only the unpacking —
+which is now literal, every clause of (A-viewsync) going straight to the
+argument of the same name. The three hypotheses the claim does not mention
+are the two quorum classes and the view order's, exactly as the header
+says. -/
 
 theorem termination
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset) :
+    (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset)
+    (vfin : Cadence.ViewOrderEnum view vord) :
     TerminationClaim th := by
-  rintro r hfj ⟨W, PV, l, hnext, hlead, hl, henter, hnto⟩ hav hap hna
-  exact terminates_of_good_view enum hqe r hfj hav hna hap hlead hl hnext
-    (fun i hi => henter i hi (hap i hi)) hnto
+  rintro r hfj ⟨W, PV, l, hnext, hlead, hl, hftimer, hnto⟩ hav hap hna
+  exact terminates_of_good_view enum hqe vfin r hfj hav hna hap hlead hl hnext
+    hftimer hnto
 
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future
@@ -2219,22 +2401,28 @@ info: 'Mvba.termination' depends on axioms: [propext, Classical.choice, Quot.sou
 #print axioms Mvba.termination
 
 /--
-info: 'Mvba.eventually_measure_zero' depends on axioms: [propext, Quot.sound]
+info: 'Mvba.eventually_of_measure' depends on axioms: [propext, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.eventually_measure_zero
+#print axioms Mvba.eventually_of_measure
 
 /--
-info: 'Mvba.aheadGap_lt_of_entered' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.exists_tc_below_of_entered' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.aheadGap_lt_of_entered
+#print axioms Mvba.exists_tc_below_of_entered
 
 /--
-info: 'Mvba.entered_of_aheadGap_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.eventually_tc_below_good' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.entered_of_aheadGap_zero
+#print axioms Mvba.eventually_tc_below_good
+
+/--
+info: 'Mvba.eventually_entered_good' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.eventually_entered_good
 
 /--
 info: 'Mvba.eventually_tc_of_timed_out_quorum' depends on axioms: [propext, Classical.choice, Quot.sound]
