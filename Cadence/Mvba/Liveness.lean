@@ -1748,65 +1748,95 @@ theorem eventually_no_new (r : MvbaRun th) {α : Type}
 
 /-! ## Climbing the view order terminates
 
-The last hypothesis of `terminates_of_good_view` is a timeout certificate
-below the good view, and getting one means a run must *climb* to that view.
-Climbing is unbounded in a way nothing else here is — a validator advances
-one view at a time and the order has no top — so this is the one place a
-**measure** is needed rather than another eventuality, and it is where
-[`Rank.lean`](./Rank.lean)'s first component is finally consumed.
+Climbing is unbounded in a way nothing else in the proof is — a validator
+advances one view at a time and the order has no top — so this is the one
+place a **measure** is needed rather than another eventuality, and where
+[`Rank.lean`](./Rank.lean)'s counting is put to work on views.
 
-`viewGap Vs st i` counts the views of `Vs` that `i` has not yet entered. It
-never grows (`viewGap_le`), and entering a fresh view of `Vs` strictly
-lowers it (`residual_lt_of_new`). So a run in which the validator keeps
-advancing *into* `Vs` reaches gap zero in finitely many advances, and gap
-zero is "every view of `Vs` has been entered" — the target among them.
+**The measure is not "views not yet entered".** That was the first attempt
+and it is wrong: a validator may legitimately skip views, syncing from view
+1 straight to view 5 on a certificate, and then never enters 2, 3 or 4, so
+such a count never reaches zero. What does work is counting the views still
+**ahead** of it — those strictly above everything it has entered. That falls
+as the validator advances, whether it advances one view or five, and its
+reaching zero says the validator has caught up with the whole list.
 
-The finiteness that makes this work is `Vs` being a list, which is the
-§3.3 correction: cofinality of honest leaders gives the *target* and says
-nothing about how many views lie below it, so the list is a parameter. Here
-is where that parameter earns its keep. -/
+The finiteness is the covering list again, and this is its fourth use after
+counting, maximising and stabilising. -/
+
+/-- `u` is still **ahead** of `i`: every view `i` has entered is strictly
+below it. Anti-monotone, so its negation is what gets counted. -/
+def Ahead (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+    (i : node) (u : view) : Prop :=
+  ∀ V, st.entered i V = true → vord.lt V u
+
+/-- How many of the counted views are still ahead of `i`. -/
+noncomputable def aheadGap (Vs : List view)
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+    (i : node) : Nat :=
+  residual Vs (fun u => ¬ Ahead st i u)
 
 /-- **A non-increasing measure that can always be lowered reaches zero.**
-Strong induction on the gap; no protocol content, which is the point — the
-climbing argument is separated from what makes each step possible. -/
-theorem eventually_viewGap_zero
-    (r : MvbaRun th) (Vs : List view) (i : node)
-    (hstep : ∀ N, viewGap Vs (r.at' N) i ≠ 0 →
-      ∃ n, N ≤ n ∧ viewGap Vs (r.at' n) i < viewGap Vs (r.at' N) i) :
-    ∀ N, ∃ n, N ≤ n ∧ viewGap Vs (r.at' n) i = 0 := by
+Pure arithmetic on a sequence of naturals: no run, no protocol, which is the
+point — the climbing argument stays separate from what makes each step
+possible. -/
+theorem eventually_measure_zero (μ : Nat → Nat)
+    (hstep : ∀ N, μ N ≠ 0 → ∃ n, N ≤ n ∧ μ n < μ N) :
+    ∀ N, ∃ n, N ≤ n ∧ μ n = 0 := by
   intro N
-  generalize hk : viewGap Vs (r.at' N) i = k
+  generalize hk : μ N = k
   induction k using Nat.strong_induction_on generalizing N with
   | _ k ih =>
     by_cases h0 : k = 0
     · exact ⟨N, Nat.le_refl N, by omega⟩
     · obtain ⟨n, hn, hlt⟩ := hstep N (by omega)
-      obtain ⟨m, hm, hm0⟩ := ih (viewGap Vs (r.at' n) i) (by omega) n rfl
+      obtain ⟨m, hm, hm0⟩ := ih (μ n) (by omega) n rfl
       exact ⟨m, Nat.le_trans hn hm, hm0⟩
 
-/-- **Entering a fresh view of the list is a strict decrease.** The bridge
-from the protocol steps to the measure: `eventually_entered_above_of_tc`
-produces a newly entered view, and if it is one of the counted ones the gap
-has gone down. -/
-theorem viewGap_lt_of_entered_fresh
-    (r : MvbaRun th) (Vs : List view) (i : node) {N n : Nat} (hNn : N ≤ n)
-    {u : view} (hu : u ∈ Vs)
-    (h0 : (r.at' N).entered i u = false) (h1 : (r.at' n).entered i u = true) :
-    viewGap Vs (r.at' n) i < viewGap Vs (r.at' N) i :=
-  residual_lt_of_new
-    (fun w hw => r.mono (P := fun s => s.entered i w = true)
-      (fun m hm => Mvba.entered.mono (r.steps m) i w hm) hw n hNn)
-    hu (by simp [h0]) h1
+section Climb
 
-/-- **The target view is reached.** Gap zero means every view of `Vs` has
-been entered, so if the target is in the list, the validator is in it. -/
-theorem eventually_entered_of_climbing
-    (r : MvbaRun th) (Vs : List view) (i : node) {W : view} (hW : W ∈ Vs)
-    (hstep : ∀ N, viewGap Vs (r.at' N) i ≠ 0 →
-      ∃ n, N ≤ n ∧ viewGap Vs (r.at' n) i < viewGap Vs (r.at' N) i) :
-    ∃ n, (r.at' n).entered i W = true := by
-  obtain ⟨n, -, hz⟩ := eventually_viewGap_zero r Vs i hstep 0
-  exact ⟨n, entered_of_viewGap_zero hz hW⟩
+variable {node nodeset value view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+  [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
+  {th : Theory node nodeset value view}
+
+/-- The measure never grows: entering a view only removes views from those
+ahead. -/
+theorem aheadGap_le (r : MvbaRun th) (Vs : List view) (i : node) {m n : Nat}
+    (hmn : m ≤ n) : aheadGap Vs (r.at' n) i ≤ aheadGap Vs (r.at' m) i :=
+  residual_le
+    (fun _ hu hA => hu (fun V hV =>
+      hA V (r.mono (P := fun s => s.entered i V = true)
+        (fun j hj => Mvba.entered.mono (r.steps j) i V hj) hV n hmn)))
+    Vs
+
+/-- **Advancing lowers it.** If a view of the list was ahead and has since
+been entered, the measure has strictly fallen. -/
+theorem aheadGap_lt_of_entered (r : MvbaRun th) (Vs : List view) (i : node)
+    {m n : Nat} (hmn : m ≤ n) {u : view} (hu : u ∈ Vs)
+    (hahead : Ahead (r.at' m) i u) (hent : (r.at' n).entered i u = true) :
+    aheadGap Vs (r.at' n) i < aheadGap Vs (r.at' m) i :=
+  residual_lt_of_new
+    (fun _ hb hA => hb (fun V hV =>
+      hA V (r.mono (P := fun s => s.entered i V = true)
+        (fun j hj => Mvba.entered.mono (r.steps j) i V hj) hV n hmn)))
+    hu (fun hc => hc hahead)
+    (fun hA => absurd (hA u hent) (fun hlt => ((vord.le_lt u u).mp hlt).2 rfl))
+
+/-- **Measure zero is having caught up.** With every entered view at or below
+`W` and `W` counted, a zero measure means `W` itself has been entered. -/
+theorem entered_of_aheadGap_zero (r : MvbaRun th) (Vs : List view) (i : node)
+    {n : Nat} {W : view} (hW : W ∈ Vs)
+    (hle : ∀ V, (r.at' n).entered i V = true → vord.le V W)
+    (hz : aheadGap Vs (r.at' n) i = 0) : (r.at' n).entered i W = true := by
+  have hnA : ¬ Ahead (r.at' n) i W := residual_eq_zero_iff.mp hz W hW
+  by_contra hnot
+  exact hnA (fun V hV => by
+    refine (vord.le_lt V W).mpr ⟨hle V hV, ?_⟩
+    rintro rfl
+    exact hnot hV)
+
+end Climb
 
 /-! ## An expired timer produces a `Timeout`
 
@@ -2189,10 +2219,22 @@ info: 'Mvba.termination' depends on axioms: [propext, Classical.choice, Quot.sou
 #print axioms Mvba.termination
 
 /--
-info: 'Mvba.eventually_entered_of_climbing' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.eventually_measure_zero' depends on axioms: [propext, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.eventually_entered_of_climbing
+#print axioms Mvba.eventually_measure_zero
+
+/--
+info: 'Mvba.aheadGap_lt_of_entered' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.aheadGap_lt_of_entered
+
+/--
+info: 'Mvba.entered_of_aheadGap_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.entered_of_aheadGap_zero
 
 /--
 info: 'Mvba.eventually_tc_of_timed_out_quorum' depends on axioms: [propext, Classical.choice, Quot.sound]
