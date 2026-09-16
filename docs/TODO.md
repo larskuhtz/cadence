@@ -140,6 +140,20 @@ come first.
   [`MvbaPlan.md`](./MvbaPlan.md) §4's four instruments that does not already
   exist in some form.
 
+* **Try the timer-priority route, which would remove the good view from
+  the premises entirely.** (A-viewsync)'s second clause is indexed by the
+  good view and has a commit certificate as its consequent; both are forced
+  by the untimed abstraction, and [`MvbaPlan.md`](./MvbaPlan.md) §3.7 gives
+  the argument. The one clock-free alternative worth trying is a *priority*:
+  the timer for a view fires only when no honest non-input action of that
+  view is enabled. It is W-free and certificate-free, it would let the marker
+  be weakly fair, and the good view would come from (A-leader-rotation)
+  alone. §3.7 also lists the three obstacles — availability is not
+  view-indexed, a label-to-view projection is needed, and widening a
+  scheduling premise until the proof goes through is how one re-assumes the
+  conclusion — and the reason it may not be worth it: the clock makes
+  (A-viewsync) a theorem outright.
+
 * **Exhibit a run satisfying `Mvba.termination`'s five premises.** The
   premise set is checked for consistency by argument, not by machine — the
   header of [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean)
