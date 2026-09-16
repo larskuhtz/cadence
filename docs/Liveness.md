@@ -222,9 +222,12 @@ untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
 
 **Staging** (reassess after step 1, which is the risky one):
 
-1. The projection and the fairness transfer, generic, in `Fairness.lean`.
+1. ~~The projection and the fairness transfer, generic, in `Fairness.lean`.~~
+   **Done, 2026-09-16** — §4.2 is the record and the reassessment.
 2. Chorus's label classes and premises — one named `Prop` each, mirroring
-   `Mvba/Liveness.lean`'s four-class discipline and its `label_classified`.
+   `Mvba/Liveness.lean`'s four-class discipline and its `label_classified`;
+   and the `Component` instance for Chorus at the `Mvba` instantiation
+   (§4.2 has the recipe, validated in scratch).
 3. The fast-path chain to a commit certificate.
 4. The fallback and MVBA arms, the second consuming `Mvba.termination`
    through the projection.
@@ -254,8 +257,12 @@ stands. Rules that keep them from colliding:
   one of them rather than in `Fairness.lean`.
 * **The projection is shared conceptual territory** — the bounds leg needs
   the same relation between a composed run and an MVBA run, in its timed
-  form. This leg owns the definition; the bounds leg should refine it rather
-  than invent a second one.
+  form. This leg owns the definition — it is `Cadence.Component` and
+  `Component.Projection` in [`Cadence/Fairness.lean`](../Cadence/Fairness.lean)
+  since 2026-09-16 (§4.2) — and the bounds leg should refine it rather than
+  invent a second one: a timed projection is a `Projection` whose composed
+  run carries a clock, and the index map `Component.idx`/`Component.cover`
+  is what relates the two clocks.
 * Both will append rows and pins to `Cadence.lean` and paragraphs to these
   docs. Expect small textual conflicts there and nothing worse.
 * **One expensive build at a time.** That constraint does not parallelise:
@@ -263,3 +270,125 @@ stands. Rules that keep them from colliding:
   large ones. Two sessions can think in parallel; they cannot both re-solve
   in parallel.
 
+### 4.2 Stage 1, done: the projection, and what it settled
+
+*Record of 2026-09-16. The code is the "Components" half of
+[`Cadence/Fairness.lean`](../Cadence/Fairness.lean); every declaration named
+below is there, and the file's own docstrings carry the reasoning at the
+point of use.*
+
+**What was built.** A `Component sys th sub th'` is one Veil module held
+inside another, given by five first-order facts: the state projection
+`proj`, the outer labels `isSub` that are the part's own steps, the transfer
+of initial states (`init`, which also hands over the part's theory
+assumptions), the frame law for every other label, and `step` — a step of the
+part taken by the whole is a transition of the part under *some* label of
+its own. A `Component.Projection C r` of a composed run `r` is a labelling of
+the part's steps by part labels that explain them (`lbl`, `realizes`)
+together with `scheduled` — the part is stepped infinitely often. From it,
+`Projection.run : LRun sub th'` is the projected run: the part's state at
+each of its steps, indexed through Mathlib's `Nat.nth`. Then:
+
+* `Projection.weaklyFair_iff` — **weak fairness survives the re-indexing, as
+  an equivalence**: `WeaklyFair p.run l'` iff the composed-run reading
+  `p.WeaklyFairIn l'` (enabled at the part's state at every composed index
+  from `N` on ⇒ the whole takes a step of the part labelled `l'` at some
+  composed index from `N` on). The right-to-left direction is the one §4
+  asked for — "a label continuously enabled in the projection was
+  continuously enabled in the composed run" — and it holds because the
+  part's state is constant between its steps. That it is an *iff* is what
+  makes the premise readable at either level with nothing smuggled in.
+* `Projection.proj_eq_run_cover` — the state correspondence: the part's
+  state at any composed index is a state of the projected run (at
+  `Component.cover n`, the number of the part's steps before `n`), and every
+  projected state is by definition the part of a composed one. The three
+  temporal shapes follow as equivalences (`eventually_iff`, `always_iff`,
+  `leadsTo_iff`); these carry a caller's premise into the part's run and the
+  part's conclusion back.
+* `Component.reachable_proj` — the part's state at every composed index is
+  reachable in the part's own system, with **no** scheduling hypothesis. So
+  every invariant the inner module proves holds of the state the outer
+  module holds — which for Chorus is what its `mvba_reachable` invariant
+  says, now derived rather than swept.
+* `Projection.ofScheduled` — a labelling always exists, so the only content
+  of a premise of the form "there is a projection satisfying …" is what is
+  asked of the projection, never its existence.
+
+Every pin is at the standard trio; `Fairness.lean`'s trust-base section
+lists them.
+
+**Two design decisions the stage forced, and why they went the way they did.**
+
+1. *The premise quantifies over a labelling.* The composed run does not
+   record which MVBA action fired: Chorus's `mvba_step` carries only the next
+   MVBA state, and two MVBA labels can explain the same step (any always-
+   enabled action that re-sets a bit already set, for one). A weak-fairness
+   statement is about labels, so it cannot be *derived* for a projection
+   whose labels are chosen by the projection; it has to be *assumed of* a
+   labelling. The premise replacing (A-mvba) is therefore of the shape
+   "∃ `p : C.Projection r`, `Mvba.FJustice p.run ∧ Mvba.AViewSync p.run ∧
+   Mvba.FAvail p.run`" — literally "the composed run's MVBA projection
+   satisfies `Mvba.termination`'s scheduling premises", stated with
+   `Mvba/Liveness.lean`'s own definitions and restating none of them. This
+   is the honest form: the composed model erased the labels, so an assumption
+   about how the MVBA was scheduled has to put them back. The alternative —
+   stating the MVBA fairness on the composed run in terms of `mvba.step`
+   alone — is not weaker, it is *unstatable*: without a labelling there is no
+   "this label fired".
+2. *Infinitude is part of the projection.* `LRun` is an infinite sequence, so
+   an MVBA that is stepped only finitely often has no run in its own
+   vocabulary and `Mvba.termination` cannot be applied to it.
+   `Component.Scheduled` — the part is stepped infinitely often — is
+   therefore a field of `Projection` and so part of the premise. It is a
+   scheduling assumption about the whole (the MVBA is not starved), weaker
+   than weak fairness of `mvba_step` since it says nothing about *which* MVBA
+   step is taken, and it is not vacuous at the `Mvba` instance because
+   `become_avail_ready` is unguarded, so the MVBA always has a step
+   available. It does **not** move `mvba_step` into Chorus's (F-justice): the
+   oracle step stays unfair in Chorus's classification, and the MVBA's
+   scheduling is entirely the new premise's business — which is where §4
+   said it belongs.
+
+**Reassessment (the point of stopping here).** The risky step was the
+generic one, and it is done at the standard trio with no model change and
+no cell added. Stage 2's first item — the `Component` instance for Chorus at
+`mvba := Mvba.mvbaSafety thM` — was then validated in scratch to make sure
+the generic shape fits the generated Chorus artefacts, and it does, from
+three sources and one hand proof:
+
+* `isSub` is a two-constructor match on `Chorus.Label`
+  (`mvba_step`, `mvba_propose`);
+* `frame` is one generated lemma per other action — M13's
+  `Chorus.<action>.frame_mvba_st`, all 38 exist — dispatched by `cases l`
+  with one `case <action> =>` line each. Two things to know: the `MVBASafety`
+  instance has to be put in scope with `letI := Mvba.mvbaSafety thM` before
+  the lemmas will apply (the instance is a *term* at the composed
+  instantiation, not a local instance), and dispatching with a `first | …`
+  list over the 40 lemmas instead of named cases times out in `whnf` — each
+  failing alternative makes the unifier unfold the transition system;
+* `step` is the two oracle actions' guards read off their transition bodies
+  (`chorus_tr`-style: `simp only [Chorus.relationalTransitionSystem,
+  Chorus.Next, Chorus.NextAct]`, then `trSimp`, then the canonical
+  field-representation simp set): `mvba_step` requires `mvba.step`, which at
+  the `Mvba` instance *is* "some non-input label's transition", and
+  `mvba_propose` requires `mvba.propose`, which is the `propose` label's;
+* `init` needs the one hand proof: `mvba_st` is seeded from the theory's
+  `mvba_init_state`, not a literal, so M13 emits no `mvba_st.init` lemma. It
+  is read off the initializer's transition (`Chorus.initializer.ext.tr`) by
+  exposing it and evaluating the field representation — the initializer has
+  a single leaf, so nothing has to be destructured — and the value it hands
+  over is exactly what Chorus's `[mvba_init]` assumption speaks about: at
+  the `Mvba` instance that assumption *is* `sub.assumptions ∧ sub.init`, the
+  two halves of `Component.init`.
+
+So the shape is right and stage 2 is bounded work: the instance file, the
+label classes, and the premises. Nothing in this stage or in the validated
+instance touches `Chorus.lean`, `Interfaces.lean` or `Mvba/Liveness.lean`,
+and the 4 222-cell family is untouched.
+
+**What to watch in stages 3–5.** The `Scheduled` field makes the final
+theorem silent about runs in which the MVBA is stepped finitely often. That
+is correct (it excludes unfair schedulers, as every fairness premise does),
+but it is a premise the paper does not spell out, so it must appear by name
+in `Architecture.md` §4 when (A-mvba) is retired, not be absorbed into
+"(F-justice)".
