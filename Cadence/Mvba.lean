@@ -1002,8 +1002,9 @@ invariant [timed_out_implies_timer]
     ¬ is_byz R → timed_out R V → timer_expired R V
 
 /- **Timing out means having sent a `Timeout`.** The converse of the two
-below, and the direction liveness needs: (F-timeout) delivers the local
-`timedOut_i` flag, while the certificate assemblies read the *messages*.
+below, and the direction liveness needs: the timeout actions are reached
+through the local `timedOut_i` flag, while the certificate assemblies read
+the *messages*.
 
 Both timeout actions set the flag and send the message in one step, and
 nothing else sets the flag. -/

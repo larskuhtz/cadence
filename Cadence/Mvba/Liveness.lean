@@ -230,8 +230,8 @@ def FJustice (r : MvbaRun th) : Prop :=
 /-- **(A-viewsync)** — *the good view, and what its timer may do.* There is
 an honest-led view `W`, above the first, such that
 
-* in **every other** view a correct validator's timer eventually runs out,
-  and
+* in every view **below** `W` a correct validator's timer eventually runs
+  out, and
 * in `W` no correct validator's timer runs out before a commit certificate
   exists.
 
@@ -247,15 +247,16 @@ view synchronisation, assumed. It is now derived
 (`eventually_entered_good`), and what is left is a statement about when a
 timer may fire.
 
-**Why the first clause excludes `W`.** In the timed protocol the two clauses
-are about one object: every view's timeout is finite, and `W`'s exceeds the
-latency. Untimed, "exceeds the latency" can only be said as "not before the
-certificate" — and a finiteness clause covering `W` would then, together
-with it, hand over a commit certificate outright, which is the thing the
-decision chain is there to prove. Excluding the good view is what keeps the
-proof carrying its own weight, and it costs nothing: the good view is the one
-in which the protocol succeeds, so the second clause's conditional is simply
-never triggered.
+**Why the first clause stops below `W`.** In the timed protocol the two
+clauses are about one object: every view's timeout is finite, and `W`'s
+exceeds the latency. Untimed, "exceeds the latency" can only be said as "not
+before the certificate" — and a finiteness clause covering `W` would then,
+together with it, hand over a commit certificate outright, which is the
+thing the decision chain is there to prove. So the good view has to be
+excluded, and it costs nothing: it is the view in which the protocol
+succeeds, so the second clause's conditional is never triggered. The views
+*above* `W` are excluded for a different and duller reason — the proof does
+not use them, and a premise should assume no more than it needs.
 
 **Why the consequent is a certificate.** It is weaker than the paper's
 sentence, which speaks of the decision, and enough, because
@@ -278,7 +279,7 @@ def AViewSync (r : MvbaRun th) : Prop :=
   ∃ (W PV : view) (L : node),
     vord.next PV W ∧
     th.leader W L = true ∧ ¬ nset.is_byz L = true ∧
-    (∀ (i : node) (V : view), ¬ nset.is_byz i = true → V ≠ W →
+    (∀ (i : node) (V : view), ¬ nset.is_byz i = true → vord.lt V W →
       (∃ n, (r.at' n).entered i V = true) →
         ∃ n, (r.at' n).timer_expired i V = true) ∧
     (∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
@@ -1158,11 +1159,11 @@ The other half of liveness, and the one the decision chain cannot supply:
 what carries a run *out of* a view whose leader is silent or faulty, and so
 towards the honest-led view (A-leader-rotation) promises.
 
-Three steps, of which only the middle two are theorems. The timers fire by
-(F-timeout), which is an assumption and not a link — §3.2 explains why weak
-fairness on `timeout_qc` would be worse than useless. Given that they have
-fired, the rest is the familiar shape: a quorum of timeouts assembles a
-certificate, and the certificate lets a validator advance.
+Three steps. What makes the *first* one fire — a validator's timer running
+out — is not a link but the assumption (A-viewsync)'s first clause, and
+"Reaching the good view" below is where it is consumed. Given that, the rest
+is the familiar shape: a quorum of timeouts assembles a certificate, and the
+certificate lets a validator advance.
 
 Neither step costs a new invariant. `sync_view`'s guard
 `∀ V, entered i V → V ≤ pv` is anti-monotone, but its failure is the goal
@@ -1882,8 +1883,8 @@ the covered views the quorum has entered, which only grows and is bounded:
    **lowers the measure**, or no member ever does — in which case the quorum
    is pinned at `M` for ever, and that is refuted: everyone catches up to `M`
    through the certificate that opened it, their timers run out (the first
-   clause of (A-viewsync), available because `M` is *not* the good view),
-   they all time out, the view closes, and somebody leaves it.
+   clause of (A-viewsync), available because `M` is strictly *below* the
+   good view), they all time out, the view closes, and somebody leaves it.
 
 The good view's own clause enters upstream of all of this, as `hto`: no
 correct validator ever times out in `W`. That is what bounds the whole run
@@ -1925,7 +1926,7 @@ theorem eventually_tc_below_good
       ¬ (r.at' n).abandoned i = true)
     (hto : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
       (r.at' n).timed_out i W = true → False)
-    (hftimer : ∀ (i : node) (V : view), ¬ nset.is_byz i = true → V ≠ W →
+    (hftimer : ∀ (i : node) (V : view), ¬ nset.is_byz i = true → vord.lt V W →
       (∃ n, (r.at' n).entered i V = true) →
         ∃ n, (r.at' n).timer_expired i V = true) :
     ∃ n, (r.at' n).msg_tc PV = true := by
@@ -2037,12 +2038,12 @@ theorem eventually_tc_below_good
             (fun j hj => Mvba.entered.mono (r.steps j) p M hj) (hentM p hp) n hn,
             fun V hV => hbound n (Nat.le_trans hN₂ hn) p hp V hV⟩
         -- Their timers run out — the clause of (A-viewsync) that covers
-        -- every view but the good one, and `M` is not it.
+        -- the views below the good one, and `M` is one of them.
         obtain ⟨N₃, hN₃, htimer⟩ :=
           eventually_quorum enum r (N := N₂) (fun p s => s.timer_expired p M = true)
             (fun p m hm => Mvba.timer_expired.mono (r.steps m) p M hm)
             (fun p hp => by
-              obtain ⟨n, hn⟩ := hftimer p M (hQc p hp) hMW ⟨N₂, hentM p hp⟩
+              obtain ⟨n, hn⟩ := hftimer p M (hQc p hp) hMltW ⟨N₂, hentM p hp⟩
               exact ⟨max N₂ n, Nat.le_max_left _ _,
                 r.mono (P := fun s => s.timer_expired p M = true)
                   (fun j hj => Mvba.timer_expired.mono (r.steps j) p M hj) hn _
@@ -2161,7 +2162,7 @@ theorem terminates_of_good_view
     {W : view} {l : node} {pv : view}
     (hlead : th.leader W l = true) (hl : ¬ nset.is_byz l = true)
     (hnext : vord.next pv W)
-    (hftimer : ∀ (i : node) (V : view), ¬ nset.is_byz i = true → V ≠ W →
+    (hftimer : ∀ (i : node) (V : view), ¬ nset.is_byz i = true → vord.lt V W →
       (∃ n, (r.at' n).entered i V = true) →
         ∃ n, (r.at' n).timer_expired i V = true)
     (hnto : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timer_expired i W = true →

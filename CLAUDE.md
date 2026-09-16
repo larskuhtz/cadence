@@ -397,7 +397,7 @@ is a change to what this project *claims*, not a refactor.
   in [`Cadence.lean`](./Cadence.lean).
 * **The audit pins stay complete**: `#veil_status Chorus` at `4222/4222 real`,
   `#veil_status FallbackReceipt` at `220/220 real` and `#veil_status Mvba`
-  at `725/725 real`. If an invariant **or a `step_property`** is added, these
+  at `1325/1325 real`. If an invariant **or a `step_property`** is added, these
   numbers change — a step property costs one cell per action — so update the
   pins, and check the new numbers are the ones you expect.
 * **No full contract instance is fabricated.** `Orchestrator`,

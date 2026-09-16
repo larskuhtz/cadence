@@ -399,13 +399,27 @@ fork's fairness annotations will carry once they exist
 > proving the four exhaust the label type by cases over the model's own
 > action list).
 
+> **Second correction (2026-09-15): the split is between the timeout
+> actions and the *timer*, not between the timeouts and everything else.**
+> The correction above is right that two classes cannot work; where it put
+> the boundary turned out to be avoidable. The model now carries the view
+> timer as an abstract phase marker — `timer_expired i v`, set by the
+> environment action `expire_timer`, guarding both timeout actions — so a
+> timeout is no longer perpetually enabled, and the two `timeout_*` actions
+> rejoin the weak-fairness class like every other honest action. The third
+> class contains `expire_timer` alone. **(F-timeout) is gone with it**: the
+> finiteness of the timeout is now a clause of (A-viewsync) about the
+> marker, and it is scoped to the views other than the good one, because
+> untimed the two clauses would otherwise hand over the conclusion (§3.5
+> step 5 gives the argument).
+
 The classes, then: **unfair** for the `byz_*` family (F-byz); **weakly
-fair** for the honest message handlers, certificate assemblies, view changes
-and the availability action (F-justice); **timer** for the two timeouts,
-governed by (F-timeout) and (A-viewsync); and the two contract inputs
-`propose` / `abandon`, which are the *caller's* and carry no fairness at all
-— that every correct validator proposes is a premise of the claim, as it is
-in `thm:termination`.
+fair** for the honest message handlers, certificate assemblies, view
+changes, the two timeouts and the availability action (F-justice);
+**timer** for `expire_timer` alone, governed by (A-viewsync)'s two clauses;
+and the two contract inputs `propose` / `abandon`, which are the *caller's*
+and carry no fairness at all — that every correct validator proposes is a
+premise of the claim, as it is in `thm:termination`.
 
 **Claim level — what those assumptions can and cannot deliver.** §3.1(a) has
 a consequence that is easy to misread as an argument about fairness
@@ -820,8 +834,9 @@ absent.
    chain cannot supply: what carries a run *out of* a stalled view.
    `eventually_tc_of_timeout_quorum` assembles the certificate and
    `eventually_entered_above_of_tc` advances a validator past the closed
-   view. The timers themselves are not a link — they fire by (F-timeout),
-   which §3.2 explains cannot be weak fairness. Neither step costs an
+   view. The timers themselves are not a link — they fire because
+   (A-viewsync)'s first clause says they do, which §3.2 explains cannot be
+   weak fairness on the timeout actions. Neither step costs an
    invariant, and `sync_view` is the cleanest instance of the whole pattern:
    its anti-monotone guard `∀ V, entered i V → V ≤ pv` needs no invariant at
    all, because the guard's negation *is* the conclusion — a validator whose
@@ -905,9 +920,9 @@ absent.
    and here is where that parameter earns its keep.
 
    **Closing a view**, the other half of the climb, is now proven too:
-   `eventually_tc_of_timed_out_quorum`. Two invariants bridge (F-timeout) to
-   the assemblies — `timed_out_implies_message`, because the premise delivers
-   the local flag while the guards read the messages, and
+   `eventually_tc_of_timed_out_quorum`. Two invariants bridge the local
+   timeout to the assemblies — `timed_out_implies_message`, because the
+   timeout actions set the flag while the guards read the messages, and
    `timeout_qc_view_le` for `form_tc_lock`'s last guard.
 
    The interesting part was `form_tc_lock` itself, whose guard names the
@@ -943,7 +958,7 @@ absent.
 5. **The claim, proven.** `Mvba.termination : TerminationClaim th`
    ([`Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean)). Step 4 is
    complete: the bound-erased sibling of `MVBATemporal.termination` is a
-   theorem, from seven named premises and the two quorum classes, with the
+   theorem, from **five** named premises and three classes, with the
    standard axiom pin.
 
    **The model now carries the view timer as an abstract phase marker**, and
@@ -964,15 +979,16 @@ absent.
    theorem; it returns when the climb is used to derive that entry.
    `TerminationClaim` is down to **five** premises.
 
-   **Next: derive (A-viewsync)'s entry clause.** The premise still bundles
-   two things — that every correct validator *enters* the good view, and
-   that no timer runs out there before a certificate exists — and only the
-   second is about timing. The first is derivable in this model, and a
-   structural reason is worth recording: deriving entry is view
-   synchronisation, which normally needs GST, but the network here is
-   monotone, so a timeout certificate is visible the moment it exists and a
-   lagging validator can `sync_view` straight to the front. The abstraction
-   that makes safety asynchronous is what makes this step free of Δ.
+   **(A-viewsync)'s entry clause is now derived.** The premise bundled two
+   things — that every correct validator *enters* the good view, and that no
+   timer runs out there before a certificate exists — and only the second
+   was about timing. The first is a theorem
+   (`eventually_entered_good`), and a structural reason it was reachable at
+   all is worth recording: deriving entry is view synchronisation, which
+   normally needs GST, but the network here is monotone, so a timeout
+   certificate is visible the moment it exists and a lagging validator can
+   `sync_view` straight to the front. The abstraction that makes safety
+   asynchronous is what makes this step free of Δ.
 
    What it needs first is a **maximum**, twice over: `sync_view`'s guard
    bounds the views a validator has entered, and `timeout_qc`'s names its
@@ -996,16 +1012,65 @@ absent.
    adopted at the current view, would have cost 25 and tied the argument to
    the action list.
 
-   What remains: a quorum of those timeouts closes the view (already proven,
-   `eventually_tc_of_timed_out_quorum`); laggards catch up through the
-   certificate; the maximum entered view strictly rises; and a measure over
-   the covering list bounds the climb. That measure has to be **replaced**:
-   `viewGap` counts views *not entered*, which never reaches zero once a
-   validator legitimately skips one, so the climb needs "views above the
-   current maximum" instead. The premise that returns is the *finiteness*
-   half of the timer — that it does eventually run out — on `expire_timer`,
-   a direct translation of the paper's bounded timeout into the unbounded
-   regime.
+   **The climb, as it ended up.** `eventually_tc_below_good` is the whole
+   of it, and three things about its shape were not obvious in advance.
+
+   *It is about the quorum as a body, not about one validator catching up.*
+   Nothing moves a validator forward except a timeout certificate for the
+   view below it, and a certificate needs a quorum to have timed out in one
+   **common** view — so the measure counts the covered views the honest
+   quorum has entered, which only grows and is bounded. Two earlier
+   candidates were both wrong: `viewGap` counts views *not entered* and
+   never reaches zero once a validator legitimately skips one, and its
+   replacement `aheadGap` ("views above everything this validator has
+   entered") is right about skipping but still per-validator. Both were
+   written and both were discarded.
+
+   *The step is a dichotomy, not a chain.* Either some member reaches a
+   view no member had reached — the measure falls — or none ever does, and
+   then the quorum is pinned at the maximum `M`: everyone catches up to `M`
+   through the certificate that opened it, their timers run out, they all
+   time out, the view closes (`eventually_tc_of_timed_out_quorum`), and
+   somebody leaves it, contradicting "pinned". Only the second branch does
+   any protocol reasoning.
+
+   *Nobody can skip the good view*, which the entry clause used to grant
+   for free. `entered_le_of_no_timeout` is what supplies it: a view above
+   `W` needs a certificate for `W` or higher, which needs a correct
+   validator to have timed out there, which (A-viewsync) forbids until a
+   certificate exists.
+
+   **The premise that returned is the finiteness half of the timer**, and
+   it is scoped: *in every view below the good one*, a correct validator's
+   timer eventually runs out. Excluding the views above `W` is only
+   parsimony — the proof does not use them. Excluding `W` itself is forced,
+   and the reason is worth stating, because it is the one place the untimed
+   abstraction shows a seam. In the timed protocol both halves are about one object — every
+   view's timeout is finite, and the good view's exceeds the chain's
+   latency. Untimed, "exceeds the latency" can only be said as "not before
+   the certificate", so an unscoped finiteness clause would, together with
+   it, hand over a commit certificate outright and make the decision chain
+   dead code. Excluding the good view costs nothing: it is the view in
+   which the protocol succeeds, so the other clause's conditional is never
+   triggered.
+
+   **What the view order had to supply.** Two facts that
+   `TotalOrderWithMinimum` does not give, now named in
+   [`ViewOrder.lean`](../Cadence/ViewOrder.lean) as the class
+   `ViewOrderEnum`, discharged for `Nat`, and carried as a hypothesis of
+   the theorems exactly as the two quorum classes are: successors exist,
+   and the views at or below one are finitely many. The first is *not* a
+   proof convenience — `sync_view` is guarded on `vord.next pv v`, so a
+   view with nothing directly above it is a view no validator can leave.
+
+   **Two invariants**, both one step of one action read backwards and
+   neither safety-relevant (`#veil_status Mvba` **1273 → 1325**):
+   `input_implies_entered`, which is where the climb starts and what lets
+   `AllPropose` stay the paper's sentence rather than being widened; and
+   `tc_lock_implies_tc`, without which a validator holding a high
+   certificate is stranded — `sync_view_adopt`'s extra guard blocks it and
+   `sync_view` wants the bare `msg_tc` — so it doubles as the statement
+   that the two sync actions strand nobody.
 
    **Input validity went the other way, and is now in the contract.** It was
    briefly a seventh premise. It is instead
