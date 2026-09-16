@@ -170,7 +170,13 @@ The paper's `Valid B` is a function of the meta-block, which *carries* its
 certificates; Chorus's certificate predicate is a fact about Chorus's
 **state**, which a class parameter declared before `#gen_state` cannot
 mention. The guard is therefore the interpretation of the class's `Valid` in
-Chorus's vocabulary (§7 item 1).
+Chorus's vocabulary (§7 item 1). For *liveness* the bridge is needed in both
+directions and becomes a named run-level premise, `Chorus.ValidBridge` in
+[`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean): a
+certified meta-block is `Valid` (what lets `mvba_propose` fire, since the
+contract's `propose` requires `Valid`), and a correct validator's decided
+meta-block is certified (what enables the handlers) —
+[`Liveness.md`](./Liveness.md) §4.3.
 
 ## 4. The providers: the proven instances
 
