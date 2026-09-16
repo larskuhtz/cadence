@@ -2145,6 +2145,25 @@ The proof is a dichotomy, and both branches are already built.
   branch is vacuous, which is the right outcome: a run that reaches a good
   view cannot fail to decide.
 
+**Why the premise does not hand over the conclusion.** (A-viewsync)'s
+second clause has a commit certificate as its *consequent*, which invites
+the worry that the decision chain below is proved past rather than used. It
+is not, and the split here is meant to be the evidence rather than an
+argument one has to trust: `terminates_of_good_view_no_timeout` does the
+whole of the work from "no correct validator ever times out in `W`", and
+**its statement mentions no certificate anywhere**. The clause is consumed
+in exactly one place, by `terminates_of_good_view` below, to produce that
+hypothesis — and it is consumed under `hnodec`, where its consequent runs
+straight into a contradiction instead of becoming a usable certificate.
+
+Nothing in the premise set can force a timer to run out in `W`: (F-justice)
+does not cover the marker, and the finiteness clause stops strictly below
+`W`. So the consequent is unreachable by design, and the clause contributes
+only its contrapositive. That is what the scoping buys, and it is the one
+place where relaxing a premise "for realism" — letting the good view's timer
+be finite like every other — would quietly delete most of this file while
+leaving every proof green.
+
 Neither the entry into the good view nor the certificate below it is a
 hypothesis. The entry is `eventually_entered_good`, the section above; the
 certificate follows from it, because entering `W` is only possible through
@@ -2152,6 +2171,83 @@ one (`exists_justification_below_of_entered`). What separates this from
 `TerminationClaim` is therefore only the shape of (A-viewsync) itself — the
 claim quantifies over runs and this theorem takes the good view and its
 leader as arguments. -/
+
+/-- **The good view decides, given only that nobody times out in it.** The
+content of `terminates_of_good_view`'s second branch, split out so that what
+it does *not* mention is checkable: there is no `msg_commitqc` in this
+statement, so no part of the argument below can be reading the conclusion off
+a premise.
+
+It is stated under `hnodec` — nobody has decided — because that is the branch
+it serves, and the branch is vacuous: its own conclusion contradicts its
+hypothesis, which is the point. A run that reaches a good view cannot fail to
+decide. -/
+theorem terminates_of_good_view_no_timeout
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset)
+    (vfin : Cadence.ViewOrderEnum view vord)
+    (r : MvbaRun th) (hfj : FJustice r) (hav : FAvail r) (hna : NoEarlyAbandon r)
+    (hap : AllPropose r)
+    {W : view} {l : node} {pv : view}
+    (hlead : th.leader W l = true) (hl : ¬ nset.is_byz l = true)
+    (hnext : vord.next pv W)
+    (hftimer : ∀ (i : node) (V : view), ¬ nset.is_byz i = true → vord.lt V W →
+      (∃ n, (r.at' n).entered i V = true) →
+        ∃ n, (r.at' n).timer_expired i V = true)
+    (hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true)
+    (hto : ∀ i n, ¬ nset.is_byz i = true →
+      (r.at' n).timed_out i W = true → False) :
+    Terminates r := by
+  -- Nobody is abandoned either, for the same reason.
+  have hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
+      ¬ (r.at' n).abandoned i = true := by
+    intro i n hi hab
+    obtain ⟨E, hE⟩ := hna i n hi hab
+    exact hnodec i n E hi hE
+  -- The good view is *reached*, not assumed.
+  have henter : ∀ i, ¬ nset.is_byz i = true →
+      ∃ n, (r.at' n).entered i W = true :=
+    eventually_entered_good r hfj hap hnext hnab hto
+      (eventually_tc_below_good enum hqe vfin r hfj hap hnext hnab hto hftimer)
+  -- The honest quorum, settled at one index.
+  obtain ⟨Nq, hq⟩ :=
+    exists_settled_quorum_of_no_decision enum r hto hna hnodec
+      hqe.honestQuorum_correct
+      (fun p hp => henter p (hqe.honestQuorum_correct p hp))
+  -- The leader, settled at its own.
+  obtain ⟨Nl, hNl⟩ := henter l hl
+  -- The certificate below the good view is not assumed: entering `W` is
+  -- only possible through it.
+  obtain ⟨Nt, hNt⟩ := exists_justification_below_of_entered r hl hnext hNl
+  -- One index for all three.
+  have h1 : Nq ≤ max Nq (max Nl Nt) := Nat.le_max_left _ _
+  have h2 : Nl ≤ max Nq (max Nl Nt) :=
+    Nat.le_trans (Nat.le_max_left Nl Nt) (Nat.le_max_right _ _)
+  have h3 : Nt ≤ max Nq (max Nl Nt) :=
+    Nat.le_trans (Nat.le_max_right Nl Nt) (Nat.le_max_right _ _)
+  have hsl : SettledIn r l W (max Nq (max Nl Nt)) :=
+    settledIn_of_no_decision r hto hna hnodec hl
+      (r.mono (P := fun s => s.entered l W = true)
+        (fun k hk => Mvba.entered.mono (r.steps k) l W hk) hNl _ h2)
+  -- Carried forward to the common index, monotonically.
+  have hjust : (∃ w e, (r.at' (max Nq (max Nl Nt))).tc_lock pv w e = true) ∨
+      (r.at' (max Nq (max Nl Nt))).tc_nolock pv = true := by
+    rcases hNt with ⟨w, e, h⟩ | h
+    · exact Or.inl ⟨w, e, r.mono (P := fun s => s.tc_lock pv w e = true)
+        (fun k hk => Mvba.tc_lock.mono (r.steps k) pv w e hk) h _ h3⟩
+    · exact Or.inr (r.mono (P := fun s => s.tc_nolock pv = true)
+        (fun k hk => Mvba.tc_nolock.mono (r.steps k) pv hk) h _ h3)
+  -- The leader proposes, and what it proposes the handlers accept.
+  obtain ⟨n₀, E₀, hn₀, hpp⟩ :=
+    eventually_preprepare_of_settled_leader r hfj hl hsl hnext hlead hjust
+  have hvalid : th.valid E₀ = true :=
+    Mvba.reachable_honest_preprepare_valid (r.reachable n₀) l W E₀ hl hpp
+  have hjust₀ : (∃ w, (r.at' n₀).tc_lock pv w E₀ = true) ∨
+      (r.at' n₀).tc_nolock pv = true :=
+    Mvba.reachable_honest_preprepare_justified (r.reachable n₀) l W E₀ pv hl hpp hnext
+  -- The view decides, which is what this branch's hypothesis denies.
+  exact terminates_of_settled_honest_view enum r hfj hav hna hqe hap hl hnext hlead
+    hpp hvalid hjust₀ (fun p hp => (hq p hp).later (Nat.le_trans h1 hn₀))
 
 theorem terminates_of_good_view
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
@@ -2185,10 +2281,11 @@ theorem terminates_of_good_view
   · push Not at hdec
     have hnodec : ∀ j n E, ¬ nset.is_byz j = true → ¬ (r.at' n).decided j E = true :=
       fun j n E hj => hdec j n E hj
-    -- (A-viewsync) gives a *certificate* where the argument below wants a
-    -- contradiction; the first link bridges the two, and needs only
-    -- (F-justice). This is the whole reason the premise can be the weaker
-    -- of the two forms.
+    -- **The one use of (A-viewsync)'s certificate clause in the whole
+    -- development.** Its consequent is not kept: it is turned into a
+    -- decision by the first link (which needs only (F-justice)) and that
+    -- contradicts this branch. So the clause leaves behind `hto` and
+    -- nothing else, and `hto` mentions no certificate.
     have hto : ∀ i n, ¬ nset.is_byz i = true →
         (r.at' n).timed_out i W = true → False := by
       intro i n hi hti
@@ -2205,63 +2302,10 @@ theorem terminates_of_good_view
             (fun j hj => Mvba.msg_commitqc.mono (r.steps j) V E hj) hV _
             (Nat.le_max_right m n))
       exact hnodec i k Ek hi hk
-    -- Nobody is abandoned either, for the same reason.
-    have hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
-        ¬ (r.at' n).abandoned i = true := by
-      intro i n hi hab
-      obtain ⟨E, hE⟩ := hna i n hi hab
-      exact hnodec i n E hi hE
-    -- The good view is *reached*, not assumed.
-    have henter : ∀ i, ¬ nset.is_byz i = true →
-        ∃ n, (r.at' n).entered i W = true :=
-      eventually_entered_good r hfj hap hnext hnab hto
-        (eventually_tc_below_good enum hqe vfin r hfj hap hnext hnab hto hftimer)
-    -- The honest quorum, settled at one index.
-    obtain ⟨Nq, hq⟩ :=
-      exists_settled_quorum_of_no_decision enum r hto hna hnodec
-        hqe.honestQuorum_correct
-        (fun p hp => henter p (hqe.honestQuorum_correct p hp))
-    -- The leader, settled at its own.
-    obtain ⟨Nl, hNl⟩ := henter l hl
-    -- The certificate below the good view is not assumed: entering `W` is
-    -- only possible through it.
-    obtain ⟨Nt, hNt⟩ := exists_justification_below_of_entered r hl hnext hNl
-    -- One index for all three.
-    have h1 : Nq ≤ max Nq (max Nl Nt) := Nat.le_max_left _ _
-    have h2 : Nl ≤ max Nq (max Nl Nt) :=
-      Nat.le_trans (Nat.le_max_left Nl Nt) (Nat.le_max_right _ _)
-    have h3 : Nt ≤ max Nq (max Nl Nt) :=
-      Nat.le_trans (Nat.le_max_right Nl Nt) (Nat.le_max_right _ _)
-    have hsl : SettledIn r l W (max Nq (max Nl Nt)) :=
-      settledIn_of_no_decision r hto hna hnodec hl
-        (r.mono (P := fun s => s.entered l W = true)
-          (fun k hk => Mvba.entered.mono (r.steps k) l W hk) hNl _ h2)
-    -- Carried forward to the common index, monotonically.
-    have hjust : (∃ w e, (r.at' (max Nq (max Nl Nt))).tc_lock pv w e = true) ∨
-        (r.at' (max Nq (max Nl Nt))).tc_nolock pv = true := by
-      rcases hNt with ⟨w, e, h⟩ | h
-      · exact Or.inl ⟨w, e, r.mono (P := fun s => s.tc_lock pv w e = true)
-          (fun k hk => Mvba.tc_lock.mono (r.steps k) pv w e hk) h _ h3⟩
-      · exact Or.inr (r.mono (P := fun s => s.tc_nolock pv = true)
-          (fun k hk => Mvba.tc_nolock.mono (r.steps k) pv hk) h _ h3)
-    -- The leader proposes, and what it proposes the handlers accept.
-    obtain ⟨n₀, E₀, hn₀, hpp⟩ :=
-      eventually_preprepare_of_settled_leader r hfj hl hsl hnext hlead hjust
-    have hvalid : th.valid E₀ = true :=
-      Mvba.reachable_honest_preprepare_valid (r.reachable n₀) l W E₀ hl hpp
-    have hjust₀ : (∃ w, (r.at' n₀).tc_lock pv w E₀ = true) ∨
-        (r.at' n₀).tc_nolock pv = true :=
-      Mvba.reachable_honest_preprepare_justified (r.reachable n₀) l W E₀ pv hl hpp hnext
-    -- The view decides — contradicting this branch.
-    have hterm : Terminates r :=
-      terminates_of_settled_honest_view enum r hfj hav hna hqe hap hl hnext hlead hpp
-        hvalid hjust₀
-        (fun p hp => (hq p hp).later (Nat.le_trans h1 hn₀))
-    obtain ⟨R, hRq⟩ :=
-      nset.greater_than_third_one_honest hqe.honestQuorum
-        (nset.supermajority_greater_than_third _ hqe.honestQuorum_supermajority)
-    obtain ⟨nR, ER, hR⟩ := hterm R hRq.2
-    exact absurd hR (hnodec R nR ER hRq.2)
+    -- Everything else is `terminates_of_good_view_no_timeout`, which cannot
+    -- see the premise just used.
+    exact terminates_of_good_view_no_timeout enum hqe vfin r hfj hav hna hap
+      hlead hl hnext hftimer hnodec hto
 
 /-! ## The claim, proven
 
@@ -2388,6 +2432,12 @@ info: 'Mvba.exists_settled_quorum_of_no_decision' depends on axioms: [propext, C
 -/
 #guard_msgs in
 #print axioms Mvba.exists_settled_quorum_of_no_decision
+
+/--
+info: 'Mvba.terminates_of_good_view_no_timeout' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.terminates_of_good_view_no_timeout
 
 /--
 info: 'Mvba.terminates_of_good_view' depends on axioms: [propext, Classical.choice, Quot.sound]
