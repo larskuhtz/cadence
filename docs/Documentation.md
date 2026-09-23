@@ -158,19 +158,27 @@ the same line numbers), so there is no version to upgrade to. The pin is
 
 **Turning on `doc.verso` would not fix the tables**, which is the obvious
 thing to try and the reason to write this down. Lean's document model has no
-table: `Lean.Doc.Block` is `para`, `code`, `ul`, `ol`, `dl`, `blockquote`,
-`concat`, `other`. Verso markup cannot express one either. Switching would
-also cost more than it returns here — the headers do parse as Verso markup,
-but every inline `` `code` `` span raises "Code element could be more
-specific" unless given a role, and there are **3 962** of them in the
-published modules; emphasis conventions differ (`*bold*`, `_emph_`, against
-Markdown's `**bold**`); and it would edit the model sources, which are the
-specification.
+table at all: `Lean.Doc.Block` is `para`, `code`, `ul`, `ol`, `dl`,
+`blockquote`, `concat`, `other`. Verso markup cannot express one either, and
+the `:::table` directive that the *Manual* genre defines is not in scope in a
+docstring — tested, it is `Unknown directive `table``.
 
-So the options for tables are: leave them as pipes; restate those ~93 rows
-as description lists or nested bullets, which both languages model; or
-upstream support, which needs a table in the document model, the parser flag
-and an emitter.
+What switching *would* buy is `dl`: description lists are in the model and
+render as `<dl>/<dt>/<dd>`, and they are not reachable from Markdown at all
+(MD4Lean has no `dl` constructor). The cost is smaller than it first looks —
+the headers parse as Verso markup unchanged, and the "Code element could be
+more specific" warning that each of the 3 962 inline code spans would raise
+is switched off by `set_option doc.verso.suggestions false`. What remains is
+that emphasis conventions differ (`*bold*`, `_emph_`, against Markdown's
+`**bold**`) and that it edits the model sources, which are the specification.
+
+So the eleven tables — five of two columns, three of three, three of four —
+have three honest shapes: leave them as pipes; restate them as nested
+bullet lists, which works on the Markdown path today; or move those files to
+Verso docstrings and use description lists, which suits the two-column ones
+and not the wider ones. Upstream table support would need a table in the
+document model, the parser flag and an emitter, and is the only route that
+keeps them as tables.
 
 ## What it costs
 
