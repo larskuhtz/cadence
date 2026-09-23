@@ -35,11 +35,18 @@ exclude = [
   "Cadence.Tooling",
 ]
 
-# The models carry their rationale in long `/-! … -/` headers and their
-# per-declaration prose in `/-- … -/` docstrings. Rendering the latter as text
-# rather than inside the code boxes makes a model read as the document it is:
-# a paragraph of reasoning, then the `safety` or `action` it justifies.
-docstrings_as_text = true
+# Declaration docstrings stay *in* the code, next to what they document.
+#
+# The tempting setting is the other one, on the grounds that this development
+# keeps its rationale in prose — but the prose is in the `/-! … -/` *module*
+# headers (183 blocks, averaging ~1 100 characters), and those render as prose
+# either way. `/-- … -/` here is the other thing: 262 short annotations
+# averaging ~235 characters, most of them one line on a class field.
+#
+# Rendering those as text hoists each one out of its declaration and stacks
+# them above it, so a class arrives as a run of context-free sentences
+# followed by a wall of code — the field docs no longer sit beside the fields.
+docstrings_as_text = false
 
 # Site overrides, loaded after Verso's own stylesheet. They patch two gaps in
 # its *Markdown* rendering path — list items emitted without `<li>`, and
