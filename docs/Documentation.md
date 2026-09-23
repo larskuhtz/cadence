@@ -145,14 +145,14 @@ upstream change. And **maths has no rendering path at all**, so formulas
 cannot be written in these docstrings yet; mermaid is not supported by Verso
 either, while fenced code blocks are.
 
-That leaves the eleven tables — five of two columns, three of three, three
-of four, and ten of the eleven with prose cells of 113 to 550 characters.
-Only `Interfaces`' third table is genuinely tabular. So the question is not
-how to render them but what shape the content wants: raw HTML where it
-really is a table, nested bullet lists at two or three columns, a fenced
-code block holding an ASCII table for the wide reference ones (the monitor's
-mutation table is already written that way), description lists if this ever
-moves to `doc.verso`, or the pipes where none of those reads better.
+The tables that used to be in these headers are gone, and not because the
+renderer could not draw them. There were eleven; ten had cells of 113 to 550
+characters, which is a paragraph in a column, and only one was genuinely
+tabular. They were lists of labelled explanations wearing table syntax, so
+they are lists now — the label, then what it says — which reads better in
+the source as well as on the page, and needs nothing from upstream. The
+conversion was mechanical, cell by cell, and checked by comparing the word
+counts of every removed row against the bullets that replaced them.
 
 
 ## What it costs

@@ -53,12 +53,15 @@ MD4Lean.parse x MD4Lean.MD_FLAG_TABLES
 ```
 
 Tried locally: all eleven tables then rendered as real tables, zero leftover
-pipe rows. Not adopted, because patching Verso means forking it, and because
-ten of the eleven tables here have prose cells (113–550 characters) and read
-worse as tables than as lists — see [Documentation.md](./Documentation.md).
+pipe rows. Not adopted, because patching Verso means forking it — and,
+having seen the result, because it would not have been the right fix
+anyway. Ten of the eleven had cells of 113 to 550 characters, so as tables
+they were paragraphs squeezed into columns.
 
-**Our workaround.** None. The tables stay as pipes pending a decision on
-reshaping the content.
+**Our workaround.** Moot, and deliberately so: those eleven were lists of
+labelled explanations wearing table syntax, and are now written as lists.
+Nothing in the published modules depends on this issue any more. It stays
+recorded because a future table would hit it.
 
 ## 2. Markdown list items are emitted without `<li>`
 

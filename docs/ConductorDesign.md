@@ -104,7 +104,7 @@ is **two classes**: a first-order
 `…Safety` fragment (state, transitions, observables, the paper's safety
 properties, monotonicity and frames) that a Veil module `instantiate`s, and
 the full class extending it with every remaining property over explicit
-runs — the obligation tables of the class docstrings are renderings of the
+runs — the obligation lists of the class docstrings are renderings of the
 fields, not substitutes for them.
 
 * `SlotConsensus` (family over slots) — agreement, slot safety, proposal

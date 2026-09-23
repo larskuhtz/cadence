@@ -620,8 +620,9 @@ Each step names its exit criterion and what it costs to rebuild.
 1. **Contract review — no class change expected.** `MVBASafety`/`MVBA`
    are `mod:mvba` and the plan instantiates them as they stand; the
    supplement's certificate output is not a field (§0). The one edit is
-   the obligation table's discharge column and the header table's "out of
-   scope" row, once the instance exists — a comment in `Interfaces.lean`,
+   the discharge part of the obligation list and the "out of scope" entry
+   of the module list, once the instance exists — a comment in
+   `Interfaces.lean`,
    which rebuilds the small models and the composition files (minutes),
    not the Chorus family.
 2. **Single-view spike.** `Cadence/Mvba.lean` with one view, no timeouts:

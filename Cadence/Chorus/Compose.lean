@@ -29,13 +29,24 @@ non-proposer indices holds by construction rather than by invariant.
 module's `all_honest_recorded` synchrony-premise ghost, exactly as the
 contract's docstring says.
 
-| `SlotConsensusSafety` field | discharged by |
-|---|---|
-| `agreement` | `safety [agreement_pos]` + `[agreement_pos_neg]` + `invariant [local_committed_complete]` |
-| `slot_safety` | by construction (the slot tag) |
-| `proposal_inclusion` | `safety [proposal_inclusion]` + `[proposal_inclusion_no_neg]` + `invariant [local_committed_complete]` |
-| `finalized_mono`, `on_time_mono`, `init_finalized` | Veil's generated step lemmas (`local_committed.mono`, `local_committed_pos.mono`, `local_entry_pos.mono`, `local_committed.init`) through `committedAll_mono`, `committedPos_mono`, `recorded_mono`, `init_not_committed` below; plus `committedPos_frozen_of_reachable`, the `step_property [committed_pos_frozen]` cells exported by `#gen_composition` — the vector is frozen once committed because `commit_assign_*` require `¬ local_committed i`, which is a guard rather than an update record, so it needs the checked cells rather than the generated lemmas |
-| `step_trans`, `reachable_init`, `reachable_trans` | the reachability constructors |
+Each entry is a `SlotConsensusSafety` field and what discharges it.
+
+* **`agreement`** — `safety [agreement_pos]` + `[agreement_pos_neg]` +
+  `invariant [local_committed_complete]`
+* **`slot_safety`** — by construction (the slot tag)
+* **`proposal_inclusion`** — `safety [proposal_inclusion]` +
+  `[proposal_inclusion_no_neg]` + `invariant [local_committed_complete]`
+* **`finalized_mono`, `on_time_mono`, `init_finalized`** — Veil's generated
+  step lemmas (`local_committed.mono`, `local_committed_pos.mono`,
+  `local_entry_pos.mono`, `local_committed.init`) through `committedAll_mono`,
+  `committedPos_mono`, `recorded_mono`, `init_not_committed` below; plus
+  `committedPos_frozen_of_reachable`, the `step_property
+  [committed_pos_frozen]` cells exported by `#gen_composition` — the vector is
+  frozen once committed because `commit_assign_*` require `¬ local_committed
+  i`, which is a guard rather than an update record, so it needs the checked
+  cells rather than the generated lemmas
+* **`step_trans`, `reachable_init`, `reachable_trans`** — the reachability
+  constructors
 
 all consumed through the named reachability projections of
 [`Chorus/Certify.lean`](./Certify.lean) (emitted by `#gen_composition` from

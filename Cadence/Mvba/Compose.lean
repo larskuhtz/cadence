@@ -21,11 +21,16 @@ is the value, `docs/MvbaPlan.md` §1.2), `decided` is the relation of that
 name read at the canonical field representation, and `byz` is the
 Byzantine predicate of the module's `ByzNodeSet` instance.
 
-| `MVBASafety` field | discharged by |
-|---|---|
-| `agreement`, `integrity`, `external_validity` | `safety [agreement]`, `[integrity]`, `[external_validity]`, through the named reachability projections of [`Mvba/Certify.lean`](./Certify.lean) |
-| `decided_mono`, `init_decided` | the transition bodies of all 24 actions, uniformly (`decided_mono_tr`, `init_not_decided` below): `decided` is only ever set, and `after_init` clears it |
-| `step_trans`, `reachable_init`, `reachable_trans` | the reachability constructors |
+Each entry is an `MVBASafety` field and what discharges it.
+
+* **`agreement`, `integrity`, `external_validity`** — `safety [agreement]`,
+  `[integrity]`, `[external_validity]`, through the named reachability
+  projections of [`Mvba/Certify.lean`](./Certify.lean)
+* **`decided_mono`, `init_decided`** — the transition bodies of all 24
+  actions, uniformly (`decided_mono_tr`, `init_not_decided` below): `decided`
+  is only ever set, and `after_init` clears it
+* **`step_trans`, `reachable_init`, `reachable_trans`** — the reachability
+  constructors
 
 **What is left unproven is smaller than for the other two.** The model has the module's
 two inputs as actions (`propose`, `abandon`) and a per-party message row

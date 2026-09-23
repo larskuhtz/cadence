@@ -81,6 +81,10 @@ strip_proof_states() {
            if (.value | type == "object") and (.value.tactics != null)
            then .value.tactics.info = [] else . end)
          | .items.goals = {}' "$f" > "$tmp"
+  # Carry the original timestamp across: these filters rewrite the file on
+  # every run, and a bumped mtime would make the JSON permanently look newer
+  # than the module it was rendered from, disabling the staleness check below.
+  touch -r "$f" "$tmp"
   mv "$tmp" "$f"
 }
 
@@ -109,6 +113,7 @@ fix_docstring_markers() {
              then .markdown[2].blocks[0].p |=
                     (if (.[1].softbr? != null) then .[2:] else .[1:] end)
              else . end))' "$f" > "$tmp"
+  touch -r "$f" "$tmp"
   mv "$tmp" "$f"
 }
 
@@ -155,8 +160,15 @@ fi
 while IFS= read -r m; do
   [ -n "$m" ] || continue
   json="$WORK/json/${m//.//}.json"
+  src="${m//.//}.lean"
   mkdir -p "$(dirname "$json")"
-  if ! complete_json "$json"; then
+  # Re-render when the module's own source is newer than its JSON, as well as
+  # when there is no usable JSON at all. Without this the cache answers only
+  # "does a rendering exist", not "does it match the file" — editing a module
+  # header then left the site showing the previous text, which is the failure
+  # this check exists to prevent (the renderer-timestamp check above is the
+  # same idea for the other input).
+  if ! complete_json "$json" || [ "$src" -nt "$json" ]; then
     rm -f "$json"
     printf '    %-42s ' "$m"
     start=$(date +%s)

@@ -29,7 +29,7 @@ easy to introduce and both are avoided here:
   own guards or invariants, nothing checks that the restatement says what the
   contract says. The correspondence becomes a comment.
 * **Silent incompleteness.** If the obligations an implementation does *not*
-  discharge are recorded in prose — an obligation table, a list of named
+  discharge are recorded in prose — an obligation list, a list of named
   meta-axioms — nothing checks that the list is complete, or that each entry
   still refers to the transition system the implementation actually proved
   things about.
