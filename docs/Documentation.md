@@ -134,15 +134,19 @@ default, and what this development uses — they are **Markdown**. Verso
 renders both, but through different code, and the Markdown side is less
 complete. Two consequences show on these pages.
 
-**Markdown tables render as literal `|` rows.** The converter
-(`VersoLiterate/Exported.lean`, `mdBlock`) accepts paragraphs, lists, block
-quotes, code blocks and headers, and rejects the rest with, verbatim,
-`"Markdown tables not supported"` — the same for literal HTML and thematic
-breaks. The tables here do not even reach that rejection: the Markdown
-parser is not run with its table extension, so a table arrives as one
-paragraph. That is why the cells' `code` spans and links are formatted
-correctly while the table itself is not — inline markup is processed, block
-structure is not.
+**Markdown tables render as literal `|` rows — because of the parser, not
+the renderer.** Verso calls `MD4Lean.parse` at its default dialect,
+`MD_DIALECT_COMMONMARK`, which has GitHub tables off, so a table arrives as
+one paragraph of text. That is why the cells' `code` spans and links are
+formatted correctly while the table itself is not.
+
+The emitter these pages go through — `md2Html` in `VersoLiterateCode.lean` —
+*does* handle `.table`, and emits a real `<thead>`/`<tbody>`. Passing
+`MD_FLAG_TABLES` would therefore be enough to make these tables render, and
+that is a one-argument change upstream. (There is a second, unrelated
+Markdown converter in `VersoLiterate/Exported.lean` whose `mdBlock` throws
+`"Markdown tables not supported"`; it builds a Verso `Doc` and is *not* the
+path these pages take. Do not read that rejection as the reason.)
 
 **Markdown list items are emitted without `<li>`.** `VersoLiterateCode.lean`
 renders `.ul`/`.ol` as `<ul>{item contents}</ul>` — the items' blocks go in
@@ -172,39 +176,47 @@ is switched off by `set_option doc.verso.suggestions false`. What remains is
 that emphasis conventions differ (`*bold*`, `_emph_`, against Markdown's
 `**bold**`) and that it edits the model sources, which are the specification.
 
-**Nor is raw HTML a way round it.** Verso removes HTML blocks, raw HTML and
-thematic breaks from its markup on purpose — they "don't make sense for
-non-HTML output" (Verso's markup guide, *Fewer Unused Features*). On the
-Markdown path an HTML block *is* parsed and then rejected by the converter,
-so pasting `<table>` into a header fails the docs build rather than passing
-through; inline HTML cannot even be represented, as MD4Lean's inline type
-has no HTML constructor. Directives are not a loophole either: a directive
-has no meaning beyond what an extension gives it, and the pseudo-XML in
-Verso's directive documentation is its *parse tree* pretty-printed, not
-emitted markup.
+**A block of raw HTML, however, is passed straight through.** `md2Html`
+renders MD4Lean's `.html` block unescaped, and CommonMark HTML blocks are on
+by default, so an HTML `<table>` written at the left margin of a `/-! … -/`
+header reaches the page verbatim — verified end to end on a probe module.
+That is the one route to a real table today that needs no upstream change.
+Two caveats: it is block-level HTML, not inline spans (MD4Lean's inline type
+has no HTML constructor at all); and it is HTML-only, which is fine here
+because HTML is the only backend this project renders, but it is exactly why
+Verso *markup* drops raw HTML ("doesn't make sense for non-HTML output").
 
-What the Markdown path actually offers was measured against the parser
-rather than read off the types, because the types promise more than the
-parser delivers — `Block.table` exists and is never emitted, and so are the
-two LaTeX-math inlines. `$a + b$` and `$$\begin{array}…$$` both come back as
-plain text, so encoding a table as maths does not work here. Mermaid is not
-supported by Verso at all. Fenced code blocks do work.
+Directives are not a loophole: a directive has no meaning beyond what an
+extension gives it, `:::table` belongs to the Manual genre and is
+`Unknown directive` here, and the pseudo-XML in Verso's directive
+documentation is its *parse tree* pretty-printed rather than emitted markup.
+
+**Maths does not work, and is not just a flag.** `MD_FLAG_LATEXMATHSPANS`
+makes the parser emit `.latexMath`, but `md2Html` renders both maths inlines
+as `.empty`, marked `TODO` — so `$a + b$` disappears rather than rendering,
+even with the flag. KaTeX itself is wired up and shipped (`katex.js` plus a
+`math.js` that renders `.math.inline`/`.math.display` on load), and the
+*other* converter already produces those classes, so this is a small gap in
+one emitter rather than a missing feature. Until it is closed, formulas have
+no rendering path here. Mermaid is not supported by Verso at all; fenced
+code blocks are.
 
 So the eleven tables — five of two columns, three of three, three of four —
-have four honest shapes, and which one fits is per-table:
+have these shapes, and which one fits is per-table:
 
-* **nested bullet lists**, for two and three columns, on the Markdown path
-  today;
+* **raw HTML**, which renders as a real table today and is the honest choice
+  where the content genuinely is tabular;
+* **nested bullet lists**, for two and three columns;
 * **a fenced code block holding an ASCII table**, which keeps alignment and
   suits the wider reference tables — the monitor's mutation table is already
   written that way;
 * **description lists**, which need `doc.verso` and read best at two
   columns;
-* **leave the pipes**, where the content is genuinely tabular and nothing
-  else reads better.
+* **leave the pipes**, where none of the above reads better.
 
-Upstream support is the only route that keeps them as real tables, and needs
-a table in the document model, the parser flag and an emitter.
+The upstream fix for the Markdown tables is a single argument —
+`MD4Lean.parse x MD4Lean.MD_FLAG_TABLES` — since the emitter already
+supports them.
 
 ## What it costs
 
