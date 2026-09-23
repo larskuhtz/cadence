@@ -150,6 +150,25 @@ closing the rest). Remaining:
   superseded version reads as current to anyone who does not already know
   the history, which is the most expensive kind of documentation error here.
 * Format the sources consistently against the Lean 4 style guide.
+* **Move the per-declaration commentary into module docstrings.** About
+  1 750 lines of explanation — roughly a fifth of the Lean prose, and
+  concentrated in the per-action and per-relation commentary of the model
+  files — sit in plain `/- … -/` block comments and `--` line comments, which
+  no documentation tool can see. The reason is the hard rule that a
+  `/-- … -/` *declaration* docstring before a Veil `safety`/`invariant`/
+  `action` breaks the parser (`CLAUDE.md`).
+
+  A `/-! … -/` *module* docstring does not: it is a standalone command, and
+  it has been checked to parse immediately before a Veil `action` and an
+  `invariant` with every verification condition still discharging. Module
+  docstrings also render in source order, so the commentary would appear
+  beside the declaration it explains.
+
+  The conversion is mechanical, file by file, and changes no VC statement —
+  it adds commands rather than touching any declaration, so a rebuild is a
+  cache replay rather than a re-solve. **Do it when no other pull request is
+  outstanding:** it touches every model file, so it conflicts with anything
+  else in flight, and that is the only real cost.
 
 ## Model structure — refactors explored and deferred
 
