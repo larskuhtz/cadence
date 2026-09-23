@@ -8,23 +8,46 @@
  * *Verso* docstring through `Doc/Html.lean`, which is complete, and a
  * *Markdown* docstring — Lean's default, and what this development uses —
  * through a second, thinner emitter in `VersoLiterateCode.lean`. This
- * project only ever hits the second one. Both are still present on Verso
- * `main` as of 2026-09-23, so there is no version to upgrade to. */
+ * project only ever hits the second one. Both gaps are still present on
+ * Verso `main` as of 2026-09-23, so there is no version to upgrade to. */
 
 /* 1. Markdown list items are emitted as bare `<p>` inside `<ul>`/`<ol>`,
  *    with no `<li>` at all (`VersoLiterateCode.lean`, the `.ul`/`.ol` cases,
  *    against `Doc/Html.lean` which wraps them properly). A paragraph draws
  *    no marker, which is why these lists render as unindented runs of text.
  *    `display: list-item` gives each one the marker box it should have had;
- *    an `<ol>`'s counter increments per list item, so numbering follows. */
-.md-text ul > p,
-.md-text ol > p {
+ *    `list-style-type` is inherited from the list, so bullets and numbering
+ *    both follow.
+ *
+ *    The selectors deliberately mirror Verso's own
+ *
+ *        .code-content > .md-text.mod-doc :is(p, ul, ol, …) { display: block }
+ *
+ *    with two element steps instead of one. That rule is specificity
+ *    (0,3,1) and sets `display` on exactly these paragraphs, so a shorter
+ *    selector — `.md-text ul > p`, (0,1,2) — loses to it and silently does
+ *    nothing. These are (0,3,2) and win. Raise them together if Verso's
+ *    rule ever gets more specific. */
+.code-content > .verso-text.mod-doc ul > p,
+.code-content > .verso-text.mod-doc ol > p,
+.code-content > .md-text.mod-doc ul > p,
+.code-content > .md-text.mod-doc ol > p,
+.code-box .verso-text ul > p,
+.code-box .verso-text ol > p,
+.code-box .md-text ul > p,
+.code-box .md-text ol > p {
     display: list-item;
     margin-bottom: 0.4rem;
 }
 
-.md-text ul > p:last-child,
-.md-text ol > p:last-child {
+.code-content > .verso-text.mod-doc ul > p:last-child,
+.code-content > .verso-text.mod-doc ol > p:last-child,
+.code-content > .md-text.mod-doc ul > p:last-child,
+.code-content > .md-text.mod-doc ol > p:last-child,
+.code-box .verso-text ul > p:last-child,
+.code-box .verso-text ol > p:last-child,
+.code-box .md-text ul > p:last-child,
+.code-box .md-text ol > p:last-child {
     margin-bottom: 0;
 }
 
