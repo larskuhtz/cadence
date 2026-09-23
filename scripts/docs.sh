@@ -112,6 +112,17 @@ echo "=== 2/5  rendering each module"
 # both. Serial by choice: `Cadence.Chorus` alone peaks near 10 GB.
 complete_json() { [ -s "$1" ] && jq -e . "$1" > /dev/null 2>&1; }
 
+# A rendered module is reused when its JSON still parses, which makes a
+# re-run after a failure cheap. That test says nothing about *what* produced
+# the file, though, so a newer renderer would otherwise be ignored for every
+# module rendered before it — the table flag landed that way once, visible on
+# one page and stale on the rest. Tie the cache to the binary: if it is newer
+# than the JSON, re-render.
+if [ -n "$(find "$WORK/json" -name '*.json' ! -newer "$VBIN/verso-literate" -print -quit 2>/dev/null)" ]; then
+  echo "    (renderer is newer than the cached JSON — re-rendering all modules)"
+  rm -rf "$WORK/json"
+fi
+
 : > "$WORK/map.txt"
 while IFS= read -r m; do
   [ -n "$m" ] || continue
