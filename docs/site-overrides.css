@@ -1,0 +1,27 @@
+/* Site overrides for the rendered sources (`literate.toml`, `extra_css`).
+ *
+ * Verso's own stylesheet opens with `* { margin: 0; padding: 0 }` and then
+ * restores indentation per context. It restores `ul` inside a code box but
+ * not `ol`, and a list with no padding draws its markers outside the box,
+ * where they are clipped. These rules put the indentation back everywhere a
+ * list can appear and pin the markers inside it, which is the whole of what
+ * this file is for. */
+
+.code-content > .verso-text.mod-doc ul,
+.code-content > .verso-text.mod-doc ol,
+.code-content > .md-text.mod-doc ul,
+.code-content > .md-text.mod-doc ol,
+.code-box .verso-text ul,
+.code-box .verso-text ol,
+.code-box .md-text ul,
+.code-box .md-text ol {
+    padding-left: 1.5em;
+    list-style-position: outside;
+}
+
+.code-content > .verso-text.mod-doc li::marker,
+.code-content > .md-text.mod-doc li::marker,
+.code-box .verso-text li::marker,
+.code-box .md-text li::marker {
+    color: var(--verso-text-color);
+}

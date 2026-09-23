@@ -248,6 +248,15 @@ consequence of it.
   command emits a visible `⏭ skipped (veil.noVerify)` warning, so "no errors"
   in this mode can never be mistaken for "verified". See
   [../CLAUDE.md](../CLAUDE.md).
+* **…and under it, no VC-manager loop** (`port/noverify-no-manager`). The
+  manager loop never terminates by design, and `#gen_spec` used to start it
+  whatever the mode, parking a worker thread in `recv` for the life of the
+  process. Harmless under `lean`, which exits outright; fatal to any program
+  that *embeds* the frontend and returns from `main`, because the runtime
+  then joins every worker thread. The documentation site needs exactly such
+  a program — Verso's literate renderer re-elaborates each module to recover
+  its `InfoTree`s — and hung on every model before this
+  ([Documentation.md](./Documentation.md)).
 * **Hygienic generated binders.** The generated transition relations bind a
   reader, a pre-state, a label and a post-state; an action parameter of the
   same name (`st'` above all) used to be captured — the invariant sweep

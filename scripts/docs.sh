@@ -35,6 +35,7 @@ WORK=".lake/build/literate"
 VBIN=".lake/packages/verso/.lake/build/bin"
 
 echo "=== 0/5  checking the project is built"
+command -v jq > /dev/null || { echo "error: this script needs jq" >&2; exit 1; }
 if ! lake -Kenv=dev build --no-build Cadence > /dev/null 2>&1; then
   echo "error: the project is not up to date — run 'lake build' (or" >&2
   echo "       scripts/revalidate.sh) first; the site renders what was built." >&2
@@ -86,33 +87,29 @@ strip_proof_states() {
 echo "=== 2/5  rendering each module"
 # `verso-literate` re-elaborates a module from source — it needs the info
 # trees, which the `.olean` does not carry — and writes its highlighted form
-# as JSON. Two consequences for this project, neither of them configurable:
+# as JSON.
 #
-#  * It runs with none of the native plugins (cvc5, lean-smt, lean-auto, Qq)
-#    that lake passes when it builds a module itself, so a module that calls
-#    the solver aborts with "Could not find native implementation of external
-#    declaration 'cvc5.TermManager.new'" — SIGABRT, no Lean diagnostic.
-#    `VEIL_NO_VERIFY=1` is what makes the two sweeping models (Conductor,
-#    Cadence) renderable: Veil then skips the check commands, which is right
-#    for a documentation pass in any case. Verification is `verify`'s job and
-#    has already happened — stage 0 insists on it.
+# `VEIL_NO_VERIFY=1` is not optional here. The renderer runs with none of the
+# native plugins (cvc5, lean-smt, lean-auto, Qq) that lake passes when it
+# builds a module itself, so a module that reaches a solver call dies with
+# "Could not find native implementation of external declaration
+# 'cvc5.TermManager.new'" — SIGABRT, no Lean diagnostic. Skipping the check
+# commands is right for a documentation pass in any case: verification is
+# `verify`'s job and stage 0 insists it has already happened.
 #
-#  * Every Veil model deadlocks it at exit. `#gen_spec` starts Veil's
-#    VC-manager loop, which is infinite by design and deliberately not
-#    registered as a snapshot task ("the manager loop is infinite, so
-#    registering it would hang the build" — Veil's Verifier/Server.lean).
-#    Lean's own frontend exits without joining it; `verso-literate` finishes
-#    by joining every worker thread, so it waits forever. The JSON is
-#    complete before that happens — `main` writes it inside `IO.FS.withFile`,
-#    which closes and flushes the handle before returning — so the loop below
-#    waits for the file to parse and then reaps the process.
+# It is also what keeps the renderer *terminating*. `#gen_spec` starts Veil's
+# VC-manager loop, which never ends; `lean` exits the process outright and so
+# never notices, but a program that returns from `main` joins every worker
+# thread and waits on it forever. The pinned fork does not start that loop
+# under `veil.noVerify` (`docs/Dependencies.md` §6), which is what makes the
+# plain foreground run below possible — and `lake query :literateHtml`, the
+# documented one-liner, work too.
 #
-# That second point is why this is a hand-rolled pipeline rather than
-# `lake query :literateHtml`: the facet's own invocation would hang, with no
-# way to intervene. Everything else is verso's — the planner above and the
-# renderer below are its binaries, and `literate.toml` governs both. The fix
-# belongs in the Veil fork (a manager loop that terminates) or upstream in
-# Verso (exit without joining); until one lands, this is the shape.
+# This still drives Verso's binaries rather than that one-liner, for one
+# reason: the `jq` pass above has to run between the two stages, and the
+# facet does both in one job. Everything else is Verso's — the planner above
+# and the renderer below are its executables, and `literate.toml` governs
+# both. Serial by choice: `Cadence.Chorus` alone peaks near 10 GB.
 complete_json() { [ -s "$1" ] && jq -e . "$1" > /dev/null 2>&1; }
 
 : > "$WORK/map.txt"
@@ -124,25 +121,17 @@ while IFS= read -r m; do
     rm -f "$json"
     printf '    %-42s ' "$m"
     start=$(date +%s)
-    # `< /dev/null`: a background job inherits the loop's stdin, which is the
-    # plan file being read.
-    VEIL_NO_VERIFY=1 lake -Kenv=dev env "$VBIN/verso-literate" "$m" "$json" \
-      > "$WORK/render.log" 2>&1 < /dev/null &
-    pid=$!
-    for _ in $(seq 1 1800); do
-      complete_json "$json" && break
-      kill -0 "$pid" 2>/dev/null || break
-      sleep 1
-    done
-    pkill -9 -P "$pid" 2>/dev/null || true
-    kill -9 "$pid" 2>/dev/null || true
-    wait "$pid" 2>/dev/null || true
-    # Judge by the artefact, after reaping, not by how the loop left: a
-    # renderer that exits of its own accord — which is what a Veil without the
-    # deadlock does — can finish between the poll and the liveness check, and
-    # that is success, not failure.
-    if ! complete_json "$json"; then
+    if ! VEIL_NO_VERIFY=1 lake -Kenv=dev env "$VBIN/verso-literate" "$m" "$json" \
+         > "$WORK/render.log" 2>&1 < /dev/null; then
       echo "FAILED"
+      sed -n '1,10p' "$WORK/render.log" >&2
+      exit 1
+    fi
+    # Judge by the artefact as well as the exit code: the renderer reports a
+    # parse or elaboration failure in its output rather than always in its
+    # status.
+    if ! complete_json "$json"; then
+      echo "FAILED (no parseable output)"
       sed -n '1,10p' "$WORK/render.log" >&2
       exit 1
     fi

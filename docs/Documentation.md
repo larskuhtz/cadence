@@ -126,6 +126,31 @@ This is the same intent as excluding the proof families, applied inside a
 module: what an auditor reads is the statement and the reasoning around it,
 not the tactic state between two `simp` calls.
 
+### Markdown tables in the headers do not render, and cannot yet
+
+Lean has two docstring languages. With `doc.verso` (or `doc.verso.module`)
+set, `/-! … -/` and `/-- … -/` are parsed as **Verso markup**; unset — the
+default, and what this development uses — they are **Markdown**. The
+renderer handles both, but not equally: on the Markdown path its converter
+(`VersoLiterate/Exported.lean`, `mdBlock`) accepts paragraphs, bulleted and
+numbered lists, block quotes, code blocks and headers, and rejects the rest
+with, verbatim, `"Markdown tables not supported"`. Literal HTML and
+thematic breaks are rejected the same way.
+
+The tables in the module headers do not even reach that rejection: the
+Markdown parser is not run with its table extension, so a table arrives as
+one paragraph and is rendered as literal `|` rows. That is why
+`Interfaces`'s four tables appear as pipes on the page while the `code`
+spans and links inside their cells are formatted correctly — inline markup
+is processed, block structure is not.
+
+Nothing here is worth working around. The two real options are upstream —
+Verso implementing `mdBlock`'s `.table` case (MD4Lean already models one:
+`Block.table`) — or a source change, either turning the ~93 affected header
+rows into something the supported subset expresses, or moving the whole
+development to Verso docstrings, which is a different and much larger
+decision than how the site is built.
+
 ## What it costs
 
 Two costs are specific to this project and worth knowing before changing

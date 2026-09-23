@@ -41,6 +41,17 @@ exclude = [
 # a paragraph of reasoning, then the `safety` or `action` it justifies.
 docstrings_as_text = true
 
+# Site overrides, appended after Verso's own stylesheet. Verso resets all
+# padding with `* { padding: 0 }` and then restores it per context, missing
+# `ol` inside a code box; `docs/site-overrides.css` puts it back everywhere a
+# list can appear. This is also the hook for any further presentation tweak —
+# nothing in the generated output needs patching.
+#
+# The basename must not be `literate.css`: extra files are copied into the
+# output directory under their own name, and Verso's own stylesheet is called
+# that, so a clash silently replaces the entire stylesheet.
+extra_css = ["docs/site-overrides.css"]
+
 # Everything in the one library the project builds.
 [[targets]]
 library = "Cadence"
@@ -82,13 +93,17 @@ library = "Cadence"
   "Cadence.FallbackReceipt.PreFix",
 ]
 
-# Page titles: the module name is right for everything except the two whose
-# name does not say what they are.
-[modules."Cadence"]
-title = "Cadence — the audit root"
-
+# Page titles.
+#
+# A `[modules."X"]` entry applies to X *and every module beneath it*: the
+# renderer resolves per-module settings by longest-prefix match, and `title`
+# — unlike `url`, which appends the remaining components — is inherited
+# verbatim. So a title on `Cadence` is a title on all of them, and the
+# navigation bar reads the same word twenty-four times. Only leaves get one —
+# here just the glue, whose leaf name is "Cadence" and would otherwise be
+# indistinguishable from the root.
 [modules."Cadence.Cadence"]
-title = "Cadence.Cadence — the pipelining glue"
+title = "Cadence (the glue)"
 
 [metadata]
 title = "Cadence — the verified sources"
