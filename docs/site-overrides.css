@@ -4,7 +4,8 @@
  * output directory under their own name, and that is Verso's own stylesheet,
  * so a clash silently replaces the whole of it.
  *
- * Both rules below work around the same upstream gap. Verso renders a
+ * Sections 1 and 2 work around upstream gaps; 3 and 4 are this site's own
+ * presentation choices. The gaps are all in one place: Verso renders a
  * *Verso* docstring through `Doc/Html.lean`, which is complete, and a
  * *Markdown* docstring — Lean's default, and what this development uses —
  * through a second, thinner emitter in `VersoLiterateCode.lean`. This
@@ -128,4 +129,26 @@
 .code-box .verso-text:first-child,
 .code-box .md-text:first-child {
     margin-top: 0;
+}
+
+/* 4. Space between consecutive code blocks.
+ *
+ * The renderer emits one `.hl.lean.block` per top-level command, so two that
+ * sit next to each other are two consecutive declarations — with nothing
+ * between them, which is where a source file would have a blank line. Runs
+ * that are *not* adjacent are the ones a docstring split, either between two
+ * class fields or before a declaration, and those already get their spacing
+ * from the docstring's own margins; hence the adjacent-sibling selector
+ * rather than a margin on every block. It also means no rule is needed to
+ * suppress a leading gap, since the first block in a box is never a sibling.
+ *
+ * `margin-top` is the right property — `.hl.lean.block` is `display: block`,
+ * and the gap belongs to the run that follows. On the unit: `ex` is the
+ * font's x-height, so it moves if the code font is ever changed, and it is
+ * not a unit Verso uses; `1rem` is 16px against 2ex's 16.63px here, close
+ * enough to be indistinguishable, and it matches the 0.35/0.5/0.75/1rem
+ * scale the rest of the stylesheet is built on. One full blank line would be
+ * the code's own line-height, 22.8px, if this ever wants to be airier. */
+.code-box .hl.lean.block + .hl.lean.block {
+    margin-top: 1rem;
 }
