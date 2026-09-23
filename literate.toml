@@ -41,11 +41,11 @@ exclude = [
 # a paragraph of reasoning, then the `safety` or `action` it justifies.
 docstrings_as_text = true
 
-# Site overrides, appended after Verso's own stylesheet. Verso resets all
-# padding with `* { padding: 0 }` and then restores it per context, missing
-# `ol` inside a code box; `docs/site-overrides.css` puts it back everywhere a
-# list can appear. This is also the hook for any further presentation tweak —
-# nothing in the generated output needs patching.
+# Site overrides, loaded after Verso's own stylesheet. They patch two gaps in
+# its *Markdown* rendering path — list items emitted without `<li>`, and
+# missing indentation on `ol` in a code box — both documented in the file and
+# both still present upstream. This is also the hook for any further
+# presentation tweak; nothing in the generated output needs patching.
 #
 # The basename must not be `literate.css`: extra files are copied into the
 # output directory under their own name, and Verso's own stylesheet is called

@@ -126,30 +126,51 @@ This is the same intent as excluding the proof families, applied inside a
 module: what an auditor reads is the statement and the reasoning around it,
 not the tactic state between two `simp` calls.
 
-### Markdown tables in the headers do not render, and cannot yet
+### The Markdown path is the thin one, and that is where the rough edges are
 
 Lean has two docstring languages. With `doc.verso` (or `doc.verso.module`)
 set, `/-! … -/` and `/-- … -/` are parsed as **Verso markup**; unset — the
-default, and what this development uses — they are **Markdown**. The
-renderer handles both, but not equally: on the Markdown path its converter
-(`VersoLiterate/Exported.lean`, `mdBlock`) accepts paragraphs, bulleted and
-numbered lists, block quotes, code blocks and headers, and rejects the rest
-with, verbatim, `"Markdown tables not supported"`. Literal HTML and
-thematic breaks are rejected the same way.
+default, and what this development uses — they are **Markdown**. Verso
+renders both, but through different code, and the Markdown side is less
+complete. Two consequences show on these pages.
 
-The tables in the module headers do not even reach that rejection: the
-Markdown parser is not run with its table extension, so a table arrives as
-one paragraph and is rendered as literal `|` rows. That is why
-`Interfaces`'s four tables appear as pipes on the page while the `code`
-spans and links inside their cells are formatted correctly — inline markup
-is processed, block structure is not.
+**Markdown tables render as literal `|` rows.** The converter
+(`VersoLiterate/Exported.lean`, `mdBlock`) accepts paragraphs, lists, block
+quotes, code blocks and headers, and rejects the rest with, verbatim,
+`"Markdown tables not supported"` — the same for literal HTML and thematic
+breaks. The tables here do not even reach that rejection: the Markdown
+parser is not run with its table extension, so a table arrives as one
+paragraph. That is why the cells' `code` spans and links are formatted
+correctly while the table itself is not — inline markup is processed, block
+structure is not.
 
-Nothing here is worth working around. The two real options are upstream —
-Verso implementing `mdBlock`'s `.table` case (MD4Lean already models one:
-`Block.table`) — or a source change, either turning the ~93 affected header
-rows into something the supported subset expresses, or moving the whole
-development to Verso docstrings, which is a different and much larger
-decision than how the site is built.
+**Markdown list items are emitted without `<li>`.** `VersoLiterateCode.lean`
+renders `.ul`/`.ol` as `<ul>{item contents}</ul>` — the items' blocks go in
+bare, so each becomes a `<p>` with no list item to hang a marker on. Verso's
+other emitter, `Doc/Html.lean`, wraps them properly; only the Markdown path
+is affected. `docs/site-overrides.css` restores the markers with
+`display: list-item`, which is a presentation patch over a structural bug.
+
+Both are still present on Verso `main` (checked 2026-09-23, identical code at
+the same line numbers), so there is no version to upgrade to. The pin is
+`v4.32.0` because that is the tag matching this project's toolchain;
+`v4.33`–`v4.35` track later Lean releases.
+
+**Turning on `doc.verso` would not fix the tables**, which is the obvious
+thing to try and the reason to write this down. Lean's document model has no
+table: `Lean.Doc.Block` is `para`, `code`, `ul`, `ol`, `dl`, `blockquote`,
+`concat`, `other`. Verso markup cannot express one either. Switching would
+also cost more than it returns here — the headers do parse as Verso markup,
+but every inline `` `code` `` span raises "Code element could be more
+specific" unless given a role, and there are **3 962** of them in the
+published modules; emphasis conventions differ (`*bold*`, `_emph_`, against
+Markdown's `**bold**`); and it would edit the model sources, which are the
+specification.
+
+So the options for tables are: leave them as pipes; restate those ~93 rows
+as description lists or nested bullets, which both languages model; or
+upstream support, which needs a table in the document model, the parser flag
+and an emitter.
 
 ## What it costs
 

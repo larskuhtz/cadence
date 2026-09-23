@@ -1,12 +1,36 @@
 /* Site overrides for the rendered sources (`literate.toml`, `extra_css`).
  *
- * Verso's own stylesheet opens with `* { margin: 0; padding: 0 }` and then
- * restores indentation per context. It restores `ul` inside a code box but
- * not `ol`, and a list with no padding draws its markers outside the box,
- * where they are clipped. These rules put the indentation back everywhere a
- * list can appear and pin the markers inside it, which is the whole of what
- * this file is for. */
+ * The basename must not be `literate.css`: extra files are copied into the
+ * output directory under their own name, and that is Verso's own stylesheet,
+ * so a clash silently replaces the whole of it.
+ *
+ * Both rules below work around the same upstream gap. Verso renders a
+ * *Verso* docstring through `Doc/Html.lean`, which is complete, and a
+ * *Markdown* docstring — Lean's default, and what this development uses —
+ * through a second, thinner emitter in `VersoLiterateCode.lean`. This
+ * project only ever hits the second one. Both are still present on Verso
+ * `main` as of 2026-09-23, so there is no version to upgrade to. */
 
+/* 1. Markdown list items are emitted as bare `<p>` inside `<ul>`/`<ol>`,
+ *    with no `<li>` at all (`VersoLiterateCode.lean`, the `.ul`/`.ol` cases,
+ *    against `Doc/Html.lean` which wraps them properly). A paragraph draws
+ *    no marker, which is why these lists render as unindented runs of text.
+ *    `display: list-item` gives each one the marker box it should have had;
+ *    an `<ol>`'s counter increments per list item, so numbering follows. */
+.md-text ul > p,
+.md-text ol > p {
+    display: list-item;
+    margin-bottom: 0.4rem;
+}
+
+.md-text ul > p:last-child,
+.md-text ol > p:last-child {
+    margin-bottom: 0;
+}
+
+/* 2. Verso opens with `* { margin: 0; padding: 0 }` and then restores
+ *    indentation per context, missing `ol` inside a code box. Without
+ *    padding the markers are drawn outside the content box and clipped. */
 .code-content > .verso-text.mod-doc ul,
 .code-content > .verso-text.mod-doc ol,
 .code-content > .md-text.mod-doc ul,
@@ -17,11 +41,4 @@
 .code-box .md-text ol {
     padding-left: 1.5em;
     list-style-position: outside;
-}
-
-.code-content > .verso-text.mod-doc li::marker,
-.code-content > .md-text.mod-doc li::marker,
-.code-box .verso-text li::marker,
-.code-box .md-text li::marker {
-    color: var(--verso-text-color);
 }
