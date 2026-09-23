@@ -84,6 +84,34 @@ strip_proof_states() {
   mv "$tmp" "$f"
 }
 
+# Drop the stray `/--` that leads a doc comment on an anonymous command.
+#
+# The renderer strips a doc comment's delimiters by hand:
+#
+#     text.dropPrefix "/-- " |>.dropSuffix " -/" |>.dropSuffix "\n-/" ...
+#
+# The closing delimiter is matched three ways, the opening one only with a
+# trailing *space*. This development writes its `#guard_msgs` expectations in
+# the form `#guard_msgs` itself suggests — `/--` alone on a line, the message
+# below it — so the suffix is removed and the prefix is not, and the page
+# shows a `/--` with no closing partner. 41 of them, and they are the axiom
+# and `#veil_status` pins, which is the worst place for a stray delimiter.
+#
+# In the JSON the leftover is its own inline: `{"normal": "/--"}` followed by
+# a `softbr`, at the head of the first paragraph. Both are dropped, and only
+# in that exact position, so nothing that merely begins with those characters
+# is touched. The real fix is one line upstream, in `parseDocComment`.
+fix_docstring_markers() {
+  local f="$1" tmp="$1.tmp"
+  jq -c '.items.items |= map(
+           .code |= map(
+             if (.markdown? != null) and (.markdown[2].blocks[0].p[0].normal? == "/--")
+             then .markdown[2].blocks[0].p |=
+                    (if (.[1].softbr? != null) then .[2:] else .[1:] end)
+             else . end))' "$f" > "$tmp"
+  mv "$tmp" "$f"
+}
+
 echo "=== 2/5  rendering each module"
 # `verso-literate` re-elaborates a module from source — it needs the info
 # trees, which the `.olean` does not carry — and writes its highlighted form
@@ -146,9 +174,14 @@ while IFS= read -r m; do
       sed -n '1,10p' "$WORK/render.log" >&2
       exit 1
     fi
-    strip_proof_states "$json"
     printf 'ok  %3ds\n' "$(( $(date +%s) - start ))"
   fi
+  # Outside the branch above, so that a cached module is treated too: both
+  # filters are idempotent, and running them only on a fresh render would
+  # leave an edited filter unapplied to everything already on disk — the same
+  # staleness the renderer check above exists to prevent.
+  strip_proof_states "$json"
+  fix_docstring_markers "$json"
   printf '%s\t%s\t%s\n' "$m" "$REPO/$json" "$REPO" >> "$WORK/map.txt"
 done < "$WORK/plan.txt"
 
