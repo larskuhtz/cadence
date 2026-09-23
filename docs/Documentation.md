@@ -172,13 +172,39 @@ is switched off by `set_option doc.verso.suggestions false`. What remains is
 that emphasis conventions differ (`*bold*`, `_emph_`, against Markdown's
 `**bold**`) and that it edits the model sources, which are the specification.
 
+**Nor is raw HTML a way round it.** Verso removes HTML blocks, raw HTML and
+thematic breaks from its markup on purpose — they "don't make sense for
+non-HTML output" (Verso's markup guide, *Fewer Unused Features*). On the
+Markdown path an HTML block *is* parsed and then rejected by the converter,
+so pasting `<table>` into a header fails the docs build rather than passing
+through; inline HTML cannot even be represented, as MD4Lean's inline type
+has no HTML constructor. Directives are not a loophole either: a directive
+has no meaning beyond what an extension gives it, and the pseudo-XML in
+Verso's directive documentation is its *parse tree* pretty-printed, not
+emitted markup.
+
+What the Markdown path actually offers was measured against the parser
+rather than read off the types, because the types promise more than the
+parser delivers — `Block.table` exists and is never emitted, and so are the
+two LaTeX-math inlines. `$a + b$` and `$$\begin{array}…$$` both come back as
+plain text, so encoding a table as maths does not work here. Mermaid is not
+supported by Verso at all. Fenced code blocks do work.
+
 So the eleven tables — five of two columns, three of three, three of four —
-have three honest shapes: leave them as pipes; restate them as nested
-bullet lists, which works on the Markdown path today; or move those files to
-Verso docstrings and use description lists, which suits the two-column ones
-and not the wider ones. Upstream table support would need a table in the
-document model, the parser flag and an emitter, and is the only route that
-keeps them as tables.
+have four honest shapes, and which one fits is per-table:
+
+* **nested bullet lists**, for two and three columns, on the Markdown path
+  today;
+* **a fenced code block holding an ASCII table**, which keeps alignment and
+  suits the wider reference tables — the monitor's mutation table is already
+  written that way;
+* **description lists**, which need `doc.verso` and read best at two
+  columns;
+* **leave the pipes**, where the content is genuinely tabular and nothing
+  else reads better.
+
+Upstream support is the only route that keeps them as real tables, and needs
+a table in the document model, the parser flag and an emitter.
 
 ## What it costs
 
