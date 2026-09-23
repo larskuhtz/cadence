@@ -65,3 +65,53 @@
     padding-left: 1.5em;
     list-style-position: outside;
 }
+
+/* 3. Docstrings inside a code box.
+ *
+ * Verso renders a `/-- … -/` in place, which is right, but leaves it
+ * typographically adrift: the only cue that prose has begun is the literal
+ * `/--`, set in the same monospace as the operators around it. Four fixes,
+ * all built from variables Verso already defines, so light and dark themes
+ * follow for free.
+ *
+ * (a) The marker wraps. `width: min-content` on `/--` resolves to the width
+ *     of `--`, because a line may break after `/`, so the slash lands on its
+ *     own line — measured in Chrome at 16.86px wide and 32px tall, against
+ *     25.30px by 16px when it does not wrap. Verso's *other* docstring rule,
+ *     in `Highlighted.lean`, uses `max-content` and does not have the bug.
+ *     `nowrap` keeps the intended narrow block without the break. */
+.code-box .verso-text::before,
+.code-box .md-text::before,
+.code-box .verso-text::after,
+.code-box .md-text::after,
+.code-box .verso-text.mod-doc::before,
+.code-box .md-text.mod-doc::before {
+    white-space: nowrap;
+    color: var(--verso-muted-color);
+    font-size: 0.85em;
+}
+
+/* (b) Lift the prose off the code. The docstring takes the *page*
+ *     background where the code box keeps its own, so prose reads as a
+ *     panel sitting on the listing rather than as more code, and the rule
+ *     down its left edge uses `--verso-docstring-border-color` — which
+ *     Verso declares for both themes and, as of this pin, never consumes.
+ *
+ * (c) Bind it to what it documents. A Lean docstring describes the
+ *     declaration *below* it, so the gap above is larger than the gap
+ *     below: proximity does the associating that the markers alone did not. */
+.code-box .verso-text,
+.code-box .md-text {
+    background: var(--verso-background-color);
+    border-left: 3px solid var(--verso-docstring-border-color);
+    border-radius: 0 0.25rem 0.25rem 0;
+    padding: 0.4rem 0.75rem;
+    margin-top: 1rem;
+    margin-bottom: 0.35rem;
+}
+
+/* The first docstring in a box has nothing above it to separate from. */
+.code-box .verso-text:first-child,
+.code-box .md-text:first-child {
+    margin-top: 0;
+}
