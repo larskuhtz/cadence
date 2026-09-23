@@ -74,11 +74,11 @@ module is invisible. `docstrings_as_text` is set, so a `/-- … -/` docstring
 becomes a paragraph before the declaration rather than a box inside the
 listing — which is what makes a model read as the document it is.
 
-The site is also a quarter of the size, and all of it is this project.
-`doc-gen4` emitted about 400 MB, of which this project's own pages were
-about 6 MB; the rest was the imported subset of Mathlib, kept so
-cross-references resolved. The literate site is about 97 MB and publishes
-only this project's modules.
+The site is also smaller, and all of it is this project. `doc-gen4` emitted
+321 MB here, of which this project's own pages were 6.3 MB; the rest was
+Lean core, Batteries and the imported subset of Mathlib, kept so
+cross-references resolved. The literate site is 97 MB and publishes only
+this project's modules.
 
 ### What is published
 
