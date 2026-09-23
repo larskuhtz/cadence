@@ -1,0 +1,85 @@
+# Which Lean sources are published as a site, and how they are presented.
+# Read by Verso's literate renderer; `scripts/docs.sh` drives it. The keys are
+# documented in Verso's user guide under "Literate Programming".
+#
+# TOML note: every bare key below belongs to the top-level table, so they all
+# precede the first `[section]` header.
+
+# The per-action proof families are excluded. They are 76 machine-shaped files
+# of `#prove_vc` cells whose content is the VC registry's, not a reader's:
+# what they establish is stated by the three `Certify` modules, which are
+# included and which carry the `#veil_status` pins. Exclusion is by name
+# prefix, so each line drops a whole subtree.
+#
+# `Cadence.Monitor` is excluded for a different reason, and for a second one
+# that would force it anyway. It is not part of any theorem's trust base
+# (`docs/Monitor.md` is where it is documented), so it is not audit surface.
+# And three of its files declare a root-level `main`: Lean names are global,
+# the renderer's search index is keyed by name, and a site that published two
+# of them would fail to build on the duplicate.
+exclude = [
+  "Cadence.Chorus.Proofs",
+  "Cadence.Mvba.Proofs",
+  "Cadence.FallbackReceipt.Proofs",
+  "Cadence.Monitor",
+]
+
+# The models carry their rationale in long `/-! … -/` headers and their
+# per-declaration prose in `/-- … -/` docstrings. Rendering the latter as text
+# rather than inside the code boxes makes a model read as the document it is:
+# a paragraph of reasoning, then the `safety` or `action` it justifies.
+docstrings_as_text = true
+
+# Everything in the one library the project builds.
+[[targets]]
+library = "Cadence"
+
+# Reading order, mirroring the one the README gives: the contracts, then each
+# model with its certificate, then the composition, then the support files.
+# Anything not listed follows alphabetically, so a new module appears without
+# an edit here.
+[order_children]
+"Cadence" = [
+  "Cadence.Interfaces",
+  "Cadence.Chorus",
+  "Cadence.Mvba",
+  "Cadence.Conductor",
+  "Cadence.Cadence",
+  "Cadence.FallbackReceipt",
+  "Cadence.Composition",
+  "Cadence.System",
+  "Cadence.Primitives",
+  "Cadence.ByzQuorum",
+  "Cadence.Windows",
+  "Cadence.Tooling",
+  "Cadence.ProofPrelude",
+]
+"Cadence.Chorus" = [
+  "Cadence.Chorus.Certify",
+  "Cadence.Chorus.Compose",
+  "Cadence.Chorus.Counting",
+  "Cadence.Chorus.Pigeonhole",
+  "Cadence.Chorus.Progress",
+]
+"Cadence.Mvba" = [
+  "Cadence.Mvba.Certify",
+  "Cadence.Mvba.Compose",
+  "Cadence.Mvba.NoLock",
+]
+"Cadence.FallbackReceipt" = [
+  "Cadence.FallbackReceipt.Certify",
+  "Cadence.FallbackReceipt.Totality",
+  "Cadence.FallbackReceipt.PreFix",
+]
+
+# Page titles: the module name is right for everything except the two whose
+# name does not say what they are.
+[modules."Cadence"]
+title = "Cadence — the audit root"
+
+[modules."Cadence.Cadence"]
+title = "Cadence.Cadence — the pipelining glue"
+
+[metadata]
+title = "Cadence — the verified sources"
+description = "The Lean sources of the machine-checked verification of the Cadence BFT consensus protocol."

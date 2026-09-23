@@ -153,16 +153,22 @@ closing the rest). Remaining:
 * **Move the per-declaration commentary into module docstrings.** About
   1 750 lines of explanation — roughly a fifth of the Lean prose, and
   concentrated in the per-action and per-relation commentary of the model
-  files — sit in plain `/- … -/` block comments and `--` line comments, which
-  no documentation tool can see. The reason is the hard rule that a
-  `/-- … -/` *declaration* docstring before a Veil `safety`/`invariant`/
-  `action` breaks the parser (`CLAUDE.md`).
+  files — sit in plain `/- … -/` block comments and `--` line comments rather
+  than in docstrings. The reason is the hard rule that a `/-- … -/`
+  *declaration* docstring before a Veil `safety`/`invariant`/`action` breaks
+  the parser (`CLAUDE.md`).
 
   A `/-! … -/` *module* docstring does not: it is a standalone command, and
   it has been checked to parse immediately before a Veil `action` and an
-  `invariant` with every verification condition still discharging. Module
-  docstrings also render in source order, so the commentary would appear
-  beside the declaration it explains.
+  `invariant` with every verification condition still discharging.
+
+  What this is now worth is smaller than it was, and worth stating plainly.
+  The site renders the sources in order, so those comments are **shown** —
+  as comments, inside the code, which is where the renderer can put text it
+  is not told is prose ([Documentation.md](./Documentation.md)). Converting
+  them would promote the commentary to rendered prose: Markdown, searchable,
+  and set beside the declaration rather than inside the listing. That is a
+  presentation gain, not a visibility one.
 
   The conversion is mechanical, file by file, and changes no VC statement —
   it adds commands rather than touching any declaration, so a rebuild is a

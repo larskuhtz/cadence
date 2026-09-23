@@ -142,9 +142,12 @@ run_cmd liftTermElabM do
   o := p "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">" o
   o := p "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" o
   o := p "<title>The trust boundary — Cadence</title>" o
-  o := p "<link rel=\"stylesheet\" href=\"style.css\">" o
+  -- Self-contained: this page sits beside the rendered sources rather than
+  -- inside them, and carries its own styling rather than a link into theirs.
   o := p "<style>
-    body{max-width:62rem;margin:0 auto;padding:2rem 1.25rem;line-height:1.55}
+    :root{color-scheme:light dark}
+    body{max-width:62rem;margin:0 auto;padding:2rem 1.25rem;line-height:1.55;
+         font-family:system-ui,-apple-system,\"Segoe UI\",sans-serif}
     table{border-collapse:collapse;width:100%;margin:1rem 0}
     th,td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid #8884;vertical-align:top}
     th{font-weight:600}

@@ -288,9 +288,13 @@ PAYLOAD
   docs)
     # Render the Lean sources as a browsable site (scripts/docs.sh) and derive
     # the trust boundary from the compiled environment. Runs against the
-    # `verified` image because doc-gen4 reads this project's `.olean`s rather
-    # than re-elaborating its sources: the cost here is doc-gen4's own build
-    # plus one analysis pass over the import closure, not a re-verification.
+    # `verified` image because the script refuses to start unless the project
+    # is built, and that image already holds the `.olean`s.
+    #
+    # It is not, however, free once they are there: the renderer re-elaborates
+    # each module it publishes, because highlighting needs the info trees an
+    # `.olean` does not carry. That is the 25 selected modules, not the 76
+    # proof files — docs/Documentation.md § "What it costs".
     #
     # Needs network the first time, to resolve the `-Kenv=dev` documentation
     # dependency; the site lands in ./site via the workspace mount.

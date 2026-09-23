@@ -1,15 +1,17 @@
 # Render the Lean sources as a browsable site and publish it to GitHub Pages.
 #
 # What this is for: an auditor reading the formalization needs the models'
-# prose (the long `/-! … -/` headers), the declarations they describe, and the
-# boundary between what the kernel checks and what is assumed. This workflow
-# renders all three — the first two with `doc-gen4`, the third derived from the
-# compiled environment by `scripts/TrustSurface.lean`.
+# prose (the long `/-! … -/` headers and the commentary between declarations),
+# the declarations they describe, and the boundary between what the kernel
+# checks and what is assumed. This workflow renders all three — the first two
+# with Verso's literate renderer, the third derived from the compiled
+# environment by `scripts/TrustSurface.lean`.
 #
-# Why it runs in the `cadence-verified` image: doc-gen4 reads `.olean`s rather
-# than re-elaborating sources, and that image already holds this project's.
-# Running here costs the doc-gen4 build plus the analysis pass, not a
-# re-verification — so this job is minutes, not the hours `verify` is sized for.
+# Why it runs in the `cadence-verified` image: `scripts/docs.sh` refuses to
+# start unless the project is built, and that image already holds the
+# `.olean`s. The renderer then re-elaborates the 25 modules it publishes —
+# the models and the composition, not the 76 proof files — so this job is
+# minutes, not the hours `verify` is sized for.
 #
 # The published site is documentation, not evidence. It carries no weight in
 # any theorem's trust base: `verify` and `check` remain the gates. The one
@@ -56,8 +58,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # doc-gen4 is pinned behind `-Kenv=dev`, so this resolves it (and its
-      # four additive dependencies) inside the image before building.
+      # Verso is pinned behind `-Kenv=dev`, so this resolves it (and its
+      # additive dependencies) inside the image before rendering.
       - name: Render the documentation
         env:
           RUNTIME: docker

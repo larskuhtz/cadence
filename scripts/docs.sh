@@ -13,75 +13,151 @@
 #                         end result, the (empty) list of axioms this
 #                         development declares, and which module contracts
 #                         have no instance
-#   Cadence/*.html        every module's own prose, rendered — the long
-#                         `/-! … -/` headers that carry the modelling
-#                         rationale, with each declaration linked to its source
+#   sources/              every module rendered in source order — the prose,
+#                         the declarations it describes, and the code between
+#                         them — by Verso's literate renderer, configured in
+#                         `literate.toml`
 #
-# The documentation generator is `doc-gen4`, pinned in lakefile.lean behind
-# `-Kenv=dev` so it never enters a normal `lake build`. The first run is
-# expensive: doc-gen4 analyses the whole import closure and emits HTML for it,
-# so the site is ~400 MB of which this project is ~6 MB — the rest is Lean
-# core, Batteries and the imported subset of Mathlib, kept so that a reviewer
-# clicking through to a dependency's definition lands on a real page. Later
-# runs are incremental: only modules whose hash changed are re-analysed.
+# Requires the project to be built (`lake build`). The check below is a hard
+# gate rather than a convenience: stage 2 runs with `VEIL_NO_VERIFY=1`, and an
+# out-of-date olean rebuilt under that variable would be an unverified olean
+# in the build tree. `--no-build` makes that impossible — if anything is
+# stale, this script stops before setting the variable.
 #
-# Requires the project to be built (`lake build`), since doc-gen4 reads the
-# `.olean`s rather than re-elaborating the sources.
+# Why this drives Verso's three binaries instead of `lake query :literateHtml`
+# — which is the documented one-line way to do it — is explained at stage 2.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+REPO="$PWD"
 OUT="${1:-site}"
-DOC=".lake/build/doc"
+WORK=".lake/build/literate"
+VBIN=".lake/packages/verso/.lake/build/bin"
 
-echo "=== 1/4  building documentation (doc-gen4)"
-# doc-gen4 panics, non-fatally and once per declaration, on anything without a
-# source position — which is most of what Veil generates (state projections,
-# enum instances). Those declarations are dropped from the output; the prose
-# and the hand-written declarations render correctly. The noise is summarised
-# rather than dumped, because at ~300 backtraces it buries real errors.
-LOG="$(mktemp)"
-trap 'rm -f "$LOG"' EXIT
-if ! LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-4}" lake -R -Kenv=dev build Cadence:docs \
-      > "$LOG" 2>&1; then
-  echo "--- doc-gen4 failed; last 40 lines:" >&2
-  tail -40 "$LOG" >&2
+echo "=== 0/5  checking the project is built"
+if ! lake -Kenv=dev build --no-build Cadence > /dev/null 2>&1; then
+  echo "error: the project is not up to date — run 'lake build' (or" >&2
+  echo "       scripts/revalidate.sh) first; the site renders what was built." >&2
   exit 1
 fi
-positionless=$(grep -c 'is a declaration without position' "$LOG" || true)
-grep -vE 'is a declaration without position|^backtrace:|^[0-9]+ +doc-gen4|^[0-9]+ +lib(system|c)|WARNING: Failed to obtain information for:|^ *$' \
-  "$LOG" | tail -20
-echo "    (doc-gen4 skipped ${positionless} Veil-generated declarations that carry"
-echo "     no source position; see docs/Documentation.md)"
+# Verso is pinned behind `-Kenv=dev`, so a normal `lake build` never sees it.
+LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-4}" lake -Kenv=dev build \
+  verso/verso-literate verso/verso-literate-plan verso/verso-literate-html \
+  > /dev/null
 
-if [ ! -d "$DOC" ]; then
-  echo "error: doc-gen4 produced no output at $DOC" >&2
+mkdir -p "$WORK"
+
+echo "=== 1/5  planning the site from literate.toml"
+# Every module of the one library this package builds, in the
+# "<library><tab><module>" form the planner reads.
+find Cadence -name '*.lean' | sed 's#\.lean$##; s#/#.#g; s#^#Cadence\t#' \
+  | sort > "$WORK/modules.txt"
+printf 'Cadence\tCadence\n' >> "$WORK/modules.txt"
+# The planner applies `targets`, `exclude` and the ordering keys, and prints
+# the modules the site will contain, in site order.
+lake -Kenv=dev env "$VBIN/verso-literate-plan" \
+  "$WORK/modules.txt" "$WORK/plan.txt" literate.toml
+echo "    $(grep -c . < "$WORK/plan.txt") of $(wc -l < "$WORK/modules.txt" | tr -d ' ') modules selected"
+
+echo "=== 2/5  rendering each module"
+# `verso-literate` re-elaborates a module from source — it needs the info
+# trees, which the `.olean` does not carry — and writes its highlighted form
+# as JSON. Two consequences for this project, neither of them configurable:
+#
+#  * It runs with none of the native plugins (cvc5, lean-smt, lean-auto, Qq)
+#    that lake passes when it builds a module itself, so a module that calls
+#    the solver aborts with "Could not find native implementation of external
+#    declaration 'cvc5.TermManager.new'" — SIGABRT, no Lean diagnostic.
+#    `VEIL_NO_VERIFY=1` is what makes the two sweeping models (Conductor,
+#    Cadence) renderable: Veil then skips the check commands, which is right
+#    for a documentation pass in any case. Verification is `verify`'s job and
+#    has already happened — stage 0 insists on it.
+#
+#  * Every Veil model deadlocks it at exit. `#gen_spec` starts Veil's
+#    VC-manager loop, which is infinite by design and deliberately not
+#    registered as a snapshot task ("the manager loop is infinite, so
+#    registering it would hang the build" — Veil's Verifier/Server.lean).
+#    Lean's own frontend exits without joining it; `verso-literate` finishes
+#    by joining every worker thread, so it waits forever. The JSON is
+#    complete before that happens — `main` writes it inside `IO.FS.withFile`,
+#    which closes and flushes the handle before returning — so the loop below
+#    waits for the file to parse and then reaps the process.
+#
+# That second point is why this is a hand-rolled pipeline rather than
+# `lake query :literateHtml`: the facet's own invocation would hang, with no
+# way to intervene. Everything else is verso's — the planner above and the
+# renderer below are its binaries, and `literate.toml` governs both. The fix
+# belongs in the Veil fork (a manager loop that terminates) or upstream in
+# Verso (exit without joining); until one lands, this is the shape.
+: > "$WORK/map.txt"
+while IFS= read -r m; do
+  [ -n "$m" ] || continue
+  json="$WORK/json/${m//.//}.json"
+  mkdir -p "$(dirname "$json")"
+  if [ ! -s "$json" ] || ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$json" 2>/dev/null; then
+    rm -f "$json"
+    printf '    %-42s ' "$m"
+    start=$(date +%s)
+    # `< /dev/null`: a background job inherits the loop's stdin, which is the
+    # plan file being read.
+    VEIL_NO_VERIFY=1 lake -Kenv=dev env "$VBIN/verso-literate" "$m" "$json" \
+      > "$WORK/render.log" 2>&1 < /dev/null &
+    pid=$!
+    ok=0
+    for _ in $(seq 1 1800); do
+      if [ -s "$json" ] && python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$json" 2>/dev/null; then
+        ok=1; break
+      fi
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 1
+    done
+    pkill -9 -P "$pid" 2>/dev/null || true
+    kill -9 "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    if [ "$ok" != 1 ]; then
+      echo "FAILED"
+      sed -n '1,10p' "$WORK/render.log" >&2
+      exit 1
+    fi
+    printf 'ok  %3ds\n' "$(( $(date +%s) - start ))"
+  fi
+  printf '%s\t%s\t%s\n' "$m" "$REPO/$json" "$REPO" >> "$WORK/map.txt"
+done < "$WORK/plan.txt"
+
+echo "=== 3/5  assembling the site"
+rm -rf "$OUT"
+mkdir -p "$OUT"
+lake -Kenv=dev env "$VBIN/verso-literate-html" "$OUT/sources" "$WORK/map.txt" literate.toml
+if [ ! -s "$OUT/sources/index.html" ]; then
+  echo "error: the literate renderer produced no index page" >&2
   exit 1
 fi
 
-echo "=== 2/4  deriving the trust boundary from the compiled environment"
+echo "=== 4/5  deriving the trust boundary from the compiled environment"
 # scratch.sh supplies the native plugins Lean needs for this project's modules.
 bash scripts/scratch.sh scripts/TrustSurface.lean \
-  | sed -n '/^<!DOCTYPE html>/,$p' > "$DOC/trust-boundary.html"
-if [ ! -s "$DOC/trust-boundary.html" ]; then
+  | sed -n '/^<!DOCTYPE html>/,$p' > "$OUT/trust-boundary.html"
+if [ ! -s "$OUT/trust-boundary.html" ]; then
   echo "error: TrustSurface.lean produced no page" >&2
   exit 1
 fi
 # A drifted axiom pin must fail the docs build, not be published quietly.
-if grep -q 'UNEXPECTED' "$DOC/trust-boundary.html"; then
+if grep -q 'UNEXPECTED' "$OUT/trust-boundary.html"; then
   echo "error: an end result carries an unexpected axiom - see trust-boundary.html" >&2
   exit 1
 fi
 
-echo "=== 3/4  writing the landing page"
-cat > "$DOC/index.html" <<'LANDING'
+echo "=== 5/5  writing the landing page"
+cat > "$OUT/index.html" <<'LANDING'
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Cadence — auditing the formalization</title>
-<link rel="stylesheet" href="style.css">
 <style>
-  body{max-width:62rem;margin:0 auto;padding:2rem 1.25rem;line-height:1.55}
+  :root{color-scheme:light dark}
+  body{max-width:62rem;margin:0 auto;padding:2rem 1.25rem;line-height:1.55;
+       font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
   .q{margin:1.6rem 0;padding:1rem 1.2rem;border-left:3px solid #8886}
-  .q h2{margin:.1rem 0 .5rem}
+  .q h2{margin:.1rem 0 .5rem;font-size:1.15rem}
   code{font-size:.92em}
   ul{margin:.4rem 0}
   .note{opacity:.8;font-size:.94em}
@@ -105,11 +181,11 @@ the <em>statements</em>, the <em>model</em> they are about, and the
 <p>Read the models. Each carries a header stating its scope, the abstractions
 it takes deliberately, and how each of the paper's properties is covered.</p>
 <ul>
-  <li><a href="Cadence/Chorus.html">Chorus</a> — per-slot consensus (the largest model)</li>
-  <li><a href="Cadence/Mvba.html">Mvba</a> — the leader-based MVBA instantiation</li>
-  <li><a href="Cadence/Conductor.html">Conductor</a> — the window-based orchestrator</li>
-  <li><a href="Cadence/Cadence.html">Cadence</a> — the pipelining glue</li>
-  <li><a href="Cadence/FallbackReceipt.html">FallbackReceipt</a> — the fallback receipt/propose layer</li>
+  <li><a href="sources/Cadence/Chorus/">Chorus</a> — per-slot consensus (the largest model)</li>
+  <li><a href="sources/Cadence/Mvba/">Mvba</a> — the leader-based MVBA instantiation</li>
+  <li><a href="sources/Cadence/Conductor/">Conductor</a> — the window-based orchestrator</li>
+  <li><a href="sources/Cadence/Cadence/">Cadence</a> — the pipelining glue</li>
+  <li><a href="sources/Cadence/FallbackReceipt/">FallbackReceipt</a> — the fallback receipt/propose layer</li>
 </ul>
 </div>
 
@@ -118,8 +194,8 @@ it takes deliberately, and how each of the paper's properties is covered.</p>
 <p>The paper's module specifications are stated as Lean type classes, and each
 implementation is checked against them.</p>
 <ul>
-  <li><a href="Cadence/Interfaces.html">Interfaces</a> — every property of every paper module, as a class field</li>
-  <li><a href="Cadence.html">Cadence (the audit root)</a> — every end result on one page, with its axiom pin</li>
+  <li><a href="sources/Cadence/Interfaces/">Interfaces</a> — every property of every paper module, as a class field</li>
+  <li><a href="sources/">The audit root</a> — every end result on one page, with its axiom pin</li>
 </ul>
 </div>
 
@@ -133,20 +209,11 @@ which module contracts have no instance, and what no machine checks.</p>
 
 <p class="note">Design rationale, the meta-assumption inventory and the paper
 correspondence live in the repository's <code>docs/</code> directory; this
-site renders the sources. Use the search box for a declaration by name.</p>
+site renders the sources. Every module page has a search box.</p>
 
 </body></html>
 LANDING
 
-echo "=== 4/4  staging the site into $OUT"
-rm -rf "$OUT"
-mkdir -p "$OUT"
-# Copy everything doc-gen4 emitted, dependencies included, so that every
-# cross-reference resolves. Only the modules actually imported are rendered,
-# which is why this is a few hundred MB rather than the multi-gigabyte tree a
-# full Mathlib render would produce.
-cp -R "$DOC"/. "$OUT"/
-
 echo
 echo "=== site staged in $OUT ($(du -sh "$OUT" | cut -f1))"
-echo "    open $OUT/index.html"
+echo "    python3 -m http.server -d $OUT"
