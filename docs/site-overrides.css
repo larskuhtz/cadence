@@ -70,47 +70,58 @@
  *
  * Verso renders a `/-- … -/` in place, which is right, but leaves it
  * typographically adrift: the only cue that prose has begun is the literal
- * `/--`, set in the same monospace as the operators around it. Four fixes,
- * all built from variables Verso already defines, so light and dark themes
- * follow for free.
+ * `/--`, set in the same monospace as the operators around it.
  *
- * (a) The marker wraps. `width: min-content` on `/--` resolves to the width
- *     of `--`, because a line may break after `/`, so the slash lands on its
- *     own line — measured in Chrome at 16.86px wide and 32px tall, against
- *     25.30px by 16px when it does not wrap. Verso's *other* docstring rule,
- *     in `Highlighted.lean`, uses `max-content` and does not have the bug.
- *     `nowrap` keeps the intended narrow block without the break. */
+ * What is used here is colour, and only colour. Three things were tried —
+ * the source markers, a rule down the left edge, and a background tint —
+ * and each adds an edge at every docstring, of which a class has one per
+ * field; together they made the listing restless. Colour is continuous: it
+ * marks the whole of the prose rather than its boundaries. The rule down
+ * the left had a second problem, that Verso indents each docstring to its
+ * declaration's column (`--indent`), so the rules land at different offsets
+ * and read as ragged rather than as structure.
+ *
+ * This is the one place the site departs from Verso's black-and-white
+ * scheme, deliberately: with syntax highlighting itself monochrome, hue is
+ * unused and so is free to carry this one distinction. Links keep their own
+ * colour and their underline — Verso's `text-decoration: none` rules are
+ * all scoped to navigation — so the 90 links inside docstrings stay
+ * distinct from the prose around them. */
+:root {
+    --cadence-docstring-color: steelblue;
+}
+
+/* Same shape as Verso's own dark defaults, which follow the OS setting and
+ * offer no manual toggle. steelblue measures only 4.2:1 against the dark
+ * background and reads muddy there; this is the same hue lightened, at
+ * 7.8:1. */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --cadence-docstring-color: #8ab4d8;
+    }
+}
+
+/* The source markers are dropped: with the prose coloured they repeat
+ * information the colour already carries, and `/--` next to a run of
+ * operators is hard to pick out as a delimiter anyway. */
 .code-box .verso-text::before,
 .code-box .md-text::before,
 .code-box .verso-text::after,
 .code-box .md-text::after,
 .code-box .verso-text.mod-doc::before,
 .code-box .md-text.mod-doc::before {
-    white-space: nowrap;
-    color: var(--verso-muted-color);
-    font-size: 0.85em;
+    content: none;
 }
 
-/* (b) Lift the prose off the code. The docstring takes the *page*
- *     background where the code box keeps its own, so prose reads as a
- *     panel sitting on the listing rather than as more code, and the rule
- *     down its left edge uses `--verso-docstring-border-color` — which
- *     Verso declares for both themes and, as of this pin, never consumes.
- *
- * (c) Bind it to what it documents. A Lean docstring describes the
- *     declaration *below* it, so the gap above is larger than the gap
- *     below: proximity does the associating that the markers alone did not. */
+/* Bind the prose to what it documents. A Lean docstring describes the
+ * declaration below it, so the gap above is larger than the gap below. */
 .code-box .verso-text,
 .code-box .md-text {
-    background: var(--verso-background-color);
-    border-left: 3px solid var(--verso-docstring-border-color);
-    border-radius: 0 0.25rem 0.25rem 0;
-    padding: 0.4rem 0.75rem;
-    margin-top: 1rem;
-    margin-bottom: 0.35rem;
+    color: var(--cadence-docstring-color);
+    margin-top: 0.9rem;
+    margin-bottom: 0.3rem;
 }
 
-/* The first docstring in a box has nothing above it to separate from. */
 .code-box .verso-text:first-child,
 .code-box .md-text:first-child {
     margin-top: 0;
