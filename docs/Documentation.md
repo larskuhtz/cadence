@@ -70,9 +70,10 @@ and renders their *docstrings*. Neither half of that fits here:
 A literate renderer has no such gap: it shows the file as written, in order,
 so the module headers render as prose and the commentary between
 declarations renders with the code it belongs to. Nothing in a published
-module is invisible. `docstrings_as_text` is set, so a `/-- … -/` docstring
-becomes a paragraph before the declaration rather than a box inside the
-listing — which is what makes a model read as the document it is.
+module is invisible. Declaration docstrings stay in the code beside what
+they document, which is where this development's short field annotations
+belong; the prose that carries the reasoning is in the `/-! … -/` module
+headers and renders as prose either way.
 
 The site is also far smaller, and all of it is this project. `doc-gen4`
 emitted 321 MB here, of which this project's own pages were 6.3 MB; the rest
@@ -86,8 +87,7 @@ this project's modules.
 subtrees, the monitor and the tooling, which leaves 24 of the 106 modules.
 The 76 excluded proof files are machine-shaped `#prove_vc` cells whose
 content is the VC registry's rather than a reader's; what they establish is
-stated by
-the three `Certify` modules, which are published and which carry the
+stated by the three `Certify` modules, which are published and which carry the
 `#veil_status` pins. `Cadence.Monitor` is excluded because it is not part of
 any theorem's trust base ([Monitor.md](./Monitor.md)) — and would have to be
 anyway, for a reason worth recording: three of its files declare a
@@ -126,97 +126,34 @@ This is the same intent as excluding the proof families, applied inside a
 module: what an auditor reads is the statement and the reasoning around it,
 not the tactic state between two `simp` calls.
 
-### The Markdown path is the thin one, and that is where the rough edges are
+### What the Markdown path cannot do
 
-Lean has two docstring languages. With `doc.verso` (or `doc.verso.module`)
-set, `/-! … -/` and `/-- … -/` are parsed as **Verso markup**; unset — the
-default, and what this development uses — they are **Markdown**. Verso
-renders both, but through different code, and the Markdown side is less
-complete. Two consequences show on these pages.
+Lean has two docstring languages, chosen by `doc.verso`. Unset — the default
+and what this development uses — `/-! … -/` and `/-- … -/` are Markdown, and
+Verso's Markdown support in the literate genre is thinner than its support
+for its own markup. Four gaps show on these pages: tables are never parsed,
+list items are emitted without `<li>`, maths is dropped, and a doc comment
+on an anonymous command keeps its opening `/--`. Each is small, each is
+still present upstream, and three of the four are worked around here.
+[VersoIssues.md](./VersoIssues.md) is the record: symptom, cause, the fix,
+and which workaround to delete when it lands.
 
-**Markdown tables render as literal `|` rows — because of the parser, not
-the renderer.** Verso calls `MD4Lean.parse` at its default dialect,
-`MD_DIALECT_COMMONMARK`, which has GitHub tables off, so a table arrives as
-one paragraph of text. That is why the cells' `code` spans and links are
-formatted correctly while the table itself is not.
+Two consequences worth stating here rather than there. **A block of raw HTML
+is passed through verbatim**, so an HTML `<table>` at the left margin of a
+header reaches the page — the one route to a real table today that needs no
+upstream change. And **maths has no rendering path at all**, so formulas
+cannot be written in these docstrings yet; mermaid is not supported by Verso
+either, while fenced code blocks are.
 
-The emitter these pages go through — `md2Html` in `VersoLiterateCode.lean` —
-*does* handle `.table`, and emits a real `<thead>`/`<tbody>`. Passing
-`MD_FLAG_TABLES` would therefore be enough to make these tables render, and
-that is a one-argument change upstream. (There is a second, unrelated
-Markdown converter in `VersoLiterate/Exported.lean` whose `mdBlock` throws
-`"Markdown tables not supported"`; it builds a Verso `Doc` and is *not* the
-path these pages take. Do not read that rejection as the reason.)
+That leaves the eleven tables — five of two columns, three of three, three
+of four, and ten of the eleven with prose cells of 113 to 550 characters.
+Only `Interfaces`' third table is genuinely tabular. So the question is not
+how to render them but what shape the content wants: raw HTML where it
+really is a table, nested bullet lists at two or three columns, a fenced
+code block holding an ASCII table for the wide reference ones (the monitor's
+mutation table is already written that way), description lists if this ever
+moves to `doc.verso`, or the pipes where none of those reads better.
 
-**Markdown list items are emitted without `<li>`.** `VersoLiterateCode.lean`
-renders `.ul`/`.ol` as `<ul>{item contents}</ul>` — the items' blocks go in
-bare, so each becomes a `<p>` with no list item to hang a marker on. Verso's
-other emitter, `Doc/Html.lean`, wraps them properly; only the Markdown path
-is affected. `docs/site-overrides.css` restores the markers with
-`display: list-item`, which is a presentation patch over a structural bug.
-
-Both are still present on Verso `main` (checked 2026-09-23, identical code at
-the same line numbers), so there is no version to upgrade to. The pin is
-`v4.32.0` because that is the tag matching this project's toolchain;
-`v4.33`–`v4.35` track later Lean releases.
-
-**Turning on `doc.verso` would not fix the tables**, which is the obvious
-thing to try and the reason to write this down. Lean's document model has no
-table at all: `Lean.Doc.Block` is `para`, `code`, `ul`, `ol`, `dl`,
-`blockquote`, `concat`, `other`. Verso markup cannot express one either, and
-the `:::table` directive that the *Manual* genre defines is not in scope in a
-docstring — tested, it is `Unknown directive `table``.
-
-What switching *would* buy is `dl`: description lists are in the model and
-render as `<dl>/<dt>/<dd>`, and they are not reachable from Markdown at all
-(MD4Lean has no `dl` constructor). The cost is smaller than it first looks —
-the headers parse as Verso markup unchanged, and the "Code element could be
-more specific" warning that each of the 3 962 inline code spans would raise
-is switched off by `set_option doc.verso.suggestions false`. What remains is
-that emphasis conventions differ (`*bold*`, `_emph_`, against Markdown's
-`**bold**`) and that it edits the model sources, which are the specification.
-
-**A block of raw HTML, however, is passed straight through.** `md2Html`
-renders MD4Lean's `.html` block unescaped, and CommonMark HTML blocks are on
-by default, so an HTML `<table>` written at the left margin of a `/-! … -/`
-header reaches the page verbatim — verified end to end on a probe module.
-That is the one route to a real table today that needs no upstream change.
-Two caveats: it is block-level HTML, not inline spans (MD4Lean's inline type
-has no HTML constructor at all); and it is HTML-only, which is fine here
-because HTML is the only backend this project renders, but it is exactly why
-Verso *markup* drops raw HTML ("doesn't make sense for non-HTML output").
-
-Directives are not a loophole: a directive has no meaning beyond what an
-extension gives it, `:::table` belongs to the Manual genre and is
-`Unknown directive` here, and the pseudo-XML in Verso's directive
-documentation is its *parse tree* pretty-printed rather than emitted markup.
-
-**Maths does not work, and is not just a flag.** `MD_FLAG_LATEXMATHSPANS`
-makes the parser emit `.latexMath`, but `md2Html` renders both maths inlines
-as `.empty`, marked `TODO` — so `$a + b$` disappears rather than rendering,
-even with the flag. KaTeX itself is wired up and shipped (`katex.js` plus a
-`math.js` that renders `.math.inline`/`.math.display` on load), and the
-*other* converter already produces those classes, so this is a small gap in
-one emitter rather than a missing feature. Until it is closed, formulas have
-no rendering path here. Mermaid is not supported by Verso at all; fenced
-code blocks are.
-
-So the eleven tables — five of two columns, three of three, three of four —
-have these shapes, and which one fits is per-table:
-
-* **raw HTML**, which renders as a real table today and is the honest choice
-  where the content genuinely is tabular;
-* **nested bullet lists**, for two and three columns;
-* **a fenced code block holding an ASCII table**, which keeps alignment and
-  suits the wider reference tables — the monitor's mutation table is already
-  written that way;
-* **description lists**, which need `doc.verso` and read best at two
-  columns;
-* **leave the pipes**, where none of the above reads better.
-
-The upstream fix for the Markdown tables is a single argument —
-`MD4Lean.parse x MD4Lean.MD_FLAG_TABLES` — since the emitter already
-supports them.
 
 ## What it costs
 
@@ -235,61 +172,39 @@ anything here.
   rebuilt under that variable would put an unverified `.olean` in the build
   tree. Checking first makes that impossible.
 
-## Two workarounds, and where they belong
+## Why the script, and not the one-liner
 
 `lake query :literateHtml` is Verso's documented one-line way to build this
-site, and it is not what `scripts/docs.sh` runs. Two properties of this
-development get in the way; both are recorded here because the script's
-shape is otherwise inexplicable, and both are fixable upstream rather than
-here.
+site, and it *does* work on this project — verified, 97 MB of rendered
+output. `scripts/docs.sh` drives Verso's three binaries itself for one
+reason only: the `jq` passes have to run between the rendering stage and the
+HTML stage, and the facet does both in a single job. Everything else is
+Verso's — the planner and the HTML renderer are its executables, and
+`literate.toml` governs both, so the configuration surface stays the
+documented one.
 
-* **No native plugins.** `verso-literate` re-elaborates a module in its own
-  process, without the cvc5, lean-smt, lean-auto and Qq plugins that lake
-  passes when it builds a module itself. A module that calls the solver
-  therefore dies with `Could not find native implementation of external
-  declaration 'cvc5.TermManager.new'` — `SIGABRT`, no Lean diagnostic. This
-  is the same trap `scripts/scratch.sh` exists to avoid
-  (`CLAUDE.md`, Build). `VEIL_NO_VERIFY=1` is the answer here, and it is the
+That it works at all took a fix in Veil, and the shape of the stage is still
+determined by two properties of this development.
+
+* **The renderer has no native plugins.** `verso-literate` re-elaborates a
+  module in its own process, without the cvc5, lean-smt, lean-auto and Qq
+  plugins that lake passes when it builds a module itself, so a module that
+  reaches a solver call dies with `Could not find native implementation of
+  external declaration 'cvc5.TermManager.new'` — `SIGABRT`, no Lean
+  diagnostic. This is the same trap `scripts/scratch.sh` exists to avoid
+  (`CLAUDE.md`, Build). `VEIL_NO_VERIFY=1` is the answer, and it is the
   right one independently: a documentation pass should not re-run the
-  solver, and verification has already happened.
+  solver, and verification has already happened — stage 0 insists on it.
 
-* **Veil's VC manager never terminates.** `#gen_spec` starts a manager loop
-  that is infinite by design and deliberately not registered as a snapshot
-  task — "the manager loop is infinite, so registering it would hang the
-  build", in Veil's own `Verifier/Server.lean`. Lean's frontend exits
-  without joining it; `verso-literate` ends by joining every worker thread,
-  so on any Veil model it waits forever. The JSON is complete before that
-  happens — the renderer writes it inside `IO.FS.withFile`, which closes and
-  flushes the handle before returning — so `scripts/docs.sh` waits for the
-  file to parse and then reaps the process.
+* **Veil's VC manager used to never terminate.** `#gen_spec` started a
+  manager loop that is infinite by design, and `verso-literate` ends by
+  joining every worker thread, so it hung on every Veil model; `lean` never
+  noticed because it exits the process outright. Fixed at source rather than
+  worked around: the pinned fork does not start that loop under
+  `veil.noVerify`, since nothing could ever wake it there
+  ([Dependencies.md](./Dependencies.md) §6). That is what makes stage 2 a
+  plain foreground run.
 
-  That is why the script drives Verso's three binaries itself: the facet's
-  own invocation would hang with no way to intervene. Everything else is
-  Verso's — the planner and the HTML renderer are its executables, and
-  `literate.toml` governs both, so the configuration surface is the
-  documented one.
-
-**The Veil-side fix exists and is tested; it is not yet pinned.** Under
-`veil.noVerify` the manager loop has nothing to do *and* nothing that could
-ever wake it, so `runManager` should not start it — three lines in the
-fork's `Verifier/Server.lean`, plus the correction that `vcServerStarted` is
-only set when the loop really was started. Verified as a controlled
-experiment on a 52-line Veil model, with no part of this project involved:
-unpatched, `verso-literate` was still running after 93 s; patched, it exited
-of its own accord in 5 s with the same 27-item output.
-
-Landing it means pushing the fork branch and bumping the pin, which
-re-verifies the whole development — a dependency bump rather than a
-documentation change, so it is deliberately not folded into this one. When it
-lands, stage 2 collapses to `lake query :literateHtml` and the wait-and-reap
-loop goes; the `jq` filter stays, because it is about what the site should
-show rather than about a defect. (`scripts/docs.sh` already tolerates a
-renderer that exits on its own — it judges each module by whether the
-artefact parses, not by how the poll loop ended.)
-
-The other half could instead be fixed upstream in Verso, by exiting the
-process rather than joining the task manager; that would help any Lean
-library with a long-running background task, not just Veil.
 
 ## Building it
 
