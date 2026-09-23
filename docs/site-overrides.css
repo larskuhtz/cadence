@@ -87,14 +87,17 @@
  * colour and their underline — Verso's `text-decoration: none` rules are
  * all scoped to navigation — so the 90 links inside docstrings stay
  * distinct from the prose around them. */
+/* A steel blue, darkened just enough to clear WCAG AA for body text: 5.5:1
+ * against the page, where CSS `steelblue` itself is 4.1:1 and falls short of
+ * the 4.5:1 an auditor reading closely is entitled to. */
 :root {
-    --cadence-docstring-color: steelblue;
+    --cadence-docstring-color: #3a6d99;
 }
 
 /* Same shape as Verso's own dark defaults, which follow the OS setting and
- * offer no manual toggle. steelblue measures only 4.2:1 against the dark
- * background and reads muddy there; this is the same hue lightened, at
- * 7.8:1. */
+ * offer no manual toggle. Both of the light values are too dark against the
+ * dark background — `steelblue` measures 4.2:1 there and reads muddy — so
+ * dark mode takes the hue lightened instead, at 7.8:1. */
 @media (prefers-color-scheme: dark) {
     :root {
         --cadence-docstring-color: #8ab4d8;
