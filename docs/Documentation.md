@@ -74,46 +74,57 @@ module is invisible. `docstrings_as_text` is set, so a `/-- … -/` docstring
 becomes a paragraph before the declaration rather than a box inside the
 listing — which is what makes a model read as the document it is.
 
-The site is also smaller, and all of it is this project. `doc-gen4` emitted
-321 MB here, of which this project's own pages were 6.3 MB; the rest was
-Lean core, Batteries and the imported subset of Mathlib, kept so
-cross-references resolved. The literate site is 97 MB and publishes only
+The site is also far smaller, and all of it is this project. `doc-gen4`
+emitted 321 MB here, of which this project's own pages were 6.3 MB; the rest
+was Lean core, Batteries and the imported subset of Mathlib, kept so
+cross-references resolved. The literate site is **11 MB** and publishes only
 this project's modules.
 
 ### What is published
 
 `literate.toml` selects the library and excludes the three per-action proof
-subtrees and the monitor, which leaves 25 of the 106 modules. The 76
-excluded proof files are machine-shaped `#prove_vc` cells whose content is
-the VC registry's rather than a reader's; what they establish is stated by
+subtrees, the monitor and the tooling, which leaves 24 of the 106 modules.
+The 76 excluded proof files are machine-shaped `#prove_vc` cells whose
+content is the VC registry's rather than a reader's; what they establish is
+stated by
 the three `Certify` modules, which are published and which carry the
 `#veil_status` pins. `Cadence.Monitor` is excluded because it is not part of
 any theorem's trust base ([Monitor.md](./Monitor.md)) — and would have to be
 anyway, for a reason worth recording: three of its files declare a
 root-level `main`, Lean names are global, and the renderer's search index is
 keyed by name, so publishing two of them fails the build on the duplicate
-document ID. The same file fixes the reading order and the two page titles
-that the module name does not supply.
+document ID. `Cadence.Tooling` is excluded as workflow rather than protocol:
+check commands that make the inner loop faster.
 
-### Page sizes
+Nothing else is. The remaining support modules — the quorum instance, the
+ACS median lemma, the counting and pigeonhole arguments, the build-totality
+proof — are technical in their *proofs*, but each states a protocol-level
+claim in its header, which is what an auditor reads; the proofs themselves
+are dealt with below. The same file fixes the reading order and the two page
+titles that the module name does not supply.
 
-Verso renders the proof state at every tactic step, which for this
-development is the one thing that does not scale. The pages an auditor reads
-are small — `Chorus` is 0.9 MB, `Interfaces` 0.6 MB, and every other model is
-under half a megabyte — but the hand-written proof files are not, because a
-goal over a forty-field state record is large and there are hundreds of
-them. `Cadence.Mvba.Compose` is 47 MB from 360 lines of source, and
-`Cadence.Composition` 13 MB; between them they are two thirds of the site.
+### The proofs are not published; the statements and the prose are
 
-There is no configuration key for this, and the tactic states are emitted
-unconditionally by Verso's highlighter. It has been measured rather than
-guessed: dropping the *hypotheses* from each goal, and keeping the
-conclusion, takes `Mvba.Compose` from 47 MB to 10 MB. Doing that would mean
-rewriting Verso's intermediate JSON between its own two stages, which is
-exactly the kind of bespoke coupling using the documented configuration
-avoids — so it is **not** done here, and the right fix is an upstream
-option. The heavy pages are the proof files, which this site tells the
-reader they do not need to read.
+Verso records the goal at every tactic step and renders each one. For this
+development that is both wrong for the reader — the site's own first
+paragraph tells them they do not need to read a proof — and ruinous for the
+page: a goal over a forty-field state record is enormous, and
+`Cadence.Mvba.Compose` came to **47 MB from 360 lines of source**, with
+`Cadence.Composition` at 13 MB, two thirds of the whole site between them.
+
+There is no configuration key for it, so `scripts/docs.sh` removes them from
+the renderer's own intermediate JSON with one `jq` filter, between Verso's
+two stages: a `tactics` node lists its states in `info`, and emptying that
+and dropping the `goals` table removes the proof states and nothing else.
+Measured on `Mvba.Compose`: **47 MB → 0.32 MB**, with every declaration,
+statement, docstring and comment still present — `mvbaSafety`,
+`mvba_of_temporal` and all thirteen `theorem`s unchanged, and the only losses
+the 1 870 occurrences of `decided` that were inside hypotheses. Whole site:
+**97 MB → 11 MB**, largest page 0.9 MB.
+
+This is the same intent as excluding the proof families, applied inside a
+module: what an auditor reads is the statement and the reasoning around it,
+not the tactic state between two `simp` calls.
 
 ## What it costs
 
@@ -123,9 +134,9 @@ anything here.
 * **The renderer re-elaborates every module it publishes.** Highlighting
   needs the elaborator's info trees, which an `.olean` does not carry, so
   having built the project is a precondition rather than a substitute. The
-  25 published modules take about nine minutes in total, and `Cadence.Chorus`
-  is 198 s of that on its own, at a peak around 10 GB; most of the rest are
-  under ten seconds each. Rendering is serial for that reason.
+  24 published modules take about nine minutes in total, and `Cadence.Chorus`
+  is around 200 s of that on its own, at a peak near 10 GB; most of the rest
+  are under ten seconds each. Rendering is serial for that reason.
 * **`scripts/docs.sh` refuses to start unless the project is up to date**
   (`lake build --no-build`). That is a hard gate, not a convenience: the
   rendering stage runs with `VEIL_NO_VERIFY=1`, and an out-of-date module
@@ -166,12 +177,27 @@ here.
   `literate.toml` governs both, so the configuration surface is the
   documented one.
 
-The proper fix is one of two upstream changes: a Veil manager loop that
-terminates, or a `verso-literate` that exits without joining. The first
-belongs in the Veil fork ([Dependencies.md](./Dependencies.md) records what
-this project needs from it); the second is a plain upstream bug — any Lean
-library with a long-running background task deadlocks the renderer the same
-way. Until one lands, the wait-and-reap loop is the shape.
+**The Veil-side fix exists and is tested; it is not yet pinned.** Under
+`veil.noVerify` the manager loop has nothing to do *and* nothing that could
+ever wake it, so `runManager` should not start it — three lines in the
+fork's `Verifier/Server.lean`, plus the correction that `vcServerStarted` is
+only set when the loop really was started. Verified as a controlled
+experiment on a 52-line Veil model, with no part of this project involved:
+unpatched, `verso-literate` was still running after 93 s; patched, it exited
+of its own accord in 5 s with the same 27-item output.
+
+Landing it means pushing the fork branch and bumping the pin, which
+re-verifies the whole development — a dependency bump rather than a
+documentation change, so it is deliberately not folded into this one. When it
+lands, stage 2 collapses to `lake query :literateHtml` and the wait-and-reap
+loop goes; the `jq` filter stays, because it is about what the site should
+show rather than about a defect. (`scripts/docs.sh` already tolerates a
+renderer that exits on its own — it judges each module by whether the
+artefact parses, not by how the poll loop ended.)
+
+The other half could instead be fixed upstream in Verso, by exiting the
+process rather than joining the task manager; that would help any Lean
+library with a long-running background task, not just Veil.
 
 ## Building it
 

@@ -59,6 +59,30 @@ lake -Kenv=dev env "$VBIN/verso-literate-plan" \
   "$WORK/modules.txt" "$WORK/plan.txt" literate.toml
 echo "    $(grep -c . < "$WORK/plan.txt") of $(wc -l < "$WORK/modules.txt" | tr -d ' ') modules selected"
 
+# Drop the proof states from a rendered module, in place.
+#
+# Verso records the goal at every tactic step and renders each one into the
+# page. That is the wrong trade for this site twice over: an auditor is told
+# they do not need to read a proof, and a goal over a forty-field state record
+# is enormous — `Cadence.Mvba.Compose` came to **47 MB** from 360 lines of
+# source, two thirds of the whole site, before this.
+#
+# A `tactics` node lists its states in `info`; emptying that and dropping the
+# `goals` table removes them and nothing else. Measured on `Mvba.Compose`:
+# 47 MB -> 0.32 MB, with every declaration, statement, docstring and comment
+# still present (`mvbaSafety`, `mvba_of_temporal`, all 13 `theorem`s
+# unchanged; only the 1 870 occurrences of `decided` *inside hypotheses* go).
+#
+# Idempotent, so a cached module is not re-stripped.
+strip_proof_states() {
+  local f="$1" tmp="$1.tmp"
+  jq -c '.items.code |= with_entries(
+           if (.value | type == "object") and (.value.tactics != null)
+           then .value.tactics.info = [] else . end)
+         | .items.goals = {}' "$f" > "$tmp"
+  mv "$tmp" "$f"
+}
+
 echo "=== 2/5  rendering each module"
 # `verso-literate` re-elaborates a module from source — it needs the info
 # trees, which the `.olean` does not carry — and writes its highlighted form
@@ -89,12 +113,14 @@ echo "=== 2/5  rendering each module"
 # renderer below are its binaries, and `literate.toml` governs both. The fix
 # belongs in the Veil fork (a manager loop that terminates) or upstream in
 # Verso (exit without joining); until one lands, this is the shape.
+complete_json() { [ -s "$1" ] && jq -e . "$1" > /dev/null 2>&1; }
+
 : > "$WORK/map.txt"
 while IFS= read -r m; do
   [ -n "$m" ] || continue
   json="$WORK/json/${m//.//}.json"
   mkdir -p "$(dirname "$json")"
-  if [ ! -s "$json" ] || ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$json" 2>/dev/null; then
+  if ! complete_json "$json"; then
     rm -f "$json"
     printf '    %-42s ' "$m"
     start=$(date +%s)
@@ -103,22 +129,24 @@ while IFS= read -r m; do
     VEIL_NO_VERIFY=1 lake -Kenv=dev env "$VBIN/verso-literate" "$m" "$json" \
       > "$WORK/render.log" 2>&1 < /dev/null &
     pid=$!
-    ok=0
     for _ in $(seq 1 1800); do
-      if [ -s "$json" ] && python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$json" 2>/dev/null; then
-        ok=1; break
-      fi
+      complete_json "$json" && break
       kill -0 "$pid" 2>/dev/null || break
       sleep 1
     done
     pkill -9 -P "$pid" 2>/dev/null || true
     kill -9 "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
-    if [ "$ok" != 1 ]; then
+    # Judge by the artefact, after reaping, not by how the loop left: a
+    # renderer that exits of its own accord — which is what a Veil without the
+    # deadlock does — can finish between the poll and the liveness check, and
+    # that is success, not failure.
+    if ! complete_json "$json"; then
       echo "FAILED"
       sed -n '1,10p' "$WORK/render.log" >&2
       exit 1
     fi
+    strip_proof_states "$json"
     printf 'ok  %3ds\n' "$(( $(date +%s) - start ))"
   fi
   printf '%s\t%s\t%s\n' "$m" "$REPO/$json" "$REPO" >> "$WORK/map.txt"

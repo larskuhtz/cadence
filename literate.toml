@@ -17,11 +17,22 @@
 # And three of its files declare a root-level `main`: Lean names are global,
 # the renderer's search index is keyed by name, and a site that published two
 # of them would fail to build on the duplicate.
+#
+# `Cadence.Tooling` is excluded because it is about the workflow rather than
+# the protocol: targeted check commands that make the inner loop faster.
+#
+# Nothing else is. The remaining support modules — the quorum instance, the
+# ACS median lemma, the counting and pigeonhole arguments, the build-totality
+# proof — are technical in their *proofs* but each carries a header stating a
+# protocol-level claim, which is exactly what an auditor reads. The proofs
+# themselves are handled where they belong: `scripts/docs.sh` strips the
+# per-tactic proof states before rendering.
 exclude = [
   "Cadence.Chorus.Proofs",
   "Cadence.Mvba.Proofs",
   "Cadence.FallbackReceipt.Proofs",
   "Cadence.Monitor",
+  "Cadence.Tooling",
 ]
 
 # The models carry their rationale in long `/-! … -/` headers and their
@@ -51,7 +62,6 @@ library = "Cadence"
   "Cadence.Primitives",
   "Cadence.ByzQuorum",
   "Cadence.Windows",
-  "Cadence.Tooling",
   "Cadence.ProofPrelude",
 ]
 "Cadence.Chorus" = [
