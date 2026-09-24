@@ -76,12 +76,18 @@ premise (`docs/ChorusDesign.md` §7, `Chorus.lean` liveness section): network-gl
 evidence → every correct validator proposes a *valid* meta-block.
 *Assumed* from Chorus (facts proven there over the shared vocabulary):
 
-| here | Chorus / paper |
-|---|---|
-| `carried_fastqc r P m` arrival | a valid FastQC for `(P, m)` on the wire — Chorus ghost `vote_quorum_pos`; validity receiver-verified |
-| `carried_pos r P m` arrival | `r`'s own positive fallback signed entry — Chorus `msg_fb_pos_sig r P m`; its `σ_p` verifies, so `msg_proposer_signed P m` holds |
-| `carried_neg r P` arrival | Chorus `msg_fb_neg_sig r P` |
-| eventually `2f+1` accepted | `progress_fallback_signing` + the honest supermajority casts fallback votes (Chorus liveness case split, `x = 0`/mixed branches) |
+Each entry is what this model calls something and what it corresponds to in
+Chorus or the paper.
+
+* **`carried_fastqc r P m` arrival** — a valid FastQC for `(P, m)` on the wire
+  — Chorus ghost `vote_quorum_pos`; validity receiver-verified
+* **`carried_pos r P m` arrival** — `r`'s own positive fallback signed entry —
+  Chorus `msg_fb_pos_sig r P m`; its `σ_p` verifies, so `msg_proposer_signed P
+  m` holds
+* **`carried_neg r P` arrival** — Chorus `msg_fb_neg_sig r P`
+* **eventually `2f+1` accepted** — `progress_fallback_signing` + the honest
+  supermajority casts fallback votes (Chorus liveness case split, `x =
+  0`/mixed branches)
 
 *Guaranteed*: `certified_propose` + build totality
 (`FallbackReceipt/Totality.lean`) + (F-justice) on the build/propose

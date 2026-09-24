@@ -57,13 +57,21 @@ the immutable relation `leader v l`, functional by assumption.
 only** — `docs/ChorusDesign.md` §3.1.1 governs them; this module adds no
 exception category):
 
-| relation | supplement message |
-|---|---|
-| `msg_preprepare l v e` | `⟨Pre-Prepare, s, v, x, J, σ_l⟩`; the justification `J` is not carried — the receiver checks the network for a `TC_{s,v-1}` and its lock (`tc_lock` / `tc_nolock` below) |
-| `msg_prepare r v e`, `msg_commit r v e` | `⟨Prepare, s, v, e, σ⟩`, `⟨Commit, s, v, e, σ⟩` |
-| `msg_timeout_qc r v w e`, `msg_timeout_noqc r v` | `⟨Timeout, s, v, PrepQC_i, σ⟩` carrying a prepare certificate of view `w` on `e`, or `⊥` |
-| `msg_prepqc v e`, `msg_commitqc v e` | `prepareQC_{s,v}` on `e`, `CommitQC` of view `v` on `e` |
-| `msg_tc v`, `tc_lock v w e`, `tc_nolock v` | a `TC_{s,v}` exists; a `TC_{s,v}` exists whose `highPrepQC` is the certificate `(w, e)`; a `TC_{s,v}` exists whose `highPrepQC` is `⊥` (`line:mvba:derived`) |
+Each entry is a relation of this model and the supplement message it stands
+for.
+
+* **`msg_preprepare l v e`** — `⟨Pre-Prepare, s, v, x, J, σ_l⟩`; the
+  justification `J` is not carried — the receiver checks the network for a
+  `TC_{s,v-1}` and its lock (`tc_lock` / `tc_nolock` below)
+* **`msg_prepare r v e`, `msg_commit r v e`** — `⟨Prepare, s, v, e, σ⟩`,
+  `⟨Commit, s, v, e, σ⟩`
+* **`msg_timeout_qc r v w e`, `msg_timeout_noqc r v`** — `⟨Timeout, s, v,
+  PrepQC_i, σ⟩` carrying a prepare certificate of view `w` on `e`, or `⊥`
+* **`msg_prepqc v e`, `msg_commitqc v e`** — `prepareQC_{s,v}` on `e`,
+  `CommitQC` of view `v` on `e`
+* **`msg_tc v`, `tc_lock v w e`, `tc_nolock v`** — a `TC_{s,v}` exists; a
+  `TC_{s,v}` exists whose `highPrepQC` is the certificate `(w, e)`; a
+  `TC_{s,v}` exists whose `highPrepQC` is `⊥` (`line:mvba:derived`)
 
 All five certificates are **materialised by explicit assembly actions**
 (`form_prepqc`, `form_commitqc`, `form_tc_lock`, `form_tc_nolock`) whose

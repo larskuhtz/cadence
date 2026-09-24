@@ -12,6 +12,10 @@
 #   scripts/container.sh monitor       model-conformance monitor suites over the
 #                                     trace fixtures (docs/Monitor.md; needs a
 #                                     `verify` first after any source edit)
+#   scripts/container.sh docs          render the sources as a browsable site
+#                                     into ./site, with the trust boundary
+#                                     derived from the compiled environment
+#                                     (scripts/docs.sh; docs/Documentation.md)
 #   scripts/container.sh shell         interactive shell in the workspace
 #   scripts/container.sh pull [image ...]
 #                                      fetch or refresh published images
@@ -280,6 +284,23 @@ case "${1:-verify}" in
     IMAGE="${IMAGE:-cadence-verified}"
     run_in_container <<'PAYLOAD' ;;
 bash scripts/revalidate.sh /tmp
+PAYLOAD
+  docs)
+    # Render the Lean sources as a browsable site (scripts/docs.sh) and derive
+    # the trust boundary from the compiled environment. Runs against the
+    # `verified` image because the script refuses to start unless the project
+    # is built, and that image already holds the `.olean`s.
+    #
+    # It is not, however, free once they are there: the renderer re-elaborates
+    # each module it publishes, because highlighting needs the info trees an
+    # `.olean` does not carry. That is the 25 selected modules, not the 76
+    # proof files — docs/Documentation.md § "What it costs".
+    #
+    # Needs network the first time, to resolve the `-Kenv=dev` documentation
+    # dependency; the site lands in ./site via the workspace mount.
+    IMAGE="${IMAGE:-cadence-verified}"
+    run_in_container <<'PAYLOAD' ;;
+bash scripts/docs.sh "$WORKSPACE/site"
 PAYLOAD
   monitor)
     # Run the model-conformance monitor suites (docs/Monitor.md): every trace

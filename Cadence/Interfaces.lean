@@ -7,12 +7,16 @@ type classes, lifted from the paper's module specifications
 (`arXiv:2607.02275v2`, `src/p2_framework.tex`, `src/p2_conductor_proofs.tex`,
 `src/p2_mvba.tex`):
 
-| Paper module | Class here | Implementation in this development |
-|---|---|---|
-| `mod:slotconsensus` (per-slot consensus) | `SlotConsensus` | Chorus ([`Chorus.lean`](./Chorus.lean)) |
-| `mod:orchestrator_2` (slot scheduling) | `Orchestrator` | Conductor ([`Conductor.lean`](./Conductor.lean)) |
-| `mod:acs` (agreement on a core set) | `ACS` | out of scope (a standard primitive) |
-| `mod:mvba` (multi-valued Byzantine agreement) | `MVBA` | Mvba ([`Mvba.lean`](./Mvba.lean) — the leader-based protocol of the paper repository's internal supplement; consumed by Chorus as its `mvba` constraint, instantiated in [`System.lean`](./System.lean)) |
+Each entry is the paper's module, the class that states it here, and what
+implements it in this development.
+
+* `mod:slotconsensus` (per-slot consensus) — `SlotConsensus`; Chorus ([`Chorus.lean`](./Chorus.lean))
+* `mod:orchestrator_2` (slot scheduling) — `Orchestrator`; Conductor ([`Conductor.lean`](./Conductor.lean))
+* `mod:acs` (agreement on a core set) — `ACS`; out of scope (a standard
+  primitive)
+* `mod:mvba` (multi-valued Byzantine agreement) — `MVBA`; Mvba ([`Mvba.lean`](./Mvba.lean) — the
+  leader-based protocol of the paper repository's internal supplement;
+  consumed by Chorus as its `mvba` constraint, instantiated in [`System.lean`](./System.lean))
 
 Every class states the **whole** of the paper's module: its interface (inputs
 and outputs), and every one of its properties — safety, liveness, and the
@@ -232,16 +236,28 @@ same slot.
 Interface (`mod:slotconsensus`): inputs `participate()`, `abandon()`,
 `propose(P)`; output `finalize(V)`.
 
-### Obligation table
+### Obligations
 
-| Property (paper) | Field | Level | Discharge |
-|---|---|---|---|
-| Agreement (incl. per-validator integrity: take `i = j`) | `agreement` | safety | Chorus `safety [agreement_pos]`, `[agreement_pos_neg]`, `invariant [local_committed_complete]` — `Chorus.slotConsensusSafety` |
-| Slot safety | `slot_safety` | safety | by construction of the tagged state (`slot_of V = tag st`) |
-| Proposal inclusion (conditional on synchrony) | `proposal_inclusion` | safety | Chorus `safety [proposal_inclusion]`, `[proposal_inclusion_no_neg]`; the synchrony premise's state-level form is `on_time` = Chorus's `all_honest_recorded` |
-| Termination | `termination` | temporal | **not proven**: Chorus's fair-progress layer + (F-justice)/(F-byz)/(A-mvba), `docs/Liveness.md` |
-| Hiding (`def:hiding`, specialised to the instance's slot) | `hiding_residue` | safety | first-order and proven by Chorus (`safety [hiding_until_deadline]`), so it sits in the fragment — see the field's docstring for what it does and does not say |
-| Quiescence | `quiescence` | temporal | **not proven**: Chorus models no participation window (its in-model shadow is phase confinement) |
+Each entry is the class field, the paper's name for it, the level it sits at,
+and where it is discharged.
+
+* **`agreement`** — Agreement (incl. per-validator integrity: take `i = j`);
+  *safety*. Chorus `safety [agreement_pos]`, `[agreement_pos_neg]`, `invariant
+  [local_committed_complete]` — `Chorus.slotConsensusSafety`
+* **`slot_safety`** — Slot safety; *safety*. By construction of the tagged
+  state (`slot_of V = tag st`)
+* **`proposal_inclusion`** — Proposal inclusion (conditional on synchrony);
+  *safety*. Chorus `safety [proposal_inclusion]`,
+  `[proposal_inclusion_no_neg]`; the synchrony premise's state-level form is
+  `on_time` = Chorus's `all_honest_recorded`
+* **`termination`** — Termination; *temporal*. **not proven**: Chorus's
+  fair-progress layer + (F-justice)/(F-byz)/(A-mvba), `docs/Liveness.md`
+* **`hiding_residue`** — Hiding (`def:hiding`, specialised to the instance's
+  slot); *safety*. First-order and proven by Chorus (`safety
+  [hiding_until_deadline]`), so it sits in the fragment — see the field's
+  docstring for what it does and does not say
+* **`quiescence`** — Quiescence; *temporal*. **not proven**: Chorus models no
+  participation window (its in-model shadow is phase confinement)
 
 `d_tot`-totality and `ℓ`-termination are *not* properties of `mod:slotconsensus`
 — they are Chorus-specific strengthenings the Conductor's proofs consume —
@@ -452,17 +468,33 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
 The persistent slot-scheduling primitive. Interface: input `complete(s)`,
 output `open(s)`; a slot never opened is *skipped*.
 
-### Obligation table
+### Obligations
 
-| Property (paper) | Field | Level | Discharge (`Conductor`) |
-|---|---|---|---|
-| Totality | `totality` | temporal | **not proven**: `lemma:conductor-totality`, a per-window induction the untimed model does not carry |
-| Integrity, "at most once" | `opened_mono` | safety | the `opened` observable is monotone, so an open event (`¬ opened st ∧ opened st'`) happens at most once per `(i, s)` — `Conductor.orchestratorSafety` |
-| Integrity, "not before `s.deadline − Δ`" | `integrity_timing` | safety | first-order and proven by the Conductor (`safety [opened_after_start]`), so it sits in the fragment — which is why the fragment carries `time` — `Conductor.orchestratorSafety` |
-| Monotonicity | `monotonicity` | safety | Conductor `invariant [open_local_order]` + the `open_slot` guard — `Conductor.orchestratorSafety` |
-| Totality + Integrity + Monotonicity, safety residue | `open_prefix_agreement` | safety | Conductor `safety [open_prefix_agreement]` — `Conductor.orchestratorSafety` |
-| `B`-Boundedness | `boundedness`, `bound` | temporal (quantifies over `Fin bound → slot`) | **not proven**: the interval form is Conductor `safety [bounded_tail]`; the count `B = 2W − p` needs window widths, which the model keeps meta |
-| `R`-Recovery | `recovery`, `recovery_time` | temporal | **not proven**: `prop:smooth-windows`, `prop:first-post-gst-window-time`, the four parameter assumptions |
+Each entry is the class field, the paper's name for it, the level it sits at,
+and where it is discharged.
+
+* **`totality`** — Totality; *temporal*. **not proven**:
+  `lemma:conductor-totality`, a per-window induction the untimed model does
+  not carry
+* **`opened_mono`** — Integrity, "at most once"; *safety*. The `opened`
+  observable is monotone, so an open event (`¬ opened st ∧ opened st'`)
+  happens at most once per `(i, s)` — `Conductor.orchestratorSafety`
+* **`integrity_timing`** — Integrity, "not before `s.deadline − Δ`"; *safety*.
+  First-order and proven by the Conductor (`safety [opened_after_start]`), so
+  it sits in the fragment — which is why the fragment carries `time` —
+  `Conductor.orchestratorSafety`
+* **`monotonicity`** — Monotonicity; *safety*. Conductor `invariant
+  [open_local_order]` + the `open_slot` guard — `Conductor.orchestratorSafety`
+* **`open_prefix_agreement`** — Totality + Integrity + Monotonicity, safety
+  residue; *safety*. Conductor `safety [open_prefix_agreement]` —
+  `Conductor.orchestratorSafety`
+* **`boundedness`, `bound`** — `B`-Boundedness; *temporal (quantifies over
+  `Fin bound → slot`)*. **not proven**: the interval form is Conductor `safety
+  [bounded_tail]`; the count `B = 2W − p` needs window widths, which the model
+  keeps meta
+* **`recovery`, `recovery_time`** — `R`-Recovery; *temporal*. **not proven**:
+  `prop:smooth-windows`, `prop:first-post-gst-window-time`, the four parameter
+  assumptions
 
 ### `open_prefix_agreement` — the safety residue of Totality + Monotonicity
 
@@ -592,17 +624,22 @@ bridge: the median-range guard of its `acs_decide` action, justified by
 [`Windows.lean`](./Windows.lean) (cardinality is outside the first-order
 fragment, so the bridge is a stated `require`, not a derivation).
 
-### Obligation table
+### Obligations
 
-| Property (paper) | Field | Level |
-|---|---|---|
-| Agreement | `agreement` | safety |
-| Validity, qualitative half (correct pairs genuine) | `validity_genuine` | safety |
-| Validity, quantitative half (`|set| ≥ 2f + 1`) | `validity_quantitative`, `fault_bound` | upper, state-shaped (cardinality) |
-| Integrity | `integrity` | safety |
-| `ℓ`-Termination | `termination`, `ℓ` | temporal (under the module's two assumptions) |
-| `Δ`-Totality | `totality`, `Δ` | temporal (under the module's two assumptions) |
-| Quiescence | `quiescence` | temporal | -/
+Each entry is the class field, the paper's name for it, and the level it sits
+at.
+
+* **`agreement`** — Agreement; *safety*
+* **`validity_genuine`** — Validity, qualitative half (correct pairs genuine);
+  *safety*
+* **`validity_quantitative`, `fault_bound`** — Validity, quantitative half
+  (`|set| ≥ 2f + 1`); *upper, state-shaped (cardinality)*
+* **`integrity`** — Integrity; *safety*
+* **`termination`, `ℓ`** — `ℓ`-Termination; *temporal (under the module's two
+  assumptions)*
+* **`totality`, `Δ`** — `Δ`-Totality; *temporal (under the module's two
+  assumptions)*
+* **`quiescence`** — Quiescence; *temporal* -/
 
 /-- The state-level fragment of `mod:acs`. This is what the `Conductor`
 module instantiates. -/
@@ -754,15 +791,23 @@ module's state exists cannot mention. That check is the handlers' one
 stated bridge, the MVBA counterpart of the Conductor's ACS median bridge
 ([`docs/CompositionContracts.md`](../docs/CompositionContracts.md) §7).
 
-### Obligation table
+### Obligations
 
-| Property (paper) | Field | Level | Discharge |
-|---|---|---|---|
-| Agreement | `agreement` | safety | Mvba `safety [agreement]` — `Mvba.mvbaSafety` |
-| Integrity (decides at most once) | `integrity` | safety | Mvba `safety [integrity]` — `Mvba.mvbaSafety` |
-| External validity | `external_validity` | safety | Mvba `safety [external_validity]` — `Mvba.mvbaSafety` |
-| `ℓ_MVBA`-Termination | `termination`, `ℓ` | temporal | **not proven**: the supplement's `thm:termination`, `O(fΔ)`; the model is untimed (`docs/MvbaPlan.md` §3) |
-| Quiescence | `quiescence` | safety (one-step form) | Mvba, from the transition bodies (`sent_new_tr`: every honest send requires the input and `¬ abandoned`) — `Mvba.mvbaSafety` | -/
+Each entry is the class field, the paper's name for it, the level it sits at,
+and where it is discharged.
+
+* **`agreement`** — Agreement; *safety*. Mvba `safety [agreement]` —
+  `Mvba.mvbaSafety`
+* **`integrity`** — Integrity (decides at most once); *safety*. Mvba `safety
+  [integrity]` — `Mvba.mvbaSafety`
+* **`external_validity`** — External validity; *safety*. Mvba `safety
+  [external_validity]` — `Mvba.mvbaSafety`
+* **`termination`, `ℓ`** — `ℓ_MVBA`-Termination; *temporal*. **not proven**:
+  the supplement's `thm:termination`, `O(fΔ)`; the model is untimed
+  (`docs/MvbaPlan.md` §3)
+* **`quiescence`** — Quiescence; *safety (one-step form)*. Mvba, from the
+  transition bodies (`sent_new_tr`: every honest send requires the input and
+  `¬ abandoned`) — `Mvba.mvbaSafety` -/
 
 /-- The state-level fragment of `mod:mvba`. -/
 class MVBASafety (party value message state : Type) (byz : party → Prop)

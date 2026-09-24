@@ -1,0 +1,154 @@
+/* Site overrides for the rendered sources (`literate.toml`, `extra_css`).
+ *
+ * The basename must not be `literate.css`: extra files are copied into the
+ * output directory under their own name, and that is Verso's own stylesheet,
+ * so a clash silently replaces the whole of it.
+ *
+ * Sections 1 and 2 work around upstream gaps; 3 and 4 are this site's own
+ * presentation choices. The gaps are all in one place: Verso renders a
+ * *Verso* docstring through `Doc/Html.lean`, which is complete, and a
+ * *Markdown* docstring — Lean's default, and what this development uses —
+ * through a second, thinner emitter in `VersoLiterateCode.lean`. This
+ * project only ever hits the second one. Both gaps are still present on
+ * Verso `main` as of 2026-09-23, so there is no version to upgrade to. */
+
+/* 1. Markdown list items are emitted as bare `<p>` inside `<ul>`/`<ol>`,
+ *    with no `<li>` at all (`VersoLiterateCode.lean`, the `.ul`/`.ol` cases,
+ *    against `Doc/Html.lean` which wraps them properly). A paragraph draws
+ *    no marker, which is why these lists render as unindented runs of text.
+ *    `display: list-item` gives each one the marker box it should have had;
+ *    `list-style-type` is inherited from the list, so bullets and numbering
+ *    both follow.
+ *
+ *    The selectors deliberately mirror Verso's own
+ *
+ *        .code-content > .md-text.mod-doc :is(p, ul, ol, …) { display: block }
+ *
+ *    with two element steps instead of one. That rule is specificity
+ *    (0,3,1) and sets `display` on exactly these paragraphs, so a shorter
+ *    selector — `.md-text ul > p`, (0,1,2) — loses to it and silently does
+ *    nothing. These are (0,3,2) and win. Raise them together if Verso's
+ *    rule ever gets more specific. */
+.code-content > .verso-text.mod-doc ul > p,
+.code-content > .verso-text.mod-doc ol > p,
+.code-content > .md-text.mod-doc ul > p,
+.code-content > .md-text.mod-doc ol > p,
+.code-box .verso-text ul > p,
+.code-box .verso-text ol > p,
+.code-box .md-text ul > p,
+.code-box .md-text ol > p {
+    display: list-item;
+    margin-bottom: 0.4rem;
+}
+
+.code-content > .verso-text.mod-doc ul > p:last-child,
+.code-content > .verso-text.mod-doc ol > p:last-child,
+.code-content > .md-text.mod-doc ul > p:last-child,
+.code-content > .md-text.mod-doc ol > p:last-child,
+.code-box .verso-text ul > p:last-child,
+.code-box .verso-text ol > p:last-child,
+.code-box .md-text ul > p:last-child,
+.code-box .md-text ol > p:last-child {
+    margin-bottom: 0;
+}
+
+/* 2. Verso opens with `* { margin: 0; padding: 0 }` and then restores
+ *    indentation per context, missing `ol` inside a code box. Without
+ *    padding the markers are drawn outside the content box and clipped. */
+.code-content > .verso-text.mod-doc ul,
+.code-content > .verso-text.mod-doc ol,
+.code-content > .md-text.mod-doc ul,
+.code-content > .md-text.mod-doc ol,
+.code-box .verso-text ul,
+.code-box .verso-text ol,
+.code-box .md-text ul,
+.code-box .md-text ol {
+    padding-left: 1.5em;
+    list-style-position: outside;
+}
+
+/* 3. Docstrings inside a code box.
+ *
+ * Verso renders a `/-- … -/` in place, which is right, but leaves it
+ * typographically adrift: the only cue that prose has begun is the literal
+ * `/--`, set in the same monospace as the operators around it.
+ *
+ * What is used here is colour, and only colour. Three things were tried —
+ * the source markers, a rule down the left edge, and a background tint —
+ * and each adds an edge at every docstring, of which a class has one per
+ * field; together they made the listing restless. Colour is continuous: it
+ * marks the whole of the prose rather than its boundaries. The rule down
+ * the left had a second problem, that Verso indents each docstring to its
+ * declaration's column (`--indent`), so the rules land at different offsets
+ * and read as ragged rather than as structure.
+ *
+ * This is the one place the site departs from Verso's black-and-white
+ * scheme, deliberately: with syntax highlighting itself monochrome, hue is
+ * unused and so is free to carry this one distinction. Links keep their own
+ * colour and their underline — Verso's `text-decoration: none` rules are
+ * all scoped to navigation — so the 90 links inside docstrings stay
+ * distinct from the prose around them. */
+/* A steel blue, darkened just enough to clear WCAG AA for body text: 5.5:1
+ * against the page, where CSS `steelblue` itself is 4.1:1 and falls short of
+ * the 4.5:1 an auditor reading closely is entitled to. */
+:root {
+    --cadence-docstring-color: #3a6d99;
+}
+
+/* Same shape as Verso's own dark defaults, which follow the OS setting and
+ * offer no manual toggle. Both of the light values are too dark against the
+ * dark background — `steelblue` measures 4.2:1 there and reads muddy — so
+ * dark mode takes the hue lightened instead, at 7.8:1. */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --cadence-docstring-color: #8ab4d8;
+    }
+}
+
+/* The source markers are dropped: with the prose coloured they repeat
+ * information the colour already carries, and `/--` next to a run of
+ * operators is hard to pick out as a delimiter anyway. */
+.code-box .verso-text::before,
+.code-box .md-text::before,
+.code-box .verso-text::after,
+.code-box .md-text::after,
+.code-box .verso-text.mod-doc::before,
+.code-box .md-text.mod-doc::before {
+    content: none;
+}
+
+/* Bind the prose to what it documents. A Lean docstring describes the
+ * declaration below it, so the gap above is larger than the gap below. */
+.code-box .verso-text,
+.code-box .md-text {
+    color: var(--cadence-docstring-color);
+    margin-top: 0.9rem;
+    margin-bottom: 0.3rem;
+}
+
+.code-box .verso-text:first-child,
+.code-box .md-text:first-child {
+    margin-top: 0;
+}
+
+/* 4. Space between consecutive code blocks.
+ *
+ * The renderer emits one `.hl.lean.block` per top-level command, so two that
+ * sit next to each other are two consecutive declarations — with nothing
+ * between them, which is where a source file would have a blank line. Runs
+ * that are *not* adjacent are the ones a docstring split, either between two
+ * class fields or before a declaration, and those already get their spacing
+ * from the docstring's own margins; hence the adjacent-sibling selector
+ * rather than a margin on every block. It also means no rule is needed to
+ * suppress a leading gap, since the first block in a box is never a sibling.
+ *
+ * `margin-top` is the right property — `.hl.lean.block` is `display: block`,
+ * and the gap belongs to the run that follows. On the unit: `ex` is the
+ * font's x-height, so it moves if the code font is ever changed, and it is
+ * not a unit Verso uses; `1rem` is 16px against 2ex's 16.63px here, close
+ * enough to be indistinguishable, and it matches the 0.35/0.5/0.75/1rem
+ * scale the rest of the stylesheet is built on. One full blank line would be
+ * the code's own line-height, 22.8px, if this ever wants to be airier. */
+.code-box .hl.lean.block + .hl.lean.block {
+    margin-top: 1rem;
+}

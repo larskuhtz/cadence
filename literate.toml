@@ -1,0 +1,117 @@
+# Which Lean sources are published as a site, and how they are presented.
+# Read by Verso's literate renderer; `scripts/docs.sh` drives it. The keys are
+# documented in Verso's user guide under "Literate Programming".
+#
+# TOML note: every bare key below belongs to the top-level table, so they all
+# precede the first `[section]` header.
+
+# The per-action proof families are excluded. They are 76 machine-shaped files
+# of `#prove_vc` cells whose content is the VC registry's, not a reader's:
+# what they establish is stated by the three `Certify` modules, which are
+# included and which carry the `#veil_status` pins. Exclusion is by name
+# prefix, so each line drops a whole subtree.
+#
+# `Cadence.Monitor` is excluded for a different reason, and for a second one
+# that would force it anyway. It is not part of any theorem's trust base
+# (`docs/Monitor.md` is where it is documented), so it is not audit surface.
+# And three of its files declare a root-level `main`: Lean names are global,
+# the renderer's search index is keyed by name, and a site that published two
+# of them would fail to build on the duplicate.
+#
+# `Cadence.Tooling` is excluded because it is about the workflow rather than
+# the protocol: targeted check commands that make the inner loop faster.
+#
+# Nothing else is. The remaining support modules — the quorum instance, the
+# ACS median lemma, the counting and pigeonhole arguments, the build-totality
+# proof — are technical in their *proofs* but each carries a header stating a
+# protocol-level claim, which is exactly what an auditor reads. The proofs
+# themselves are handled where they belong: `scripts/docs.sh` strips the
+# per-tactic proof states before rendering.
+exclude = [
+  "Cadence.Chorus.Proofs",
+  "Cadence.Mvba.Proofs",
+  "Cadence.FallbackReceipt.Proofs",
+  "Cadence.Monitor",
+  "Cadence.Tooling",
+]
+
+# Declaration docstrings stay *in* the code, next to what they document.
+#
+# The tempting setting is the other one, on the grounds that this development
+# keeps its rationale in prose — but the prose is in the `/-! … -/` *module*
+# headers (183 blocks, averaging ~1 100 characters), and those render as prose
+# either way. `/-- … -/` here is the other thing: 262 short annotations
+# averaging ~235 characters, most of them one line on a class field.
+#
+# Rendering those as text hoists each one out of its declaration and stacks
+# them above it, so a class arrives as a run of context-free sentences
+# followed by a wall of code — the field docs no longer sit beside the fields.
+docstrings_as_text = false
+
+# Site overrides, loaded after Verso's own stylesheet. They patch two gaps in
+# its *Markdown* rendering path — list items emitted without `<li>`, and
+# missing indentation on `ol` in a code box — both documented in the file and
+# both still present upstream. This is also the hook for any further
+# presentation tweak; nothing in the generated output needs patching.
+#
+# The basename must not be `literate.css`: extra files are copied into the
+# output directory under their own name, and Verso's own stylesheet is called
+# that, so a clash silently replaces the entire stylesheet.
+extra_css = ["docs/site-overrides.css"]
+
+# Everything in the one library the project builds.
+[[targets]]
+library = "Cadence"
+
+# Reading order, mirroring the one the README gives: the contracts, then each
+# model with its certificate, then the composition, then the support files.
+# Anything not listed follows alphabetically, so a new module appears without
+# an edit here.
+[order_children]
+"Cadence" = [
+  "Cadence.Interfaces",
+  "Cadence.Chorus",
+  "Cadence.Mvba",
+  "Cadence.Conductor",
+  "Cadence.Cadence",
+  "Cadence.FallbackReceipt",
+  "Cadence.Composition",
+  "Cadence.System",
+  "Cadence.Primitives",
+  "Cadence.ByzQuorum",
+  "Cadence.Windows",
+  "Cadence.ProofPrelude",
+]
+"Cadence.Chorus" = [
+  "Cadence.Chorus.Certify",
+  "Cadence.Chorus.Compose",
+  "Cadence.Chorus.Counting",
+  "Cadence.Chorus.Pigeonhole",
+  "Cadence.Chorus.Progress",
+]
+"Cadence.Mvba" = [
+  "Cadence.Mvba.Certify",
+  "Cadence.Mvba.Compose",
+  "Cadence.Mvba.NoLock",
+]
+"Cadence.FallbackReceipt" = [
+  "Cadence.FallbackReceipt.Certify",
+  "Cadence.FallbackReceipt.Totality",
+  "Cadence.FallbackReceipt.PreFix",
+]
+
+# Page titles.
+#
+# A `[modules."X"]` entry applies to X *and every module beneath it*: the
+# renderer resolves per-module settings by longest-prefix match, and `title`
+# — unlike `url`, which appends the remaining components — is inherited
+# verbatim. So a title on `Cadence` is a title on all of them, and the
+# navigation bar reads the same word twenty-four times. Only leaves get one —
+# here just the glue, whose leaf name is "Cadence" and would otherwise be
+# indistinguishable from the root.
+[modules."Cadence.Cadence"]
+title = "Cadence (the glue)"
+
+[metadata]
+title = "Cadence — the verified sources"
+description = "The Lean sources of the machine-checked verification of the Cadence BFT consensus protocol."

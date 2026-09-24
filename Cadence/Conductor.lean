@@ -140,15 +140,23 @@ The machine-checked half of this table is `Conductor.orchestratorSafety`
 `OrchestratorTemporal` there, the same rows as the fields of a class this
 development supplies no instance of.
 
-| Contract item | Discharged by |
-|---|---|
-| `open_prefix_agreement` | `safety [open_prefix_agreement]` |
-| Integrity "at most once" (`opened_mono`) | `opened` is only ever set, proven action by action from the transition bodies |
-| Integrity "not before starting time" (`integrity_timing`) | `safety [opened_after_start]` (+ synchronized-clocks assumption); first-order, so it is a field of the *fragment* |
-| Monotonicity (`monotonicity`) | `[open_local_order]` + the `open_slot` guard |
-| the observables' frames (`completed_step_frame`, `complete_frame`, `complete_effect`) | the transition bodies: only `complete_slot` touches `completed`, and only its own pair |
-| `B`-boundedness, `B = 2W − p` | **unproven** — `safety [bounded_tail]` is the interval form; the count needs widths the model keeps meta |
-| Totality / `R`-recovery, `R = 2Wτ` | **unproven** — Liveness section below |
+Each entry is a contract item and what discharges it.
+
+* **`open_prefix_agreement`** — `safety [open_prefix_agreement]`
+* **Integrity "at most once" (`opened_mono`)** — `opened` is only ever set,
+  proven action by action from the transition bodies
+* **Integrity "not before starting time" (`integrity_timing`)** — `safety
+  [opened_after_start]` (+ synchronized-clocks assumption); first-order, so it
+  is a field of the *fragment*
+* **Monotonicity (`monotonicity`)** — `[open_local_order]` + the `open_slot`
+  guard
+* **the observables' frames (`completed_step_frame`, `complete_frame`,
+  `complete_effect`)** — the transition bodies: only `complete_slot` touches
+  `completed`, and only its own pair
+* **`B`-boundedness, `B = 2W − p`** — **unproven** — `safety [bounded_tail]`
+  is the interval form; the count needs widths the model keeps meta
+* **Totality / `R`-recovery, `R = 2Wτ`** — **unproven** — Liveness section
+  below
 -/
 
 veil module Conductor
