@@ -74,6 +74,9 @@ Four Veil models plus support files, mirroring the paper's architecture:
   projections — `Conductor ⊨ OrchestratorSafety`, its join with a temporal
   level toward the full `Orchestrator`, positional MCP Safety),
   `Chorus/Compose.lean` (`Chorus ⊨ SlotConsensusSafety` and the same join),
+  `Chorus/Liveness.lean` (the run-level liveness target for Chorus at the
+  `Mvba` instance: the label classes, the named premises replacing
+  (A-mvba), the MVBA-as-component instance; `docs/Liveness.md` §4),
   `System.lean` (the
   glue's end theorem at both instances — the composed system, no contract
   hypothesis left).

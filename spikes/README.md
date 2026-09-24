@@ -45,8 +45,14 @@ These use throwaway names (`MiniOrch`, `OrchSafety`, `Orch`, `OrchS`,
 `ScS`) and a toy consumer. They are shape experiments, not drafts of the real
 contracts — the real contracts are [`../Cadence/Interfaces.lean`](../Cadence/Interfaces.lean).
 
-**Two further experiments graduated into the code base rather than staying
-here.** Proving the *step-level* contract fields (monotonicity of the
+**Three further experiments graduated into the code base rather than staying
+here.** The most recent was spike 11 (2026-09-16), the `Cadence.Component`
+instance making the MVBA a component of Chorus at the system's
+instantiation — the reassessment evidence after stage 1 of the Chorus
+run-level liveness leg ([`../docs/Liveness.md`](../docs/Liveness.md)
+§4.2) — which is now `Chorus.mvbaComponent` in
+[`../Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean), built
+and pinned like any other module; a copy here would only drift. Proving the *step-level* contract fields (monotonicity of the
 observables, the frames, the paper's Monotonicity) for an implementation
 means reasoning about two consecutive states of a Veil-generated transition
 system, which no `#check_invariants` cell can do. The technique — expose the
