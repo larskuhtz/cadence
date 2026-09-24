@@ -109,6 +109,24 @@ come first.
   `ChorusDesign.md` §3.1.1) rather than merely reject, so that sound negative
   reads are reported and acknowledged instead of slipping past a reject-only
   lint.
+* **`fb_sign_neg`'s guard under voter equivocation.** The guard counts a
+  voter as positive if it signed positive for *anyone*; a real validator
+  counts the votes it received. With an equivocating Byzantine voter the
+  real validator can sign negative where no `qv` satisfies the model's guard
+  (an `n = 4` instance is in
+  [`BlsAggregationSpike.md`](./BlsAggregationSpike.md) §2.1, (C2)), so
+  `ChorusDesign.md` §3.2's "the paper's guard implies the model's guard"
+  does not hold as stated. No stated theorem appears to depend on the
+  missing step; the proposed fix (a doubly-negated `msg_vote_neg_sig`
+  conjunct, positive in polarity) is that note's §4 M3 and needs confirming.
+* **Certificates that constrain honest members only.** The certificate
+  predicates require a network-valid signature from *every* member, but a
+  Byzantine member of a BLS aggregate never passed a receiver check (and,
+  with adversarial key relations, may never have sent anything). Restating
+  each predicate over honest members only would match what the signature
+  scheme guarantees and remove an unstated retroactive-simulation step from
+  `ChorusDesign.md` §3.2. [`BlsAggregationSpike.md`](./BlsAggregationSpike.md)
+  §2.1 (C1) and §4 M1.
 
 ## Liveness
 
