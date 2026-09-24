@@ -36,6 +36,13 @@ VBIN=".lake/packages/verso/.lake/build/bin"
 
 echo "=== 0/5  checking the project is built"
 command -v jq > /dev/null || { echo "error: this script needs jq" >&2; exit 1; }
+# Lake caches the elaborated lakefile and reuses it even when a `-K` option
+# changes, so a workspace last configured without `-Kenv=dev` — the published
+# image's, or any checkout after a plain `lake build` — does not know Verso
+# exists, and every `-Kenv=dev` call below fails with "unknown package
+# `verso`". Reconfigure once (`-R`); loading the workspace also clones Verso
+# on first use. Builds nothing, so the gate below still sees the real state.
+lake -R -Kenv=dev env true
 if ! lake -Kenv=dev build --no-build Cadence > /dev/null 2>&1; then
   echo "error: the project is not up to date — run 'lake build' (or" >&2
   echo "       scripts/revalidate.sh) first; the site renders what was built." >&2
