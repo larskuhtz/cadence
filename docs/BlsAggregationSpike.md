@@ -194,7 +194,18 @@ On a first reading, no stated theorem depends on the missing behaviour:
   any `2f+1` received set, so the real guard is false as well;
 * agreement never consults the fallback guards.
 
-The gap still needs closing (§4 M3).
+The gap is **in the model, not in the paper's algorithm.** `line:fb-cast-entry`
+counts the positive votes `i` has *collected*, a local count, and the real `i`
+above correctly signs negative. The model's global relation makes its guard
+stricter than the paper's, which is the wrong direction for an
+over-approximation. The extra real step does not contradict the paper
+either. In the example, the two honest positive votes plus the Byzantine one
+form a FastQC. `i`'s negative entry plus the Byzantine one form a negative
+FallbackQC. So a speculative commit of `j`'s root can be reverted, and the
+paper allows exactly that: a revert "only if some validator equivocated",
+and here a voter did. (For `pc:accountability` this means the culprit behind
+a revert can be a voter rather than the proposer.) The gap still needs
+closing (§4 M3).
 
 ### 2.2 Level 1 — liveness, where the models carry it as a premise
 
