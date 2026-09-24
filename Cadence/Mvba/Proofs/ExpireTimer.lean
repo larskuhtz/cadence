@@ -1,15 +1,15 @@
 import Cadence.Mvba
 import Cadence.ProofPrelude
 
-/-! # `Mvba` proofs — action `byz_commit`
+/-! # `Mvba` proofs — action `expire_timer`
 
 Scaffolded by `#gen_proof_files Mvba`; yours to edit. Proves every
-registered VC of `byz_commit` cross-file from the module's persisted VC registry
+registered VC of `expire_timer` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 `Certify.lean`'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Mvba byz_commit <property> by <tac>` lines
+Manual cells go on `#prove_vc Mvba expire_timer <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
@@ -32,6 +32,6 @@ veil_large_clump_budgets
 
 namespace Mvba.Proofs
 
-#prove_action Mvba byz_commit
+#prove_action Mvba expire_timer
 
 end Mvba.Proofs

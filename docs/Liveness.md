@@ -36,7 +36,46 @@ outside Lean.
   fairness suffices because the model is monotone: enabledness is itself
   monotone, so the enable/disable toggle that strong fairness exists for
   cannot occur. ((F-compassion) is reserved vocabulary for the
-  non-monotone implementation and never invoked.)
+  non-monotone implementation and never invoked.) **This justification is
+  specific to Chorus and does not generalise**: it holds because a slot is
+  one-shot and its state purely accumulating. `Mvba` runs views, so nine of
+  its honest actions are guarded by the current view and eleven can be
+  disabled outright; what replaces the argument there, and why the answer
+  is still weak fairness but for a different reason, is
+  [`MvbaPlan.md`](./MvbaPlan.md) §3.1 and §3.2, with the disabling facts
+  proven in [`Cadence/Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean)
+  and the measure they are progress in — a lexicographic rank that no
+  transition can raise — in
+  [`Cadence/Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean). **`Mvba`'s
+  bound-erased termination is now proven** from named premises:
+  `Mvba.termination` in
+  [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean), over the
+  run vocabulary of [`Cadence/Fairness.lean`](../Cadence/Fairness.lean). It
+  is the first liveness result in this development that is a *theorem*
+  rather than a state-level fragment with the temporal step left to a named
+  axiom — the scheduling assumptions are hypotheses of the statement, which
+  is the discipline §2 of this document asks for. `Mvba` also needs a
+  *third* scheduling class that Chorus does not, and the reason is the
+  timeout: if a timeout action's guard says nothing about time, weak
+  fairness forces it to fire out of every view, including the one the
+  protocol is supposed to succeed in. The model therefore carries the view
+  timer as an **abstract phase marker** — `expire_timer`, a clock with
+  exactly one tick — and both timeout actions are guarded on it. With that
+  the timeouts are weakly fair like every other honest action, and the
+  third class contains the marker alone, governed by (A-viewsync): finite
+  in every view below the good one, and in the good one not before a commit
+  certificate exists. A *fifth* class holds `become_avail_ready`, the
+  availability layer's action, governed by (F-avail): it is unguarded, so
+  leaving it under weak fairness would have proven (F-avail) and hidden the
+  MVBA's dependence on that layer behind "the scheduler is fair".
+  Why (A-viewsync) has the shape it does, why the marker cannot be weakly
+  fair, and why a GST marker alone would not change either, are
+  [`MvbaPlan.md`](./MvbaPlan.md) §3.7. Those two clauses are the untimed skeleton of the
+  supplement's timeout discipline, and they are the *whole* of what
+  `Mvba.termination` assumes about timing —
+  [`MvbaPlan.md`](./MvbaPlan.md) §3.2's correction, with the classification
+  machine-checked in
+  [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean).
 * **(F-byz)** — Byzantine actions (the `byz_*` family) are unfair:
   progress never relies on adversarial help, which makes the discharged
   content strictly stronger than deadlock freedom.
@@ -55,7 +94,71 @@ outside Lean.
 The well-founded ranking that makes the chain terminate is structural:
 per-slot state is finite and all relations are monotone, so every fair
 firing strictly shrinks the residual of unset tuples. It rests on the same
-monotonicity audit as the network contract.
+monotonicity audit as the network contract. Finiteness is what makes it
+work, so this ranking is also Chorus-specific: `Mvba`'s view type is
+unbounded and needs the different, lexicographic ranking of
+[`MvbaPlan.md`](./MvbaPlan.md) §3.3.
+
+### 2.1 Why `Mvba` assumes more than `Chorus`, and where that ends
+
+`Chorus`'s liveness rests on fairness plus the sub-protocol's own
+termination, and nothing that names a view or a deadline. `Mvba`'s rests on
+those plus (A-viewsync). The difference looks like a weakness of the MVBA
+proof and is not: it is the whole stack's one unavoidable assumption becoming
+visible at the layer that has to carry it.
+
+**The two models use the same timing device.** `Chorus.lean` has an abstract
+`Phase` — `pre_deadline → post_deadline → post_fb_arm → post_mvba_arm`,
+advanced by three non-deterministic actions — and `Mvba.lean` has
+`timer_expired`, the same device with one tick instead of three. Both replace
+wall-clock time by a monotone marker, and both gate real actions on it
+(`record_chunk` needs `pre_deadline`; the two `timeout_*` need
+`timer_expired`). So the shapes are the same.
+
+**Chorus's markers are weakly fair and `Mvba`'s is not**, and the reason is
+what each advance *does*. Chorus's phases move the protocol from one arm to
+the next: fast path, then fallback, then the MVBA arm. Advancing early
+forfeits the faster arm and nothing else — there is always somewhere to fall
+— and termination is then delegated to **(A-mvba)**, the sub-protocol's own.
+`Mvba`'s view *is* that last arm. A timer firing early forfeits the view, and
+the only thing to fall onto is another view; if every view's timer fires
+early, nothing terminates at all. There is no sub-protocol left to delegate
+to, so the assumption that *some* view survives its timeout has to be made
+here.
+
+That is FLP, paid where it must be. The paper pays it twice over, in the two
+MVBA options: the randomised primitive pays with probability-1 termination
+(no deductive framework here expresses that), and the supplement's
+leader-based protocol — the one modelled — pays with partial synchrony.
+(A-viewsync) is the untimed shadow of the second payment.
+
+**Chorus does have an (A-viewsync)-shaped premise; it is just somewhere
+else.** `all_honest_recorded` — "every honest validator recorded the positive
+entry", in the model's own words the protocol-level shadow of
+`s.deadline − Δ ≥ GST` — is exactly "the work finished before the marker
+advanced". It is carried as an **antecedent of the properties** (proposal
+inclusion, and the fair-progress invariants that rest on it) rather than as a
+run-level premise, and it buys *proposal inclusion* rather than termination,
+which is why it does not appear in a fairness list. The accounting differs;
+the assumption is of the same kind.
+
+**Where it ends.** What this work does to the stack's trust base is replace
+an unconditional consensus-termination assumption by a synchroniser interface
+plus a proof: (A-mvba) says "the MVBA terminates", `Mvba.termination` says
+"it terminates given (A-viewsync), (F-justice), (F-avail) and the callers'
+two premises", and half of (A-viewsync) — the entry — is itself derived.
+The replacement is not yet formal: `Mvba.termination` is the **bound-erased
+shadow** of `MVBATemporal.termination`, not that field, which is stated over
+timed runs with `gst` and `ℓ`. Connecting them is the bounded phase, and the
+untimed theorem is already in the right shape for it — every premise is a
+predicate on a run, so a timed layer discharges them as ordinary Lean
+theorems without touching the model, which is the pattern
+[`Bounds.md`](./Bounds.md) §6 sets out for Chorus. In that phase (A-viewsync)
+stops being an assumption: with a clock, bounded post-GST delivery gives the
+decision chain a finite latency, timeout growth makes some view's budget
+exceed it, and both of its clauses become theorems.
+[`MvbaPlan.md`](./MvbaPlan.md) §3.7 has the detail, including why no
+intermediate step — a GST marker without a clock, say — gets there earlier.
 
 ## 3. What would close the rest
 
@@ -75,3 +178,88 @@ The paper's concrete Δ-bounds are a separate, *incomparable* layer — they
 assume strong partial synchrony, where the model's claims above need only
 eventual delivery. How the two relate, and the routes by which bounds
 could be brought into the model, is [`Bounds.md`](./Bounds.md).
+
+## 4. The next leg: Chorus at run level
+
+`Mvba.termination` is the pattern working at one layer. Applying it to
+Chorus is what retires **(A-mvba)** — and with it the last of the
+`(F-justice)`/`(F-byz)`/`(A-mvba)` meta-axioms — which
+[`TODO.md`](./TODO.md) calls the single largest reduction of
+[`Architecture.md`](./Architecture.md) §4 available. This section is the
+kick-off record so a fresh session does not re-derive the design.
+
+**Target.** A run-level theorem in the shape of `Mvba.termination`: every
+correct validator eventually finalizes every slot, from named premises, each
+a predicate on a run, with `Mvba.termination` consumed exactly where
+(A-mvba) sits today. Same discipline as `Mvba/Liveness.lean`: the premises
+are written down as named `Prop`s **before** the proof exists, so none can
+become a hypothesis because a proof needed it.
+
+**What is already there.** [`Cadence/Fairness.lean`](../Cadence/Fairness.lean)
+is generic over any `RelationalTransitionSystem`, so `LRun`, `WeaklyFair`,
+`eventually_forall` and the rest apply to Chorus unchanged. Chorus's
+fair-progress content is proven at state level (`Chorus.lean`'s liveness
+section), and the two hardest counting steps are already plain-Lean
+theorems: `progress_dichotomy_of_saturation` and
+`build_totality_of_reachable`. Chorus's phase markers are weakly fair, so
+unlike the MVBA there is no timing premise to invent — §2.1 says why.
+
+**Settle this first, because it is the whole design.** Chorus holds an
+*abstract* MVBA state and advances it with the oracle action `mvba_step`,
+which takes any transition the contract allows and is deliberately **outside**
+(F-justice) — its scheduling is the instance's own admissible-execution
+model. So consuming `Mvba.termination` needs a **projection**: from an
+`LRun` of the composed system (`System.lean`, where the abstract state is
+`Mvba.State`) to an `MvbaRun`, keeping only the steps at which the MVBA
+state moved, and a proof that weak fairness survives the re-indexing — a
+label continuously enabled in the projection was continuously enabled in the
+composed run. The premise that replaces (A-mvba) is then "the composed run's
+MVBA projection satisfies `Mvba.termination`'s premises", which is the
+untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
+**not** by weakening a class field: that rule is in
+[`../CLAUDE.md`](../CLAUDE.md) and it is what makes the absence of a
+`…Temporal` instance mean something.
+
+**Staging** (reassess after step 1, which is the risky one):
+
+1. The projection and the fairness transfer, generic, in `Fairness.lean`.
+2. Chorus's label classes and premises — one named `Prop` each, mirroring
+   `Mvba/Liveness.lean`'s four-class discipline and its `label_classified`.
+3. The fast-path chain to a commit certificate.
+4. The fallback and MVBA arms, the second consuming `Mvba.termination`
+   through the projection.
+5. The assembly, the `Cadence.lean` row and pin, and retiring (A-mvba) from
+   `Architecture.md` §4.
+
+**Cost warning.** If the argument needs new Chorus invariants, that is a
+4 222-cell family re-solve, not the MVBA's 1 325. Budget it before touching
+`Chorus.lean`, even for a comment.
+
+### 4.1 Running this leg and the bounds leg in parallel
+
+This leg and [`Bounds.md`](./Bounds.md) §6.1 are **independent**: neither
+needs the other's result, and the MVBA bounds leg discharges
+(A-viewsync) while this one consumes `Mvba.termination` as it already
+stands. Rules that keep them from colliding:
+
+* **Neither leg edits [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean).**
+  The bounds leg *instantiates* `MVBATemporal`, it does not change it; this
+  leg needs no class change. An edit there re-solves the Chorus family and
+  forces the other leg to rebase, so it is a decision to take jointly.
+* **[`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) is
+  read-only for both.** Both consume `Mvba.termination`; neither should need
+  to restate or reshape it.
+* **This leg owns `Fairness.lean` and everything under `Cadence/Chorus`**;
+  the bounds leg owns its own new files and puts *timed* run vocabulary in
+  one of them rather than in `Fairness.lean`.
+* **The projection is shared conceptual territory** — the bounds leg needs
+  the same relation between a composed run and an MVBA run, in its timed
+  form. This leg owns the definition; the bounds leg should refine it rather
+  than invent a second one.
+* Both will append rows and pins to `Cadence.lean` and paragraphs to these
+  docs. Expect small textual conflicts there and nothing worse.
+* **One expensive build at a time.** That constraint does not parallelise:
+  the machine runs one family re-solve at a time, and this leg's are the
+  large ones. Two sessions can think in parallel; they cannot both re-solve
+  in parallel.
+

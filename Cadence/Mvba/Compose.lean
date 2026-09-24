@@ -26,8 +26,8 @@ Each entry is an `MVBASafety` field and what discharges it.
 * **`agreement`, `integrity`, `external_validity`** — `safety [agreement]`,
   `[integrity]`, `[external_validity]`, through the named reachability
   projections of [`Mvba/Certify.lean`](./Certify.lean)
-* **`decided_mono`, `init_decided`** — the transition bodies of all 24
-  actions, uniformly (`decided_mono_tr`, `init_not_decided` below): `decided`
+* **`decided_mono`, `init_decided`** — the transition bodies of every
+  action, uniformly (`decided_mono_tr`, `init_not_decided` below): `decided`
   is only ever set, and `after_init` clears it
 * **`step_trans`, `reachable_init`, `reachable_trans`** — the reachability
   constructors
@@ -122,9 +122,23 @@ def Label.isInput : Mvba.Label node nodeset value view → Prop
   | .abandon _ => True
   | _ => False
 
+omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset vord in
+/-- `Label.isInput` names the two input constructors, in a form that
+survives leaving this module.
+
+The definition itself does not: since the label type reached twenty-five
+constructors Lean compiles its `match` to a bit-testing `Label.rec`, whose
+equation lemmas are available here but do not let `Label.isInput (.decide …)`
+reduce in an importing file. Consumers should case on this lemma rather than
+unfold the definition — `Mvba/Liveness.lean` does. -/
+theorem Label.isInput_cases {l : Mvba.Label node nodeset value view}
+    (h : Label.isInput l) :
+    (∃ i e, l = .propose i e) ∨ (∃ i, l = .abandon i) := by
+  cases l <;> simp_all [Label.isInput]
+
 variable (th : Mvba.Theory node nodeset value view)
 
-/-! ### Step-level facts, uniformly over all 24 actions
+/-! ### Step-level facts, uniformly over every action
 
 Each is proven by exposing every action's pre-computed transition body
 (`<action>.ext.derived_eq`, then the `reducible` `<action>.ext.tr` — Veil's
@@ -205,6 +219,15 @@ theorem propose_effect_tr {i : node} {e : value}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.propose i e) st') :
     Proposed st' i e := by
   mvba_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); mvba_field_simp
+
+/-- `propose(e)` carries a valid `e` — the model's own guard, which is the
+supplement's precondition on the call (`Mvba.lean`'s `propose`). -/
+theorem propose_valid_tr {i : node} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.propose i e) st') : th.valid e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, hv, -⟩ := htr
+  exact hv
 
 /-- `abandon()` at `i` records `abandoned i`. -/
 theorem abandon_effect_tr {i : node}
@@ -292,6 +315,7 @@ noncomputable def mvbaSafety :
   abandoned_mono _ _ p hn h := abandoned_mono_tr th hn.choose_spec p h
   sent_mono _ _ p m hn h := sent_mono_tr th hn.choose_spec p m h
   propose_effect _ _ _ _ h := propose_effect_tr th h
+  propose_valid _ _ _ _ h := propose_valid_tr th h
   abandon_effect _ _ _ h := abandon_effect_tr th h
   proposed_step_frame _ _ p v h _ := proposed_frame_internal th h.choose_spec.1 h.choose_spec.2 p v
   abandoned_step_frame _ _ p h _ := abandoned_frame_internal th h.choose_spec.1 h.choose_spec.2 p
@@ -304,7 +328,7 @@ noncomputable def mvbaSafety :
   -- **Quiescence**, in the one-step form the contract now states: a new
   -- message row of a correct party at a transition comes with the input and
   -- with the party not having abandoned. `sent_new_tr` is exactly that, over
-  -- all 5 message kinds × 24 actions.
+  -- all 5 message kinds × every action.
   quiescence _ _ p m hn hp hnew hold := sent_new_tr th hn.choose_spec p m hp hnew hold
 
 /-! ### What the full `MVBA` still owes

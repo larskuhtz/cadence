@@ -834,6 +834,29 @@ class MVBASafety (party value message state : Type) (byz : party → Prop)
   abandoned_mono : ∀ st st' p, trans st st' → abandoned st p → abandoned st' p
   sent_mono : ∀ st st' p m, trans st st' → sent st p m → sent st' p m
   propose_effect : ∀ st p v st', propose st p v st' → proposed st' p v
+  /-- **External validity of the input.** `propose(v)` carries a valid `v`.
+
+      This is the caller's half of the contract and it is stated here rather
+      than left to a docstring, because both sides need it: a consumer must
+      establish it to call `propose` at all, and an implementation may rely
+      on it — `Mvba`'s termination does, since a leader that proposed an
+      invalid vector would have its view rejected by every correct validator
+      and wasted. `subsec:mvba-protocol` gives the call the same
+      precondition, and `thm:termination` reasons from it.
+
+      **This is a liveness requirement living in the safety fragment**, and
+      that is a wart rather than a design. Nothing in this module's safety
+      proofs needs it — `Mvba`'s `external_validity` comes from
+      `handle_preprepare`'s own `valid e` check, not from the input's — so
+      by the placement rule above it belongs in `MVBATemporal`. It is here
+      because it constrains `propose`, which is a *field of this class*: an
+      upper-class field would have to re-declare the input relation to say
+      anything about it, and the two would then have to be kept in step by
+      hand. The trade is deliberate and costs nothing formal: it weakens no
+      proof and adds no assumption, since every implementation must check
+      the precondition anyway. If the temporal classes ever grow a way to
+      constrain a fragment field, this should move. -/
+  propose_valid : ∀ st p v st', propose st p v st' → Valid v
   abandon_effect : ∀ st p st', abandon st p st' → abandoned st' p
   proposed_step_frame : ∀ st st' p v, step st st' → ¬ byz p →
     (proposed st' p v ↔ proposed st p v)

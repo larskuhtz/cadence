@@ -9,6 +9,7 @@ import Cadence.Mvba.Proofs.HandlePreprepare
 import Cadence.Mvba.Proofs.FormPrepqc
 import Cadence.Mvba.Proofs.AdoptPrepqc
 import Cadence.Mvba.Proofs.BecomeAvailReady
+import Cadence.Mvba.Proofs.ExpireTimer
 import Cadence.Mvba.Proofs.SendCommit
 import Cadence.Mvba.Proofs.FormCommitqc
 import Cadence.Mvba.Proofs.Decide
@@ -49,9 +50,73 @@ info: 'Mvba.invariants_of_reachable' depends on axioms: [propext, Classical.choi
 has a real, statement-matching, kernel-checked theorem in the import
 closure, over exactly the standard axioms. Run `#veil_status Mvba table`
 interactively for the per-cell table (theorem, defining file, per-cell
-axiom set). The count is (3 `safety` + 25 `invariant` + the per-action
-`doesNotThrow` cell) × (24 actions + the initializer). -/
+axiom set). The count is (3 `safety` + 45 `invariant` + the per-action
+`doesNotThrow` cell) × (25 actions + the initializer), plus one
+`step_property` × 25 actions — a step relates two states, so unlike an
+invariant it has no cell at the initializer.
 
-/-- info: #veil_status Mvba: 725/725 real; axioms: propext, Classical.choice, Quot.sound -/
+**Eighteen of the invariants are there for liveness rather than safety**
+(`docs/MvbaPlan.md` §3.5 step 3, `Mvba/Liveness.lean`). Every one of them
+exists to make an *anti-monotone* guard analysable: a fairness argument has
+to know that such a guard can only die by the progress it was waiting for,
+and the model's safety proof never had to ask where a guard's failure came
+from. By guard:
+
+* `send_commit`'s `¬ commit_sent i v` — `commit_sent_backed`, with
+  `commit_sent_implies_voted` to make it inductive;
+* `adopt_prepqc`'s `∀ W E, local_prepqc i W E → W < v` —
+  `local_prepqc_within_entered`;
+* `handle_preprepare`'s `∀ W, voted i W → W < v` —
+  `voted_implies_accepted_proposal`, resting on `voted_within_entered`,
+  `voted_implies_leader_proposed`, `honest_preprepare_unique` and
+  `honest_preprepare_proposed`. Those last two are the formal content of
+  `thm:termination`'s "the correct leader broadcasts a single valid
+  proposal".
+
+`accepted_implies_prepare` is the ninth, and the one exception to the
+pattern: it is not about a guard but about a *conclusion* — the acceptance
+link's guard analysis yields `accepted`, while the prepare quorum needs
+`msg_prepare`, and the two handlers set them in the same step.
+`entered_implies_input` is likewise not about a guard: it lets a liveness
+theorem read the participation premise off a validator's being in a view,
+rather than carry it separately. `proposed_in_backed` is the leader's
+counterpart of `commit_sent_backed`, for the three leader actions'
+anti-monotone `¬ proposed_in l v`. And `prepqc_valid` is needed where safety
+never was: `leader_repropose` re-proposes a lock **without** re-checking
+validity (the supplement's `Recover`), while `handle_preprepare` requires
+`valid e`, so the re-proposal is accepted only because the lock was valid all
+along. `msg_tc_backed` is the thirteenth: it gets from `sync_view`'s guard to
+the timeout quorum behind the certificate, and so to a *correct* validator
+that timed out in the view — the step that shows a run cannot advance past
+the honest-led view without doing what (A-viewsync) forbids.
+
+The module's one `step_property`, `entered_needs_certificate`, is liveness's
+too: a newly entered view is view 1 or the successor of one that already has
+a timeout certificate. It has to be a *step* property rather than an
+invariant because it relates the two states. Adding it is also what pushed
+this family past the default elaboration budgets — the proof files now carry
+`veil_large_clump_budgets`, as the Chorus family always has.
+
+The last two, `honest_preprepare_valid` and `honest_preprepare_justified`,
+say an honest leader's proposal is one the `Pre-Prepare` handler will accept.
+Validity is conditional on the callers' inputs being valid, which no model
+fact can supply — `propose` does not check it — so it is carried as an
+antecedent; `docs/TODO.md` § Liveness has the alternative.
+
+`timed_out_implies_message` and `timeout_qc_view_le` are for closing a view:
+the timer delivers the local flag while the assemblies read the messages,
+and `form_tc_lock` additionally checks that a carried certificate is not of
+a view above the `Timeout` carrying it.
+
+The last two to arrive are what let the good view's entry be *derived*
+rather than assumed. `input_implies_entered` is `entered_implies_input` read
+backwards — having proposed means sitting in view 1 — which is where the
+climb starts; `tc_lock_implies_tc` says a recorded lock is also a plain
+timeout certificate, which is what keeps a validator holding a high
+certificate from being stranded by `sync_view_adopt`'s extra guard. Both are
+one step of one action read the other way round, and neither is a safety
+fact. -/
+
+/-- info: #veil_status Mvba: 1325/1325 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Mvba
