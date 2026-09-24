@@ -48,8 +48,23 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     steps:
+      # Same arithmetic as verify.yml: the runner ships with ~14 GB free, and
+      # the image plus the volume copy of its `.lake` need roughly 25 GB.
+      - name: Reclaim disk space
+        run: |
+          set -euo pipefail
+          before=$(df --output=avail -BG / | tail -1)
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /usr/local/lib/node_modules \
+                      /opt/hostedtoolcache "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker image prune --all --force || true
+          echo "free before:${before} after:$(df --output=avail -BG / | tail -1)"
+          df -h /
+
       - name: Check out the sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Log in to the container registry
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
@@ -60,9 +75,15 @@ jobs:
 
       # Verso is pinned behind `-Kenv=dev`, so this resolves it (and its
       # additive dependencies) inside the image before rendering.
+      #
+      # CPUS/MEMORY must fit the runner, as in verify.yml: the script's
+      # defaults (12 CPUs, 20 GB) are sized for a workstation, and docker
+      # refuses a `--cpus` above the host's core count outright.
       - name: Render the documentation
         env:
           RUNTIME: docker
+          CPUS: '4'
+          MEMORY: 13G
           LEAN_NUM_THREADS: 4
         run: |
           scripts/container.sh docs 2>&1 | tee docs.log
