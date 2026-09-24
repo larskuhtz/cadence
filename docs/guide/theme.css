@@ -39,16 +39,5 @@ pre:not([class*="hl"]) {
     border-radius: 3px;
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --verso-text-color: #e6edf3;
-        --verso-structure-color: #f0f6fc;
-        --verso-code-color: #e6edf3;
-        --verso-code-keyword-color: #d2a8ff;
-        --verso-code-const-color: #79c0ff;
-        --verso-code-var-color: #9aa5b1;
-        --verso-selected-color: #1f2937;
-    }
-    a { color: #79c0ff; }
-    pre:not([class*="hl"]) { background: #161b22; border-left-color: #30363d; }
-}
+/* No dark palette: Verso v4.32 does not switch the page background, so
+ * dark-mode text colours land on white and code becomes unreadable. */
