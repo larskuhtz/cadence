@@ -230,7 +230,8 @@ untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
    **Done, 2026-09-16** — [`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean);
    §4.3 is the record, including the one premise the sketch above did not
    foresee.
-3. The fast-path chain to a commit certificate.
+3. The fast-path chain to a commit certificate — §4.4 is the kick-off
+   record: what to prove, from which facts, and the traps already known.
 4. The fallback and MVBA arms, the second consuming `Mvba.termination`
    through the projection.
 5. The assembly, the `Cadence.lean` row and pin, and retiring (A-mvba) from
@@ -478,3 +479,116 @@ standard ones to *build* a proposal), so `TerminationClaim` stays generic
 and the theorem instantiates it; and `ValidBridge` must be named in
 `Architecture.md` §4 alongside `MvbaAdmissible` when (A-mvba) is retired —
 it is not a fairness assumption and must not be filed as one.
+
+### 4.4 Stage 3, the kick-off record: saturation, and the commit route
+
+*Written 2026-09-24 at the hand-over between sessions, so the next one does
+not re-derive the design. Nothing below is done; §4.2 and §4.3 are what is.*
+
+**Where it goes.** A new file, `Cadence/Chorus/Termination.lean`, importing
+[`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean) (the
+claim and its vocabulary) and
+[`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean) (the
+dichotomy; it brings `Counting`, `Pigeonhole` and, through them,
+`Chorus/Certify.lean`'s `reachable_*` projections). Stages 3–5 all live
+there, one section each, and it is split by arm if it outgrows
+`Mvba/Liveness.lean`. `Chorus/Liveness.lean` stays the statement file and
+keeps its light imports. Add the new module to `scripts/revalidate.sh`'s
+end-theorem stage as `Chorus.Liveness` was.
+
+**The regime.** Work at the concrete quorum family from the start — `node :=
+Fin n`, `nodeset := ByzNSet n`, `nset := byzNodeSetFin n f hf is_byz hbyz` —
+because the dichotomy is stated there and because "every proposer" needs a
+complete list of nodes, which `List.ofFn (n := n) id` gives and no generic
+class in the development does. The `cpv%`/`pafr%` macros of `Progress.lean`
+are the canonical instantiation; copy them verbatim. The quorum classes
+`Mvba.termination` takes exist at that family as `byzNodeSetFinGen_enum` and
+`byzNodeSetFinGen_honest` ([`Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean));
+the honest quorum they hand over is the witness for every assembly guard.
+Stay in the generated instance regime (`open Classical`, no `DecidableEq`
+binders), and put the `MVBASafety` instance in scope with `letI :=
+Mvba.mvbaSafety thM` before applying generated lemmas (§4.3).
+
+**The one rule of consumption.** Every temporal step is
+`Cadence.exists_disabled_of_never_fires` — a weakly fair label that never
+fires from `N` on is disabled somewhere from `N` on — and the proof of each
+link shows the label *stays* enabled unless the disabling event is itself the
+progress wanted. `Mvba/Liveness.lean`'s first link (`enabled_decide`,
+`decide_effect`, `eventually_decided_of_commitqc`) is the template: an
+enabledness lemma that turns `Enabled` into the action's guards, an effect
+lemma that reads the firing off the post-state, and the fairness step.
+Monotone facts along the run come from M13's `Chorus.<f>.mono` through
+`LRun.mono`; finitely many eventualities collapse through
+`LRun.eventually_forall` over `enum.members` or the node list.
+
+**What stage 3 proves**, in two theorems the assembly (stage 5) will use:
+
+1. *Every correct validator is eventually saturated* — for each correct `i`,
+   some index at which `i` has cast fast (`msg_commit_cast i` with a commit
+   signature per proposer) or cast fallback (`msg_fallback_sig i` with a
+   fallback signature per proposer). This is the `hsat` hypothesis of
+   `progress_dichotomy_of_saturation` for one validator; the theorem's
+   hypothesis is the conjunction over the honest population, which is the
+   collapse above. The chain:
+   * the phase reaches `post_mvba_arm` and stays there: the three
+     `advance_to_*` actions are weakly fair and each is enabled at exactly
+     its phase; `Chorus.phase.init` starts it at `pre_deadline`, and every
+     other action has a generated `frame_phase`;
+   * every correct validator votes: `vote i` needs only `phase ≠
+     pre_deadline ∧ ¬ local_voted i`, and `local_voted` is monotone; then
+     the honest quorum has voted at one index, so `msg_vote_cast` holds on
+     it (`voted_implies_cast`), which is the witnessed supermajority the
+     fallback guards need;
+   * per proposer, `fb_sign_pos i J M q qc` or `fb_sign_neg i J qv` is
+     enabled with `qv := honestQuorum` unless `i` has cast fast or already
+     cast fallback — `progress_fallback_signing` at the reachable state says
+     which, and supplies the `q`/`qc` witnesses the label carries; once
+     every proposer is signed, `cast_fallback_vote i` is enabled under the
+     same proviso. Each step fires or is disabled by the very event that is
+     the other saturation branch.
+   Two facts the sweep does **not** give and that must be derived at run
+   level rather than added to the model: `msg_commit_cast i` for a correct
+   `i` implies a commit signature per proposer, and `msg_fallback_sig i`
+   implies a fallback signature per proposer. Both are the guards of the one
+   honest action that sets the flag (`cast_fast_commit`, `cast_fallback_vote`)
+   and the signatures are monotone, so the proof is: find the first index at
+   which the flag holds, read the step there off its transition body (the
+   `chorus_tr`/`chorus_field_simp` pattern, or the label dispatch of
+   `mvba_st_frame_of_not_step`), and carry the signatures forward. Do not
+   add an invariant for them — that is the 4 222-cell re-solve.
+2. *The commit route finalizes* — from an index at which a commit
+   certificate exists for every proposer (the dichotomy's left disjunct,
+   `commitqc_pos j m ∨ commitqc_neg j`, each an `∃ q` over broadcast commit
+   signatures), every correct validator eventually has `local_committed`:
+   * `broadcast_commitqc_pos j m q` with the certificate's own `q` is
+     enabled until it fires, and `msg_commitqc_pos` is monotone;
+   * `commit_assign_pos i j m` is enabled for a correct uncommitted `i` once
+     the broadcast certificate exists: its two consistency guards follow
+     from `local_committed_pos_backed` / `local_committed_neg_backed`
+     together with `commitqc_pos_unique`, `commitqc_pos_neg_excl`,
+     `commitqc_pos_mvba_consistent` and `commitqc_pos_mvba_neg_excl` at the
+     reachable state — an earlier assignment of `i` is backed by a
+     certificate, and certificates agree;
+   * `finalize_commit i` is enabled once every proposer is assigned, and
+     `local_committed` is what `Terminates` asks for.
+   Every invariant named here exists in `Chorus.lean` and is available as
+   `Chorus.reachable_<name>` (the `(nset := byzNodeSetFin …) hreach` pattern
+   of `Progress.lean`).
+
+**What stage 3 does not do.** It does not touch the right disjunct of the
+dichotomy — the MVBA arm is stage 4, where `AllPropose` and `NoEarlyAbandon`
+are derived for the projection and `Mvba.termination` is applied to
+`p.run` — and it does not assemble. It needs none of the three premises but
+`FJustice`, which is worth stating in its theorems' hypotheses: the fast
+route is the part of the claim that rests on fairness alone.
+
+**Traps already known.** Those of §4.2 and §4.3 (the `letI`, the `case`
+dispatch, no generated `.init` for theory-seeded fields, docstrings after
+`set_option … in`), plus: a `match` on `Chorus.Label` defined in one module
+may not reduce in another (`Mvba/Liveness.lean`'s `Label.isInput` note), so
+export characterisations like `mvbaStepLabel_iff` rather than relying on
+`rfl`; the honest quorum's *members* are what `eventually_forall` iterates,
+and `ByzNodeSetEnum.mem_members` is the bridge to `member`; and a run-level
+"first index at which a monotone flag holds" is `Nat.find` on a decidable
+predicate under `open Classical`, with the predecessor state still having the
+flag false.
