@@ -309,12 +309,16 @@ PAYLOAD
     IMAGE="${IMAGE:-cadence-verified}"
     rm -rf "$REPO/site" && mkdir -p "$REPO/site" || die "cannot create $REPO/site"
     #
-    # scripts/docs.sh needs jq, which only the `dev` stage installs; `verified`
-    # is built on `deps` and lacks it. It is installed here rather than in the
-    # Containerfile because any Containerfile edit makes publish-images.yml
-    # rebuild `deps` on both architectures (hours). Fold it into the `deps`
-    # apt list the next time that image is rebuilt anyway; this then no-ops.
+    # Two things the image lacks, supplied here rather than in the Containerfile
+    # because any Containerfile edit makes publish-images.yml rebuild `deps` on
+    # both architectures (hours). Fold both into `deps` the next time that
+    # image is rebuilt anyway; these then no-op.
+    #  * jq, which scripts/docs.sh needs and only the `dev` stage installs
+    #    (`verified` is built on `deps`).
+    #  * `cc`, which Verso's MD4Lean dependency invokes to compile md4c; the
+    #    image names its compiler only `clang`.
     OUT_DIR="$REPO/site" run_in_container <<'PAYLOAD' ;;
+command -v cc > /dev/null || ln -s "$(command -v clang)" /usr/local/bin/cc
 if ! command -v jq > /dev/null; then
   echo '==> installing jq (not in this image)'
   { apt-get update -qq \
