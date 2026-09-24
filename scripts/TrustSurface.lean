@@ -68,14 +68,28 @@ def moduleOf (env : Environment) (n : Name) : Option Name :=
   | some idx => some env.header.moduleNames[idx.toNat]!
   | none => none
 
-/-- A link into the generated documentation: module `Cadence.Chorus.Compose`
-becomes `Cadence/Chorus/Compose.html#<decl>`. This is what turns the page
-into a navigation hub rather than a second inventory. -/
+/-- The id the literate renderer gives a declaration: Verso's
+`String.sluggify`, which keeps letters, digits, `-` and `_` and replaces
+`.` with `___`. That is the whole rule for the plain ASCII names linked from
+this page; this script runs without Verso, so it cannot call the original.
+`scripts/docs.sh` checks the guide's links, which use the original, against
+the rendered pages. -/
+def sluggify (s : String) : String :=
+  String.join (s.toList.map fun c =>
+    if c.isAlphanum || c == '-' || c == '_' then c.toString else "___")
+
+/-- A link into the rendered sources: declaration `n` of module
+`Cadence.Chorus.Compose` is at `sources/Cadence/Chorus/Compose/#<id>`. This
+is what turns the page into a navigation hub rather than a second
+inventory. A declaration a Veil command generated (`invariants_of_reachable`,
+the `reachable_*` projections) has no source range and so no anchor; it links
+to its module's page. -/
 def declLink (env : Environment) (n : Name) : String :=
   match moduleOf env n with
   | some m =>
     let path := String.intercalate "/" (m.components.map toString)
-    s!"<a href=\"{path}.html#{n}\"><code>{esc n.toString}</code></a>"
+    let frag := if (declRangeExt.find? env n).isSome then s!"#{sluggify n.toString}" else ""
+    s!"<a href=\"sources/{path}/{frag}\"><code>{esc n.toString}</code></a>"
   | none => s!"<code>{esc n.toString}</code>"
 
 /-- Head constant of a type, after stripping `∀` binders **syntactically**.

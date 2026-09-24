@@ -59,6 +59,21 @@ no existing entry and leaves the Mathlib cache intact. -/
 meta if get_config? env = some "dev" then
 require verso from git "https://github.com/leanprover/verso" @ "v4.32.0"
 
+/- The guide itself: a Verso document under `docs/guide/`, built by
+`scripts/guide.sh`, behind `-Kenv=dev` so a normal `lake build` does not see
+it.
+
+Deliberately a library and not a `lean_exe`. The document imports the
+development — that is what makes its cross-references checked — so linking it
+into an executable would drag the whole closure, Mathlib included, through
+native compilation. The renderer is therefore run on the Lean **interpreter**,
+exactly as `Cadence/Monitor/` is (`docs/Monitor.md`): no compiled binary, and
+no `.c.o.export` objects to build. -/
+meta if get_config? env = some "dev" then
+lean_lib CadenceGuide where
+  srcDir := "docs/guide"
+  roots := #[`CadenceGuide]
+
 /-- The whole development: models, per-action proof families, composition
 certificates, end theorems, and the model-conformance monitor.
 
