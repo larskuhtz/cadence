@@ -211,7 +211,7 @@ determined by two properties of this development.
 ```bash
 lake build                                 # or scripts/revalidate.sh
 scripts/docs.sh                            # natively; site lands in ./site
-RUNTIME=podman scripts/container.sh docs   # in the verified image
+RUNTIME=podman scripts/container.sh docs   # in the verified image; also ./site
 ```
 
 The site's internal links are directory-style, so browse it over a server

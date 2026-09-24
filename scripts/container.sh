@@ -253,10 +253,17 @@ PREAMBLE
   } > "$payload"
   chmod +x "$payload"
 
+  # OUT_DIR (set by a command, not by the user) is the one writable host path:
+  # the workspace itself lives in the container and dies with it, so anything
+  # a command produces for the host has to be copied out through /out.
+  local out=()
+  [ -n "${OUT_DIR:-}" ] && out=(--mount "type=bind,source=$OUT_DIR,target=/out")
+
   "$RUNTIME" run --rm -i \
     --cpus "$CPUS" --memory "$MEMORY" \
     --mount "type=bind,source=$REPO,target=/src,$RO" \
     --mount "type=bind,source=$payload_dir,target=/payload,$RO" \
+    ${out[@]+"${out[@]}"} \
     -v "$VOLUME:$WORKSPACE/.lake" \
     "$IMAGE" bash /payload/run.sh
 }
@@ -297,10 +304,12 @@ PAYLOAD
     # proof files — docs/Documentation.md § "What it costs".
     #
     # Needs network the first time, to resolve the `-Kenv=dev` documentation
-    # dependency; the site lands in ./site via the workspace mount.
+    # dependency. The site is rendered inside the container and copied out
+    # through the /out mount into ./site, which is replaced wholesale.
     IMAGE="${IMAGE:-cadence-verified}"
-    run_in_container <<'PAYLOAD' ;;
-bash scripts/docs.sh "$WORKSPACE/site"
+    rm -rf "$REPO/site" && mkdir -p "$REPO/site" || die "cannot create $REPO/site"
+    OUT_DIR="$REPO/site" run_in_container <<'PAYLOAD' ;;
+bash scripts/docs.sh "$WORKSPACE/site" && cp -a "$WORKSPACE/site/." /out/
 PAYLOAD
   monitor)
     # Run the model-conformance monitor suites (docs/Monitor.md): every trace
