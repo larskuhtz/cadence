@@ -48,12 +48,17 @@ if ! lake -Kenv=dev build --no-build Cadence > /dev/null 2>&1; then
   echo "       scripts/revalidate.sh) first; the site renders what was built." >&2
   exit 1
 fi
-# Verso is pinned behind `-Kenv=dev`, so a normal `lake build` never sees it.
-LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-4}" lake -Kenv=dev build \
-  verso/verso-literate verso/verso-literate-plan verso/verso-literate-html \
-  > /dev/null
-
 mkdir -p "$WORK"
+# Verso is pinned behind `-Kenv=dev`, so a normal `lake build` never sees it.
+# Quiet on success, but lake reports a failing job's log on stdout, so keep it
+# and show it on failure — "error: build failed" alone says nothing.
+if ! LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-4}" lake -Kenv=dev build \
+       verso/verso-literate verso/verso-literate-plan verso/verso-literate-html \
+       > "$WORK/verso-build.log" 2>&1; then
+  cat "$WORK/verso-build.log" >&2
+  echo "error: building Verso's literate renderer failed (log above)" >&2
+  exit 1
+fi
 
 echo "=== 1/5  planning the site from literate.toml"
 # Every module of the one library this package builds, in the
