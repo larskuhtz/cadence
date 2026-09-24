@@ -308,7 +308,20 @@ PAYLOAD
     # through the /out mount into ./site, which is replaced wholesale.
     IMAGE="${IMAGE:-cadence-verified}"
     rm -rf "$REPO/site" && mkdir -p "$REPO/site" || die "cannot create $REPO/site"
+    #
+    # scripts/docs.sh needs jq, which only the `dev` stage installs; `verified`
+    # is built on `deps` and lacks it. It is installed here rather than in the
+    # Containerfile because any Containerfile edit makes publish-images.yml
+    # rebuild `deps` on both architectures (hours). Fold it into the `deps`
+    # apt list the next time that image is rebuilt anyway; this then no-ops.
     OUT_DIR="$REPO/site" run_in_container <<'PAYLOAD' ;;
+if ! command -v jq > /dev/null; then
+  echo '==> installing jq (not in this image)'
+  { apt-get update -qq \
+      && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+           --no-install-recommends jq > /dev/null; } \
+    || { echo 'error: could not install jq' >&2; exit 1; }
+fi
 bash scripts/docs.sh "$WORKSPACE/site" && cp -a "$WORKSPACE/site/." /out/
 PAYLOAD
   monitor)
