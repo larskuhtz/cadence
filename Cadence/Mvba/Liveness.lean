@@ -49,19 +49,22 @@ claim needs: `expire_timer i v` is an **abstract phase marker**, a clock with
 exactly one tick, from before the timeout to after it, and both timeout
 actions are guarded on it. With that the timeouts can be weakly fair like
 every other honest action; what they may no longer do is fire before the
-timer has run out. So there are three scheduling classes, not two, and the
-whole of the timing assumption sits on the extra one:
+timer has run out. So there are more classes than §3.2's two, and the whole
+of the timing assumption sits on the timer's.
 
-| class | labels | what is assumed |
-|---|---|---|
-| unfair | `ByzLabel` | nothing — (F-byz) |
-| weakly fair | `JusticeLabel`, the two `timeout_*` among them | (F-justice) |
-| timer | `TimerLabel`, i.e. `expire_timer` | (A-viewsync), both clauses |
-| availability | `AvailLabel`, i.e. `become_avail_ready` | (F-avail) |
-| input | `InputLabel` | nothing here — a premise of the claim, not fairness |
+Each entry is a scheduling class, the labels in it, and what is assumed of
+them.
 
-The availability row is a *fifth* class and was for a while wrongly folded
-into the second. `become_avail_ready` is unguarded, so weak fairness on it
+* **unfair** — `ByzLabel`; nothing — (F-byz)
+* **weakly fair** — `JusticeLabel`, the two `timeout_*` among them;
+  (F-justice)
+* **timer** — `TimerLabel`, i.e. `expire_timer`; (A-viewsync), both clauses
+* **availability** — `AvailLabel`, i.e. `become_avail_ready`; (F-avail)
+* **input** — `InputLabel`; nothing here — a premise of the claim, not
+  fairness
+
+The availability class is the fifth and was for a while wrongly folded into
+the second. `become_avail_ready` is unguarded, so weak fairness on it
 proves (F-avail) outright — which made a premise of the claim redundant and,
 worse, made the premise list say that MVBA termination needs nothing of the
 availability layer. It does; the model just happens to discharge it in one
