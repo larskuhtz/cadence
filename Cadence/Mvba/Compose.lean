@@ -26,8 +26,8 @@ Each entry is an `MVBASafety` field and what discharges it.
 * **`agreement`, `integrity`, `external_validity`** — `safety [agreement]`,
   `[integrity]`, `[external_validity]`, through the named reachability
   projections of [`Mvba/Certify.lean`](./Certify.lean)
-* **`decided_mono`, `init_decided`** — the transition bodies of all 24
-  actions, uniformly (`decided_mono_tr`, `init_not_decided` below): `decided`
+* **`decided_mono`, `init_decided`** — the transition bodies of every
+  action, uniformly (`decided_mono_tr`, `init_not_decided` below): `decided`
   is only ever set, and `after_init` clears it
 * **`step_trans`, `reachable_init`, `reachable_trans`** — the reachability
   constructors
@@ -138,7 +138,7 @@ theorem Label.isInput_cases {l : Mvba.Label node nodeset value view}
 
 variable (th : Mvba.Theory node nodeset value view)
 
-/-! ### Step-level facts, uniformly over all 24 actions
+/-! ### Step-level facts, uniformly over every action
 
 Each is proven by exposing every action's pre-computed transition body
 (`<action>.ext.derived_eq`, then the `reducible` `<action>.ext.tr` — Veil's
@@ -328,7 +328,7 @@ noncomputable def mvbaSafety :
   -- **Quiescence**, in the one-step form the contract now states: a new
   -- message row of a correct party at a transition comes with the input and
   -- with the party not having abandoned. `sent_new_tr` is exactly that, over
-  -- all 5 message kinds × 24 actions.
+  -- all 5 message kinds × every action.
   quiescence _ _ p m hn hp hnew hold := sent_new_tr th hn.choose_spec p m hp hnew hold
 
 /-! ### What the full `MVBA` still owes
