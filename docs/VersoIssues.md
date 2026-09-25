@@ -144,6 +144,37 @@ the width of `--`. Measured in Chrome: 16.86px wide by 32px tall, against
 colour instead. The bug is recorded because anyone keeping the markers will
 hit it.
 
+## 6. Markup in plain comments is shown literally
+
+**Symptom.** In a `--` or `/- … -/` comment, `` `code` ``, `*emphasis*`
+and `**strong**` appear as typed, backticks and asterisks included, while
+the same markup in a doc comment next to it is rendered.
+
+**Cause.** Not a bug but a design line. A doc comment is documentation Lean
+attaches to a declaration, and Verso renders it as a Markdown block; a
+plain comment is not in Lean's syntax tree at all — SubVerso emits it as a
+`lineComment` or `blockComment` token, which the HTML stage prints as one
+`<span class="comment">` of text. Nothing is configurable: `literate.toml`
+has no option for comments. It matters here more than elsewhere because a
+Veil `safety`, `invariant` or `action` cannot take a doc comment (`CLAUDE.md`,
+hard rules), so the explanation of every model declaration is a plain
+comment.
+
+**Fix.** Upstream, the HTML stage could render a comment token's text as
+inline Markdown. Not proposed yet.
+
+**Our workaround.** [`site-comments.js`](./site-comments.js), loaded through
+`extra_js`, renders the inline subset in place, with its styles in
+[`site-overrides.css`](./site-overrides.css) §5. It is deliberately
+conservative — anything it could misread stays as written, and a comment laid
+out in columns is left alone, because hiding delimiters would shift its
+alignment — and it keeps every delimiter in the DOM, hidden, so the copy
+button still copies the source. The rules are in the file's header, and
+`node scripts/test-site-comments.js [site/sources]` tests them — given a
+rendered site, against every comment on it. Delete the script, its test,
+the `extra_js` line and §5 when Verso renders comment markup itself, or when
+the comments it serves have become doc comments.
+
 ## Not bugs, but sharp edges
 
 * **`[modules."X"] title` applies to the whole subtree.** Per-module

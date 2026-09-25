@@ -225,6 +225,15 @@ come first.
   outstanding:** it touches every model file, so it conflicts with anything
   else in flight, and that is the only real cost.
 
+  Two things have since moved. The site now renders the inline markup of
+  plain comments in place ([VersoIssues.md](./VersoIssues.md) §6), so an
+  unconverted comment no longer shows raw backticks. And the Veil fork's
+  `port/doc-comments` branch lets a doc comment precede any Veil
+  declaration, as the docstring of the constant it generates — so once the
+  pin includes it, the conversion target is a *declaration* doc comment on
+  each `action`/`invariant`/`relation`, not a module docstring beside it,
+  and the hard rule in `CLAUDE.md` is retired in the same change.
+
 ## Model structure — refactors explored and deferred
 
 ### Atomic-action candidates

@@ -113,7 +113,9 @@ and renders their *docstrings*. Neither half of that fits here:
 
 A literate renderer has no such gap: it shows the file as written, in order,
 so the module headers render as prose and the commentary between
-declarations renders with the code it belongs to. Nothing in a published
+declarations renders with the code it belongs to — with its inline markup
+rendered too, by a small script of this site's
+([VersoIssues.md](./VersoIssues.md) §6). Nothing in a published
 module is invisible. Declaration docstrings stay in the code beside what
 they document, which is where this development's short field annotations
 belong; the prose that carries the reasoning is in the `/-! … -/` module
