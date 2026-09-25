@@ -213,6 +213,26 @@ while IFS= read -r m; do
   printf '%s\t%s\t%s\n' "$m" "$REPO/$json" "$REPO" >> "$WORK/map.txt"
 done < "$WORK/plan.txt"
 
+# The anchors the pages will carry, read back from the renderer's own output
+# rather than predicted: whether a declaration gets an id depends on how its
+# command elaborated (a Veil command has a declaration range but may still
+# leave no definition site), which nothing outside the renderer can see.
+# Two kinds of line, consumed by the trust boundary and the guide:
+#   def <name>                   the renderer gives <name> its own id
+#   sec <module> <line> <id>     a module-doc block starting at <line>
+# A declaration with no id of its own links to the last `sec` of its module at
+# or before its declaration range — for a `#gen_composition` export, the
+# section that emits it.
+cut -f2 "$WORK/map.txt" | while IFS= read -r json; do
+  jq -r '.module as $m | .items.items | to_entries[] | .key as $i | .value
+         | (.defines[] | "def\t\(.)"),
+           (select(.range != null) | .range[0].line as $l
+            | .code | to_entries[]
+            | select(.value | type == "object" and (has("modDoc") or has("markdownModDoc")))
+            | "sec\t\($m)\t\($l)\tmod-doc-\($m | gsub("\\."; "___"))-\($i)-\(.key)")' "$json"
+done > "$WORK/anchors.tsv"
+echo "    $(grep -c '^def' "$WORK/anchors.tsv") declaration anchors, $(grep -c '^sec' "$WORK/anchors.tsv") section anchors"
+
 echo "=== 3/6  assembling the site"
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -244,9 +264,10 @@ echo "=== 5/6  building the guide"
 bash scripts/guide.sh "$OUT/guide"
 
 # Every link into the sources, from the guide and from the trust boundary, is
-# computed rather than typed — but the computation mirrors the renderer's
-# naming (module path, `sluggify`d declaration id) instead of reading it
-# back, so check it against the pages. A broken link here is a claim about
+# computed rather than typed: which anchors exist is read back from the
+# renderer (anchors.tsv, stage 2), but the ids themselves are recomputed from
+# its naming (module path, `sluggify`d declaration id, module-doc position),
+# so check them against the pages. A broken link here is a claim about
 # the sources that does not land. (The trust boundary's links were dead for
 # as long as they still followed doc-gen4's layout; nothing noticed.)
 broken=0
