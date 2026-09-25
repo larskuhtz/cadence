@@ -5,7 +5,8 @@
  * so a clash silently replaces the whole of it.
  *
  * Sections 1 and 2 work around upstream gaps; 3 and 4 are this site's own
- * presentation choices. The gaps are all in one place: Verso renders a
+ * presentation choices; 5 styles the comment markup `site-comments.js`
+ * renders, which is a gap of the third kind (`VersoIssues.md` §6). The gaps are all in one place: Verso renders a
  * *Verso* docstring through `Doc/Html.lean`, which is complete, and a
  * *Markdown* docstring — Lean's default, and what this development uses —
  * through a second, thinner emitter in `VersoLiterateCode.lean`. This
@@ -151,4 +152,35 @@
  * the code's own line-height, 22.8px, if this ever wants to be airier. */
 .code-box .hl.lean.block + .hl.lean.block {
     margin-top: 1rem;
+}
+
+/* 5. Inline Markdown in plain comments (`docs/site-comments.js`).
+ *
+ * The script renders `code`, *emphasis*, **strong** and absolute links
+ * inside `--` and `/- … -/` comments, which Verso prints as literal text
+ * (`docs/VersoIssues.md` §6). It keeps every delimiter in the DOM, so the
+ * copy button still copies the source, and hides them here.
+ *
+ * A comment is already set in the code font and colour, so a code span in
+ * one is marked by a tint rather than by a font change. The tint is a
+ * translucent grey, which reads the same on the light and the dark
+ * background and needs no dark-mode value of its own. */
+.hl.lean .comment .md-delim {
+    display: none;
+}
+
+.hl.lean .comment code.comment-code {
+    font-family: inherit;
+    font-size: inherit;
+    background: rgba(127, 127, 127, 0.14);
+    border-radius: 3px;
+    padding: 0 0.15em;
+}
+
+.hl.lean .comment em {
+    font-style: italic;
+}
+
+.hl.lean .comment strong {
+    font-weight: bold;
 }

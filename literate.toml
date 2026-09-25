@@ -59,6 +59,15 @@ docstrings_as_text = false
 # that, so a clash silently replaces the entire stylesheet.
 extra_css = ["docs/site-overrides.css"]
 
+# Inline Markdown in plain comments. Verso renders a doc comment's Markdown
+# but prints a `--` or `/- … -/` comment as literal text, and this
+# development writes `code`, *emphasis* and **strong** in its comments too
+# (the Veil declarations in particular cannot take a doc comment). The script
+# renders that inline subset in place and leaves anything it could misread as
+# written; `docs/VersoIssues.md` §6 has the reasoning. Its styles are
+# `site-overrides.css` §5.
+extra_js = ["docs/site-comments.js"]
+
 # Everything in the one library the project builds.
 [[targets]]
 library = "Cadence"
