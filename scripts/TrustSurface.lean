@@ -78,17 +78,46 @@ def sluggify (s : String) : String :=
   String.join (s.toList.map fun c =>
     if c.isAlphanum || c == '-' || c == '_' then c.toString else "___")
 
+/-- The anchors the rendered pages carry, as `scripts/docs.sh` stage 2 read
+them back from the renderer (`.lake/build/literate/anchors.tsv`): the
+declarations with an id of their own, and per module the module-doc blocks
+by starting line. Read back rather than predicted, because whether a
+declaration gets an id depends on how its command elaborated. -/
+structure Anchors where
+  defs : NameSet := {}
+  sections : NameMap (Array (Nat × String)) := {}
+
+def loadAnchors : IO Anchors := do
+  let file : System.FilePath := ".lake/build/literate/anchors.tsv"
+  unless ← file.pathExists do
+    throw <| IO.userError s!"{file} is missing: scripts/docs.sh writes it before this runs"
+  let mut a : Anchors := {}
+  for line in (← IO.FS.lines file) do
+    match line.splitOn "\t" with
+    | ["def", n] => a := { a with defs := a.defs.insert n.toName }
+    | ["sec", m, l, id] =>
+      let secs := (a.sections.find? m.toName).getD #[] |>.push (l.toNat!, id)
+      a := { a with sections := a.sections.insert m.toName secs }
+    | _ => pure ()
+  return a
+
 /-- A link into the rendered sources: declaration `n` of module
 `Cadence.Chorus.Compose` is at `sources/Cadence/Chorus/Compose/#<id>`. This
 is what turns the page into a navigation hub rather than a second
 inventory. A declaration a Veil command generated (`invariants_of_reachable`,
-the `reachable_*` projections) has no source range and so no anchor; it links
-to its module's page. -/
-def declLink (env : Environment) (n : Name) : String :=
+the `reachable_*` projections) has no id of its own, but its declaration
+range names the emitting command, so it links to the module-doc section that
+command is in. -/
+def declLink (env : Environment) (a : Anchors) (n : Name) : String :=
   match moduleOf env n with
   | some m =>
     let path := String.intercalate "/" (m.components.map toString)
-    let frag := if (declRangeExt.find? env n).isSome then s!"#{sluggify n.toString}" else ""
+    let sec : Option String := do
+      let r ← declRangeExt.find? env n
+      let secs ← a.sections.find? m
+      (secs.filter (fun (p : Nat × String) => p.1 ≤ r.range.pos.line)).back?.map Prod.snd
+    let frag := if a.defs.contains n then s!"#{sluggify n.toString}"
+      else (sec.map ("#" ++ ·)).getD ""
     s!"<a href=\"sources/{path}/{frag}\"><code>{esc n.toString}</code></a>"
   | none => s!"<code>{esc n.toString}</code>"
 
@@ -150,6 +179,7 @@ def providerMap (env : Environment) : Std.HashMap Name (Array Provider) := Id.ru
 set_option maxHeartbeats 1000000 in
 run_cmd liftTermElabM do
   let env ← getEnv
+  let anchors ← loadAnchors
   let provMap := providerMap env
   let mut o : Array String := #[]
   let p (s : String) : Array String → Array String := fun a => a.push s
@@ -195,7 +225,7 @@ run_cmd liftTermElabM do
         s!"<span class=\"bad\">UNEXPECTED: {names}</span>"
     if !extra.isEmpty then drift := drift + 1
     let m := (moduleOf env r).map toString |>.getD "—"
-    o := p s!"<tr><td>{declLink env r}</td><td><code>{esc m}</code></td><td>{cell}</td></tr>" o
+    o := p s!"<tr><td>{declLink env anchors r}</td><td><code>{esc m}</code></td><td>{cell}</td></tr>" o
   o := p "</table>" o
   o := p (if drift == 0 then
       s!"<p>All {endResults.length} results depend on exactly <code>propext</code>,
@@ -254,10 +284,10 @@ run_cmd liftTermElabM do
         if a.isEmpty then "—"
         else String.intercalate ", " (a.toList.map fun pr =>
           if withReqs && !pr.requires.isEmpty then
-            s!"{declLink env pr.name} <span class=\"note\">(given \
+            s!"{declLink env anchors pr.name} <span class=\"note\">(given \
               {String.intercalate ", " (pr.requires.map (fun r => s!"<code>{esc r.toString}</code>"))})</span>"
-          else declLink env pr.name)
-      o := p s!"<tr><td>{declLink env cls}</td><td>{fmt witnesses false}</td>\
+          else declLink env anchors pr.name)
+      o := p s!"<tr><td>{declLink env anchors cls}</td><td>{fmt witnesses false}</td>\
         <td>{fmt joins true}</td><td>{status}</td></tr>" o
   o := p "</table>" o
   o := p "<p>The <code>…Temporal</code> rows without an instance are the timing and

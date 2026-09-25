@@ -11,11 +11,12 @@ stays a text with no facts of its own.
   axioms), which module contracts the result is *conditional on*, and which
   declarations of this development discharge each of them.
 * `{model M "safety [x]"}` — a declaration of a Veil model, quoted from the
-  rendered sources rather than retyped. Veil's `safety`, `action` and
-  `relation` are not Lean declarations, so no name-based mechanism reaches
-  them; the literate renderer's JSON does, and it is the same highlighted
-  code the sources pages show. A declaration that disappears or is renamed
-  fails this build.
+  rendered sources rather than retyped. What the modeller wrote in a Veil
+  `safety`, `action` or `relation` is the command, not the declaration Veil
+  generates from it, so a name-based mechanism would show the generated term;
+  the literate renderer's JSON has the command, and it is the same
+  highlighted code the sources pages show. A declaration that disappears or
+  is renamed fails this build.
 
 Deliberately small and specific to this project: the classification below
 knows this development's contract classes by name, which is the point — it is
@@ -55,24 +56,57 @@ def moduleOf (env : Environment) (n : Name) : Option Name := do
 def moduleUrl (m : Name) : String :=
   sourcesRoot ++ String.intercalate "/" (m.components.map toString) ++ "/"
 
-/-- Does `n` have syntax of its own in a source file? Declarations that a
-Veil command generates (`#gen_composition`'s `reachable_*` projections,
-`invariants_of_reachable`) do not: they carry no declaration range, and the
-rendered page has nothing to anchor them to. -/
-def hasSource (env : Environment) (n : Name) : Bool :=
-  (declRangeExt.find? env n).isSome
+/-- The anchors the rendered pages carry, as `scripts/docs.sh` stage 2 read
+them back from the renderer: the declarations that have an id of their own,
+and per module the module-doc blocks, by starting line. -/
+structure Anchors where
+  defs : NameSet := {}
+  sections : Lean.NameMap (Array (Nat × String)) := {}
 
-/-- The rendered sources give every declaration written in the source the id
-`(toString name).sluggify`, so a link can be computed rather than stored. A
-generated declaration links to its module's page. -/
-def declUrl (env : Environment) (n : Name) : Option String :=
+def anchorsFile : System.FilePath := ".lake/build/literate/anchors.tsv"
+
+def loadAnchors : IO Anchors := do
+  unless ← anchorsFile.pathExists do
+    throw <| IO.userError s!"{anchorsFile} is missing: run `scripts/docs.sh`, whose \
+      stage 2 writes it, before building the guide"
+  let mut a : Anchors := {}
+  for line in (← IO.FS.lines anchorsFile) do
+    match line.splitOn "\t" with
+    | ["def", n] => a := { a with defs := a.defs.insert n.toName }
+    | ["sec", m, l, id] =>
+      let secs := (a.sections.find? m.toName).getD #[] |>.push (l.toNat!, id)
+      a := { a with sections := a.sections.insert m.toName secs }
+    | _ => pure ()
+  return a
+
+/-- The module-doc section of `m` that source line `line` falls in. -/
+def sectionAt (a : Anchors) (m : Name) (line : Nat) : Option String :=
+  (((a.sections.find? m).getD #[]).filter (fun (p : Nat × String) => p.1 ≤ line)).back?.map Prod.snd
+
+/-- Where on its module's page a declaration is. The rendered sources give a
+declaration the id `(toString name).sluggify` when its command leaves a
+definition site — every plain Lean declaration, and a Veil `safety`,
+`invariant` or `action` under its own name. A declaration a command
+generates (`#gen_composition`'s `reachable_*` projections,
+`invariants_of_reachable`) has no id, but its declaration range names the
+emitting command, so it links to the module-doc section that command is in.
+`none` means the top of the page. -/
+def anchorOf (env : Environment) (a : Anchors) (m n : Name) : Option String :=
+  if a.defs.contains n then some (toString (toString n).sluggify)
+  else (declRangeExt.find? env n).bind (sectionAt a m ·.range.pos.line)
+
+/-- Does `n` have an id of its own on the rendered page? -/
+def ownAnchor (a : Anchors) (n : Name) : Bool := a.defs.contains n
+
+/-- The link to `n` in the rendered sources; computed, and checked against
+the pages by `scripts/docs.sh`. -/
+def declUrl (env : Environment) (a : Anchors) (n : Name) : Option String :=
   (moduleOf env n).map fun m =>
-    if hasSource env n then moduleUrl m ++ "#" ++ toString (toString n).sluggify
-    else moduleUrl m
+    moduleUrl m ++ ((anchorOf env a m n).map ("#" ++ ·)).getD ""
 
-def declLinkHtml (env : Environment) (n : Name) : String :=
-  let gen := if hasSource env n then "" else " <span class=\"cg-note\">(generated)</span>"
-  match declUrl env n with
+def declLinkHtml (env : Environment) (a : Anchors) (n : Name) : String :=
+  let gen := if ownAnchor a n then "" else " <span class=\"cg-note\">(generated)</span>"
+  match declUrl env a n with
   | some u => s!"<a href=\"{u}\"><code>{esc n.toString}</code></a>{gen}"
   | none => s!"<code>{esc n.toString}</code>"
 
@@ -144,7 +178,7 @@ def decl : RoleExpanderOf Unit
   | (), inls => do
     let some s ← oneCodeStr? inls | `(Verso.Doc.Inline.empty)
     let n ← realizeGlobalConstNoOverloadWithInfo (mkIdentFrom s s.getString.toName)
-    let some url := declUrl (← getEnv) n
+    let some url := declUrl (← getEnv) (← loadAnchors) n
       | throwErrorAt s "{n} is not from a compiled module, so it has no source page"
     ``(Verso.Doc.Inline.link #[Verso.Doc.Inline.code $(quote n.toString)] $(quote url))
 
@@ -187,20 +221,21 @@ structure ClaimConfig where
 instance : FromArgs ClaimConfig DocElabM := ⟨ClaimConfig.mk <$> .positional `name .documentableName⟩
 
 /-- What a contract hypothesis is discharged by, as HTML. -/
-def dischargeHtml (env : Environment) (cls : Name) : String :=
+def dischargeHtml (env : Environment) (a : Anchors) (cls : Name) : String :=
   let provs := providersOf env cls
   let direct := provs.filter (·.requires.isEmpty)
   let joins := provs.filter (!·.requires.isEmpty)
   if !direct.isEmpty then
-    "discharged by " ++ ", ".intercalate (direct.toList.map (declLinkHtml env ·.name))
+    "discharged by " ++ ", ".intercalate (direct.toList.map (declLinkHtml env a ·.name))
   else if !joins.isEmpty then
     "discharged by " ++ ", ".intercalate (joins.toList.map fun p =>
-      declLinkHtml env p.name ++ " — given " ++
+      declLinkHtml env a p.name ++ " — given " ++
         ", ".intercalate (p.requires.map (s!"<code>{esc ·.toString}</code>")))
   else "<span class=\"cg-assumed\">no instance in this development — assumed</span>"
 
 def statusHtml (name : Name) (lead : Array String := #[]) (showSource := true) : DocElabM (String × Bool) := do
   let env ← getEnv
+  let a ← loadAnchors
   let ci ← getConstInfo name
   let axs ← collectAxioms name
   let extra := axs.filter (!standardAxioms.contains ·)
@@ -214,16 +249,16 @@ def statusHtml (name : Name) (lead : Array String := #[]) (showSource := true) :
   let mut rows : Array String := lead
   rows := rows.push s!"<dt>Checked</dt><dd>by Lean's kernel; axioms {axHtml}</dd>"
   if let some c := provides then
-    rows := rows.push s!"<dt>Provides</dt><dd>an instance of {declLinkHtml env c}</dd>"
+    rows := rows.push s!"<dt>Provides</dt><dd>an instance of {declLinkHtml env a c}</dd>"
   if contracts.isEmpty then
     rows := rows.push "<dt>Contracts</dt><dd>none assumed — no contract hypothesis</dd>"
   else
-    let items := contracts.map fun c => s!"<li>{declLinkHtml env c} — {dischargeHtml env c}</li>"
+    let items := contracts.map fun c => s!"<li>{declLinkHtml env a c} — {dischargeHtml env a c}</li>"
     rows := rows.push s!"<dt>Conditional on</dt><dd><ul>{String.join items}</ul></dd>"
   unless prims.isEmpty do
-    let items := prims.map fun c => s!"<li>{declLinkHtml env c}</li>"
+    let items := prims.map fun c => s!"<li>{declLinkHtml env a c}</li>"
     rows := rows.push s!"<dt>Primitives</dt><dd><ul>{String.join items}</ul></dd>"
-  if showSource then if let some u := declUrl env name then
+  if showSource then if let some u := declUrl env a name then
     rows := rows.push s!"<dt>Source</dt><dd><a href=\"{u}\">{esc ((moduleOf env name).map toString |>.getD "")}</a></dd>"
   let cls := if contracts.isEmpty then "cg-status" else "cg-status cg-conditional"
   return (s!"<div class=\"{cls}\"><dl>{String.join rows.toList}</dl></div>", !contracts.isEmpty)
@@ -302,13 +337,21 @@ def model : BlockCommandOf ModelConfig
       | none => ""
     let cfg : Verso.Code.External.CodeConfig := { showProofStates := false, defSite := some false }
     let file := "/".intercalate (mod.components.map toString) ++ ".lean"
+    -- The quoted item's own id when its command left a definition site, else
+    -- the module-doc section it sits in.
+    let a ← loadAnchors
+    let frag := match item.defines.find? a.defs.contains, item.range with
+      | some n, _ => some (toString (toString n).sluggify)
+      | none, some (s, _) => sectionAt a mod s.line
+      | none, none => none
+    let url := moduleUrl mod ++ (frag.map ("#" ++ ·)).getD ""
     let stated := s!"<dt>Stated in</dt><dd><code>{esc file}</code>, {range} — \
-      <a href=\"{moduleUrl mod}\">in context</a></dd>"
+      <a href=\"{url}\">in context</a></dd>"
     let html ← match proven with
       | none => pure s!"<div class=\"cg-status cg-plain\"><dl>{stated}</dl></div>"
       | some p => do
         let n ← realizeGlobalConstNoOverloadWithInfo p
-        let row := s!"<dt>Proven as</dt><dd>{declLinkHtml (← getEnv) n}</dd>"
+        let row := s!"<dt>Proven as</dt><dd>{declLinkHtml (← getEnv) (← loadAnchors) n}</dd>"
         pure (← statusHtml n #[stated, row] (showSource := false)).1
     ``(Verso.Doc.Block.concat #[
         Verso.Doc.Block.other (Verso.Genre.Manual.Block.lean $(quote hl) $(quote cfg)) #[],
@@ -323,8 +366,9 @@ assumption this development leaves open. -/
 def contracts : BlockCommandOf Unit
   | () => do
     let env ← getEnv
+    let a ← loadAnchors
     let rows := contractClasses.filter env.contains |>.map fun c =>
-      s!"<tr><td>{declLinkHtml env c}</td><td>{dischargeHtml env c}</td></tr>"
+      s!"<tr><td>{declLinkHtml env a c}</td><td>{dischargeHtml env a c}</td></tr>"
     let html := s!"<table class=\"cg-contracts\"><thead><tr><th>Contract</th>\
       <th>Provided by</th></tr></thead><tbody>{String.join rows}</tbody></table>"
     ``(Verso.Doc.Block.other (CadenceGuide.Block.status $(quote html)) #[])

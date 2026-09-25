@@ -257,6 +257,16 @@ consequence of it.
   a program — Verso's literate renderer re-elaborates each module to recover
   its `InfoTree`s — and hung on every model before this
   ([Documentation.md](./Documentation.md)).
+* **Source locations for generated declarations** (`port/decl-ranges`,
+  `port/decl-ranges-generated`). Veil adds what it generates through
+  `addDecl`, which records no location; the fork records the command each
+  declaration comes from, selecting the name the user wrote — and, for the
+  declaration that name denotes (`safety [p]` and `p`, `action a` and `a`),
+  the binder information a Lean declaration command leaves at its name. The
+  documentation site needs both: the renderer gives a declaration an anchor
+  only where it finds that definition site, and the guide and the trust
+  boundary link generated declarations to the command that emits them by
+  their location.
 * **Hygienic generated binders.** The generated transition relations bind a
   reader, a pre-state, a label and a post-state; an action parameter of the
   same name (`st'` above all) used to be captured — the invariant sweep
