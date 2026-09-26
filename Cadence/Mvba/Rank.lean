@@ -45,9 +45,8 @@ them — and exactly false of the last four, which only an honest validator
 ever sets. Counting those over `q` would give a bottom no run can reach.
 
 They are counted over the **honest core** of `q` instead: the `f+1`
-all-honest subset that any `2f+1` quorum contains, which is the quorum
-interface's own
-`ByzNodeSet.supermajority_contains_honest_greater_than_third`
+all-honest subset that any `2f+1` quorum contains, which is the counting
+fact `Cadence.ByzNodeSetCounting.honest_third_in_supermajority`
 (`exists_honest_core` below). The subset is itself an `nset`, so the *same*
 `ByzNodeSetEnum` enumerates it — the honest dimension needs no second
 enumeration hypothesis, and none is added.
@@ -272,18 +271,21 @@ variable {node nodeset : Type} [nset : ByzNodeSet node nodeset]
 /-- **Projection onto an honest sub-quorum.** Every `2f+1` quorum contains an
 `f+1` subset all of whose members are honest members of it: at most `f` of
 its members are Byzantine, and `(2f+1) − f = f+1`. This is
-`ByzNodeSet.supermajority_contains_honest_greater_than_third`, an axiom of
-the quorum interface that the `n ≥ 3f+1` instance family proves
-([`ByzQuorum.lean`](../ByzQuorum.lean)), so it costs nothing new.
+`Cadence.ByzNodeSetCounting.honest_third_in_supermajority`, a field of the
+counting class ([`QuorumCounting.lean`](../QuorumCounting.lean)) that both
+concrete instance families prove ([`ByzQuorum.lean`](../ByzQuorum.lean)), so
+it costs nothing new. The class is an explicit hypothesis here, so the
+statement names it.
 
 The subset is itself an `nset`, which is the point: the same
 `ByzNodeSetEnum` enumerates it, so `chainGap`'s honest-only counts are
 finite for exactly the reason `assemblyGap`'s are, with no second
 enumeration hypothesis. -/
-theorem exists_honest_core (q : nodeset) (hq : nset.supermajority q) :
+theorem exists_honest_core (cnt : Cadence.ByzNodeSetCounting node nodeset nset)
+    (q : nodeset) (hq : nset.supermajority q) :
     ∃ hc : nodeset, nset.greater_than_third hc ∧
       ∀ r, nset.member r hc = true → nset.member r q = true ∧ ¬ nset.is_byz r = true :=
-  nset.supermajority_contains_honest_greater_than_third q hq
+  cnt.honest_third_in_supermajority q hq
 
 end Core
 
@@ -722,7 +724,7 @@ interface, and — in the last theorem only — one model assumption: the
 standard trio and nothing else, no `sorryAx`, no solver.
 
 One pin reads differently on purpose. `exists_honest_core` is a direct
-projection of a `ByzNodeSet` field, so it depends on **no** axioms at all —
+projection of a `ByzNodeSetCounting` field, so it depends on **no** axioms at all —
 a strictly smaller footprint than the trio, and the machine-checked form of
 "projecting a quorum onto its honest core costs nothing new". -/
 

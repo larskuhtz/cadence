@@ -77,6 +77,10 @@ variable {slot window time node acsstate nodeset merkle_root view Phase PathChoi
   [TotalOrderWithMinimum view]
   [fm : FaultModel node] [acs : ACSSafety node slot acsstate fm.byz]
   [nset : ByzNodeSet node nodeset]
+  -- The quorum counting facts beyond `ByzNodeSet`'s intersection axioms,
+  -- which Chorus consumes; proven for the concrete quorum families in
+  -- `Cadence/ByzQuorum.lean`, like `ByzNodeSet` itself.
+  [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   [Phase_Enum : Chorus.Phase_EnumClass Phase]
   [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
 

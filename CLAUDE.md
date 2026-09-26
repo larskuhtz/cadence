@@ -30,7 +30,7 @@ Four Veil models plus support files, mirroring the paper's architecture:
   network is the **one stated bridge**, so it imports `Interfaces.lean` —
   which means an edit to the contracts now rebuilds the Chorus family. Do
   not touch its imports casually (it imports `Primitives.lean`,
-  `Interfaces.lean` and `Tooling.lean` only).
+  `QuorumCounting.lean`, `Interfaces.lean` and `Tooling.lean` only).
 * **`Cadence/Cadence.lean`** — the extreme-pipelining glue: consumes the
   `SlotConsensusSafety` and `OrchestratorSafety` contracts as **class
   constraints** over abstract sub-protocol states it holds (`instantiate …`;
@@ -62,7 +62,9 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `Mvba/NoLock.lean` is the mutation test: the model checker's
   counterexample to the instantiation *without* its lock check, pinned
   like `PreFix.lean` — a green build **requires** the violation.
-* Support: `Interfaces.lean` (the module contracts — `SlotConsensus`,
+* Support: `QuorumCounting.lean` (`ByzNodeSetCounting`, the three
+  quorum counting facts beyond `ByzNodeSet`'s intersection axioms, proven
+  for the concrete families in `ByzQuorum.lean`), `Interfaces.lean` (the module contracts — `SlotConsensus`,
   `Orchestrator`, `ACS`, `MVBA` as two-level type classes over explicit
   state: a first-order `…Safety` fragment the models instantiate, and the
   full class with every temporal obligation; `docs/CompositionContracts.md`),

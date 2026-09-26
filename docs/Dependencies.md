@@ -223,13 +223,20 @@ consequence of it.
 
 ### 4. Proving things about quorums
 
-* **Byzantine-quorum counting lemmas** for the concrete `byzNodeSetFin`
-  instance family. Veil's `ByzNodeSet` interface is axiomatic; the fork
-  proves those axioms, plus the counting facts this project's pigeonhole
-  arguments need, for every `n = 3f+1` with any Byzantine set of size ≤ f.
-  This is why the quorum interface is **not** on the assumption list in
-  [Architecture.md](./Architecture.md) §4 — see also
-  [`Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean).
+* **Nothing from the fork.** Veil's `ByzNodeSet` interface is axiomatic,
+  and Veil proves its axioms for the concrete `byzNodeSetFin` family
+  (`n = 3f+1`). The three counting facts beyond intersection that Chorus
+  and the MVBA ranking need are this project's own class,
+  `Cadence.ByzNodeSetCounting`
+  ([`Cadence/QuorumCounting.lean`](../Cadence/QuorumCounting.lean)), proven
+  for `byzNodeSetFin` and for `byzNodeSetFinGen` (`n ≥ 3f+1`) in
+  [`Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean). This is why the
+  quorum interface is **not** on the assumption list in
+  [Architecture.md](./Architecture.md) §4. (The fork used to carry the three
+  facts as `ByzNodeSet` fields; they moved here ahead of the upstream
+  re-port, and until the Veil pin drops them,
+  [`Cadence/Tooling.lean`](../Cadence/Tooling.lean) withholds those fields
+  from the solver.)
 
 ### 5. The model-conformance monitor
 

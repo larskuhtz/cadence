@@ -590,9 +590,9 @@ the interval up to the target is an obligation of the run-level theorem
   reach.
 
   That does **not** call for a second enumeration hypothesis, as a first
-  draft of `Rank.lean` claimed. `ByzNodeSet` already projects a `2f+1`
-  quorum onto an all-honest `f+1` sub-quorum
-  (`supermajority_contains_honest_greater_than_third`, proven for the whole
+  draft of `Rank.lean` claimed. The counting class already projects a
+  `2f+1` quorum onto an all-honest `f+1` sub-quorum
+  (`ByzNodeSetCounting.honest_third_in_supermajority`, proven for the whole
   `n ≥ 3f+1` family), and that sub-quorum **is** an `nset`, so the same
   `ByzNodeSetEnum` enumerates it. The honest-only counts are therefore
   taken over the honest core, and the rank needs exactly one enumeration

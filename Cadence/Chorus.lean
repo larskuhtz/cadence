@@ -1,5 +1,6 @@
 import Veil
 import Cadence.Primitives
+import Cadence.QuorumCounting
 import Cadence.Interfaces
 import Cadence.Tooling
 
@@ -135,18 +136,19 @@ sizes that arise in Chorus:
 * `greater_than_third s ↔ |s| ≥ f + 1` (FallbackQCs, erasure decode)
 
 Besides the standard intersection axioms, the proofs below use three
-counting axioms added to `ByzNodeSet` for this model (each proven for the
-concrete `byzNodeSetFin` instance in `Veil/Frontend/Std.lean`):
+counting facts, stated as the class `Cadence.ByzNodeSetCounting`
+([`QuorumCounting.lean`](./QuorumCounting.lean)) and proven for both
+concrete quorum families in [`ByzQuorum.lean`](./ByzQuorum.lean):
 
-* `supermajority_contains_honest_greater_than_third` — a supermajority
-  contains an all-honest `f+1`-subset (`2f+1 − f = f+1`);
-* `supermajority_greater_than_third_intersect` — a supermajority and an
-  `f+1`-set share a (possibly Byzantine) member
-  (`(2f+1) + (f+1) − (3f+1) = 1`);
-* `supermajorities_intersect_in_greater_than_third` — two supermajorities
-  share an `f+1`-subset (`2(2f+1) − (3f+1) = f+1`). -/
+* `honest_third_in_supermajority` — a supermajority contains an all-honest
+  `f+1`-subset (`2f+1 − f = f+1`);
+* `supermajority_meets_third` — a supermajority and an `f+1`-set share a
+  (possibly Byzantine) member (`(2f+1) + (f+1) − (3f+1) = 1`);
+* `supermajorities_share_third` — two supermajorities share an
+  `f+1`-subset (`2(2f+1) − (3f+1) = f+1`). -/
 
 instantiate nset : ByzNodeSet node nodeset
+instantiate cnt : Cadence.ByzNodeSetCounting node nodeset nset
 open ByzNodeSet
 
 /-! ## The MVBA contract, as a class constraint
@@ -1855,7 +1857,7 @@ positive on `M` (entries are pinned), so no negative vote quorum, no
 conflicting positive vote quorum, no honest negative fallback entry (any
 witnessed 2f+1-vote quorum contains f+1 honest positive votes on `M`,
 whose chunks make `M` decodable — this step uses
-`supermajority_contains_honest_greater_than_third`), no conflicting
+`honest_third_in_supermajority`), no conflicting
 fallback quorum, no EquivCert (a correct proposer signs one root), hence
 no conflicting MVBA decision and no conflicting commitQC. -/
 
@@ -1918,7 +1920,7 @@ the proposer's signature on the root (`vote_pos_from_local` →
 on the network (`vote_pos_quorum_implies_decodable`) — the guard's negated
 conjunction is then fully witnessed. Intersecting `qv` with any later
 positive vote supermajority
-(`supermajorities_intersect_in_greater_than_third`) yields an f+1 positive
+(`supermajorities_share_third`) yields an f+1 positive
 sub-quorum of `qv` — contradiction. -/
 
 invariant [fb_neg_sig_has_witness]
@@ -1944,7 +1946,7 @@ invariant [fb_neg_qv_no_pos_quorum]
 /- The keystone lemma of the speculative argument: an honest negative
 fallback entry excludes any positive vote supermajority for the same
 proposer, absent equivocation. From `fb_neg_sig_has_witness` +
-`supermajorities_intersect_in_greater_than_third` (intersect `qv` with
+`supermajorities_share_third` (intersect `qv` with
 the supermajority) + `fb_neg_qv_no_pos_quorum`. -/
 invariant [fb_neg_no_pos_quorum]
   no_equivocation → no_invalid_encoding →

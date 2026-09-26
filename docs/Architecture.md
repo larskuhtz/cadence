@@ -369,10 +369,11 @@ relations, and it takes a human to confirm each use is positive.
    instantiation (`Cadence/System.lean`, `chorusTheory_assumptions`); the
    one genuine hypothesis is that the abstract MVBA state Chorus starts
    from is initial. Note what is *not* on this list:
-   the `ByzNodeSet` quorum/counting interface is **not** an assumption
-   gap — its axioms are Lean-proven for the concrete `byzNodeSetFin`
-   instance family, which covers every deployment size `n = 3f+1` with
-   any Byzantine set of size `≤ f`. The three liveness-side extensions are
+   the `ByzNodeSet` quorum interface and its counting extension
+   `ByzNodeSetCounting` are **not** an assumption gap — their axioms are
+   Lean-proven for the concrete `byzNodeSetFin` instance family, which
+   covers every deployment size `n = 3f+1` with any Byzantine set of size
+   `≤ f` (and `byzNodeSetFinGen`, every `n ≥ 3f+1`). The three liveness-side extensions are
    not gaps either, and are deliberately *outside* the interfaces the
    models instantiate, so that no safety theorem acquires them; each is
    discharged for a concrete witness, and a liveness theorem carries

@@ -20,6 +20,7 @@ asks for (`#gen_monitor` has an override only for the `ByzNodeSet` instance).
 -/
 import Cadence.Chorus
 import Cadence.Monitor.MvbaStub
+import Cadence.ByzQuorum
 open Veil Veil.Extract
 open scoped Veil.GenMonitor
 open scoped Chorus
@@ -37,16 +38,23 @@ set_option linter.deprecated false
 -- against the hand-written oracle (`scripts/test-chorus-monitor.sh`).
 set_option warn.classDefReducibility false
 
-/-- Empty Byzantine set at n = 3f+1 = 4, f = 1 (see `Monitor/ChorusMonitor.lean`). -/
+/-- Empty Byzantine set at n = 3f+1 = 4, f = 1 — the same instance as
+`Monitor/ChorusMonitor.lean`'s (`Cadence.byzNodeSetFinGen`, whose threshold
+`n − f = 3` is `2f+1` here). -/
 @[implicit_reducible]
 def emptyByz4 : ByzNodeSet (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1)) :=
-  byzNodeSetFin (3 * 1 + 1) 1 rfl (fun _ => False) (by decide)
+  Cadence.byzNodeSetFinGen (3 * 1 + 1) 1 (by decide) (fun _ => False) (by decide)
 
 /-- The MVBA Chorus's class constraint is filled with: the silent stub, at
 the module's own fault pattern under `emptyByz4`. -/
 instance : MVBASafety (Fin (3 * 1 + 1)) ChorusMonitor.MV Unit Unit
     (fun i => @ByzNodeSet.is_byz _ _ emptyByz4 i = true) :=
   ChorusMonitor.silentMvba _
+
+/-- The quorum counting facts Chorus's `cnt` class constraint asks for, at
+`emptyByz4` (`Cadence/ByzQuorum.lean`). -/
+instance : Cadence.ByzNodeSetCounting (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1)) emptyByz4 :=
+  Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun _ => False) (by decide)
 
 -- ▼▼▼ the entire instantiation, generated ▼▼▼
 #gen_monitor Chorus into ChorusGen

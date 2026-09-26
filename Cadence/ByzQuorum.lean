@@ -1,4 +1,5 @@
 import Veil.Frontend.Std
+import Cadence.QuorumCounting
 
 /-! # Cadence-local Byzantine quorum instance for `n ≥ 3f+1`
 
@@ -87,6 +88,60 @@ class ByzNodeSetHonestQuorum (node nset : Type) (B : ByzNodeSet node nset) where
   honestQuorum_supermajority : B.supermajority honestQuorum
   honestQuorum_correct : ∀ (a : node), B.member a honestQuorum = true → ¬ B.is_byz a = true
 
+/-! ## Counting over sorted lists
+
+The intersection facts of `ByzNodeSetCounting`, stated on `ByzNSet n`
+directly with the size bounds as hypotheses, so that both concrete families
+(Veil's `byzNodeSetFin`, threshold `2f+1`, and `byzNodeSetFinGen` below,
+threshold `n − f`) are proven by the same arguments. -/
+
+section Lists
+
+variable {n : Nat} (f : Nat)
+
+/-- Two duplicate-free lists over `Fin n` share at least `|s₁| + |s₂| − n`
+elements: the members of `s₁` that are also in `s₂`. -/
+theorem ByzNSet.length_add_le_inter (s1 s2 : ByzNSet n) :
+    s1.val.length + s2.val.length ≤ (s1.val.filter (fun a => decide (a ∈ s2.val))).length + n := by
+  obtain ⟨s1, hs1_sorted⟩ := s1
+  obtain ⟨s2, hs2_sorted⟩ := s2
+  have hnodup1 := List.Pairwise.nodup hs1_sorted
+  have hnodup2 := List.Pairwise.nodup hs2_sorted
+  have hcard1 : s1.toFinset.card = s1.length := List.toFinset_card_of_nodup hnodup1
+  have hcard2 : s2.toFinset.card = s2.length := List.toFinset_card_of_nodup hnodup2
+  have hinter := Finset.card_inter_add_card_union s1.toFinset s2.toFinset
+  have hunion : (s1.toFinset ∪ s2.toFinset).card ≤ n := by
+    have := Finset.card_le_univ (s1.toFinset ∪ s2.toFinset) ; simpa using this
+  have hfilt : (s1.filter (fun a => decide (a ∈ s2))).length
+      = (s1.toFinset ∩ s2.toFinset).card := by
+    rw [← List.toFinset_card_of_nodup (List.Nodup.filter _ hnodup1)]
+    congr 1
+    ext a ; simp
+  simp only ; omega
+
+/-- A list of length at least `n − f` and one of length at least `f+1` share
+a member. -/
+theorem ByzNSet.meet_of_length (s1 s2 : ByzNSet n)
+    (h1 : n ≤ s1.val.length + f) (h2 : f + 1 ≤ s2.val.length) :
+    ∃ a, a ∈ s1.val ∧ a ∈ s2.val := by
+  have h := ByzNSet.length_add_le_inter s1 s2
+  obtain ⟨a, ha⟩ := List.exists_mem_of_length_pos (l := s1.val.filter (fun a => decide (a ∈ s2.val)))
+    (by omega)
+  simp only [List.mem_filter, decide_eq_true_eq] at ha
+  exact ⟨a, ha.1, ha.2⟩
+
+/-- For `n ≥ 3f+1`, two lists of length at least `n − f` share a sub-list of
+length at least `f+1`. -/
+theorem ByzNSet.share_third_of_length (hf : 3 * f + 1 ≤ n) (s1 s2 : ByzNSet n)
+    (h1 : n ≤ s1.val.length + f) (h2 : n ≤ s2.val.length + f) :
+    ∃ t : ByzNSet n, f + 1 ≤ t.val.length ∧ ∀ a, a ∈ t.val → a ∈ s1.val ∧ a ∈ s2.val := by
+  have h := ByzNSet.length_add_le_inter s1 s2
+  refine ⟨⟨s1.val.filter (fun a => decide (a ∈ s2.val)), List.Pairwise.filter _ s1.property⟩,
+    by simp only ; omega, ?_⟩
+  intro a ha ; simp only [List.mem_filter, decide_eq_true_eq] at ha ; exact ha
+
+end Lists
+
 section
 
 variable (n f : Nat) (hf : 3 * f + 1 ≤ n)
@@ -108,6 +163,19 @@ private theorem byz_in_list_le (s : List (Fin n)) (hnodup : s.Nodup) :
       _ ≤ ((List.ofFn (n := n) id).filter (fun i => decide (is_byz i))).length :=
         List.toFinset_card_le _
       _ ≤ f := hbyz
+
+include hf in
+/-- **Honest core.** A list over `Fin n` of length at least `n − f`
+contains at least `f+1` honest members; they form a `ByzNSet n` of their
+own. -/
+theorem ByzNSet.honest_third_of_supermajority (s : ByzNSet n) (hsup : n ≤ s.val.length + f) :
+    ∃ t : ByzNSet n, f + 1 ≤ t.val.length ∧ ∀ a, a ∈ t.val → a ∈ s.val ∧ ¬ is_byz a := by
+  obtain ⟨s, hs_sorted⟩ := s
+  refine ⟨⟨s.filter (fun a => !decide (is_byz a)), List.Pairwise.filter _ hs_sorted⟩, ?_, ?_⟩
+  · have hsplit := List.length_eq_length_filter_add (l := s) (fun a => decide (is_byz a))
+    have hb := byz_in_list_le n f is_byz hbyz s (List.Pairwise.nodup hs_sorted)
+    simp only at hsup ⊢ ; omega
+  · intro a ha ; simp only [List.mem_filter] at ha ; simp_all
 
 /-- ByzNodeSet instance for `Fin n` with at most `f` Byzantine nodes, valid for
     **any** `n ≥ 3f+1` (not only the tight `n = 3f+1`). The supermajority
@@ -163,48 +231,22 @@ def byzNodeSetFinGen : ByzNodeSet (Fin n) (ByzNSet n) where
     intro _ hs ; omega
   greater_than_third_nonempty := by
     intro s hs heq ; simp_all
+  -- The three fields below are transitional: the current Veil pin still
+  -- declares them in `ByzNodeSet`, the upstream re-port removes them, and
+  -- Cadence's own `ByzNodeSetCounting` carries the same content
+  -- (`byzNodeSetFinGen_counting` below). Delete them at the re-pin.
   supermajority_contains_honest_greater_than_third := by
-    intro ⟨s, hs_sorted⟩ hsup
-    simp only at hsup
-    refine ⟨⟨s.filter (fun a => !decide (is_byz a)), List.Pairwise.filter _ hs_sorted⟩, ?_, ?_⟩
-    · show f + 1 ≤ _
-      have hsplit := List.length_eq_length_filter_add (l := s) (fun a => decide (is_byz a))
-      have hb := byz_in_list_le n f is_byz hbyz s (List.Pairwise.nodup hs_sorted)
-      simp only ; omega
-    · intro a ha ; simp only [List.mem_filter] at ha ; simp_all
+    intro s hsup
+    obtain ⟨t, ht, hsub⟩ := ByzNSet.honest_third_of_supermajority n f hf is_byz hbyz s hsup
+    exact ⟨t, ht, fun a ha => by simpa using hsub a (by simpa using ha)⟩
   supermajority_greater_than_third_intersect := by
-    intro ⟨s1, hs1_sorted⟩ ⟨s2, hs2_sorted⟩ hsup1 hgtt2
-    simp only at hsup1 hgtt2
-    have hnodup1 := List.Pairwise.nodup hs1_sorted
-    have hnodup2 := List.Pairwise.nodup hs2_sorted
-    have hcard1 : s1.toFinset.card = s1.length := List.toFinset_card_of_nodup hnodup1
-    have hcard2 : s2.toFinset.card = s2.length := List.toFinset_card_of_nodup hnodup2
-    have hinter := Finset.card_inter_add_card_union s1.toFinset s2.toFinset
-    have hunion : (s1.toFinset ∪ s2.toFinset).card ≤ n := by
-      have := Finset.card_le_univ (s1.toFinset ∪ s2.toFinset) ; simpa using this
-    have hne : 0 < (s1.toFinset ∩ s2.toFinset).card := by omega
-    obtain ⟨a, ha⟩ := Finset.card_pos.mp hne
-    rw [Finset.mem_inter, List.mem_toFinset, List.mem_toFinset] at ha
-    exact ⟨a, by simp [ha.1], by simp [ha.2]⟩
+    intro s1 s2 hsup1 hgtt2
+    obtain ⟨a, ha1, ha2⟩ := ByzNSet.meet_of_length f s1 s2 hsup1 hgtt2
+    exact ⟨a, by simpa using ha1, by simpa using ha2⟩
   supermajorities_intersect_in_greater_than_third := by
-    intro ⟨s1, hs1_sorted⟩ ⟨s2, hs2_sorted⟩ hsup1 hsup2
-    simp only at hsup1 hsup2
-    refine ⟨⟨s1.filter (fun a => decide (a ∈ s2)), List.Pairwise.filter _ hs1_sorted⟩, ?_, ?_⟩
-    · show f + 1 ≤ _
-      have hnodup1 := List.Pairwise.nodup hs1_sorted
-      have hnodup2 := List.Pairwise.nodup hs2_sorted
-      have hcard1 : s1.toFinset.card = s1.length := List.toFinset_card_of_nodup hnodup1
-      have hcard2 : s2.toFinset.card = s2.length := List.toFinset_card_of_nodup hnodup2
-      have hinter := Finset.card_inter_add_card_union s1.toFinset s2.toFinset
-      have hunion : (s1.toFinset ∪ s2.toFinset).card ≤ n := by
-        have := Finset.card_le_univ (s1.toFinset ∪ s2.toFinset) ; simpa using this
-      have hfilt : (s1.filter (fun a => decide (a ∈ s2))).length
-          = (s1.toFinset ∩ s2.toFinset).card := by
-        rw [← List.toFinset_card_of_nodup (List.Nodup.filter _ hnodup1)]
-        congr 1
-        ext a ; simp
-      simp only ; omega
-    · intro a ha ; simp only [List.mem_filter] at ha ; simp_all
+    intro s1 s2 hsup1 hsup2
+    obtain ⟨t, ht, hsub⟩ := ByzNSet.share_third_of_length f hf s1 s2 hsup1 hsup2
+    exact ⟨t, ht, fun a ha => by simpa using hsub a (by simpa using ha)⟩
 
 -- Decidability of the guard-facing data fields (copied from Veil, for the
 -- new instance). The theorem fields are erased; only these are evaluated.
@@ -259,7 +301,60 @@ def byzNodeSetFinGen_honest :
     simp at ha ⊢
     tauto
 
+/-- The counting facts at `byzNodeSetFinGen`, for every `n ≥ 3f+1`. -/
+instance byzNodeSetFinGen_counting :
+    ByzNodeSetCounting (Fin n) (ByzNSet n) (byzNodeSetFinGen n f hf is_byz hbyz) where
+  honest_third_in_supermajority := by
+    intro s hsup
+    dsimp +instances [byzNodeSetFinGen] at hsup ⊢
+    obtain ⟨t, ht, hsub⟩ := ByzNSet.honest_third_of_supermajority n f hf is_byz hbyz s hsup
+    exact ⟨t, ht, fun a ha => by simpa using hsub a (by simpa using ha)⟩
+  supermajority_meets_third := by
+    intro s1 s2 hsup1 hgtt2
+    dsimp +instances [byzNodeSetFinGen] at hsup1 hgtt2 ⊢
+    obtain ⟨a, ha1, ha2⟩ := ByzNSet.meet_of_length f s1 s2 hsup1 hgtt2
+    exact ⟨a, by simpa using ha1, by simpa using ha2⟩
+  supermajorities_share_third := by
+    intro s1 s2 hsup1 hsup2
+    dsimp +instances [byzNodeSetFinGen] at hsup1 hsup2 ⊢
+    obtain ⟨t, ht, hsub⟩ := ByzNSet.share_third_of_length f hf s1 s2 hsup1 hsup2
+    exact ⟨t, ht, fun a ha => by simpa using hsub a (by simpa using ha)⟩
+
 end
+
+/-! ## The counting facts at Veil's tight instance
+
+Veil's `byzNodeSetFin` fixes `n = 3f+1` and the supermajority threshold at
+`2f+1`, which is `n − f` there, so the list lemmas above apply after one
+line of arithmetic. -/
+
+section Tight
+
+variable (n f : Nat) (hf : n = 3 * f + 1)
+  (is_byz : Fin n → Prop) [DecidablePred is_byz]
+  (hbyz : (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length ≤ f)
+
+/-- The counting facts at Veil's `byzNodeSetFin` (`n = 3f+1`). -/
+instance byzNodeSetFin_counting :
+    ByzNodeSetCounting (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz) where
+  honest_third_in_supermajority := by
+    intro s hsup
+    dsimp +instances [byzNodeSetFin] at hsup ⊢
+    obtain ⟨t, ht, hsub⟩ :=
+      ByzNSet.honest_third_of_supermajority n f (by omega) is_byz hbyz s (by omega)
+    exact ⟨t, ht, fun a ha => by simpa using hsub a (by simpa using ha)⟩
+  supermajority_meets_third := by
+    intro s1 s2 hsup1 hgtt2
+    dsimp +instances [byzNodeSetFin] at hsup1 hgtt2 ⊢
+    obtain ⟨a, ha1, ha2⟩ := ByzNSet.meet_of_length f s1 s2 (by omega) hgtt2
+    exact ⟨a, by simpa using ha1, by simpa using ha2⟩
+  supermajorities_share_third := by
+    intro s1 s2 hsup1 hsup2
+    dsimp +instances [byzNodeSetFin] at hsup1 hsup2 ⊢
+    obtain ⟨t, ht, hsub⟩ := ByzNSet.share_third_of_length f (by omega) s1 s2 (by omega) (by omega)
+    exact ⟨t, ht, fun a ha => by simpa using hsub a (by simpa using ha)⟩
+
+end Tight
 
 /-! ## Instantiation sanity checks
 
