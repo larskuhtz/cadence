@@ -1,4 +1,5 @@
 import Veil
+import Mathlib.Data.Finset.Card
 
 /-! # Cryptographic primitive abstractions for the Cadence protocol
 

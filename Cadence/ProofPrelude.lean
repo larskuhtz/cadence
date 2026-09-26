@@ -58,13 +58,16 @@ and keeping the literal in every file keeps it greppable.
   otherwise flag. That is by design here — and it also means a warm cache
   green-lights a cell without exercising its tactic script, so an edited
   cell must be solved cold once (the cache discipline in `CLAUDE.md`
-  § Build). -/
+  § Build). `linter.unusedTactic` is Mathlib's, so it is switched off only
+  where an import registers it (the Chorus family, through
+  `Cadence/Primitives.lean`); elsewhere there is nothing to switch off. -/
 elab "veil_proof_options" : command => do
   for stx in #[← `(command| set_option veil.smt.timeout 180),
                ← `(command| set_option veil.cache.proofs true),
-               ← `(command| set_option linter.unreachableTactic false),
-               ← `(command| set_option linter.unusedTactic false)] do
+               ← `(command| set_option linter.unreachableTactic false)] do
     elabCommand stx
+  if (← getOptionDecls).contains `linter.unusedTactic then
+    elabCommand (← `(command| set_option linter.unusedTactic false))
 
 /-- The elaboration budgets a model with a large invariant clump needs.
 

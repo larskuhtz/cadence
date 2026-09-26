@@ -43,7 +43,6 @@ private def isInductionForInvariant (invName : Name) : VCMetadata → Bool
 @[command_elab Veil.checkInvariant]
 def elabCheckInvariant : CommandElab := fun stx => do
   withTraceNode `veil.perf.elaborator.checkInvariant (fun _ => return "#check_invariant") do
-    if ← isModelCheckCompileMode then return
     if ← isNoVerifyMode then
       logWarningAt stx m!"⏭ skipped (veil.noVerify): no VCs were solved"
       return
@@ -73,7 +72,6 @@ private def isInductionForVC (actionName invName : Name) : VCMetadata → Bool
 @[command_elab Veil.checkVC]
 def elabCheckVC : CommandElab := fun stx => do
   withTraceNode `veil.perf.elaborator.checkVC (fun _ => return "#check_vc") do
-    if ← isModelCheckCompileMode then return
     if ← isNoVerifyMode then
       logWarningAt stx m!"⏭ skipped (veil.noVerify): no VCs were solved"
       return
@@ -93,24 +91,3 @@ def elabCheckVC : CommandElab := fun stx => do
       mod.specFinalizedAtStx
 
 end Veil
-
-/-! ### Withholding Veil's quorum counting fields (transitional)
-
-The current Veil pin declares three counting facts as fields of
-`ByzNodeSet` (`supermajority_contains_honest_greater_than_third`,
-`supermajority_greater_than_third_intersect`,
-`supermajorities_intersect_in_greater_than_third`). Upstream Veil does not
-have them, and the re-port to upstream drops them. Cadence states the same
-facts in its own class, `Cadence.ByzNodeSetCounting`
-([`QuorumCounting.lean`](./QuorumCounting.lean)), proven in
-[`ByzQuorum.lean`](./ByzQuorum.lean), and the models that need them
-`instantiate` it.
-
-Until the re-pin, the attribute below keeps the three `ByzNodeSet` fields
-out of every solver query of every model importing this file, so the models
-verify now exactly as they will once the fields are gone. Delete this block
-when the Veil pin no longer declares the fields. -/
-
-attribute [veil_smt_ignore] ByzNodeSet.supermajority_contains_honest_greater_than_third
-attribute [veil_smt_ignore] ByzNodeSet.supermajority_greater_than_third_intersect
-attribute [veil_smt_ignore] ByzNodeSet.supermajorities_intersect_in_greater_than_third

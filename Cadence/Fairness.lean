@@ -1,5 +1,6 @@
 import Veil
 import Cadence.Interfaces
+import Mathlib.Data.Nat.Init
 
 /-! # Fairness over a Veil transition system
 

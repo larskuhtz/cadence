@@ -16,10 +16,11 @@ broken claim. Reading order and the trust story: [README.md](./README.md).
 
 ## Dependencies
 
-The single direct dependency is a public Veil fork, which pins the rest of
-the tree (Loom, lean-smt, Mathlib). What the fork carries beyond upstream
-Veil, and why this project needs it, is in
-[docs/Dependencies.md](./docs/Dependencies.md). -/
+Two direct dependencies: a public Veil fork, which pins the verification
+tree (Loom, lean-smt, cvc5), and Mathlib, which upstream Veil no longer
+brings along and which `ByzQuorum.lean` and `Primitives.lean` use for their
+`Finset` counting. What the fork carries beyond upstream Veil, and why this
+project needs it, is in [docs/Dependencies.md](./docs/Dependencies.md). -/
 
 /- No package-level `leanOptions`: every Veil option this project depends on
 is set *in the file that needs it*, next to the reasoning for it — proof
@@ -29,15 +30,11 @@ when a module elaborates its specification, so a package-level default would
 be a second, invisible place to look. -/
 package «cadence»
 
-/- Loom's own lakefile declares case-study libraries that cannot build at its
-Veil-support revision, and whose globs overlap the core library — so any
-consumer that precompiles modules resolves Loom's modules to that library and
-fails on its missing imports. The branch below is a lakefile-only fix; a root
-`require` shadows transitive ones, which is why this line comes first.
-See [docs/Dependencies.md](./docs/Dependencies.md). -/
-require Loom from git "https://github.com/larskuhtz/loom" @ "v4.32.0-for-veil-lakefile-fix"
-
 require veil from git "https://github.com/larskuhtz/veil" @ "port/integration"
+
+/- Mathlib's own pins of batteries, aesop, Qq and ProofWidgets are the ones
+Veil requires, so both resolve to one tree and the Mathlib cache applies. -/
+require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "v4.32.0"
 
 /- The documentation renderer, behind a config flag so it never enters the
 normal build: `lake build` neither resolves nor builds it. Rendering the

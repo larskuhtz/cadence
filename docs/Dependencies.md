@@ -5,15 +5,18 @@ This project is a plain Lean 4 package with two direct dependencies:
 | Dependency | Pin | Upstream |
 |---|---|---|
 | [Veil](https://github.com/larskuhtz/veil) | branch `port/integration` | [`verse-lab/veil`](https://github.com/verse-lab/veil) |
-| [Loom](https://github.com/larskuhtz/loom) | branch `v4.32.0-for-veil-lakefile-fix` | [`verse-lab/loom`](https://github.com/verse-lab/loom) |
+| [Mathlib](https://github.com/leanprover-community/mathlib4) | tag `v4.32.0` | — |
 
-The Loom pin is a lakefile-only override — identical Loom sources, with the
-unbuildable case-study libraries disabled. It matters only to a consumer that
-precompiles modules, which this project currently does not, so it is inert
-today; see § "Native shared libraries" for why it is carried anyway. Veil
-pins the rest of the tree — `lean-smt` (which bundles the cvc5 SMT solver and
-its proof reconstruction) and Mathlib — at revisions this project does not
-override. [`lake-manifest.json`](../lake-manifest.json) records the
+Veil pins the verification tree — Loom (the monad-algebra layer Veil's
+action semantics is built on), `lean-smt` (which bundles the cvc5 SMT solver
+and its proof reconstruction) and `lean-auto` — at revisions this project
+does not override. Upstream Veil dropped its Mathlib dependency, so Mathlib
+is required here directly, for the `Finset` counting in
+[`Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean) and
+[`Cadence/Primitives.lean`](../Cadence/Primitives.lean); Mathlib's own pins
+of batteries, aesop, Qq and ProofWidgets are the ones Veil requires, so the
+two resolve to one tree and Mathlib's binary cache applies.
+[`lake-manifest.json`](../lake-manifest.json) records the
 exact revision of every package, so a checkout builds the same tree whatever
 the branches those pins name have since moved to. The toolchain is pinned by
 [`lean-toolchain`](../lean-toolchain) and fetched automatically by `elan`.
@@ -233,10 +236,8 @@ consequence of it.
   [`Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean). This is why the
   quorum interface is **not** on the assumption list in
   [Architecture.md](./Architecture.md) §4. (The fork used to carry the three
-  facts as `ByzNodeSet` fields; they moved here ahead of the upstream
-  re-port, and until the Veil pin drops them,
-  [`Cadence/Tooling.lean`](../Cadence/Tooling.lean) withholds those fields
-  from the solver.)
+  facts as `ByzNodeSet` fields; they moved here ahead of the fork's re-port
+  onto upstream Veil, which does not have them.)
 
 ### 5. The model-conformance monitor
 
@@ -255,7 +256,8 @@ consequence of it.
   command emits a visible `⏭ skipped (veil.noVerify)` warning, so "no errors"
   in this mode can never be mistaken for "verified". See
   [../CLAUDE.md](../CLAUDE.md).
-* **…and under it, no VC-manager loop** (`port/noverify-no-manager`). The
+* **…and under it, no VC-manager loop** (part of the fork's VC-registry
+  branch). The
   manager loop never terminates by design, and `#gen_spec` used to start it
   whatever the mode, parking a worker thread in `recv` for the life of the
   process. Harmless under `lean`, which exits outright; fatal to any program
@@ -386,9 +388,11 @@ Enabling or disabling it requires **re-solving cold**: cache entries are keyed
 by VC statement, and the fold changes only the proof term, so existing hits
 keep replaying whichever shape produced them.
 
-**And it does not work on the current pins anyway.** Precompiling forces every
-package underneath to be available as a shared library, and three separate
-things break:
+**And it did not build on the pins it was measured with** — the tree before
+the fork's 2026-09 re-port onto upstream Veil, which is also when this
+project dropped the Loom fork that had carried the first workaround below.
+Precompiling forces every package underneath to be available as a shared
+library, and three separate things broke:
 
 * Loom's `CaseStudies` library globs `Loom.*` *and* `CaseStudies.*`, so every
   Loom module belongs to two libraries — and Lake loads a precompiled import
@@ -398,15 +402,17 @@ things break:
   which does not exist at this revision — the tree has `NonDetT'`. So the
   build stops at `CaseStudies: some modules have bad imports`. This is a
   lakefile problem, not a platform one: it fails the same way on Linux, and
-  it is what the project's second fork used to exist to patch. With the flag
-  off, no Loom `:shared` target is requested and the broken library is never
-  visited.
-* Loom's core library does not build in full either, and this is *not* fixed
-  by the pin above. `Loom/MonadAlgebras/WP/Gen.lean` has its body — lines 32
-  to 285, including `WPGen` — inside a block comment at this revision, and
-  `Loom.Meta` and `Loom.MonadAlgebras.WP.Matcher` still reference what it no
-  longer defines. Nothing notices during a normal build because Veil imports
-  neither; precompiling has to build the whole library, and those two fail.
+  it is what the project's second fork, a lakefile-only Loom branch, existed
+  to patch. With the flag off, no Loom `:shared` target is requested and the
+  broken library is never visited. Upstream has since split Loom out as a
+  standalone package with no case-study library, so this one is gone at the
+  source.
+* Loom's core library did not build in full either, and the Loom fork did
+  *not* fix that. `Loom/MonadAlgebras/WP/Gen.lean` had its body — lines 32
+  to 285, including `WPGen` — inside a block comment at that revision, and
+  `Loom.Meta` and `Loom.MonadAlgebras.WP.Matcher` still referenced what it no
+  longer defined. Nothing noticed during a normal build because Veil imported
+  neither; precompiling has to build the whole library, and those two failed.
 * Loading Mathlib's shared library then crashes Lean, on the ProofWidgets
   version this tree currently has. `ProofWidgets/Component/RefreshComponent`
   is imported by Mathlib (`Mathlib/Tactic/ClickSuggestions/Util.lean`) but is
@@ -432,10 +438,11 @@ with `could not execute external process '.../clang'`. Lake fixed that in
 (`Lake/Build/Actions.lean`, `mkArgs`; 4.28 and 4.29 did so only on Windows),
 so the link no longer depends on where the repository is checked out.
 
-All three have been worked around and the configuration made to build — the
-Loom pin above, plus a one-line ProofWidgets fix applied as a local Lake
-package override. That is how the numbers above were obtained. None of it is
-shipped, because none of it pays: see the table. `precompileModules` with
+All three were worked around and the configuration made to build — the Loom
+fork, plus a one-line ProofWidgets fix applied as a local Lake package
+override. That is how the numbers above were obtained. None of it is
+shipped, because none of it pays: see the table. On the current pins
+precompilation has not been retried, since the table is the reason not to. `precompileModules` with
 Mathlib is a lightly-tested configuration in general — Lean has several open
 issues about it, on Linux as well as macOS. Until both are fixed upstream, the interpreted tactic layer is the
 price of a dependency tree that builds anywhere, and the proof cache is what
