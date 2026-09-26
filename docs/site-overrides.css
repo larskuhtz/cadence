@@ -5,8 +5,8 @@
  * so a clash silently replaces the whole of it.
  *
  * Sections 1 and 2 work around upstream gaps; 3 and 4 are this site's own
- * presentation choices; 5 styles the comment markup `site-comments.js`
- * renders, which is a gap of the third kind (`VersoIssues.md` §6). The gaps are all in one place: Verso renders a
+ * presentation choices; 5 sets plain comments back from the code and styles
+ * the markup `site-comments.js` renders in them (`VersoIssues.md` §6). The gaps are all in one place: Verso renders a
  * *Verso* docstring through `Doc/Html.lean`, which is complete, and a
  * *Markdown* docstring — Lean's default, and what this development uses —
  * through a second, thinner emitter in `VersoLiterateCode.lean`. This
@@ -154,17 +154,61 @@
     margin-top: 1rem;
 }
 
-/* 5. Inline Markdown in plain comments (`docs/site-comments.js`).
+/* 5. Plain comments.
+ *
+ * Verso sets a `--` or `/- … -/` comment exactly like the code around it:
+ * same colour, same size (measured in Chrome: 15.2px for both). The face
+ * can differ: comments get Verso's explicit `Monaco, Menlo, …` stack, while
+ * keywords, variables and constants get the generic `monospace`. Chrome
+ * resolves the two to the same width; a browser whose `monospace` is a
+ * narrower face would show the comments *larger* than the code. Either way
+ * a listing of prose-heavy models reads as prose with code in it. Comments
+ * are commentary; the code is what they comment on, and should be what
+ * stands out.
+ *
+ * So a comment recedes, by the two means that do not disturb the layout:
+ * a notch smaller, and in a quieter relative of the docstring blue (§3) —
+ * the same family of colour, because both are prose about the code, but
+ * visibly the lesser of the two, as a comment is less than a docstring.
+ * 0.9em keeps the monospace grid within a comment; it narrows only the
+ * comment itself, never the code on the lines around it.
+ *
+ * The light value cannot simply be the docstring blue lightened: that blue
+ * is 5.2:1 on the code box, and lightening it by a tenth already falls
+ * below the 4.5:1 of WCAG AA (4.2:1). It is greyed instead, which reads as
+ * lighter at the same luminance: `#507391` is 4.7:1. The dark value is the
+ * docstring blue dimmed toward the background: `#6b8cab`, 5.2:1 against the
+ * docstring's 8.3:1. Measured on `--verso-code-box-background-color`, which
+ * is where comments are. */
+:root {
+    --cadence-comment-color: #507391;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --cadence-comment-color: #6b8cab;
+    }
+}
+
+/* (0,2,0), and later than Verso's `.hl.lean .comment` rule of the same
+ * specificity, which sets `color` and `font-family` — so this wins. */
+.hl.lean .comment {
+    color: var(--cadence-comment-color);
+    font-size: 0.9em;
+}
+
+/* Inline Markdown in plain comments (`docs/site-comments.js`).
  *
  * The script renders `code`, *emphasis*, **strong** and absolute links
- * inside `--` and `/- … -/` comments, which Verso prints as literal text
+ * inside comments, which Verso prints as literal text
  * (`docs/VersoIssues.md` §6). It keeps every delimiter in the DOM, so the
  * copy button still copies the source, and hides them here.
  *
- * A comment is already set in the code font and colour, so a code span in
- * one is marked by a tint rather than by a font change. The tint is a
- * translucent grey, which reads the same on the light and the dark
- * background and needs no dark-mode value of its own. */
+ * A comment is already set in the code font, so a code span in one is
+ * marked by a tint rather than by a font change, and keeps the comment's
+ * colour so that it recedes with it. The tint is a translucent grey, which
+ * reads the same on the light and the dark background and needs no
+ * dark-mode value of its own. */
 .hl.lean .comment .md-delim {
     display: none;
 }

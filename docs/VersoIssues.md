@@ -172,8 +172,11 @@ alignment — and it keeps every delimiter in the DOM, hidden, so the copy
 button still copies the source. The rules are in the file's header, and
 `node scripts/test-site-comments.js [site/sources]` tests them — given a
 rendered site, against every comment on it. Delete the script, its test,
-the `extra_js` line and §5 when Verso renders comment markup itself, or when
-the comments it serves have become doc comments.
+the `extra_js` line and the markup rules of §5 when Verso renders comment
+markup itself, or when the comments it serves have become doc comments.
+The first rule of §5 — comments a notch smaller, in a quieter blue than the
+docstrings, so the code stays in front — is a presentation choice rather
+than a workaround, and stays.
 
 ## Not bugs, but sharp edges
 
