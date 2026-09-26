@@ -1,4 +1,6 @@
 import Veil
+import Mathlib.Order.Basic
+import Mathlib.Tactic.Push
 
 /-! # Slot/window theory and the ACS median lemma
 

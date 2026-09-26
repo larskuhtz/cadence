@@ -195,15 +195,12 @@ History: [docs/History.md](./docs/History.md).
 
 ### Expected warnings
 
-A green build is not a silent build. These are known and harmless — do not
-"fix" them by changing working proofs:
-
-* `Cadence/Composition.lean` — two `try 'simp' instead of 'simpa'`
-  suggestions.
-
-That is the whole list of *warnings*: the dependency tree builds silently.
-Anything else — and in particular any `❌`, `💥`, `⏱`, or a `sorry` warning
-from a `Cadence/` file — is real.
+There are none: a green build prints no warnings, and the dependency tree
+builds silently. (The two `Composition.lean` `simpa` suggestions this list
+used to carry went with the 2026-09-26 re-pin, whose smaller simp set made
+those two steps plain `List.getElem_mem` applications.) So any warning is
+worth reading, and any `❌`, `💥`, `⏱`, or `sorry` warning from a
+`Cadence/` file is real.
 
 A green build also prints `info:` lines, which are not warnings and are
 expected: the VC-registry and sweep summaries, `#gen_composition`'s

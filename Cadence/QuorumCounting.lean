@@ -27,10 +27,7 @@ fields of `ByzNodeSet` itself.
 The class is proven, never assumed, wherever the validator set is concrete:
 [`ByzQuorum.lean`](./ByzQuorum.lean) instantiates it for Veil's
 `byzNodeSetFin` (`n = 3f+1`) and for `byzNodeSetFinGen` (every `n ≥ 3f+1`).
-
-The field names differ from the `ByzNodeSet` fields of the same content that
-the current Veil pin still declares (see `Cadence/Tooling.lean`), so the two
-never shadow each other. -/
+ -/
 
 namespace Cadence
 

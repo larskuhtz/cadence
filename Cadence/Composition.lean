@@ -1,5 +1,6 @@
 import Cadence.Cadence
 import Cadence.Conductor
+import Mathlib.Data.Nat.Init
 
 /-! # Composition layer
 
@@ -200,8 +201,8 @@ theorem sorted_prefix_agreement {α β : Type} {r : α → α → Prop}
       · exact absurd h not_lt₂₁
     have hvecs : (L₁[k]'h₁).2 = (L₂[k]'h₂).2 := by
       apply agree (L₁[k]'h₁).1
-      · simpa using hm₁
-      · rw [hslots]; simpa using hm₂
+      · exact List.getElem_mem h₁
+      · rw [hslots]; exact List.getElem_mem h₂
     exact Prod.ext hslots hvecs
 
 /-! ## Cadence glue module: `Invariants` hold in every reachable state -/

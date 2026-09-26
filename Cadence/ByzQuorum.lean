@@ -1,5 +1,8 @@
 import Veil.Frontend.Std
 import Cadence.QuorumCounting
+import Mathlib.Data.Fintype.Card
+import Mathlib.Tactic.Push
+import Mathlib.Tactic.Tauto
 
 /-! # Cadence-local Byzantine quorum instance for `n ≥ 3f+1`
 
@@ -231,22 +234,6 @@ def byzNodeSetFinGen : ByzNodeSet (Fin n) (ByzNSet n) where
     intro _ hs ; omega
   greater_than_third_nonempty := by
     intro s hs heq ; simp_all
-  -- The three fields below are transitional: the current Veil pin still
-  -- declares them in `ByzNodeSet`, the upstream re-port removes them, and
-  -- Cadence's own `ByzNodeSetCounting` carries the same content
-  -- (`byzNodeSetFinGen_counting` below). Delete them at the re-pin.
-  supermajority_contains_honest_greater_than_third := by
-    intro s hsup
-    obtain ⟨t, ht, hsub⟩ := ByzNSet.honest_third_of_supermajority n f hf is_byz hbyz s hsup
-    exact ⟨t, ht, fun a ha => by simpa using hsub a (by simpa using ha)⟩
-  supermajority_greater_than_third_intersect := by
-    intro s1 s2 hsup1 hgtt2
-    obtain ⟨a, ha1, ha2⟩ := ByzNSet.meet_of_length f s1 s2 hsup1 hgtt2
-    exact ⟨a, by simpa using ha1, by simpa using ha2⟩
-  supermajorities_intersect_in_greater_than_third := by
-    intro s1 s2 hsup1 hsup2
-    obtain ⟨t, ht, hsub⟩ := ByzNSet.share_third_of_length f hf s1 s2 hsup1 hsup2
-    exact ⟨t, ht, fun a ha => by simpa using hsub a (by simpa using ha)⟩
 
 -- Decidability of the guard-facing data fields (copied from Veil, for the
 -- new instance). The theorem fields are erased; only these are evaluated.
