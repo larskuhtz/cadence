@@ -87,13 +87,17 @@ def stInhab : Inhabited St := Chorus.instInhabitedStateFieldConcreteType
 
 /-- The extracted per-label executable step at this concrete instance. -/
 def cnext (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := emptyByz4) (mvba := silentMvba _)
+  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := emptyByz4)
+    (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun _ => False) (by decide))
+    (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
     (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 
 /-- The extracted initializer at this instance. -/
 def cinit : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.initializer.ext.extracted (ρ := Th) (σ := St) (nset := emptyByz4) (mvba := silentMvba _)
+  Chorus.initializer.ext.extracted (ρ := Th) (σ := St) (nset := emptyByz4)
+    (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun _ => False) (by decide))
+    (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
     (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC)
 
@@ -316,19 +320,27 @@ def byz3 : ByzNodeSet ND NS := Cadence.byzNodeSetFinGen (3 * 1 + 1) 1 (by decide
 -- Per-instance executors: the guard `Decidable`s need the instance fixed, so
 -- these cannot be one function polymorphic over the instance.
 def cnextB0 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz0) (mvba := silentMvba _)
+  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz0)
+    (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun x => x = 0) (by decide))
+    (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
     (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 def cnextB1 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz1) (mvba := silentMvba _)
+  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz1)
+    (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun x => x = 1) (by decide))
+    (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
     (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 def cnextB2 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz2) (mvba := silentMvba _)
+  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz2)
+    (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun x => x = 2) (by decide))
+    (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
     (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 def cnextB3 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
-  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz3) (mvba := silentMvba _)
+  Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz3)
+    (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun x => x = 3) (by decide))
+    (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
     (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 

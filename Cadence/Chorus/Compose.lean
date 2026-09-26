@@ -89,6 +89,8 @@ variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Ty
   [Inhabited mstate] [Inhabited mvalue] [Inhabited mmsg]
   [Inhabited Phase] [Inhabited PathChoice]
   [nset : ByzNodeSet node nodeset]
+  -- The quorum counting facts Chorus consumes (its `cnt` class constraint).
+  [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   -- The MVBA contract Chorus consumes (its `mvba` class constraint), stated
   -- against the module's own fault pattern; `System.lean` instantiates it at
   -- `Mvba.mvbaSafety`.

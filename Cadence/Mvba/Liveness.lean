@@ -1319,8 +1319,8 @@ assembly ones. Everything else here assembles quorums; this consumes one.
 A timeout certificate for `V` is backed by a `2f+1` quorum of `Timeout`
 messages (`msg_tc_backed`, then `tc_nolock_backed` or `tc_lock_backed`).
 Every such quorum contains a correct member
-(`supermajority_contains_honest_greater_than_third` followed by
-`greater_than_third_one_honest`), and a correct validator's `Timeout` for
+(`supermajorities_intersect_in_honest`, applied to the quorum and
+itself), and a correct validator's `Timeout` for
 `V` means it timed out there (`honest_timeout_noqc_timed_out`,
 `honest_timeout_qc_timed_out`). So a view cannot be closed behind the
 correct validators' backs — which is exactly what lets (A-viewsync) keep a
@@ -1345,13 +1345,11 @@ theorem exists_honest_timed_out_of_tc
       · exact Or.inr ⟨W', E', h⟩
   obtain ⟨q, hsm, hall⟩ := hq
   -- … and every `2f+1` quorum contains a correct member.
-  obtain ⟨t, hgt, hsub⟩ := nset.supermajority_contains_honest_greater_than_third q hsm
-  obtain ⟨R, hRt, hRhon⟩ := nset.greater_than_third_one_honest t hgt
-  obtain ⟨hRq, -⟩ := hsub R hRt
-  refine ⟨R, (hsub R hRt).2, ?_⟩
+  obtain ⟨R, hRq, -, hRhon⟩ := nset.supermajorities_intersect_in_honest q q hsm hsm
+  refine ⟨R, hRhon, ?_⟩
   rcases hall R hRq with h | ⟨W', E', h⟩
-  · exact Mvba.reachable_honest_timeout_noqc_timed_out hr R V (hsub R hRt).2 h
-  · exact Mvba.reachable_honest_timeout_qc_timed_out hr R V W' E' (hsub R hRt).2 h
+  · exact Mvba.reachable_honest_timeout_noqc_timed_out hr R V hRhon h
+  · exact Mvba.reachable_honest_timeout_qc_timed_out hr R V W' E' hRhon h
 
 /-- The same for a lock-carrying certificate, which `sync_view_adopt` reads
 instead of `msg_tc`. -/
@@ -1360,12 +1358,11 @@ theorem exists_honest_timed_out_of_tc_lock
     {V W : view} {E : value} (hlock : st.tc_lock V W E = true) :
     ∃ R, ¬ nset.is_byz R = true ∧ st.timed_out R V = true := by
   obtain ⟨-, -, q, hsm, hall⟩ := Mvba.reachable_tc_lock_backed hr V W E hlock
-  obtain ⟨t, hgt, hsub⟩ := nset.supermajority_contains_honest_greater_than_third q hsm
-  obtain ⟨R, hRt, hRhon⟩ := nset.greater_than_third_one_honest t hgt
-  refine ⟨R, (hsub R hRt).2, ?_⟩
-  rcases hall R (hsub R hRt).1 with h | ⟨W', E', h, -⟩
-  · exact Mvba.reachable_honest_timeout_noqc_timed_out hr R V (hsub R hRt).2 h
-  · exact Mvba.reachable_honest_timeout_qc_timed_out hr R V W' E' (hsub R hRt).2 h
+  obtain ⟨R, hRq, -, hRhon⟩ := nset.supermajorities_intersect_in_honest q q hsm hsm
+  refine ⟨R, hRhon, ?_⟩
+  rcases hall R hRq with h | ⟨W', E', h, -⟩
+  · exact Mvba.reachable_honest_timeout_noqc_timed_out hr R V hRhon h
+  · exact Mvba.reachable_honest_timeout_qc_timed_out hr R V W' E' hRhon h
 
 /-! ## The good view is not skipped
 

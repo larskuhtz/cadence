@@ -687,27 +687,32 @@ grows monotonically — unobservable by honest invariants.
 
 ### Quorum axioms
 
-The `ByzNodeSet` class provides, and its `byzNodeSetFin` instance
-proves (`Veil/Frontend/Std.lean`), the counting facts the proofs use:
+Veil's `ByzNodeSet` class provides the first two facts below; the other
+three are Cadence's own class `Cadence.ByzNodeSetCounting`
+([`Cadence/QuorumCounting.lean`](../Cadence/QuorumCounting.lean)), which
+Chorus consumes with `instantiate cnt`, so its fields are solver
+hypotheses exactly like `ByzNodeSet`'s. Both are proven for the concrete
+`byzNodeSetFin` (`n = 3f+1`) and `byzNodeSetFinGen` (`n ≥ 3f+1`) families,
+the counting class in [`Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean):
 
 * `supermajorities_intersect_in_honest` — two supermajorities share an
   honest member (`2(2f+1) − (3f+1) = f+1 > f`).
 * `greater_than_third_one_honest` — an `f+1`-set contains an honest
   member.
-* `supermajority_contains_honest_greater_than_third` — a supermajority
+* `honest_third_in_supermajority` — a supermajority
   contains an *all-honest `f+1`-subset* (`2f+1 − f = f+1`). Used where
   an honest sub-quorum is needed (e.g. pinning fallback entries under
   the proposal-inclusion premise).
-* `supermajority_greater_than_third_intersect` — a supermajority and an
+* `supermajority_meets_third` — a supermajority and an
   `f+1`-set share a (possibly Byzantine) member
   (`(2f+1) + (f+1) − (3f+1) = 1`). Used by the speculative-safety
   argument, whose per-member consistency comes from `no_equivocation`
   rather than honesty.
-* `supermajorities_intersect_in_greater_than_third` — two
+* `supermajorities_share_third` — two
   supermajorities share an `f+1`-subset. Used to intersect a
   fallback signer's witnessed vote quorum with a FastQC's backing.
 
-Note the *honest* variant of the fourth fact — "a supermajority and an
+Note the *honest* variant of `supermajority_meets_third` — "a supermajority and an
 `f+1`-set share an honest member" — is false in general (the single
 guaranteed intersection element can be Byzantine); the speculative
 invariants work around it via `no_equivocation`.

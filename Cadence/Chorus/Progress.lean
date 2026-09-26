@@ -75,7 +75,7 @@ local macro "cpv%" t:ident args:term:max* : term =>
     mstate (fun a b => Classical.propDecidable (a = b)) inferInstance
     mvalue (fun a b => Classical.propDecidable (a = b)) inferInstance
     mmsg (fun a b => Classical.propDecidable (a = b)) inferInstance
-    (byzNodeSetFin n f hf is_byz hbyz) mvba
+    (byzNodeSetFin n f hf is_byz hbyz) (Cadence.byzNodeSetFin_counting n f hf is_byz hbyz) mvba
     Phase (fun a b => Classical.propDecidable (a = b)) inferInstance inferInstance
     PathChoice (fun a b => Classical.propDecidable (a = b)) inferInstance inferInstance
     (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice)

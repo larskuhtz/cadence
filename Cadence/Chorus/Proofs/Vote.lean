@@ -38,7 +38,7 @@ namespace Chorus.Proofs
 
 /- Manual discharge of the one VC the SMT pipeline cannot solve
 automatically: `vote` preserves `fb_neg_no_pos_quorum`. The proof applies
-`supermajorities_intersect_in_greater_than_third` once — to the recorded
+`supermajorities_share_third` once — to the recorded
 witness quorum (`local_fb_neg_qv`) and the claimed post-state vote
 supermajority — and closes with `fb_neg_qv_no_pos_quorum`; against `vote`'s
 bulk signature update, cvc5's e-matching diverges instead of finding this
@@ -96,7 +96,7 @@ after a statement check. -/
       simp at hv
   -- Intersect `qv` with the claimed post-state supermajority `x`.
   obtain ⟨t, ht_gtt, ht_mem⟩ :=
-    nset.supermajorities_intersect_in_greater_than_third qv x hqv_sup hsup
+    cnt.supermajorities_share_third qv x hqv_sup hsup
   -- The witness invariant yields a member of `t` with no pre-state signature.
   -- `no_invalid_encoding` passes through unadapted: `vote` leaves the
   -- proposer-signature relation untouched, so the post-state hypothesis is

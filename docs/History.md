@@ -196,6 +196,13 @@ inclusion, hiding) were missing. Change inventory:
 `supermajority_greater_than_third_intersect`,
 `supermajorities_intersect_in_greater_than_third`.
 
+> **Superseded (2026-09-25).** The three facts moved out of Veil ahead of the
+> upstream re-port: they are now Cadence's own class
+> `Cadence.ByzNodeSetCounting` (`Cadence/QuorumCounting.lean`), proven in
+> `Cadence/ByzQuorum.lean`, with the fields renamed
+> `honest_third_in_supermajority`, `supermajority_meets_third` and
+> `supermajorities_share_third`.
+
 **Liveness scaffolding.** `decrease_*` tautologies removed (the (D)
 obligation is structural — see `ChorusDesign.md` §7); `progress_commit_*`
 family replaced by `fast_path_implies_vote_quorums`,

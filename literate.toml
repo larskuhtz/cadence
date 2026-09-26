@@ -87,6 +87,7 @@ library = "Cadence"
   "Cadence.Composition",
   "Cadence.System",
   "Cadence.Primitives",
+  "Cadence.QuorumCounting",
   "Cadence.ByzQuorum",
   "Cadence.Windows",
   "Cadence.ProofPrelude",

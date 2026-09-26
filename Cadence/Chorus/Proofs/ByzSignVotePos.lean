@@ -51,7 +51,7 @@ namespace Chorus.Proofs
   obtain ⟨hqv_sup, hqv_cast⟩ := h_fb_neg_qv_backed R J qv hbyzR hqv
   have hpropJ := h_fb_neg_qv_is_proposer R J qv hbyzR hqv
   obtain ⟨t, ht_gtt, ht⟩ :=
-    nset.supermajorities_intersect_in_greater_than_third qv x hqv_sup hsup_x
+    cnt.supermajorities_share_third qv x hqv_sup hsup_x
   -- `no_invalid_encoding` passes through unadapted: this action leaves the
   -- proposer-signature relation untouched.
   obtain ⟨b, hb_t, hb_nosig⟩ :=

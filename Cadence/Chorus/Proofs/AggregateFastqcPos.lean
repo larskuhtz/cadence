@@ -50,7 +50,7 @@ invariant conjuncts it needs are named, not indexed
     · obtain ⟨rf, hrf_mem, hrf_hon⟩ := nset.greater_than_third_one_honest qf hqf_gtt
       have hrf_hon' : ByzNodeSet.is_byz rf = false := Bool.eq_false_iff.mpr hrf_hon
       obtain ⟨qv2, hqv2_gtt, hqv2⟩ := h_msg_fb_pos_sig_backed rf j M' hrf_hon' (hqf rf hrf_mem)
-      obtain ⟨b, hb1, hb2⟩ := nset.supermajority_greater_than_third_intersect q qv2 hsup_q hqv2_gtt
+      obtain ⟨b, hb1, hb2⟩ := cnt.supermajority_meets_third q qv2 hsup_q hqv2_gtt
       exact hne1 b j m M' (hq_sigs b hb1) (hqv2 b hb2)
   · have hold : st.local_fastqc_pos I J M = true := hfq (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩)
     exact h_spec_fastqc_pos_mvba_pos_unique hne1 hne2 hne3 hnie I J M M' hbyz_I hold hmv
