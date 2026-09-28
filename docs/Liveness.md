@@ -162,10 +162,15 @@ intermediate step — a GST marker without a clock, say — gets there earlier.
 The phase is under way: its premises are workshopped and stated —
 [`Bounds.md`](./Bounds.md) §6.2, [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)
 — with the derivation of (A-viewsync) as the named target `AViewSyncClaim`.
-The first of the two protocol lemmas is proven: a correct-led view whose
+Both protocol lemmas are proven: a correct-led view whose
 budget exceeds the chain's latency decides within it
-(`Mvba.good_view_decides`, [`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)).
-The claims themselves are not proven yet.
+(`Mvba.good_view_decides`, [`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)),
+and any other view is left within a fixed cost (`Mvba.synced_succ`). The
+bounded claim follows from them: `BoundedTerminationClaim` is
+`Mvba.bounded_termination`
+([`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)).
+`AViewSyncClaim` and the `MVBATemporal` instance at the lifted fragment are
+not proven yet ([`Bounds.md`](./Bounds.md) §6.2.8, step 4).
 
 ## 3. What would close the rest
 

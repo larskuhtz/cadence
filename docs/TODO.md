@@ -204,9 +204,13 @@ come first.
   (2026-09-16): its timing model is workshopped and stated
   ([`Bounds.md`](./Bounds.md) §6.2,
   [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)), and
-  step 2, the good-view lemma, is proven
-  ([`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)); steps 3–4 of
-  §6.2.8 remain.
+  steps 2 and 3 are proven: the good-view lemma
+  ([`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)) and, from it
+  and the burn lemma, the bounded claim itself
+  (`Mvba.bounded_termination`,
+  [`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)).
+  Step 4 of §6.2.8 remains: the `MVBATemporal` instance at the lifted
+  fragment, `admissible_exists`, and (A-viewsync) as a corollary.
 
 ## Model hygiene
 

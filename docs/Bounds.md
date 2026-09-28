@@ -592,16 +592,18 @@ is the identity in this model (`Mvba.lean`, "The value type").
 
 **The assembly.** Let `N₀` be the last index with `clk ≤ u` (the state at
 time `u`; every proposal is at or before it), `M` the highest view any
-validator has entered at `N₀` — a maximum over a finite list, since each
-step enters at most one view — and `W` the first correct-led view at or
-above `max(succ M, v_L)`, which (A-leader-rotation-k) places within `k`
-views. Then: `Synced M (u + Δ)` by one `sync_view` hop, since the
-certificate below `M` exists at `N₀`; `Synced W (u + Δ + n • C)` by at most
-`n ≤ 1 + |below v_L| + k` applications of the first lemma; `W`'s first
-correct entry is after `N₀`, hence `E₀ ≥ u ≥ gst`, and `E₀ ≤ u + Δ + n • C`;
-and the second lemma decides everyone by `E₀ + L_cert + δ`. Hence
+correct validator has entered at `N₀` — a maximum over a finite list, since
+each step enters at most one view — and `W` a correct-led view reached from
+`M`: some `a` with `1 ≤ a ≤ |below v_L|` successors of `M` clear the ramp
+(the successors below `v_L` are distinct members of the list `below v_L`),
+and (A-leader-rotation-k) places a correct leader fewer than `k` views
+further on. Then: `Synced M (u + Δ)` by one `sync_view` hop, since the
+certificate below `M` exists at `N₀`; `Synced W (u + Δ + n • C)` by
+`n < |below v_L| + k` applications of the first lemma; `W`'s first correct
+entry is after `N₀`, hence `E₀ ≥ u ≥ gst`, and `E₀ ≤ u + Δ + n • C`; and
+the second lemma decides everyone by `E₀ + L_cert + δ`. Hence
 
-  `ℓ = Δ + (1 + |below v_L| + k) • C + L_cert + δ`,
+  `ℓ = Δ + (|below v_L| + k) • C + L_cert + δ`,
 
 which is `O(kΔ)` when every constant is `O(Δ)` and the ramp is empty — the
 supplement's `O(fΔ)` at `k = f + 1`. The caller's second premise enters
@@ -654,8 +656,10 @@ files, `Interfaces.lean`, `Fairness.lean` or `Mvba/Liveness.lean`.
    cheap validation of the scaffolding, and where a misclassified `hop`
    would show up. [`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean),
    `Mvba.good_view_decides`; the reassessment is below.
-3. The burn lemma, `entered_finite`, the successor-chain count against
-   `below v_L`, the assembly, and `ℓ`.
+3. **Done (2026-09-28).** The burn lemma, the finite starting point, the
+   successor-chain count against `below v_L`, the assembly, and `ℓ`.
+   [`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean),
+   `Mvba.bounded_termination`; the reassessment is below step 2's.
 4. `MVBATemporal` at the lifted fragment: `admissible_exists` and
    `termination`; `AViewSync_of_admissible`; axiom pins; the `Cadence.lean`
    row moves from conditional to discharged; the "no full instance is
@@ -714,8 +718,8 @@ Two findings, both about statements rather than about the protocol:
   that times out in `W` stops the chain. The lemma therefore takes
   `[IsOrderedCancelAddMonoid time]`; `ℕ`, `ℚ≥0` and `ℝ≥0` are instances, so
   the intended models are unaffected. The claims in `Schedule.lean` are
-  stated over the weaker class and are unchanged. Step 4's theorem proving
-  `BoundedTerminationClaim` carries the cancellative class as an explicit
+  stated over the weaker class and are unchanged. The theorem proving
+  `BoundedTerminationClaim` (step 3's `bounded_termination`) carries the cancellative class as an explicit
   hypothesis. No run predicate can express it, because it constrains the
   sort, just like the instance hypotheses of §6.2.5.
 * **Only the leader and the honest quorum move through the view.** §6.2.6's
@@ -732,3 +736,95 @@ Two findings, both about statements rather than about the protocol:
 The rest of the staging stands. Step 3 is where the burn lemma's `2δ` (one
 adoption restarting the timeout's window) gets its first test, and it reuses
 this file's link shape and prefix facts unchanged.
+
+**Reassessment after step 3** (2026-09-28). The bound is
+`Mvba.bounded_termination` in
+[`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean):
+`BoundedTerminationClaim`, kernel-checked, axioms at the standard trio,
+from the two quorum classes and a cancellative time theory. The burn lemma
+is `Mvba.synced_succ`, and its iteration is `Mvba.synced_iterate`. Nothing
+under §4.1's rules was touched: no model change, no new invariant or step
+property, nothing exported from `Mvba/Liveness.lean`, and so the
+`#veil_status Mvba` pin is unchanged. The questions the plan left open:
+
+* **Whether the `2δ` timeout restart held.** It did, and it was the first
+  thing tested. The claim needs one fact: *a certificate a validator
+  acquires while it stays in `v` is a certificate of `v`*
+  (`local_prepqc_new_in_view`). `adopt_prepqc` is guarded on `in_view` for
+  the certificate's own view, and `sync_view_adopt` leaves the view. This
+  is a two-state fact about labels, not an invariant. It is proven like
+  step 2's `timer_set_label`, one case per action from M13's frame lemmas
+  (`local_prepqc_set`), and then by induction along the run. From it,
+  `within_timed_out` is three cases:
+  * the goal already holds;
+  * a certificate of `v` is held somewhere in the first `δ` window, after
+    which the label is fixed for one more `δ`;
+  * no certificate is acquired in the window, so the label chosen at its
+    start stays enabled.
+
+  The highest held certificate at the start is found over `below v`, as in
+  the untimed link.
+* **Whether the hop table survived the rows step 2 did not exercise.** It
+  did. `timeout_qc`/`timeout_noqc` are `δ` steps, and `form_tc_lock`,
+  `form_tc_nolock` and `sync_view` are `Δ` hops, each asked of `hop` by
+  `rfl`. Three rows are still exercised by no proof. `sync_view_adopt` is
+  never needed, because `tc_lock_implies_tc` lets a validator holding a
+  higher certificate advance through `sync_view`. The two view-zero labels
+  are never needed either, because `W` is strictly above a view already
+  entered. Their fairness is a premise the bound does not use, which
+  weakens nothing. Step 4's `admissible_exists` must still satisfy it,
+  which it does vacuously where the labels are never move-enabled.
+* **Whether `burn` and `ℓ` are still the constants in `Schedule.lean`.**
+  `burn = τ_max + 2δ + 2Δ` is. The proof names the four deadlines and closes
+  `X + burn =` their sum by `abel`. **`ℓ` moved**, from
+  `Δ + (1 + |below v_L| + k) • C + L_cert + δ` to
+  `Δ + (|below v_L| + k) • C + L_cert + δ`. The count is `a + j` burns:
+  `1 ≤ a ≤ |below v_L|` successors of `M` clear the ramp
+  (`exists_iterate_succ_ge`, a pigeonhole over `below v_L`), and `j < k`
+  more reach a correct leader. The step out of `M` is the first of the `a`,
+  so the `1 +` counted it twice. `Schedule.ℓ` is redefined to match, and
+  §6.2.6 is updated. `a + j ≤ |below v_L| + k - 1` would be tighter still;
+  it is not taken, because the natural-number subtraction buys one burn and
+  costs readability.
+* **How the finite starting point is proven.** As §6.2.6 said: a maximum
+  over a finite list, since each step enters at most one view
+  (`entered_set_view`, a label case split, then `entered_covered` by
+  induction on the index). Neither the node sort nor the view sort is
+  assumed finite, and `ViewOrderEnum` is not used for `M`. It is used for
+  three other things: `succ`, the pigeonhole count, and the highest held
+  certificate in the timeout step. `M` ranges over *correct* validators'
+  views, which is all the argument needs.
+* **Where cancellation goes.** On the theorem only.
+  `bounded_termination` takes `[IsOrderedCancelAddMonoid time]`, and
+  `Schedule.lean`'s variables and both claims keep the weaker class. The
+  burn lemma needs no cancellation. The assembly needs it twice: through
+  `good_view_decides` (step 2's `ℕ∞` finding), and for `u < u + Δ`, which
+  is how the last index at or before `u` is found by `Nat.find`. Keeping the
+  claim at the supplement's theory means the extra class appears only where
+  a proof uses it, and is not built into the definitions a reader checks
+  against the paper.
+
+Three facts are proven locally that neither `Mvba/Liveness.lean` nor step 2
+had: the certificate below a view with its predecessor produced
+(`exists_tc_pred_of_entered`); that the first correct validator at or above
+a view is *in* it (`entered_eq_of_first_above`, since skipping it needs a
+correct timeout there); and the successor facts of `ViewOrderEnum`. Each is
+a short plain-Lean proof.
+
+**What step 4 now needs.** The protocol argument is complete. What remains
+is plumbing between the claim and the contract, plus the corollary:
+
+* `MVBATemporal.termination` at `(mvbaSafety th).timed time`, from
+  `bounded_termination` through `Admissible`'s labelling. The observables
+  are definitional (§6.2.8 step 1), so the work is `byGstBound`'s shape
+  against `max t gst + ℓ`.
+* `admissible_exists`, as §6.2.7 planned.
+* `AViewSyncClaim`. Its second clause is the good view, and the assembly
+  constructs that view (`W`, `N_W`) but does not export it. Step 4 should
+  first factor the assembly's first half into a lemma that returns `W`
+  with `good_view_decides`'s premises, then prove both
+  `bounded_termination` and `AViewSyncClaim` from it. The first clause is
+  (T2) plus `clk_unbounded`, as planned.
+* The axiom pins, the `Cadence.lean` row, and the text in `CLAUDE.md` and
+  `Architecture.md` §4 about the timed instance and its seam, as listed in
+  the staging above.
