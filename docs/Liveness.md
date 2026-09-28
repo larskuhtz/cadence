@@ -161,8 +161,11 @@ within a bounded number of views, and both of its clauses become theorems.
 intermediate step — a GST marker without a clock, say — gets there earlier.
 The phase is under way: its premises are workshopped and stated —
 [`Bounds.md`](./Bounds.md) §6.2, [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)
-— with the derivation of (A-viewsync) as the named target `AViewSyncClaim`;
-nothing there is proven yet.
+— with the derivation of (A-viewsync) as the named target `AViewSyncClaim`.
+The first of the two protocol lemmas is proven: a correct-led view whose
+budget exceeds the chain's latency decides within it
+(`Mvba.good_view_decides`, [`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)).
+The claims themselves are not proven yet.
 
 ## 3. What would close the rest
 

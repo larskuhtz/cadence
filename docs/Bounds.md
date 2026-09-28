@@ -408,6 +408,8 @@ sum of about ten terms with natural-number multiples (`n • C`) and a
 `max`, and the bound's proof rearranges such sums, which an ordered monoid
 does and two abstract successors do not. This is outside Veil's pipeline,
 so §4's constraint on Mathlib's universe polymorphism does not apply.
+The monoid must also be **cancellative** (`IsOrderedCancelAddMonoid`); step
+2 found that, and the reassessment in §6.2.8 gives the `ℕ∞` counterexample.
 
 Two remarks on what the theory does **not** assume. The **termination
 bound needs no Archimedean axiom** — every quantity in it is a finite sum
@@ -647,10 +649,11 @@ files, `Interfaces.lean`, `Fairness.lean` or `Mvba/Liveness.lean`.
    `hop`, `Schedule` with its hypotheses, the four clauses, `Admissible`,
    (A-leader-rotation-k), `ℓ`, and the target as a `Prop`-valued
    definition **before** any proof — `Liveness.lean`'s discipline.
-2. The good-view lemma: the eight timed links, the prefix form of
-   `entered_le_of_no_timeout`, the stability arguments. The cheap
-   validation of the scaffolding, and where a misclassified `hop` would
-   show up.
+2. **Done (2026-09-28).** The good-view lemma: the eight timed links, the
+   prefix form of `entered_le_of_no_timeout`, the stability arguments. The
+   cheap validation of the scaffolding, and where a misclassified `hop`
+   would show up. [`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean),
+   `Mvba.good_view_decides`; the reassessment is below.
 3. The burn lemma, `entered_finite`, the successor-chain count against
    `below v_L`, the assembly, and `ℓ`.
 4. `MVBATemporal` at the lifted fragment: `admissible_exists` and
@@ -659,3 +662,73 @@ files, `Interfaces.lean`, `Fairness.lean` or `Mvba/Liveness.lean`.
    fabricated" text in `CLAUDE.md` and `Architecture.md` §4 gains the
    timed instance and its seam; the joint decision of §6.2.1 is put to the
    Chorus leg.
+
+**Reassessment after step 2** (2026-09-28, as §6 asks). The good-view lemma
+is `Mvba.good_view_decides` in
+[`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean), kernel-checked, axioms
+at the standard trio. Its premises are the three clauses of `Sync` and the
+two quorum classes; it builds in seconds and touched nothing under §4.1's
+rules. The three questions the plan left open:
+
+* **Which links cost more than one `BoundedFair` application.** None. Each
+  of the eight links (`sync_view`, the leader's proposal, `handle_preprepare`,
+  `form_prepqc`, `adopt_prepqc`, `send_commit`, `form_commitqc`, `decide`) is
+  one application, through one generic lemma
+  (`TLRun.withinFrom_of_boundedFair`) that also pays the move-enabledness
+  side condition once for all of them. The leader link splits on the
+  certificate below `W` (re-propose under a lock, fresh proposal without
+  one), but that is a case split on the state with one application in each
+  branch, exactly as in the untimed link. The quorum steps are one
+  application per member plus `TLRun.withinFrom_forall`; availability is
+  (Δ-avail) directly, joined to the adoption by taking the later of two
+  indices (`TLRun.clk_max_le`). The cost the plan did not foresee was on the
+  *stability* side, not the fairness side. Three state facts
+  `Mvba/Liveness.lean` does not export had to be proven locally:
+  `timer_set_label` (only `expire_timer i v` sets `timer_expired i v`, one
+  case per action from M13's frame lemmas), the prefix form of
+  `entered_le_of_no_timeout`, and the timeout certificate below `W` present
+  *at* the first correct entry (`msg_tc_below_of_entered`). Each is a short
+  plain-Lean proof.
+* **Whether the hop table survived contact with the guards.** It did. Each
+  link asks `hop` for its bound by `rfl`, so a disagreement between a link and
+  the table fails to elaborate. No link needed a different class. Two δ-rows
+  read a certificate built from other parties' messages, and both are right
+  for the reason the table gives: `leader_*` reads `tc_lock`/`tc_nolock`,
+  which `form_tc_*` sets in the same step as the `msg_tc` whose delivery
+  `sync_view` has already paid for (`msg_tc_backed` at the entry index); and
+  `adopt_prepqc`/`decide` read certificates whose delivery `Δ` sits on the
+  assembly. The good view does not exercise the view-zero labels, the
+  timeouts, `form_tc_*` or `sync_view_adopt`, so their rows are tested by
+  step 3's burn lemma, not here.
+* **Whether `Lcert`'s constant is still the one derived in §6.2.6.** It is,
+  with no slack and no extra term. The proof names the eight milestone
+  deadlines and closes `E₀ + Lcert = ` their sum by `abel`, so the table and
+  the constant agree term for term.
+
+Two findings, both about statements rather than about the protocol:
+
+* **The time theory needs cancellation.** §6.2.2's linearly ordered monoid
+  is not enough for the step "`L_cert < τ W`, hence `E₀ + L_cert < E₀ + τ W`".
+  In `ℕ∞`, which satisfies §6.2.2's axioms, a clock at `⊤` makes both sides
+  `⊤`. A correct `W`-timer may then fire inside the window, and a validator
+  that times out in `W` stops the chain. The lemma therefore takes
+  `[IsOrderedCancelAddMonoid time]`; `ℕ`, `ℚ≥0` and `ℝ≥0` are instances, so
+  the intended models are unaffected. The claims in `Schedule.lean` are
+  stated over the weaker class and are unchanged. Step 4's theorem proving
+  `BoundedTerminationClaim` carries the cancellative class as an explicit
+  hypothesis. No run predicate can express it, because it constrains the
+  sort, just like the instance hypotheses of §6.2.5.
+* **Only the leader and the honest quorum move through the view.** §6.2.6's
+  "every correct validator is in `W` / accepted" rows hold of every correct
+  validator (the links are stated per validator), but the proof moves only
+  `L` and `ByzNodeSetHonestQuorum`'s quorum through `W`. Decisions need no
+  view (`decide` reads a certificate of any view), so the final row covers
+  every correct validator regardless. The lemma's premises are therefore:
+  every correct validator has proposed by the first entry `N₀`; none is
+  abandoned by `E₀ + L_cert + δ`; `N₀` is the *first* correct entry, which
+  step 3's assembly gets by `Nat.find`; and the clock at `N₀` is at or after
+  GST.
+
+The rest of the staging stands. Step 3 is where the burn lemma's `2δ` (one
+adoption restarting the timeout's window) gets its first test, and it reuses
+this file's link shape and prefix facts unchanged.
