@@ -244,3 +244,14 @@ Reported so they are not re-discovered; all in the supplement.
 * `supplementary-internal-bkp.tex`, a stale snapshot committed alongside
   the 2026-09-03 sync, duplicates labels and will confuse any grep-based
   anchor audit — including the check in §1, which must exclude it.
+* (2026-09-16, from the bounds workshop.) `subsec:mvba-protocol` allows
+  the view timeout to be set by *backoff* — "the timeout is eventually
+  increased beyond this value" — while `thm:termination` counts with a
+  fixed `O(Δ)` timeout to reach its `O(fΔ)` bound. The two are compatible
+  only if the backoff is capped: under uncapped backoff the view current
+  at GST, and with it the next timeout to be waited out, is unbounded
+  across runs, so no run-independent bound from `max(t, GST)` exists and
+  only eventual termination holds. The theorem is a fixed-timeout (or
+  capped-backoff) result and should say so. [`Bounds.md`](./Bounds.md)
+  §6.2.3 has the argument; the model's schedule hypotheses (S-cap) and
+  (S-ramp) are its formal shape.

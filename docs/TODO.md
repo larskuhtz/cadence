@@ -169,6 +169,18 @@ come first.
   timed runs anyway, so the witness falls out of the bounds work
   ([`Bounds.md`](./Bounds.md) §6.1) if that is picked up.
 
+  **Caveat found by the bounds workshop** ([`Bounds.md`](./Bounds.md)
+  §6.2.4): `FJustice` is stated with `Fairness.lean`'s `Enabled`, which a
+  stuttering transition satisfies, and the assembly actions are idempotent
+  in their quorum parameter — so once `msg_prepqc v e` holds, every
+  `form_prepqc v e q'` stays enabled forever and weak fairness demands each
+  fire. At an instance with infinitely many supermajorities no run is fair,
+  and the premise set is unsatisfiable. A witness at finite sorts is
+  unaffected; the general fix is TLA+'s `⟨A⟩_v` — fairness of
+  *state-changing* steps (`Cadence.EnabledMove` in
+  [`Cadence/Timed.lean`](../Cadence/Timed.lean)) — and belongs to the
+  Chorus leg, which owns `Fairness.lean`.
+
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
   meta-axioms become premises of a Lean theorem rather than named
   assumptions. This is the single largest reduction of
@@ -188,7 +200,11 @@ come first.
   no model change — has a **worked, staged plan ready to pick up** in
   [`Bounds.md`](./Bounds.md) §6 (Chorus leg ≈ 2–4 sessions; ranked
   behind primitive instantiation and the (M-frame) checker, ahead of
-  L2S on near-term value-per-effort).
+  L2S on near-term value-per-effort). **The MVBA leg has started**
+  (2026-09-16): its timing model is workshopped and stated
+  ([`Bounds.md`](./Bounds.md) §6.2,
+  [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)); steps
+  2–4 of §6.2.8 remain.
 
 ## Model hygiene
 
