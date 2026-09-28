@@ -38,6 +38,10 @@ variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Ty
   {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice}
   {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
 
+/-- The generic Chorus transition system (any quorum instance, any MVBA). -/
+local notation "RTS" => Chorus.relationalTransitionSystem slot node nodeset merkle_root
+  mstate mvalue mmsg Phase PathChoice
+
 /-- Expose an action's transition body. -/
 local macro "chorus_tr" h:ident : tactic =>
   `(tactic| (simp only [Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct] at $h:ident
@@ -65,7 +69,7 @@ local macro "frame_cases " htr:ident fld:ident hfr:ident "[" acts:ident,* "]" "=
 
 set_option maxHeartbeats 1000000 in
 theorem phase_step {l}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s l s') :
+    (htr : (RTS).tr th s l s') :
     s'.phase = s.phase ∨
     (s.phase = Phase_EnumClass.pre_deadline ∧ s'.phase = Phase_EnumClass.post_deadline) ∨
     (s.phase = Phase_EnumClass.post_deadline ∧ s'.phase = Phase_EnumClass.post_fb_arm) ∨
@@ -89,7 +93,7 @@ theorem phase_step {l}
 
 set_option maxHeartbeats 1000000 in
 theorem commit_cast_flip {l} {i : node}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s l s')
+    (htr : (RTS).tr th s l s')
     (hi : ¬ nset.is_byz i = true)
     (h0 : ¬ s.msg_commit_cast i = true) (h1 : s'.msg_commit_cast i = true) :
     ∀ J, th.is_proposer J = true →
@@ -122,7 +126,7 @@ theorem commit_cast_flip {l} {i : node}
 
 set_option maxHeartbeats 1000000 in
 theorem fallback_sig_flip {l} {i : node}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s l s')
+    (htr : (RTS).tr th s l s')
     (hi : ¬ nset.is_byz i = true)
     (h0 : ¬ s.msg_fallback_sig i = true) (h1 : s'.msg_fallback_sig i = true) :
     ∀ J, th.is_proposer J = true →
@@ -155,7 +159,7 @@ theorem fallback_sig_flip {l} {i : node}
 
 set_option maxHeartbeats 1000000 in
 theorem path_fallback_flip {l} {i : node}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s l s')
+    (htr : (RTS).tr th s l s')
     (h0 : ¬ s.local_path i = PathChoice_EnumClass.fallback) (h1 : s'.local_path i = PathChoice_EnumClass.fallback) :
     s'.msg_fallback_sig i = true := by
   cases l
@@ -195,7 +199,7 @@ whole row, `false` included — so M13 emits no `.mono` for it; but `vote a`
 requires `¬ local_voted a`, and the adversary's `byz_sign_vote_pos` writes
 only Byzantine rows. -/
 theorem vote_pos_sig_frame_of_voted {l} {a j : node} {m : merkle_root}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s l s')
+    (htr : (RTS).tr th s l s')
     (ha : ¬ nset.is_byz a = true) (hv : s.local_voted a = true) :
     s'.msg_vote_pos_sig a j m = s.msg_vote_pos_sig a j m := by
   cases l
@@ -231,22 +235,22 @@ local macro "chorus_enabled" : tactic =>
 /-! ### Enabledness and effect, per action the chains fire -/
 
 theorem enabled_advance_to_deadline (h : s.phase = Phase_EnumClass.pre_deadline) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s .advance_to_deadline := by
+    Enabled RTS th s .advance_to_deadline := by
   chorus_enabled
   exact ⟨_, h, rfl⟩
 
-theorem advance_to_deadline_effect (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s .advance_to_deadline s') :
+theorem advance_to_deadline_effect (htr : (RTS).tr th s .advance_to_deadline s') :
     s'.phase = Phase_EnumClass.post_deadline := by
   chorus_tr htr
   obtain ⟨-, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_advance_to_fb_arm (h : s.phase = Phase_EnumClass.post_deadline) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s .advance_to_fb_arm := by
+    Enabled RTS th s .advance_to_fb_arm := by
   chorus_enabled
   exact ⟨_, h, rfl⟩
 
-theorem advance_to_fb_arm_effect (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s .advance_to_fb_arm s') :
+theorem advance_to_fb_arm_effect (htr : (RTS).tr th s .advance_to_fb_arm s') :
     s'.phase = Phase_EnumClass.post_fb_arm := by
   chorus_tr htr
   obtain ⟨-, rfl⟩ := htr
@@ -254,11 +258,11 @@ theorem advance_to_fb_arm_effect (htr : (Chorus.relationalTransitionSystem slot 
 
 theorem enabled_vote {i : node} (hi : ¬ nset.is_byz i = true)
     (hph : s.phase ≠ Phase_EnumClass.pre_deadline) (hnv : ¬ s.local_voted i = true) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s (.vote i) := by
+    Enabled RTS th s (.vote i) := by
   chorus_enabled
   exact ⟨_, hi, hph, hnv, rfl⟩
 
-theorem vote_effect {i : node} (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s (.vote i) s') :
+theorem vote_effect {i : node} (htr : (RTS).tr th s (.vote i) s') :
     s'.local_voted i = true := by
   chorus_tr htr
   obtain ⟨-, -, -, rfl⟩ := htr
@@ -273,12 +277,12 @@ theorem enabled_fb_sign_pos {i j : node} {m : merkle_root} {q qc qv : nodeset}
     (hq : nset.greater_than_third q) (hqs : ∀ r, nset.member r q = true → s.msg_vote_pos_sig r j m = true)
     (hqc : nset.greater_than_third qc) (hqcs : ∀ r, nset.member r qc = true → s.msg_chunk_received r j m = true)
     (hwe : th.well_encoded m = true) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s (.fb_sign_pos i j m q qc) := by
+    Enabled RTS th s (.fb_sign_pos i j m q qc) := by
   chorus_enabled
   exact ⟨_, hi, hph, hv, hnc, hpath, hj, ⟨qv, hqv, hqvc⟩, hq, hqs, hqc, hqcs, hwe, rfl⟩
 
 theorem fb_sign_pos_effect {i j : node} {m : merkle_root} {q qc : nodeset}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s (.fb_sign_pos i j m q qc) s') :
+    (htr : (RTS).tr th s (.fb_sign_pos i j m q qc) s') :
     s'.msg_fb_pos_sig i j m = true := by
   chorus_tr htr
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
@@ -295,13 +299,13 @@ theorem enabled_fb_sign_neg {i j : node} {qv : nodeset}
       nset.greater_than_third qc ∧
       (∀ r, nset.member r qc = true → s.msg_chunk_received r j M = true) ∧
       th.well_encoded M = true)) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s (.fb_sign_neg i j qv) := by
+    Enabled RTS th s (.fb_sign_neg i j qv) := by
   chorus_enabled
   exact ⟨_, hi, hph, hv, hnc, hpath, hj, hqv, hqvc,
     fun M q qc h1 h2 h3 h4 h5 => hnone M q qc ⟨h1, h2, h3, h4, h5⟩, rfl⟩
 
 theorem fb_sign_neg_effect {i j : node} {qv : nodeset}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s (.fb_sign_neg i j qv) s') :
+    (htr : (RTS).tr th s (.fb_sign_neg i j qv) s') :
     s'.msg_fb_neg_sig i j = true := by
   chorus_tr htr
   obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
@@ -314,12 +318,12 @@ theorem enabled_cast_fallback_vote {i : node}
     (hpath : ¬ s.local_path i = PathChoice_EnumClass.fallback)
     (hall : ∀ J, th.is_proposer J = true →
       (∃ M, s.msg_fb_pos_sig i J M = true) ∨ s.msg_fb_neg_sig i J = true) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s (.cast_fallback_vote i) := by
+    Enabled RTS th s (.cast_fallback_vote i) := by
   chorus_enabled
   exact ⟨_, hi, hph, hv, hnc, hpath, hall, rfl⟩
 
 theorem cast_fallback_vote_effect {i : node}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s (.cast_fallback_vote i) s') :
+    (htr : (RTS).tr th s (.cast_fallback_vote i) s') :
     s'.msg_fallback_sig i = true := by
   chorus_tr htr
   obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
@@ -329,12 +333,12 @@ theorem enabled_broadcast_commitqc_pos {j : node} {m : merkle_root} {q : nodeset
     (hq : nset.supermajority q)
     (hall : ∀ r, nset.member r q = true →
       s.msg_commit_pos_sig r j m = true ∧ s.msg_commit_cast r = true) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s (.broadcast_commitqc_pos j m q) := by
+    Enabled RTS th s (.broadcast_commitqc_pos j m q) := by
   chorus_enabled
   exact ⟨_, hq, hall, rfl⟩
 
 theorem broadcast_commitqc_pos_effect {j : node} {m : merkle_root} {q : nodeset}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s (.broadcast_commitqc_pos j m q) s') :
+    (htr : (RTS).tr th s (.broadcast_commitqc_pos j m q) s') :
     s'.msg_commitqc_pos j m = true := by
   chorus_tr htr
   obtain ⟨-, -, rfl⟩ := htr
@@ -344,12 +348,12 @@ theorem enabled_broadcast_commitqc_neg {j : node} {q : nodeset}
     (hq : nset.supermajority q)
     (hall : ∀ r, nset.member r q = true →
       s.msg_commit_neg_sig r j = true ∧ s.msg_commit_cast r = true) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s (.broadcast_commitqc_neg j q) := by
+    Enabled RTS th s (.broadcast_commitqc_neg j q) := by
   chorus_enabled
   exact ⟨_, hq, hall, rfl⟩
 
 theorem broadcast_commitqc_neg_effect {j : node} {q : nodeset}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s (.broadcast_commitqc_neg j q) s') :
+    (htr : (RTS).tr th s (.broadcast_commitqc_neg j q) s') :
     s'.msg_commitqc_neg j = true := by
   chorus_tr htr
   obtain ⟨-, -, rfl⟩ := htr
@@ -361,12 +365,12 @@ theorem enabled_commit_assign_pos {i j : node} {m : merkle_root}
     (hi : ¬ nset.is_byz i = true) (hnc : ¬ s.local_committed i = true)
     (hj : th.is_proposer j = true) (hqc : s.msg_commitqc_pos j m = true)
     (hnp : ∀ m', ¬ s.local_committed_pos i j m' = true) (hnn : ¬ s.local_committed_neg i j = true) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s (.commit_assign_pos i j m) := by
+    Enabled RTS th s (.commit_assign_pos i j m) := by
   chorus_enabled
   exact ⟨_, hi, hnc, hj, Or.inl hqc, fun m' h => absurd h (hnp m'), hnn, rfl⟩
 
 theorem commit_assign_pos_effect {i j : node} {m : merkle_root}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s (.commit_assign_pos i j m) s') :
+    (htr : (RTS).tr th s (.commit_assign_pos i j m) s') :
     s'.local_committed_pos i j m = true := by
   chorus_tr htr
   obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
@@ -376,12 +380,12 @@ theorem enabled_commit_assign_neg {i j : node}
     (hi : ¬ nset.is_byz i = true) (hnc : ¬ s.local_committed i = true)
     (hj : th.is_proposer j = true) (hqc : s.msg_commitqc_neg j = true)
     (hnp : ∀ m', ¬ s.local_committed_pos i j m' = true) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s (.commit_assign_neg i j) := by
+    Enabled RTS th s (.commit_assign_neg i j) := by
   chorus_enabled
   exact ⟨_, hi, hnc, hj, Or.inl hqc, hnp, rfl⟩
 
 theorem commit_assign_neg_effect {i j : node}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s (.commit_assign_neg i j) s') :
+    (htr : (RTS).tr th s (.commit_assign_neg i j) s') :
     s'.local_committed_neg i j = true := by
   chorus_tr htr
   obtain ⟨-, -, -, -, -, rfl⟩ := htr
@@ -391,12 +395,12 @@ theorem enabled_finalize_commit {i : node}
     (hi : ¬ nset.is_byz i = true) (hnc : ¬ s.local_committed i = true)
     (hall : ∀ J, th.is_proposer J = true →
       (∃ M, s.local_committed_pos i J M = true) ∨ s.local_committed_neg i J = true) :
-    Enabled (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th s (.finalize_commit i) := by
+    Enabled RTS th s (.finalize_commit i) := by
   chorus_enabled
   exact ⟨_, hi, hnc, hall, rfl⟩
 
 theorem finalize_commit_effect {i : node}
-    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s (.finalize_commit i) s') :
+    (htr : (RTS).tr th s (.finalize_commit i) s') :
     s'.local_committed i = true := by
   chorus_tr htr
   obtain ⟨-, -, -, rfl⟩ := htr
@@ -420,8 +424,12 @@ variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Ty
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
   {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice}
 
+/-- The generic Chorus transition system (any quorum instance, any MVBA). -/
+local notation "RTS" => Chorus.relationalTransitionSystem slot node nodeset merkle_root
+  mstate mvalue mmsg Phase PathChoice
+
 /-- A labelled run of Chorus at any MVBA instance. -/
-local notation "CRun" => LRun (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
+local notation "CRun" => LRun RTS
 
 /-- **Saturation** of one validator — the `hsat` shape of
 `progress_dichotomy_of_saturation`: it has cast its fast commit vote with a
@@ -438,7 +446,7 @@ def Saturated (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mm
 /-- Saturation is monotone along every step: every relation in it is. -/
 theorem Saturated.step
     {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
-    {l} (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s l s')
+    {l} (htr : (RTS).tr th s l s')
     {i : node} (h : Saturated th s i) : Saturated th s' i := by
   rcases h with ⟨hc, hs⟩ | ⟨hc, hs⟩
   · refine Or.inl ⟨Chorus.msg_commit_cast.mono htr i hc, fun j hj => ?_⟩
@@ -525,7 +533,7 @@ theorem AtArm.ne_pre
 /-- Past the deadline stays past the deadline. -/
 theorem phase_ne_pre_step
     {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
-    {l} (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s l s')
+    {l} (htr : (RTS).tr th s l s')
     (h : s.phase ≠ Phase_EnumClass.pre_deadline) : s'.phase ≠ Phase_EnumClass.pre_deadline := by
   obtain ⟨-, d2, d3, -, -, -⟩ := phase_distinct (Phase := Phase)
   rcases phase_step htr with h' | ⟨h1, -⟩ | ⟨-, h2⟩ | ⟨-, h2⟩
@@ -537,7 +545,7 @@ theorem phase_ne_pre_step
 /-- At an arm stays at an arm. -/
 theorem AtArm.step
     {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
-    {l} (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s l s')
+    {l} (htr : (RTS).tr th s l s')
     (h : AtArm s) : AtArm s' := by
   obtain ⟨-, d2, d3, d4, d5, -⟩ := phase_distinct (Phase := Phase)
   rcases phase_step htr with h' | ⟨h1, -⟩ | ⟨h1, -⟩ | ⟨-, h2⟩
@@ -729,7 +737,262 @@ theorem eventually_all_saturated (r : CRun th) (hfj : ∀ l, JusticeLabel l → 
     r.mono (P := fun st => Saturated th st i) (fun m h => h.step (r.steps m))
       (hN i (hnodes i) hi) n hn⟩
 
+/-- **A commit certificate becomes a broadcast one**: from the certificate's
+own quorum, `broadcast_commitqc_*` stays enabled until it fires (its guards
+are monotone). -/
+theorem eventually_msg_commitqc (r : CRun th) (hfj : ∀ l, JusticeLabel l → WeaklyFair r l)
+    {N : Nat} {j : node}
+    (hqc : (∃ m, Chorus.commitqc_pos (nset := nset) (mvba := mvba) j m th (r.at' N)) ∨
+      Chorus.commitqc_neg (nset := nset) (mvba := mvba) j th (r.at' N)) :
+    ∃ n, N ≤ n ∧
+      ((∃ m, (r.at' n).msg_commitqc_pos j m = true) ∨ (r.at' n).msg_commitqc_neg j = true) := by
+  by_contra hcon
+  rcases hqc with ⟨m, hqc⟩ | hqc
+  · unfold Chorus.commitqc_pos at hqc
+    obtain ⟨q, hq, hall⟩ := hqc
+    have hall' : ∀ n, N ≤ n → ∀ a, nset.member a q = true →
+        (r.at' n).msg_commit_pos_sig a j m = true ∧ (r.at' n).msg_commit_cast a = true :=
+      fun n hn a ha =>
+        ⟨r.mono (P := fun st => st.msg_commit_pos_sig a j m = true)
+          (fun k hk => Chorus.msg_commit_pos_sig.mono (r.steps k) a j m hk) (hall a ha).1 n hn,
+         r.mono (P := fun st => st.msg_commit_cast a = true)
+          (fun k hk => Chorus.msg_commit_cast.mono (r.steps k) a hk) (hall a ha).2 n hn⟩
+    obtain ⟨n, hn, hfire⟩ := hfj (.broadcast_commitqc_pos j m q) ⟨fun h => h, fun h => h⟩ N
+      (fun n hn => enabled_broadcast_commitqc_pos hq (hall' n hn))
+    exact hcon ⟨n + 1, by omega, Or.inl ⟨m, broadcast_commitqc_pos_effect (hfire ▸ r.steps n)⟩⟩
+  · unfold Chorus.commitqc_neg at hqc
+    obtain ⟨q, hq, hall⟩ := hqc
+    have hall' : ∀ n, N ≤ n → ∀ a, nset.member a q = true →
+        (r.at' n).msg_commit_neg_sig a j = true ∧ (r.at' n).msg_commit_cast a = true :=
+      fun n hn a ha =>
+        ⟨r.mono (P := fun st => st.msg_commit_neg_sig a j = true)
+          (fun k hk => Chorus.msg_commit_neg_sig.mono (r.steps k) a j hk) (hall a ha).1 n hn,
+         r.mono (P := fun st => st.msg_commit_cast a = true)
+          (fun k hk => Chorus.msg_commit_cast.mono (r.steps k) a hk) (hall a ha).2 n hn⟩
+    obtain ⟨n, hn, hfire⟩ := hfj (.broadcast_commitqc_neg j q) ⟨fun h => h, fun h => h⟩ N
+      (fun n hn => enabled_broadcast_commitqc_neg hq (hall' n hn))
+    exact hcon ⟨n + 1, by omega, Or.inr (broadcast_commitqc_neg_effect (hfire ▸ r.steps n))⟩
+
+/-- **The commit route finalizes.** From an index at which a commit
+certificate exists for every proposer, every correct validator eventually
+has `local_committed`: each certificate is broadcast, the validator assigns
+every proposer's entry from it, and `finalize_commit` fires.
+
+No invariant is used. `commit_assign_*`'s two consistency guards are
+anti-monotone, but they concern only the validator's *own* earlier
+assignments for that proposer — and the argument is by contradiction on the
+validator never assigning one, in which case both hold vacuously. -/
+theorem eventually_committed_of_commitqcs (r : CRun th) (hfj : ∀ l, JusticeLabel l → WeaklyFair r l)
+    (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {N : Nat}
+    (hqc : ∀ j, th.is_proposer j = true →
+      (∃ m, Chorus.commitqc_pos (nset := nset) (mvba := mvba) j m th (r.at' N)) ∨
+        Chorus.commitqc_neg (nset := nset) (mvba := mvba) j th (r.at' N))
+    {i : node} (hi : ¬ nset.is_byz i = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).local_committed i = true := by
+  -- Every proposer's certificate is broadcast, at one index and ever after.
+  have hQ : ∀ j st, ((∃ m, (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
+        mstate mvalue mmsg Phase PathChoice)).msg_commitqc_pos j m = true) ∨ st.msg_commitqc_neg j = true) →
+      ∀ {l st'}, (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase
+        PathChoice).tr th st l st' →
+      (∃ m, st'.msg_commitqc_pos j m = true) ∨ st'.msg_commitqc_neg j = true := by
+    intro j st h l st' htr
+    rcases h with ⟨m, hm⟩ | hm
+    · exact Or.inl ⟨m, Chorus.msg_commitqc_pos.mono htr j m hm⟩
+    · exact Or.inr (Chorus.msg_commitqc_neg.mono htr j hm)
+  obtain ⟨N1, hN1, hall⟩ := r.eventually_forall
+    (fun j st => th.is_proposer j = true →
+      (∃ m, st.msg_commitqc_pos j m = true) ∨ st.msg_commitqc_neg j = true)
+    (fun j n h hj => hQ j _ (h hj) (r.steps n)) N nodes
+    (fun j _ => by
+      by_cases hj : th.is_proposer j = true
+      · obtain ⟨n, hn, h⟩ := eventually_msg_commitqc r hfj (hqc j hj)
+        exact ⟨n, hn, fun _ => h⟩
+      · exact ⟨N, Nat.le_refl _, fun h => absurd h hj⟩)
+  have hbc : ∀ n, N1 ≤ n → ∀ j, th.is_proposer j = true →
+      (∃ m, (r.at' n).msg_commitqc_pos j m = true) ∨ (r.at' n).msg_commitqc_neg j = true :=
+    r.mono (P := fun st => ∀ j, th.is_proposer j = true →
+        (∃ m, st.msg_commitqc_pos j m = true) ∨ st.msg_commitqc_neg j = true)
+      (fun k h j hj => hQ j _ (h j hj) (r.steps k)) (fun j hj => hall j (hnodes j) hj)
+  by_contra hcon
+  have hnc : ∀ n, ¬ (r.at' n).local_committed i = true := by
+    intro n hn
+    by_cases hle : N ≤ n
+    · exact hcon ⟨n, hle, hn⟩
+    · exact hcon ⟨N, Nat.le_refl _, r.mono (P := fun st => st.local_committed i = true)
+        (fun k hk => Chorus.local_committed.mono (r.steps k) i hk) hn N (by omega)⟩
+  -- The entry for `j` is assigned by `i`, positive or negative.
+  have hE : ∀ j st, ((∃ m, (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
+        mstate mvalue mmsg Phase PathChoice)).local_committed_pos i j m = true) ∨
+        st.local_committed_neg i j = true) →
+      ∀ {l st'}, (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase
+        PathChoice).tr th st l st' →
+      (∃ m, st'.local_committed_pos i j m = true) ∨ st'.local_committed_neg i j = true := by
+    intro j st h l st' htr
+    rcases h with ⟨m, hm⟩ | hm
+    · exact Or.inl ⟨m, Chorus.local_committed_pos.mono htr i j m hm⟩
+    · exact Or.inr (Chorus.local_committed_neg.mono htr i j hm)
+  have hassign : ∀ j, th.is_proposer j = true → ∃ n, N1 ≤ n ∧
+      ((∃ m, (r.at' n).local_committed_pos i j m = true) ∨ (r.at' n).local_committed_neg i j = true) := by
+    intro j hj
+    by_contra hna
+    have hnp : ∀ n, N1 ≤ n → ∀ m', ¬ (r.at' n).local_committed_pos i j m' = true :=
+      fun n hn m' h => hna ⟨n, hn, Or.inl ⟨m', h⟩⟩
+    have hnn : ∀ n, N1 ≤ n → ¬ (r.at' n).local_committed_neg i j = true :=
+      fun n hn h => hna ⟨n, hn, Or.inr h⟩
+    rcases hbc N1 (Nat.le_refl _) j hj with ⟨m, hm⟩ | hm
+    · have hm' : ∀ n, N1 ≤ n → (r.at' n).msg_commitqc_pos j m = true :=
+        r.mono (P := fun st => st.msg_commitqc_pos j m = true)
+          (fun k hk => Chorus.msg_commitqc_pos.mono (r.steps k) j m hk) hm
+      obtain ⟨n, hn, hfire⟩ := hfj (.commit_assign_pos i j m) ⟨fun h => h, fun h => h⟩ N1
+        (fun n hn => enabled_commit_assign_pos hi (hnc n) hj (hm' n hn) (hnp n hn) (hnn n hn))
+      exact hna ⟨n + 1, by omega, Or.inl ⟨m, commit_assign_pos_effect (hfire ▸ r.steps n)⟩⟩
+    · have hm' : ∀ n, N1 ≤ n → (r.at' n).msg_commitqc_neg j = true :=
+        r.mono (P := fun st => st.msg_commitqc_neg j = true)
+          (fun k hk => Chorus.msg_commitqc_neg.mono (r.steps k) j hk) hm
+      obtain ⟨n, hn, hfire⟩ := hfj (.commit_assign_neg i j) ⟨fun h => h, fun h => h⟩ N1
+        (fun n hn => enabled_commit_assign_neg hi (hnc n) hj (hm' n hn) (hnp n hn))
+      exact hna ⟨n + 1, by omega, Or.inr (commit_assign_neg_effect (hfire ▸ r.steps n))⟩
+  -- Every proposer assigned at one index and ever after, so `finalize_commit` fires.
+  obtain ⟨N2, -, hall2⟩ := r.eventually_forall
+    (fun j st => th.is_proposer j = true →
+      (∃ m, st.local_committed_pos i j m = true) ∨ st.local_committed_neg i j = true)
+    (fun j n h hj => hE j _ (h hj) (r.steps n)) N1 nodes
+    (fun j _ => by
+      by_cases hj : th.is_proposer j = true
+      · obtain ⟨n, hn, h⟩ := hassign j hj
+        exact ⟨n, hn, fun _ => h⟩
+      · exact ⟨N1, Nat.le_refl _, fun h => absurd h hj⟩)
+  have hall2' : ∀ n, N2 ≤ n → ∀ j, th.is_proposer j = true →
+      (∃ m, (r.at' n).local_committed_pos i j m = true) ∨ (r.at' n).local_committed_neg i j = true :=
+    r.mono (P := fun st => ∀ j, th.is_proposer j = true →
+        (∃ m, st.local_committed_pos i j m = true) ∨ st.local_committed_neg i j = true)
+      (fun k h j hj => hE j _ (h j hj) (r.steps k)) (fun j hj => hall2 j (hnodes j) hj)
+  obtain ⟨n, -, hfire⟩ := hfj (.finalize_commit i) ⟨fun h => h, fun h => h⟩ N2
+    (fun n hn => enabled_finalize_commit hi (hnc n) (hall2' n hn))
+  exact hnc (n + 1) (finalize_commit_effect (hfire ▸ r.steps n))
+
 end RunFacts
+
+/-! ## At the concrete quorum family, at the system's MVBA -/
+
+section Concrete
+
+open Classical ByzNodeSet
+
+variable {slot merkle_root view Phase PathChoice : Type}
+  [Inhabited slot] [Inhabited merkle_root] [Inhabited view]
+  [Inhabited Phase] [Inhabited PathChoice]
+  [vord : TotalOrderWithMinimum view]
+  [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
+  (n f : Nat) (hf : n = 3 * f + 1)
+  (is_byz : Fin n → Prop) [DecidablePred is_byz]
+  (hbyz : (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length ≤ f)
+  [node_inhabited : Inhabited (Fin n)]
+  -- The quorum counting facts Chorus consumes (its `cnt` class constraint).
+  [cnt : Cadence.ByzNodeSetCounting (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz)]
+  {thS : Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view))
+      (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view}
+
+/- Apply a generated `Chorus` declaration at the canonical `Classical`
+instantiation — `Progress.lean`'s `cpv%`, at the `Mvba` model's types and
+with the MVBA constraint filled by `Mvba.mvbaSafety thM`. -/
+local macro "cpvm%" t:ident args:term:max* : term =>
+  `(@$t
+    (Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)) (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice)
+    (Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)) (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice))
+    slot (fun a b => Classical.propDecidable (a = b)) inferInstance
+    (Fin n) (fun a b => Classical.propDecidable (a = b)) inferInstance
+    (ByzNSet n) (fun a b => Classical.propDecidable (a = b)) inferInstance
+    merkle_root (fun a b => Classical.propDecidable (a = b)) inferInstance
+    (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view))
+      (fun a b => Classical.propDecidable (a = b)) inferInstance
+    (Fin n → Option merkle_root) (fun a b => Classical.propDecidable (a = b)) inferInstance
+    (Mvba.Msg view (Fin n → Option merkle_root)) (fun a b => Classical.propDecidable (a = b)) inferInstance
+    (byzNodeSetFin n f hf is_byz hbyz) (Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
+    (Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thM)
+    Phase (fun a b => Classical.propDecidable (a = b)) inferInstance inferInstance
+    PathChoice (fun a b => Classical.propDecidable (a = b)) inferInstance inferInstance
+    (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)) (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice)
+    (fun ff => @Chorus.instAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)) (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) ff)
+    (fun ff => @Chorus.instLawfulAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)) (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+      (fun a b => Classical.propDecidable (a = b)) ff)
+    instIsSubStateOfRefl instIsSubReaderOfRefl
+    $args*)
+
+omit node_inhabited cnt in
+/-- The honest population, in the instance's vocabulary: a supermajority
+whose every member is correct. -/
+theorem honest_quorum_fin :
+    ∃ H : ByzNSet n, (byzNodeSetFin n f hf is_byz hbyz).supermajority H ∧
+      ∀ a, (byzNodeSetFin n f hf is_byz hbyz).member a H = true →
+        ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz a = true := by
+  classical
+  obtain ⟨H, hlen, hhon⟩ := honest_supermajority n f hf is_byz hbyz
+  refine ⟨H, by simpa +instances [byzNodeSetFin] using hlen, fun a ha hb => ?_⟩
+  exact hhon a (by simpa +instances [byzNodeSetFin] using ha) (by simpa +instances [byzNodeSetFin] using hb)
+
+theorem saturation_fin (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thS thM)
+    (hfj : FJustice (nset := byzNodeSetFin n f hf is_byz hbyz) r) :
+    ∃ N, ∀ k, N ≤ k → ∀ i : Fin n, ¬ is_byz i → Saturated thS (r.at' k) i := by
+  obtain ⟨H, hH, hHh⟩ := honest_quorum_fin n f hf is_byz hbyz
+  obtain ⟨N, hN⟩ := eventually_all_saturated r hfj (List.ofFn (n := n) id) (by simp) hH hHh
+  exact ⟨N, fun k hk i hi => hN k hk i (by simpa +instances [byzNodeSetFin] using hi)⟩
+
+set_option maxHeartbeats 1600000 in
+theorem eventually_progress_dichotomy (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thS thM)
+    (hfj : FJustice (nset := byzNodeSetFin n f hf is_byz hbyz) r) :
+    ∃ N,
+    (∀ j : Fin n, thS.is_proposer j = true →
+      ((∃ m, cpvm% Chorus.commitqc_pos j m thS (r.at' N)) ∨ (cpvm% Chorus.commitqc_neg j thS (r.at' N)))) ∨
+    ((cpvm% Chorus.mvba_invoked thS (r.at' N)) ∧
+      ∀ j : Fin n, thS.is_proposer j = true →
+        ((∃ m, (cpvm% Chorus.vote_quorum_pos j m thS (r.at' N)) ∨
+               ((cpvm% Chorus.fb_quorum_pos j m thS (r.at' N)) ∧ (cpvm% Chorus.fbcert thS (r.at' N)))) ∨
+         ((cpvm% Chorus.vote_quorum_neg j thS (r.at' N)) ∨
+          (((cpvm% Chorus.fb_quorum_neg j thS (r.at' N)) ∨ (cpvm% Chorus.equiv_evidence j thS (r.at' N))) ∧
+           (cpvm% Chorus.fbcert thS (r.at' N)))))) := by
+  obtain ⟨N, hN⟩ := saturation_fin n f hf is_byz hbyz r hfj
+  exact ⟨N, progress_dichotomy_of_saturation
+    (mvba := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thM) n f hf is_byz hbyz
+    (r.reachable N) (fun i hi => hN N (Nat.le_refl N) i hi)⟩
+
+set_option maxHeartbeats 1600000 in
+theorem commit_route_fin (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thS thM)
+    (hfj : FJustice (nset := byzNodeSetFin n f hf is_byz hbyz) r) {N : Nat}
+    (hqc : ∀ j : Fin n, thS.is_proposer j = true →
+      ((∃ m, cpvm% Chorus.commitqc_pos j m thS (r.at' N)) ∨ (cpvm% Chorus.commitqc_neg j thS (r.at' N)))) :
+    ∀ i : Fin n, ¬ is_byz i → ∃ k, N ≤ k ∧ (r.at' k).local_committed i = true :=
+  fun i hi => eventually_committed_of_commitqcs r hfj (List.ofFn (n := n) id) (by simp) hqc
+    (by simpa +instances [byzNodeSetFin] using hi)
+
+set_option maxHeartbeats 1600000 in
+theorem terminates_of_commit_route (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thS thM)
+    (hfj : FJustice (nset := byzNodeSetFin n f hf is_byz hbyz) r) {N : Nat}
+    (hqc : ∀ j : Fin n, thS.is_proposer j = true →
+      ((∃ m, cpvm% Chorus.commitqc_pos j m thS (r.at' N)) ∨ (cpvm% Chorus.commitqc_neg j thS (r.at' N)))) :
+    Terminates (nset := byzNodeSetFin n f hf is_byz hbyz) r := by
+  intro i hi
+  obtain ⟨k, -, hk⟩ := commit_route_fin n f hf is_byz hbyz r hfj hqc i
+    (fun hb => hi (by simpa +instances [byzNodeSetFin] using hb))
+  exact ⟨k, hk⟩
+
+end Concrete
 
 end Chorus
 
