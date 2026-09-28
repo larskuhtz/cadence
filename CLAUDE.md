@@ -162,12 +162,15 @@ History: [docs/History.md](./docs/History.md).
   checking. Since the cheap rung (above) the cache holds only the
   *solver-touched* cells — a cell the rung closes was never searched for, so
   there is nothing to store — which is why a build log now reads mostly `✅`
-  where it used to read mostly `♻`. Measured 2026-09-10 on this machine: a
-  **cold** re-validation of the whole suite is 15 min 25 s at `BATCH=3`
-  (26 374 ✅, peak 10.8 GB) and stores 2 990 entries; a **warm** one — every
-  project olean deleted, cache kept — is 12 min 46 s at `BATCH=6`
-  (23 433 ✅ / 3 327 ♻, peak 15.2 GB), of which 486 s is the three model
-  rebuilds plus the root audit module rather than proof-family work.
+  where it used to read mostly `♻`. Measured 2026-09-26 on this machine
+  (Veil on upstream `517f2bad`): a **cold** re-validation of the whole suite
+  is 19 min 58 s at `BATCH=3` (28 774 ✅ / 349 ♻, peak 13.0 GB) and stores
+  792 entries; a **warm** one — every project olean deleted, cache kept — is
+  12 min 58 s at `BATCH=6` (peak 15.3 GB), of which 477 s is the three model
+  rebuilds plus the root audit module rather than proof-family work. The cold
+  figure grew from 15 min 25 s (2026-09-10) with the workload (the MVBA grew
+  from 725 to 1 325 cells), not with the re-port: on the same workload the old
+  pin measured the same within noise ([docs/History.md](./docs/History.md)).
 * **The cache hides derivation drift.** Entries are keyed by VC statement,
   not by proof script: a kernel-replay hit consumes a `#prove_vc … by <tac>`
   cell *without elaborating the tactic*, so a warm green build proves the
