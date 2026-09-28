@@ -123,6 +123,7 @@ stage Cadence.Chorus.Certify Cadence.FallbackReceipt.Certify Cadence.Mvba.Certif
 # End theorems, the pre-fix refutation, and the monitor.
 stage Cadence.Chorus.Compose Cadence.Chorus.Pigeonhole \
       Cadence.Chorus.Counting Cadence.Chorus.Progress \
+      Cadence.Chorus.Liveness \
       Cadence.Composition \
       Cadence.FallbackReceipt.Totality \
       Cadence.FallbackReceipt.PreFix
