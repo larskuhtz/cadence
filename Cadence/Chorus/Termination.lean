@@ -1,6 +1,68 @@
 import Cadence.Chorus.Liveness
 import Cadence.Chorus.Progress
 
+/-! # Chorus/Termination — the run-level proof of Chorus's termination claim
+
+[`docs/Liveness.md`](../../docs/Liveness.md) §4, stages 3–5, against the
+claim and premises stated in [`Liveness.lean`](./Liveness.lean). This file
+holds the proof; that one holds the statement, and nothing here adds a
+premise to it.
+
+## Stage 3: the fast route, from (F-justice) alone
+
+Two theorems, both taking `FJustice` and nothing else of the three premises:
+
+* **Saturation** — `saturation_fin`: from some index on, every correct
+  validator has cast its path vote, fast or fallback, carrying a signature
+  for every proposer. That is the `hsat` hypothesis of
+  `progress_dichotomy_of_saturation`, so `eventually_progress_dichotomy`
+  follows: in every run satisfying (F-justice), the progress dichotomy holds
+  at some index.
+* **The commit route** — `commit_route_fin`: from an index at which a commit
+  certificate exists for every proposer (the dichotomy's left disjunct),
+  every correct validator finalizes; `terminates_of_commit_route` is the
+  same fact as `Terminates`, the claim's target.
+
+What remains for stages 4–5 is the dichotomy's right disjunct: the MVBA arm,
+where `MvbaAdmissible` and `ValidBridge` enter.
+
+## How it is built
+
+Three layers, the last two in the shape of `Mvba/Liveness.lean`'s first
+link:
+
+1. **Step facts** (section `Steps`) — per-action enabledness (the guards)
+   and effect (the post-state), and five two-state facts read off the
+   transition bodies by label dispatch: the phase only moves forward, the
+   first step at which `msg_commit_cast i` / `msg_fallback_sig i` /
+   `local_path i = fallback` holds is the correct validator's own honest
+   action, and a correct validator's vote signatures are frozen once it has
+   voted. Each dispatch is one `case` per action — 37 or 38 generated
+   `frame_<field>` lemmas plus the actions that write the field — so a
+   forgotten action is an unsolved goal.
+2. **Run-level chains** (section `RunFacts`) — generic in the quorum
+   instance and the MVBA, with the finiteness they consume made explicit: a
+   complete list of validators and an honest supermajority. Each link is
+   `Cadence.WeaklyFair` used in the only way `Fairness.lean` allows: a label
+   that stays enabled fires, so a proof shows the label stays enabled unless
+   the disabling event is the progress wanted.
+3. **The concrete family** (section `Concrete`) — `Fin n`, `byzNodeSetFin`
+   at every `n = 3f+1`, the MVBA constraint filled by `Mvba.mvbaSafety
+   thM`: the runs of `Liveness.lean`'s claim. The node list is `List.ofFn
+   id` and the honest quorum is `honest_supermajority`'s.
+
+## What it uses from the sweep, and what it does not
+
+One invariant: `voted_implies_cast` (and its converse
+`vote_cast_implies_voted`), to put a correct voter's vote on the network.
+The two facts `docs/Liveness.md` §4.4 flags as outside the sweep — a
+correct validator's fast commit vote, resp. fallback vote, carries a
+signature per proposer — are **derived** here at run level from the
+first-flip step (`commit_cast_sigs`, `fallback_sig_sigs`), not added to
+the model. The commit route needs no invariant at all (see
+`eventually_committed_of_commitqcs`). No model file is touched and no cell
+is added. -/
+
 namespace Chorus
 
 open Cadence
@@ -22,6 +84,11 @@ theorem phase_distinct :
   tauto
 
 end PhaseOrder
+
+/-! ## Step facts
+
+Everything a single transition says that the chains below need, generic in
+the sorts, the quorum instance and the MVBA. -/
 
 section Steps
 
@@ -68,6 +135,9 @@ local macro "frame_cases " htr:ident fld:ident hfr:ident "[" acts:ident,* "]" "=
   return acc
 
 set_option maxHeartbeats 1000000 in
+/-- **The phase only moves forward**, one marker at a time: every action but
+the three `advance_to_*` frames it (M13's `frame_phase`), and each of those
+is enabled at exactly its own phase. -/
 theorem phase_step {l}
     (htr : (RTS).tr th s l s') :
     s'.phase = s.phase ∨
@@ -92,6 +162,11 @@ theorem phase_step {l}
      byz_release_msg_decrypt_share] => exact Or.inl hfr
 
 set_option maxHeartbeats 1000000 in
+/-- **The first fast commit vote is the validator's own `cast_fast_commit`.**
+If `msg_commit_cast i` flips on a step and `i` is correct, the step was
+`cast_fast_commit i` — `byz_cast_commit` requires a Byzantine signer, and
+every other action frames the relation — so its guard, a commit signature
+per proposer, held at the pre-state. -/
 theorem commit_cast_flip {l} {i : node}
     (htr : (RTS).tr th s l s')
     (hi : ¬ nset.is_byz i = true)
@@ -125,6 +200,8 @@ theorem commit_cast_flip {l} {i : node}
      byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
 
 set_option maxHeartbeats 1000000 in
+/-- **The first fallback vote is the validator's own `cast_fallback_vote`**,
+by the same dispatch: its guard is a fallback signature per proposer. -/
 theorem fallback_sig_flip {l} {i : node}
     (htr : (RTS).tr th s l s')
     (hi : ¬ nset.is_byz i = true)
@@ -158,6 +235,9 @@ theorem fallback_sig_flip {l} {i : node}
      byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
 
 set_option maxHeartbeats 1000000 in
+/-- **The fallback path is entered only by casting the fallback vote**:
+`local_path i` becomes `fallback` only at `cast_fallback_vote i`, which sets
+`msg_fallback_sig i` in the same step (`cast_fast_commit` writes `fast`). -/
 theorem path_fallback_flip {l} {i : node}
     (htr : (RTS).tr th s l s')
     (h0 : ¬ s.local_path i = PathChoice_EnumClass.fallback) (h1 : s'.local_path i = PathChoice_EnumClass.fallback) :
@@ -408,7 +488,14 @@ theorem finalize_commit_effect {i : node}
 
 end Steps
 
-/-! ## Run-level facts -/
+/-! ## Run-level facts
+
+The two chains of `docs/Liveness.md` §4.4, over any labelled Chorus run.
+The fairness hypothesis is `FJustice`'s body, `∀ l, JusticeLabel l →
+WeaklyFair r l`, so the concrete theorems below pass `FJustice r` through
+unchanged. The quorum instance and the MVBA are implicit arguments here
+(read off the run's type), so these lemmas instantiate at the concrete
+family without any instance search at `byzNodeSetFin`. -/
 
 section RunFacts
 
@@ -873,7 +960,10 @@ theorem eventually_committed_of_commitqcs (r : CRun th) (hfj : ∀ l, JusticeLab
 
 end RunFacts
 
-/-! ## At the concrete quorum family, at the system's MVBA -/
+/-! ## At the concrete quorum family, at the system's MVBA
+
+The runs of `Liveness.lean`'s claim, at the family the counting theorems are
+stated over: `Fin n` with `byzNodeSetFin` at every `n = 3f+1`. -/
 
 section Concrete
 
@@ -947,6 +1037,9 @@ theorem honest_quorum_fin :
   refine ⟨H, by simpa +instances [byzNodeSetFin] using hlen, fun a ha hb => ?_⟩
   exact hhon a (by simpa +instances [byzNodeSetFin] using ha) (by simpa +instances [byzNodeSetFin] using hb)
 
+/-- **Stage 3, first theorem: every correct validator is eventually
+saturated, and stays so** — from (F-justice) alone. The conclusion is, per
+index, `progress_dichotomy_of_saturation`'s `hsat` hypothesis. -/
 theorem saturation_fin (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thS thM)
     (hfj : FJustice (nset := byzNodeSetFin n f hf is_byz hbyz) r) :
     ∃ N, ∀ k, N ≤ k → ∀ i : Fin n, ¬ is_byz i → Saturated thS (r.at' k) i := by
@@ -955,6 +1048,10 @@ theorem saturation_fin (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz)
   exact ⟨N, fun k hk i hi => hN k hk i (by simpa +instances [byzNodeSetFin] using hi)⟩
 
 set_option maxHeartbeats 1600000 in
+/-- **The progress dichotomy holds in every run satisfying (F-justice)**: the
+saturation theorem discharges `progress_dichotomy_of_saturation`'s `hsat` at
+a reachable index. Its left disjunct is `commit_route_fin`'s hypothesis;
+its right disjunct is the MVBA arm (stage 4). -/
 theorem eventually_progress_dichotomy (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thS thM)
     (hfj : FJustice (nset := byzNodeSetFin n f hf is_byz hbyz) r) :
     ∃ N,
@@ -973,6 +1070,10 @@ theorem eventually_progress_dichotomy (r : ChorusRun (nset := byzNodeSetFin n f 
     (r.reachable N) (fun i hi => hN N (Nat.le_refl N) i hi)⟩
 
 set_option maxHeartbeats 1600000 in
+/-- **Stage 3, second theorem: the commit route finalizes** — from an index at
+which every proposer has a commit certificate (the progress dichotomy's left
+disjunct, verbatim), every correct validator eventually has
+`local_committed`. From (F-justice) alone. -/
 theorem commit_route_fin (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thS thM)
     (hfj : FJustice (nset := byzNodeSetFin n f hf is_byz hbyz) r) {N : Nat}
     (hqc : ∀ j : Fin n, thS.is_proposer j = true →
@@ -982,6 +1083,8 @@ theorem commit_route_fin (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hby
     (by simpa +instances [byzNodeSetFin] using hi)
 
 set_option maxHeartbeats 1600000 in
+/-- The commit route in the claim's own vocabulary: if the dichotomy's left
+disjunct ever holds, the run `Terminates`. -/
 theorem terminates_of_commit_route (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thS thM)
     (hfj : FJustice (nset := byzNodeSetFin n f hf is_byz hbyz) r) {N : Nat}
     (hqc : ∀ j : Fin n, thS.is_proposer j = true →
@@ -996,3 +1099,58 @@ end Concrete
 
 end Chorus
 
+/-! ## The pinned trust base
+
+The standard Lean trio and nothing else — no `sorryAx`. The stage-3 theorems
+at the concrete family, their generic cores, and the two run-level facts
+derived in place of new invariants. The reachability they use comes from the
+proof-file family through `Certify.lean`, and the dichotomy from
+`Progress.lean`, each pinned there. -/
+
+/--
+info: 'Chorus.saturation_fin' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.saturation_fin
+
+/--
+info: 'Chorus.eventually_progress_dichotomy' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.eventually_progress_dichotomy
+
+/--
+info: 'Chorus.commit_route_fin' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.commit_route_fin
+
+/--
+info: 'Chorus.terminates_of_commit_route' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.terminates_of_commit_route
+
+/--
+info: 'Chorus.eventually_all_saturated' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.eventually_all_saturated
+
+/--
+info: 'Chorus.eventually_committed_of_commitqcs' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.eventually_committed_of_commitqcs
+
+/--
+info: 'Chorus.commit_cast_sigs' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.commit_cast_sigs
+
+/--
+info: 'Chorus.fallback_sig_sigs' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.fallback_sig_sigs

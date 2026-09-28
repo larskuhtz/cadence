@@ -79,6 +79,8 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `Chorus/Liveness.lean` (the run-level liveness target for Chorus at the
   `Mvba` instance: the label classes, the named premises replacing
   (A-mvba), the MVBA-as-component instance; `docs/Liveness.md` §4),
+  `Chorus/Termination.lean` (its proof, stage by stage — so far saturation
+  and the commit route from (F-justice) alone, `docs/Liveness.md` §4.5),
   `System.lean` (the
   glue's end theorem at both instances — the composed system, no contract
   hypothesis left).

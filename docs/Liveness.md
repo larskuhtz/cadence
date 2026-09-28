@@ -234,8 +234,10 @@ untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
    **Done, 2026-09-16** — [`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean);
    §4.3 is the record, including the one premise the sketch above did not
    foresee.
-3. The fast-path chain to a commit certificate — §4.4 is the kick-off
-   record: what to prove, from which facts, and the traps already known.
+3. ~~The fast-path chain to a commit certificate — §4.4 is the kick-off
+   record: what to prove, from which facts, and the traps already known.~~
+   **Done, 2026-09-28** — [`Cadence/Chorus/Termination.lean`](../Cadence/Chorus/Termination.lean);
+   §4.5 is the record, including four corrections to §4.4.
 4. The fallback and MVBA arms, the second consuming `Mvba.termination`
    through the projection.
 5. The assembly, the `Cadence.lean` row and pin, and retiring (A-mvba) from
@@ -487,7 +489,8 @@ it is not a fairness assumption and must not be filed as one.
 ### 4.4 Stage 3, the kick-off record: saturation, and the commit route
 
 *Written 2026-09-24 at the hand-over between sessions, so the next one does
-not re-derive the design. Nothing below is done; §4.2 and §4.3 are what is.*
+not re-derive the design. Nothing below is done; §4.2 and §4.3 are what is.
+Stage 3 has since landed as planned, with four corrections — §4.5.*
 
 **Where it goes.** A new file, `Cadence/Chorus/Termination.lean`, importing
 [`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean) (the
@@ -596,3 +599,105 @@ and `ByzNodeSetEnum.mem_members` is the bridge to `member`; and a run-level
 "first index at which a monotone flag holds" is `Nat.find` on a decidable
 predicate under `open Classical`, with the predecessor state still having the
 flag false.
+
+### 4.5 Stage 3, done: saturation and the commit route, from (F-justice) alone
+
+*Record of 2026-09-28. The file is
+[`Cadence/Chorus/Termination.lean`](../Cadence/Chorus/Termination.lean);
+its header carries the structure and its docstrings the reasoning at the
+point of use. `Chorus/Liveness.lean` — the claim and its premises — is
+unchanged.*
+
+**What was proven**, at the concrete quorum family (`Fin n`,
+`byzNodeSetFin` at every `n = 3f+1`) and the system's MVBA (`Mvba.mvbaSafety
+thM`), each theorem taking `FJustice` and no other premise:
+
+* `saturation_fin` — from some index on, every correct validator is
+  `Saturated`: it has cast its fast commit vote with a commit signature per
+  proposer, or its fallback vote with a fallback signature per proposer.
+  That is `progress_dichotomy_of_saturation`'s `hsat`, so
+  `eventually_progress_dichotomy` follows: **in every run satisfying
+  (F-justice), the progress dichotomy holds at some index.**
+* `commit_route_fin` — from an index at which every proposer has a commit
+  certificate (the dichotomy's left disjunct, verbatim), every correct
+  validator eventually has `local_committed`;
+  `terminates_of_commit_route` restates it as the claim's own `Terminates`.
+
+So the fast route of `TerminationClaim` is closed: what stage 4 has to add
+is exactly the dichotomy's right disjunct. Every pin is at the standard
+trio, with no model edit and no new cell (the module builds in seconds).
+
+**How.** Three layers, the last two in `Mvba/Liveness.lean`'s first-link
+shape: per-action enabledness and effect lemmas plus five two-state step
+facts read off the transition bodies by label dispatch; the two chains over
+any labelled Chorus run; and one-line instantiations at the concrete family.
+Every temporal step consumes `WeaklyFair` as §4.4 prescribes — a label that
+stays enabled fires — and every per-member family collapses through
+`LRun.eventually_forall` over `List.ofFn id`.
+
+**Four corrections to §4.4**, each found by writing the proof:
+
+1. *Positive fallback evidence persists for a reason §4.4 did not state.*
+   `msg_vote_pos_sig` has no generated `.mono`: `vote`'s bulk update writes
+   the voter's whole row, `false` included. The evidence that keeps
+   `fb_sign_pos` enabled is therefore not monotone per step, and the chain
+   needs `vote_pos_sig_frame_of_voted` — a correct validator's vote
+   signatures are frozen once it has voted — together with the fact that
+   the evidence's signers lie in the honest quorum `qv`, all of whom have
+   voted. It is a step fact (one label dispatch), not an invariant.
+2. *`progress_fallback_signing` is not needed.* The case split is excluded
+   middle on the positive evidence over the run: if it ever appears it
+   persists (item 1) and `fb_sign_pos` fires; if it never does, its absence
+   *is* `fb_sign_neg`'s guard against `qv`, verbatim, at every index.
+3. *The commit route uses no invariant.* §4.4 planned to discharge
+   `commit_assign_*`'s two consistency guards from six invariants
+   (`local_committed_*_backed`, `commitqc_pos_unique`, …). They are
+   unnecessary: the argument is by contradiction on the validator never
+   assigning an entry for that proposer, and then both guards — which
+   concern only its own earlier assignments — hold vacuously.
+4. *A third first-flip fact.* Besides the two §4.4 names
+   (`commit_cast_sigs`, `fallback_sig_sigs`, both derived as planned), the
+   fallback guards' `local_path i ≠ fallback` needs `path_fallback_sig`:
+   `local_path i` becomes `fallback` only at `cast_fallback_vote i`, which
+   casts the fallback vote in the same step. Same technique, same status —
+   a run-level theorem, not an invariant.
+
+The sweep contributes `voted_implies_cast` and `vote_cast_implies_voted`,
+and nothing else.
+
+**One structural choice.** §4.4 said to work at the concrete family from the
+start. The chains are instead proven **generic in the quorum instance and the
+MVBA**, with the finiteness they consume as explicit hypotheses — a complete
+list of validators and an honest supermajority — and the concrete theorems
+supply `List.ofFn id` and `honest_supermajority`'s quorum. The reason is the
+instance regime rather than taste. At `Fin n`, a generated ghost relation
+written with named arguments elaborates with `instDecidableEqFin` where the
+generated system has `Classical.propDecidable`, so statements have to go
+through the canonical instantiation (`Progress.lean`'s `cpv%`, copied as
+`cpvm%` at the `Mvba` types). The generic lemmas take the instances as
+implicit arguments read off the run's type, so they meet that
+instantiation by unification and need no instance search at `byzNodeSetFin`
+at all. It also shows something true: the fast route does not depend on
+the MVBA instance.
+
+**What to watch in stages 4–5**, in addition to §4.2's and §4.3's notes:
+
+* The right disjunct needs `mvba_propose` enabled for every correct
+  validator: its validity guards are the disjunct's evidence (that is what
+  `Progress.lean`'s header says), its last guard is the contract's
+  `propose`, and that is where `ValidBridge`'s soundness clause enters.
+  After that comes `Mvba.termination` through the projection (`AllPropose`
+  and `NoEarlyAbandon` derived, §4.3), the decision handlers
+  (`ValidBridge`'s completeness clause), and the fallback commit round.
+* [`TODO.md`](./TODO.md)'s caveat from the bounds workshop
+  ([`Bounds.md`](./Bounds.md) §6.2.4) applies to Chorus's `FJustice` as
+  much as to the MVBA's: it is stated with stuttering-inclusive `Enabled`,
+  so a label that stays enabled only because its effect already holds must
+  still fire, and at infinite sorts that can make the premise
+  unsatisfiable. Stage 3 does not resolve it, and its theorems are only as
+  non-vacuous as `FJustice` is. They are, however, robust to the fix
+  (fairness of state-changing steps, `Cadence.EnabledMove`): every label
+  the chains fire is fired at a state where its effect is absent — that is
+  the contradiction hypothesis of each link — so each such step is a move.
+  That is an argument by inspection, not yet a checked fact; the refinement
+  of `FJustice`, if this leg makes it, should re-check it.
