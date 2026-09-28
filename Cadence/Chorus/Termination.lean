@@ -188,6 +188,41 @@ theorem path_fallback_flip {l} {i : node}
      byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit,
      byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
 
+set_option maxHeartbeats 1000000 in
+/-- **A correct validator's vote signatures are frozen once it has voted.**
+`msg_vote_pos_sig` is not monotone — `vote`'s bulk update writes the voter's
+whole row, `false` included — so M13 emits no `.mono` for it; but `vote a`
+requires `¬ local_voted a`, and the adversary's `byz_sign_vote_pos` writes
+only Byzantine rows. -/
+theorem vote_pos_sig_frame_of_voted {l} {a j : node} {m : merkle_root}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th s l s')
+    (ha : ¬ nset.is_byz a = true) (hv : s.local_voted a = true) :
+    s'.msg_vote_pos_sig a j m = s.msg_vote_pos_sig a j m := by
+  cases l
+  case vote i' =>
+    chorus_tr htr
+    obtain ⟨-, -, hnv, rfl⟩ := htr
+    chorus_field_simp
+    rcases eq_or_ne i' a with rfl | hne
+    · simp_all
+    · simp_all
+  case byz_sign_vote_pos r j' m' =>
+    chorus_tr htr
+    obtain ⟨hr, -, rfl⟩ := htr
+    chorus_field_simp
+    rcases eq_or_ne r a with rfl | hne
+    · simp_all
+    · simp_all
+  frame_cases htr msg_vote_pos_sig hfr
+    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, propose, deliver_chunk_assigned,
+     record_chunk, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg,
+     cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg,
+     cast_fallback_vote, mvba_step, mvba_propose, on_mvba_decide_pos, on_mvba_decide_neg,
+     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_neg, byz_cast_vote,
+     byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg,
+     byz_cast_commit, byz_sign_fbcommit, byz_release_msg_decrypt_share] => rw [hfr]
+
 /-- Turn an enabledness goal into the action's guards. -/
 local macro "chorus_enabled" : tactic =>
   `(tactic| simp only [Enabled, Chorus.relationalTransitionSystem, Chorus.Next,
@@ -572,6 +607,127 @@ theorem eventually_quorum_cast (r : CRun th) (hfj : ∀ l, JusticeLabel l → We
   exact ⟨N, fun n hn a ha =>
     r.mono (P := fun st => st.msg_vote_cast a = true)
       (fun m hm => Chorus.msg_vote_cast.mono (r.steps m) a hm) (hN a (hnodes a) ha) n hn⟩
+
+/-- **Every correct validator is eventually saturated.** The chain of
+`docs/Liveness.md` §4.4: the phase reaches an arm, `i` votes, an honest
+quorum's votes are on the network; then, unless `i` saturates, each
+proposer gets a fallback signature from `i` — `fb_sign_pos` once positive
+evidence appears (it is monotone, so the label stays enabled), `fb_sign_neg`
+against the honest quorum if it never does (the absence of that evidence
+*is* its guard) — and `cast_fallback_vote i` fires. Every step either fires
+or is disabled by `i` casting a path vote, which saturates it by the
+first-flip facts. -/
+theorem eventually_saturated (r : CRun th) (hfj : ∀ l, JusticeLabel l → WeaklyFair r l)
+    (nodes : List node) (hnodes : ∀ a, a ∈ nodes)
+    {qv : nodeset} (hqv : nset.supermajority qv)
+    (hqvh : ∀ a, nset.member a qv = true → ¬ nset.is_byz a = true)
+    {i : node} (hi : ¬ nset.is_byz i = true) : ∃ n, Saturated th (r.at' n) i := by
+  obtain ⟨Na, hNa⟩ := eventually_atArm r hfj
+  obtain ⟨Nv, hNv⟩ := eventually_voted r hfj hi
+  obtain ⟨Nq, hNq⟩ := eventually_quorum_cast r hfj nodes hnodes hqvh
+  by_contra hcon
+  -- `i` never casts a path vote: either would saturate it.
+  have hnc : ∀ n, ¬ (r.at' n).msg_commit_cast i = true :=
+    fun n h => hcon ⟨n, Or.inl ⟨h, commit_cast_sigs r hi n h⟩⟩
+  have hnf : ∀ n, ¬ (r.at' n).msg_fallback_sig i = true :=
+    fun n h => hcon ⟨n, Or.inr ⟨h, fallback_sig_sigs r hi n h⟩⟩
+  have hnp : ∀ n, ¬ (r.at' n).local_path i = PathChoice_EnumClass.fallback :=
+    fun n h => hnf n (path_fallback_sig r n h)
+  -- From `N` on: at an arm, `i` has voted, the honest quorum's votes are cast.
+  have harm : ∀ n, max Na (max Nv Nq) ≤ n → AtArm (r.at' n) :=
+    fun n hn => hNa n (by omega)
+  have hv : ∀ n, max Na (max Nv Nq) ≤ n → (r.at' n).local_voted i = true :=
+    fun n hn => r.mono (P := fun st => st.local_voted i = true)
+      (fun m hm => Chorus.local_voted.mono (r.steps m) i hm) hNv n (by omega)
+  have hq : ∀ n, max Na (max Nv Nq) ≤ n →
+      ∀ a, nset.member a qv = true → (r.at' n).msg_vote_cast a = true :=
+    fun n hn => hNq n (by omega)
+  -- Each proposer eventually carries a fallback signature from `i`.
+  have hsign : ∀ j, th.is_proposer j = true → ∃ n, max Na (max Nv Nq) ≤ n ∧
+      ((∃ m, (r.at' n).msg_fb_pos_sig i j m = true) ∨ (r.at' n).msg_fb_neg_sig i j = true) := by
+    intro j hj
+    by_contra hns
+    by_cases hpos : ∃ n, max Na (max Nv Nq) ≤ n ∧ ∃ M q qc, nset.greater_than_third q ∧
+        (∀ a, nset.member a q = true → nset.member a qv = true ∧ (r.at' n).msg_vote_pos_sig a j M = true) ∧
+        nset.greater_than_third qc ∧
+        (∀ a, nset.member a qc = true → (r.at' n).msg_chunk_received a j M = true) ∧
+        th.well_encoded M = true
+    · -- Positive evidence appeared: it persists, so `fb_sign_pos` stays enabled.
+      obtain ⟨n0, hn0, M, q, qc, hq1, hq2, hqc1, hqc2, hwe⟩ := hpos
+      -- The evidence's signers are in the honest quorum and have voted, so
+      -- their vote signatures are frozen (`vote_pos_sig_frame_of_voted`).
+      have hq2' : ∀ n, n0 ≤ n → ∀ a, nset.member a q = true → (r.at' n).msg_vote_pos_sig a j M = true := by
+        intro n hn a ha
+        have hah := hqvh a (hq2 a ha).1
+        have hva : ∀ k, n0 ≤ k → (r.at' k).local_voted a = true :=
+          r.mono (P := fun st => st.local_voted a = true)
+            (fun m hm => Chorus.local_voted.mono (r.steps m) a hm)
+            (Chorus.reachable_vote_cast_implies_voted (r.reachable n0) a
+              ⟨hah, hq n0 hn0 a (hq2 a ha).1⟩)
+        induction n, hn using Nat.le_induction with
+        | base => exact (hq2 a ha).2
+        | succ k hk ih =>
+          rw [vote_pos_sig_frame_of_voted (r.steps k) hah (hva k hk)]
+          exact ih
+      have hqc2' : ∀ n, n0 ≤ n → ∀ a, nset.member a qc = true → (r.at' n).msg_chunk_received a j M = true :=
+        fun n hn a ha => r.mono (P := fun st => st.msg_chunk_received a j M = true)
+          (fun m hm => Chorus.msg_chunk_received.mono (r.steps m) a j M hm) (hqc2 a ha) n hn
+      obtain ⟨n, hn, hfire⟩ := hfj (.fb_sign_pos i j M q qc) ⟨fun h => h, fun h => h⟩ n0
+        (fun n hn => enabled_fb_sign_pos hi (harm n (by omega)) (hv n (by omega)) (hnc n) (hnp n) hj
+          hqv (hq n (by omega)) hq1 (hq2' n hn) hqc1 (hqc2' n hn) hwe)
+      exact hns ⟨n + 1, by omega, Or.inl ⟨M, fb_sign_pos_effect (hfire ▸ r.steps n)⟩⟩
+    · -- It never appears: that absence is `fb_sign_neg`'s guard against `qv`.
+      obtain ⟨n, hn, hfire⟩ := hfj (.fb_sign_neg i j qv) ⟨fun h => h, fun h => h⟩ (max Na (max Nv Nq))
+        (fun n hn => enabled_fb_sign_neg hi (harm n hn) (hv n hn) (hnc n) (hnp n) hj
+          hqv (hq n hn) (fun M q qc hh => hpos ⟨n, hn, M, q, qc, hh⟩))
+      exact hns ⟨n + 1, by omega, Or.inr (fb_sign_neg_effect (hfire ▸ r.steps n))⟩
+  -- All proposers at one index, and ever after.
+  obtain ⟨Ns, hNs, hall⟩ := r.eventually_forall
+    (fun j st => th.is_proposer j = true →
+      (∃ m, st.msg_fb_pos_sig i j m = true) ∨ st.msg_fb_neg_sig i j = true)
+    (fun j n h hj => by
+      rcases h hj with ⟨m, hm⟩ | hm
+      · exact Or.inl ⟨m, Chorus.msg_fb_pos_sig.mono (r.steps n) i j m hm⟩
+      · exact Or.inr (Chorus.msg_fb_neg_sig.mono (r.steps n) i j hm))
+    (max Na (max Nv Nq)) nodes
+    (fun j _ => by
+      by_cases hj : th.is_proposer j = true
+      · obtain ⟨n, hn, h⟩ := hsign j hj
+        exact ⟨n, hn, fun _ => h⟩
+      · exact ⟨max Na (max Nv Nq), Nat.le_refl _, fun h => absurd h hj⟩)
+  have hall' : ∀ n, Ns ≤ n → ∀ j, th.is_proposer j = true →
+      (∃ m, (r.at' n).msg_fb_pos_sig i j m = true) ∨ (r.at' n).msg_fb_neg_sig i j = true :=
+    r.mono (P := fun st => ∀ j, th.is_proposer j = true →
+        (∃ m, st.msg_fb_pos_sig i j m = true) ∨ st.msg_fb_neg_sig i j = true)
+      (fun m h j hj => by
+        rcases h j hj with ⟨k, hk⟩ | hk
+        · exact Or.inl ⟨k, Chorus.msg_fb_pos_sig.mono (r.steps m) i j k hk⟩
+        · exact Or.inr (Chorus.msg_fb_neg_sig.mono (r.steps m) i j hk))
+      (fun j hj => hall j (hnodes j) hj)
+  -- So `cast_fallback_vote i` stays enabled, and fires.
+  obtain ⟨n, -, hfire⟩ := hfj (.cast_fallback_vote i) ⟨fun h => h, fun h => h⟩ Ns
+    (fun n hn => enabled_cast_fallback_vote hi (harm n (by omega)) (hv n (by omega)) (hnc n) (hnp n)
+      (hall' n hn))
+  exact hnf (n + 1) (cast_fallback_vote_effect (hfire ▸ r.steps n))
+
+/-- **Saturation of the whole correct population at one index** — the `hsat`
+hypothesis of `progress_dichotomy_of_saturation`, and it persists. -/
+theorem eventually_all_saturated (r : CRun th) (hfj : ∀ l, JusticeLabel l → WeaklyFair r l)
+    (nodes : List node) (hnodes : ∀ a, a ∈ nodes)
+    {qv : nodeset} (hqv : nset.supermajority qv)
+    (hqvh : ∀ a, nset.member a qv = true → ¬ nset.is_byz a = true) :
+    ∃ N, ∀ n, N ≤ n → ∀ i, ¬ nset.is_byz i = true → Saturated th (r.at' n) i := by
+  obtain ⟨N, -, hN⟩ := r.eventually_forall
+    (fun i st => ¬ nset.is_byz i = true → Saturated th st i)
+    (fun i n h hi => (h hi).step (r.steps n)) 0 nodes
+    (fun i _ => by
+      by_cases hi : nset.is_byz i = true
+      · exact ⟨0, Nat.le_refl 0, fun h => absurd hi h⟩
+      · obtain ⟨n, hn⟩ := eventually_saturated r hfj nodes hnodes hqv hqvh hi
+        exact ⟨n, Nat.zero_le _, fun _ => hn⟩)
+  exact ⟨N, fun n hn i hi =>
+    r.mono (P := fun st => Saturated th st i) (fun m h => h.step (r.steps m))
+      (hN i (hnodes i) hi) n hn⟩
 
 end RunFacts
 
