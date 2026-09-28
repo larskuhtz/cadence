@@ -115,6 +115,15 @@ network relations. Auditing Chorus, the property split is:
 | `phase : Phase` enum | (forward-only, see below) | ✓ |
 | `local_entry_pos/neg`, `local_voted`, `local_path`, `local_committed*` | ✓ | ✗ |
 
+(M-update) is syntactic for every relation in the table: each write is the
+literal `true`, except `vote`'s bulk updates of `msg_vote_pos_sig`,
+`msg_vote_neg_sig` and `local_entry_neg`, which are disjunctions with the
+relation's old value (`msg_vote_pos_sig i J M := msg_vote_pos_sig i J M ||
+(…)`). Veil's generated `<f>.mono` lemmas cover the literal-`true` writes
+only, so those three are proven by hand, with the same statement, in
+[`Cadence/Chorus/Termination.lean`](../Cadence/Chorus/Termination.lean)
+(`Chorus.msg_vote_pos_sig_mono` and its two siblings).
+
 `phase` is a 4-valued enum (`pre_deadline → post_deadline →
 post_fb_arm → post_mvba_arm`); it advances only through explicit
 `advance_to_*` actions whose preconditions force the forward direction.

@@ -689,16 +689,24 @@ action whose body uses Veil's auto-quantified capitals (`J`, `M`) to express
 the per-proposer bulk update on the message-signature relations and the local
 entries. The broadcast itself is `msg_vote_cast`; receivers accept a vote
 only if it carries an entry for every proposer, which is why `msg_vote_cast`
-implies per-proposer signatures (invariant `vote_cast_entries`). -/
+implies per-proposer signatures (invariant `vote_cast_entries`).
+
+Each bulk update is a disjunction with the relation's old value, so it only
+ever adds tuples, by its syntax alone — the (M-update) half of the network
+contract (`docs/ChorusDesign.md` §3.1) holds per step, not merely at
+reachable states. At a reachable state the old value is `false` anyway (the
+voter's row is empty before its vote: `vote_sig_pos_implies_voted`,
+`vote_sig_neg_implies_voted`, `local_entry_neg_implies_voted`), so the
+disjunction changes no reachable behaviour. -/
 
 action vote (i : node) {
   require ¬ is_byz i
   require phase ≠ pre_deadline
   require ¬ local_voted i
 
-  msg_vote_pos_sig i J M := is_proposer J && local_entry_pos i J M
-  msg_vote_neg_sig i J := is_proposer J && decide (∀ M, ¬ local_entry_pos i J M)
-  local_entry_neg i J := is_proposer J && decide (∀ M, ¬ local_entry_pos i J M)
+  msg_vote_pos_sig i J M := msg_vote_pos_sig i J M || (is_proposer J && local_entry_pos i J M)
+  msg_vote_neg_sig i J := msg_vote_neg_sig i J || (is_proposer J && decide (∀ M, ¬ local_entry_pos i J M))
+  local_entry_neg i J := local_entry_neg i J || (is_proposer J && decide (∀ M, ¬ local_entry_pos i J M))
 
   local_voted i := true
   msg_vote_cast i := true
@@ -1468,10 +1476,11 @@ signers go through the `byz_sign_vote_*` actions).
 
 The "signed-implies-voted" invariants make that structural link explicit.
 Without them, the SMT-inductive argument for the `*_backed` invariants
-fails: the `vote` action's body uses a plain assignment, not a monotone
-disjunction, so the solver cannot rule out a state in which an honest
-validator had `msg_vote_pos_sig` set before voting; with these invariants in
-scope, that state is contradictory. -/
+fails: the solver cannot rule out a state in which an honest validator had
+`msg_vote_pos_sig` set before voting (`vote`'s update keeps such a tuple);
+with these invariants in scope, that state is contradictory. They are also
+what makes `vote`'s monotone disjunctions coincide with a plain overwrite at
+reachable states. -/
 invariant [vote_sig_pos_implies_voted]
   ∀ (R : node) (J : node) (M : merkle_root),
     ¬ is_byz R ∧ msg_vote_pos_sig R J M → local_voted R
