@@ -625,7 +625,9 @@ thM`), each theorem taking `FJustice` and no other premise:
 
 So the fast route of `TerminationClaim` is closed: what stage 4 has to add
 is exactly the dichotomy's right disjunct. Every pin is at the standard
-trio, with no model edit and no new cell (the module builds in seconds).
+trio, with no new cell and one model edit — `vote`'s updates written as
+monotone disjunctions (correction 1 below), which changes no reachable
+behaviour.
 
 **How.** Three layers, the last two in `Mvba/Liveness.lean`'s first-link
 shape: per-action enabledness and effect lemmas plus five two-state step
@@ -637,29 +639,29 @@ stays enabled fires — and every per-member family collapses through
 
 **Four corrections to §4.4**, each found by writing the proof:
 
-1. *Positive fallback evidence persists for a reason §4.4 did not state.*
-   `msg_vote_pos_sig` is a monotone network relation at every reachable
-   state (`ChorusDesign.md` §3.1's audit table), but it is not *written*
-   monotonically: `vote`'s bulk update assigns the voter's whole row
-   (`msg_vote_pos_sig i J M := is_proposer J && local_entry_pos i J M`), and
-   only the guard `¬ local_voted i` together with the invariant
-   `vote_sig_pos_implies_voted` (the row is empty before the vote) makes
-   that an addition. M13 reads monotonicity off the update's syntax, so it
-   emits no `.mono` for this relation (nor for `msg_vote_neg_sig` and
-   `local_entry_neg`, written the same way). The chain therefore uses
-   `vote_pos_sig_frame_of_voted` — a correct validator's vote signatures
-   are frozen once it has voted — together with the fact that the
-   evidence's signers lie in the honest quorum `qv`, all of whom have
-   voted. It is a step fact (one label dispatch), not an invariant. The
-   root fix is in the model: writing `vote`'s entries as monotone updates
-   (per-tuple actions, the `record_skip` pattern of `Cadence.lean`) would
-   give the relation its `.mono`, make this step fact redundant, and
-   remove the `decide` in `vote` that `ChorusDesign.md` §9 item 4 names as
-   a blocker for an in-build reachability witness — at the price of a
-   Chorus family re-solve.
+1. *Three network relations had no monotonicity lemma — fixed in the model.*
+   `msg_vote_pos_sig`, `msg_vote_neg_sig` and `local_entry_neg` were
+   monotone at every reachable state (`ChorusDesign.md` §3.1's audit
+   table), but `vote` *wrote* them as a plain overwrite of the voter's row
+   (`msg_vote_pos_sig i J M := is_proposer J && local_entry_pos i J M`);
+   only the guard `¬ local_voted i` and the invariants
+   `vote_sig_pos_implies_voted` & co. (the row is empty before the vote)
+   made that an addition. So no hypothesis-free `.mono` was even true, and
+   the chain's positive fallback evidence needed a dedicated argument. The
+   model now writes each of the three as a disjunction with its old value
+   (`msg_vote_pos_sig i J M := msg_vote_pos_sig i J M || (…)`): the same
+   transition at every reachable state (the old value is `false` there, by
+   those invariants), and monotone by its syntax, so the (M-update) half of
+   the network contract holds per step with no exception. M13 still emits
+   no `.mono` for them — it recognises only literal-`true` writes — so the
+   three statements it would emit are proven here by the same label
+   dispatch (`msg_vote_pos_sig_mono`, `msg_vote_neg_sig_mono`,
+   `local_entry_neg_mono`); teaching M13 the `old || e` shape would
+   generate them and retire the hand proofs. The model edit re-solved
+   `vote`'s cells only; every other statement is unchanged.
 2. *`progress_fallback_signing` is not needed.* The case split is excluded
    middle on the positive evidence over the run: if it ever appears it
-   persists (item 1) and `fb_sign_pos` fires; if it never does, its absence
+   persists (monotonicity, item 1) and `fb_sign_pos` fires; if it never does, its absence
    *is* `fb_sign_neg`'s guard against `qv`, verbatim, at every index.
 3. *The commit route uses no invariant.* §4.4 planned to discharge
    `commit_assign_*`'s two consistency guards from six invariants
@@ -674,8 +676,7 @@ stays enabled fires — and every per-member family collapses through
    casts the fallback vote in the same step. Same technique, same status —
    a run-level theorem, not an invariant.
 
-The sweep contributes `voted_implies_cast` and `vote_cast_implies_voted`,
-and nothing else.
+The sweep contributes `voted_implies_cast` and nothing else.
 
 **One structural choice.** §4.4 said to work at the concrete family from the
 start. The chains are instead proven **generic in the quorum instance and the
@@ -701,24 +702,20 @@ the MVBA instance.
   After that comes `Mvba.termination` through the projection (`AllPropose`
   and `NoEarlyAbandon` derived, §4.3), the decision handlers
   (`ValidBridge`'s completeness clause), and the fallback commit round.
-* [`TODO.md`](./TODO.md)'s caveat from the bounds workshop
-  ([`Bounds.md`](./Bounds.md) §6.2.4) concerns *vacuity*, not a liveness
-  failure. `FJustice` is stated with stuttering-inclusive `Enabled`, so an
-  idempotent label whose effect already holds stays enabled and must keep
-  firing — as a stutter, which takes nothing away from any other label:
-  every other enabled action stays enabled and weak fairness still fires
-  it. The only risk is that the premise has no model, which would make
-  every `FJustice → …` theorem vacuously true. In the untimed setting that
-  needs *uncountably* many labels continuously enabled at once: with
-  countably many, a dovetailed schedule fires each of them infinitely
-  often, stutters included, so "infinitely many supermajorities" alone
-  does not do it (it does in the timed setting, where the firings must fit
-  in a bounded window). At the concrete family the node sets are finite;
-  that no Chorus label ranges over an uncountable sort while continuously
-  enabled has not been audited, so stage 3's theorems are only as
-  non-vacuous as that audit would show. They are robust to the fix either
-  way (fairness of state-changing steps, `Cadence.EnabledMove`): every
-  label the chains fire is fired at a state where its effect is absent —
-  the contradiction hypothesis of each link — so each such step is a move.
-  That is an argument by inspection, not yet a checked fact; the refinement
-  of `FJustice`, if this leg makes it, should re-check it.
+* **Finiteness is a hypothesis of the argument, not of the scheduling.**
+  Each chain collapses a family of per-validator eventualities into one
+  index (`LRun.eventually_forall`) — the step that plays the ranking's role
+  — and that is sound only over a finite list: with infinitely many
+  validators every individual one eventually acts, but no index need exist
+  at which a quorum has. Stage 3 therefore works at the finite family
+  (`Fin n`, `ByzNSet n`), and later stages should too; restricting the
+  node sorts to finite ones is expected, not a concession. The bounds
+  workshop's caveat ([`Bounds.md`](./Bounds.md) §6.2.4) is a separate,
+  *non-vacuity* question — whether any run satisfies `FJustice` at all when
+  uncountably many stuttering labels are enabled — and does not arise for
+  the finite quorum sets used here; it is answered by exhibiting a run
+  ([`TODO.md`](./TODO.md) § Liveness), not by weakening the assumption. The
+  chains are in any case robust to fairness of state-changing steps
+  (`Cadence.EnabledMove`): every label they fire is fired at a state where
+  its effect is absent — the contradiction hypothesis of each link — so each
+  such step is a move (by inspection, not yet checked).

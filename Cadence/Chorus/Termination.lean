@@ -32,14 +32,17 @@ Three layers, the last two in the shape of `Mvba/Liveness.lean`'s first
 link:
 
 1. **Step facts** (section `Steps`) — per-action enabledness (the guards)
-   and effect (the post-state), and five two-state facts read off the
-   transition bodies by label dispatch: the phase only moves forward, the
-   first step at which `msg_commit_cast i` / `msg_fallback_sig i` /
-   `local_path i = fallback` holds is the correct validator's own honest
-   action, and a correct validator's vote signatures are frozen once it has
-   voted. Each dispatch is one `case` per action — 37 or 38 generated
-   `frame_<field>` lemmas plus the actions that write the field — so a
-   forgotten action is an unsolved goal.
+   and effect (the post-state), and two-state facts read off the transition
+   bodies by label dispatch: the phase only moves forward; the first step
+   at which `msg_commit_cast i` / `msg_fallback_sig i` / `local_path i =
+   fallback` holds is the correct validator's own honest action; and
+   `msg_vote_pos_sig`, `msg_vote_neg_sig`, `local_entry_neg` are monotone —
+   the `<f>.mono` statements M13 emits for every other network relation,
+   proven here because M13 recognises only literal-`true` writes and
+   `vote` writes these as disjunctions with their old values. Each dispatch
+   is one `case` per action — the generated `frame_<field>` lemmas plus the
+   actions that write the field — so a forgotten action is an unsolved
+   goal.
 2. **Run-level chains** (section `RunFacts`) — generic in the quorum
    instance and the MVBA, with the finiteness they consume made explicit: a
    complete list of validators and an honest supermajority. Each link is
@@ -53,15 +56,15 @@ link:
 
 ## What it uses from the sweep, and what it does not
 
-One invariant: `voted_implies_cast` (and its converse
-`vote_cast_implies_voted`), to put a correct voter's vote on the network.
-The two facts `docs/Liveness.md` §4.4 flags as outside the sweep — a
-correct validator's fast commit vote, resp. fallback vote, carries a
+One invariant: `voted_implies_cast`, to put a correct voter's vote on the
+network. The two facts `docs/Liveness.md` §4.4 flags as outside the sweep —
+a correct validator's fast commit vote, resp. fallback vote, carries a
 signature per proposer — are **derived** here at run level from the
 first-flip step (`commit_cast_sigs`, `fallback_sig_sigs`), not added to
 the model. The commit route needs no invariant at all (see
-`eventually_committed_of_commitqcs`). No model file is touched and no cell
-is added. -/
+`eventually_committed_of_commitqcs`). No cell is added; the one model edit
+the stage made is `vote`'s updates written as monotone disjunctions
+(`docs/Liveness.md` §4.5). -/
 
 namespace Chorus
 
@@ -273,39 +276,85 @@ theorem path_fallback_flip {l} {i : node}
      byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
 
 set_option maxHeartbeats 1000000 in
-/-- **A correct validator's vote signatures are frozen once it has voted.**
-`msg_vote_pos_sig` is not monotone — `vote`'s bulk update writes the voter's
-whole row, `false` included — so M13 emits no `.mono` for it; but `vote a`
-requires `¬ local_voted a`, and the adversary's `byz_sign_vote_pos` writes
-only Byzantine rows. -/
-theorem vote_pos_sig_frame_of_voted {l} {a j : node} {m : merkle_root}
-    (htr : (RTS).tr th s l s')
-    (ha : ¬ nset.is_byz a = true) (hv : s.local_voted a = true) :
-    s'.msg_vote_pos_sig a j m = s.msg_vote_pos_sig a j m := by
+/-- **`msg_vote_pos_sig` is monotone**, over every label and at every state
+— the statement M13 emits as `<f>.mono`, proven by the same dispatch: `vote`
+writes it as a disjunction with its old value, `byz_sign_vote_pos` writes
+`true`, every other action frames it. M13 does not emit it itself because it
+recognises only literal-`true` writes, and `vote`'s disjunct is computed. -/
+theorem msg_vote_pos_sig_mono {l} (htr : (RTS).tr th s l s') :
+    ∀ (r j : node) (m : merkle_root), s.msg_vote_pos_sig r j m = true → s'.msg_vote_pos_sig r j m = true := by
+  intro r j m h
   cases l
   case vote i' =>
     chorus_tr htr
-    obtain ⟨-, -, hnv, rfl⟩ := htr
+    obtain ⟨-, -, -, rfl⟩ := htr
     chorus_field_simp
-    rcases eq_or_ne i' a with rfl | hne
-    · simp_all
-    · simp_all
-  case byz_sign_vote_pos r j' m' =>
+    simp_all
+  case byz_sign_vote_pos =>
     chorus_tr htr
-    obtain ⟨hr, -, rfl⟩ := htr
+    obtain ⟨-, -, rfl⟩ := htr
     chorus_field_simp
-    rcases eq_or_ne r a with rfl | hne
-    · simp_all
-    · simp_all
+    simp_all
   frame_cases htr msg_vote_pos_sig hfr
-    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, propose, deliver_chunk_assigned,
-     record_chunk, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg,
-     cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg,
-     cast_fallback_vote, mvba_step, mvba_propose, on_mvba_decide_pos, on_mvba_decide_neg,
-     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
-     finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_neg, byz_cast_vote,
-     byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg,
-     byz_cast_commit, byz_sign_fbcommit, byz_release_msg_decrypt_share] => rw [hfr]
+    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, propose,
+     deliver_chunk_assigned, record_chunk, aggregate_fastqc_pos, aggregate_fastqc_neg,
+     commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
+     broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step,
+     mvba_propose, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, redisseminate_chunk,
+     cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
+     byz_deliver_chunk, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
+     byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
+     byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact hfr ▸ h
+
+set_option maxHeartbeats 1000000 in
+/-- **`msg_vote_neg_sig` is monotone** — as `msg_vote_pos_sig_mono`. -/
+theorem msg_vote_neg_sig_mono {l} (htr : (RTS).tr th s l s') :
+    ∀ (r j : node), s.msg_vote_neg_sig r j = true → s'.msg_vote_neg_sig r j = true := by
+  intro r j h
+  cases l
+  case vote i' =>
+    chorus_tr htr
+    obtain ⟨-, -, -, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  case byz_sign_vote_neg =>
+    chorus_tr htr
+    obtain ⟨-, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  frame_cases htr msg_vote_neg_sig hfr
+    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, propose,
+     deliver_chunk_assigned, record_chunk, aggregate_fastqc_pos, aggregate_fastqc_neg,
+     commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
+     broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step,
+     mvba_propose, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, redisseminate_chunk,
+     cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
+     byz_deliver_chunk, byz_sign_vote_pos, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
+     byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
+     byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact hfr ▸ h
+
+set_option maxHeartbeats 1000000 in
+/-- **`local_entry_neg` is monotone** — `vote` is its only writer, a
+disjunction with the old value. -/
+theorem local_entry_neg_mono {l} (htr : (RTS).tr th s l s') :
+    ∀ (r j : node), s.local_entry_neg r j = true → s'.local_entry_neg r j = true := by
+  intro r j h
+  cases l
+  case vote i' =>
+    chorus_tr htr
+    obtain ⟨-, -, -, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  frame_cases htr local_entry_neg hfr
+    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, propose,
+     deliver_chunk_assigned, record_chunk, aggregate_fastqc_pos, aggregate_fastqc_neg,
+     commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
+     broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step,
+     mvba_propose, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, redisseminate_chunk,
+     cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
+     byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
+     byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg,
+     byz_cast_commit, byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact hfr ▸ h
 
 /-- Turn an enabledness goal into the action's guards. -/
 local macro "chorus_enabled" : tactic =>
@@ -749,21 +798,9 @@ theorem eventually_saturated (r : CRun th) (hfj : ∀ l, JusticeLabel l → Weak
         th.well_encoded M = true
     · -- Positive evidence appeared: it persists, so `fb_sign_pos` stays enabled.
       obtain ⟨n0, hn0, M, q, qc, hq1, hq2, hqc1, hqc2, hwe⟩ := hpos
-      -- The evidence's signers are in the honest quorum and have voted, so
-      -- their vote signatures are frozen (`vote_pos_sig_frame_of_voted`).
-      have hq2' : ∀ n, n0 ≤ n → ∀ a, nset.member a q = true → (r.at' n).msg_vote_pos_sig a j M = true := by
-        intro n hn a ha
-        have hah := hqvh a (hq2 a ha).1
-        have hva : ∀ k, n0 ≤ k → (r.at' k).local_voted a = true :=
-          r.mono (P := fun st => st.local_voted a = true)
-            (fun m hm => Chorus.local_voted.mono (r.steps m) a hm)
-            (Chorus.reachable_vote_cast_implies_voted (r.reachable n0) a
-              ⟨hah, hq n0 hn0 a (hq2 a ha).1⟩)
-        induction n, hn using Nat.le_induction with
-        | base => exact (hq2 a ha).2
-        | succ k hk ih =>
-          rw [vote_pos_sig_frame_of_voted (r.steps k) hah (hva k hk)]
-          exact ih
+      have hq2' : ∀ n, n0 ≤ n → ∀ a, nset.member a q = true → (r.at' n).msg_vote_pos_sig a j M = true :=
+        fun n hn a ha => r.mono (P := fun st => st.msg_vote_pos_sig a j M = true)
+          (fun m hm => msg_vote_pos_sig_mono (r.steps m) a j M hm) (hq2 a ha).2 n hn
       have hqc2' : ∀ n, n0 ≤ n → ∀ a, nset.member a qc = true → (r.at' n).msg_chunk_received a j M = true :=
         fun n hn a ha => r.mono (P := fun st => st.msg_chunk_received a j M = true)
           (fun m hm => Chorus.msg_chunk_received.mono (r.steps m) a j M hm) (hqc2 a ha) n hn
@@ -1102,10 +1139,29 @@ end Chorus
 /-! ## The pinned trust base
 
 The standard Lean trio and nothing else — no `sorryAx`. The stage-3 theorems
-at the concrete family, their generic cores, and the two run-level facts
-derived in place of new invariants. The reachability they use comes from the
+at the concrete family, their generic cores, the three hand-proven
+monotonicity lemmas, and the two run-level facts derived in place of new
+invariants. The reachability they use comes from the
 proof-file family through `Certify.lean`, and the dichotomy from
 `Progress.lean`, each pinned there. -/
+
+/--
+info: 'Chorus.msg_vote_pos_sig_mono' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.msg_vote_pos_sig_mono
+
+/--
+info: 'Chorus.msg_vote_neg_sig_mono' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.msg_vote_neg_sig_mono
+
+/--
+info: 'Chorus.local_entry_neg_mono' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.local_entry_neg_mono
 
 /--
 info: 'Chorus.saturation_fin' depends on axioms: [propext, Classical.choice, Quot.sound]
