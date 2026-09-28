@@ -216,6 +216,8 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
   [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root] [Inhabited view]
   [Inhabited Phase] [Inhabited PathChoice]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
+  -- The quorum counting facts Chorus consumes (its `cnt` class constraint).
+  [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
 
 /-- **Chorus at the `Mvba` instance**: the module's transition system with its
@@ -388,6 +390,8 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
   [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root] [Inhabited view]
   [Inhabited Phase] [Inhabited PathChoice]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
+  -- The quorum counting facts Chorus consumes (its `cnt` class constraint).
+  [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
   {thS : Chorus.Theory slot node nodeset merkle_root
       (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
