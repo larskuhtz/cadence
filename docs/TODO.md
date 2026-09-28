@@ -203,8 +203,10 @@ come first.
   L2S on near-term value-per-effort). **The MVBA leg has started**
   (2026-09-16): its timing model is workshopped and stated
   ([`Bounds.md`](./Bounds.md) §6.2,
-  [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)); steps
-  2–4 of §6.2.8 remain.
+  [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)), and
+  step 2, the good-view lemma, is proven
+  ([`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)); steps 3–4 of
+  §6.2.8 remain.
 
 ## Model hygiene
 
