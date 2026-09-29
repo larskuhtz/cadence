@@ -44,8 +44,8 @@ because the two-class counting is not expressible over the abstract
 
 What this discharges: the "Evidence pigeonhole" step of the liveness
 argument — see [ChorusDesign.md](../../docs/ChorusDesign.md) §7 for how it composes with the
-other theorems and where the named temporal assumptions
-((F-justice)/(F-byz)/(A-mvba); [Architecture.md](../../docs/Architecture.md) §4) enter. Trust base:
+other theorems and where the named liveness premises
+([Architecture.md](../../docs/Architecture.md) §4 item 2) enter. Trust base:
 `[propext, Classical.choice, Quot.sound]` (pinned below) — the reachability
 projections consume the proof-file family's re-proved VC theorems
 ([Chorus/Proofs](Proofs), via [Chorus/Certify.lean](Certify.lean)), and the counting is

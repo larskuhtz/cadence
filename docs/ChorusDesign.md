@@ -873,20 +873,29 @@ comment in [Cadence/Chorus.lean](../Cadence/Chorus.lean).
 
 ## 7. Liveness
 
-> **(Liveness)** Under (F-justice), (F-byz) and (A-mvba) below, every
-> honest validator eventually commits every slot.
+> **(Liveness)** Under (F-justice), (F-byz), the MVBA's scheduling and the
+> validity bridge below, every honest validator eventually commits every
+> slot.
+
+This is a theorem: `Chorus.termination`
+([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), for the single slot the
+model holds, at every `n = 3f+1` and at the configuration the composed
+system runs, with the premises stated as named `Prop`s in
+[Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean). What follows is the argument its proof
+carries out; [Liveness.md](Liveness.md) §2 is the premise list in short.
 
 The argument follows the classical verification-diagram method for
 deductive liveness (cf. McMillan, *"Toward Liveness Proofs at Scale"*,
 CAV 2024): every state-level step is a kernel-checked theorem, and the
-three named assumptions contribute only *temporal* content — finitely
-many instances of the single rule "*a continuously enabled fair action
-eventually fires*", plus the MVBA primitive's own termination. The
-model-side encoding is the "Liveness" section of
-[Cadence/Chorus.lean](../Cadence/Chorus.lean); the theorems live in
+premises contribute only *temporal* content — finitely many instances of
+the single rule "*a continuously enabled fair action eventually fires*",
+plus the MVBA's own termination theorem. The model-side encoding is the
+"Liveness" section of [Cadence/Chorus.lean](../Cadence/Chorus.lean) (whose prose
+still names (A-mvba)); the state-level theorems live in
 [Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean),
 [Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean) and
-[Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean).
+[Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean), and the temporal steps are
+carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean).
 
 **The chain** — how theorems and temporal steps alternate:
 
@@ -908,8 +917,8 @@ model-side encoding is the "Liveness" section of
    is the commitQC itself, `commit_assign_*`'s the broadcast
    certificate, `finalize_commit`'s the per-proposer completeness
    (`local_committed_complete`).
-4. *(temporal, MVBA route — (F-justice) on `mvba_propose`, then
-   (A-mvba), then (F-justice) on the handlers.)* Every correct validator
+4. *(temporal, MVBA route — (F-justice) on `mvba_propose`, then the
+   MVBA's own termination theorem, then (F-justice) on the handlers.)* Every correct validator
    proposes: the dichotomy's evidence is `mvba_propose`'s guard, and the
    proposal is state-level buildable — a fallback meta-block entry from
    **any** supermajority of accepted receipts, Byzantine members
@@ -917,15 +926,14 @@ model-side encoding is the "Liveness" section of
    meta-block by aggregation, whose guard witness is *definitionally*
    the dichotomy's vote-quorum evidence (`vote_quorum_pos`'s definition
    and `aggregate_fastqc_pos`'s requires are the same two lines). The
-   instance then decides at every correct validator ((A-mvba) — the class
-   field `MVBATemporal.termination` at `Mvba.mvbaSafety`, proven as
-   `Mvba.mvbaTemporal`; consuming it here is the Chorus liveness leg's
-   stage 4, [docs/Liveness.md](Liveness.md) §4.6),
+   instance then decides at every correct validator (`Mvba.termination`,
+   applied to the run's MVBA steps under `MvbaAdmissible`;
+   [docs/Liveness.md](Liveness.md) §4.6),
    and the handlers and `mvba_terminate` record the decision
    (`mvba_complete`). The handlers' one enabledness leg the class does
    not give is the bridge's completeness direction — a decided entry's
    certificate is on the network, which is what "publicly verifiable"
-   means and what the liveness step has to name ([MvbaPlan.md](MvbaPlan.md) §3).
+   means; the theorem names it as `ValidBridge` ([MvbaPlan.md](MvbaPlan.md) §3).
 5. *(theorem + temporal.)* The fallback commit round
    (`line:fb-mvba-decide`–`line:fb-finalize`) carries decisions to
    finalization: once `mvba_complete` holds, `redisseminate_chunk` is
@@ -951,19 +959,25 @@ model-side encoding is the "Liveness" section of
 * **(F-byz)** — Byzantine actions are unfair: no progress obligation is
   satisfied by adversarial help, which makes the discharged content
   strictly stronger than deadlock freedom.
-* **(A-mvba)** — the MVBA primitive's own liveness: once `mvba_invoked`
-  holds and certificate evidence exists per proposer, the MVBA
-  eventually decides every proposer and terminates. It stands in for
-  `mod:mvba`'s `ℓ_MVBA`-Termination; the probability-1 termination of
-  the randomised primitive is a paper-level argument
-  ([Liveness.md](Liveness.md)). Both of `ℓ_MVBA`-Termination's
-  protocol-side premises are covered: (i) *all correct validators
-  propose* is chain step 4 (the per-validator implementation refinement
-  of the build step is the receipt layer — §7.2,
-  [Architecture.md](Architecture.md) §5); (ii) *no correct
-  validator abandons before the bound* is moot in this single-slot
-  model (no `abandon()`), discharged within Cadence by Conductor
-  totality (`cor:chorus-correctness-within-cadence`).
+* **The MVBA's scheduling** (`MvbaAdmissible`) — the run's MVBA steps,
+  read as a run of the MVBA model, satisfy that model's own scheduling
+  premises, so `Mvba.termination` applies to them. Its two caller premises
+  are derived, not assumed: (i) *all correct validators propose* is chain
+  step 4 (the per-validator implementation refinement of the build step is
+  the receipt layer — §7.2, [Architecture.md](Architecture.md) §5); (ii)
+  *no correct validator abandons before deciding* holds because this
+  single-slot model never drives `abandon()` (within Cadence, Conductor
+  totality discharges it, `cor:chorus-correctness-within-cadence`).
+* **The validity bridge** (`ValidBridge`) — the MVBA's `Valid` agrees with
+  Chorus's certificate check, in both directions: a certified meta-block is
+  `Valid`, and a decided one is certified. This is the cryptographic seam
+  of §4, not a fairness assumption.
+* **(A-mvba), retired.** The MVBA's termination used to be assumed here.
+  The two premises above replace it
+  ([Architecture.md](Architecture.md) §4 item 2). The randomised
+  primitive's probability-1 termination stays a paper-level argument
+  ([Liveness.md](Liveness.md) §2); the instance this development runs is
+  the supplement's leader-based protocol, whose termination is proven.
 
 **The ranking is structural.** Per-slot state is finite and all
 relations are monotone, so the residual count of unset tuples strictly
@@ -1003,18 +1017,24 @@ language — which is why they are plain Lean over the concrete instance
 family `byzNodeSetFin n f`, for every `n = 3f+1` and any Byzantine set
 of size `≤ f`, rather than SMT-discharged invariants.
 
-### 7.1 What stays outside Lean
+### 7.1 What stays outside Lean, and outside the models
 
-The ω-content only: quantification over infinite fair executions, and
-the rule "continuously enabled ⇒ eventually fires". Phase markers never
-*must* advance; the network has no GST marker; the MVBA instance's
-internal steps (`mvba_step`) are scheduled by its own admissible-execution
-model, not by (F-justice).
+Outside Lean: only the premises. Quantification over infinite fair
+executions and the rule "continuously enabled ⇒ eventually fires" are
+Lean: [Cadence/Fairness.lean](../Cadence/Fairness.lean)'s run vocabulary, used by
+`Chorus.termination`. Phase markers never *must* advance; the network has
+no GST marker; the MVBA instance's internal steps (`mvba_step`) are
+scheduled by its own premises (`MvbaAdmissible`), not by (F-justice).
 Everything state-level — enabledness, counting, certificate formation,
-the case analysis — is theorems, so the assumptions above are consumed
-at exactly the seams the chain names and nowhere else. Internalising
-the temporal layer itself is the liveness-to-safety extension designed
-in the Veil fork ([Liveness.md](Liveness.md) §3 points to it).
+the case analysis — is theorems, and so is the temporal chain, so the
+premises are consumed at exactly the seams the chain names and nowhere
+else. Whether they can all hold at once is the open non-vacuity question
+([TODO.md](TODO.md) § Liveness).
+
+Outside the models: the temporal layer is proven over runs of the
+generated transition system in plain Lean, not by Veil's pipeline.
+Internalising it is the liveness-to-safety extension designed in the Veil
+fork ([Liveness.md](Liveness.md) §3 points to it).
 Safety properties are unaffected by all of this: they hold in every
 reachable state regardless of scheduling.
 
@@ -1263,4 +1283,5 @@ safety-VC machinery — is Veil work and lives in the fork
 ([Liveness.md](Liveness.md) §3 points to it). Out of scope even
 then: real-time / GST-style bounded delivery, and probabilistic
 termination (axiomatise the randomised primitive, discharge the
-probability argument on paper — the (A-mvba) treatment).
+probability argument on paper — the treatment the retired (A-mvba) gave
+it).

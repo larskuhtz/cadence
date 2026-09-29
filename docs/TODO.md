@@ -170,18 +170,43 @@ come first.
   stands at infinite quorum sorts, and the general fix is still the Chorus
   leg's in [Fairness.lean](../Cadence/Fairness.lean).
 
-  **What the Chorus `TerminationClaim` will need, after stage 5:** the same
-  two things, a ledger of its premises and one model satisfying all of
-  them. The MVBA sub-state can reuse the model above, which halts on its
-  own. The premise that needs thought is **`ValidBridge`**: it relates
-  Chorus's decision handlers to the network's certificates, so the model
-  has to produce certificates that satisfy it, not merely an MVBA run that
-  decides ([Bounds.md](Bounds.md) §6.3.3).
+  **Open for Chorus: `Chorus.termination` is proven, and its premises
+  still need the satisfiability argument.** Non-vacuity here means what it
+  means for the MVBA: every premise of the theorem — its hypotheses (the
+  quorum family at `n = 3f+1`, `ViewOrderEnum`), the configuration
+  `Cadence.chorusTheory` and its assumptions, and the three run premises
+  `FJustice`, `MvbaAdmissible`, `ValidBridge` — holds *jointly*, shown by
+  (a) a premise-by-premise ledger saying why each is satisfiable, and (b)
+  one formal model and one run meeting all of them at once. Traces alone
+  are illustrations, not the argument. The pattern is the MVBA leg's
+  [Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean) (PR #41) with its ledger in
+  [Bounds.md](Bounds.md) §6.3. The MVBA sub-state can reuse that model,
+  which halts on its own, for `MvbaAdmissible`. Two premises are new since
+  that model was written, and they need the most care:
+  * **the proposal family of `FJustice`** — at `chorusTheory`, the run
+    must let every correct validator's `mvba_propose` fire for the
+    certified vector, and the family clause must hold for every `(i, v)`,
+    including values that never become proposable;
+  * **`ValidBridge` at `chorusTheory`** — it relates the MVBA theory's
+    `valid` to Chorus's network certificates at every index, so the model
+    has to fix `valid` and produce certificates satisfying both
+    directions, not merely an MVBA run that decides
+    ([Bounds.md](Bounds.md) §6.3.3).
 
-* Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
-  meta-axioms become premises of a Lean theorem rather than named
-  assumptions. This is the single largest reduction of
-  [Architecture.md](Architecture.md) §4 available.
+* Full liveness-to-safety, so that liveness properties are stated and
+  discharged inside the Veil models, like their safety properties. The
+  fairness premises are already hypotheses of Lean theorems
+  (`Chorus.termination`, `Mvba.termination`) and (A-mvba) is retired;
+  what L2S would add is the models' own statement of those properties,
+  checked per action by the existing pipeline.
+* Align the remaining prose mentions of (A-mvba) in
+  [Cadence/Chorus.lean](../Cadence/Chorus.lean)'s liveness section,
+  [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and the header of
+  [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) ("the (A-mvba) implementability leg",
+  now the implementability of `Mvba.termination`'s caller premise) with
+  its retirement ([Architecture.md](Architecture.md) §4 item 2). The
+  first two re-solve the Chorus family and the third rebuilds the receipt
+  family, so do each together with the next change that touches the file.
 * Actions are annotated with their fairness class in prose only; Veil has no
   surface syntax for it. The fork's liveness design doc sketches what that
   syntax should be ([Liveness.md](Liveness.md) §3 points to it).

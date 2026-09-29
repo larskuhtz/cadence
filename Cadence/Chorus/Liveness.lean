@@ -48,8 +48,8 @@ of `MVBATemporal.Admissible`.
   `Mvba.FAvail`. Those are three of `Mvba.termination`'s five premises,
   stated with that file's own definitions and restated nowhere. The other
   two — every correct validator proposes, none is abandoned before deciding
-  — are the *caller's* premises and the caller is Chorus, so they are to be
-  **derived** (stage 4), not assumed: the first from (F-justice) on
+  — are the *caller's* premises and the caller is Chorus, so they are
+  **derived** in [Termination.lean](Termination.lean), not assumed: the first from (F-justice) on
   `mvba_propose` and the progress dichotomy, the second because this
   single-slot model never drives `abandon`.
 * **The bridge** — `ValidBridge`: the MVBA's `Valid` agrees with Chorus's
@@ -500,10 +500,10 @@ this development still has no instance of. -/
 def Terminates (r : ChorusRun thS thM) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).local_committed i = true
 
-/-- **The target, stated.** Not a theorem and not asserted anywhere: this is
-the `Prop` stages 3–5 of [Liveness.md](../../docs/Liveness.md) §4 have to prove, written down
-so that its premises are fixed, type-checked and citable before the proof
-exists. The three premises are exactly the file's named definitions. What is
+/-- **The target, stated.** Written down, with its premises fixed and
+type-checked, before the proof existed; the proof is `Chorus.termination`
+in [Termination.lean](Termination.lean), at the concrete quorum family and the system's
+configuration. The three premises are exactly the file's named definitions. What is
 deliberately absent is the quorum machinery — the concrete family the
 counting theorems are stated over is a hypothesis of the theorem, not part
 of the claim — and `Mvba.termination`'s three class hypotheses, for the same

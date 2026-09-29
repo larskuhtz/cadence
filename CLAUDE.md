@@ -89,10 +89,11 @@ Four Veil models plus support files, mirroring the paper's architecture:
   level toward the full `Orchestrator`, positional MCP Safety),
   `Chorus/Compose.lean` (`Chorus ⊨ SlotConsensusSafety` and the same join),
   `Chorus/Liveness.lean` (the run-level liveness target for Chorus at the
-  `Mvba` instance: the label classes, the named premises replacing
+  `Mvba` instance: the label classes, the named premises that retired
   (A-mvba), the MVBA-as-component instance; `docs/Liveness.md` §4),
-  `Chorus/Termination.lean` (its proof, stage by stage — so far saturation
-  and the commit route from (F-justice) alone, `docs/Liveness.md` §4.5),
+  `Chorus/Termination.lean` (its proof, `Chorus.termination`: the commit
+  route and the MVBA arm, the latter consuming `Mvba.termination` through
+  the projection; `docs/Liveness.md` §4.5–§4.7),
   `System.lean` (the
   glue's end theorem at both instances — the composed system, no contract
   hypothesis left).

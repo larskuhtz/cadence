@@ -22,17 +22,39 @@ over reachable states, for every `n = 3f+1`:
 plus the fair-progress and enabledness invariants of the sweep (the
 "Liveness" section of [Cadence/Chorus.lean](../Cadence/Chorus.lean)).
 
-**Every temporal step is an instance of one rule** — *a continuously
-enabled fair action eventually fires* — applied at named seams:
-(F-justice) drives every honest validator to the dichotomy's saturation
-hypothesis and fires the certificate-to-commit actions after it, and
-(A-mvba) consumes the dichotomy's conclusion. Nothing else is assumed: no
-counting, no case analysis, no certificate or quorum reasoning lives
-outside Lean.
+**The temporal steps are a theorem too.** `Chorus.termination`
+([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)) is the claim itself, as a
+Lean theorem over runs: at every `n = 3f+1`, in the configuration the
+composed system runs, every run satisfying the three premises of §2
+terminates — every correct validator finalizes the slot. Each temporal step
+in its proof is an instance of one rule, *a continuously enabled fair action
+eventually fires*. (F-justice) drives every correct validator to the
+dichotomy's saturation hypothesis. After that it fires either the
+certificate-to-commit actions or, on the MVBA route, the proposal, the
+decision handlers and the fallback commit round. The MVBA's own termination
+is not assumed there. It is `Mvba.termination`, applied to the run's MVBA
+steps. No counting, case analysis, certificate or quorum reasoning lives
+outside Lean. What does is the premises, and whether they can all hold at
+once (§2, last item).
 
 ## 2. The assumptions, exactly
 
-* **(F-justice)** — honest actions are weakly fair. Weak (not strong)
+`Chorus.termination` takes three premises, each a named `Prop` in
+[Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean):
+
+* **`FJustice`**: correct validators' actions are scheduled fairly.
+* **`MvbaAdmissible`**: the MVBA's steps inside the run are scheduled the way
+  the MVBA's own termination theorem requires.
+* **`ValidBridge`**: the MVBA's validity check agrees with Chorus's
+  certificates. This is the cryptographic seam, not a fairness assumption.
+
+Its other hypotheses fix the setting: validators `Fin n` with `n = 3f+1`
+and at most `f` Byzantine, the system's Chorus configuration
+(`Cadence.chorusTheory`), and the view order's enumeration that
+`Mvba.termination` takes. The bullets below give the detail, one premise
+each.
+
+* **(F-justice)** (`FJustice`) — honest actions are weakly fair. Weak (not strong)
   fairness suffices because the model is monotone: enabledness is itself
   monotone, so the enable/disable toggle that strong fairness exists for
   cannot occur. ((F-compassion) is reserved vocabulary for the
@@ -82,11 +104,41 @@ outside Lean.
 * **(F-byz)** — Byzantine actions (the `byz_*` family) are unfair:
   progress never relies on adversarial help, which makes the discharged
   content strictly stronger than deadlock freedom.
-* **(A-mvba)** — the MVBA primitive's own liveness: invoked with
-  per-proposer evidence, it eventually decides every proposer and
-  terminates. The randomised primitive terminates with probability 1,
-  which no deductive framework expresses — the probability argument stays
-  on paper, exactly as for any cryptographic primitive contract.
+* **The MVBA's scheduling** (`MvbaAdmissible`) — the run's MVBA steps,
+  read as a run of the MVBA model, satisfy the three scheduling premises of
+  `Mvba.termination`: weak fairness of the MVBA's honest actions,
+  (A-viewsync) and (F-avail) (above, and §2.1). The premise says the run *has*
+  such a reading: a labelling of its MVBA steps (the composed run records
+  only the MVBA's states), and infinitely many of them
+  (`Component.Scheduled`, part of `Component.Projection` in
+  [Cadence/Fairness.lean](../Cadence/Fairness.lean)). The other two premises of
+  `Mvba.termination` belong to its caller, Chorus: every correct validator
+  proposes, and none is abandoned before deciding. They are **derived**,
+  not assumed.
+* **The bridge** (`ValidBridge`) — the MVBA's `Valid` holds exactly for
+  the meta-blocks whose entries carry certificates on Chorus's network, in
+  both directions the proof uses: a certified meta-block is `Valid` (so a
+  correct validator can propose it), and a meta-block a correct validator
+  decided is certified (so the decision handlers are enabled). This is the
+  **cryptographic seam** between the two models: certificates cannot be
+  forged, and a decided value's certificates are publicly verifiable. It
+  says nothing about scheduling. `Valid` is a parameter of the MVBA contract,
+  fixed before Chorus's state exists, so no class field can carry this.
+  [CompositionContracts.md](CompositionContracts.md) §7 item 1 names the seam.
+* **(A-mvba), retired.** Until `Chorus.termination` existed, the MVBA's
+  termination was an assumption: invoked with per-proposer evidence, the
+  MVBA eventually decides. The two premises above replace it. The
+  instance Chorus runs is the supplement's leader-based protocol, whose
+  termination is a theorem (`Mvba.termination`). The randomised
+  primitive of the published paper terminates with probability 1, which no
+  deductive framework expresses, so that argument stays on paper, as for
+  any cryptographic primitive; it is not part of this development's claim.
+  The name still appears in the prose of
+  [Cadence/Chorus.lean](../Cadence/Chorus.lean),
+  [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and
+  [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean), whose comments are aligned the next
+  time those files change, since an edit there re-solves a proof family
+  ([TODO.md](TODO.md) § Liveness).
 * Scheduling is distinct from **network delivery**. The monotone network
   makes broadcast signatures globally visible, so delivery surfaces only
   as fairness on the observation actions (`record_chunk`,
@@ -140,7 +192,7 @@ wall-clock time by a monotone marker, and both gate real actions on it
 what each advance *does*. Chorus's phases move the protocol from one arm to
 the next: fast path, then fallback, then the MVBA arm. Advancing early
 forfeits the faster arm and nothing else — there is always somewhere to fall
-— and termination is then delegated to **(A-mvba)**, the sub-protocol's own.
+— and termination is then delegated to the sub-protocol's own, `Mvba.termination`.
 `Mvba`'s view *is* that last arm. A timer firing early forfeits the view, and
 the only thing to fall onto is another view; if every view's timer fires
 early, nothing terminates at all. There is no sub-protocol left to delegate
@@ -169,9 +221,10 @@ the assumption is of the same kind.
 
 **Where it ends.** The stack's trust base replaces an unconditional
 consensus-termination assumption by a synchroniser interface plus a proof:
-(A-mvba) says "the MVBA terminates", and `Mvba.termination` says "it
+(A-mvba) said "the MVBA terminates", and `Mvba.termination` says "it
 terminates given (A-viewsync), (F-justice), (F-avail) and the callers' two
-premises". With a clock, (A-viewsync) stops being an assumption. Over timed
+premises". `Chorus.termination` consumes the second, so (A-mvba) is
+retired (§2). With a clock, (A-viewsync) stops being an assumption. Over timed
 runs of the same untimed model — no model change — the timing model of
 [Cadence/Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean)
 ([Bounds.md](Bounds.md) §6.2) gives:
@@ -202,10 +255,13 @@ The designed extension — fairness classes on actions,
 **liveness-to-safety** reduction on the existing safety-VC pipeline — is
 Veil work and lives in the fork:
 **[docs/Liveness.md](https://github.com/larskuhtz/veil/blob/lars/liveness/docs/Liveness.md)
-on the `lars/liveness` branch of `larskuhtz/veil`**. With it, (F-justice) becomes
-the premise of a Lean theorem and the deterministic liveness properties
-("honest fast-path commit eventually", "slot eventually decides") become
-provable in-system. (A-mvba)'s probability-1 core stays out of scope
+on the `lars/liveness` branch of `larskuhtz/veil`**. (F-justice) is already
+the premise of a Lean theorem (`Chorus.termination`, `Mvba.termination`),
+proven over runs of the generated transition system outside Veil's
+pipeline. With the extension, deterministic liveness properties
+("honest fast-path commit eventually", "slot eventually decides") would be
+stated and discharged inside the models, like their safety properties. The
+randomised MVBA primitive's probability-1 termination stays out of scope
 regardless, and so do real-time bounds (GST, latency) other than the MVBA's,
 which is proven over timed runs outside the Veil models (§2.1).
 
@@ -223,8 +279,8 @@ Chorus is what retires **(A-mvba)** — and with it the last of the
 [Architecture.md](Architecture.md) §4 available. This section is that
 leg's working record — its design, the record of each finished stage, and
 the kick-off of the current one — so a fresh session does not re-derive the
-design. §1–§3 above state what is proven; nothing here adds to it until the
-assembly (step 5) lands.
+design. §1–§3 above state what is proven. **The leg is complete**
+(2026-09-29): §4.7 is its closing record.
 
 **Target.** A run-level theorem in the shape of `Mvba.termination`: every
 correct validator eventually finalizes every slot, from named premises, each
@@ -272,11 +328,11 @@ untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
    record: what to prove, from which facts, and the traps already known.~~
    **Done, 2026-09-28** — [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean);
    §4.5 is the record, including four corrections to §4.4.
-4. The fallback and MVBA arms, the second consuming `Mvba.termination`
-   through the projection — §4.6 is the kick-off record, including two
-   findings that must be settled first.
-5. The assembly, the [Cadence.lean](../Cadence.lean) row and pin, and retiring (A-mvba) from
-   [Architecture.md](Architecture.md) §4.
+4. ~~The fallback and MVBA arms, the second consuming `Mvba.termination`
+   through the projection.~~ **Done, 2026-09-29** — §4.6 is the kick-off
+   record and, at its end, the record of the stage.
+5. ~~The assembly, the [Cadence.lean](../Cadence.lean) row and pin, and retiring (A-mvba) from
+   [Architecture.md](Architecture.md) §4.~~ **Done, 2026-09-29** — §4.7.
 
 **Cost warning.** If the argument needs new Chorus invariants, that is a
 re-solve of the Chorus family, several times the MVBA's (the
@@ -1065,3 +1121,62 @@ it belongs to the proof, not to the claim. Then the
 `Scheduled`) and `ValidBridge` in its place. The satisfiability of the
 premises — now including the proposal family — is the non-vacuity question
 of [TODO.md](TODO.md) § Liveness, unchanged by this stage.
+
+### 4.7 Stage 5, done: the claim, and what remains
+
+*Record of 2026-09-29, the leg's closing record.*
+
+**What the claim now says.** `Chorus.termination`
+([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)) proves
+[Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)'s `TerminationClaim`: at every `n = 3f+1` with
+at most `f` Byzantine validators (`Fin n`, `byzNodeSetFin`), at the
+configuration the composed system runs (`Cadence.chorusTheory`, the MVBA
+constraint filled by `Mvba.mvbaSafety`), every run satisfying the three
+premises terminates, i.e. every correct validator finalizes the slot. The
+proof is what "What stage 5 needs" (end of §4.6) said it would be:
+`eventually_progress_dichotomy`, then `terminates_of_commit_route` on the
+left disjunct and `terminates_of_mvba_arm` on the right. It is pinned at the
+standard trio there and in [Cadence.lean](../Cadence.lean). No model change,
+no new invariant, no new cell: `#veil_status Chorus` is unchanged. Stage 4
+built unchanged on the halting MVBA model of PR #42, as expected: it
+relies only on `Mvba.propose`'s guards, the abandoned frames and
+`Mvba.termination`'s statement.
+
+**The premises.** Each is a named `Prop`, and §2 has them in short:
+
+* `FJustice` — correct validators' actions are weakly fair; the MVBA
+  proposal is fair as one family per validator and value;
+* `MvbaAdmissible` — the run's MVBA steps have a labelling, with infinitely
+  many of them (`Component.Scheduled`), that satisfies `Mvba.termination`'s
+  three scheduling premises;
+* `ValidBridge` — the MVBA's `Valid` agrees with Chorus's certificates, in
+  both directions: the cryptographic seam, not a fairness assumption.
+
+The theorem's other hypotheses fix the setting: the quorum family's
+parameters (`n = 3f+1`, the Byzantine predicate and its bound) and
+`ViewOrderEnum`, which, as in `Mvba.termination`, belongs to the proof and
+not to the claim. The quorum counting facts are the family's own instance
+(`Cadence.byzNodeSetFin_counting`), so they are not a hypothesis. (A-mvba)
+is retired from [Architecture.md](Architecture.md) §4 item 2 and §2 above.
+
+**One surface decision.** The concrete section's `[cnt]` binder is omitted
+from `Chorus.termination` (`omit cnt in`, with the instance passed to
+`TerminationClaim` by name), so the counting class does not appear as a
+hypothesis. The stage-3 and stage-4 theorems keep the binder; they are
+internal steps, and the family's instance discharges it at every use.
+
+**What remains.**
+
+* **Non-vacuity.** The premises have to be shown jointly satisfiable: a
+  premise ledger and one model and run meeting all of them, in the pattern
+  of the MVBA leg's [Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean). The two premises
+  that need thought are the proposal family of `FJustice` and
+  `ValidBridge`, both at `chorusTheory`. [TODO.md](TODO.md) § Liveness
+  records the obligation.
+* **The timed claim.** `SlotConsensusTemporal.termination`, finalization
+  within `5Δ + ℓ_MVBA`, still has no instance. The route is the one the MVBA
+  leg took ([Bounds.md](Bounds.md) §6): a timing model over timed runs of
+  the same untimed model, consuming `Mvba.bounded_termination` for the
+  `ℓ_MVBA` part.
+* **Prose alignment.** The model files that still name (A-mvba) in their
+  comments (§2, [TODO.md](TODO.md) § Liveness).
