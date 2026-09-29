@@ -71,7 +71,9 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `Mvba/Temporal.lean` holds `Mvba.mvbaTemporal : MVBATemporal …` at
   `Mvba.mvbaSafety` and the full `Mvba.mvbaFull`, whose fragment is the one
   `System.lean` plugs into Chorus. A `TimedRun` carries its own clock, so
-  none of the models needs one.
+  none of the models needs one. `Mvba/Witness.lean` is the non-vacuity
+  model: one instance and run meeting every premise of both termination
+  theorems (`docs/Bounds.md` §6.3).
 * Support: `QuorumCounting.lean` (`ByzNodeSetCounting`, the three
   quorum counting facts beyond `ByzNodeSet`'s intersection axioms, proven
   for the concrete families in `ByzQuorum.lean`), `Interfaces.lean` (the module contracts — `SlotConsensus`,

@@ -156,39 +156,41 @@ come first.
   conclusion — and the reason it may not be worth it: the clock makes
   (A-viewsync) a theorem outright.
 
-* **Exhibit a run satisfying `Mvba.termination`'s five premises.** The
-  premise set is checked for consistency by argument, not by machine — the
-  header of [Cadence/Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)
-  records that, and it is the one thing standing between the theorem and a
-  non-vacuity guarantee. The argument is short (the timer's finiteness
-  clause is scoped away from the good view precisely so that it and the
-  good view's clause cannot conflict, and the model's `sat trace` blocks
-  witness the protocol half), but an argument is not a build-checked fact.
-  What would make it one: a `TerminationClaim` instance at concrete finite
-  sorts, or a trace through the premises. Related to, but smaller than, the
-  composition-level instrument above.
-  `Mvba.admissible_exists` (the contract's non-vacuity witness,
-  [Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) is a run in
-  which nobody proposes, so it satisfies every scheduling premise vacuously
-  and `AllPropose` not at all. A `TerminationClaim` witness still needs a run
-  in which every correct validator proposes and the protocol runs to a
-  decision. **The timed claim needs one too**: `admissible_exists` shows
-  that admissible runs exist, not that one exists in which the caller's
-  premises hold, and only that shows the premises of
-  `MVBATemporal.termination` consistent. One concrete run would serve both:
-  four validators, clock `ℕ`, `Schedule.fixedNat`, everyone proposing and
-  deciding within one view, then idling. This is the MVBA leg's next step.
+* **Exhibit a run satisfying the premises — done for the MVBA, open for
+  Chorus.** For the MVBA, one concrete model and one run meet every premise
+  of both termination theorems:
+  `Mvba.timedTermination_premises_satisfiable` and
+  `Mvba.termination_premises_satisfiable`
+  ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)), with the
+  premise-by-premise ledger in [Bounds.md](Bounds.md) §6.3. The plan here
+  said "everyone proposing and deciding within one view, then idling"; no
+  such run exists, because a decision does not stop the view timer, so the
+  witness ends with the caller abandoning the correct validators after `ℓ`
+  (§6.3.2). `FJustice` with plain `Enabled` is satisfied there because the
+  quorum sort is finite. Its caveat ([Bounds.md](Bounds.md) §6.2.4) still
+  stands at infinite quorum sorts, and the general fix is still the Chorus
+  leg's in [Fairness.lean](../Cadence/Fairness.lean).
 
-  **Caveat** ([Bounds.md](Bounds.md) §6.2.4): `FJustice` is stated with [Fairness.lean](../Cadence/Fairness.lean)'s `Enabled`, which a
-  stuttering transition satisfies, and the assembly actions are idempotent
-  in their quorum parameter — so once `msg_prepqc v e` holds, every
-  `form_prepqc v e q'` stays enabled forever and weak fairness demands each
-  fire. At an instance with infinitely many supermajorities no run is fair,
-  and the premise set is unsatisfiable. A witness at finite sorts is
-  unaffected; the general fix is TLA+'s `⟨A⟩_v` — fairness of
-  *state-changing* steps (`Cadence.EnabledMove` in
-  [Cadence/Timed.lean](../Cadence/Timed.lean)) — and belongs to the
-  Chorus leg, which owns [Fairness.lean](../Cadence/Fairness.lean).
+  **What the Chorus `TerminationClaim` will need, after stage 5:** the same
+  two things, a ledger of its premises and one model satisfying all of
+  them. The MVBA sub-state can reuse the model above. It must abandon its
+  MVBA instances for the same reason, or else carry their view changes
+  forever. The premise that needs thought is **`ValidBridge`**: it relates
+  Chorus's decision handlers to the network's certificates, so the model
+  has to produce certificates that satisfy it, not merely an MVBA run that
+  decides ([Bounds.md](Bounds.md) §6.3.3).
+
+* **Model the MVBA's self-abandon on decision.** The supplement ends both
+  decision paths with `abandon()` and guards its timeout on "no decision in
+  view `v`"; [Cadence/Mvba.lean](../Cadence/Mvba.lean) does neither, and its
+  `abandon` is the caller's only. Sound for safety and for
+  `Mvba.termination`, but a supplement run in which a validator decides
+  and stops early does not meet `Mvba.timed_termination`'s "no abandonment
+  before `max(t, GST) + ℓ`" when read as a model run. Options: a separate
+  internal halt set by `decide`, or the no-decision timeout guard; either is
+  a model change (re-solve, new `#veil_status Mvba` count).
+  [PaperAlignment.md](PaperAlignment.md) §4 item 4, [Bounds.md](Bounds.md)
+  §6.3.2.
 
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
   meta-axioms become premises of a Lean theorem rather than named
@@ -218,8 +220,8 @@ come first.
   (A-viewsync) as a corollary (`Mvba.aViewSync_of_sync`) and the
   `MVBATemporal` instance (`Mvba.mvbaTemporal`,
   [Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) are proven,
-  at the fragment the composed system runs. Still open on this leg: a machine-checked
-  admissible run in which everyone proposes, the non-vacuity witness below.
+  at the fragment the composed system runs, and its premises are jointly
+  satisfiable (`Mvba.timedTermination_premises_satisfiable`, below).
 
 ## Model hygiene
 

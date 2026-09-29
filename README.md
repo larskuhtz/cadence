@@ -479,6 +479,8 @@ Cadence/
   Mvba/Bound.lean, Mvba/BoundedTermination.lean
                                    the good-view lemma; the burn lemma and the bound
   Mvba/Temporal.lean               the timed MVBATemporal instance and the full MVBA
+  Mvba/Witness.lean                one model meeting every premise of both termination
+                                    theorems (non-vacuity)
   Interfaces.lean                  the module contracts — SlotConsensus / Orchestrator / ACS /
                                     MVBA as two-level type classes over explicit state
                                     (the …Safety fragments the models consume; the full

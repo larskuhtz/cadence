@@ -20,11 +20,13 @@ import Cadence.FallbackReceipt.PreFix
 -- The MVBA leg: the leader-based instantiation of the paper repository's
 -- internal supplement, its contract (the safety fragment, the timed temporal
 -- level, and the two joined), and the mutation test that refutes the
--- instantiation without its lock check.
+-- instantiation without its lock check, and the model showing the liveness
+-- theorems' premises jointly satisfiable.
 import Cadence.Mvba.Certify
 import Cadence.Mvba.Compose
 import Cadence.Mvba.Liveness
 import Cadence.Mvba.Temporal
+import Cadence.Mvba.Witness
 import Cadence.Mvba.NoLock
 
 /-!
@@ -175,6 +177,13 @@ Each entry is the result, the file its statement lives in, and what it says.
   (A-viewsync) (`Mvba.aViewSync_of_sync`). Hypotheses: finitely many
   validators, `ByzNodeSetHonestQuorum`, `ViewOrderEnum`. [Liveness.md](docs/Liveness.md)
   §2.1 explains the premise in short
+* **`Mvba.timedTermination_premises_satisfiable`,
+  `Mvba.termination_premises_satisfiable`** ([Mvba/Witness.lean](Cadence/Mvba/Witness.lean)) — **the
+  two rows above are not vacuous**: one concrete model (four validators, one
+  Byzantine, clock `ℕ`, the paper's fixed timeout) and one run meet every
+  premise of `Mvba.timed_termination` at once, and the same run meets every
+  premise of `Mvba.termination`. [Bounds.md](docs/Bounds.md) §6.3 is the
+  premise-by-premise ledger
 
 Three further build-checked claims are pinned where they are made, because
 their form is not an axiom footprint:
@@ -395,3 +404,15 @@ info: 'Mvba.mvbaFull' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Mvba.mvbaFull
+
+/--
+info: 'Mvba.timedTermination_premises_satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.timedTermination_premises_satisfiable
+
+/--
+info: 'Mvba.termination_premises_satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.termination_premises_satisfiable

@@ -53,7 +53,9 @@ def endResults : List Name :=
    ``Mvba.timed_termination,
    ``Mvba.admissible_exists,
    ``Mvba.mvbaTemporal,
-   ``Mvba.mvbaFull]
+   ``Mvba.mvbaFull,
+   ``Mvba.timedTermination_premises_satisfiable,
+   ``Mvba.termination_premises_satisfiable]
 
 /-- Contract classes to report on: the state-level fragment and the temporal
 level of each paper module. -/
@@ -306,7 +308,11 @@ run_cmd liftTermElabM do
     order's enumeration, a correct leader in every <code>k</code> consecutive
     views, and a cancellative, Archimedean time theory. It is at
     <code>mvbaSafety th</code>, the fragment the composed system runs, so the
-    MVBA there is a full <code>MVBA</code> (<code>Mvba.mvbaFull</code>).</p>" o
+    MVBA there is a full <code>MVBA</code> (<code>Mvba.mvbaFull</code>).
+    One concrete model meets all of those hypotheses and the caller's
+    antecedents at once (<code>Mvba.timedTermination_premises_satisfiable</code>),
+    and the premises of the untimed <code>Mvba.termination</code> too
+    (<code>Mvba.termination_premises_satisfiable</code>).</p>" o
 
   -- 4. What no machine checks.
   o := p "<h2>4. What no machine checks</h2>" o

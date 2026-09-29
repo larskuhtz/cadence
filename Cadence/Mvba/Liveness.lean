@@ -88,16 +88,16 @@ enumeration `ByzNodeSetEnum` the lemmas below take), a constructive quorum of co
 view order ([ViewOrder.lean](../ViewOrder.lean)) are what a **proof** needs
 to assemble certificates and to count, not part of what is being claimed.
 
-## Open: non-vacuity of the premise set
+## Non-vacuity of the premise set
 
-"These five premises are jointly satisfiable" is not proven. It needs a run
-exhibited in which every correct validator proposes and the protocol runs to
-a decision; the model's `sat trace` blocks witness the protocol half (a
-decision is reachable) and no more. The premise set is checked for
-consistency by argument, not by machine: the timer's finiteness clause is
-scoped away from the good view precisely so that it and the good view's
-clause cannot conflict. [TODO.md](../../docs/TODO.md) § Liveness tracks the
-witness. -/
+The five premises, together with the theorem's hypotheses and the model's
+assumptions, are jointly satisfiable: `Mvba.termination_premises_satisfiable`
+([Witness.lean](Witness.lean)) exhibits one instance and one run meeting all
+of them, and [Bounds.md](../../docs/Bounds.md) §6.3 is the ledger. In that
+run the caller abandons every correct validator after it decided, which
+`NoEarlyAbandon` allows. In this model a decision does not stop the view
+timer, so without abandonment the validators keep changing views; §6.3.2
+there says why, and how the supplement differs. -/
 
 namespace Mvba
 

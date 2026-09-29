@@ -692,7 +692,7 @@ it because no `JusticeLabel` is move-enabled at any of its states: sixteen
 guard facts, and a member of each quorum for the assemblies. It does *not*
 discharge [TODO.md](TODO.md) § Liveness's witness item, as this section once said:
 nobody proposes in it, so it is no witness for `TerminationClaim`'s
-`AllPropose`.
+`AllPropose`. That witness is §6.3's.
 
 #### 6.2.8 Staging, revised
 
@@ -726,6 +726,10 @@ files, [Interfaces.lean](../Cadence/Interfaces.lean), [Fairness.lean](../Cadence
    The axiom pins, the [Cadence.lean](../Cadence.lean) rows and the verification-status text
    in [CLAUDE.md](../CLAUDE.md) and [Architecture.md](Architecture.md) §4 are updated, and the seam is put
    to the Chorus leg in §6.2.1. The reassessment is below step 3's.
+5. **Done (2026-09-29).** Non-vacuity: the premise ledger (§6.3) and one
+   model satisfying every premise of both termination theorems,
+   [Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean). The
+   reassessment is the last one below.
 
 **Reassessment after step 2** (2026-09-28, as §6 asks). The good-view lemma
 is `Mvba.good_view_decides` in
@@ -1025,3 +1029,221 @@ proposal in §6.2.1. The questions the task set:
   when `Mvba.termination` is next touched, `[Fintype node]` in place of its
   `ByzNodeSetEnum` argument. At the concrete families `Fin n` both are
   instances already.
+
+**Reassessment after the non-vacuity step** (2026-09-29). The results are
+`Mvba.timedTermination_premises_satisfiable` and
+`Mvba.termination_premises_satisfiable` in
+[Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean), axioms at the
+standard trio. Each is an existential over the whole premise set: the
+sorts, the instances, the schedule, the theory and the run. No model
+change, nothing re-solved, the `#veil_status Mvba` pin unchanged, and no
+premise's statement changed. The questions the task set:
+
+* **Whether any premise was harder to satisfy than the ledger expected.**
+  One, and not the one flagged. The expected hard premise was `FJustice`
+  with plain `Enabled` (§6.2.4). At the concrete family it costs one lemma:
+  once the run is idle, exactly twenty-two assembly labels are enabled,
+  because a certificate has one quorum that can assemble it at
+  `ByzNSet 4` (`Mvba.Witness.enabled_idle`). The tail fires each of them
+  every twenty-two steps. The premise that changed the shape of the run is
+  the caller's `NoEarlyAbandon`, together with the view timer. A decision
+  does not stop the timer, so no run decides and then idles on its own
+  (§6.3.2). The witness therefore has the caller abandon the validators,
+  and the timed claim allows that only after `max(t, GST) + ℓ`. At
+  `fixedNat` that is 19 (one burn to leave the view entered at GST, since
+  `natViewOrderEnum.below 0 = [0]`, plus `k = 1` more, plus the chain),
+  against a timeout of 5. So the run passes through five views: views 0 to
+  4, with a decision in view 0 and re-proposals of the lock afterwards.
+* **Whether bounded weak fairness needed a real argument.** No. The run
+  advances its clock only out of states at which no fair label is
+  move-enabled (`Mvba.Witness.quiet`, at five block ends and the idle
+  tail). Every window then contains such a state on its own clock reading,
+  so (Δ-justice) holds with its antecedent false. That is a property of
+  this run, which is as eager as possible, and not of the premise: a run
+  that delays steps by up to their hop bound would need the window argument
+  in full.
+* **Whether one run serves both claims.** It does. The untimed projection
+  of the timed witness satisfies the five untimed premises, and
+  (A-viewsync) holds at `W = 1` directly. It also follows from the timed
+  premises through `Mvba.aViewSync_of_sync`. The file ends with both
+  theorems applied to the witness, to check that it is an instance of what
+  they quantify over.
+* **What the proof costs.** Each state is a closed formula in its index,
+  so the 132 prefix steps, the quiescence facts and the premises are linear
+  arithmetic. The file elaborates in about 40 s (four to five CPU-minutes,
+  in parallel), dominated by the 132 transition checks. It touches no VC.
+
+### 6.3 The premises are jointly satisfiable
+
+*Auditor-first. The list says what each premise of the two MVBA liveness
+theorems is and why it can hold. The model below the list shows that they
+hold **together**. The detail is in §6.3.1–§6.3.3.*
+
+A theorem whose premises can never hold at once proves nothing. For a
+conditional liveness result the check is therefore that every premise can
+be met in one model: the instance hypotheses, the class axioms, the model's
+`assumption`s, and the fairness and timing premises. Because the premises
+are hypotheses, **one model satisfying all of them suffices**. The model is
+[Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean), and the two
+theorems that say it satisfies them are:
+
+* `Mvba.timedTermination_premises_satisfiable`: some instance, schedule
+  and run meet every premise of `Mvba.timed_termination` (and so of
+  `Mvba.mvbaTemporal`). The bounded claim is not vacuous: its runs are not
+  all excluded by the timing model, and its caller conditions can be met in
+  a run that is admissible.
+* `Mvba.termination_premises_satisfiable`: some instance and run meet every
+  premise of `Mvba.termination`. The untimed claim is not vacuous. In
+  particular, weak fairness with plain enabledness does not contradict the
+  rest at this instance.
+
+**The ledger.** "Obvious" means an auditor can see by inspection that the
+premise can hold. "Not obvious" means it needs the model.
+
+Shared by both theorems (the instance):
+
+* **Finitely many validators** (`Fintype node`): obvious, every real
+  deployment has them. Model: `Fin 4`.
+* **The quorum system** (`ByzNodeSet`, its axioms): obvious for
+  `n ≥ 3f + 1`, and machine-checked for the whole family
+  `byzNodeSetFinGen` ([ByzQuorum.lean](../Cadence/ByzQuorum.lean)). Model:
+  `n = 4`, `f = 1`, validator 3 Byzantine.
+* **A supermajority of correct validators** (`ByzNodeSetHonestQuorum`):
+  obvious, since at most `f` validators are Byzantine. Model: `{0, 1, 2}`.
+* **Views have successors, finitely many below each**
+  (`ViewOrderEnum`): obvious for a view counter. Model: `ℕ`
+  (`natViewOrderEnum`).
+* **The model's assumptions** (`leader_functional`,
+  `leader_honest_cofinal`): obvious, a leader schedule is a function and
+  round-robin reaches every validator. Model: validator 0 leads every
+  view.
+
+The timed claim, `Mvba.timed_termination`:
+
+* **The time theory** (a cancellative, Archimedean, linearly ordered
+  monoid): obvious. Model: `ℕ`.
+* **The schedule** (`Schedule`: `0 < Δ`, non-negative constants, a capped
+  timeout that eventually exceeds the chain's latency): obvious. Model:
+  `Schedule.fixedNat`, the paper's fixed timeout.
+* **A correct leader in every `k` consecutive views** (`LeaderRotation`):
+  obvious, round-robin gives `k = f + 1`. Model: `k = 1`.
+* **The run is admissible** (`Sync`: bounded weak fairness after GST, a
+  punctual view timer, availability within `Δ_sync`): **not obvious**
+  together with the next three. `Mvba.admissible_exists` shows admissible
+  runs exist, but its run has nobody proposing.
+* **Every correct validator proposes by `t`**, **with a valid value**, and
+  **none abandons before `max(t, GST) + ℓ`**: each obvious alone, not
+  obviously compatible with admissibility. The timer is punctual, so a
+  model run that satisfies them does not stop after deciding. §6.3.2 says
+  why.
+
+The untimed claim, `Mvba.termination`:
+
+* **(F-justice)**, weak fairness of every honest action with *plain*
+  enabledness: **not obvious, and false at some instances.** At a
+  `nodeset` sort with infinitely many supermajorities no run satisfies it
+  once a prepare certificate exists (§6.2.4). At the finite quorum sorts of
+  the concrete family it holds; the model shows that, since each quorum
+  label that stays enabled forever also fires forever.
+* **(A-viewsync)**, the view timer as ordering constraints: **not
+  obvious** on its face, but it is a corollary of the timed premises
+  (`Mvba.aViewSync_of_sync`), so it inherits their satisfiability. The
+  model checks it directly.
+* **(F-avail)**, the availability shares arrive: obvious.
+* **`AllPropose`**, **`NoEarlyAbandon`**: obvious alone, and not
+  obviously compatible with (F-justice) and the timer, for the same reason
+  as in the timed claim.
+
+**What the model found.** Every premise is satisfiable, and none needed
+a change to its statement. The one that was harder than expected is the
+caller's `NoEarlyAbandon`, together with the timer. In the model a decision
+does not stop a validator, so the witness has the caller abandon it, and
+in the timed claim only after `ℓ`. That is also where the model differs
+from the supplement, which stops on its own. §6.3.2 has both.
+
+#### 6.3.1 The model
+
+* **Instance.** Validators `Fin 4` under `byzNodeSetFinGen 4 1`, with
+  validator 3 Byzantine and silent. Quorums are sorted lists (`ByzNSet 4`),
+  sixteen of them. Values are `Unit`, and every value is valid. Views are
+  `ℕ` with `natViewOrder`, and validator 0 leads every view. Time is `ℕ`,
+  the schedule is `Schedule.fixedNat ℕ 1` (`Δ = 1`, `δ = Δ_sync = 0`,
+  timeout 5), and GST and `t` are 0. `ℓ` is then 19.
+* **The run.** The three correct validators become available and propose
+  at clock 0. They run the whole chain of view 0 and decide in it. The
+  view timer of view 0 then expires at clock 5, they time out, form a
+  timeout certificate, enter view 1 and run the chain of view 1 there. The
+  same happens at clocks 10, 15 and 20, for views 2, 3 and 4. At clock 25
+  their view-4 timers expire and the caller abandons each of them. That is
+  after `ℓ = 19`, so `NoEarlyAbandon` and the timed abandonment premise
+  hold. From then on the run is idle: it cycles through the twenty-two quorum
+  labels that are still enabled, each a step that changes nothing, and the
+  clock advances by one per step.
+* **Why the proofs are short.** Every state of the run is a closed formula
+  in its index: a record is present at index `n` iff the step that sets it
+  is before `n`, and that step is `26 · V + c + i` for view `V`, a
+  constant `c` per record, and validator `i`. Each transition, and each
+  premise, is then linear arithmetic over the index.
+* **Why the timed fairness premise is easy here.** The clock advances only
+  out of states at which no fair label is move-enabled. So from every
+  index there is a later one on the same clock reading at which a given
+  fair label is not move-enabled, and bounded weak fairness holds with its
+  antecedent false. The run is fair because it never leaves an obligation
+  pending while time passes.
+
+#### 6.3.2 The finding: in the model, a correct validator does not stop after deciding
+
+The plan (TODO's "Exhibit a run" item) was a run in which everyone decides
+in the first view and the run then idles. The model has no such run. Its
+`decide` records the decision and nothing else, and its `timeout_qc` needs
+only the expired timer, the current view and `¬ abandoned`. So a decided
+validator whose view timer expires times out, a timeout certificate forms,
+and it enters the next view, whose chain runs again. In the untimed claim
+(A-viewsync)'s first clause forces the timers of every view below the good
+view `W`, which is at least view 1, so the run must reach `W` at least. In
+the timed claim (T2) forces the timer of *every* view entered, so the view
+changes never end unless the caller abandons.
+
+**The supplement does stop.** Both its decision paths end in
+`decide(…); abandon()` (`line:mvba:td-decide`, `line:mvba:qc-decide`),
+`abandon()` "halts all MVBA sending and stops `W`", and the timeout fires
+only "upon `W` reaches the view timeout and no decision in view `v`"
+(`line:mvba:timeout-send`). The model has neither the self-abandon nor
+the no-decision guard. That gives it more behaviours than the supplement,
+which is sound for safety, and for the untimed claim: a supplement run
+read as a model run maps each `decide(…); abandon()` to `decide` then
+`abandon`, and `NoEarlyAbandon` (abandoned only after deciding) still
+holds. **For the timed claim it leaves a question open.** The same reading
+abandons a validator right after it decides, which can be before
+`max(t, GST) + ℓ`, so such a run does not meet `Mvba.timed_termination`'s
+third caller condition, and the theorem says nothing about it. The
+contract's caller condition is about *external* abandonment. The model has
+only one `abandon`, the caller's. Whether to model the self-abandon
+separately (a guarded `decide` that also halts, or a timeout guard on "no
+decision"), and whether the bound then covers those runs, is recorded in
+[PaperAlignment.md](PaperAlignment.md) §4 and [TODO.md](TODO.md)
+§ Liveness. It is not resolved here.
+
+For the witness, the model's behaviour means the run ends with the caller
+abandoning every correct validator after it decided. `NoEarlyAbandon`
+allows that, and so does the timed claim, but only after
+`max(t, GST) + ℓ`. `ℓ` exceeds a view's timeout by construction: it
+contains `k • burn` with `k ≥ 1`, and `burn` contains `τ_max`. So every
+timed witness passes through several view changes before it can idle:
+five views at `fixedNat`, because `ℓ = 19` and the timeout is 5.
+
+#### 6.3.3 What the Chorus `TerminationClaim` will need
+
+The same two things, after stage 5: a ledger of its premises in this form,
+and one model satisfying all of them. The model can reuse this one for
+the MVBA sub-state. Chorus does not drive the MVBA's `abandon` (the
+Chorus model's MVBA section: it is Cadence/Conductor-driven, and undriven
+in the single-slot model). So a Chorus witness either carries the MVBA's
+view changes forever, which the timed witness above shows are admissible,
+or needs §6.3.2's self-abandon in the model. The premise that needs thought is **`ValidBridge`**,
+the stated bridge between the MVBA's decision and the network's
+certificates at Chorus's decision handlers. It relates two sub-states,
+and a model must produce certificates that satisfy it, not merely an MVBA
+run that decides. Plain-`Enabled` `FJustice` over Chorus's own quorum
+labels is the second, with the same caveat as here and the same remedy at
+finite sorts.

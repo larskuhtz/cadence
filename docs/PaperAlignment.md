@@ -182,7 +182,7 @@ atomic reload. `subsec:mvba-correctness` discharges the module's properties
 with roughly fifteen lemmas, `thm:agreement` and `thm:termination`, the
 latter at `O(fΔ)`.
 
-Three consequences for this repository:
+Four consequences for this repository:
 
 1. `ℓ_MVBA` has a concrete value, `O(fΔ)`, and a machine-checked
    counterpart: `Mvba.bounded_termination`
@@ -220,12 +220,28 @@ Three consequences for this repository:
    matches the supplement rather than the published contract, and it is the
    sound direction: assuming the stronger contract while needing only the
    weaker one.
+4. **A liveness-level observation** (recorded 2026-09-29, while building
+   the non-vacuity witness, [Bounds.md](Bounds.md) §6.3.2). The supplement
+   stops a validator once it decides: both decision paths end in
+   `decide(…); abandon()` (`line:mvba:td-decide`, `line:mvba:qc-decide`),
+   and the timeout fires only when there is "no decision in view `v`"
+   (`line:mvba:timeout-send`). The model has neither. Its `decide` only
+   records the decision, and `abandon` is the caller's input alone. That is
+   more behaviours, so the safety theorems and the untimed termination
+   theorem cover the supplement's runs. For the timed theorem it leaves one
+   question open: the supplement's own `abandon()` right after deciding
+   reads, in the model, as an abandonment before `max(t, GST) + ℓ`, which
+   the theorem's caller condition excludes. Modelling the self-abandon
+   separately from the caller's would close it. [TODO.md](TODO.md)
+   § Liveness tracks it.
 
 ## 5. What this implies for the models
 
-Nothing. No model changes, and no change to what this repository claims:
-the published algorithms are unchanged, and the divergences above are
-between the paper's two documents.
+Nothing so far. No model changes, and no change to what this repository
+claims: the published algorithms are unchanged, and the divergences in §3
+are between the paper's two documents. The one candidate for a model
+change is §4 item 4, the MVBA's self-abandon on decision, which is open in
+[TODO.md](TODO.md).
 
 What is worth doing is documentary, and is tracked in
 [TODO.md](TODO.md): cite `sec:domain-separation` where the network
