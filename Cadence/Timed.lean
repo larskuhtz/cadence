@@ -316,7 +316,34 @@ def TLRun.toTimedRun (r : TLRun sys th time) (S : MVBASafety party value message
   gst := r.gst
 
 open scoped Timed in
-theorem TLRun.toTimedRun_at' (r : TLRun sys th time) (S : MVBASafety party value message σ byz)
+/-- **The contracts' least upper bound is `max`.** `TimedRun.byGstBound`
+and `MVBATemporal.termination`'s abandonment premise write "`max(t, gst)`"
+as "the least `u` above both", since Veil's `TotalOrder` has no `max`. At a
+linear order that `u` is `max t g`, and this is the conversion, once. -/
+theorem gstLub_iff {t g u : time} :
+    (TotalOrder.le t u ∧ TotalOrder.le g u ∧
+      ∀ u', TotalOrder.le t u' → TotalOrder.le g u' → TotalOrder.le u u') ↔ u = max t g := by
+  constructor
+  · rintro ⟨h₁, h₂, h₃⟩
+    exact le_antisymm (h₃ _ (le_max_left t g) (le_max_right t g)) (max_le h₁ h₂)
+  · rintro rfl
+    exact ⟨le_max_left t g, le_max_right t g, fun _ h₁ h₂ => max_le h₁ h₂⟩
+
+open scoped Timed in
+/-- `byGstBound t d P` is "`P` by `max t gst + d`". -/
+theorem _root_.TimedRun.byGstBound_iff [Add time] {state : Type} {init : state → Prop}
+    {trans : state → state → Prop} {clock : state → time}
+    (r : TimedRun state time init trans clock) (t d : time) (P : state → Prop) :
+    r.byGstBound t d P ↔ r.byTime (max t r.gst + d) P := by
+  constructor
+  · rintro ⟨u, h₁, h₂, h₃, hb⟩
+    rwa [gstLub_iff.mp ⟨h₁, h₂, h₃⟩] at hb
+  · intro h
+    obtain ⟨h₁, h₂, h₃⟩ := gstLub_iff.mpr (rfl : max t r.gst = max t r.gst)
+    exact ⟨_, h₁, h₂, h₃, h⟩
+
+open scoped Timed in
+theorem TLRun.toTimedRun_at'(r : TLRun sys th time) (S : MVBASafety party value message σ byz)
     (hinit : S.init (r.at' 0)) (hsteps : ∀ n, S.trans (r.at' n) (r.at' (n + 1))) (n : Nat) :
     (r.toTimedRun S hinit hsteps).at' n = (r.at' n, r.clk n) := rfl
 
@@ -342,3 +369,11 @@ info: 'Cadence.exists_not_moveEnabled_of_not_firesWithin' depends on axioms: [pr
 /-- info: 'MVBASafety.timed' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms MVBASafety.timed
+
+/-- info: 'Cadence.gstLub_iff' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Cadence.gstLub_iff
+
+/-- info: 'TimedRun.byGstBound_iff' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms TimedRun.byGstBound_iff

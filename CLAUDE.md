@@ -62,6 +62,14 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `Mvba/NoLock.lean` is the mutation test: the model checker's
   counterexample to the instantiation *without* its lock check, pinned
   like `PreFix.lean` — a green build **requires** the violation.
+  The liveness files are plain Lean over runs and touch no VC:
+  `Mvba/Liveness.lean` (untimed termination), then the bounds leg
+  (`docs/Bounds.md` §6.2). That leg is `Timed.lean` (timed runs, generic),
+  `Mvba/Schedule.lean` (the timing model and the claims, stated),
+  `Mvba/Bound.lean` (the good view), `Mvba/BoundedTermination.lean` (the
+  bound, and (A-viewsync) derived) and `Mvba/Temporal.lean`.
+  `Mvba/Temporal.lean` holds `Mvba.mvbaTemporal : MVBATemporal …` at the
+  clock-lifted fragment and the full `Mvba.mvbaTimed`.
 * Support: `QuorumCounting.lean` (`ByzNodeSetCounting`, the three
   quorum counting facts beyond `ByzNodeSet`'s intersection axioms, proven
   for the concrete families in `ByzQuorum.lean`), `Interfaces.lean` (the module contracts — `SlotConsensus`,
@@ -408,19 +416,32 @@ is a change to what this project *claims*, not a refactor.
   numbers change — a step property costs one cell per action — so update the
   pins, and check the new numbers are the ones you expect.
 * **No full contract instance is fabricated.** `Orchestrator`,
-  `SlotConsensus` and `MVBA` (the full classes) have instances only
-  *given* an instance of the matching `…Temporal` class at the proven
-  fragment — `Conductor.orchestrator_of_temporal`,
-  `Chorus.slotConsensus_of_temporal`, `Mvba.mvba_of_temporal`, each of them
-  `{ theSafetyInstance, h with }` and nothing more. This development
-  provides no `…Temporal` instance, and that absence *is* the statement of
-  what is unproven: the class's fields, stated over the fragment's own
-  relations, restated nowhere. Proving one of them means moving the field
-  from `XTemporal` to `XSafety` (if it is first-order and every
-  implementation proves it) and discharging it in the instances — never
-  adding an axiom, and never weakening a class field to make an instance
-  possible. Each `…_of_temporal` is paired with a `…_toSafety` `rfl` lemma:
-  the join must hand back exactly the fragment that was proven.
+  `SlotConsensus` and `MVBA` (the full classes) are built only as
+  `{ theSafetyInstance, temporalInstance with }` and nothing more. Two kinds
+  of join exist:
+  * **Conditional joins**, given an instance of the matching `…Temporal`
+    class at the proven fragment: `Conductor.orchestrator_of_temporal`,
+    `Chorus.slotConsensus_of_temporal`, `Mvba.mvba_of_temporal`. There is no
+    `OrchestratorTemporal` or `SlotConsensusTemporal` instance, and no
+    `MVBATemporal` instance at the unlifted `Mvba.mvbaSafety th`, and that
+    absence *is* the statement of what is unproven: the class's fields,
+    stated over the fragment's own relations, restated nowhere.
+  * **One proven temporal instance**: `Mvba.mvbaTemporal`, at the
+    *clock-lifted* fragment `(mvbaSafety th).timed time`, joined into
+    `Mvba.mvbaTimed`. It is proven from named hypotheses, never from an
+    axiom: the enumeration and quorum classes, `LeaderRotation`, a `Schedule`
+    that carries its own hypotheses, and the time theory's classes. The seam
+    is that Chorus consumes the unlifted fragment (`docs/Bounds.md` §6.2.1).
+    A new temporal instance takes the same form, with its hypotheses listed
+    in `Cadence.lean`'s row, and its `Admissible` is a run model defined
+    before its proof.
+
+  Proving a field means one of two things. Either move it from `XTemporal`
+  to `XSafety` (if it is first-order and every implementation proves it) and
+  discharge it in the instances, or instantiate `XTemporal` from named
+  premises as above. Never add an axiom, and never weaken a class field to
+  make an instance possible. Each join is paired with a `…_toSafety` `rfl`
+  lemma: it must hand back exactly the fragment that was proven.
 * **The pre-fix refutation keeps failing.** `FallbackReceipt/PreFix.lean`
   builds only while the model checker still finds the documented
   counterexample. Its `#model_check` **must** keep `(sequential := true)`:

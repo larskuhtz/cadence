@@ -46,7 +46,14 @@ def endResults : List Name :=
    ``Mvba.reachable_integrity,
    ``Mvba.reachable_external_validity,
    ``Mvba.mvbaSafety,
-   ``Mvba.mvba_of_temporal]
+   ``Mvba.mvba_of_temporal,
+   ``Mvba.termination,
+   ``Mvba.bounded_termination,
+   ``Mvba.aViewSync_of_sync,
+   ``Mvba.timed_termination,
+   ``Mvba.admissible_exists,
+   ``Mvba.mvbaTemporal,
+   ``Mvba.mvbaTimed]
 
 /-- Contract classes to report on: the state-level fragment and the temporal
 level of each paper module. -/
@@ -293,6 +300,14 @@ run_cmd liftTermElabM do
   o := p "<p>The <code>…Temporal</code> rows without an instance are the timing and
     liveness obligations. <code>ACSSafety</code> has none because the ACS is a
     standard primitive whose implementation is out of scope.</p>" o
+  o := p "<p><code>MVBATemporal</code>'s instance, <code>Mvba.mvbaTemporal</code>, is
+    at the <em>clock-lifted</em> fragment <code>(mvbaSafety th).timed time</code>,
+    the model's state paired with a clock, and is proven from named hypotheses
+    that are classes and a schedule, not contracts: the quorum and view-order
+    enumerations, a correct leader in every <code>k</code> consecutive views, and
+    a cancellative, Archimedean time theory. Chorus consumes
+    <code>mvbaSafety th</code> at the unlifted state, so the composed system does
+    not inherit it (<code>docs/Bounds.md</code> §6.2.1, the seam).</p>" o
 
   -- 4. What no machine checks.
   o := p "<h2>4. What no machine checks</h2>" o

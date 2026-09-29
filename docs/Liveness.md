@@ -169,8 +169,16 @@ and any other view is left within a fixed cost (`Mvba.synced_succ`). The
 bounded claim follows from them: `BoundedTerminationClaim` is
 `Mvba.bounded_termination`
 ([`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)).
-`AViewSyncClaim` and the `MVBATemporal` instance at the lifted fragment are
-not proven yet ([`Bounds.md`](./Bounds.md) §6.2.8, step 4).
+The phase is complete for the MVBA (2026-09-28). (A-viewsync) is a theorem
+of the timing model (`Mvba.aViewSync_of_sync`, which proves `AViewSyncClaim`,
+with the proposals due by a time). The `MVBATemporal` instance at the
+clock-lifted fragment is `Mvba.mvbaTemporal`
+([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)). The
+derivation of (A-viewsync) needs only that *some* commit certificate
+eventually exists, which says something about the premise's strength:
+[`Bounds.md`](./Bounds.md) §6.2.8, the step-4 reassessment. What is left is
+the seam of [`Bounds.md`](./Bounds.md) §6.2.1: Chorus consumes the unlifted
+fragment.
 
 ## 3. What would close the rest
 
@@ -260,7 +268,12 @@ untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
 This leg and [`Bounds.md`](./Bounds.md) §6.1 are **independent**: neither
 needs the other's result, and the MVBA bounds leg discharges
 (A-viewsync) while this one consumes `Mvba.termination` as it already
-stands. Rules that keep them from colliding:
+stands. **The MVBA bounds leg is complete** (2026-09-28, [`Bounds.md`](./Bounds.md)
+§6.2.8). The rules below held throughout, with one prose exception: step 4
+updated the docstring of `Terminates` in `Mvba/Liveness.lean`, which had said
+the timed form had no instance. No statement changed. What the bounds leg
+leaves for this one is the seam proposal of [`Bounds.md`](./Bounds.md) §6.2.1.
+Rules that keep them from colliding:
 
 * **Neither leg edits [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean).**
   The bounds leg *instantiates* `MVBATemporal`, it does not change it; this

@@ -164,10 +164,15 @@ come first.
   witness the protocol half), but an argument is not a build-checked fact.
   What would make it one: a `TerminationClaim` instance at concrete finite
   sorts, or a trace through the premises. Related to, but smaller than, the
-  composition-level instrument above — and **not worth a session of its
-  own**: `MVBATemporal.admissible_exists` requires constructing admissible
-  timed runs anyway, so the witness falls out of the bounds work
-  ([`Bounds.md`](./Bounds.md) §6.1) if that is picked up.
+  composition-level instrument above. The bounds leg did **not** produce it
+  as a by-product, contrary to what was expected here.
+  `Mvba.admissible_exists` (the contract's non-vacuity witness,
+  [`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)) is a run in
+  which nobody proposes, so it satisfies every scheduling premise vacuously
+  and `AllPropose` not at all. A `TerminationClaim` witness still needs a run
+  in which every correct validator proposes and the protocol runs to a
+  decision. The timed claim needs no such witness, since its caller's
+  premises are hypotheses of `MVBATemporal.termination`.
 
   **Caveat found by the bounds workshop** ([`Bounds.md`](./Bounds.md)
   §6.2.4): `FJustice` is stated with `Fairness.lean`'s `Enabled`, which a
@@ -192,7 +197,7 @@ come first.
   the *progress* invariants can be produced mechanically rather than written
   by hand.
 * The paper's Δ-bounds (`ℓ = 5Δ + ℓ_MVBA`, `d_tot = Δ`, …): the models
-  are untimed and no artefact claims a latency bound
+  are untimed, and the one latency bound proven is the MVBA's `ℓ_MVBA`
   ([`Architecture.md`](./Architecture.md) §4 item 4). The routes to
   changing that and the recorded Veil tooling constraints are
   [`Bounds.md`](./Bounds.md); the preferred route — a plain-Lean
@@ -204,13 +209,16 @@ come first.
   (2026-09-16): its timing model is workshopped and stated
   ([`Bounds.md`](./Bounds.md) §6.2,
   [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)), and
-  steps 2 and 3 are proven: the good-view lemma
-  ([`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)) and, from it
-  and the burn lemma, the bounded claim itself
-  (`Mvba.bounded_termination`,
-  [`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)).
-  Step 4 of §6.2.8 remains: the `MVBATemporal` instance at the lifted
-  fragment, `admissible_exists`, and (A-viewsync) as a corollary.
+  **the MVBA leg is complete** (2026-09-28). The good-view lemma
+  ([`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)), the bounded
+  claim (`Mvba.bounded_termination`,
+  [`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)),
+  (A-viewsync) as a corollary (`Mvba.aViewSync_of_sync`) and the
+  `MVBATemporal` instance at the clock-lifted fragment (`Mvba.mvbaTemporal`,
+  [`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)) are proven.
+  What remains of it is the seam: Chorus consumes the unlifted fragment, and
+  the proposal to close it is [`Bounds.md`](./Bounds.md) §6.2.1, a decision
+  for the Chorus leg's composition step.
 
 ## Model hygiene
 

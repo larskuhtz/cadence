@@ -355,7 +355,8 @@ def NoEarlyAbandon (r : MvbaRun th) : Prop :=
 /-- **Bound-erased termination**: every correct validator decides. The
 `O(fΔ)`-free skeleton of `thm:termination`, and the untimed sibling of
 `MVBATemporal.termination` (`Cadence/Interfaces.lean`), whose timed form
-this development still has no instance of. -/
+is proven at the clock-lifted fragment (`Mvba.mvbaTemporal`,
+`Cadence/Mvba/Temporal.lean`). -/
 def Terminates (r : MvbaRun th) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ (n : Nat) (E : value), (r.at' n).decided i E = true
 
