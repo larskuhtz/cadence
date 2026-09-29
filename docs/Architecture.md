@@ -437,6 +437,9 @@ relations, and it takes a human to confirm each use is positive.
    `admissible_exists` proves that they can be met. The caller's side of
    the contract is three antecedents of `termination`: every correct party
    proposes by `t`, proposes a `Valid` value, and does not abandon early.
+   One concrete model meets all of these premises together, and the
+   untimed theorem's too (`Mvba.timedTermination_premises_satisfiable`,
+   `Mvba.termination_premises_satisfiable`; [Bounds.md](Bounds.md) §6.3).
    The models are untimed; the one latency bound proven,
    `Mvba.bounded_termination`, is over timed runs, which carry the clock
    beside the MVBA's untimed states.
@@ -513,6 +516,7 @@ table can be read off one file:
 | `Mvba.mvbaSafety`, `Mvba.mvba_of_temporal` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) | same | ✓ |
 | `Mvba.bounded_termination`, `Mvba.aViewSync_of_sync` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)) | same | ✓ |
 | `Mvba.mvbaTemporal`, `Mvba.timed_termination`, `Mvba.admissible_exists`, `Mvba.mvbaFull` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) | same | ✓ |
+| `Mvba.timedTermination_premises_satisfiable`, `Mvba.termination_premises_satisfiable` ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)) | same | ✓ |
 | the `FallbackReceiptPreFix` refutation ([Cadence/FallbackReceipt/PreFix.lean](../Cadence/FallbackReceipt/PreFix.lean)) | expected model-checker violation (trace) | ✓ |
 | the `MvbaNoLock` refutation ([Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean)) | expected model-checker violation (trace) | ✓ |
 
