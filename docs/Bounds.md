@@ -950,15 +950,32 @@ proposal in §6.2.1. The questions the task set:
   timer clauses. The certificate itself comes from `bounded_termination`,
   or from an early abandonment. The factored good view (`GoodView`,
   `exists_good_view`) is what `bounded_termination` consumes, but this proof
-  does not need it. **The finding** is about (A-viewsync) as a premise of
-  `Mvba.termination`. Given the timer clauses, it holds as soon as a commit
-  certificate eventually exists, and `Mvba.termination`'s chain derives a
-  certificate from it. Modulo the timer clauses and (A-leader-rotation), the
-  premise is therefore equivalent to the step of the conclusion that needs
-  the protocol. The untimed theorem is not wrong, but most of its liveness
-  content sits in its premise. The timed instance is what retires
-  (A-mvba) for the MVBA, and [`Liveness.md`](./Liveness.md) §2.1 should be
-  read with that in mind.
+  does not need it. **The finding** is about what kind of premise
+  (A-viewsync) is. It does not weaken `Mvba.termination`, which is exactly
+  as strong as its statement. It is, however, not an environment-only
+  assumption. Its second clause relates the good view's timer to the
+  protocol's own success event (a commit certificate), so it holds in
+  every run that terminates. Given fairness and the timer facts it is
+  therefore equivalent to "a commit certificate eventually exists":
+  `aViewSync_of_commitqc` is one direction, and `Mvba.termination`'s chain
+  the other. The untimed theorem proves real protocol content: if the
+  environment does not interrupt a correct-led view prematurely, the
+  protocol decides. What it cannot show is that an environment blind to the
+  protocol's state can provide that patience, which is the synchrony
+  assumption proper.
+
+  Some such assumption is unavoidable. By FLP, no deterministic consensus
+  terminates in every fair asynchronous run, and here the bad run is
+  concrete: `expire_timer` carries no fairness obligation, so a scheduler
+  fair to every honest action can expire each view's timer just before its
+  certificate forms. An untimed model can only phrase the assumption
+  relative to protocol events. The supplement phrases it as durations
+  (delivery within `Δ` after GST, a timeout above the chain's latency),
+  and so do this leg's premises (§6.2.4). `aViewSync_of_sync` derives the
+  untimed stand-in from them. So the MVBA's termination rests on
+  assumptions of the paper's kind, and (A-viewsync) is an intermediate
+  step. [`Liveness.md`](./Liveness.md) §2.1 should be read with that in
+  mind, and the timed result is the one to lead with.
 * **What the seam proposal says.** Two ways to hand the composed system the
   instance (§6.2.1). (a) plugs the lifted fragment in at `System.lean`: no
   class change, but the composed run must require each MVBA step to stamp

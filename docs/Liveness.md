@@ -175,8 +175,11 @@ which proves `AViewSyncClaim` from `Mvba.termination`'s own caller premises). Th
 clock-lifted fragment is `Mvba.mvbaTemporal`
 ([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)). The
 derivation of (A-viewsync) needs only that *some* commit certificate
-eventually exists, which says something about the premise's strength:
-[`Bounds.md`](./Bounds.md) §6.2.8, the step-4 reassessment. What is left is
+eventually exists. That shows what kind of premise it is: the untimed
+stand-in for partial synchrony, stated relative to the protocol's own
+progress because an untimed model has no durations. It is now derived from
+the paper's kind of assumption, bounded delays and a timeout above the
+latency ([`Bounds.md`](./Bounds.md) §6.2.8, the step-4 reassessment). What is left is
 the seam of [`Bounds.md`](./Bounds.md) §6.2.1: Chorus consumes the unlifted
 fragment.
 
