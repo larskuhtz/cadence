@@ -36,12 +36,13 @@ The proof is §6.2.6's, in its order:
   everyone by `clk N_W + Lcert + δ ≤ u + ℓ`. The first half, up to the good
   view, is its own lemma, `exists_good_view`, which returns the view with
   every premise of `good_view_decides` in a `GoodView` structure.
-* **(A-viewsync), derived** (`aViewSync_of_sync`, which proves
-  `AViewSyncClaim`). Any correct-led view above every view entered when a
-  commit certificate first exists is a good view in `AViewSync`'s sense
-  (`aViewSync_of_commitqc`, from the two timer clauses alone). A certificate
-  exists by `bounded_termination`, or because an abandoned correct
-  validator has already decided.
+* **(A-viewsync), derived.** `aViewSync_of_sync` proves `AViewSyncClaim`
+  for finitely many validators, and its core, for any node sort and a
+  proposal deadline, is `aViewSync_of_proposedBy`. Any correct-led view above
+  every view entered when a commit certificate first exists is a good view
+  in `AViewSync`'s sense (`aViewSync_of_commitqc`, from the two timer clauses
+  alone). A certificate exists by `bounded_termination`, or because an
+  abandoned correct validator has already decided.
 
 ## The `2δ` of the timeout row
 
@@ -1136,15 +1137,17 @@ theorem aViewSync_of_commitqc [AddCommMonoid time] (vfin : ViewOrderEnum view vo
     exact ⟨V₁, E₁, r.mono (P := fun s => s.msg_commitqc V₁ E₁ = true)
       (fun k hk => Mvba.msg_commitqc.mono (r.steps k) V₁ E₁ hk) hqc n (by omega)⟩
 
-/-- **(A-viewsync) is a consequence** of the timed premises:
-`AViewSyncClaim`, proven, under the two quorum classes and a cancellative
-time theory — the ones `bounded_termination` needs. -/
-theorem aViewSync_of_sync [AddCommMonoid time] [IsOrderedCancelAddMonoid time]
+/-- **(A-viewsync) from a proposal deadline.** The core of the claim, for
+any node sort: if every correct validator has proposed by some time `t` and
+none is abandoned before deciding, the run satisfies `AViewSync`. -/
+theorem aViewSync_of_proposedBy [AddCommMonoid time] [IsOrderedCancelAddMonoid time]
     (enum : ByzNodeSetEnum node nodeset nset) (hqe : ByzNodeSetHonestQuorum node nodeset nset)
-    (sch : Schedule view time) (vfin : ViewOrderEnum view vord) :
-    AViewSyncClaim sch vfin th := by
+    (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
+    (hrot : LeaderRotation vfin sch.k th) {r : TMvbaRun th time} (hsync : Sync sch r)
+    {t : time} (hprop : ∀ p, ¬ nset.is_byz p = true →
+      ∃ (n : Nat) (E : value), r.clk n ≤ t ∧ (r.at' n).input p E = true)
+    (hnea : NoEarlyAbandon r.toLRun) : AViewSync r.toLRun := by
   classical
-  intro hrot r hsync t hprop hnea
   obtain ⟨a, V₁, E₁, hqc⟩ : ∃ a V E, (r.at' a).msg_commitqc V E = true := by
     by_cases hab : ∃ p n, ¬ nset.is_byz p = true ∧ (r.at' n).abandoned p = true
     · obtain ⟨p, n, hp, h⟩ := hab
@@ -1161,8 +1164,8 @@ theorem aViewSync_of_sync [AddCommMonoid time] [IsOrderedCancelAddMonoid time]
       exact ⟨n, V, E, hV⟩
   exact aViewSync_of_commitqc vfin hrot hsync.2.1 hqc
 
-/-- At a finite node sort `AllPropose` gives the deadline: some index has
-every correct validator's proposal, and its clock is the `t`. -/
+/-- `AllPropose` over a list of validators gives one index at which all of
+them have proposed: the latest of their proposals. -/
 theorem exists_index_all_input {r : TMvbaRun th time} (hall : AllPropose r.toLRun) :
     ∀ xs : List node, ∃ N, ∀ p ∈ xs, ¬ nset.is_byz p = true →
       ∃ E, (r.at' N).input p E = true
@@ -1186,17 +1189,19 @@ theorem exists_index_all_input {r : TMvbaRun th time} (hall : AllPropose r.toLRu
       · obtain ⟨E', hE'⟩ := hN q hq hqc
         exact ⟨E', hmono (Nat.le_max_left _ _) hE'⟩
 
-/-- **(A-viewsync) from `AllPropose`, at a finite node sort** — the claim in
-the untimed form of `Mvba.termination`'s premises. Every concrete instance
-of this development has finitely many nodes. -/
-theorem aViewSync_of_allPropose [AddCommMonoid time] [IsOrderedCancelAddMonoid time]
-    [Fintype node]
-    (enum : ByzNodeSetEnum node nodeset nset) (hqe : ByzNodeSetHonestQuorum node nodeset nset)
-    (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
-    (hrot : LeaderRotation vfin sch.k th) {r : TMvbaRun th time} (hsync : Sync sch r)
-    (hall : AllPropose r.toLRun) (hnea : NoEarlyAbandon r.toLRun) : AViewSync r.toLRun := by
+/-- **(A-viewsync) is a consequence** of the timing model: `AViewSyncClaim`,
+proven for finitely many validators, under the honest-quorum class and a
+cancellative time theory. The finite validator set turns `AllPropose` into a
+deadline (the clock at the index `exists_index_all_input` finds) and supplies
+the quorum enumeration (`ByzNodeSetEnum.ofFintype`). -/
+theorem aViewSync_of_sync [AddCommMonoid time] [IsOrderedCancelAddMonoid time] [Fintype node]
+    (hqe : ByzNodeSetHonestQuorum node nodeset nset)
+    (sch : Schedule view time) (vfin : ViewOrderEnum view vord) :
+    AViewSyncClaim sch vfin th := by
+  intro hrot r hsync hall hnea
   obtain ⟨N, hN⟩ := exists_index_all_input hall (Finset.univ : Finset node).toList
-  exact aViewSync_of_sync enum hqe sch vfin hrot r hsync (r.clk N)
+  exact aViewSync_of_proposedBy (ByzNodeSetEnum.ofFintype node nodeset nset) hqe sch vfin hrot
+    hsync (t := r.clk N)
     (fun p hp => let ⟨E, hE⟩ := hN p (Finset.mem_toList.mpr (Finset.mem_univ p)) hp
       ⟨N, E, le_rfl, hE⟩) hnea
 
@@ -1299,7 +1304,7 @@ info: 'Mvba.aViewSync_of_sync' depends on axioms: [propext, Classical.choice, Qu
 #print axioms Mvba.aViewSync_of_sync
 
 /--
-info: 'Mvba.aViewSync_of_allPropose' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.aViewSync_of_proposedBy' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.aViewSync_of_allPropose
+#print axioms Mvba.aViewSync_of_proposedBy

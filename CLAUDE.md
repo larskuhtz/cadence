@@ -429,7 +429,8 @@ is a change to what this project *claims*, not a refactor.
   * **One proven temporal instance**: `Mvba.mvbaTemporal`, at the
     *clock-lifted* fragment `(mvbaSafety th).timed time`, joined into
     `Mvba.mvbaTimed`. It is proven from named hypotheses, never from an
-    axiom: the enumeration and quorum classes, `LeaderRotation`, a `Schedule`
+    axiom: finitely many validators (`Fintype node`), the honest-quorum and
+    view-order classes, `LeaderRotation`, a `Schedule`
     that carries its own hypotheses, and the time theory's classes. The seam
     is that Chorus consumes the unlifted fragment (`docs/Bounds.md` §6.2.1).
     A new temporal instance takes the same form, with its hypotheses listed

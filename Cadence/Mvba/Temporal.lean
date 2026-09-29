@@ -26,7 +26,10 @@ checks that the join hands back the lifted fragment by `rfl`.
 Nothing is assumed of the protocol. The instance takes as hypotheses what
 §6.2.5 says an instance must, since no run predicate can say it:
 
-* the two quorum classes `ByzNodeSetEnum` and `ByzNodeSetHonestQuorum`, and
+* **finitely many validators**, `[Fintype node]`: every concrete instance
+  has them, and it supplies the quorum enumeration `Mvba.termination` takes
+  as the class `ByzNodeSetEnum` (`ByzNodeSetEnum.ofFintype`);
+* `ByzNodeSetHonestQuorum`, a supermajority of correct validators, and
   `ViewOrderEnum`, as for `Mvba.termination`;
 * (A-leader-rotation-k), `LeaderRotation vfin sch.k th`;
 * the time theory: a linearly ordered, **cancellative** additive monoid
@@ -273,8 +276,8 @@ theorem admissible_exists [IsOrderedAddMonoid time] [Archimedean time] (sch : Sc
 statement, instantiated. It is `bounded_termination` read through the
 labelling `Admissible` provides, with `byGstBound`'s least upper bound and
 the abandonment premise's written as `max t gst` (`gstLub_iff`). -/
-theorem timed_termination [IsOrderedCancelAddMonoid time]
-    (enum : ByzNodeSetEnum node nodeset nset) (hqe : ByzNodeSetHonestQuorum node nodeset nset)
+theorem timed_termination [IsOrderedCancelAddMonoid time] [Fintype node]
+    (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     {th : Theory node nodeset value view} (hrot : LeaderRotation vfin sch.k th) :
     ∀ tr : TimedMvbaRun th time, Admissible sch th tr →
@@ -291,7 +294,8 @@ theorem timed_termination [IsOrderedCancelAddMonoid time]
             (fun st => ∃ v, ((mvbaSafety th).timed time).decided st q v) := by
   rintro tr ⟨r, hat, hgst, hsync⟩ t hprop hnab q hq
   rw [TimedRun.byGstBound_iff, hgst]
-  obtain ⟨n, E, hc, hd⟩ := bounded_termination enum hqe sch vfin hrot r hsync t
+  obtain ⟨n, E, hc, hd⟩ :=
+    bounded_termination (ByzNodeSetEnum.ofFintype node nodeset nset) hqe sch vfin hrot r hsync t
     (fun p hp => by
       obtain ⟨n, hle, v, hv⟩ := hprop p hp
       rw [hat n] at hle hv
@@ -307,15 +311,16 @@ theorem timed_termination [IsOrderedCancelAddMonoid time]
 
 /-- **`Mvba ⊨ MVBATemporal`, at the lifted fragment.** The temporal level of
 `mod:mvba` for the clock-carrying lift of `mvbaSafety th`, proven from the
-instance hypotheses of §6.2.5: the two quorum classes, `ViewOrderEnum`,
-(A-leader-rotation-k), and a cancellative, Archimedean time theory. No field
+instance hypotheses of §6.2.5: finitely many validators,
+`ByzNodeSetHonestQuorum`, `ViewOrderEnum`, (A-leader-rotation-k), and a
+cancellative, Archimedean time theory. No field
 of `MVBATemporal` is weakened. `Admissible` is this development's run
 model (`Schedule.Admissible`), and the class leaves that choice to the
 instance. -/
 @[implicit_reducible]
-noncomputable def mvbaTemporal [IsOrderedCancelAddMonoid time] [Archimedean time]
+noncomputable def mvbaTemporal [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
     (th : Theory node nodeset value view)
-    (enum : ByzNodeSetEnum node nodeset nset) (hqe : ByzNodeSetHonestQuorum node nodeset nset)
+    (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : LeaderRotation vfin sch.k th) :
     MVBATemporal node value (Msg view value) (TimedState node nodeset value view time) time
@@ -327,28 +332,28 @@ noncomputable def mvbaTemporal [IsOrderedCancelAddMonoid time] [Archimedean time
     (Admissible := Admissible sch th)
     (admissible_exists := admissible_exists sch)
     (ℓ := sch.ℓ vfin)
-    (termination := timed_termination enum hqe sch vfin hrot)
+    (termination := timed_termination hqe sch vfin hrot)
 
 /-- **`Mvba ⊨ MVBA`, at the lifted fragment**: the fragment and the
 temporal level joined, as `mvba_of_temporal` joins them. Nothing is
 restated. -/
 @[implicit_reducible]
-noncomputable def mvbaTimed [IsOrderedCancelAddMonoid time] [Archimedean time]
+noncomputable def mvbaTimed [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
     (th : Theory node nodeset value view)
-    (enum : ByzNodeSetEnum node nodeset nset) (hqe : ByzNodeSetHonestQuorum node nodeset nset)
+    (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : LeaderRotation vfin sch.k th) :
     MVBA node value (Msg view value) (TimedState node nodeset value view time) time
       (fun i => nset.is_byz i = true) :=
-  { (mvbaSafety th).timed time, mvbaTemporal th enum hqe sch vfin hrot with }
+  { (mvbaSafety th).timed time, mvbaTemporal th hqe sch vfin hrot with }
 
 /-- The join hands back exactly the lifted fragment. -/
-theorem mvbaTimed_toSafety [IsOrderedCancelAddMonoid time] [Archimedean time]
+theorem mvbaTimed_toSafety [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
     (th : Theory node nodeset value view)
-    (enum : ByzNodeSetEnum node nodeset nset) (hqe : ByzNodeSetHonestQuorum node nodeset nset)
+    (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : LeaderRotation vfin sch.k th) :
-    (mvbaTimed th enum hqe sch vfin hrot).toMVBASafety = (mvbaSafety th).timed time := rfl
+    (mvbaTimed th hqe sch vfin hrot).toMVBASafety = (mvbaSafety th).timed time := rfl
 
 end Instance
 
@@ -381,15 +386,15 @@ def Schedule.fixedNat (view : Type) [vord : TotalOrderWithMinimum view] (k : Nat
 every `k` consecutive views. The class's `TotalOrder ℕ` here is the one
 instance search finds, Veil's own, and it agrees with the bridge the
 instance was built with. -/
-noncomputable example {node nodeset value view : Type}
+noncomputable example {node nodeset value view : Type} [Fintype node]
     [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
     [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
     (th : Theory node nodeset value view)
-    (enum : ByzNodeSetEnum node nodeset nset) (hqe : ByzNodeSetHonestQuorum node nodeset nset)
+    (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (vfin : ViewOrderEnum view vord) (k : Nat) (hrot : LeaderRotation vfin k th) :
     MVBATemporal node value (Msg view value) (TimedState node nodeset value view ℕ) ℕ
       (fun i => nset.is_byz i = true) (S := (mvbaSafety th).timed ℕ) :=
-  mvbaTemporal th enum hqe (Schedule.fixedNat view k) vfin hrot
+  mvbaTemporal th hqe (Schedule.fixedNat view k) vfin hrot
 
 end Mvba
 

@@ -669,7 +669,7 @@ What *is* derived from the untimed file, as a corollary, is
 plan was to take `W` to be the good view above: the first clause from (T2)
 plus `clock_unbounded`, the second from the good-view lemma's certificate
 time against (T1). The proof (`Mvba.aViewSync_of_sync`) went differently
-and needs less, and its statement needed the proposals by a time. §6.2.8's
+and needs less, and its statement needed a finite validator set. §6.2.8's
 step-4 reassessment has both. That
 theorem is the formal version of the trust-base move
 [`Liveness.md`](./Liveness.md) §2.1 describes, and it retires the only
@@ -891,7 +891,10 @@ proposal in §6.2.1. The questions the task set:
 * **Whether the instance needed any hypothesis beyond the plan's.** No.
   The hypotheses are exactly §6.2.5's, with the time theory of §6.2.2 as
   step 2 amended it:
-  * `ByzNodeSetEnum`, `ByzNodeSetHonestQuorum` and `ViewOrderEnum`;
+  * finitely many validators (`Fintype node`) in place of
+    `ByzNodeSetEnum`, which it supplies (`ByzNodeSetEnum.ofFintype`; see the
+    last point below);
+  * `ByzNodeSetHonestQuorum` and `ViewOrderEnum`;
   * `LeaderRotation vfin sch.k th`;
   * `IsOrderedCancelAddMonoid time` for `termination`;
   * `Archimedean time` for `admissible_exists`. `0 < Δ` was already a
@@ -922,19 +925,21 @@ proposal in §6.2.1. The questions the task set:
   or prepare/commit/timeout message. At a quiet state no hop-table label is
   move-enabled, which one case split over the transition bodies shows. The
   three labels no proof uses are covered by the same fact, vacuously.
-* **Whether `AViewSyncClaim`'s statement survived.** Not verbatim, and the
-  change is recorded in its docstring. The plan's premise `AllPropose`
-  ("every correct validator proposes at some index") gives no common
-  deadline, because nothing makes the node sort finite. Without a deadline
-  the bound has no starting point: nothing stops every correct-led view
-  from being burnt before its leader has proposed. The claim now takes the
-  premise `BoundedTerminationClaim` has, that every correct validator has
-  proposed by some time `t`. At a finite node sort the two forms agree, and
-  `Mvba.aViewSync_of_allPropose` proves the claim from `AllPropose` there.
-  Every concrete instance of this development has a finite node sort.
-  `NoEarlyAbandon` is unchanged. The claim does not need "no abandonment up
-  to `u + ℓ`", because an abandoned correct validator has decided, and a
-  decision is certificate-backed (`decided_backed`).
+* **Whether `AViewSyncClaim`'s statement survived.** Its premises did, and
+  it gained one hypothesis: a finite validator set, `[Fintype node]`. The
+  plan's premise `AllPropose` ("every correct validator proposes at some
+  index") gives a common deadline only over finitely many validators, and
+  without a deadline the bound has no starting point: nothing stops every
+  correct-led view from being burnt before its leader has proposed. The
+  first version of this step removed the need for finiteness by changing
+  the premise to "proposed by some time `t`". Following review, the claim
+  instead keeps `Mvba.termination`'s own caller premises (`AllPropose`,
+  `NoEarlyAbandon`) and assumes finitely many validators (see the last
+  point). The deadline form survives as the lemma behind it,
+  `Mvba.aViewSync_of_proposedBy`, for any node sort. The claim does not
+  need "no abandonment up to `u + ℓ`", because an abandoned correct
+  validator has decided, and a decision is certificate-backed
+  (`decided_backed`).
 * **How it was proven: not through the good view, and why that matters.**
   The second clause of `AViewSync` only asks that a `W`-timer does not
   expire before *some* commit certificate exists. So **any** correct-led
@@ -968,3 +973,29 @@ proposal in §6.2.1. The questions the task set:
   about, but it no longer mentions the lifted instance. Updating it costs a
   Chorus-family rebuild, so it goes with the next `Interfaces.lean` edit,
   and with (b) if (b) is taken.
+* **Finiteness of the validator set, as a convention for claims.** It came
+  up three times, spelled three ways: the class `ByzNodeSetEnum` (the
+  MVBA's quorum enumeration), a complete list `nodes` with a proof that it
+  contains every validator (`Chorus/Termination.lean`), and the deadline
+  form of this claim. None of them concerns the protocol. They are the
+  point at which a liveness argument collapses finitely many per-validator
+  eventualities into one index, which is sound only over a finite set. So
+  the contract-level results of this leg (`mvbaTemporal`, `mvbaTimed`,
+  `timed_termination`, `aViewSync_of_sync`) take `[Fintype node]`, and
+  `ByzNodeSetEnum.ofFintype` (`ByzQuorum.lean`) supplies the enumeration
+  their proofs use. The building-block lemmas keep `ByzNodeSetEnum`, which
+  is weaker: finite quorums over any node sort. `bounded_termination` keeps
+  it too, as the general form.
+
+  What finiteness does **not** do is simplify the proofs. Every step that
+  consumes it is local and already existed. It also does not touch the two
+  other finiteness questions of the leg: the abstract `nodeset` sort may
+  still have infinitely many supermajorities (§6.2.4's caveat on
+  `FJustice`), and the view order is infinite by nature (`below vL`). It
+  stays out of the Veil models and the safety theorems, which hold at any
+  cardinality and whose solver could not use it anyway. **Proposal to the
+  Chorus leg:** adopt the same convention. That means `[Fintype node]` in
+  place of the `nodes`/`hnodes` argument in `Chorus/Termination.lean`, and,
+  when `Mvba.termination` is next touched, `[Fintype node]` in place of its
+  `ByzNodeSetEnum` argument. At the concrete families `Fin n` both are
+  instances already.

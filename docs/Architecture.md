@@ -420,8 +420,8 @@ relations, and it takes a human to confirm each use is positive.
    at the clock-lifted fragment `(mvbaSafety th).timed time`, because the
    model's state has no clock, and it is proven from named hypotheses,
    none of them an axiom:
-   * the classes `ByzNodeSetEnum`, `ByzNodeSetHonestQuorum` and
-     `ViewOrderEnum`;
+   * finitely many validators (`Fintype node`);
+   * the classes `ByzNodeSetHonestQuorum` and `ViewOrderEnum`;
    * (A-leader-rotation-k), a correct leader in every `k` consecutive
      views;
    * a view-timeout schedule that is capped and eventually exceeds the

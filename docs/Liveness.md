@@ -170,8 +170,8 @@ bounded claim follows from them: `BoundedTerminationClaim` is
 `Mvba.bounded_termination`
 ([`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)).
 The phase is complete for the MVBA (2026-09-28). (A-viewsync) is a theorem
-of the timing model (`Mvba.aViewSync_of_sync`, which proves `AViewSyncClaim`,
-with the proposals due by a time). The `MVBATemporal` instance at the
+of the timing model for finitely many validators (`Mvba.aViewSync_of_sync`,
+which proves `AViewSyncClaim` from `Mvba.termination`'s own caller premises). The `MVBATemporal` instance at the
 clock-lifted fragment is `Mvba.mvbaTemporal`
 ([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)). The
 derivation of (A-viewsync) needs only that *some* commit certificate
@@ -272,7 +272,11 @@ stands. **The MVBA bounds leg is complete** (2026-09-28, [`Bounds.md`](./Bounds.
 §6.2.8). The rules below held throughout, with one prose exception: step 4
 updated the docstring of `Terminates` in `Mvba/Liveness.lean`, which had said
 the timed form had no instance. No statement changed. What the bounds leg
-leaves for this one is the seam proposal of [`Bounds.md`](./Bounds.md) §6.2.1.
+leaves for this one is the seam proposal of [`Bounds.md`](./Bounds.md) §6.2.1,
+and a convention to consider: state finiteness of the validator set as
+`[Fintype node]` in place of the `nodes`/`hnodes` argument and the
+`ByzNodeSetEnum` argument ([`Bounds.md`](./Bounds.md) §6.2.8, the last point
+of the step-4 reassessment).
 Rules that keep them from colliding:
 
 * **Neither leg edits [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean).**

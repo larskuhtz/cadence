@@ -167,8 +167,9 @@ Each entry is the result, the file its statement lives in, and what it says.
   `Cadence/Mvba/BoundedTermination.lean`), and `admissible_exists` is
   `Mvba.admissible_exists`. No field is weakened. The instance is proven
   from named hypotheses, none of them an axiom:
-  * `ByzNodeSetEnum`, `ByzNodeSetHonestQuorum` and `ViewOrderEnum`, as for
-    `Mvba.termination`;
+  * finitely many validators (`Fintype node`), which supplies the quorum
+    enumeration `Mvba.termination` takes as `ByzNodeSetEnum`;
+  * `ByzNodeSetHonestQuorum` and `ViewOrderEnum`, as for `Mvba.termination`;
   * (A-leader-rotation-k), `LeaderRotation`: a correct leader in every `k`
     consecutive views;
   * a schedule whose timeout is capped and eventually exceeds the chain's

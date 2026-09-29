@@ -3,6 +3,7 @@ import Cadence.Mvba.Liveness
 import Mathlib.Algebra.Order.Monoid.Defs
 import Mathlib.Algebra.Order.Monoid.Unbundled.Pow
 import Mathlib.Logic.Function.Iterate
+import Mathlib.Data.Fintype.Defs
 
 /-! # Mvba.Schedule — the timing model, and the bounded claim stated
 
@@ -345,28 +346,24 @@ def BoundedTerminationClaim (sch : Schedule view time) (vfin : ViewOrderEnum vie
         ∃ (n : Nat) (E : value), r.clk n ≤ max t r.gst + sch.ℓ vfin ∧
           (r.at' n).decided q E = true
 
-/-- **(A-viewsync) is a consequence.** Under (A-leader-rotation-k) and the
-three clauses, a run in which every correct validator has proposed by some
-time `t` and none is abandoned before deciding satisfies
+/-- **(A-viewsync) is a consequence.** For finitely many validators, under
+(A-leader-rotation-k) and the three clauses, a run in which every correct
+validator proposes and none is abandoned before deciding satisfies
 `Mvba/Liveness.lean`'s `AViewSync`: both clauses, and the existence of the
-good view. This is the formal version of the trust-base move that
-`docs/Liveness.md` §2.1 describes.
+good view. The premises besides the timing model are `Mvba.termination`'s
+own, `AllPropose` and `NoEarlyAbandon`, so this is the formal version of the
+trust-base move that `docs/Liveness.md` §2.1 describes.
 
-The proposals are required **by a time**, as in `BoundedTerminationClaim`,
-not merely eventually (`AllPropose`). Nothing makes the node sort finite, so
-"every correct validator proposes at some index" gives no common deadline.
-Without one, nothing stops every correct-led view from being burnt before
-its leader has proposed. At a finite node sort the two forms agree
-(`Mvba.aViewSync_of_allPropose`). `docs/Bounds.md` §6.2.8, the step-4
-reassessment, has the argument. -/
-def AViewSyncClaim (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
+The finite validator set is load-bearing. It turns "every correct validator
+proposes at some index" into a common deadline, and without one nothing
+stops every correct-led view from being burnt before its leader has
+proposed. `docs/Bounds.md` §6.2.8, the step-4 reassessment, has the
+argument. -/
+def AViewSyncClaim [Fintype node] (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (th : Theory node nodeset value view) : Prop :=
   LeaderRotation vfin sch.k th →
   ∀ r : TMvbaRun th time, Sync sch r →
-    ∀ t : time,
-      (∀ p, ¬ nset.is_byz p = true →
-        ∃ (n : Nat) (E : value), r.clk n ≤ t ∧ (r.at' n).input p E = true) →
-      NoEarlyAbandon r.toLRun → AViewSync r.toLRun
+    AllPropose r.toLRun → NoEarlyAbandon r.toLRun → AViewSync r.toLRun
 
 end Runs
 
