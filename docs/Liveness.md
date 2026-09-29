@@ -193,14 +193,13 @@ bounded claim follows from them: `BoundedTerminationClaim` is
 ([`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)).
 The phase is complete for the MVBA (2026-09-28). (A-viewsync) is a theorem
 of the timing model for finitely many validators (`Mvba.aViewSync_of_sync`,
-which proves `AViewSyncClaim` from `Mvba.termination`'s own caller premises). The `MVBATemporal` instance at the
-clock-lifted fragment is `Mvba.mvbaTemporal`
-([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)). The
-derivation of (A-viewsync) needs only that *some* commit certificate
-eventually exists ([`Bounds.md`](./Bounds.md) §6.2.8, the step-4
-reassessment). What is left is
-the seam of [`Bounds.md`](./Bounds.md) §6.2.1: Chorus consumes the unlifted
-fragment.
+which proves `AViewSyncClaim` from `Mvba.termination`'s own caller
+premises). The `MVBATemporal` instance is `Mvba.mvbaTemporal`
+([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)), at the
+fragment the composed system runs, and the full contract is
+`Mvba.mvbaFull`. The derivation of (A-viewsync) needs only that *some*
+commit certificate eventually exists ([`Bounds.md`](./Bounds.md) §6.2.8,
+the step-4 reassessment).
 
 ## 3. What would close the rest
 
@@ -294,12 +293,11 @@ needs the other's result, and the MVBA bounds leg discharges
 stands. **The MVBA bounds leg is complete** (2026-09-28, [`Bounds.md`](./Bounds.md)
 §6.2.8). The rules below held throughout, with one prose exception: step 4
 updated the docstring of `Terminates` in `Mvba/Liveness.lean`, which had said
-the timed form had no instance. No statement changed. What the bounds leg
-leaves for this one is the seam proposal of [`Bounds.md`](./Bounds.md) §6.2.1,
-and a convention to consider: state finiteness of the validator set as
-`[Fintype node]` in place of the `nodes`/`hnodes` argument and the
-`ByzNodeSetEnum` argument ([`Bounds.md`](./Bounds.md) §6.2.8, the last point
-of the step-4 reassessment).
+the timed form had no instance. No statement changed. The seam proposal of
+[`Bounds.md`](./Bounds.md) §6.2.1 was decided and carried out before stage
+4, together with the finiteness convention (`Mvba.termination` takes
+`[Fintype node]`) and the fixes §4.6 asks for first; §4.6's update says what
+changed for this leg.
 Rules that keep them from colliding:
 
 * **Neither leg edits [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean).**
@@ -499,8 +497,8 @@ thM`, the instantiation `System.lean` uses):
   decision handlers). Writing the claim down showed the *soundness*
   direction is a premise too: `mvba_propose`'s last guard is the
   contract's `propose`, and `Mvba.propose` requires `valid e` of its
-  input (`MVBASafety.propose_valid` — the "wart" `Interfaces.lean`
-  documents), while the MVBA theory's `valid` is a predicate on the
+  input (the MVBA's own check of the caller's obligation, which the
+  contract states as an antecedent of `MVBATemporal.termination`), while the MVBA theory's `valid` is a predicate on the
   vector alone that nothing in the composed system relates to Chorus's
   certificates. So a correct validator that has built a certified
   meta-block can call `propose` only if certified vectors are `Valid`.
@@ -773,6 +771,61 @@ the MVBA instance.
 *Written 2026-09-29 at the hand-over after stage 3 (§4.5), so the next
 session does not re-derive the design. Nothing below is done. Two findings
 come first, because the stage cannot be proven until both are settled.*
+
+**Update, 2026-09-29: the pre-stage-4 revision.** Before stage 4 started,
+one PR bundled every change that touches the Chorus family, so that stage 4
+starts on the final shapes and the family re-solved once. What it changed
+for this stage:
+
+* **Finding 1 is fixed as recommended.** `chorusTheory` in
+  [`System.lean`](../Cadence/System.lean) sets `mval_neg v j := v j = none
+  ∧ is_proposer j`, and `chorusTheory_assumptions` is re-proved. A
+  non-proposer now has no entry, so the vector of step 2 below (`none` at
+  non-proposers) is `Certified` when its proposer entries are.
+* **Finding 2 is resolved at the premise, not in the model.** The model fix
+  (`let mvba_next :| mvba.propose mvba_st i v mvba_next` in the body) was
+  tried and does not build. `Chorus.lean` emits the executable extraction
+  the trace monitor runs (`veil.gen.executableActions`), and a pick is
+  extractable only over a finitely enumerable type, which the abstract MVBA
+  state `mstate` is not. The alternative this record names is the right one
+  and is semantically the same: a value picked in the body is an existential
+  in the transition relation, so weak fairness of `mvba_propose i v` over the
+  family `∃ mvba_next` is exactly the fairness of the picked form, TLA+'s
+  `WF(∃ n. Propose(i, v, n))`. **Stage 4's first task** is to state it:
+  * a generic `WeaklyFairFamily r (S : lbl → Prop)` in
+    [`Fairness.lean`](../Cadence/Fairness.lean): if some label in `S` is
+    enabled at every index from `N` on, some label in `S` fires from `N` on;
+  * in `Chorus.FJustice`, `mvba_propose` is taken out of the per-label
+    clause and covered per `(i, v)` by `WeaklyFairFamily r (fun l => ∃ n,
+    l = .mvba_propose i v n)`.
+
+  The criterion below (identifying parameters in the label, results and
+  witnesses in the body) still says which labels need this. The label keeps
+  its result parameter, and the fairness premise quantifies it away. No
+  model change, no re-solve.
+* **The contracts changed shape, not content, where stage 4 touches them.**
+  * `Mvba.termination` takes `[Fintype node]` in place of a
+    `ByzNodeSetEnum` argument. Prerequisite 1 below shrinks: no
+    `ByzNodeSetEnum` instance for `byzNodeSetFin` is needed, since `Fin n`
+    is a `Fintype`. The `ByzNodeSetHonestQuorum` instance from
+    `honest_supermajority` is still needed.
+  * `MVBASafety.propose_valid` is gone: the caller's validity obligation is
+    an antecedent of `MVBATemporal.termination` (the rely form,
+    [`CompositionContracts.md`](./CompositionContracts.md) §7 item 1). At
+    the composed instance nothing changes for step 2: `mvba_propose`'s last
+    guard is the contract's `propose`, which at `Mvba.mvbaSafety` is
+    `Mvba.propose` and still requires `valid e`, so `ValidBridge`'s
+    soundness clause plays the same role.
+  * `TimedRun` carries its own clock, and `MVBATemporal` is instantiated at
+    `Mvba.mvbaSafety` (`Mvba.mvbaTemporal`, full `Mvba.mvbaFull`). The MVBA
+    the composed system runs is a full `MVBA`. This does not change
+    stage 4, which consumes the untimed `Mvba.termination`. It is what the
+    later Chorus bounds work (`ℓ = 5Δ + ℓ_MVBA`) will consume.
+* **Unchanged**: `Chorus.lean`, `Chorus/Liveness.lean`'s label classes, the
+  monitor, and stage 3's theorems. The generic stage-3 lemmas keep their
+  `nodes`/`hnodes` arguments: they are internal, and the headline theorems
+  are stated at `Fin n`, where finiteness is visible already. Switching them
+  to `[Fintype node]` is optional tidying.
 
 **Where it goes.** `Cadence/Chorus/Termination.lean`, a new section after
 stage 3's, in the same three layers: step facts, generic run-level chains,

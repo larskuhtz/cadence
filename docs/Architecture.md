@@ -87,7 +87,7 @@ flowchart BT
 |---|---|---|---|---|
 | `mod:slotconsensus` | `SlotConsensusSafety` / `SlotConsensus` | `Cadence/Chorus.lean` | `Chorus.slotConsensusSafety` | `SlotConsensusTemporal` |
 | `mod:orchestrator_2` | `OrchestratorSafety` / `Orchestrator` | `Cadence/Conductor.lean` | `Conductor.orchestratorSafety` | `OrchestratorTemporal` |
-| `mod:mvba` | `MVBASafety` / `MVBA` | `Cadence/Mvba.lean` | `Mvba.mvbaSafety`; at the clock-lifted fragment `Mvba.mvbaTemporal` and the full `Mvba.mvbaTimed` | `MVBATemporal` at the unlifted fragment Chorus consumes (the seam, [Bounds.md](./Bounds.md) §6.2.1) |
+| `mod:mvba` | `MVBASafety` / `MVBA` | `Cadence/Mvba.lean` | `Mvba.mvbaSafety`, `Mvba.mvbaTemporal`, the full `Mvba.mvbaFull` | nothing |
 | `mod:acs` | `ACSSafety` / `ACS` | — (out of scope) | — | the whole contract |
 
 The fallback receipt/propose layer
@@ -198,8 +198,8 @@ quantitative obligation over explicit runs
   are §4 item 4 as types, restated nowhere;
 * the MVBA's temporal level **is** instantiated: `Mvba.mvbaTemporal`
   (`MVBATemporal` with `ℓ_MVBA`-Termination, the supplement's `O(fΔ)`) at
-  the *clock-lifted* fragment `(mvbaSafety th).timed time`, joined into the
-  full `MVBA` as `Mvba.mvbaTimed`, from named hypotheses (§4 item 4) —
+  `Mvba.mvbaSafety`, the fragment the composed system runs, joined into the
+  full `MVBA` as `Mvba.mvbaFull`, from named hypotheses (§4 item 4) —
   [Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean);
 * build totality of the receipt layer for **every** `n = 3f+1` —
   [Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean),
@@ -248,7 +248,7 @@ The paper's headline properties and their formal counterparts:
 | Conductor/Cadence temporal claims (totality, ℓ-liveness, recovery, termination, quiescence) | fields of the `…Temporal` classes in `Cadence/Interfaces.lean`, stated over timed runs; the unproven subset per implementation is the field list of `OrchestratorTemporal` / `SlotConsensusTemporal`, of which this development supplies no instance | not proven — §4 item 4 |
 | MVBA agreement, integrity, external validity (`mod:mvba`; the internal supplement's `thm:agreement` at the entries level and `lem:external-validity`, for its leader-based instantiation — `Cadence/Mvba.lean`'s header pins the referent) | `safety [agreement]`, `[integrity]`, `[external_validity]` in `Cadence/Mvba.lean`; instance fields of `Mvba.mvbaSafety` in `Cadence/Mvba/Compose.lean` | sweep + composition |
 | MVBA Quiescence (`mod:mvba`), and the module's inputs and their observables | proven in `Mvba.mvbaSafety` (`Cadence/Mvba/Compose.lean`) from the transition bodies | composition |
-| MVBA `ℓ_MVBA`-Termination (`mod:mvba`; the internal supplement's `thm:termination`, `O(fΔ)` at `k = f + 1`) | `Mvba.bounded_termination` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)); the contract field in `Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), at the clock-lifted fragment, under the timing model and hypotheses of §4 item 4 | Lean over timed runs |
+| MVBA `ℓ_MVBA`-Termination (`mod:mvba`; the internal supplement's `thm:termination`, `O(fΔ)` at `k = f + 1`) | `Mvba.bounded_termination` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)); the contract field in `Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), under the timing model and hypotheses of §4 item 4 | Lean over timed runs |
 
 ## 4. The meta-assumption inventory
 
@@ -301,10 +301,11 @@ relations, and it takes a human to confirm each use is positive.
    ([Cadence/Mvba.lean](../Cadence/Mvba.lean); item 3), (A-mvba) is
    exactly the field `MVBATemporal.termination` **at `Mvba.mvbaSafety`**
    ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean), item 4) —
-   an obligation over the model's own transition system. The untimed
-   state has no instance of it; the timed instance `Mvba.mvbaTemporal` is
-   at the clock-lifted fragment, and making Chorus consume that fragment is
-   the open seam of [Bounds.md](./Bounds.md) §6.2.1 — together with (F-justice) on
+   an obligation over the model's own transition system, and one that is
+   now **proven** (`Mvba.mvbaTemporal`, item 4). What remains is Chorus's
+   side: consuming it through the projection of a composed run onto the
+   MVBA's (the Chorus liveness leg, [Liveness.md](./Liveness.md) §4.6),
+   together with (F-justice) on
    Chorus's `mvba_propose` (premise (i): every correct validator proposes)
    and on the decision handlers, whose enabledness has one leg the class
    does not give: the *completeness direction of the bridge* (a decided
@@ -417,10 +418,9 @@ relations, and it takes a human to confirm each use is positive.
    (A-sc-termination), (A-sc-totality), (A-acs-termination),
    (A-acs-totality)) are those fields' docstrings.
    **`MVBATemporal` has an instance**, `Mvba.mvbaTemporal`
-   ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)). It sits
-   at the clock-lifted fragment `(mvbaSafety th).timed time`, because the
-   model's state has no clock, and it is proven from named hypotheses,
-   none of them an axiom:
+   ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), at
+   `Mvba.mvbaSafety`, the fragment `Cadence/System.lean` plugs into
+   Chorus, and it is proven from named hypotheses, none of them an axiom:
    * finitely many validators (`Fintype node`);
    * the classes `ByzNodeSetHonestQuorum` and `ViewOrderEnum`;
    * (A-leader-rotation-k), a correct leader in every `k` consecutive
@@ -435,12 +435,12 @@ relations, and it takes a human to confirm each use is positive.
    availability within `Δ_sync`, each a named premise
    ([Bounds.md](./Bounds.md) §6.2.4). What an auditor has to believe of
    it is that those clauses are the supplement's timing assumptions;
-   `admissible_exists` proves that they can be met. The seam is that
-   Chorus consumes `mvbaSafety th` at the unlifted state, so the composed
-   system does not inherit this instance ([Bounds.md](./Bounds.md)
-   §6.2.1, where the proposal to the Chorus leg is). The models are
-   untimed; the one latency bound proven, `Mvba.bounded_termination`, is
-   over timed runs that pair the MVBA's untimed states with a clock.
+   `admissible_exists` proves that they can be met. The caller's side of
+   the contract is three antecedents of `termination`: every correct party
+   proposes by `t`, proposes a `Valid` value, and does not abandon early.
+   The models are untimed; the one latency bound proven,
+   `Mvba.bounded_termination`, is over timed runs, which carry the clock
+   beside the MVBA's untimed states.
 5. **Scope**: single slot for Chorus (slot independence is argued, not
    modelled), no epochs/proposer rotation, chunk indices and
    erasure-code arithmetic abstracted
@@ -513,7 +513,7 @@ table can be read off one file:
 | `Mvba.invariants_of_reachable` + per-property projections (`Cadence/Mvba/Certify.lean`) | same | ✓ + `#veil_status`: 1325/1325 real |
 | `Mvba.mvbaSafety`, `Mvba.mvba_of_temporal` (`Cadence/Mvba/Compose.lean`) | same | ✓ |
 | `Mvba.bounded_termination`, `Mvba.aViewSync_of_sync` (`Cadence/Mvba/BoundedTermination.lean`) | same | ✓ |
-| `Mvba.mvbaTemporal`, `Mvba.timed_termination`, `Mvba.admissible_exists`, `Mvba.mvbaTimed` (`Cadence/Mvba/Temporal.lean`) | same | ✓ |
+| `Mvba.mvbaTemporal`, `Mvba.timed_termination`, `Mvba.admissible_exists`, `Mvba.mvbaFull` (`Cadence/Mvba/Temporal.lean`) | same | ✓ |
 | the `FallbackReceiptPreFix` refutation (`Cadence/FallbackReceipt/PreFix.lean`) | expected model-checker violation (trace) | ✓ |
 | the `MvbaNoLock` refutation (`Cadence/Mvba/NoLock.lean`) | expected model-checker violation (trace) | ✓ |
 

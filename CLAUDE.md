@@ -68,8 +68,10 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `Mvba/Schedule.lean` (the timing model and the claims, stated),
   `Mvba/Bound.lean` (the good view), `Mvba/BoundedTermination.lean` (the
   bound, and (A-viewsync) derived) and `Mvba/Temporal.lean`.
-  `Mvba/Temporal.lean` holds `Mvba.mvbaTemporal : MVBATemporal …` at the
-  clock-lifted fragment and the full `Mvba.mvbaTimed`.
+  `Mvba/Temporal.lean` holds `Mvba.mvbaTemporal : MVBATemporal …` at
+  `Mvba.mvbaSafety` and the full `Mvba.mvbaFull`, whose fragment is the one
+  `System.lean` plugs into Chorus. A `TimedRun` carries its own clock, so
+  none of the models needs one.
 * Support: `QuorumCounting.lean` (`ByzNodeSetCounting`, the three
   quorum counting facts beyond `ByzNodeSet`'s intersection axioms, proven
   for the concrete families in `ByzQuorum.lean`), `Interfaces.lean` (the module contracts — `SlotConsensus`,
@@ -422,20 +424,17 @@ is a change to what this project *claims*, not a refactor.
   * **Conditional joins**, given an instance of the matching `…Temporal`
     class at the proven fragment: `Conductor.orchestrator_of_temporal`,
     `Chorus.slotConsensus_of_temporal`, `Mvba.mvba_of_temporal`. There is no
-    `OrchestratorTemporal` or `SlotConsensusTemporal` instance, and no
-    `MVBATemporal` instance at the unlifted `Mvba.mvbaSafety th`, and that
+    `OrchestratorTemporal` or `SlotConsensusTemporal` instance, and that
     absence *is* the statement of what is unproven: the class's fields,
     stated over the fragment's own relations, restated nowhere.
-  * **One proven temporal instance**: `Mvba.mvbaTemporal`, at the
-    *clock-lifted* fragment `(mvbaSafety th).timed time`, joined into
-    `Mvba.mvbaTimed`. It is proven from named hypotheses, never from an
-    axiom: finitely many validators (`Fintype node`), the honest-quorum and
-    view-order classes, `LeaderRotation`, a `Schedule`
-    that carries its own hypotheses, and the time theory's classes. The seam
-    is that Chorus consumes the unlifted fragment (`docs/Bounds.md` §6.2.1).
-    A new temporal instance takes the same form, with its hypotheses listed
-    in `Cadence.lean`'s row, and its `Admissible` is a run model defined
-    before its proof.
+  * **One proven temporal instance**: `Mvba.mvbaTemporal`, at
+    `Mvba.mvbaSafety`, joined by `mvba_of_temporal` into `Mvba.mvbaFull`.
+    It is proven from named hypotheses, never from an axiom: finitely many
+    validators (`Fintype node`), the honest-quorum and view-order classes,
+    `LeaderRotation`, a `Schedule` that carries its own hypotheses, and the
+    time theory's classes. A new temporal instance takes the same form, with
+    its hypotheses listed in `Cadence.lean`'s row, and its `Admissible` is a
+    run model defined before its proof.
 
   Proving a field means one of two things. Either move it from `XTemporal`
   to `XSafety` (if it is first-order and every implementation proves it) and

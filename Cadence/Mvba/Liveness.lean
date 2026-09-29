@@ -17,9 +17,10 @@ hypothesis because a proof turned out to need it. The list moved twice afterward
 (F-timeout) premise was added when §3.2's two fairness classes turned out
 not to work, and removed again once the model carried a timer and the proof
 was seen never to use it. Validity of the callers' inputs went the other
-way: it is part of the contract with the consumer, so it became
-`MVBASafety.propose_valid` and a guard of `Mvba.propose` (the supplement's
-own precondition) rather than a premise here.
+way: it is part of the contract with the consumer, so it is a guard of
+`Mvba.propose` (the supplement's own precondition), and the contract's
+`MVBATemporal.termination` names it as a caller antecedent, rather than a
+premise here.
 
 Everything a human has to believe is therefore a named `Prop` in this file,
 each with a docstring and each appearing as an explicit hypothesis of the
@@ -96,9 +97,10 @@ has invoked propose").
 
 ## What the claim does not mention
 
-`ByzNodeSetEnum`, `ByzNodeSetHonestQuorum` and `ViewOrderEnum` are absent
-from the statement and appear as hypotheses of the *theorem*. That split is
-the point: enumerability, a constructive quorum of correct validators
+Finitely many validators (`Fintype node`), `ByzNodeSetHonestQuorum` and
+`ViewOrderEnum` are absent from the statement and appear as hypotheses of the
+*theorem*. That split is the point: finiteness (which supplies the quorum
+enumeration `ByzNodeSetEnum` the lemmas below take), a constructive quorum of correct validators
 ([`ByzQuorum.lean`](../ByzQuorum.lean)) and a discrete, finitely-generated
 view order ([`ViewOrder.lean`](../ViewOrder.lean)) are what a **proof** needs
 to assemble certificates and to count, not part of what is being claimed.
@@ -365,8 +367,7 @@ def NoEarlyAbandon (r : MvbaRun th) : Prop :=
 /-- **Bound-erased termination**: every correct validator decides. The
 `O(fΔ)`-free skeleton of `thm:termination`, and the untimed sibling of
 `MVBATemporal.termination` (`Cadence/Interfaces.lean`), whose timed form
-is proven at the clock-lifted fragment (`Mvba.mvbaTemporal`,
-`Cadence/Mvba/Temporal.lean`). -/
+is proven (`Mvba.mvbaTemporal`, `Cadence/Mvba/Temporal.lean`). -/
 def Terminates (r : MvbaRun th) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ (n : Nat) (E : value), (r.at' n).decided i E = true
 
@@ -379,7 +380,7 @@ is **not** among them, and deliberately: it is part of the contract between
 the consumer and this module, so it lives in `Mvba.propose`'s guard where
 Chorus's `mvba_propose` already meets it, rather than being restated here as
 a premise of every liveness theorem. What is also deliberately *absent* is
-any quorum machinery: `ByzNodeSetEnum` and
+any quorum machinery: finiteness and
 `ByzNodeSetHonestQuorum` are what a **proof** needs to assemble certificates,
 not part of what is claimed, and they appear as hypotheses of `termination`
 below rather than here. -/
@@ -2366,17 +2367,18 @@ discharged.
 Everything it needs is above, and what this adds is only the unpacking —
 which is now literal, every clause of (A-viewsync) going straight to the
 argument of the same name. The three hypotheses the claim does not mention
-are the two quorum classes and the view order's, exactly as the header
-says. -/
+are finitely many validators, the honest-quorum class and the view order's.
+Finiteness is what the proof consumes as the quorum enumeration
+(`Cadence.ByzNodeSetEnum.ofFintype`); `terminates_of_good_view` states the
+argument for any node sort with enumerable quorums. -/
 
-theorem termination
-    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+theorem termination [Fintype node]
     (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset)
     (vfin : Cadence.ViewOrderEnum view vord) :
     TerminationClaim th := by
   rintro r hfj ⟨W, PV, l, hnext, hlead, hl, hftimer, hnto⟩ hav hap hna
-  exact terminates_of_good_view enum hqe vfin r hfj hav hna hap hlead hl hnext
-    hftimer hnto
+  exact terminates_of_good_view (Cadence.ByzNodeSetEnum.ofFintype node nodeset nset) hqe vfin
+    r hfj hav hna hap hlead hl hnext hftimer hnto
 
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
 `Eventually` form of the run vocabulary — the shape a future

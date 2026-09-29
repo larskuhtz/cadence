@@ -131,7 +131,8 @@ fields, not substitutes for them.
   one-step quiescence in the fragment; ℓ_MVBA-termination in the temporal
   class (`mod:mvba`). Instance: `Mvba.mvbaSafety`
   (`Cadence/Mvba/Compose.lean`), consumed by Chorus and plugged in by
-  `Cadence/System.lean`; no instance of `MVBATemporal` at it.
+  `Cadence/System.lean`; its `MVBATemporal` instance is `Mvba.mvbaTemporal`
+  (`Cadence/Mvba/Temporal.lean`), so the full contract is proven.
 
 ## 3. The Conductor Veil module
 

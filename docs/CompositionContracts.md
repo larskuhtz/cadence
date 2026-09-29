@@ -87,9 +87,11 @@ apart because only one of them is visible as a field.
   the caller has to prove the call is enabled before it can take it. The
   composition is blocking — a consumer `require`s the callee's relation — so
   this is a legitimate encoding of the rely side, but it lives in
-  enabledness rather than in a named field. `MVBASafety.propose_valid` is
-  the one instance; §7 item 1 records why it is there and when it should
-  move.
+  enabledness rather than in a named field. The contracts avoid it: the
+  MVBA's validity precondition is an antecedent of
+  `MVBATemporal.termination`, a named rely side. The implementation's guard
+  (`Mvba.propose` checks `valid e`) is its own choice and still shows at the
+  composed instance as enabledness; §7 item 1 has the history.
 
 The practical difference is where an unmet obligation surfaces at the
 composed instance: a guarantee that failed would break a proof, while a
@@ -186,7 +188,8 @@ validator's decision `mvba.decided mvba_st i v` into the module's per-proposer
 records through the two immutable projections `mval_pos v j m` /
 `mval_neg v j` of the opaque value sort. The value is the entry vector; the
 projections carry two assumptions — functional in the root, and exclusive —
-which `System.lean` discharges at `v j = some m` / `v j = none`.
+which `System.lean` discharges at `v j = some m` / `v j = none ∧
+is_proposer j` (a non-proposer has no entry).
 
 The records' agreement is *proven* from the class's `agreement`, through two
 tie invariants stating that every record is the projection of some correct
@@ -292,25 +295,26 @@ Every declaration added by the composition is axiom-pinned at
 ## 5. What is still assumed: the missing `XTemporal` instances
 
 Each implementation proves its `XSafety` fragment. What it still owes is an
-instance of the matching `XTemporal` class **at that fragment**, and this
-development provides none of the three there. One temporal level is proven
-at a *lifted* fragment instead, the MVBA's; it is described at the end of this
-section. Because those classes are stated over
-the fragment's own `init` / `trans` / `reachable` / observables, the list
-below is a list of *class fields*, not of restatements: there is no second
-place where these obligations are written down.
+instance of the matching `XTemporal` class **at that fragment**. The MVBA
+owes nothing: its temporal level is proven (the last paragraph of this
+section). The Conductor and Chorus still owe theirs. Because those classes
+are stated over the fragment's own `init` / `trans` / `reachable` /
+observables, the list below is a list of *class fields*, not of
+restatements: there is no second place where these obligations are written
+down.
 
 **`OrchestratorTemporal … (S := Conductor.orchestratorSafety th)`** —
-`Admissible`, `admissible_exists`, `totality`, `bound`, `boundedness`,
-`recovery_time`, `recovery`: the paper's Totality (`lemma:conductor-totality`),
-`B`-Boundedness (`lem:boundedness`) and `R`-Recovery (`prop:smooth-windows`,
-`prop:first-post-gst-window-time`), over timed runs of the Conductor with the
-admissible-execution model as data. The interval form of boundedness *is*
-proven, as `safety [bounded_tail]`; what stays temporal is the numeric count
-`2W − p`, which needs widths the model keeps meta. Integrity's timing half is
-first-order and the Conductor proves it, so it sits in `OrchestratorSafety`
-(`integrity_timing`, from `safety [opened_after_start]`) — which is why that
-fragment carries `time`.
+`Admissible`, `admissible_exists`, `clock_agrees`, `totality`, `bound`,
+`boundedness`, `recovery_time`, `recovery`: the paper's Totality
+(`lemma:conductor-totality`), `B`-Boundedness (`lem:boundedness`) and
+`R`-Recovery (`prop:smooth-windows`, `prop:first-post-gst-window-time`),
+over timed runs of the Conductor with the admissible-execution model as
+data. `clock_agrees` ties a run's clock to the Conductor's own `now`. The
+interval form of boundedness *is* proven, as `safety [bounded_tail]`; what
+stays temporal is the numeric count `2W − p`, which needs widths the model
+keeps meta. Integrity's timing half is first-order and the Conductor proves
+it, so it sits in `OrchestratorSafety` (`integrity_timing`, from `safety
+[opened_after_start]`) — which is why that fragment carries `time`.
 
 **`SlotConsensusTemporal … (S := Chorus.slotConsensusSafety th)`** — the
 largest of the three. Chorus models none of `mod:slotconsensus`'s
@@ -320,26 +324,18 @@ with Termination and Quiescence. Hiding's protocol half is first-order and
 Chorus proves it, so `deadline_passed`, `payload_recoverable` and
 `hiding_residue` sit in `SlotConsensusSafety`.
 
-**`MVBATemporal … (S := Mvba.mvbaSafety th)`** — the smallest: `clock`,
+**`MVBATemporal … (S := Mvba.mvbaSafety th)` is proven**, as
+`Mvba.mvbaTemporal` ([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)):
 `Admissible`, `admissible_exists`, `ℓ` and `termination`, the timed part of
-`mod:mvba` alone (`ℓ_MVBA`-Termination). Everything
-else — the two inputs, their observables, effects, frames, initial conditions
-and **Quiescence** in one-step form — is proven into the fragment from the
-transition bodies. At this fragment the class cannot be instantiated:
-`clock : state → time` reads the clock off the state, and `Mvba.State` has
-none.
-
-**`MVBATemporal … (S := (Mvba.mvbaSafety th).timed time)` is proven**, as
-`Mvba.mvbaTemporal` ([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)),
-and joined into the full `MVBA` as `Mvba.mvbaTimed`, with the `rfl` lemma
-`Mvba.mvbaTimed_toSafety`. `MVBASafety.timed` pairs the state with a clock
-and is the original fragment on the first component, by definition. The
-instance's hypotheses are the classes and the schedule of
-[`Bounds.md`](./Bounds.md) §6.2.5; none is a contract and none an axiom.
-The seam is that Chorus consumes `Mvba.mvbaSafety th`, not the lifted
-fragment, so [`System.lean`](../Cadence/System.lean) does not inherit the
-instance. [`Bounds.md`](./Bounds.md) §6.2.1 has the proposal for closing
-it.
+`mod:mvba` (`ℓ_MVBA`-Termination). `mvba_of_temporal` joins it into the full
+`MVBA`, `Mvba.mvbaFull`, whose fragment is by `rfl` the one
+[`System.lean`](../Cadence/System.lean) plugs into Chorus. The instance's
+hypotheses are the classes and the schedule of [`Bounds.md`](./Bounds.md)
+§6.2.5; none is a contract and none an axiom. Everything else — the two
+inputs, their observables, effects, frames, initial conditions and
+**Quiescence** in one-step form — is proven into the fragment from the
+transition bodies. A run carries its own clock (`TimedRun.clk`), which is
+what lets an untimed model's fragment carry a timed contract.
 
 [`Architecture.md`](./Architecture.md) §4 item 4 points at these field lists
 by name; the meta-axiom names (A-orch-totality), (A-orch-boundedness),
@@ -396,9 +392,9 @@ the proven fragments.
    *completeness* direction — that a decided entry's certificate is
    network-visible — which is what enables the handler.
 
-   **Since `MVBASafety.propose_valid` (2026-09-15) the input half of this
-   bridge has teeth, and that is worth being precise about.** The MVBA now
-   *enforces* validity on `propose`, so at the composed instance Chorus's
+   **Since the MVBA checks validity on `propose` (2026-09-15) the input
+   half of this bridge has teeth, and that is worth being precise about.**
+   The MVBA *enforces* validity on `propose`, so at the composed instance Chorus's
    `mvba_propose` can fire only when the MVBA's `Valid` holds of the vector
    — and Chorus establishes validity in *its own* vocabulary (entries
    certificate-backed, one per proposer), which is not identified with the
@@ -412,45 +408,25 @@ the proven fragments.
    direction — a wrong `Valid` should stop the system rather than admit
    invalid blocks — but it moves the bridge from "documented and inert" to
    "documented and load-bearing for liveness", which is why it is written
-   down here and not only at the field.
+   down here.
 
-   **Why `propose_valid` sits in the fragment, and when it should move.**
-   Recorded 2026-09-29 so the question is not re-derived; the decision itself
-   is [`MvbaPlan.md`](./MvbaPlan.md) §3.5 step 4. The field is a caller
-   obligation encoded on the callee's side — the module refuses an invalid
-   input instead of the caller promising a valid one (§2, "How to read a
-   class as a contract") — and its own docstring calls that a wart. It was
-   chosen deliberately, for three reasons. `Mvba.termination` needs input
-   validity, since a correct leader with an invalid input would have its
-   view rejected by every correct validator, and a *checked* precondition
-   keeps that theorem's premise list to fair scheduling and sentences of the
-   supplement instead of adding an input-validity assumption. The supplement
-   gives `propose` the same precondition (`subsec:mvba-protocol`) and
-   `thm:termination` reasons from it. And the field is first-order and about
-   a fragment field, so the placement rule puts it in the fragment. The cost
-   is the one named above — the rely side hides in enabledness, so the
-   validity bridge surfaces as non-vacuity — plus an over-constraint on any
-   implementation that trusts its caller, moot while the only implementation
-   is the supplement's, which checks.
-
-   The alternative is the rely form: drop the field, keep `require valid e`
-   on `Mvba.propose` as the implementation's own choice, and state the
-   caller's obligation as a run predicate at the temporal level — every
-   `propose` input is `Valid` — as an antecedent of `termination` next to
-   the two caller premises already there. It moves nothing of substance: the
-   same bridge becomes a hypothesis of the composed liveness theorem instead
-   of an enabledness condition, which is what the Chorus liveness leg's
-   `Chorus.ValidBridge` premise ([`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean))
-   already does at the liveness level. What it buys is a named rely side,
-   which is what an auditor reads off the class. It is an edit to
-   `Interfaces.lean`, so it re-solves the Chorus family — every verification
-   condition carries the class's axioms as hypotheses — and rebases every
-   open leg. **Make the move when `Interfaces.lean` is next edited for
-   another reason**, the likely occasion being the joint `TimedRun` decision
-   of [`Bounds.md`](./Bounds.md) §6.2.1, and earlier only if a second MVBA
-   implementation that does not check its inputs appears, or the
-   composition-level non-vacuity instrument ([`TODO.md`](./TODO.md)
-   § Liveness) shows the bridge biting.
+   **The caller's validity obligation is in the rely form** (since
+   2026-09-29). It used to be a fragment field, `MVBASafety.propose_valid`:
+   the module refused an invalid input instead of the caller promising a
+   valid one (§2, "How to read a class as a contract"). That was chosen
+   deliberately, because a *checked* precondition keeps `Mvba.termination`'s
+   premise list to fair scheduling and sentences of the supplement
+   ([`MvbaPlan.md`](./MvbaPlan.md) §3.5 step 4). It was moved with the
+   `TimedRun` revision of [`Bounds.md`](./Bounds.md) §6.2.1, as planned, so
+   that one edit of `Interfaces.lean` carried both. The field is gone, and
+   `MVBATemporal.termination` takes "every correct party's input is `Valid`"
+   as an antecedent next to the other two caller premises. The model keeps
+   `require valid e` on `Mvba.propose` as its own check, so
+   `Mvba.termination`'s premises are unchanged. Nothing of substance moved:
+   the bridge is still what makes Chorus's `mvba_propose` enabled at the
+   composed instance, which is the Chorus liveness leg's `Chorus.ValidBridge`
+   premise ([`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean)).
+   What changed is that an auditor reads the rely side off the class.
 2. **Chorus has no participation interface**, so `SlotConsensusTemporal`
    carries the whole of it; and the glue's records of the inputs it does not
    drive (`sc_abandoned`, `proposed`) are its own, as the paper's local

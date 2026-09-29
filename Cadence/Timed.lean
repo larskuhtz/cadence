@@ -11,19 +11,14 @@ instead of an *eventually*. Nothing here is Cadence-specific and nothing
 here is assumed — these are definitions, and the two lemmas about them are
 the two shapes every bounded-liveness proof uses.
 
-## Why a second run type, and why the clock is not in the state
+## Why a second run type
 
-[`Interfaces.lean`](./Interfaces.lean)'s `TimedRun` reads the clock **off
-the state** (`clock : state → time`), which is right for the Conductor,
-whose `now` is a state field. The untimed models have no such field, and
-a model change for the sake of a contract's signature is the wrong trade
-(`Bounds.md` §6.2.1). So the load-bearing object is `TLRun`: an `LRun` —
-labels included, since fairness is about labels — together with a clock
-*sequence*, monotone and unbounded, and the run's `gst`. The bridge to the
-contract vocabulary is `MVBASafety.timed`, the lift of a safety fragment to
-the product state `state × time`, and `TLRun.toTimedRun`, which pairs each
-state with its clock. The fragment is untouched by the lift: every field is
-the original's on the first component.
+[`Interfaces.lean`](./Interfaces.lean)'s `TimedRun` is what the contracts
+quantify over: states and a clock sequence, but no labels. Fairness is about
+labels, so the load-bearing object here is `TLRun`: an `LRun`, labels
+included, together with the same clock sequence (monotone, unbounded) and
+the run's `gst`. `TLRun.toTimedRun` forgets the labels, and a contract's
+`Admissible` is stated as "the run has a labelling that satisfies ...".
 
 ## The two decisions the definitions encode
 
@@ -239,79 +234,27 @@ theorem enabledMove_of_fires_of_ne (r : TLRun sys th time) (n : Nat)
 
 end
 
-/-! ## The clock-carrying lift of a safety fragment
+/-! ## Forgetting the labels, and the contracts' least upper bound -/
 
-`MVBATemporal` is a class **over** a safety instance `S` at a state type
-`state`, and its `TimedRun` reads the clock off `state`. To instantiate it
-for a model whose state has no clock, the fragment is lifted to
-`state × time`: every observable is `S`'s on the first component, and a
-transition is an `S`-transition along which the clock does not decrease.
-Nothing about the protocol is restated; the lift is generic in `S`. -/
-
-section Lift
-
-variable {party value message state : Type} {byz : party → Prop}
-
-/-- The lift of a safety fragment to the product with a clock. -/
-@[implicit_reducible]
-def _root_.MVBASafety.timed (S : MVBASafety party value message state byz)
-    (time : Type) [LinearOrder time] :
-    MVBASafety party value message (state × time) byz where
-  init p := S.init p.1
-  step p p' := S.step p.1 p'.1 ∧ p.2 ≤ p'.2
-  trans p p' := S.trans p.1 p'.1 ∧ p.2 ≤ p'.2
-  reachable p := S.reachable p.1
-  step_trans _ _ h := ⟨S.step_trans _ _ h.1, h.2⟩
-  reachable_init _ h := S.reachable_init _ h
-  reachable_trans _ _ hr h := S.reachable_trans _ _ hr h.1
-  Valid := S.Valid
-  propose p q v p' := S.propose p.1 q v p'.1 ∧ p.2 ≤ p'.2
-  abandon p q p' := S.abandon p.1 q p'.1 ∧ p.2 ≤ p'.2
-  propose_trans _ _ _ _ h := ⟨S.propose_trans _ _ _ _ h.1, h.2⟩
-  abandon_trans _ _ _ h := ⟨S.abandon_trans _ _ _ h.1, h.2⟩
-  decided p := S.decided p.1
-  proposed p := S.proposed p.1
-  abandoned p := S.abandoned p.1
-  sent p := S.sent p.1
-  decided_mono _ _ q v h := S.decided_mono _ _ q v h.1
-  proposed_mono _ _ q v h := S.proposed_mono _ _ q v h.1
-  abandoned_mono _ _ q h := S.abandoned_mono _ _ q h.1
-  sent_mono _ _ q m h := S.sent_mono _ _ q m h.1
-  propose_effect _ _ _ _ h := S.propose_effect _ _ _ _ h.1
-  propose_valid _ _ _ _ h := S.propose_valid _ _ _ _ h.1
-  abandon_effect _ _ _ h := S.abandon_effect _ _ _ h.1
-  proposed_step_frame _ _ q v h hq := S.proposed_step_frame _ _ q v h.1 hq
-  abandoned_step_frame _ _ q h hq := S.abandoned_step_frame _ _ q h.1 hq
-  init_decided _ q v h := S.init_decided _ q v h
-  init_proposed _ q v h := S.init_proposed _ q v h
-  init_abandoned _ q h := S.init_abandoned _ q h
-  quiescence _ _ q m h hq hnew hold := S.quiescence _ _ q m h.1 hq hnew hold
-  agreement _ hr := S.agreement _ hr
-  integrity _ hr := S.integrity _ hr
-  external_validity _ hr := S.external_validity _ hr
-
-/-- The lifted fragment is the original on the first component — by
-definition, which is the point: nothing was restated. -/
-theorem _root_.MVBASafety.timed_decided (S : MVBASafety party value message state byz)
-    (time : Type) [LinearOrder time] (p : state × time) (q : party) (v : value) :
-    (S.timed time).decided p q v ↔ S.decided p.1 q v := Iff.rfl
+section Contract
 
 variable {ρ σ lbl : Type} {sys : RelationalTransitionSystem ρ σ lbl} {th : ρ}
 variable {time : Type} [LinearOrder time]
 
 open scoped Timed in
-/-- A labelled timed run of `sys`, as a `TimedRun` of the lifted fragment:
-each state paired with its clock, the labels forgotten. `hinit` and `hsteps`
-say that `sys`'s runs are `S`'s — for `Mvba.mvbaSafety th` both are the
-definitions, since its `init` and `trans` are the model's own. The
-`TotalOrder` on `time` is the scoped bridge above. -/
-def TLRun.toTimedRun (r : TLRun sys th time) (S : MVBASafety party value message σ byz)
-    (hinit : S.init (r.at' 0)) (hsteps : ∀ n, S.trans (r.at' n) (r.at' (n + 1))) :
-    TimedRun (σ × time) time (S.timed time).init (S.timed time).trans Prod.snd where
-  at' n := (r.at' n, r.clk n)
+/-- A labelled timed run as a contract `TimedRun`: the states and the clock,
+the labels forgotten. `hinit` and `hsteps` say that `sys`'s runs are the
+contract's; for a fragment whose `init` and `trans` are the model's own
+(`Mvba.mvbaSafety`) both are the definitions. The `TotalOrder` on `time` is
+the scoped bridge above. -/
+def TLRun.toTimedRun (r : TLRun sys th time) (init : σ → Prop) (trans : σ → σ → Prop)
+    (hinit : init (r.at' 0)) (hsteps : ∀ n, trans (r.at' n) (r.at' (n + 1))) :
+    TimedRun σ time init trans where
+  at' := r.at'
   starts := hinit
-  steps n := ⟨hsteps n, r.clk_mono n⟩
-  clock_mono n := r.clk_mono n
+  steps := hsteps
+  clk := r.clk
+  clock_mono := r.clk_mono
   clock_unbounded := r.clk_unbounded
   gst := r.gst
 
@@ -332,8 +275,8 @@ theorem gstLub_iff {t g u : time} :
 open scoped Timed in
 /-- `byGstBound t d P` is "`P` by `max t gst + d`". -/
 theorem _root_.TimedRun.byGstBound_iff [Add time] {state : Type} {init : state → Prop}
-    {trans : state → state → Prop} {clock : state → time}
-    (r : TimedRun state time init trans clock) (t d : time) (P : state → Prop) :
+    {trans : state → state → Prop}
+    (r : TimedRun state time init trans) (t d : time) (P : state → Prop) :
     r.byGstBound t d P ↔ r.byTime (max t r.gst + d) P := by
   constructor
   · rintro ⟨u, h₁, h₂, h₃, hb⟩
@@ -342,12 +285,7 @@ theorem _root_.TimedRun.byGstBound_iff [Add time] {state : Type} {init : state �
     obtain ⟨h₁, h₂, h₃⟩ := gstLub_iff.mpr (rfl : max t r.gst = max t r.gst)
     exact ⟨_, h₁, h₂, h₃, h⟩
 
-open scoped Timed in
-theorem TLRun.toTimedRun_at'(r : TLRun sys th time) (S : MVBASafety party value message σ byz)
-    (hinit : S.init (r.at' 0)) (hsteps : ∀ n, S.trans (r.at' n) (r.at' (n + 1))) (n : Nat) :
-    (r.toTimedRun S hinit hsteps).at' n = (r.at' n, r.clk n) := rfl
-
-end Lift
+end Contract
 
 end Cadence
 
@@ -365,10 +303,6 @@ info: 'Cadence.exists_not_moveEnabled_of_not_firesWithin' depends on axioms: [pr
 /-- info: 'Cadence.TLRun.withinFrom_forall' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Cadence.TLRun.withinFrom_forall
-
-/-- info: 'MVBASafety.timed' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms MVBASafety.timed
 
 /-- info: 'Cadence.gstLub_iff' depends on axioms: [propext] -/
 #guard_msgs in
