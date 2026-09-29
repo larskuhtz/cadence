@@ -117,9 +117,13 @@ History: [docs/History.md](./docs/History.md).
 ## Build
 
 * Always build from the **project root**.
-* `lake build` verifies everything. But it schedules every per-action proof
-  file at once and a *cold* proof file peaks ~5 GB (lake has no job cap):
-  on <64 GB use `scripts/revalidate.sh`, which stages the same targets.
+* `lake build` verifies everything. Its only job cap is `LEAN_NUM_THREADS`
+  (default: the core count), and 14 concurrent cold proof files do not fit
+  in 36 GB. So use `scripts/revalidate.sh`: one `lake build` capped at `JOBS`
+  (default derived from available memory, 8 here), which roughly halves the
+  full-suite wall time against the old staged batches. `BATCH=N` selects the
+  staged build, which CI and the images use. The measurements are in the
+  script's header.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
   only, ~2 min), `Cadence.Chorus.Proofs.Vote` (one action's ~98 cells, ~16 s
   warm), `Cadence.Chorus.Certify` (composition + the `#veil_status` audit pin,
@@ -183,6 +187,11 @@ History: [docs/History.md](./docs/History.md).
   figure grew from 15 min 25 s (2026-09-10) with the workload (the MVBA grew
   from 725 to 1 325 cells), not with the re-port: on the same workload the old
   pin measured the same within noise ([docs/History.md](./docs/History.md)).
+  Those are *staged* runs, and both are superseded for local builds by the
+  JOBS mode (`scripts/revalidate.sh`'s header has the 2026-09-29 table). Their
+  ✅ counts are also inflated: every stage's `lake build` re-prints the
+  stored logs of the already-built modules it passes through, and a single
+  `lake build` of the suite prints about 5 350 ✅.
 * **The cache hides derivation drift.** Entries are keyed by VC statement,
   not by proof script: a kernel-replay hit consumes a `#prove_vc … by <tac>`
   cell *without elaborating the tactic*, so a warm green build proves the

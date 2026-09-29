@@ -1,35 +1,53 @@
 #!/usr/bin/env bash
-# Staged re-validation of the whole Cadence suite.
+# Re-validation of the whole Cadence suite, with a bounded number of
+# concurrent `lean` processes.
 #
-# `lake build` alone verifies everything, but it schedules the 41 + 10 + 25
-# per-action proof files all at once, and a *cold* proof file peaks around
-# 5 GB of resident memory (lake has no job cap). This script builds the same
-# targets in dependency order with the proof families batched, which bounds a
-# cold run's footprint — see BATCH below for the measured figures. On a machine
-# with plenty of RAM, plain `lake build` is equivalent and faster.
-#
-#   scripts/revalidate.sh [logdir]
+#   scripts/revalidate.sh [logdir]      # one `lake build`, JOBS-wide
+#   JOBS=6 scripts/revalidate.sh        # ... with an explicit cap
+#   BATCH=1 scripts/revalidate.sh       # the staged build (CI, images)
 #
 # Writes an RSS sample log (total resident memory of all `lean` processes,
-# every 15 s) to $logdir. Exits non-zero on the first failed stage.
+# every 15 s) to $logdir. Both modes build the same targets and do the same
+# verification work.
 #
-# BATCH controls how many proof files build concurrently per stage (default
-# 6 for the Chorus family, capped at 5 for FallbackReceipt). The default is
-# tuned for a large workstation with a WARM proof cache.
+# JOBS (the default): a single `lake build` under LEAN_NUM_THREADS=$JOBS.
+# Lake runs each module build on a thread of that pool, so the variable caps
+# how many `lean` processes run at once (unset, it is the core count). Lake
+# then schedules by dependency, with no barriers: `Mvba/NoLock.lean` (a ~2 min
+# single-core model check) runs alongside the Chorus model instead of last,
+# the three family models build side by side, and a slow proof file holds up
+# no batch. The default JOBS comes from the memory actually available (the
+# cgroup limit in a container, else physical RAM) at ~4 GB per slot, capped
+# at the core count. Measured 2026-09-29, 14 cores / 36 GB, every project
+# olean deleted:
 #
-# Lower it for a cold run, or on a core-poor machine. Concurrent dischargers
-# contend for wall-clock, and a near-limit VC that passes comfortably alone
-# then times out — measured by the 2026-08 external audit at 21 s alone vs
-# > 60 s in a batch of 6 on 8 cores, and again on a cold 4.32 run where
-# `fb_sign_neg × inclusion_no_honest_fb_neg` (10.5 s alone, 60 s budget)
-# missed its budget in a batch of 6. A cold run is also memory-bound: 32.0 GB
-# peak at BATCH=6 against 20.7 GB at BATCH=3, on 14 cores / 36 GB.
+#   mode             cache   wall     peak RSS   mean cores busy
+#   BATCH=6 staged   warm    13m16s   14.9 GB    4.8
+#   JOBS=8           warm     7m10s   19.2 GB    7.6
+#   JOBS=12          warm     7m14s   29.3 GB    8.1
+#   JOBS=8           cold    10m49s   25.5 GB    9.0
 #
-# So: BATCH=3 for a cold run on a 36 GB machine, BATCH=1 on ≤ 8 cores.
+# JOBS=12 buys nothing over 8: the build is then bound by its critical path
+# (the Chorus model, then its proof files), not by slots. In the cold run the
+# slowest cell took 88 s of its 180 s budget, with no retries. Per-process
+# peaks, cold: most proof files 2–4 GB, Chorus/Proofs/Vote.lean 9.2 GB (it
+# opts out of foldBoolAtoms), the Chorus model 11.7 GB.
+#
+# BATCH (setting it selects this mode): the staged build — the model files
+# one at a time, then the proof families in batches of $BATCH (capped at 5 for
+# the two smaller families), each stage a separate `lake build` that must
+# finish before the next starts. Exits non-zero on the first failed stage.
+# CI and the image build use BATCH=1 on 4-core runners, where concurrent
+# dischargers contend for wall-clock and a near-limit VC that passes
+# comfortably alone then times out (the 2026-08 external audit measured 21 s
+# alone vs > 60 s in a batch of 6 on 8 cores, at the then 60 s budget).
 #
 # When reading the output, count all four verification markers — ✅ proven,
 # ❌ counterexample, 💥 solver crash, ⏱ timeout — plus ♻ (proof-cache
-# replay, kernel-checked). A healthy run has only ✅ and ♻.
+# replay, kernel-checked). A healthy run has only ✅ and ♻. In the staged
+# mode every `lake build` re-prints the stored log of each already-built
+# module it passes through, so marker counts there are inflated several-fold;
+# count markers from a JOBS-mode log.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
@@ -48,10 +66,6 @@ if [ -n "$TC" ]; then
 fi
 
 LOGDIR=${1:-/tmp}
-BATCH="${BATCH:-6}"
-case "$BATCH" in (*[!0-9]*|'') echo "BATCH must be a positive integer" >&2; exit 2 ;; esac
-[ "$BATCH" -ge 1 ] || { echo "BATCH must be ≥ 1" >&2; exit 2; }
-FB_BATCH=$(( BATCH < 5 ? BATCH : 5 ))
 RSSLOG="$LOGDIR/cadence_revalidate_rss.log"
 : > "$RSSLOG"
 
@@ -62,6 +76,34 @@ RSSLOG="$LOGDIR/cadence_revalidate_rss.log"
   done ) &
 SAMPLER=$!
 trap 'kill $SAMPLER 2>/dev/null' EXIT
+
+if [ -z "${BATCH:-}" ]; then
+  if [ -z "${JOBS:-}" ]; then
+    cores=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+    mem=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || true)
+    case "$mem" in (''|*[!0-9]*)
+      mem=$(sysctl -n hw.memsize 2>/dev/null \
+            || awk '/^MemTotal:/ {print $2 * 1024}' /proc/meminfo) ;;
+    esac
+    JOBS=$(( mem / 4294967296 - 1 ))
+    [ "$JOBS" -gt "$cores" ] && JOBS=$cores
+    [ "$JOBS" -ge 1 ] || JOBS=1
+  fi
+  case "$JOBS" in (*[!0-9]*|'') echo "JOBS must be a positive integer" >&2; exit 2 ;; esac
+  [ "$JOBS" -ge 1 ] || { echo "JOBS must be ≥ 1" >&2; exit 2; }
+  echo "=== lake build, LEAN_NUM_THREADS=$JOBS — start $(date +%T)"
+  t0=$SECONDS
+  if LEAN_NUM_THREADS=$JOBS lake build; then
+    echo "=== ALL GREEN ($(( SECONDS - t0 )) s) $(date +%T)"
+    exit 0
+  fi
+  echo "=== BUILD FAILED ($(( SECONDS - t0 )) s)"
+  exit 1
+fi
+
+case "$BATCH" in (*[!0-9]*|'') echo "BATCH must be a positive integer" >&2; exit 2 ;; esac
+[ "$BATCH" -ge 1 ] || { echo "BATCH must be ≥ 1" >&2; exit 2; }
+FB_BATCH=$(( BATCH < 5 ? BATCH : 5 ))
 
 stage() {
   echo ""

@@ -279,22 +279,26 @@ up-to-date, so every later build fails in milliseconds while loading them.
 Recovery is `rm -rf .lake/packages/{auto,smt}/.lake/build`. Lake has no `-j`
 flag; `LEAN_NUM_THREADS` is the only control.
 
-**Memory.** `lake build` schedules every proof file — one per action and
-one for the initializer, for each of the three large models — at once, and a
-*cold* proof file peaks around 5 GB of resident memory (lake has no job cap). On a machine with less than ~64 GB,
-build in stages instead — the same work in the same order, batched:
+**Memory.** `lake build` runs as many `lean` processes at once as
+`LEAN_NUM_THREADS` allows, which defaults to the core count. A *cold* proof
+file peaks at 2–4 GB of resident memory (one reaches 9 GB), so on most
+machines the core count is too many. The script sets the cap from the
+memory available:
 
 ```bash
-scripts/revalidate.sh          # staged full build, batched
-BATCH=3 scripts/revalidate.sh  # ... narrower batches, for a cold run
+scripts/revalidate.sh          # one lake build, cap derived from memory
+JOBS=4 scripts/revalidate.sh   # ... with an explicit cap
+BATCH=1 scripts/revalidate.sh  # staged build, one proof file at a time
 scripts/revalidate.sh /tmp     # ... and write the RSS sample log there
 ```
 
-`BATCH` is how many proof files solve concurrently. The default of 6 suits a
-warm cache; a *cold* run is both memory- and CPU-bound, and on a 14-core /
-36 GB machine measured 32.0 GB peak at `BATCH=6` against 20.7 GB at
-`BATCH=3` — with one near-budget verification condition timing out spuriously
-at the wider setting. Use `BATCH=3` cold, `BATCH=1` on eight cores or fewer.
+`JOBS` is the number of concurrent `lean` processes, at roughly 4 GB each.
+The default is 8 on a 14-core / 36 GB machine, which ran the whole suite in
+about 7 min warm and 11 min cold. Past that, more slots do not help, because
+the build is bound by its longest dependency chain. The staged `BATCH` mode
+is for few cores (CI's 4-core runners use `BATCH=1`), where concurrent
+solvers slow each other enough to push a near-budget cell over its timeout.
+The script's header has the measurements.
 
 Individual pieces, for iteration:
 

@@ -169,9 +169,10 @@ rm -rf .lake/build/lib/lean/Cadence .lake/build/lib/lean/Cadence.*
 bash scripts/revalidate.sh /tmp        # 9 min 12 s, proof cache retained
 ```
 
-Narrow the batches when verification conditions are actually re-solved —
-`BATCH=3` for a cold run, `BATCH=1` on few cores (it passes through
-[scripts/container.sh](../scripts/container.sh) into [revalidate.sh](../scripts/revalidate.sh)). The default of 6 makes
+Inside the container the script caps concurrency from the container's memory
+limit (`JOBS`, ~4 GB per `lean` process). On few cores select the staged
+build instead with `BATCH=1` (it passes through
+[scripts/container.sh](../scripts/container.sh) into [revalidate.sh](../scripts/revalidate.sh)). A wide batch makes
 concurrent dischargers contend for wall-clock, and a near-limit VC that
 passes comfortably alone then times out: measured by the 2026-08 external
 audit on 8 cores at 21 s alone against a 60 s budget versus a timeout in a
