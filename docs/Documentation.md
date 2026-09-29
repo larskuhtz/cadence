@@ -268,7 +268,9 @@ python3 -m http.server -d site
 ```
 
 In CI the `docs` workflow runs it inside the `cadence-verified` image, which
-already holds the `.olean`s, and publishes the result to GitHub Pages.
+already holds the `.olean`s, and publishes the result to GitHub Pages. It runs
+after `publish-images` has published that image for the same commit, not on
+the push: the site can only render a commit whose oleans are in the image.
 
 Verso also ships `lake exe verso setup-literate`, which generates a GitHub
 Pages workflow of its own. It is not used: it builds the project from source
