@@ -32,9 +32,10 @@ pre-state does not (`EnabledMove.of_enabled_of_effect`).
 The anti-monotone guards are handled exactly as the untimed links handle
 them — a lapse of `¬ proposed_in`, `∀ W, voted i W → W < v`, the lock-view
 bound, `¬ commit_sent` or `∀ E, ¬ decided` *is* the goal, by the same
-invariants — except `in_view`, `¬ timed_out` and `¬ abandoned`, which the
-untimed chain assumed (`SettledIn`) and which here hold on a **prefix** of
-the run rather than for ever:
+invariants — except `in_view`, `¬ timed_out` and being active (`Active`:
+neither abandoned nor halted after deciding), which the untimed chain
+assumed (`SettledIn`) and which here hold on a **prefix** of the run rather
+than for ever:
 
 * `¬ timed_out i W` below the clock `E₀ + τ W`: (T1) says the timer fires
   no earlier than `τ W` after an entry, every correct entry is at or after
@@ -43,7 +44,11 @@ the run rather than for ever:
 * `in_view i W` on the same prefix: `entered_le_of_no_timeout_before`, the
   prefix form of `Mvba.entered_le_of_no_timeout` — no correct validator is
   above `W` while none has timed out in it;
-* `¬ abandoned` inside the window: the caller's premise, as in the claim.
+* `¬ abandoned` inside the window: the caller's premise, as in the claim;
+  and "not yet decided" up to the certificate: a hypothesis of
+  `good_view_decides`, which `bounded_termination` supplies in the branch
+  where no correct validator has decided early (in the other branch a
+  certificate already exists, and the decide link finishes alone).
 
 `τ W > Lcert` makes the chain's window lie inside that prefix, which is the
 whole role of (S-ramp) here.
@@ -379,7 +384,7 @@ theorem within_entered_of_tc (hbj : BoundedJustice sch r)
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.Δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (htc : (r.at' N).msg_tc PV = true)
-    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true ∧
+    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → Active (r.at' n) i ∧
       ∀ V, (r.at' n).entered i V = true → vord.le V W) :
     r.WithinFrom N B (fun s => s.entered i W = true) := by
   refine r.withinFrom_of_boundedFair (hbj (.sync_view i PV W) .net rfl) (ref_add_le hgst hB)
@@ -409,7 +414,7 @@ theorem within_preprepare_of_leader (hbj : BoundedJustice sch r)
     {E₀ : value} (hin : (r.at' N).input L E₀ = true)
     (hjust : (∃ w e, (r.at' N).tc_lock PV w e = true) ∨ (r.at' N).tc_nolock PV = true)
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B →
-      ¬ (r.at' n).abandoned L = true ∧ InView (r.at' n) L W) :
+      Active (r.at' n) L ∧ InView (r.at' n) L W) :
     r.WithinFrom N B (fun s => ∃ E, s.msg_preprepare L W E = true) := by
   have hin' : ∀ n, N ≤ n → (r.at' n).input L E₀ = true :=
     r.mono (P := fun s => s.input L E₀ = true)
@@ -445,7 +450,7 @@ theorem within_accepted (hbj : BoundedJustice sch r)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hpp : (r.at' N).msg_preprepare L W e = true)
     (hjust : (∃ w, (r.at' N).tc_lock PV w e = true) ∨ (r.at' N).tc_nolock PV = true)
-    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true ∧
+    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → Active (r.at' n) i ∧
       InView (r.at' n) i W ∧ ¬ (r.at' n).timed_out i W = true) :
     r.WithinFrom N B (fun s => s.accepted i W e = true) := by
   refine r.withinFrom_of_boundedFair (hbj (.handle_preprepare i L PV W e) .net rfl)
@@ -488,7 +493,7 @@ theorem within_local_prepqc (hbj : BoundedJustice sch r)
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hqc : (r.at' N).msg_prepqc W e = true) (hacc : (r.at' N).accepted i W e = true)
-    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true ∧
+    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → Active (r.at' n) i ∧
       InView (r.at' n) i W ∧ ¬ (r.at' n).timed_out i W = true) :
     r.WithinFrom N B (fun s => s.local_prepqc i W e = true) := by
   refine r.withinFrom_of_boundedFair (hbj (.adopt_prepqc i W e) .loc rfl)
@@ -514,7 +519,7 @@ theorem within_msg_commit (hbj : BoundedJustice sch r)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hacc : (r.at' N).accepted i W e = true) (hloc : (r.at' N).local_prepqc i W e = true)
     (hav : (r.at' N).avail_ready i e = true)
-    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true ∧
+    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → Active (r.at' n) i ∧
       InView (r.at' n) i W ∧ ¬ (r.at' n).timed_out i W = true) :
     r.WithinFrom N B (fun s => s.msg_commit i W e = true) := by
   refine r.withinFrom_of_boundedFair (hbj (.send_commit i W e) .loc rfl)
@@ -544,18 +549,19 @@ theorem within_commitqc (hbj : BoundedJustice sch r)
   exact enabled_form_commitqc hsm (fun p hp => r.mono (P := fun s => s.msg_commit p W e = true)
     (fun m hm => Mvba.msg_commit.mono (r.steps m) p W e hm) (hall p hp) n hn)
 
-/-- **Link 8, `decide` (a `δ` step): a correct validator decides.** Needs no
-view guard, so no prefix fact: only `¬ abandoned` on the window, and
+/-- **Link 8, `decide` (a `δ` step): a correct validator decides**, within
+`δ` of the reference time `ref N`, from any index, before GST included. Needs
+no view guard, so no prefix fact: only `¬ abandoned` on the window, and
 `∀ E, ¬ decided` lapses only by the decision. -/
-theorem within_decided (hbj : BoundedJustice sch r)
+theorem within_decided_ref (hbj : BoundedJustice sch r)
     {i : node} (hi : ¬ nset.is_byz i = true) {W : view} {e : value}
-    {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.δ ≤ B)
+    {N : Nat} {B : time} (hB : r.ref N + sch.δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hqc : (r.at' N).msg_commitqc W e = true)
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true) :
     r.WithinFrom N B (fun s => ∃ E, s.decided i E = true) := by
   refine r.withinFrom_of_boundedFair (hbj (.decide i W e) .loc rfl)
-    (ref_add_le hgst hB) (fun _ _ h => ⟨e, decide_effect h⟩) ?_
+    hB (fun _ _ h => ⟨e, decide_effect h⟩) ?_
   intro n hn hclk hnot
   exact enabled_decide hi
     ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
@@ -563,6 +569,16 @@ theorem within_decided (hbj : BoundedJustice sch r)
     (r.mono (P := fun s => s.msg_commitqc W e = true)
       (fun m hm => Mvba.msg_commitqc.mono (r.steps m) W e hm) hqc n hn)
     (fun E hE => hnot ⟨E, hE⟩)
+
+/-- **Link 8 after GST**, measured from the index's clock. -/
+theorem within_decided (hbj : BoundedJustice sch r)
+    {i : node} (hi : ¬ nset.is_byz i = true) {W : view} {e : value}
+    {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.δ ≤ B)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
+    (hqc : (r.at' N).msg_commitqc W e = true)
+    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true) :
+    r.WithinFrom N B (fun s => ∃ E, s.decided i E = true) :=
+  within_decided_ref hbj hi (ref_add_le hgst hB) hin hqc hwin
 
 end Links
 
@@ -581,8 +597,10 @@ second table).
 Let `W` be a view above the first with a correct leader `L` and a budget
 `τ W` above the chain's latency, and `N₀` the first index at which a correct
 validator has entered `W`, its clock `E₀ := clk N₀` at or after GST. If every
-correct validator has proposed by `N₀` and none is abandoned at a clock at
-or before `E₀ + Lcert + δ`, then under the three clauses a commit certificate
+correct validator has proposed by `N₀`, none is abandoned at a clock at
+or before `E₀ + Lcert + δ` and none has decided at a clock at or before
+`E₀ + Lcert` (a decided validator halts, so it would not take part in the
+chain), then under the three clauses a commit certificate
 of `W` exists by `E₀ + Lcert` and every correct validator has decided by
 `E₀ + Lcert + δ`.
 
@@ -617,7 +635,9 @@ theorem good_view_decides
     (hin : ∀ p, ¬ nset.is_byz p = true → ∃ E, (r.at' N₀).input p E = true)
     (hnab : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true →
       r.clk n ≤ r.clk N₀ + Lcert sch.Δ sch.δ sch.Δsync + sch.δ →
-        ¬ (r.at' n).abandoned p = true) :
+        ¬ (r.at' n).abandoned p = true)
+    (hnodec : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true →
+      r.clk n ≤ r.clk N₀ + Lcert sch.Δ sch.δ sch.Δsync → ∀ E, ¬ (r.at' n).decided p E = true) :
     ∃ e : value,
       r.WithinFrom N₀ (r.clk N₀ + Lcert sch.Δ sch.δ sch.Δsync)
         (fun s => s.msg_commitqc W e = true) ∧
@@ -668,11 +688,11 @@ theorem good_view_decides
       ¬ nset.is_byz j = true → (r.at' n).entered j V = true → vord.le V W :=
     fun n h => entered_le_before_budget htp hfirst (lt_of_le_of_lt h hTτ)
   have hnab' : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true → r.clk n ≤ T →
-      ¬ (r.at' n).abandoned p = true := fun p n hp h =>
-    hnab p n hp (hTL ▸ le_trans h (le_add_of_nonneg_right hδ))
+      Active (r.at' n) p := fun p n hp h =>
+    ⟨hnab p n hp (hTL ▸ le_trans h (le_add_of_nonneg_right hδ)), hnodec p n hp (hTL ▸ h)⟩
   /- Settled in `W` on the prefix, once entered. -/
   have hset : ∀ (p : node), ¬ nset.is_byz p = true → ∀ N, (r.at' N).entered p W = true →
-      ∀ n, N ≤ n → r.clk n ≤ T → ¬ (r.at' n).abandoned p = true ∧
+      ∀ n, N ≤ n → r.clk n ≤ T → Active (r.at' n) p ∧
         InView (r.at' n) p W ∧ ¬ (r.at' n).timed_out p W = true :=
     fun p hp N hN n hn h =>
       ⟨hnab' p n hp h,
@@ -750,7 +770,7 @@ theorem good_view_decides
       (enum.members hqe.honestQuorum) (fun p hp => by
         have hpq := hmemQ p hp
         have hpc := hQc p hpq
-        have hwin : ∀ n, N₃ ≤ n → r.clk n ≤ T → ¬ (r.at' n).abandoned p = true ∧
+        have hwin : ∀ n, N₃ ≤ n → r.clk n ≤ T → Active (r.at' n) p ∧
             InView (r.at' n) p W ∧ ¬ (r.at' n).timed_out p W = true :=
           fun n hn h => hset p hpc N₁ (hQent p hpq) n (Nat.le_trans (Nat.le_trans hn₂ hN₃) hn) h
         obtain ⟨E, hE⟩ := hinN p hpc n₄ hN₄

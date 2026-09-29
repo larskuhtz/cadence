@@ -1035,43 +1035,53 @@ proposal in §6.2.1. The questions the task set:
 `Mvba.termination_premises_satisfiable` in
 [Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean), axioms at the
 standard trio. Each is an existential over the whole premise set: the
-sorts, the instances, the schedule, the theory and the run. No model
-change, nothing re-solved, the `#veil_status Mvba` pin unchanged, and no
-premise's statement changed. The questions the task set:
+sorts, the instances, the schedule, the theory and the run. No premise's
+statement changed. **The model did change**, once, and that is the step's
+main finding (§6.3.2): building the witness showed the model did not halt
+a validator after it decides, as the supplement does, so the halt was added
+([Cadence/Mvba.lean](../Cadence/Mvba.lean), "A decided validator halts").
+The `#veil_status Mvba` count is unchanged, since only guards were added,
+but every VC changed and the family was re-solved; the mutation test
+[Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) mirrors the guard, still
+finds its agreement violation, and its pinned trace moved (the two
+decisions now come last). The questions the task set:
 
 * **Whether any premise was harder to satisfy than the ledger expected.**
   One, and not the one flagged. The expected hard premise was `FJustice`
   with plain `Enabled` (§6.2.4). At the concrete family it costs one lemma:
-  once the run is idle, exactly twenty-two assembly labels are enabled,
-  because a certificate has one quorum that can assemble it at
-  `ByzNSet 4` (`Mvba.Witness.enabled_idle`). The tail fires each of them
-  every twenty-two steps. The premise that changed the shape of the run is
-  the caller's `NoEarlyAbandon`, together with the view timer. A decision
-  does not stop the timer, so no run decides and then idles on its own
-  (§6.3.2). The witness therefore has the caller abandon the validators,
-  and the timed claim allows that only after `max(t, GST) + ℓ`. At
-  `fixedNat` that is 19 (one burn to leave the view entered at GST, since
-  `natViewOrderEnum.below 0 = [0]`, plus `k = 1` more, plus the chain),
-  against a timeout of 5. So the run passes through five views: views 0 to
-  4, with a decision in view 0 and re-proposals of the lock afterwards.
+  once the run is idle only two assembly labels are enabled, because a
+  certificate has one quorum that can assemble it at `ByzNSet 4`
+  (`Mvba.Witness.enabled_idle`), and the tail fires both forever. The
+  premise that mattered was the caller's `NoEarlyAbandon` together with the
+  view timer. In the model as it was, a decision did not stop a validator,
+  so a witness had either to change views forever or to have the caller
+  abandon every validator after `max(t, GST) + ℓ`; the first version of the
+  witness did the latter, through five views. That is what exposed the
+  divergence from the supplement. With the halt, the witness is the run the
+  plan asked for: everyone decides in view 0, then idles.
+* **What the halt cost the proofs.** Every honest link now needs its
+  validator *active*: neither abandoned nor decided (`Mvba.Active`, which
+  replaced `¬ abandoned` in `SettledIn` and in the link hypotheses). The
+  untimed proof already ran under "nobody has decided", so it needed only
+  that substitution. The timed proof needed one new case split, in
+  `bounded_termination`: either a correct validator decides by the
+  certificate deadline `max(t, GST) + ℓ − δ`, and then everyone decides
+  within `δ` of its certificate (`within_decided_ref`, the decide link
+  measured from `ref N`), or nobody does, and the chain runs as before with
+  every correct validator active up to that deadline. `ℓ` is unchanged.
 * **Whether bounded weak fairness needed a real argument.** No. The run
   advances its clock only out of states at which no fair label is
-  move-enabled (`Mvba.Witness.quiet`, at five block ends and the idle
-  tail). Every window then contains such a state on its own clock reading,
-  so (Δ-justice) holds with its antecedent false. That is a property of
-  this run, which is as eager as possible, and not of the premise: a run
-  that delays steps by up to their hop bound would need the window argument
-  in full.
+  move-enabled (`Mvba.Witness.quiet`), so every window contains such a
+  state on its own clock reading, and (Δ-justice) holds with its antecedent
+  false. That is a property of this run, which is as eager as possible, and
+  not of the premise.
 * **Whether one run serves both claims.** It does. The untimed projection
-  of the timed witness satisfies the five untimed premises, and
-  (A-viewsync) holds at `W = 1` directly. It also follows from the timed
-  premises through `Mvba.aViewSync_of_sync`. The file ends with both
-  theorems applied to the witness, to check that it is an instance of what
-  they quantify over.
+  satisfies the five untimed premises; (A-viewsync) holds at `W = 1`,
+  because the view-0 timers expire and nobody enters view 1. The file ends
+  with both theorems applied to the witness.
 * **What the proof costs.** Each state is a closed formula in its index,
-  so the 132 prefix steps, the quiescence facts and the premises are linear
-  arithmetic. The file elaborates in about 40 s (four to five CPU-minutes,
-  in parallel), dominated by the 132 transition checks. It touches no VC.
+  so the 25 prefix steps, the quiescence facts and the premises are linear
+  arithmetic. The file elaborates in seconds and touches no VC.
 
 ### 6.3 The premises are jointly satisfiable
 
@@ -1132,10 +1142,10 @@ The timed claim, `Mvba.timed_termination`:
   together with the next three. `Mvba.admissible_exists` shows admissible
   runs exist, but its run has nobody proposing.
 * **Every correct validator proposes by `t`**, **with a valid value**, and
-  **none abandons before `max(t, GST) + ℓ`**: each obvious alone, not
-  obviously compatible with admissibility. The timer is punctual, so a
-  model run that satisfies them does not stop after deciding. §6.3.2 says
-  why.
+  **none abandons before `max(t, GST) + ℓ`**: each obvious alone. Together
+  with admissibility they need a run that stops on its own after deciding,
+  since the caller may not stop it early; §6.3.2 says why that was not
+  obvious.
 
 The untimed claim, `Mvba.termination`:
 
@@ -1155,11 +1165,9 @@ The untimed claim, `Mvba.termination`:
   as in the timed claim.
 
 **What the model found.** Every premise is satisfiable, and none needed
-a change to its statement. The one that was harder than expected is the
-caller's `NoEarlyAbandon`, together with the timer. In the model a decision
-does not stop a validator, so the witness has the caller abandon it, and
-in the timed claim only after `ℓ`. That is also where the model differs
-from the supplement, which stops on its own. §6.3.2 has both.
+a change to its statement. Building the model did change the *model*: it
+did not halt a validator after deciding, as the supplement does, and now it
+does (§6.3.2).
 
 #### 6.3.1 The model
 
@@ -1170,20 +1178,18 @@ from the supplement, which stops on its own. §6.3.2 has both.
   the schedule is `Schedule.fixedNat ℕ 1` (`Δ = 1`, `δ = Δ_sync = 0`,
   timeout 5), and GST and `t` are 0. `ℓ` is then 19.
 * **The run.** The three correct validators become available and propose
-  at clock 0. They run the whole chain of view 0 and decide in it. The
-  view timer of view 0 then expires at clock 5, they time out, form a
-  timeout certificate, enter view 1 and run the chain of view 1 there. The
-  same happens at clocks 10, 15 and 20, for views 2, 3 and 4. At clock 25
-  their view-4 timers expire and the caller abandons each of them. That is
-  after `ℓ = 19`, so `NoEarlyAbandon` and the timed abandonment premise
-  hold. From then on the run is idle: it cycles through the twenty-two quorum
-  labels that are still enabled, each a step that changes nothing, and the
-  clock advances by one per step.
+  at clock 0. They run the whole chain of view 0 and decide in it. At clock
+  5 their view-0 timers expire, which the timing model requires; having
+  decided, they have halted, so none times out. From then on the run is
+  idle: it alternates the two quorum labels that are still enabled, the
+  prepare and commit certificates of view 0, each a step that changes
+  nothing, and the clock advances by one per step. Nobody abandons, so both
+  forms of the caller's abandonment premise hold vacuously.
 * **Why the proofs are short.** Every state of the run is a closed formula
   in its index: a record is present at index `n` iff the step that sets it
-  is before `n`, and that step is `26 · V + c + i` for view `V`, a
-  constant `c` per record, and validator `i`. Each transition, and each
-  premise, is then linear arithmetic over the index.
+  is before `n`, and that step is `c + i` for a constant `c` per record and
+  validator `i`. Each transition, and each premise, is then linear
+  arithmetic over the index.
 * **Why the timed fairness premise is easy here.** The clock advances only
   out of states at which no fair label is move-enabled. So from every
   index there is a later one on the same clock reading at which a given
@@ -1191,56 +1197,46 @@ from the supplement, which stops on its own. §6.3.2 has both.
   antecedent false. The run is fair because it never leaves an obligation
   pending while time passes.
 
-#### 6.3.2 The finding: in the model, a correct validator does not stop after deciding
+#### 6.3.2 The finding: the model did not halt a validator after deciding
 
 The plan (TODO's "Exhibit a run" item) was a run in which everyone decides
-in the first view and the run then idles. The model has no such run. Its
-`decide` records the decision and nothing else, and its `timeout_qc` needs
-only the expired timer, the current view and `¬ abandoned`. So a decided
-validator whose view timer expires times out, a timeout certificate forms,
-and it enters the next view, whose chain runs again. In the untimed claim
-(A-viewsync)'s first clause forces the timers of every view below the good
-view `W`, which is at least view 1, so the run must reach `W` at least. In
-the timed claim (T2) forces the timer of *every* view entered, so the view
-changes never end unless the caller abandons.
+in the first view and the run then idles. The model as it stood had no such
+run. Its `decide` recorded the decision and nothing else, and its
+`timeout_qc` needed only the expired timer, the current view and
+`¬ abandoned`. So a decided validator whose timer expired timed out, a
+timeout certificate formed, and it entered the next view, whose chain ran
+again. In the timed claim (T2) forces the timer of every view entered, so
+the view changes never ended unless the caller abandoned — which the timed
+claim allows only after `max(t, GST) + ℓ`, and `ℓ` exceeds a view's
+timeout. The first witness therefore passed through five views.
 
 **The supplement does stop.** Both its decision paths end in
 `decide(…); abandon()` (`line:mvba:td-decide`, `line:mvba:qc-decide`),
 `abandon()` "halts all MVBA sending and stops `W`", and the timeout fires
 only "upon `W` reaches the view timeout and no decision in view `v`"
-(`line:mvba:timeout-send`). The model has neither the self-abandon nor
-the no-decision guard. That gives it more behaviours than the supplement,
-which is sound for safety, and for the untimed claim: a supplement run
-read as a model run maps each `decide(…); abandon()` to `decide` then
-`abandon`, and `NoEarlyAbandon` (abandoned only after deciding) still
-holds. **For the timed claim it leaves a question open.** The same reading
-abandons a validator right after it decides, which can be before
-`max(t, GST) + ℓ`, so such a run does not meet `Mvba.timed_termination`'s
-third caller condition, and the theorem says nothing about it. The
-contract's caller condition is about *external* abandonment. The model has
-only one `abandon`, the caller's. Whether to model the self-abandon
-separately (a guarded `decide` that also halts, or a timeout guard on "no
-decision"), and whether the bound then covers those runs, is recorded in
-[PaperAlignment.md](PaperAlignment.md) §4 and [TODO.md](TODO.md)
-§ Liveness. It is not resolved here.
+(`line:mvba:timeout-send`). That is so at the pinned revision `026dc8b`.
+The difference was not harmless for the timed claim: read as a model run, a
+supplement run in which a validator decides and stops early abandons it
+before `max(t, GST) + ℓ`, which the claim's caller condition excludes, so
+the theorem said nothing about exactly the runs the supplement produces.
 
-For the witness, the model's behaviour means the run ends with the caller
-abandoning every correct validator after it decided. `NoEarlyAbandon`
-allows that, and so does the timed claim, but only after
-`max(t, GST) + ℓ`. `ℓ` exceeds a view's timeout by construction: it
-contains `k • burn` with `k ≥ 1`, and `burn` contains `τ_max`. So every
-timed witness passes through several view changes before it can idle:
-five views at `fixedNat`, because `ℓ = 19` and the timeout is 5.
+**The fix** ([Cadence/Mvba.lean](../Cadence/Mvba.lean), "A decided
+validator halts"): every honest send also requires `∀ E, ¬ decided i E`.
+After deciding, a validator sends nothing more, and in particular never
+times out, which subsumes the "no decision in view `v`" guard. The halt is
+kept apart from the caller's `abandoned`: the contract's Termination
+premise is about the caller's `abandon()`, and a validator's own halt
+must not count against it. Had `decide` set `abandoned`, every run deciding
+before `max(t, GST) + ℓ` would violate that premise and the timed theorem
+would be vacuous. The proofs' side is in the reassessment above.
 
 #### 6.3.3 What the Chorus `TerminationClaim` will need
 
 The same two things, after stage 5: a ledger of its premises in this form,
 and one model satisfying all of them. The model can reuse this one for
-the MVBA sub-state. Chorus does not drive the MVBA's `abandon` (the
-Chorus model's MVBA section: it is Cadence/Conductor-driven, and undriven
-in the single-slot model). So a Chorus witness either carries the MVBA's
-view changes forever, which the timed witness above shows are admissible,
-or needs §6.3.2's self-abandon in the model. The premise that needs thought is **`ValidBridge`**,
+the MVBA sub-state: its MVBA halts on its own after deciding, so Chorus,
+which does not drive the MVBA's `abandon` in the single-slot model, needs
+no abandonment for it. The premise that needs thought is **`ValidBridge`**,
 the stated bridge between the MVBA's decision and the network's
 certificates at Chorus's decision handlers. It relates two sub-states,
 and a model must produce certificates that satisfy it, not merely an MVBA

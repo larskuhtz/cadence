@@ -70,8 +70,9 @@ mutant, hence of [Mvba.lean](../Mvba.lean) with the lock check deleted. The rest
    is proven, never model-checked, and nothing about it rests on this
    file.
 
-Everything else — the honest protocol steps, the certificate assemblies
-with their `2f+1` guards, the view change — is verbatim from [Mvba.lean](../Mvba.lean)
+Everything else — the honest protocol steps with their halt after a
+decision, the certificate assemblies with their `2f+1` guards, the view
+change — is verbatim from [Mvba.lean](../Mvba.lean)
 (with the mutation, and the timer folded as item 1 says), and the model
 checks the same three safety properties,
 of which `agreement` is the one violated.
@@ -86,7 +87,8 @@ forms; both sync into view 2. View 2 — the Byzantine leader proposes
 **value 1**; without the lock check both validators accept it, prepare,
 adopt the new certificate and commit, and a **commit certificate on value 1**
 forms. Validator 1 decides value 0 from the first certificate, validator 2
-value 1 from the second. In [Mvba.lean](../Mvba.lean) the `handle_preprepare` guard
+value 1 from the second. Both decisions come last: a validator that has decided
+halts, so neither could time out after deciding. In [Mvba.lean](../Mvba.lean) the `handle_preprepare` guard
 rejects the view-2 proposal (`lock_available 0 1` is false, `tc_nolock 0` is
 false), and `prepqc_blocks_lower_commits` is exactly the invariant that
 this run breaks at its view-2 prepare certificate.
@@ -184,6 +186,7 @@ action propose_all (e : value) {
 action leader_propose_first (l : node) (e : value) {
   require ¬ is_byz l
   require ¬ abandoned l
+  require ∀ E, ¬ decided l E
   require leader vord.zero l
   require in_view l vord.zero
   require input l e
@@ -196,6 +199,7 @@ action leader_repropose (l : node) (pv : view) (v : view) (w : view) (e : value)
   require ¬ is_byz l
   require ∃ E, input l E
   require ¬ abandoned l
+  require ∀ E, ¬ decided l E
   require vord.next pv v
   require leader v l
   require in_view l v
@@ -208,6 +212,7 @@ action leader_repropose (l : node) (pv : view) (v : view) (w : view) (e : value)
 action leader_propose_fresh (l : node) (pv : view) (v : view) (e : value) {
   require ¬ is_byz l
   require ¬ abandoned l
+  require ∀ E, ¬ decided l E
   require vord.next pv v
   require leader v l
   require in_view l v
@@ -223,6 +228,7 @@ action handle_preprepare_first (i : node) (l : node) (e : value) {
   require participant i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i vord.zero
   require leader vord.zero l
   require msg_preprepare l vord.zero e
@@ -241,6 +247,7 @@ action handle_preprepare (i : node) (l : node) (pv : view) (v : view) (e : value
   require participant i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i v
   require vord.next pv v
   require leader v l
@@ -264,6 +271,7 @@ action adopt_prepqc (i : node) (v : view) (e : value) {
   require participant i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i v
   require msg_prepqc v e
   require accepted i v e
@@ -283,6 +291,7 @@ action send_commit (i : node) (v : view) (e : value) {
   require participant i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i v
   require accepted i v e
   require local_prepqc i v e
@@ -314,6 +323,7 @@ action timeout_qc (i : node) (v : view) (w : view) (e : value) {
   require participant i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i v
   require ¬ timed_out i v
   require local_prepqc i w e
@@ -328,6 +338,7 @@ action timeout_noqc (i : node) (v : view) {
   require participant i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i v
   require ¬ timed_out i v
   require ∀ W E, ¬ local_prepqc i W E
@@ -360,6 +371,7 @@ action sync_view (i : node) (pv : view) (v : view) {
   require participant i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require vord.next pv v
   require msg_tc pv
   require ∀ V, entered i V → vord.le V pv
@@ -371,6 +383,7 @@ action sync_view_adopt (i : node) (pv : view) (v : view) (w : view) (e : value) 
   require participant i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require vord.next pv v
   require tc_lock pv w e
   require ∀ V, entered i V → vord.le V pv
@@ -720,34 +733,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = []
     voted = [[1, 0], [2, 0]]
-  State 13 (via decide(e=0, i=1, v=0)):
+  State 13 (via timeout_qc(e=0, i=1, v=0, w=0)):
     abandoned = []
     accepted = [[1, [0, 0]], [2, [0, 0]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
-    entered = [[0, 0], [1, 0], [2, 0], [3, 0]]
-    input = [[0, 0], [1, 0], [2, 0], [3, 0]]
-    local_prepqc = [[1, [0, 0]], [2, [0, 0]]]
-    msg_commit = [[0, [0, 0]], [1, [0, 0]], [2, [0, 0]]]
-    msg_commitqc = [[0, 0]]
-    msg_prepare = [[0, [0, 0]], [1, [0, 0]], [2, [0, 0]]]
-    msg_prepqc = [[0, 0]]
-    msg_preprepare = [[0, [0, 0]]]
-    msg_tc = []
-    msg_timeout_noqc = [[0, 0]]
-    msg_timeout_qc = []
-    proposed_in = []
-    tc_lock = []
-    tc_nolock = []
-    timed_out = []
-    voted = [[1, 0], [2, 0]]
-  State 14 (via timeout_qc(e=0, i=1, v=0, w=0)):
-    abandoned = []
-    accepted = [[1, [0, 0]], [2, [0, 0]]]
-    avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
-    commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [2, 0], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [2, [0, 0]]]
@@ -764,12 +755,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0]]
     voted = [[1, 0], [2, 0]]
-  State 15 (via timeout_qc(e=0, i=2, v=0, w=0)):
+  State 14 (via timeout_qc(e=0, i=2, v=0, w=0)):
     abandoned = []
     accepted = [[1, [0, 0]], [2, [0, 0]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [2, 0], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [2, [0, 0]]]
@@ -786,12 +777,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [2, 0]]
-  State 16 (via form_tc_lock(e=0, q=[0, 1, 2], r0=1, v=0, w=0)):
+  State 15 (via form_tc_lock(e=0, q=[0, 1, 2], r0=1, v=0, w=0)):
     abandoned = []
     accepted = [[1, [0, 0]], [2, [0, 0]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [2, 0], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [2, [0, 0]]]
@@ -808,12 +799,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [2, 0]]
-  State 17 (via sync_view(i=1, pv=0, v=1)):
+  State 16 (via sync_view(i=1, pv=0, v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [2, [0, 0]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [2, [0, 0]]]
@@ -830,12 +821,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [2, 0]]
-  State 18 (via sync_view(i=2, pv=0, v=1)):
+  State 17 (via sync_view(i=2, pv=0, v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [2, [0, 0]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [2, [0, 0]]]
@@ -852,12 +843,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [2, 0]]
-  State 19 (via byz_sign(e=1, r=0, v=1)):
+  State 18 (via byz_sign(e=1, r=0, v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [2, [0, 0]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [2, [0, 0]]]
@@ -874,12 +865,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [2, 0]]
-  State 20 (via handle_preprepare(e=1, i=1, l=0, pv=0, v=1)):
+  State 19 (via handle_preprepare(e=1, i=1, l=0, pv=0, v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [2, [0, 0]]]
@@ -896,12 +887,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [1, 1], [2, 0]]
-  State 21 (via handle_preprepare(e=1, i=2, l=0, pv=0, v=1)):
+  State 20 (via handle_preprepare(e=1, i=2, l=0, pv=0, v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [2, [0, 0]]]
@@ -918,12 +909,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [1, 1], [2, 0], [2, 1]]
-  State 22 (via form_prepqc(e=1, q=[0, 1, 2], v=1)):
+  State 21 (via form_prepqc(e=1, q=[0, 1, 2], v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [2, [0, 0]]]
@@ -940,12 +931,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [1, 1], [2, 0], [2, 1]]
-  State 23 (via adopt_prepqc(e=1, i=1, v=1)):
+  State 22 (via adopt_prepqc(e=1, i=1, v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]]]
@@ -962,12 +953,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [1, 1], [2, 0], [2, 1]]
-  State 24 (via adopt_prepqc(e=1, i=2, v=1)):
+  State 23 (via adopt_prepqc(e=1, i=2, v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
@@ -984,12 +975,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [1, 1], [2, 0], [2, 1]]
-  State 25 (via send_commit(e=1, i=1, v=1)):
+  State 24 (via send_commit(e=1, i=1, v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [1, 1], [2, 0]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
@@ -1006,12 +997,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [1, 1], [2, 0], [2, 1]]
-  State 26 (via send_commit(e=1, i=2, v=1)):
+  State 25 (via send_commit(e=1, i=2, v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [1, 1], [2, 0], [2, 1]]
-    decided = [[1, 0]]
+    decided = []
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
@@ -1028,7 +1019,29 @@ error: ❌ Violation: safety_failure (violates: agreement)
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [1, 1], [2, 0], [2, 1]]
-  State 27 (via form_commitqc(e=1, q=[0, 1, 2], v=1)):
+  State 26 (via form_commitqc(e=1, q=[0, 1, 2], v=1)):
+    abandoned = []
+    accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
+    avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
+    commit_sent = [[1, 0], [1, 1], [2, 0], [2, 1]]
+    decided = []
+    entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
+    input = [[0, 0], [1, 0], [2, 0], [3, 0]]
+    local_prepqc = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
+    msg_commit = [[0, [0, 0]], [0, [1, 1]], [1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
+    msg_commitqc = [[0, 0], [1, 1]]
+    msg_prepare = [[0, [0, 0]], [0, [1, 1]], [1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
+    msg_prepqc = [[0, 0], [1, 1]]
+    msg_preprepare = [[0, [0, 0]], [0, [1, 1]]]
+    msg_tc = [0]
+    msg_timeout_noqc = [[0, 0], [0, 1]]
+    msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
+    proposed_in = []
+    tc_lock = [[0, [0, 0]]]
+    tc_nolock = []
+    timed_out = [[1, 0], [2, 0]]
+    voted = [[1, 0], [1, 1], [2, 0], [2, 1]]
+  State 27 (via decide(e=0, i=1, v=0)):
     abandoned = []
     accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
