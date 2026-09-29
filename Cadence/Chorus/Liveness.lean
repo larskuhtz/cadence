@@ -13,7 +13,7 @@ discipline, same shape, and its `Mvba.termination` is what the MVBA arm of
 the argument consumes.
 
 `grep -n '^def [A-Z]' Cadence/Chorus/Liveness.lean` prints the whole list:
-the four label classes, the certificate predicate the bridge premise is
+the five label classes, the certificate predicate the bridge premise is
 stated with, the three premises, the target and the claim, and nothing else.
 Everything a human has to believe about scheduling or about the seam
 between Chorus and its MVBA is one of those definitions, with a docstring,
@@ -37,8 +37,10 @@ of `MVBATemporal.Admissible`.
 ## The three premises, and why each is one
 
 * **(F-justice)** — `FJustice`: every honest, non-oracle label is weakly
-  fair. The classification is the three `match` definitions below; the
-  reasons weak fairness suffices are [Liveness.md](../../docs/Liveness.md) §2.
+  fair, the MVBA proposal as one family per validator and value. The
+  classification is the `match` definitions below; the reasons weak
+  fairness suffices are [Liveness.md](../../docs/Liveness.md) §2, and why the
+  proposal is a family is §4.6 (Finding 2).
 * **The MVBA's scheduling** — `MvbaAdmissible`: the run *has* a projection
   onto the MVBA (a labelling of its steps plus infinitely many of them —
   `Component.Projection`, whose header says why both are data) whose
@@ -151,6 +153,15 @@ different cut from the fairness classes — `mvba_propose` is a justice label
 caller schedules it. -/
 def MvbaStepLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
   | .mvba_step _ => True
+  | .mvba_propose .. => True
+  | _ => False
+
+/-- **The MVBA proposal** `mvba_propose i v mvba_next`: a justice label whose
+last parameter is a *result*, the MVBA's state after the input, not a choice
+the validator makes. `FJustice` therefore makes it fair per validator and
+value over that parameter (`Cadence.WeaklyFairFamily`) rather than per
+label; [Liveness.md](../../docs/Liveness.md) §4.6 (Finding 2) says why. -/
+def ProposeLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
   | .mvba_propose .. => True
   | _ => False
 
@@ -405,9 +416,15 @@ abbrev ChorusRun
     (thM : Mvba.Theory node nodeset (node → Option merkle_root) view) :=
   LRun (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM) thS
 
-/-- **(F-justice)** — weak fairness of every honest, non-oracle action. -/
+/-- **(F-justice)** — weak fairness of every honest, non-oracle action.
+
+Every such label is weakly fair on its own, except the MVBA proposal: a
+validator `i` proposing `v` is weakly fair as one family over the MVBA's
+successor state, the label's result parameter — if `i` can propose `v`
+from some point on, it does. -/
 def FJustice (r : ChorusRun thS thM) : Prop :=
-  ∀ l, JusticeLabel l → WeaklyFair r l
+  (∀ l, JusticeLabel l → ¬ ProposeLabel l → WeaklyFair r l) ∧
+  ∀ i v, WeaklyFairFamily r (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)
 
 /-- **The MVBA's scheduling premise**, replacing (A-mvba): the run has a
 projection onto the MVBA — a labelling of its steps that explains them, and

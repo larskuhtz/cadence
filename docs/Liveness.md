@@ -36,7 +36,10 @@ outside Lean.
   fairness suffices because the model is monotone: enabledness is itself
   monotone, so the enable/disable toggle that strong fairness exists for
   cannot occur. ((F-compassion) is reserved vocabulary for the
-  non-monotone implementation and never invoked.) **This justification is
+  non-monotone implementation and never invoked.) One action is fair as a
+  family rather than label by label: a correct validator proposing a value
+  to the MVBA — if it can from some point on, it does, whatever the MVBA's
+  state after the input turns out to be (§4.6, Finding 2). **This justification is
   specific to Chorus and does not generalise**: it holds because a slot is
   one-shot and its state purely accumulating. `Mvba` runs views, so nine of
   its honest actions are guarded by the current view and eleven can be
@@ -480,6 +483,8 @@ labelled run of Chorus with its MVBA constraint filled by `Mvba.mvbaSafety
 thM`, the instantiation [System.lean](../Cadence/System.lean) uses):
 
 * **`FJustice`** — (F-justice): weak fairness of every `JusticeLabel`.
+  (Since stage 4, `mvba_propose` is covered per validator and value as one
+  family over its successor-state parameter; §4.6.)
 * **`MvbaAdmissible`** — replaces (A-mvba): `∃ p : (mvbaComponent thS
   thM).Projection r, Mvba.FJustice p.run ∧ Mvba.AViewSync p.run ∧
   Mvba.FAvail p.run` — the run's MVBA projection satisfies the three
@@ -968,3 +973,95 @@ name; `Mvba.Label.isInput` does not reduce outside its module — use
 again, so check each new label's parameters before relying on its
 fairness (`on_mvba_decide_*` and `mvba_terminate` carry the decided `v`,
 which is fixed once decided, and are fine).
+
+**Stage 4, done (2026-09-29): the record and the reassessment.** The proof
+is in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean), in the same
+three layers as stage 3 and in the same file (it did not outgrow it); its
+header carries the chain and its docstrings the reasoning at the point of
+use. At the concrete family, at `Cadence.chorusTheory`, from `FJustice`,
+`MvbaAdmissible` and `ValidBridge`:
+
+* `mvba_arm_fin` — from an index at which the progress dichotomy's right
+  disjunct holds (verbatim, as `eventually_progress_dichotomy` states it),
+  every correct validator eventually has `local_committed`;
+  `terminates_of_mvba_arm` restates it as the claim's `Terminates`. The one
+  further hypothesis is the view order's enumeration (`ViewOrderEnum`),
+  which `Mvba.termination` takes; the validators' finiteness is `Fin n`'s,
+  and in the generic core (`eventually_committed_of_mvba_arm`) it is
+  `[Fintype node]`.
+
+Every pin is at the standard trio. No model change, no new invariant, no
+new cell: `#veil_status Chorus` is unchanged.
+
+*Why Finding 2 is resolved at the premise and not in the model.* Picking
+the MVBA's successor state inside `mvba_propose` does not build: the model
+also generates the executable form of every action that the trace monitor
+runs, and a pick can be made executable only over a type whose values can
+be enumerated, which the abstract MVBA state is not. The premise says the
+same thing as the pick would. A value picked in an action's body is an
+existential in its transition relation, so "`i` proposing `v` is weakly
+fair, whichever successor state results" is exactly the fairness of the
+picked action — TLA+'s `WF(∃ n. Propose(i, v, n))`. That is
+`Cadence.WeaklyFairFamily` ([Fairness.lean](../Cadence/Fairness.lean)), and `FJustice` now covers
+`mvba_propose` per `(i, v)` with it, and every other justice label per
+label as before (`ProposeLabel` in [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) names the one
+exception). For a one-label family it is plain weak fairness
+(`weaklyFairFamily_eq_iff`).
+
+**What the chain needed beyond this section's plan.** Six things, none of
+them a new assumption:
+
+1. *Stage 3 adjusted, statements unchanged.* The per-label clause of
+   `FJustice` now excludes `ProposeLabel`, so stage 3's generic chains take
+   that clause (one more `fun h => h` at each firing) and the concrete
+   theorems pass `hfj.1`. `enabled_commit_assign_*` take the full
+   certificate guard, and `eventually_committed_of_commitqcs` is now a
+   corollary of `eventually_committed_of_assignable` — the generalisation
+   step 5 asked for, with the no-invariant argument unchanged.
+2. *`mvba_decided_pos_proposer_signed` does not exist.* Step 5 named it
+   for `redisseminate_chunk`'s signature guard. It is derived instead at the
+   reachable state (`proposer_signed_of_decided_pos`): a decided root is
+   backed by a FastQC or a FallbackQC (`mvba_decided_pos_backed`), each has
+   an honest member, and that member's signature pins the proposer's
+   (`vote_pos_from_local` with `local_entry_pos_signed`, resp.
+   `fb_pos_sig_proposer_signed`).
+3. *The DA wait is anti-monotone.* `cast_fb_commit`'s guard ("my chunk
+   under every decided-positive root") could in principle be disabled by a
+   new decision record. It is not: once every proposer's entry is recorded,
+   `mvba_decided_pos_unique` and `mvba_decided_pos_neg_excl` rule out any
+   other record, so the guard is stable from then on.
+4. *One decision suffices, and agreement is not used.* `mvba_complete` is a
+   single flag, so it is enough to transport one correct validator's
+   decision. Step 3's appeal to agreement drops out, and the records match
+   that decision.
+5. *The MVBA's state needs one more step fact.* That nobody is ever
+   abandoned (`not_abandoned`, which is `NoEarlyAbandon`'s content) needs
+   `mvba_step`'s guard with its "not an input" half, which
+   [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)'s `mvba_step_tr` drops; `mvba_step_internal`
+   keeps it. The case-(a) trigger needs no dedicated lemma: a complete fast
+   meta-block spreads to every correct validator through
+   `local_fastqc_*_backed` and `aggregate_fastqc_*`
+   (`eventually_complete_fast_metablock`).
+6. *One vector for everybody.* The certified vector is built once, from the
+   dichotomy's evidence at the start index (`certifiedVector`), so the
+   bridge's soundness clause is used once. The generic core states how the
+   theory reads a vector entrywise as two hypotheses; `Cadence.chorusTheory`
+   discharges them by `decide`. [Termination.lean](../Cadence/Chorus/Termination.lean) now imports
+   [System.lean](../Cadence/System.lean) for that definition.
+
+The chains stay robust to fairness of state-changing steps, as §4.5 noted
+for stage 3: the proposal family is fired only while the validator has no
+input, the handlers only while their record is absent, and
+`mvba_terminate` only while `mvba_complete` is unset.
+
+**What stage 5 needs.** The assembly is short now: `TerminationClaim` at
+`Fin n`, `byzNodeSetFin` and `Cadence.chorusTheory` is
+`eventually_progress_dichotomy` followed by `terminates_of_commit_route` on
+the left disjunct and `terminates_of_mvba_arm` on the right, with
+`ViewOrderEnum` as a hypothesis of the theorem — like `Mvba.termination`'s,
+it belongs to the proof, not to the claim. Then the
+[Cadence.lean](../Cadence.lean) row and pin, and the retirement of (A-mvba) in
+[Architecture.md](Architecture.md) §4 and §2 here, naming `MvbaAdmissible` (with
+`Scheduled`) and `ValidBridge` in its place. The satisfiability of the
+premises — now including the proposal family — is the non-vacuity question
+of [TODO.md](TODO.md) § Liveness, unchanged by this stage.

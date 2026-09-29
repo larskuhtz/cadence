@@ -204,6 +204,29 @@ theorem exists_disabled_of_never_fires {r : LRun sys th} {l : lbl}
     exact hc ⟨n, hn, hen⟩)
   exact hnever n hn hfire
 
+/-- **Weak fairness of a family of labels**: if some label of the family `S`
+is enabled at every point from `N` on, some label of `S` fires at some point
+from `N` on.
+
+This is the weak fairness of an action one of whose parameters is a
+*result* rather than a choice — TLA+'s `WF(∃ x. A(x))`. The label that is
+enabled may change from state to state (the parameter tracks state that
+other actions move), and the family is fair as a whole. For a singleton
+family it is `WeaklyFair` (`weaklyFairFamily_eq_iff`). -/
+def WeaklyFairFamily (r : LRun sys th) (S : lbl → Prop) : Prop :=
+  ∀ N, (∀ n, N ≤ n → ∃ l, S l ∧ Enabled sys th (r.at' n) l) → ∃ n, N ≤ n ∧ S (r.lbl n)
+
+/-- A one-label family is weakly fair exactly when its label is. -/
+theorem weaklyFairFamily_eq_iff {r : LRun sys th} {l : lbl} :
+    WeaklyFairFamily r (· = l) ↔ WeaklyFair r l := by
+  constructor
+  · intro h N hen
+    exact h N fun n hn => ⟨l, rfl, hen n hn⟩
+  · intro h N hen
+    exact h N fun n hn => by
+      obtain ⟨l', rfl, hl'⟩ := hen n hn
+      exact hl'
+
 /-- If a label fires at `n`, it was enabled at `n`. -/
 theorem enabled_of_fires (r : LRun sys th) (n : Nat) :
     Enabled sys th (r.at' n) (r.lbl n) :=
@@ -568,6 +591,10 @@ info: 'Cadence.exists_disabled_of_never_fires' depends on axioms: [propext, Clas
 -/
 #guard_msgs in
 #print axioms Cadence.exists_disabled_of_never_fires
+
+/-- info: 'Cadence.weaklyFairFamily_eq_iff' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Cadence.weaklyFairFamily_eq_iff
 
 /-- info: 'Cadence.LRun.reachable' does not depend on any axioms -/
 #guard_msgs in
