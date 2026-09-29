@@ -61,6 +61,16 @@ class ByzNodeSetEnum (node nset : Type) (B : ByzNodeSet node nset) where
   /-- `members` enumerates exactly the quorum's membership. -/
   mem_members : ∀ (a : node) (s : nset), B.member a s = true ↔ a ∈ members s
 
+/-- **A finite validator set enumerates every quorum**: a quorum's members are
+the validators it contains. This is how a result stated for finitely many
+validators (`[Fintype node]`, the form the headline liveness results take)
+supplies the enumeration its proof uses. -/
+@[implicit_reducible]
+noncomputable def ByzNodeSetEnum.ofFintype (node nset : Type) (B : ByzNodeSet node nset) [Fintype node] :
+    ByzNodeSetEnum node nset B where
+  members s := (Finset.univ : Finset node).toList.filter (fun a => B.member a s)
+  mem_members a s := by simp
+
 /-! ### A quorum of correct validators
 
 All eight `ByzNodeSet` axioms are *intersection* statements: two sets of a

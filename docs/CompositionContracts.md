@@ -293,7 +293,9 @@ Every declaration added by the composition is axiom-pinned at
 
 Each implementation proves its `XSafety` fragment. What it still owes is an
 instance of the matching `XTemporal` class **at that fragment**, and this
-development provides none of the three. Because those classes are stated over
+development provides none of the three there. One temporal level is proven
+at a *lifted* fragment instead, the MVBA's; it is described at the end of this
+section. Because those classes are stated over
 the fragment's own `init` / `trans` / `reachable` / observables, the list
 below is a list of *class fields*, not of restatements: there is no second
 place where these obligations are written down.
@@ -320,10 +322,24 @@ Chorus proves it, so `deadline_passed`, `payload_recoverable` and
 
 **`MVBATemporal … (S := Mvba.mvbaSafety th)`** — the smallest: `clock`,
 `Admissible`, `admissible_exists`, `ℓ` and `termination`, the timed part of
-`mod:mvba` alone (`ℓ_MVBA`-Termination; the model is untimed). Everything
+`mod:mvba` alone (`ℓ_MVBA`-Termination). Everything
 else — the two inputs, their observables, effects, frames, initial conditions
 and **Quiescence** in one-step form — is proven into the fragment from the
-transition bodies.
+transition bodies. At this fragment the class cannot be instantiated:
+`clock : state → time` reads the clock off the state, and `Mvba.State` has
+none.
+
+**`MVBATemporal … (S := (Mvba.mvbaSafety th).timed time)` is proven**, as
+`Mvba.mvbaTemporal` ([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)),
+and joined into the full `MVBA` as `Mvba.mvbaTimed`, with the `rfl` lemma
+`Mvba.mvbaTimed_toSafety`. `MVBASafety.timed` pairs the state with a clock
+and is the original fragment on the first component, by definition. The
+instance's hypotheses are the classes and the schedule of
+[`Bounds.md`](./Bounds.md) §6.2.5; none is a contract and none an axiom.
+The seam is that Chorus consumes `Mvba.mvbaSafety th`, not the lifted
+fragment, so [`System.lean`](../Cadence/System.lean) does not inherit the
+instance. [`Bounds.md`](./Bounds.md) §6.2.1 has the proposal for closing
+it.
 
 [`Architecture.md`](./Architecture.md) §4 item 4 points at these field lists
 by name; the meta-axiom names (A-orch-totality), (A-orch-boundedness),

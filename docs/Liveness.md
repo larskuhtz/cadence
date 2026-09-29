@@ -101,6 +101,24 @@ unbounded and needs the different, lexicographic ranking of
 
 ### 2.1 Why `Mvba` assumes more than `Chorus`, and where that ends
 
+**(A-viewsync) in short.** The MVBA model has a view timer but no clock, so
+nothing in the model says *when* a timer fires. (A-viewsync) replaces the
+timer's durations by two ordering constraints about some correct-led view
+`W`:
+
+* **not too late**: in every view below `W`, a correct validator's timer
+  does eventually fire, so correct validators move on;
+* **not too early**: in `W`, no correct validator's timer fires before a
+  commit certificate exists, so `W` gets enough time.
+
+Both are needed. Without the first, a Byzantine leader's view can stall
+forever. Without the second, every view can be cut short. With them,
+`Mvba.termination` says: *given enough time, the protocol decides*. The
+bound is set aside, not the synchrony. The supplement's own assumptions,
+delivery within `Δ` after GST and a timeout above the chain's latency,
+imply both constraints (`Mvba.aViewSync_of_sync`), and they also give the
+bound itself (`Mvba.mvbaTemporal`, [`Bounds.md`](./Bounds.md) §6.2).
+
 `Chorus`'s liveness rests on fairness plus the sub-protocol's own
 termination, and nothing that names a view or a deadline. `Mvba`'s rests on
 those plus (A-viewsync). The difference looks like a weakness of the MVBA
@@ -130,7 +148,11 @@ That is FLP, paid where it must be. The paper pays it twice over, in the two
 MVBA options: the randomised primitive pays with probability-1 termination
 (no deductive framework here expresses that), and the supplement's
 leader-based protocol — the one modelled — pays with partial synchrony.
-(A-viewsync) is the untimed shadow of the second payment.
+(A-viewsync) is the untimed form of the second payment. Partial synchrony
+bounds delays, but an untimed model has no delays to bound. What it does
+have is the timer, and without a clock the timer can fire at any moment.
+So the untimed model states partial synchrony as ordering constraints on
+the timer.
 
 **Chorus does have an (A-viewsync)-shaped premise; it is just somewhere
 else.** `all_honest_recorded` — "every honest validator recorded the positive
@@ -169,8 +191,16 @@ and any other view is left within a fixed cost (`Mvba.synced_succ`). The
 bounded claim follows from them: `BoundedTerminationClaim` is
 `Mvba.bounded_termination`
 ([`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)).
-`AViewSyncClaim` and the `MVBATemporal` instance at the lifted fragment are
-not proven yet ([`Bounds.md`](./Bounds.md) §6.2.8, step 4).
+The phase is complete for the MVBA (2026-09-28). (A-viewsync) is a theorem
+of the timing model for finitely many validators (`Mvba.aViewSync_of_sync`,
+which proves `AViewSyncClaim` from `Mvba.termination`'s own caller premises). The `MVBATemporal` instance at the
+clock-lifted fragment is `Mvba.mvbaTemporal`
+([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)). The
+derivation of (A-viewsync) needs only that *some* commit certificate
+eventually exists ([`Bounds.md`](./Bounds.md) §6.2.8, the step-4
+reassessment). What is left is
+the seam of [`Bounds.md`](./Bounds.md) §6.2.1: Chorus consumes the unlifted
+fragment.
 
 ## 3. What would close the rest
 
@@ -261,7 +291,16 @@ untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
 This leg and [`Bounds.md`](./Bounds.md) §6.1 are **independent**: neither
 needs the other's result, and the MVBA bounds leg discharges
 (A-viewsync) while this one consumes `Mvba.termination` as it already
-stands. Rules that keep them from colliding:
+stands. **The MVBA bounds leg is complete** (2026-09-28, [`Bounds.md`](./Bounds.md)
+§6.2.8). The rules below held throughout, with one prose exception: step 4
+updated the docstring of `Terminates` in `Mvba/Liveness.lean`, which had said
+the timed form had no instance. No statement changed. What the bounds leg
+leaves for this one is the seam proposal of [`Bounds.md`](./Bounds.md) §6.2.1,
+and a convention to consider: state finiteness of the validator set as
+`[Fintype node]` in place of the `nodes`/`hnodes` argument and the
+`ByzNodeSetEnum` argument ([`Bounds.md`](./Bounds.md) §6.2.8, the last point
+of the step-4 reassessment).
+Rules that keep them from colliding:
 
 * **Neither leg edits [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean).**
   The bounds leg *instantiates* `MVBATemporal`, it does not change it; this

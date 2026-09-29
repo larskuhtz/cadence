@@ -21,11 +21,13 @@ import Cadence.FallbackReceipt.Totality
 import Cadence.FallbackReceipt.PreFix
 
 -- The MVBA leg: the leader-based instantiation of the paper repository's
--- internal supplement, its contract instance, and the mutation test that
--- refutes the instantiation without its lock check.
+-- internal supplement, its contract instances (the safety fragment, and the
+-- timed temporal level at the clock-lifted fragment), and the mutation test
+-- that refutes the instantiation without its lock check.
 import Cadence.Mvba.Certify
 import Cadence.Mvba.Compose
 import Cadence.Mvba.Liveness
+import Cadence.Mvba.Temporal
 import Cadence.Mvba.NoLock
 
 /-!
@@ -149,17 +151,50 @@ Each entry is the result, the file its statement lives in, and what it says.
   that are hypotheses rather than axioms (`ByzNodeSetEnum`,
   `ByzNodeSetHonestQuorum`, `ViewOrderEnum`). It is **not**
   `MVBATemporal.termination`, which is stated over timed runs with `gst` and
-  `ℓ` and still has no instance; it is that field's untimed shadow.
-  `docs/Liveness.md` §2.1 says what it does and does not move in the trust
-  base
+  `ℓ` and is proven below (`Mvba.mvbaTemporal`); it is that field's untimed
+  shadow. (A-viewsync) is the view timer stated as ordering constraints
+  (timers do fire; the good view's timer waits for a certificate), so the
+  theorem reads *given enough time, the protocol decides*. The timed premises
+  imply it (`Mvba.aViewSync_of_sync`). `docs/Liveness.md` §2.1 explains it
+  in short
+* **`Mvba.mvbaTemporal`** (`Cadence/Mvba/Temporal.lean`) — **Mvba ⊨
+  `MVBATemporal`, at the clock-lifted fragment** `(mvbaSafety th).timed
+  time`: the model's state paired with a clock. All four fields are
+  discharged. The clock is the second component. The admissible runs are
+  those with a labelling satisfying the timing model of
+  `Cadence/Mvba/Schedule.lean`: bounded weak fairness after GST at a hop
+  bound per label, a punctual view timer, and availability within
+  `Δ_sync`. `ℓ_MVBA` is a closed term in the schedule's constants, the
+  supplement's `O(fΔ)` at `k = f + 1`. Termination is
+  `Mvba.timed_termination` (from `Mvba.bounded_termination`, in
+  `Cadence/Mvba/BoundedTermination.lean`), and `admissible_exists` is
+  `Mvba.admissible_exists`. No field is weakened. The instance is proven
+  from named hypotheses, none of them an axiom:
+  * finitely many validators (`Fintype node`), which supplies the quorum
+    enumeration `Mvba.termination` takes as `ByzNodeSetEnum`;
+  * `ByzNodeSetHonestQuorum` and `ViewOrderEnum`, as for `Mvba.termination`;
+  * (A-leader-rotation-k), `LeaderRotation`: a correct leader in every `k`
+    consecutive views;
+  * a schedule whose timeout is capped and eventually exceeds the chain's
+    latency (`Schedule`);
+  * a time theory that is a cancellative, Archimedean, linearly ordered
+    monoid.
+
+  **The seam**: Chorus consumes `mvbaSafety th` at `Mvba.State`, not the
+  lifted fragment, so `Cadence/System.lean` does not inherit this instance
+  (`docs/Bounds.md` §6.2.1). The corollary `Mvba.aViewSync_of_sync` derives
+  `Mvba.termination`'s premise (A-viewsync) from the same timing model
+* **`Mvba.mvbaTimed`** (`Cadence/Mvba/Temporal.lean`) — the join: Mvba is a
+  full `MVBA` at the lifted fragment, `{ (mvbaSafety th).timed time,
+  mvbaTemporal … with }`, handing back the lifted fragment by `rfl`
+  (`Mvba.mvbaTimed_toSafety`)
 * **`Mvba.mvba_of_temporal`** (`Cadence/Mvba/Compose.lean`) — given an
-  instance of `MVBATemporal` **at the proven fragment** — the clock, the
-  admissible-run model and `ℓ_MVBA`-Termination — Mvba is a full `MVBA`. This
-  development has no such instance; those four fields are the whole of what is
-  *not* proven about the instantiation, since the inputs (`propose`,
-  `abandon`), their observables, effects and frames, and **Quiescence** in
-  one-step form are all proven into the fragment. The smallest gap of the
-  three implementations
+  instance of `MVBATemporal` **at the unlifted fragment** `mvbaSafety th` —
+  the clock, the admissible-run model and `ℓ_MVBA`-Termination — Mvba is a
+  full `MVBA` there. The model's state has no clock, so there is no such
+  instance; the timed one is `Mvba.mvbaTemporal`, at the lifted fragment. The
+  inputs (`propose`, `abandon`), their observables, effects and frames, and
+  **Quiescence** in one-step form are all proven into the fragment
 
 Three further build-checked claims are pinned where they are made, because
 their form is not an axiom footprint:
@@ -345,3 +380,39 @@ info: 'Mvba.termination' depends on axioms: [propext, Classical.choice, Quot.sou
 -/
 #guard_msgs in
 #print axioms Mvba.termination
+
+/--
+info: 'Mvba.mvbaTemporal' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.mvbaTemporal
+
+/--
+info: 'Mvba.timed_termination' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.timed_termination
+
+/--
+info: 'Mvba.admissible_exists' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.admissible_exists
+
+/--
+info: 'Mvba.bounded_termination' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.bounded_termination
+
+/--
+info: 'Mvba.aViewSync_of_sync' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.aViewSync_of_sync
+
+/--
+info: 'Mvba.mvbaTimed' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.mvbaTimed
