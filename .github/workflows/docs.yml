@@ -21,10 +21,26 @@
 #
 # Runs on the default branch only. A pull request that changes the sources is
 # gated by `verify`; republishing the site per PR would serve no one.
+#
+# When it runs: after `publish-images` has succeeded on master, never on the
+# push itself. The `.olean`s this job renders from are the ones in
+# `cadence-verified:latest`, and that image is rebuilt by `publish-images` —
+# an hour or more after the push. Triggered by the push, this job pulled the
+# *previous* commit's image, and every commit that touched a Lean source
+# failed the up-to-date gate in `scripts/docs.sh`. Chained, it checks out
+# exactly the commit the image was built from (`head_sha`). `publish-images`
+# queues its runs, so `:latest` changes under this job only when a newer
+# commit's images land, and that run's own `docs` then cancels this one
+# (the `pages` group below).
+#
+# A manual dispatch renders master's head against `:latest`; start one only
+# when no `publish-images` run is in flight, or the gate will stop it.
 name: docs
 
 on:
-  push:
+  workflow_run:
+    workflows: [publish-images]
+    types: [completed]
     branches: [master]
   workflow_dispatch:
 
@@ -45,6 +61,11 @@ defaults:
 
 jobs:
   build:
+    # A failed or cancelled image build published nothing new: `:latest`
+    # still holds an older commit's oleans, so there is nothing to render.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     steps:
@@ -64,6 +85,9 @@ jobs:
       - name: Check out the sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The commit `cadence-verified:latest` was built from; on a manual
+          # dispatch this is empty and checkout takes the dispatched ref.
+          ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
 
       - name: Log in to the container registry
