@@ -242,7 +242,8 @@ untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
    **Done, 2026-09-28** — [`Cadence/Chorus/Termination.lean`](../Cadence/Chorus/Termination.lean);
    §4.5 is the record, including four corrections to §4.4.
 4. The fallback and MVBA arms, the second consuming `Mvba.termination`
-   through the projection.
+   through the projection — §4.6 is the kick-off record, including two
+   findings that must be settled first.
 5. The assembly, the `Cadence.lean` row and pin, and retiring (A-mvba) from
    `Architecture.md` §4.
 
@@ -722,3 +723,125 @@ the MVBA instance.
   (`Cadence.EnabledMove`): every label they fire is fired at a state where
   its effect is absent — the contradiction hypothesis of each link — so each
   such step is a move (by inspection, not yet checked).
+
+### 4.6 Stage 4, the kick-off record: the MVBA arm
+
+*Written 2026-09-29 at the hand-over after stage 3 (§4.5), so the next
+session does not re-derive the design. Nothing below is done. Two findings
+come first, because the stage cannot be proven until both are settled.*
+
+**Where it goes.** `Cadence/Chorus/Termination.lean`, a new section after
+stage 3's, in the same three layers: step facts, generic run-level chains,
+concrete-family theorems. Split into `Termination/` files by arm if it
+outgrows `Mvba/Liveness.lean`.
+
+**Finding 1 — at `System.lean`'s instantiation, `mvba_propose` never fires
+unless every validator is a proposer.** `chorusTheory` sets `mval_pos v j m
+:= v j = some m` and `mval_neg v j := v j = none` for *every* node `j`.
+`mvba_propose`'s first two validity guards (and `Certified`, which is those
+guards verbatim) require `is_proposer J` of every `J` with an entry, and at
+a non-proposer `j` the vector `v` has an entry either way. So if any
+validator is not a proposer, no vector is `Certified`, `mvba_propose` is
+disabled in every state, the MVBA never receives an input, and every run in
+which the fast route does not close fails to terminate. `TerminationClaim`
+is then *false* at `chorusTheory`, and `ValidBridge`'s soundness clause is
+vacuous. Checked in scratch: a twelve-line lemma, `¬ Certified st v` for
+every `st` and `v` given one non-proposer. Safety is unaffected, since the
+guard only removes behaviours. This is exactly the seam [`TODO.md`](./TODO.md)
+§ Liveness's composition-level non-vacuity item warned could hide behind a
+green build. **Recommended fix, at the instantiation:** `mval_neg v j :=
+v j = none ∧ is_proposer j`, so that a non-proposer has no entry. The two
+projection assumptions still hold and `chorusTheory_assumptions` needs only
+a re-proof; `Chorus.lean` is untouched. The alternative — restricting the
+guards to proposers in `Chorus.lean` — has the same effect at a family
+re-solve's cost and moves the fix away from where the mismatch is.
+
+**Finding 2 — `mvba_propose`'s label carries the MVBA's successor state, so
+weak fairness per label cannot force a proposal.** The action is
+`mvba_propose (i) (v) (mvba_next)`, and its last guard is `mvba.propose
+mvba_st i v mvba_next`. A given label is therefore enabled only while
+`mvba_st` stays at the one state whose propose-successor is `mvba_next`.
+The MVBA keeps stepping (other validators' proposals, views, timers —
+`MvbaAdmissible` even requires infinitely many steps), so no single label
+need stay enabled, and a scheduler that satisfies `FJustice` can keep `i`
+from ever proposing. Then `AllPropose` cannot be derived, and neither can
+termination. (Argued, not machine-checked; the obstacle is structural.)
+**Recommended fix, in the model:** choose the successor inside the action
+with Veil's `pick` — `let n ← pick mstate; require mvba.propose mvba_st i v
+n; mvba_st := n` — so that the label is `mvba_propose i v`, the paper's
+`propose(B_i)`, and it is enabled whenever *some* successor exists. That
+is one `Chorus.lean` edit whose statement change reaches only
+`mvba_propose`'s cells; `Chorus/Liveness.lean`'s `MvbaStepLabel`,
+`mvbaStepLabel_iff`, `mvba_propose_tr` and `mvbaComponent.step` follow the
+new arity (a change to the statement file, to be recorded here), and
+`mvba_step` stays as it is — it is the oracle step, outside (F-justice),
+and its labels are the projection's business. The alternative is to state
+`FJustice` for `mvba_propose` over the family `∃ mvba_next`, which is TLA+'s
+`WF(∃ n. Propose(i, v, n))`; it keeps the model but makes one premise
+different in kind from all the others.
+
+**What stage 4 proves**, given both fixes, at the concrete family and
+`chorusTheory`, from `FJustice`, `MvbaAdmissible` and `ValidBridge`: from
+an index at which the dichotomy's right disjunct holds, every correct
+validator eventually has `local_committed`. The chain:
+
+1. *Prerequisites.* `ByzNodeSetEnum` and `ByzNodeSetHonestQuorum` instances
+   for `byzNodeSetFin` — they exist only for `byzNodeSetFinGen`
+   ([`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)); members are `s.val`,
+   and `honest_supermajority` gives the quorum. `Mvba.termination` also
+   takes a `ViewOrderEnum`, which becomes a hypothesis of the theorem.
+   The phase reaches `post_mvba_arm` and stays there: stage 3's
+   `eventually_atArm` plus the `advance_to_mvba_arm` link.
+2. *Every correct validator proposes.* Build its vector from the
+   dichotomy's evidence at index `N`: `v j := some m` where a positive
+   certificate for `(j, m)` exists (a `Classical.choose`), `none`
+   otherwise — at non-proposers too, which Finding 1's fix makes an
+   absence rather than an entry. The evidence is monotone (the vote
+   relations since #31, fallback signatures, `fbcert`,
+   `equiv_evidence`), so `v` stays `Certified`; `ValidBridge`'s soundness
+   clause makes it `Valid` once, and `Valid` is state-independent. The
+   trigger: `fbcert` directly, or — in the case-(a) branch — the
+   validator's own complete fast meta-block, which needs an
+   `aggregate_fastqc_*` link per proposer from the vote quorums that
+   `fastqc_complete_implies_mvba_evidence` puts on the network. The MVBA's
+   `propose` guards (`∀ E, ¬ input i E`, `¬ abandoned i`, `valid e`) stay
+   true until `i` proposes: no other label writes `input` or `abandoned`.
+3. *Consume `Mvba.termination`.* `MvbaAdmissible` supplies the projection
+   `p` and its three scheduling premises. `AllPropose p.run` is step 2
+   carried through `Projection.proj_eq_run_cover`. `NoEarlyAbandon p.run`
+   holds vacuously: `abandoned` starts false (`init_abandoned`) and no step
+   of the composed run sets it (`abandoned_step_frame` for `mvba_step`,
+   the `Mvba` model's `propose` frame for `mvba_propose`). The conclusion
+   comes back through `Projection.eventually_iff`: every correct validator
+   has `mvba.decided (r.at' n).mvba_st i v` at some `n`, and decisions
+   persist (`decided_mono`), so by agreement there is one decided `v`.
+4. *Transport the decision.* `on_mvba_decide_pos/neg i j m v` per proposer,
+   whose bridge `require` is `ValidBridge`'s completeness clause — its guards
+   are monotone once `v` is decided — then `mvba_terminate i v` sets
+   `mvba_complete`.
+5. *The fallback commit round.* Per decided-positive `(j, m)`,
+   `redisseminate_chunk i j m` delivers `i`'s chunk (its guards come from
+   `mvba_decided_pos_proposer_signed` and
+   `mvba_decided_pos_chunks_decodable` at the reachable state), so
+   `cast_fb_commit i` fires for every correct `i`; the honest quorum's
+   `msg_fbcommit_sig` at one index is `fbcommitqc`. Then `commit_assign_*`
+   through its second disjunct (`fbcommitqc ∧ mvba_decided_*`) and
+   `finalize_commit`. Generalise stage 3's
+   `eventually_committed_of_commitqcs` to "every proposer has an assignable
+   certificate — broadcast commit certificate, or `fbcommitqc` with the
+   decision" rather than duplicating it; its no-invariant argument
+   (§4.5, correction 3) carries over unchanged.
+
+**What stage 4 does not do.** It does not assemble `TerminationClaim` —
+that is stage 5, which case-splits on `eventually_progress_dichotomy`,
+adds the `Cadence.lean` row and pin, and retires (A-mvba) from
+`Architecture.md` §4 with `MvbaAdmissible` (including `Scheduled`) and
+`ValidBridge` named there.
+
+**Traps already known**, beyond §4.2–§4.5's: every ghost relation stated at
+`Fin n` goes through `cpvm%`; `Mvba.mvbaSafety` needs `(nset := …)` by
+name; `Mvba.Label.isInput` does not reduce outside its module — use
+`Label.isInput_cases`; a label with a state-valued parameter is Finding 2
+again, so check each new label's parameters before relying on its
+fairness (`on_mvba_decide_*` and `mvba_terminate` carry the decided `v`,
+which is fixed once decided, and are fine).
