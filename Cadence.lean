@@ -152,8 +152,11 @@ Each entry is the result, the file its statement lives in, and what it says.
   `ByzNodeSetHonestQuorum`, `ViewOrderEnum`). It is **not**
   `MVBATemporal.termination`, which is stated over timed runs with `gst` and
   `ℓ` and is proven below (`Mvba.mvbaTemporal`); it is that field's untimed
-  shadow. `docs/Liveness.md` §2.1 says what it does and does not move in the
-  trust base
+  shadow. (A-viewsync) is the view timer stated as ordering constraints
+  (timers do fire; the good view's timer waits for a certificate), so the
+  theorem reads *given enough time, the protocol decides*. The timed premises
+  imply it (`Mvba.aViewSync_of_sync`). `docs/Liveness.md` §2.1 explains it
+  in short
 * **`Mvba.mvbaTemporal`** (`Cadence/Mvba/Temporal.lean`) — **Mvba ⊨
   `MVBATemporal`, at the clock-lifted fragment** `(mvbaSafety th).timed
   time`: the model's state paired with a clock. All four fields are

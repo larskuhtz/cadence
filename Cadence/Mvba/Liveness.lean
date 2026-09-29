@@ -265,19 +265,29 @@ action. The one scheduling assumption of the ordinary kind. -/
 def FJustice (r : MvbaRun th) : Prop :=
   ∀ l, JusticeLabel l → WeaklyFair r l
 
-/-- **(A-viewsync)** — *the good view, and what its timer may do.* There is
-an honest-led view `W`, above the first, such that
+/-- **(A-viewsync)** — *the view timer, as ordering constraints.* The model
+has a view timer but no clock, so nothing in it says when a timer fires.
+This premise replaces the timer's durations by two orderings. There is an
+honest-led view `W`, above the first, such that
 
-* in every view **below** `W` a correct validator's timer eventually runs
-  out, and
-* in `W` no correct validator's timer runs out before a commit certificate
-  exists.
+* **not too late**: in every view **below** `W`, a correct validator's timer
+  eventually runs out, so correct validators move on;
+* **not too early**: in `W`, no correct validator's timer runs out before a
+  commit certificate exists, so `W` gets enough time.
 
-Untimed, that is the whole of the supplement's timeout discipline: the first
-clause is "every view's timeout is finite", the second is "the good view's
-timeout exceeds the chain's latency after GST". Both speak only about the
-environment's timer — `expire_timer`, the model's phase marker — and neither
-mentions the protocol's outcome.
+Both are needed: without the first a Byzantine leader's view can stall
+forever, and without the second every view can be cut short. With them,
+`termination` reads *given enough time, the protocol decides*. The timed
+premises of `Cadence/Mvba/Schedule.lean` imply both clauses
+(`Mvba.aViewSync_of_sync`). `docs/Liveness.md` §2.1 has the short account,
+and the rest of this docstring the detail.
+
+The two clauses are the untimed form of the supplement's timeout discipline:
+the first is "every view's timeout is finite", the second "the good view's
+timeout exceeds the chain's latency after GST". Both constrain only the
+environment's timer (`expire_timer`, the model's phase marker). The second
+does so relative to a protocol event, a commit certificate, because an
+untimed model has no duration to compare the timer against.
 
 **What is no longer here.** This premise used to also assert that every
 correct validator *enters* `W`, which is the strong, protocol-specific half:

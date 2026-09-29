@@ -314,15 +314,16 @@ relations, and it takes a human to confirm each use is positive.
    ([TODO.md](./TODO.md) § Liveness; the design constraints it must respect
    are [MvbaPlan.md](./MvbaPlan.md) §3). That work has begun, and it has put
    one assumption on this list in an unusual place:
-   **(A-viewsync)** — a *view-synchroniser interface*, assumed: there is an
-   honest-led view whose timer is long enough. Half of that interface is
-   now derived rather than assumed (that every correct validator enters the
-   view — `Mvba.eventually_entered_good`); what is left is the duration, and
-   it cannot be derived in an untimed model because the decision chain has
-   no finite latency there to compare a timeout against. It becomes a
-   theorem in the bounded phase ([Bounds.md](./Bounds.md)); why its present
-   shape is forced, and why an explicit GST marker alone would not change
-   it, is [MvbaPlan.md](./MvbaPlan.md) §3.7. Chorus makes the same move one
+   **(A-viewsync)**, a premise of the untimed `Mvba.termination`, is the
+   view timer stated as ordering constraints: timers do fire, and one
+   honest-led view's timer waits for a commit certificate. The theorem
+   therefore reads *given enough time, the protocol decides*. It is no
+   longer an assumption of the stack: the timed premises imply it
+   (`Mvba.aViewSync_of_sync`), and they are the supplement's kind, bounded
+   delays after GST and a timeout above the latency
+   ([Liveness.md](./Liveness.md) §2.1 in short, [Bounds.md](./Bounds.md)
+   §6.2 in full). Why the untimed shape is forced is
+   [MvbaPlan.md](./MvbaPlan.md) §3.7. Chorus makes the same move one
    layer up, replacing `s.deadline − Δ ≥ GST` by the protocol-level
    consequence `all_honest_recorded`; no Cadence model carries a GST marker,
    and GST appears only in `Interfaces.lean`'s `TimedRun`, where the

@@ -101,6 +101,24 @@ unbounded and needs the different, lexicographic ranking of
 
 ### 2.1 Why `Mvba` assumes more than `Chorus`, and where that ends
 
+**(A-viewsync) in short.** The MVBA model has a view timer but no clock, so
+nothing in the model says *when* a timer fires. (A-viewsync) replaces the
+timer's durations by two ordering constraints about some correct-led view
+`W`:
+
+* **not too late**: in every view below `W`, a correct validator's timer
+  does eventually fire, so correct validators move on;
+* **not too early**: in `W`, no correct validator's timer fires before a
+  commit certificate exists, so `W` gets enough time.
+
+Both are needed. Without the first, a Byzantine leader's view can stall
+forever. Without the second, every view can be cut short. With them,
+`Mvba.termination` says: *given enough time, the protocol decides*. The
+bound is set aside, not the synchrony. The supplement's own assumptions,
+delivery within `Δ` after GST and a timeout above the chain's latency,
+imply both constraints (`Mvba.aViewSync_of_sync`), and they also give the
+bound itself (`Mvba.mvbaTemporal`, [`Bounds.md`](./Bounds.md) §6.2).
+
 `Chorus`'s liveness rests on fairness plus the sub-protocol's own
 termination, and nothing that names a view or a deadline. `Mvba`'s rests on
 those plus (A-viewsync). The difference looks like a weakness of the MVBA
@@ -130,7 +148,11 @@ That is FLP, paid where it must be. The paper pays it twice over, in the two
 MVBA options: the randomised primitive pays with probability-1 termination
 (no deductive framework here expresses that), and the supplement's
 leader-based protocol — the one modelled — pays with partial synchrony.
-(A-viewsync) is the untimed shadow of the second payment.
+(A-viewsync) is the untimed form of the second payment. Partial synchrony
+bounds delays, but an untimed model has no delays to bound. What it does
+have is the timer, and without a clock the timer can fire at any moment.
+So the untimed model states partial synchrony as ordering constraints on
+the timer.
 
 **Chorus does have an (A-viewsync)-shaped premise; it is just somewhere
 else.** `all_honest_recorded` — "every honest validator recorded the positive
@@ -175,11 +197,8 @@ which proves `AViewSyncClaim` from `Mvba.termination`'s own caller premises). Th
 clock-lifted fragment is `Mvba.mvbaTemporal`
 ([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)). The
 derivation of (A-viewsync) needs only that *some* commit certificate
-eventually exists. That shows what kind of premise it is: the untimed
-stand-in for partial synchrony, stated relative to the protocol's own
-progress because an untimed model has no durations. It is now derived from
-the paper's kind of assumption, bounded delays and a timeout above the
-latency ([`Bounds.md`](./Bounds.md) §6.2.8, the step-4 reassessment). What is left is
+eventually exists ([`Bounds.md`](./Bounds.md) §6.2.8, the step-4
+reassessment). What is left is
 the seam of [`Bounds.md`](./Bounds.md) §6.2.1: Chorus consumes the unlifted
 fragment.
 
