@@ -3,12 +3,13 @@ import Cadence.Tooling
 
 /-! # MvbaNoLock — the lock check removed, mechanically refuted
 
-Companion to [`Mvba.lean`](../Mvba.lean) (read its header first): the same
+Companion to [Mvba.lean](../Mvba.lean) (read its header first): the same
 leader-based MVBA with **one guard deleted** — the `Pre-Prepare` handler's
 lock check `lock_available pv e ∨ tc_nolock pv` (the supplement's
 `line:mvba:pp-guard`: "`entries(x) = lock(J)` whenever `lock(J) ≠ ⊥`"),
 weakened to "a `TC_{s,v-1}` exists". This is the **mutation test** of
-`docs/MvbaPlan.md` §4 item 3: the invariants of `Mvba.lean` are proven, but
+[MvbaPlan.md](../../docs/MvbaPlan.md) §4 item 3: the invariants of
+[Mvba.lean](../Mvba.lean) are proven, but
 a proof shows they are *true*, not that they are *load-bearing*. The model
 checker below explores a concrete instance of the mutant exhaustively and
 **finds a reachable violation of agreement** — two correct validators
@@ -19,7 +20,7 @@ been repaired and the test has lost its meaning.
 
 ## What is checked, and why it is a sound refutation
 
-The faithful mutant — `Mvba.lean` with only that guard weakened — is far
+The faithful mutant — [Mvba.lean](../Mvba.lean) with only that guard weakened — is far
 too wide for exhaustive search at the smallest interesting instance
 (`n = 4`, `f = 1`, two values, two views): the violation needs some 28
 transitions (a commit certificate in view 1, a lock-carrying timeout
@@ -31,7 +32,7 @@ interpreted checker had not finished depth 6 after half an hour). So this
 file checks a **restriction** of the mutant, built so that every one of its
 runs is a run of the mutant — its reachable states are a *subset* of the
 mutant's, and a violation found here is a fortiori a violation of the
-mutant, hence of `Mvba.lean` with the lock check deleted. The restrictions:
+mutant, hence of [Mvba.lean](../Mvba.lean) with the lock check deleted. The restrictions:
 
 1. **Bulk steps that are sequences of the mutant's steps.** `propose_all e`
    is four `propose` steps (every validator inputs the same vector);
@@ -40,7 +41,11 @@ mutant, hence of `Mvba.lean` with the lock check deleted. The restrictions:
    `byz_timeout_noqc` on `(v, e)` in one step. Each intermediate state of
    the expanded sequence is reachable in the mutant, and the guards of the
    constituent steps hold along it (the local relations they read are not
-   touched by the earlier steps of the same sequence).
+   touched by the earlier steps of the same sequence). The view timer is
+   folded the same way: this model has no `timer_expired` relation and no
+   `expire_timer` action, so each of its timeout steps is the mutant's
+   `expire_timer` followed by its timeout — `expire_timer` requires only
+   that the view was entered, which the timeout's `in_view` guard implies.
 2. **A scheduler and an adversary fixed by the theory.** `participant i`
    (validators 0–2 here) gates every honest per-validator action, so the
    fourth validator never acts; `byz_plan v e` (view `k` ↦ value `k`) gates
@@ -61,13 +66,14 @@ mutant, hence of `Mvba.lean` with the lock check deleted. The restrictions:
    every step is a step of the assumption-carrying mutant. That larger
    instance is not checked — a third view multiplies the search — so the
    embedding is an argument on this page rather than a machine-checked
-   one. It is an argument about the *mutation test*: `Mvba.lean`'s safety
+   one. It is an argument about the *mutation test*: [Mvba.lean](../Mvba.lean)'s safety
    is proven, never model-checked, and nothing about it rests on this
    file.
 
 Everything else — the honest protocol steps, the certificate assemblies
-with their `2f+1` guards, the view change — is verbatim from `Mvba.lean`
-(with the mutation), and the model checks the same three safety properties,
+with their `2f+1` guards, the view change — is verbatim from [Mvba.lean](../Mvba.lean)
+(with the mutation, and the timer folded as item 1 says), and the model
+checks the same three safety properties,
 of which `agreement` is the one violated.
 
 The counterexample is the textbook lock-persistence scenario (`n = 4`,
@@ -80,7 +86,7 @@ forms; both sync into view 2. View 2 — the Byzantine leader proposes
 **value 1**; without the lock check both validators accept it, prepare,
 adopt the new certificate and commit, and a **commit certificate on value 1**
 forms. Validator 1 decides value 0 from the first certificate, validator 2
-value 1 from the second. In `Mvba.lean` the `handle_preprepare` guard
+value 1 from the second. In [Mvba.lean](../Mvba.lean) the `handle_preprepare` guard
 rejects the view-2 proposal (`lock_available 0 1` is false, `tc_nolock 0` is
 false), and `prepqc_blocks_lower_commits` is exactly the invariant that
 this run breaks at its view-2 prepare certificate.
@@ -103,8 +109,10 @@ instantiate vord : TotalOrderWithMinimum view
 
 immutable relation valid (e : value)
 immutable relation leader (v : view) (l : node)
--- The two theory-fixed restrictions (header, item 2).
+/-- The validators that act: the scheduler restriction (header, item 2). -/
 immutable relation participant (i : node)
+/-- The value the Byzantine signer uses in each view: the adversary
+restriction (header, item 2). -/
 immutable relation byz_plan (v : view) (e : value)
 
 relation msg_preprepare (l : node) (v : view) (e : value)
@@ -164,7 +172,7 @@ after_init {
   avail_ready I E := false
 }
 
-/- `propose` for every validator at once, on one vector — four `propose`
+/-- `propose` for every validator at once, on one vector — four `propose`
 steps of the mutant (header, item 1). -/
 action propose_all (e : value) {
   require ∀ I E, ¬ input I E
@@ -225,7 +233,7 @@ action handle_preprepare_first (i : node) (l : node) (e : value) {
   msg_prepare i vord.zero e := true
 }
 
-/- **The mutation.** `Mvba.lean` requires `lock_available pv e ∨ tc_nolock
+/-- **The mutation.** [Mvba.lean](../Mvba.lean) requires `lock_available pv e ∨ tc_nolock
 pv` here: the justification's lock is `⊥` or the proposed vector. Only the
 existence of a `TC_{s,v-1}` is checked — the lock is ignored. -/
 action handle_preprepare (i : node) (l : node) (pv : view) (v : view) (e : value) {
@@ -264,7 +272,7 @@ action adopt_prepqc (i : node) (v : view) (e : value) {
   local_prepqc i v e := true
 }
 
-/- The environment supplies every validator's shares for `e` at once — four
+/-- The environment supplies every validator's shares for `e` at once — four
 `become_avail_ready` steps of the mutant (header, item 1). -/
 action become_avail_ready_all (e : value) {
   avail_ready I e := true
@@ -371,7 +379,7 @@ action sync_view_adopt (i : node) (pv : view) (v : view) (w : view) (e : value) 
   entered i v := true
 }
 
-/- The adversary, scripted (header, items 1 and 2): a Byzantine node signs a
+/-- The adversary, scripted (header, items 1 and 2): a Byzantine node signs a
 `Pre-Prepare`, a `Prepare` and a `Commit` on `(v, e)` and a lock-free
 `Timeout` for `v` in one step — `byz_preprepare`, `byz_prepare`,
 `byz_commit`, `byz_timeout_noqc` of the mutant — on the vector its plan
@@ -385,7 +393,7 @@ action byz_sign (r : node) (v : view) (e : value) {
   msg_timeout_noqc r v := true
 }
 
-/-! ## The refuted properties — the three of `mod:mvba`, as in `Mvba.lean` -/
+/-! ## The refuted properties — the three of `mod:mvba`, as in [Mvba.lean](../Mvba.lean) -/
 
 safety [agreement]
   ∀ (I J : node) (E E' : value),
@@ -411,12 +419,13 @@ Exhaustive exploration at `n = 4`, `f = 1` (node 0 Byzantine — the default
 Byzantine — and, by the theory below, the leader of every view), two
 values, two views; the theory is the one the checker is given (it
 enumerates no others), and it satisfies `leader_functional` — but not
-`Mvba.lean`'s `leader_honest_cofinal`, which this model does not declare
+[Mvba.lean](../Mvba.lean)'s `leader_honest_cofinal`, which this model does not declare
 (header, restriction 4). Expected
 outcome: **violation** of `agreement`, with the trace described in the
-header. The same run is impossible in `Mvba.lean`: its `handle_preprepare`
-rejects the view-2 proposal against the lock, and `Mvba/Certify.lean`
-proves agreement at every reachable state. -/
+header. The same run is impossible in [Mvba.lean](../Mvba.lean): its
+`handle_preprepare` rejects the view-2 proposal against the lock, and
+[Mvba/Certify.lean](Certify.lean) proves agreement at every reachable
+state. -/
 
 /--
 error: ❌ Violation: safety_failure (violates: agreement)
@@ -1069,7 +1078,8 @@ error: ❌ Violation: safety_failure (violates: agreement)
 choice. By default `#model_check` splits the BFS frontier into `numSubTasks`
 parallel sub-tasks and that count defaults to the machine's **core count**, so
 *which* of the violating states is reported first depends on the hardware
-(`FallbackReceipt/PreFix.lean` records the measurement). The claim being
+([FallbackReceipt/PreFix.lean](../FallbackReceipt/PreFix.lean) records the
+measurement). The claim being
 pinned is "a reachable state violates `agreement`" — the witness is
 evidence, not the claim — but `#guard_msgs` compares the whole message, so
 the search must be deterministic. -/

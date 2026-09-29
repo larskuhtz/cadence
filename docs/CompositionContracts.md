@@ -3,16 +3,16 @@
 *How the paper's module specifications are stated in Lean, how each Veil model
 consumes the modules below it and proves the module it implements, and what
 the composition does **not** establish. The code is
-[`../Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) (the contracts),
-[`../Cadence/Cadence.lean`](../Cadence/Cadence.lean),
-[`../Cadence/Conductor.lean`](../Cadence/Conductor.lean) and
-[`../Cadence/Chorus.lean`](../Cadence/Chorus.lean) (the consumers),
-[`../Cadence/Composition.lean`](../Cadence/Composition.lean),
-[`../Cadence/Chorus/Compose.lean`](../Cadence/Chorus/Compose.lean) and
-[`../Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean) (the instances),
-and [`../Cadence/System.lean`](../Cadence/System.lean) (the composed theorem).
-For what is proven overall, read [`../README.md`](../README.md) and
-[`Architecture.md`](./Architecture.md).*
+[Cadence/Interfaces.lean](../Cadence/Interfaces.lean) (the contracts),
+[Cadence/Cadence.lean](../Cadence/Cadence.lean),
+[Cadence/Conductor.lean](../Cadence/Conductor.lean) and
+[Cadence/Chorus.lean](../Cadence/Chorus.lean) (the consumers),
+[Cadence/Composition.lean](../Cadence/Composition.lean),
+[Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean) and
+[Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean) (the instances),
+and [Cadence/System.lean](../Cadence/System.lean) (the composed theorem).
+For what is proven overall, read [README.md](../README.md) and
+[Architecture.md](Architecture.md).*
 
 **§5 and §7 are the audit-relevant sections**: what each implementation still
 owes of its module contract, and the seams the composition does not close.
@@ -99,7 +99,7 @@ caller obligation encoded as partiality makes a call *unenabled* — a
 non-vacuity question, not a proof failure ("Vacuity does not compose",
 §7).
 
-**Conventions** (the header of `Interfaces.lean` is authoritative):
+**Conventions** (the header of [Interfaces.lean](../Cadence/Interfaces.lean) is authoritative):
 
 * *Correctness is one object.* Every class takes `byz : validator → Prop` as
   an explicit parameter; a Veil module instantiates `FaultModel` once and
@@ -124,7 +124,7 @@ contract's safety fragment, advances the state only through the contract's
 own transitions, and reads observables through the class. No contract
 property appears as a `require` or an `invariant`.
 
-### The glue (`Cadence.lean`)
+### The glue ([Cadence.lean](../Cadence.lean))
 
 ```
 instantiate fm   : FaultModel node
@@ -157,7 +157,7 @@ action. That admits strictly more behaviours, so every safety property holds
 a fortiori and none had to be weakened. What it costs is an (F-justice)
 obligation on the handlers.
 
-### The Conductor (`Conductor.lean`)
+### The Conductor ([Conductor.lean](../Cadence/Conductor.lean))
 
 `ACSSafety` is consumed the same way: one abstract ACS state per window
 (`function acs_state (w : window) : acsstate`), the honest `acs_propose`
@@ -169,10 +169,10 @@ itself — the contract constrains only correct validators' proposals), and
 One **stated bridge** remains a `require` rather than a class property: that
 the decided first slot is bracketed from below by a *correct* pair of the
 decided set. That is the quantitative half of ACS validity through the median
-lemma of `Windows.lean`, and cardinality is outside the first-order fragment
+lemma of [Windows.lean](../Cadence/Windows.lean), and cardinality is outside the first-order fragment
 (§7 item 3).
 
-### Chorus (`Chorus.lean`)
+### Chorus ([Chorus.lean](../Cadence/Chorus.lean))
 
 `MVBASafety` is consumed the same way:
 `instantiate mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)`
@@ -188,7 +188,7 @@ validator's decision `mvba.decided mvba_st i v` into the module's per-proposer
 records through the two immutable projections `mval_pos v j m` /
 `mval_neg v j` of the opaque value sort. The value is the entry vector; the
 projections carry two assumptions — functional in the root, and exclusive —
-which `System.lean` discharges at `v j = some m` / `v j = none ∧
+which [System.lean](../Cadence/System.lean) discharges at `v j = some m` / `v j = none ∧
 is_proposer j` (a non-proposer has no entry).
 
 The records' agreement is *proven* from the class's `agreement`, through two
@@ -205,16 +205,16 @@ certificates; Chorus's certificate predicate is a fact about Chorus's
 mention. The guard is therefore the interpretation of the class's `Valid` in
 Chorus's vocabulary (§7 item 1). For *liveness* the bridge is needed in both
 directions and becomes a named run-level premise, `Chorus.ValidBridge` in
-[`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean): a
+[Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean): a
 certified meta-block is `Valid` (what lets `mvba_propose` fire, since the
 contract's `propose` requires `Valid`), and a correct validator's decided
 meta-block is certified (what enables the handlers) —
-[`Liveness.md`](./Liveness.md) §4.3.
+[Liveness.md](Liveness.md) §4.3.
 
 ## 4. The providers: the proven instances
 
 * **`Conductor.orchestratorSafety th : OrchestratorSafety node slot
-  (Conductor.State …) fm.byz`** (`Composition.lean`). Every field proven.
+  (Conductor.State …) fm.byz`** ([Composition.lean](../Cadence/Composition.lean)). Every field proven.
   `init`/`trans`/`reachable` are the Conductor's own relations, so the closure
   fields are the reachability constructors; `open_prefix_agreement` is
   `safety [open_prefix_agreement]` projected out of `invariants_of_reachable`;
@@ -224,7 +224,7 @@ meta-block is certified (what enables the handlers) —
   `init_completed`) come from Veil's transition bodies as described below.
 * **`Chorus.slotConsensusSafety th : SlotConsensusSafety slot node merkle_root
   (slot × (node → Option merkle_root)) (Chorus.State …) (fun i => nset.is_byz
-  i = true)`** (`Chorus/Compose.lean`). The family runs one copy of the
+  i = true)`** ([Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)). The family runs one copy of the
   single-slot model per slot and tags each finalized vector with its slot,
   which is what makes `slot_safety` hold by construction; `agreement` and
   `proposal_inclusion` are the model's proofs through the named reachability
@@ -234,7 +234,7 @@ meta-block is certified (what enables the handlers) —
   validator's entries are *frozen*, because `commit_assign_*` require
   `¬ local_committed i`.
 * **`Mvba.mvbaSafety th : MVBASafety node value (Mvba.State …) (fun i =>
-  nset.is_byz i = true)`** (`Mvba/Compose.lean`). The model is one instance of
+  nset.is_byz i = true)`** ([Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)). The model is one instance of
   `mod:mvba`, so the contract is instantiated directly: `Valid` is the
   theory's immutable `valid` (the value being the entry vector), `decided` the
   relation of that name, `step` the transitions other than the two inputs;
@@ -285,12 +285,12 @@ from one cannot be an all-states claim. The four monotonicity fields —
 `reachable st` before `trans`, as `monotonicity` does. It costs the consumers
 nothing: they already carry the sub-protocols' reachability as invariants
 (`orch_reachable`, `sc_reachable`), and the contracts' own convention has
-always promised properties at reachable states (`Interfaces.lean`,
+always promised properties at reachable states ([Interfaces.lean](../Cadence/Interfaces.lean),
 "Conventions").
 
 Every declaration added by the composition is axiom-pinned at
 `[propext, Classical.choice, Quot.sound]` at its own site and in
-[`../Cadence.lean`](../Cadence.lean).
+[Cadence.lean](../Cadence.lean).
 
 ## 5. What is still assumed: the missing `XTemporal` instances
 
@@ -325,34 +325,37 @@ Chorus proves it, so `deadline_passed`, `payload_recoverable` and
 `hiding_residue` sit in `SlotConsensusSafety`.
 
 **`MVBATemporal … (S := Mvba.mvbaSafety th)` is proven**, as
-`Mvba.mvbaTemporal` ([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)):
+`Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)):
 `Admissible`, `admissible_exists`, `ℓ` and `termination`, the timed part of
 `mod:mvba` (`ℓ_MVBA`-Termination). `mvba_of_temporal` joins it into the full
 `MVBA`, `Mvba.mvbaFull`, whose fragment is by `rfl` the one
-[`System.lean`](../Cadence/System.lean) plugs into Chorus. The instance's
-hypotheses are the classes and the schedule of [`Bounds.md`](./Bounds.md)
+[System.lean](../Cadence/System.lean) plugs into Chorus. The instance's
+hypotheses are the classes and the schedule of [Bounds.md](Bounds.md)
 §6.2.5; none is a contract and none an axiom. Everything else — the two
 inputs, their observables, effects, frames, initial conditions and
 **Quiescence** in one-step form — is proven into the fragment from the
 transition bodies. A run carries its own clock (`TimedRun.clk`), which is
 what lets an untimed model's fragment carry a timed contract.
 
-[`Architecture.md`](./Architecture.md) §4 item 4 points at these field lists
+[Architecture.md](Architecture.md) §4 item 4 points at these field lists
 by name; the meta-axiom names (A-orch-totality), (A-orch-boundedness),
 (A-orch-recovery), (A-sc-termination) are the fields' docstrings.
 
 ## 6. The composed system
 
-`Cadence.system_positional_log_safety` (`System.lean`) is the glue's
+`Cadence.system_positional_log_safety` ([System.lean](../Cadence/System.lean)) is the glue's
 `positional_log_safety` instantiated at `Conductor.orchestratorSafety thC` and
 `Chorus.slotConsensusSafety thS` — the latter with Chorus's own MVBA
 constraint filled by `Mvba.mvbaSafety thM` (`mstate` the `Mvba` model's
 abstract state, `mvalue := node → Option merkle_root`, `mmsg := Mvba.Msg`).
 The statement is MCP Safety for the glue running the Conductor's and Chorus's
-own transition systems, Chorus running the `Mvba` model's, with **no contract
-hypothesis left**.
+own transition systems, Chorus running the `Mvba` model's. **One contract
+hypothesis remains, by design: `ACSSafety`**, the agreement-on-a-common-subset
+primitive the Conductor runs once per window, which this development consumes
+as a class constraint and does not implement — the theorem holds for every
+ACS meeting that contract.
 
-What remains are the three modules' configurations (`thC`, `thS`, `thM`) and
+Besides it, what remains are the three modules' configurations (`thC`, `thS`, `thM`) and
 one hypothesis `hbyz` that the system's fault model and Chorus's
 `ByzNodeSet.is_byz` agree — the transport that brings Chorus's instance to
 the shared `byz` (`SlotConsensusSafety.castByz`, a rewrite along a
@@ -370,7 +373,7 @@ The MVBA's two `assumption`s enter its own instance the same way, as the
 schedule is a function) and `leader_honest_cofinal` (above every view there
 is an honest-led one). The second is a *liveness* assumption sitting in a
 safety instance's `init`, which is a deliberate trade recorded at the
-declaration and in [Architecture.md](./Architecture.md) §4 item 2
+declaration and in [Architecture.md](Architecture.md) §4 item 2
 (A-leader-rotation).
 
 No temporal obligation enters: MCP Safety is a safety property and needs only
@@ -392,51 +395,38 @@ the proven fragments.
    *completeness* direction — that a decided entry's certificate is
    network-visible — which is what enables the handler.
 
-   **Since the MVBA checks validity on `propose` (2026-09-15) the input
-   half of this bridge has teeth, and that is worth being precise about.**
-   The MVBA *enforces* validity on `propose`, so at the composed instance Chorus's
-   `mvba_propose` can fire only when the MVBA's `Valid` holds of the vector
-   — and Chorus establishes validity in *its own* vocabulary (entries
-   certificate-backed, one per proposer), which is not identified with the
-   class parameter. Nothing proven is affected: the composed safety theorem
-   is parametric in the MVBA theory, and at a `valid` that accepts
-   everything the system behaves as before. What now depends on the bridge
-   is **non-vacuity**: if the two notions of validity did not coincide, the
-   composed system could not propose at all, and no current check would say
-   so. Before the field was added the same mismatch was harmless, because
-   the MVBA accepted anything. Giving the bridge teeth is the right
-   direction — a wrong `Valid` should stop the system rather than admit
-   invalid blocks — but it moves the bridge from "documented and inert" to
-   "documented and load-bearing for liveness", which is why it is written
-   down here.
+   **The bridge is load-bearing for non-vacuity.** The MVBA *enforces*
+   validity on `propose` (`require valid e` on `Mvba.propose`), so at the
+   composed instance Chorus's `mvba_propose` can fire only when the MVBA's
+   `Valid` holds of the vector — and Chorus establishes validity in *its
+   own* vocabulary (entries certificate-backed, one per proposer), which is
+   not identified with the class parameter. Nothing proven depends on that
+   identification: the composed safety theorem is parametric in the MVBA
+   theory. What depends on it is **non-vacuity**: if the two notions of
+   validity did not coincide, the composed system could not propose at all,
+   and no check would say so. That is the right direction for a mismatch to
+   fail in — a wrong `Valid` stops the system rather than admitting invalid
+   blocks — and it is why the bridge is written down here.
 
-   **The caller's validity obligation is in the rely form** (since
-   2026-09-29). It used to be a fragment field, `MVBASafety.propose_valid`:
-   the module refused an invalid input instead of the caller promising a
-   valid one (§2, "How to read a class as a contract"). That was chosen
-   deliberately, because a *checked* precondition keeps `Mvba.termination`'s
-   premise list to fair scheduling and sentences of the supplement
-   ([`MvbaPlan.md`](./MvbaPlan.md) §3.5 step 4). It was moved with the
-   `TimedRun` revision of [`Bounds.md`](./Bounds.md) §6.2.1, as planned, so
-   that one edit of `Interfaces.lean` carried both. The field is gone, and
+   **The caller's validity obligation is in the rely form.**
    `MVBATemporal.termination` takes "every correct party's input is `Valid`"
-   as an antecedent next to the other two caller premises. The model keeps
-   `require valid e` on `Mvba.propose` as its own check, so
-   `Mvba.termination`'s premises are unchanged. Nothing of substance moved:
-   the bridge is still what makes Chorus's `mvba_propose` enabled at the
-   composed instance, which is the Chorus liveness leg's `Chorus.ValidBridge`
-   premise ([`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean)).
-   What changed is that an auditor reads the rely side off the class.
+   as an antecedent next to the other two caller premises (§2, "How to read
+   a class as a contract").
+   The model's own `require valid e` keeps `Mvba.termination`'s premise list
+   to fair scheduling and sentences of the supplement ([MvbaPlan.md](MvbaPlan.md)
+   §3.5 step 4). The bridge is what makes Chorus's `mvba_propose` enabled at
+   the composed instance — the Chorus liveness leg's `Chorus.ValidBridge`
+   premise ([Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)).
 2. **Chorus has no participation interface**, so `SlotConsensusTemporal`
    carries the whole of it; and the glue's records of the inputs it does not
    drive (`sc_abandoned`, `proposed`) are its own, as the paper's local
    variables are. That the glue's *call* is the instance's input is the
-   trace-level refinement seam declared out of scope in `Composition.lean`'s
-   header and `ChorusDesign.md` §10.1. Adding `participate`/`abandon` to the
+   trace-level refinement seam declared out of scope in [Composition.lean](../Cadence/Composition.lean)'s
+   header and [ChorusDesign.md](ChorusDesign.md) §10.1. Adding `participate`/`abandon` to the
    Chorus model would let the glue drive them and shrink what is owed.
 3. **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
    the decided set brackets the first slot from below is justified by
-   `ACS.validity_quantitative` through `Windows.lean`'s median lemma, not
+   `ACS.validity_quantitative` through [Windows.lean](../Cadence/Windows.lean)'s median lemma, not
    derived from the class: cardinality is upper-level. It is one `require`,
    documented at the action.
 4. **`Admissible` is implementation-defined data**, so a future full instance
@@ -470,25 +460,25 @@ Two consequences, both practical. **A per-model non-vacuity witness does not
 certify the composition**, so the `sat trace` blocks in the module files are
 evidence about the modules and nothing more; a witness has to be exhibited
 for the composed system as well
-([`TODO.md`](./TODO.md) § Soundness). And **the principled fix is liveness**:
+([TODO.md](TODO.md) § Soundness). And **the principled fix is liveness**:
 once a provider's own progress theorem is discharged and its consumer's
 corresponding assumption with it, non-vacuity along that path stops being a
-question about witnesses. [`Mvba.termination`](../Cadence/Mvba/Liveness.lean)
+question about witnesses. [Mvba.termination](../Cadence/Mvba/Liveness.lean)
 is that theorem for the MVBA; what is still open is Chorus's (A-mvba)
-([`Architecture.md`](./Architecture.md) §4 item 2).
+([Architecture.md](Architecture.md) §4 item 2).
 
 ## 8. Reproductions
 
 The runnable experiments behind the design are in
-[`../spikes/`](../spikes/README.md): the state-explicit shape; the negative
+[spikes/](../spikes/README.md): the state-explicit shape; the negative
 control (removing a class axiom makes the consumer's invariant fail with
 `❌`); the hazard that a run-quantifying field in an instantiated class is
 fatal; the two-level split; the shared fault model and the per-slot
 `function` state; and, for the MVBA consumer, the tie-invariant shape
-(`09_mvba_consumer_ok.lean`) with its negative control
-(`10_mvba_consumer_no_tie.lean`), which shows uniqueness failing at exactly
+([09_mvba_consumer_ok.lean](../spikes/09_mvba_consumer_ok.lean)) with its negative control
+([10_mvba_consumer_no_tie.lean](../spikes/10_mvba_consumer_no_tie.lean)), which shows uniqueness failing at exactly
 the handlers when the ties are removed.
 
 Working rules for editing any of this — where a two-state fact comes from,
 why a `…Safety` field must be first-order, the simp sets that do and do not
-work on transition bodies — are in [`../CLAUDE.md`](../CLAUDE.md).
+work on transition bodies — are in [CLAUDE.md](../CLAUDE.md).

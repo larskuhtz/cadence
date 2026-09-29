@@ -3,23 +3,24 @@ import Mathlib.Tactic.Abel
 
 /-! # Mvba.Bound — the good-view lemma
 
-[`docs/Bounds.md`](../../docs/Bounds.md) §6.2, step 2. The second of the two
-lemmas §6.2.6 derives, proven: **a correct-led view whose budget clears the
+[Bounds.md](../../docs/Bounds.md) §6.2. The second of the two lemmas §6.2.6
+derives, proven: **a correct-led view whose budget clears the
 chain's latency decides within that latency.** From the first index at which
 a correct validator has entered such a view `W`, at a clock `E₀` at or after
 GST, with every correct validator having proposed and none abandoned inside
 the window, a commit certificate of `W` exists by `E₀ + Lcert` and every
 correct validator has decided by `E₀ + Lcert + δ` (`good_view_decides`).
 
-The premises are `Mvba/Schedule.lean`'s three clauses and nothing else: no
+The premises are the three clauses of [Schedule.lean](Schedule.lean) and
+nothing else: no
 fairness of the untimed kind, no (A-viewsync), no statement about the timer
 beyond (T1). The two instance hypotheses are the quorum classes the untimed
 chain already takes.
 
 ## How it is built
 
-The untimed chain of `Mvba/Liveness.lean` is re-run with "within `D`" in
-place of "eventually". Each of its links was `enabled_<action>` (guards ⇒
+The untimed chain of [Liveness.lean](Liveness.lean) is re-run with "within
+`D`" in place of "eventually". Each of its links was `enabled_<action>` (guards ⇒
 enabledness) + one weak-fairness step + `<action>_effect`; each link here
 keeps the first and the third and replaces the second by one application of
 `BoundedFair` through `TLRun.withinFrom_of_boundedFair` below. That lemma
@@ -49,22 +50,22 @@ whole role of (S-ramp) here.
 
 ## One requirement on the time theory
 
-The lemma takes `[IsOrderedCancelAddMonoid time]`, where `Schedule.lean`
-takes `IsOrderedAddMonoid`. The step that needs it is "`Lcert < τ W`, hence
+The lemma takes `[IsOrderedCancelAddMonoid time]`, where
+[Schedule.lean](Schedule.lean) takes `IsOrderedAddMonoid`. The step that needs it is "`Lcert < τ W`, hence
 `E₀ + Lcert < E₀ + τ W`": without cancellation it fails — in `ℕ∞` a clock
 reading `⊤` makes both sides `⊤`, a correct `W`-timer may fire inside the
 window, and a validator that times out in `W` stops the chain. `ℕ`, `ℚ≥0`
-and `ℝ≥0` are cancellative; `docs/Bounds.md` §6.2.8 records the finding.
+and `ℝ≥0` are cancellative; [Bounds.md](../../docs/Bounds.md) §6.2.8 has
+the counterexample.
 
-## What is local, and why
+## Three state facts proven here
 
-Three facts `Mvba/Liveness.lean` does not export are proven here from the
-generated lemmas and the `reachable_*` projections, since that file is
-read-only for this leg (`docs/Liveness.md` §4.1): the `timer_expired` flag is
-set only by `expire_timer` (`timer_set_label`, from M13's per-action frame
-lemmas), the prefix form of `entered_le_of_no_timeout`, and the timeout
-certificate below a view present *at* the first entry into it rather than at
-some index (`msg_tc_below_of_entered`). -/
+Three facts [Liveness.lean](Liveness.lean) does not provide are proven here
+from Veil's generated lemmas and the `reachable_*` projections: the
+`timer_expired` flag is set only by `expire_timer` (`timer_set_label`, from
+the per-action frame lemmas), the prefix form of `entered_le_of_no_timeout`,
+and the timeout certificate below a view present *at* the first entry into
+it rather than at some index (`msg_tc_below_of_entered`). -/
 
 /-! ## Two generic facts about bounded fairness -/
 
@@ -138,8 +139,9 @@ namespace Mvba
 open Cadence
 open scoped Cadence.Timed
 
-/-- Expose an action's transition body in `h` — `Mvba/Liveness.lean`'s
-local tactic of the same name, repeated because it is local there. -/
+/-- Expose an action's transition body in `h` — the local tactic of the
+same name in [Liveness.lean](Liveness.lean), repeated because it is local
+there. -/
 local macro "mvba_tr" h:ident : tactic =>
   `(tactic| (simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct] at $h:ident
              simp only [trSimp] at $h:ident))
@@ -152,7 +154,7 @@ local macro "mvba_effect_at" h:ident : tactic =>
       Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
       instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id] at $h:ident)
 
-/-! ## Three state facts `Mvba/Liveness.lean` does not export -/
+/-! ## Three state facts [Liveness.lean](Liveness.lean) does not provide -/
 
 section Local
 
@@ -175,7 +177,7 @@ theorem expire_timer_sets {i i' : node} {v v' : view}
 
 /-- **Only the timer sets the timer.** A step that turns `timer_expired i v`
 on is `expire_timer i v`. Every other action leaves the relation untouched,
-which is M13's generated frame lemma for that action; the case split is over
+which is Veil's generated frame lemma for that action; the case split is over
 the model's own label type, so an added action is a missing case, not a
 silent gap. -/
 theorem timer_set_label {l : Mvba.Label node nodeset value view} {i : node} {v : view}
@@ -224,7 +226,7 @@ theorem timer_set_label {l : Mvba.Label node nodeset value view} {i : node} {v :
     rw [Mvba.byz_timeout_noqc.frame_timer_expired htr] at h1; exact absurd h1 h0
 
 /-- **A marker that is on was switched on by an `expire_timer` step before.**
-`timer_expired` is empty initially (M13's `init` lemma), so a least index
+`timer_expired` is empty initially (Veil's generated `init` lemma), so a least index
 where it holds exists, and the step into it is the timer's. -/
 theorem exists_expire_timer_before (r : MvbaRun th) {i : node} {v : view} {n : Nat}
     (h : (r.at' n).timer_expired i v = true) :
@@ -346,7 +348,7 @@ end Prefix
 
 /-! ## The eight timed links
 
-Each is its untimed twin in `Mvba/Liveness.lean` with the weak-fairness step
+Each is its untimed twin in [Liveness.lean](Liveness.lean) with the weak-fairness step
 replaced by `withinFrom_of_boundedFair`: the monotone guards are given at the
 starting index `N` and carried by the generated `<relation>.mono` lemmas, the
 anti-monotone guards the untimed link assumed (`SettledIn`) are given on the
@@ -574,7 +576,8 @@ variable {node nodeset value view : Type}
   {th : Theory node nodeset value view}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedCancelAddMonoid time]
 
-/-- **The good-view lemma** (`docs/Bounds.md` §6.2.6, the second table).
+/-- **The good-view lemma** ([Bounds.md](../../docs/Bounds.md) §6.2.6, the
+second table).
 Let `W` be a view above the first with a correct leader `L` and a budget
 `τ W` above the chain's latency, and `N₀` the first index at which a correct
 validator has entered `W`, its clock `E₀ := clk N₀` at or after GST. If every

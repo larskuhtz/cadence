@@ -4,11 +4,11 @@ import Cadence.Tooling
 /-! # Mvba — the leader-based MVBA instantiation
 
 *This is a **model file** of the verified-module file family
-(`docs/Architecture.md` §6): it elaborates the transition system and
-persists the VC registry, but runs **no invariant sweep** — the proofs
-live in the per-action files under [`Mvba/Proofs/`](./Mvba/Proofs),
-composed into the reachability certificate by
-[`Mvba/Certify.lean`](./Mvba/Certify.lean).*
+([Architecture.md](../docs/Architecture.md) §6): it elaborates the
+transition system and persists the VC registry, but runs **no invariant
+sweep** — the proofs live in the per-action files under
+[Mvba/Proofs](Mvba/Proofs), composed into the reachability certificate by
+[Mvba/Certify.lean](Mvba/Certify.lean).*
 
 ## What this models, and where its specification lives
 
@@ -23,13 +23,10 @@ yet part of the published paper.** It has neither tags nor versions, so this
 model pins the **paper-repository commit it was read against:
 `026dc8b` (2026-09-03)**; a later change to `alg_mvba.tex` or to
 `subsec:mvba-correctness` is the trigger to re-read the model against the
-new commit and move this pin (`docs/MvbaPlan.md` §0). *Re-checked against
-paper-repository `b838e17` (2026-09-14): `alg_mvba.tex` and the whole of
-`sec:mvba-instantiation`, `subsec:mvba-correctness` included, are
-byte-identical to `026dc8b`, so the pin is current and the trigger has not
-fired. The 19 intervening commits rewrite the practical Conductor
-instantiation and its recovery layer, and tag Chorus's proposer signatures;
-none of that is in this model's scope.* What an auditor can
+new commit and move this pin ([MvbaPlan.md](../docs/MvbaPlan.md) §0).
+Paper-repository `b838e17` leaves `alg_mvba.tex` and all of
+`sec:mvba-instantiation` byte-identical to `026dc8b`, so the pin is current
+at that commit. What an auditor can
 check without the supplement is the contract the model is proven against —
 `safety [agreement]`, `[integrity]`, `[external_validity]` are the three
 safety properties of `mod:mvba`; what needs the supplement is the model's
@@ -37,8 +34,8 @@ fidelity to the algorithm.
 
 ## The value type
 
-The class is instantiated at the **entry vector** (`docs/MvbaPlan.md`
-§1.2): here `value` is an opaque sort standing for `node → Option
+The class is instantiated at the **entry vector**
+([MvbaPlan.md](../docs/MvbaPlan.md) §1.2): here `value` is an opaque sort standing for `node → Option
 merkle_root`, and `valid` is an **uninterpreted immutable relation** — the
 algorithm only checks certificates, it does not interpret them, so the
 external validity predicate is a parameter. Because the value *is* the
@@ -60,7 +57,8 @@ the immutable relation `leader v l`, functional by assumption.
 ## State
 
 **Network relations** (`msg_*`, monotone, consulted in **positive position
-only** — `docs/ChorusDesign.md` §3.1.1 governs them; this module adds no
+only** — [ChorusDesign.md](../docs/ChorusDesign.md) §3.1.1 governs them;
+this module adds no
 exception category):
 
 Each entry is a relation of this model and the supplement message it stands
@@ -89,7 +87,7 @@ and a proposal is checked against *some* certificate of the previous view,
 which is what a leader may attach.
 
 **Validator-local state**, free of the network contract, kept **monotone
-and view-indexed** (`docs/MvbaPlan.md` §3 says why: mutable current-view
+and view-indexed** ([MvbaPlan.md](../docs/MvbaPlan.md) §3 says why: mutable current-view
 fields would pull strong fairness into the liveness argument): `input i e`
 (the `propose` argument); `entered i v` (the current view is the maximum
 entered, `in_view`); `voted i v` (`lastVotedView_i` was raised to `v`, so
@@ -129,7 +127,8 @@ the environment relation `avail_ready i e` (`AvailReady_i`).
   protocol's own conclusion; with it, the choice is the environment's, the
   timeout actions are weakly fair like every other honest action, and the
   assumption becomes an ordering constraint on `expire_timer`
-  (`docs/MvbaPlan.md` §3.2, `Mvba/Liveness.lean`). Safety is untouched: a
+  ([MvbaPlan.md](../docs/MvbaPlan.md) §3.2,
+  [Mvba/Liveness.lean](Mvba/Liveness.lean)). Safety is untouched: a
   guard only removes behaviours.
 * **`timeout` covers the timer and the `f+1` echo rule**
   (`line:mvba:timeout-send`, `line:mvba:ht-send`): both send the same
@@ -169,8 +168,9 @@ argument for one view transition (the honest preparer's justification, the
 timeout quorum's honest intersection with the given supermajority, and the
 invariant itself at the lock's certificate), and `lem:lock-persistence`
 (i)/(ii), `lem:cert-uniqueness` across views (`commitqc_agree`) and
-`thm:agreement` follow from it by instantiation. `docs/MvbaPlan.md` §2.6
-records the correction.
+`thm:agreement` follow from it by instantiation.
+[MvbaPlan.md](../docs/MvbaPlan.md) §2.6 maps the supplement's lemmas onto
+this argument.
 
 ## Byzantine behaviour
 
@@ -185,8 +185,8 @@ veil module Mvba
 
 type node
 type nodeset
--- The entry vector `node → Option merkle_root` (`docs/MvbaPlan.md` §1.2),
--- opaque here.
+/-- The entry vector `node → Option merkle_root`
+([MvbaPlan.md](../docs/MvbaPlan.md) §1.2), opaque here. -/
 type value
 type view
 
@@ -194,12 +194,12 @@ instantiate nset : ByzNodeSet node nodeset
 open ByzNodeSet
 instantiate vord : TotalOrderWithMinimum view
 
--- The external validity predicate `Valid` (`mod:mvba`; the supplement's
--- "`x` is a valid meta-block", `subsec:mvba-datatypes`) — uninterpreted.
+/-- The external validity predicate `Valid` (`mod:mvba`; the supplement's
+"`x` is a valid meta-block", `subsec:mvba-datatypes`) — uninterpreted. -/
 immutable relation valid (e : value)
 
--- `Leader(slot, v)`: a deterministic public function (functional by the
--- assumption below).
+/-- `Leader(slot, v)`: a deterministic public function (functional by
+`leader_functional`). -/
 immutable relation leader (v : view) (l : node)
 
 /-! ## Network — signed messages and certificates -/
@@ -228,68 +228,70 @@ relation proposed_in (l : node) (v : view)
 relation decided (i : node) (e : value)
 relation abandoned (i : node)
 relation avail_ready (i : node) (e : value)
--- The view timer, as an abstract phase marker: `timer_expired i v` says
--- `i`'s timer for view `v` has run out. See the header.
+/-- The view timer, as an abstract phase marker: `timer_expired i v` says
+`i`'s timer for view `v` has run out (the header, "Abstractions"). -/
 relation timer_expired (i : node) (v : view)
 
 #gen_state
 
+/-- `Leader(slot, v)` names one leader per view. -/
 assumption [leader_functional]
   ∀ (V : view) (L L' : node), leader V L → leader V L' → L = L'
 
-/- **Honest leaders are cofinal**, **(A-leader-rotation)** — the
+/-- **Honest leaders are cofinal**, **(A-leader-rotation)** — the
 untimed weakening of a property the supplement
 states outright (`subsec:mvba-protocol`: "The leader schedule guarantees
 that every `f+1` consecutive views contain a correct leader"), which is
 what `thm:termination` counts with to reach its `O(fΔ)` bound. Cofinality
 drops the quantitative part and keeps only what an untimed model can use
-(`docs/MvbaPlan.md` §3.3). Deriving even that from an explicit rotation
+([MvbaPlan.md](../docs/MvbaPlan.md) §3.3). Deriving even that from an explicit rotation
 would need arithmetic on views, which this model excludes by design (the
 header: only `vord.zero` and `vord.next`, no arithmetic reaches the
 solver), so it is a named assumption rather than a derived lemma.
 
 It is a **liveness** assumption, and it is declared here rather than carried
 as a hypothesis of the liveness theorems for one reason: the fair-progress
-invariants of `docs/MvbaPlan.md` §3.5 step 3 are sweep cells, and only a
-model `assumption` reaches the solver. The price is that it joins the trust
-base of the *safety* results too — `Mvba/Compose.lean`'s `mvbaSafety` takes
+invariants of [MvbaPlan.md](../docs/MvbaPlan.md) §3.5 step 3 are proof
+cells, and only a model `assumption` reaches the solver. The price is that
+it joins the trust base of the *safety* results too —
+[Mvba/Compose.lean](Mvba/Compose.lean)'s `mvbaSafety` takes
 `assumptions th` as part of its `init`, so agreement, integrity and external
-validity are now claimed for leader schedules with cofinally many honest
+validity are claimed for leader schedules with cofinally many honest
 leaders rather than for every schedule. Nothing in their proofs needs it;
 the narrowing is formal, not material, and it is recorded in
-`docs/Architecture.md` §4 with the other named assumptions. -/
+[Architecture.md](../docs/Architecture.md) §4 with the other named
+assumptions. -/
 assumption [leader_honest_cofinal]
   ∀ (V : view), ∃ (W : view) (L : node),
     vord.le V W ∧ leader W L ∧ ¬ is_byz L
 
 /-! ## Derived state (ghosts) -/
 
--- The current view is the maximum entered view (a negative observation of
--- own local state only).
+/-- The current view is the maximum entered view (a negative observation of
+own local state only). -/
 ghost relation in_view (i : node) (v : view) :=
   entered i v ∧ ∀ V, entered i V → vord.le V v
 
--- Some `TC_{s,pv}` has `lock = e`.
+/-- Some `TC_{s,pv}` has `lock = e`. -/
 ghost relation lock_available (pv : view) (e : value) :=
   ∃ w, tc_lock pv w e
 
--- `n` sent a timeout at or after view `v` carrying no lock of view `≥ v`:
--- it left view `v` without a view-`v` lock and can no longer commit in it
--- (`lem:timeout-closes-view`, `lem:commit-provenance`).
+/-- `n` sent a timeout at or after view `v` carrying no lock of view `≥ v`:
+it left view `v` without a view-`v` lock and can no longer commit in it
+(`lem:timeout-closes-view`, `lem:commit-provenance`). -/
 ghost relation left_view (n : node) (v : view) :=
   ∃ v', vord.le v v' ∧
     (msg_timeout_noqc n v' ∨ ∃ w e, msg_timeout_qc n v' w e ∧ vord.lt w v)
 
--- `n` cannot commit `e` in view `v`: it left the view without a view-`v`
--- lock, or it holds a view-`v` lock on another value.
+/-- `n` cannot commit `e` in view `v`: it left the view without a view-`v`
+lock, or it holds a view-`v` lock on another value. -/
 ghost relation blocked (n : node) (v : view) (e : value) :=
   left_view n v ∨ ∃ e', ¬ e' = e ∧ local_prepqc n v e'
 
 /-! ## Initial state -/
 
-/- Action bodies elaborate one nested `openStateAround` per statement, so
-the depth scales with the longest body; the 21-statement `after_init`
-exceeds the default (the `Chorus.lean` rule in `CLAUDE.md`). -/
+-- `after_init`, the longest action body, exceeds the default recursion
+-- depth ([CLAUDE.md](../CLAUDE.md), "Hard rules", on `maxRecDepth`).
 set_option maxRecDepth 8192
 
 after_init {
@@ -319,7 +321,7 @@ after_init {
 
 /-! ## Inputs (`mod:mvba`) -/
 
-/- `propose(B_i)` — sets the input, enters view 1 and begins participation.
+/-- `propose(B_i)` — sets the input, enters view 1 and begins participation.
 Once per validator.
 
 `require valid e` is the supplement's precondition on `propose`, checked
@@ -328,7 +330,7 @@ precondition and `thm:termination`'s proof relies on it in as many words
 ("the leader proposes its input `B_l`, which is a valid \metablock by the
 precondition of `propose`"). The contract states the same obligation on the
 caller's side, as an antecedent of `MVBATemporal.termination`
-(`Cadence/Interfaces.lean`); Chorus meets it with three `require` clauses,
+([Interfaces.lean](Interfaces.lean)); Chorus meets it with three `require` clauses,
 and this guard is the implementation's own check of it. -/
 action propose (i : node) (e : value) {
   require ∀ E, ¬ input i E
@@ -338,7 +340,7 @@ action propose (i : node) (e : value) {
   entered i vord.zero := true
 }
 
-/- `abandon()` — halts this validator's MVBA sending: every honest send
+/-- `abandon()` — halts this validator's MVBA sending: every honest send
 below requires `¬ abandoned i`. -/
 action abandon (i : node) {
   abandoned i := true
@@ -346,7 +348,7 @@ action abandon (i : node) {
 
 /-! ## The leader (`alg:mvba`, "upon entering view v") -/
 
-/- View 1: `x ← B_i`, `J ← ⊥`. -/
+/-- View 1: `x ← B_i`, `J ← ⊥`. -/
 action leader_propose_first (l : node) (e : value) {
   require ¬ is_byz l
   require ¬ abandoned l
@@ -358,11 +360,11 @@ action leader_propose_first (l : node) (e : value) {
   msg_preprepare l vord.zero e := true
 }
 
-/- View `v > 1` with `lock(J) ≠ ⊥`: `x ← Recover(lock(J))`, the lock's
+/-- View `v > 1` with `lock(J) ≠ ⊥`: `x ← Recover(lock(J))`, the lock's
 entries themselves (`lem:reproposal`). The participation guard `∃ E, input
 l E` is redundant at reachable states (a view `> 1` is entered only through
 `sync_view`, which requires it) and is what makes the contract's Quiescence
-a one-step fact for this send too (`Mvba/Compose.lean`). -/
+a one-step fact for this send too ([Mvba/Compose.lean](Mvba/Compose.lean)). -/
 action leader_repropose (l : node) (pv : view) (v : view) (w : view) (e : value) {
   require ¬ is_byz l
   require ∃ E, input l E
@@ -376,7 +378,7 @@ action leader_repropose (l : node) (pv : view) (v : view) (w : view) (e : value)
   msg_preprepare l v e := true
 }
 
-/- View `v > 1` with `lock(J) = ⊥`: `x ← B_i`. -/
+/-- View `v > 1` with `lock(J) = ⊥`: `x ← B_i`. -/
 action leader_propose_fresh (l : node) (pv : view) (v : view) (e : value) {
   require ¬ is_byz l
   require ¬ abandoned l
@@ -392,7 +394,7 @@ action leader_propose_fresh (l : node) (pv : view) (v : view) (e : value) {
 
 /-! ## The `Pre-Prepare` handler (`line:mvba:pp-guard`) and `HandleProposal` -/
 
-/- View 1: current view, sender is the leader, `x` valid, `J = ⊥`,
+/-- View 1: current view, sender is the leader, `x` valid, `J = ⊥`,
 `1 > lastVotedView_i`. Then `HandleProposal` (`line:mvba:hp-record`,
 `line:mvba:hp-prepare`): record `x_v`, raise `lastVotedView_i`, send the
 `Prepare` on the entry vector. -/
@@ -410,7 +412,7 @@ action handle_preprepare_first (i : node) (l : node) (e : value) {
   msg_prepare i vord.zero e := true
 }
 
-/- View `v > 1`: additionally `J` is a `TC_{s,v-1}` and `entries(x) =
+/-- View `v > 1`: additionally `J` is a `TC_{s,v-1}` and `entries(x) =
 lock(J)` whenever `lock(J) ≠ ⊥` — against some timeout certificate of the
 previous view (see the header on `tc_lock`). -/
 action handle_preprepare (i : node) (l : node) (pv : view) (v : view) (e : value) {
@@ -431,7 +433,7 @@ action handle_preprepare (i : node) (l : node) (pv : view) (v : view) (e : value
 
 /-! ## Prepare certificates and the commit -/
 
-/- Assembly: `2f+1` `Prepare` signatures on `e` in view `v` form
+/-- Assembly: `2f+1` `Prepare` signatures on `e` in view `v` form
 `prepareQC_{s,v}` on `e`. -/
 action form_prepqc (v : view) (e : value) (q : nodeset) {
   require nset.supermajority q
@@ -439,7 +441,7 @@ action form_prepqc (v : view) (e : value) (q : nodeset) {
   msg_prepqc v e := true
 }
 
-/- `TryFormPrepQC`'s local half (`line:mvba:tfp-guard`,
+/-- `TryFormPrepQC`'s local half (`line:mvba:tfp-guard`,
 `line:mvba:tfp-store`): in the current view, on the vector it prepared,
 if the held certificate is of a lower view, and not after timing out. -/
 action adopt_prepqc (i : node) (v : view) (e : value) {
@@ -454,7 +456,7 @@ action adopt_prepqc (i : node) (v : view) (e : value) {
   local_prepqc i v e := true
 }
 
-/- **The view timer runs out.** The environment marks `i`'s timer for a view
+/-- **The view timer runs out.** The environment marks `i`'s timer for a view
 it has entered as expired; the two timeout actions are guarded on it.
 
 This is the whole of the timing that reaches the model — a phase marker, not
@@ -470,13 +472,13 @@ action expire_timer (i : node) (v : view) {
   timer_expired i v := true
 }
 
-/- The environment supplies `i`'s availability shares for `e`
+/-- The environment supplies `i`'s availability shares for `e`
 (`AvailReady_i`; `lem:avail-progress` bounds when). Unguarded. -/
 action become_avail_ready (i : node) (e : value) {
   avail_ready i e := true
 }
 
-/- `TrySendCommit` (`line:mvba:commit-send`): `entries(x_v) = e`, `PrepQC_i`
+/-- `TrySendCommit` (`line:mvba:commit-send`): `entries(x_v) = e`, `PrepQC_i`
 is of the current view and on `e`, `¬ timedOut_i`, `¬ commitSent_i`,
 `AvailReady_i(x_v)`. -/
 action send_commit (i : node) (v : view) (e : value) {
@@ -493,7 +495,7 @@ action send_commit (i : node) (v : view) (e : value) {
   msg_commit i v e := true
 }
 
-/- Assembly: `2f+1` `Commit` signatures on `e` in view `v` form the
+/-- Assembly: `2f+1` `Commit` signatures on `e` in view `v` form the
 `CommitQC` of view `v` on `e`. -/
 action form_commitqc (v : view) (e : value) (q : nodeset) {
   require nset.supermajority q
@@ -501,7 +503,7 @@ action form_commitqc (v : view) (e : value) (q : nodeset) {
   msg_commitqc v e := true
 }
 
-/- `decide(x, CommitQC)`: `TryFormCommitQC`, the transferred-certificate
+/-- `decide(x, CommitQC)`: `TryFormCommitQC`, the transferred-certificate
 handler (`line:mvba:qc-decide`) and `TryDecide` (`line:mvba:td-decide`)
 collapse into one action — `Recover(e)` is the identity. A certificate of
 any view is accepted. Once (`DecidedQC_i = ⊥`). -/
@@ -516,10 +518,10 @@ action decide (i : node) (v : view) (e : value) {
 
 /-! ## Timeouts, timeout certificates and view change -/
 
-/- The timer fires in the current view (`line:mvba:timeout-send`; also
+/-- The timer fires in the current view (`line:mvba:timeout-send`; also
 the `f+1` echo, `line:mvba:ht-send`): `timedOut_i ← true`, raise
 `lastVotedView_i`, send `⟨Timeout, s, v, PrepQC_i, σ_i⟩` with the highest
-held certificate … -/
+held certificate. -/
 action timeout_qc (i : node) (v : view) (w : view) (e : value) {
   require ¬ is_byz i
   require ∃ E, input i E
@@ -534,7 +536,8 @@ action timeout_qc (i : node) (v : view) (w : view) (e : value) {
   msg_timeout_qc i v w e := true
 }
 
-/- … or with `PrepQC_i = ⊥`. -/
+/-- The same timeout when `i` holds no certificate: the `Timeout` carries
+`PrepQC_i = ⊥`. -/
 action timeout_noqc (i : node) (v : view) {
   require ¬ is_byz i
   require ∃ E, input i E
@@ -548,7 +551,7 @@ action timeout_noqc (i : node) (v : view) {
   msg_timeout_noqc i v := true
 }
 
-/- Assembly (`line:mvba:ht-advance`, `line:mvba:derived`): `2f+1` timeouts
+/-- Assembly (`line:mvba:ht-advance`, `line:mvba:derived`): `2f+1` timeouts
 of view `v` form `TC_{s,v}`; its `highPrepQC` is the certificate `(w, e)`
 carried by member `r0` — a valid certificate of view `w ≤ v` — and every
 member carries `⊥` or a certificate of view `≤ w`. -/
@@ -564,7 +567,7 @@ action form_tc_lock (v : view) (q : nodeset) (r0 : node) (w : view) (e : value) 
   tc_lock v w e := true
 }
 
-/- Assembly, `highPrepQC = ⊥`: every member carries `⊥`. -/
+/-- Assembly, `highPrepQC = ⊥`: every member carries `⊥`. -/
 action form_tc_nolock (v : view) (q : nodeset) {
   require nset.supermajority q
   require ∀ r, nset.member r q → msg_timeout_noqc r v
@@ -572,7 +575,7 @@ action form_tc_nolock (v : view) (q : nodeset) {
   tc_nolock v := true
 }
 
-/- `SyncView(TC_{s,pv})` (`line:mvba:sv`, `line:mvba:sv-advance`) on a
+/-- `SyncView(TC_{s,pv})` (`line:mvba:sv`, `line:mvba:sv-advance`) on a
 certificate at or above the current view: enter `pv + 1`. -/
 action sync_view (i : node) (pv : view) (v : view) {
   require ¬ is_byz i
@@ -584,7 +587,7 @@ action sync_view (i : node) (pv : view) (v : view) {
   entered i v := true
 }
 
-/- `SyncView` with adoption (`line:mvba:sv-adopt`): the certificate's lock
+/-- `SyncView` with adoption (`line:mvba:sv-adopt`): the certificate's lock
 `(w, e)` is of a higher view than every held certificate, so `PrepQC_i`
 adopts it while `i` enters `pv + 1`. -/
 action sync_view_adopt (i : node) (pv : view) (v : view) (w : view) (e : value) {
@@ -616,7 +619,7 @@ action byz_commit (r : node) (v : view) (e : value) {
   msg_commit r v e := true
 }
 
-/- A Byzantine timeout carries `⊥` or a certificate that exists, of view
+/-- A Byzantine timeout carries `⊥` or a certificate that exists, of view
 at most its own (see the header: a higher one counts as `⊥`). -/
 action byz_timeout_qc (r : node) (v : view) (w : view) (e : value) {
   require is_byz r
@@ -632,42 +635,44 @@ action byz_timeout_noqc (r : node) (v : view) {
 
 /-! ## Safety — the three safety properties of `mod:mvba`
 
-Stated in the class's vocabulary (`MVBASafety` in `Cadence/Interfaces.lean`)
-so that the provider step can discharge the fields by the `reachable_*`
-projections of `Mvba/Certify.lean`. -/
+Stated in the class's vocabulary (`MVBASafety` in
+[Interfaces.lean](Interfaces.lean)) so that the provider step can discharge
+the fields by the `reachable_*` projections of
+[Mvba/Certify.lean](Mvba/Certify.lean). -/
 
-/- `thm:agreement` (entries level): correct validators that decide, decide
+/-- `thm:agreement` (entries level): correct validators that decide, decide
 the same entry vector. -/
 safety [agreement]
   ∀ (I J : node) (E E' : value),
     ¬ is_byz I → ¬ is_byz J → decided I E → decided J E' → E = E'
 
-/- Integrity: a correct validator decides at most one value. -/
+/-- Integrity: a correct validator decides at most one value. -/
 safety [integrity]
   ∀ (I : node) (E E' : value),
     ¬ is_byz I → decided I E → decided I E' → E = E'
 
-/- `lem:external-validity`: a decided value is valid. -/
+/-- `lem:external-validity`: a decided value is valid. -/
 safety [external_validity]
   ∀ (I : node) (E : value), ¬ is_byz I → decided I E → valid E
 
 /-! ## Invariants — the supplement's lemmas
 
-`docs/MvbaPlan.md` §2.6 has the map from the supplement's lemmas to the
+[MvbaPlan.md](../docs/MvbaPlan.md) §2.6 has the map from the supplement's
+lemmas to the
 rows below; the header explains the one departure (`lem:lock-persistence`
 is a corollary, `prepqc_blocks_lower_commits` is the inductive form). -/
 
-/- Entering a view requires having proposed: `propose` sets `input` and
+/-- Entering a view requires having proposed: `propose` sets `input` and
 enters view 1 in the same step, and both `sync_view` variants require
 `∃ E, input i E`. Liveness uses it to read the participation premise off
 `SettledIn` rather than carrying it as a second hypothesis
-(`Mvba/Liveness.lean`). -/
+([Mvba/Liveness.lean](Mvba/Liveness.lean)). -/
 invariant [entered_implies_input]
   ∀ (R : node) (V : view),
     ¬ is_byz R → entered R V → ∃ E, input R E
 
-/- … and the converse: having proposed means having entered view 1. The same
-single step of `propose` read the other way round, and `propose` is the only
+/-- The converse of `entered_implies_input`: having proposed means having
+entered view 1. The same single step of `propose` read the other way round, and `propose` is the only
 action that sets `input`.
 
 Liveness needs it to start the climb. (F-justice) can only move a validator
@@ -682,13 +687,13 @@ invariant [input_implies_entered]
 
 /-! ### The honest leader's single proposal
 
-Two invariants **liveness** asked for (`docs/MvbaPlan.md` §3.5 step 3), and
-the formal content of `thm:termination`'s "the correct leader broadcasts a
-single valid proposal `x_v`". Safety never needed them — it does not care
-how many vectors a leader offers, only what a certificate proves — which is
-why the clump said nothing about `msg_preprepare` until now. -/
+Invariants for **liveness** ([MvbaPlan.md](../docs/MvbaPlan.md) §3.5
+step 3), and the formal content of `thm:termination`'s "the correct leader
+broadcasts a single valid proposal `x_v`". Safety does not need them — it
+does not care how many vectors a leader offers, only what a certificate
+proves. -/
 
-/- An honest `Pre-Prepare` is recorded in `proposedIn_l`, which is what the
+/-- An honest `Pre-Prepare` is recorded in `proposedIn_l`, which is what the
 three leader actions check before sending. Support for the uniqueness
 below: without it the `¬ proposed_in l v` guard cannot rule out an earlier
 proposal. -/
@@ -696,27 +701,26 @@ invariant [honest_preprepare_proposed]
   ∀ (L : node) (V : view) (E : value),
     ¬ is_byz L → msg_preprepare L V E → proposed_in L V
 
-/- The converse of `honest_preprepare_proposed`: `proposedIn_l` is backed by
+/-- The converse of `honest_preprepare_proposed`: `proposedIn_l` is backed by
 the `Pre-Prepare` it records, the two being set in the same step by all
 three leader actions.
 
 Liveness needs it for the same reason it needed `commit_sent_backed`: the
 leader actions' `¬ proposed_in l v` guard is anti-monotone, so a fairness
 argument has to know that the guard can only die by the proposal it was
-waiting for (`Mvba/Liveness.lean`,
+waiting for ([Mvba/Liveness.lean](Mvba/Liveness.lean),
 `eventually_preprepare_of_settled_leader`). -/
 invariant [proposed_in_backed]
   ∀ (L : node) (V : view),
     ¬ is_byz L → proposed_in L V → ∃ E, msg_preprepare L V E
 
-/- Inputs are valid, which is now `propose`'s guard rather than a premise
-carried by the liveness theorems. It holds of Byzantine validators too:
+/-- Inputs are valid, by `propose`'s guard. It holds of Byzantine validators too:
 `propose` is the contract's input and has no `is_byz` guard, so the check
 applies to whoever calls it. -/
 invariant [input_valid]
   ∀ (R : node) (E : value), input R E → valid E
 
-/- **An honest leader's proposal is valid.** The two fresh cases propose the
+/-- **An honest leader's proposal is valid.** The two fresh cases propose the
 leader's own input (`input_valid`); the re-proposal case offers a certified
 lock, which `tc_lock_backed` and `prepqc_valid` show is valid.
 
@@ -726,7 +730,7 @@ invariant [honest_preprepare_valid]
   ∀ (L : node) (V : view) (E : value),
     ¬ is_byz L → msg_preprepare L V E → valid E
 
-/- **And it carries the justification the handler checks.** Above view 1 an
+/-- **And it carries the justification the handler checks.** Above view 1 an
 honest leader proposes either a lock of the previous view
 (`leader_repropose`) or its own input against a lock-free certificate
 (`leader_propose_fresh`) — which are exactly the two disjuncts of
@@ -737,28 +741,28 @@ invariant [honest_preprepare_justified]
     ¬ is_byz L → msg_preprepare L V E → vord.next PV V →
       lock_available PV E ∨ tc_nolock PV
 
-/- An honest leader proposes at most one vector per view. -/
+/-- An honest leader proposes at most one vector per view. -/
 invariant [honest_preprepare_unique]
   ∀ (L : node) (V : view) (E E' : value),
     ¬ is_byz L → msg_preprepare L V E → msg_preprepare L V E' → E = E'
 
 /-! ### `lem:vote-uniqueness` — one `Prepare` per view, on the accepted vector -/
 
-/- An honest `Prepare` is on the vector its sender accepted in that view. -/
+/-- An honest `Prepare` is on the vector its sender accepted in that view. -/
 invariant [honest_prepare_accepted]
   ∀ (R : node) (V : view) (E : value),
     ¬ is_byz R → msg_prepare R V E → accepted R V E
 
-/- The converse of `honest_prepare_accepted`: accepting and sending the
+/-- The converse of `honest_prepare_accepted`: accepting and sending the
 `Prepare` are the same step in both handlers, so for an honest validator the
 two relations agree. Liveness needs this direction — the acceptance link's
 guard analysis yields `accepted`, while the prepare quorum needs
-`msg_prepare` (`Mvba/Liveness.lean`). -/
+`msg_prepare` ([Mvba/Liveness.lean](Mvba/Liveness.lean)). -/
 invariant [accepted_implies_prepare]
   ∀ (R : node) (V : view) (E : value),
     ¬ is_byz R → accepted R V E → msg_prepare R V E
 
-/- Accepting raised `lastVotedView_i` to the view (`line:mvba:hp-record`),
+/-- Accepting raised `lastVotedView_i` to the view (`line:mvba:hp-record`),
 which is what makes the acceptance unique per view. -/
 invariant [accepted_implies_voted]
   ∀ (R : node) (V : view) (E : value),
@@ -768,25 +772,24 @@ invariant [accepted_unique]
   ∀ (R : node) (V : view) (E E' : value),
     ¬ is_byz R → accepted R V E → accepted R V E' → E = E'
 
-/- **A vote never outruns the views its holder has entered**, in the same
+/-- **A vote never outruns the views its holder has entered**, in the same
 bound form as `local_prepqc_within_entered` and for the same reason: both
 ways of voting — accepting a proposal and timing out — happen in the
 current view.
 
-The third guard-analysis invariant liveness needs. `handle_preprepare`'s
+A guard-analysis invariant for liveness: `handle_preprepare`'s
 `∀ W, voted i W → W < v` is anti-monotone, and this pins a lapse to the
 current view rather than one above it. -/
 invariant [voted_within_entered]
   ∀ (R : node) (W : view) (U : view),
     ¬ is_byz R → voted R W → (∀ V, entered R V → vord.le V U) → vord.le W U
 
-/- **A vote that is not a timeout means the leader has already proposed.**
+/-- **A vote that is not a timeout means the leader has already proposed.**
 Accepting is the only other way to vote, and it requires the leader's
 `Pre-Prepare`, which for an honest leader is recorded in `proposedIn_l`
 (`honest_preprepare_proposed`).
 
-Support for the next one, and the case the solver found: at the three
-leader actions the guard is `¬ proposed_in l v`, so this is what makes
+Support for `voted_implies_accepted_proposal`: at the three leader actions the guard is `¬ proposed_in l v`, so this is what makes
 "nobody can have voted in `v` yet" available there — without it, a
 validator that had somehow voted before the honest leader's first proposal
 could not be ruled out. -/
@@ -795,7 +798,7 @@ invariant [voted_implies_leader_proposed]
     ¬ is_byz R → voted R V → ¬ timed_out R V →
       leader V L → ¬ is_byz L → proposed_in L V
 
-/- **And a vote that is not a timeout is an acceptance of the leader's
+/-- **And a vote that is not a timeout is an acceptance of the leader's
 proposal.** A validator votes in a view in exactly two ways
 (`line:mvba:hp-record`, `line:mvba:timeout-send`), and the timeout sets
 `timedOut_i` in the same step — so an honest validator that has voted in `V`
@@ -805,20 +808,20 @@ accepted is the one vector that leader proposed
 
 This completes the lapse analysis for `handle_preprepare`'s vote guard: at a
 validator settled in `V`, the guard can only die by the acceptance the
-argument was waiting for (`Mvba/Liveness.lean`,
+argument was waiting for ([Mvba/Liveness.lean](Mvba/Liveness.lean),
 `eventually_accepted_of_settled`). -/
 invariant [voted_implies_accepted_proposal]
   ∀ (R : node) (V : view) (L : node) (E : value),
     ¬ is_byz R → voted R V → ¬ timed_out R V →
       leader V L → ¬ is_byz L → msg_preprepare L V E → accepted R V E
 
-/- `lem:external-validity`'s premise: only valid vectors are accepted
+/-- `lem:external-validity`'s premise: only valid vectors are accepted
 (`line:mvba:pp-guard`). -/
 invariant [accepted_valid]
   ∀ (R : node) (V : view) (E : value),
     ¬ is_byz R → accepted R V E → valid E
 
-/- The lifted justification check of `line:mvba:pp-guard`: an acceptance
+/-- The lifted justification check of `line:mvba:pp-guard`: an acceptance
 in a view `v > 1` was justified by a `TC_{s,v-1}` whose lock is `⊥` or
 the accepted vector. -/
 invariant [accepted_justified]
@@ -828,28 +831,29 @@ invariant [accepted_justified]
 
 /-! ### `lem:commit-provenance` and `rem:lock-monotonicity` -/
 
-/- An honest `Commit` on `e` in `v` was sent with `entries(x_v) = e` and a
+/-- An honest `Commit` on `e` in `v` was sent with `entries(x_v) = e` and a
 `PrepQC_i` of view `v` on `e`. -/
 invariant [honest_commit_accepted]
   ∀ (R : node) (V : view) (E : value),
     ¬ is_byz R → msg_commit R V E → accepted R V E ∧ local_prepqc R V E
 
-/- `commitSent_i` implies the sender had voted in the view — it accepted
+/-- `commitSent_i` implies the sender had voted in the view — it accepted
 there first (`accepted_implies_voted`). On its own this says little; it is
-what makes the next one inductive, by ruling out the one case that breaks
+what makes `commit_sent_backed` inductive, by ruling out the one case that breaks
 it: a validator that has already sent its `Commit` in `v` cannot then accept
 a *different* vector in `v`, because both `Pre-Prepare` handlers require
 `∀ W, voted i W → W < v`. -/
 invariant [commit_sent_implies_voted]
   ∀ (R : node) (V : view), ¬ is_byz R → commit_sent R V → voted R V
 
-/- The converse direction, and the first invariant **liveness** asked for
-rather than safety (`docs/MvbaPlan.md` §3.5 step 3): `commitSent_i` is
+/-- An invariant for **liveness** rather than safety
+([MvbaPlan.md](../docs/MvbaPlan.md) §3.5 step 3): `commitSent_i` is
 backed by the `Commit` it records. `send_commit`'s `¬ commit_sent i v` guard
 is anti-monotone, so a fairness argument has to know that the only way the
 guard dies is the send it was waiting for — otherwise the guard could lapse
 with nothing on the network and weak fairness would deliver nothing
-(`Mvba/Liveness.lean`, `eventually_msg_commit_of_settled`). Stated against
+([Mvba/Liveness.lean](Mvba/Liveness.lean),
+`eventually_msg_commit_of_settled`). Stated against
 the accepted vector rather than as `∃ E, msg_commit R V E` to keep it
 quantifier-free in the conclusion; `accepted_unique` makes the two
 equivalent at reachable states. -/
@@ -857,12 +861,12 @@ invariant [commit_sent_backed]
   ∀ (R : node) (V : view) (E : value),
     ¬ is_byz R → commit_sent R V → accepted R V E → msg_commit R V E
 
-/- A held certificate is a network certificate. -/
+/-- A held certificate is a network certificate. -/
 invariant [local_prepqc_backed]
   ∀ (R : node) (W : view) (E : value),
     ¬ is_byz R → local_prepqc R W E → msg_prepqc W E
 
-/- **A held certificate never outruns the views its holder has entered.**
+/-- **A held certificate never outruns the views its holder has entered.**
 Stated against an arbitrary upper bound `U` on the entered views rather than
 against the current view: `in_view` asserts a *maximum* entered view, whose
 existence is not first-order derivable, and the bound form is also exactly
@@ -870,19 +874,20 @@ the shape of `sync_view`'s guard, which is what makes the induction direct.
 Applying it at `U := v` for a validator in view `v` recovers the reading
 "every held certificate is of view at most `v`".
 
-The third invariant **liveness** asked for (`docs/MvbaPlan.md` §3.5 step 3).
-`adopt_prepqc`'s guard `∀ W E, local_prepqc i W E → W < v` is anti-monotone,
+An invariant for **liveness** ([MvbaPlan.md](../docs/MvbaPlan.md) §3.5
+step 3): `adopt_prepqc`'s guard `∀ W E, local_prepqc i W E → W < v` is anti-monotone,
 so a fairness argument has to know what its failure means: with this, a
 failure at a validator in view `v` pins the offending certificate to view
 `v` exactly, and `local_prepqc_backed` with `prepqc_unique` then pins its
 value — so the guard can only die by the adoption the argument was waiting
-for (`Mvba/Liveness.lean`, `eventually_local_prepqc_of_settled`). -/
+for ([Mvba/Liveness.lean](Mvba/Liveness.lean),
+`eventually_local_prepqc_of_settled`). -/
 invariant [local_prepqc_within_entered]
   ∀ (R : node) (W : view) (E : value) (U : view),
     ¬ is_byz R → local_prepqc R W E → (∀ V, entered R V → vord.le V U) →
       vord.le W U
 
-/- Certificates are adopted with strictly increasing views
+/-- Certificates are adopted with strictly increasing views
 (`line:mvba:tfp-guard`, `line:mvba:sv-adopt`), so one per view. -/
 invariant [local_prepqc_unique]
   ∀ (R : node) (W : view) (E E' : value),
@@ -898,13 +903,13 @@ invariant [commitqc_backed]
   ∀ (V : view) (E : value), msg_commitqc V E →
     ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_commit r V E
 
-/- Every carried certificate exists (honest senders carry held ones,
+/-- Every carried certificate exists (honest senders carry held ones,
 Byzantine senders may carry only existing ones). -/
 invariant [timeout_qc_backed]
   ∀ (R : node) (V W : view) (E : value),
     msg_timeout_qc R V W E → msg_prepqc W E
 
-/- A timeout certificate is one of the two the assemblies build. The two
+/-- A timeout certificate is one of the two the assemblies build. The two
 `form_tc_*` actions set `msg_tc` together with `tc_nolock` or `tc_lock`, and
 nothing else sets it.
 
@@ -912,7 +917,8 @@ Liveness needs it to get from `sync_view`'s guard — which reads `msg_tc pv`
 — to the timeout quorum behind it, and from there to a *correct* validator
 that has timed out in `pv`. That is the step showing a run cannot advance
 past the honest-led view without some correct validator timing out there,
-which (A-viewsync) forbids before deciding (`Mvba/Liveness.lean`). -/
+which (A-viewsync) forbids before deciding
+([Mvba/Liveness.lean](Mvba/Liveness.lean)). -/
 invariant [msg_tc_backed]
   ∀ (V : view), msg_tc V → tc_nolock V ∨ ∃ W E, tc_lock V W E
 
@@ -920,7 +926,7 @@ invariant [tc_nolock_backed]
   ∀ (V : view), tc_nolock V →
     ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_timeout_noqc r V
 
-/- A recorded lock is a certificate of view `≤ v` carried by a member of
+/-- A recorded lock is a certificate of view `≤ v` carried by a member of
 a `2f+1` timeout quorum none of whose members carries a higher one. -/
 invariant [tc_lock_backed]
   ∀ (V W : view) (E : value), tc_lock V W E →
@@ -928,80 +934,81 @@ invariant [tc_lock_backed]
     ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q →
       msg_timeout_noqc r V ∨ ∃ W' E', msg_timeout_qc r V W' E' ∧ vord.le W' W
 
-/- **Every recorded lock is a timeout certificate.** The converse direction
+/-- **Every recorded lock is a timeout certificate.** The converse direction
 of `msg_tc_backed` for the lock case: `form_tc_lock` sets `tc_lock` and
 `msg_tc` in one step, so the two never come apart.
 
-Safety never asked, because it reads certificates only to *justify* things
-and a lock justifies more than a bare `msg_tc`. Liveness asks because
+Safety does not need it, because it reads certificates only to *justify*
+things and a lock justifies more than a bare `msg_tc`. Liveness does, because
 `sync_view` is guarded on `msg_tc` while `sync_view_adopt` — the action a
 lock enables — carries the extra guard that the adopted certificate outrank
 every one already held. A validator holding a higher certificate can
 therefore advance only through `sync_view`, and without this invariant the
 model would let it be stuck at a view that has demonstrably closed. So this
 is also a statement that the two `sync_view` variants do not strand anyone
-(`Mvba/Liveness.lean`, `exists_tc_below_of_entered`). -/
+([Mvba/Liveness.lean](Mvba/Liveness.lean), `exists_tc_below_of_entered`). -/
 invariant [tc_lock_implies_tc]
   ∀ (V W : view) (E : value), tc_lock V W E → msg_tc V
 
 /-! ### `lem:cert-uniqueness`, within a view and across views -/
 
-/- All prepare certificates of a view are on one vector: the
+/-- All prepare certificates of a view are on one vector: the
 two-supermajority intersection through an honest common signer and vote
 uniqueness. -/
 invariant [prepqc_unique]
   ∀ (V : view) (E E' : value), msg_prepqc V E → msg_prepqc V E' → E = E'
 
-/- A commit certificate's honest signers held a prepare certificate of
+/-- A commit certificate's honest signers held a prepare certificate of
 the same view on the same vector (`lem:lock-formation`'s content). -/
 invariant [commitqc_implies_prepqc]
   ∀ (V : view) (E : value), msg_commitqc V E → msg_prepqc V E
 
-/- `thm:agreement` at the certificate level, across views: from
+/-- `thm:agreement` at the certificate level, across views: from
 `prepqc_blocks_lower_commits` and the two-supermajority intersection. -/
 invariant [commitqc_agree]
   ∀ (V V' : view) (E E' : value),
     msg_commitqc V E → msg_commitqc V' E' → E = E'
 
-/- A prepare certificate is on a valid vector, by the same argument as
+/-- A prepare certificate is on a valid vector, by the same argument as
 `commitqc_valid`: the `2f+1` signers contain an honest one, which accepted
 the vector, and `accepted_valid` applies.
 
-Liveness needs it where safety did not: `leader_repropose` re-proposes the
+Liveness needs it where safety does not: `leader_repropose` re-proposes the
 lock a timeout certificate carries **without** re-checking validity (the
 supplement's `Recover`), while `handle_preprepare` requires `valid e`, so
 the re-proposal is accepted only because the lock was valid all along. -/
 invariant [prepqc_valid]
   ∀ (V : view) (E : value), msg_prepqc V E → valid E
 
-/- A commit certificate is on a valid vector: an honest signer accepted it. -/
+/-- A commit certificate is on a valid vector: an honest signer accepted it. -/
 invariant [commitqc_valid]
   ∀ (V : view) (E : value), msg_commitqc V E → valid E
 
-/- Lifted `decide` guard: every honest decision is certificate-backed. -/
+/-- Lifted `decide` guard: every honest decision is certificate-backed. -/
 invariant [decided_backed]
   ∀ (I : node) (E : value),
     ¬ is_byz I → decided I E → ∃ V, msg_commitqc V E
 
 /-! ### `lem:timeout-closes-view` and the timeout's carried lock -/
 
-/- An honest timeout carries a held certificate … -/
+/-- An honest `Timeout` carries a certificate its sender holds. -/
 invariant [honest_timeout_qc_held]
   ∀ (R : node) (V W : view) (E : value),
     ¬ is_byz R → msg_timeout_qc R V W E → local_prepqc R W E
 
-/- **Timing out means the timer had expired.** Both timeout actions are
+/-- **Timing out means the timer had expired.** Both timeout actions are
 guarded on the marker, and nothing else sets `timed_out`.
 
 This is what lets the timing assumption be stated about `expire_timer` — the
 environment's action — rather than about the protocol's own outcome
-(`Mvba/Liveness.lean`, (A-viewsync)). -/
+([Mvba/Liveness.lean](Mvba/Liveness.lean), (A-viewsync)). -/
 invariant [timed_out_implies_timer]
   ∀ (R : node) (V : view),
     ¬ is_byz R → timed_out R V → timer_expired R V
 
-/- **Timing out means having sent a `Timeout`.** The converse of the two
-below, and the direction liveness needs: the timeout actions are reached
+/-- **Timing out means having sent a `Timeout`.** The converse of
+`honest_timeout_qc_timed_out` and `honest_timeout_noqc_timed_out`, and the
+direction liveness needs: the timeout actions are reached
 through the local `timedOut_i` flag, while the certificate assemblies read
 the *messages*.
 
@@ -1012,7 +1019,7 @@ invariant [timed_out_implies_message]
     ¬ is_byz R → timed_out R V →
       msg_timeout_noqc R V ∨ ∃ W E, msg_timeout_qc R V W E
 
-/- **A carried certificate is never of a view above the `Timeout` that
+/-- **A carried certificate is never of a view above the `Timeout` that
 carries it** (`line:mvba:derived`: one that is counts as no certificate at
 all). A Byzantine sender is held to it by `byz_timeout_qc`'s guard; an
 honest one gets it from `local_prepqc_within_entered` at its current view.
@@ -1024,19 +1031,22 @@ invariant [timeout_qc_view_le]
   ∀ (R : node) (V W : view) (E : value),
     msg_timeout_qc R V W E → vord.le W V
 
-/- … and records `timedOut_i` in a view the sender had entered. -/
+/-- An honest `Timeout` carrying a certificate records `timedOut_i` in its
+view. -/
 invariant [honest_timeout_qc_timed_out]
   ∀ (R : node) (V W : view) (E : value),
     ¬ is_byz R → msg_timeout_qc R V W E → timed_out R V
 
+/-- An honest `Timeout` carrying `⊥` records `timedOut_i` in its view. -/
 invariant [honest_timeout_noqc_timed_out]
   ∀ (R : node) (V : view),
     ¬ is_byz R → msg_timeout_noqc R V → timed_out R V
 
+/-- A validator times out only in a view it has entered. -/
 invariant [timed_out_entered]
   ∀ (R : node) (V : view), ¬ is_byz R → timed_out R V → entered R V
 
-/- `lem:commit-provenance` across views: an honest validator that
+/-- `lem:commit-provenance` across views: an honest validator that
 committed in `v` sends no later timeout without a lock — its timeouts at
 views `≥ v` carry a certificate of view `≥ v` (the `PrepQC_i` it held
 when committing never decreases, `rem:lock-monotonicity`). -/
@@ -1051,7 +1061,7 @@ invariant [commit_later_timeout_carries_lock]
 
 /-! ### `lem:lock-persistence`, in inductive form -/
 
-/- Every prepare certificate of view `w` blocks, in every view `v < w` and
+/-- Every prepare certificate of view `w` blocks, in every view `v < w` and
 for every value `e` other than its own, every supermajority from
 committing `e` in `v`: one correct member left `v` without a view-`≥ v`
 lock, or holds a view-`v` lock on another value (see the header). -/
@@ -1063,10 +1073,10 @@ invariant [prepqc_blocks_lower_commits]
 /-! ## Step properties
 
 Two-state facts, checked per action like an invariant
-(`docs/Architecture.md`; `CLAUDE.md`'s three sources for two-state facts,
-source (2)). One so far. -/
+([Architecture.md](../docs/Architecture.md); [CLAUDE.md](../CLAUDE.md)'s
+three sources for two-state facts, source (2)). -/
 
-/- **A newly entered view is view 1, or the successor of a view that already
+/-- **A newly entered view is view 1, or the successor of a view that already
 has a timeout certificate.** The three actions that grow `entered` are
 `propose`, which enters `vord.zero`, and the two `sync_view` variants, whose
 guards read `msg_tc pv` and `tc_lock pv w e` at the pre-state.
@@ -1077,7 +1087,7 @@ advanced" into "a certificate for the view below existed", and with
 `exists_honest_timed_out_of_tc` that becomes "a correct validator had timed
 out there" — the induction showing a run cannot climb past the honest-led
 view while no correct validator has decided
-(`Mvba/Liveness.lean`, `entered_le_of_no_timeout`). -/
+([Mvba/Liveness.lean](Mvba/Liveness.lean), `entered_le_of_no_timeout`). -/
 step_property [entered_needs_certificate] {
   ∀ (I : node) (V : view),
     ¬ is_byz I ∧ ¬ entered I V ∧ entered' I V →
@@ -1090,37 +1100,39 @@ runs. The invariant proofs live in the proof-file family, which sets the
 option itself (read at tactic runtime on the cross-file path). -/
 set_option veil.smt.trust false
 
-/- VC registry (`docs/Dependencies.md` §1): `#gen_spec` persists every
+/- VC registry ([Dependencies.md](../docs/Dependencies.md) §1): `#gen_spec` persists every
 VC's statement plus its action/property metadata into the olean. This is
 the model file's entire proof interface: the family's
 `#prove_action`/`#prove_vc` commands re-create the VCs from these
 statements. -/
 set_option veil.gen.vcRegistry true
 
-/- Proof cache (`docs/Dependencies.md` §2), for the `doesNotThrow`
+/- Proof cache ([Dependencies.md](../docs/Dependencies.md) §2), for the `doesNotThrow`
 dischargers here; the proof files enable it themselves. -/
 set_option veil.cache.proofs true
 
 /- The label-enumeration instances the trace queries below need
 (`ActionTag_EnumClass`) exceed the default instance-search budgets at this
-action count and parameter arity — the Conductor's lesson (`CLAUDE.md`). -/
+action count and parameter arity ([CLAUDE.md](../CLAUDE.md), "Hard rules",
+on `maxRecDepth`). -/
 set_option synthInstance.maxHeartbeats 2000000
 set_option synthInstance.maxSize 4096
 set_option maxRecDepth 8192
 
-/- The traces grew a step when the view timer became an explicit action, and
-a trace's cost is superlinear in its length: the longest is now thirteen
-steps and exceeds the default elaboration budget at `isDefEq`. -/
+-- A trace's cost is superlinear in its length, and the longest trace below
+-- exceeds the default elaboration budget at `isDefEq`.
 set_option maxHeartbeats 4000000
 
 #gen_spec
 
-/-! ## Non-vacuity witnesses (`docs/MvbaPlan.md` §4 item 1)
+/-! ## Non-vacuity witnesses ([MvbaPlan.md](../docs/MvbaPlan.md) §4 item 1)
 
 `sat` verdicts here are trusted, deliberately: a wrong model can only make
 a non-vacuity check vacuous, never a safety claim wrong
-(`docs/Architecture.md` §4 item 6). Traces come last in the file and no
-`set_option … in` follows a trace block (the parser rule in `CLAUDE.md`). -/
+([Architecture.md](../docs/Architecture.md) §4 item 6). -/
+
+-- Traces come last in the file: no `set_option … in` may follow a trace
+-- block ([CLAUDE.md](../CLAUDE.md), "Hard rules").
 
 -- A decision in view 1.
 sat trace {

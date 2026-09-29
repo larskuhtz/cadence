@@ -3,10 +3,10 @@ import Cadence.Chorus.Progress
 
 /-! # Chorus/Termination — the run-level proof of Chorus's termination claim
 
-[`docs/Liveness.md`](../../docs/Liveness.md) §4, stages 3–5, against the
-claim and premises stated in [`Liveness.lean`](./Liveness.lean). This file
-holds the proof; that one holds the statement, and nothing here adds a
-premise to it.
+[Liveness.md](../../docs/Liveness.md) §4, stages 3–5, against the
+claim and premises stated in [Liveness.lean](Liveness.lean). This file
+holds the proof, so far through stage 3; that one holds the statement, and
+nothing here adds a premise to it.
 
 ## Stage 3: the fast route, from (F-justice) alone
 
@@ -28,7 +28,7 @@ where `MvbaAdmissible` and `ValidBridge` enter.
 
 ## How it is built
 
-Three layers, the last two in the shape of `Mvba/Liveness.lean`'s first
+Three layers, the last two in the shape of [Mvba/Liveness.lean](../Mvba/Liveness.lean)'s first
 link:
 
 1. **Step facts** (section `Steps`) — per-action enabledness (the guards)
@@ -37,34 +37,35 @@ link:
    at which `msg_commit_cast i` / `msg_fallback_sig i` / `local_path i =
    fallback` holds is the correct validator's own honest action; and
    `msg_vote_pos_sig`, `msg_vote_neg_sig`, `local_entry_neg` are monotone —
-   the `<f>.mono` statements M13 emits for every other network relation,
-   proven here because M13 recognises only literal-`true` writes and
-   `vote` writes these as disjunctions with their old values. Each dispatch
+   the `<f>.mono` statements Veil generates for every other network
+   relation, proven here because the generator recognises only
+   literal-`true` writes and `vote` writes these as disjunctions with their
+   old values. Each dispatch
    is one `case` per action — the generated `frame_<field>` lemmas plus the
    actions that write the field — so a forgotten action is an unsolved
    goal.
 2. **Run-level chains** (section `RunFacts`) — generic in the quorum
    instance and the MVBA, with the finiteness they consume made explicit: a
    complete list of validators and an honest supermajority. Each link is
-   `Cadence.WeaklyFair` used in the only way `Fairness.lean` allows: a label
+   `Cadence.WeaklyFair` used in the only way [Fairness.lean](../Fairness.lean) allows: a label
    that stays enabled fires, so a proof shows the label stays enabled unless
    the disabling event is the progress wanted.
 3. **The concrete family** (section `Concrete`) — `Fin n`, `byzNodeSetFin`
    at every `n = 3f+1`, the MVBA constraint filled by `Mvba.mvbaSafety
-   thM`: the runs of `Liveness.lean`'s claim. The node list is `List.ofFn
+   thM`: the runs of [Liveness.lean](Liveness.lean)'s claim. The node list is `List.ofFn
    id` and the honest quorum is `honest_supermajority`'s.
 
 ## What it uses from the sweep, and what it does not
 
 One invariant: `voted_implies_cast`, to put a correct voter's vote on the
-network. The two facts `docs/Liveness.md` §4.4 flags as outside the sweep —
+network. The two facts [Liveness.md](../../docs/Liveness.md) §4.4 flags as outside the sweep —
 a correct validator's fast commit vote, resp. fallback vote, carries a
 signature per proposer — are **derived** here at run level from the
 first-flip step (`commit_cast_sigs`, `fallback_sig_sigs`), not added to
 the model. The commit route needs no invariant at all (see
-`eventually_committed_of_commitqcs`). No cell is added; the one model edit
-the stage made is `vote`'s updates written as monotone disjunctions
-(`docs/Liveness.md` §4.5). -/
+`eventually_committed_of_commitqcs`). No cell is added for any of this; the
+model's one accommodation is that `vote` writes its updates as monotone
+disjunctions ([Liveness.md](../../docs/Liveness.md) §4.5). -/
 
 namespace Chorus
 
@@ -139,7 +140,7 @@ local macro "frame_cases " htr:ident fld:ident hfr:ident "[" acts:ident,* "]" "=
 
 set_option maxHeartbeats 1000000 in
 /-- **The phase only moves forward**, one marker at a time: every action but
-the three `advance_to_*` frames it (M13's `frame_phase`), and each of those
+the three `advance_to_*` frames it (Veil's generated `frame_phase`), and each of those
 is enabled at exactly its own phase. -/
 theorem phase_step {l}
     (htr : (RTS).tr th s l s') :
@@ -277,9 +278,9 @@ theorem path_fallback_flip {l} {i : node}
 
 set_option maxHeartbeats 1000000 in
 /-- **`msg_vote_pos_sig` is monotone**, over every label and at every state
-— the statement M13 emits as `<f>.mono`, proven by the same dispatch: `vote`
+— the statement Veil generates as `<f>.mono`, proven by the same dispatch: `vote`
 writes it as a disjunction with its old value, `byz_sign_vote_pos` writes
-`true`, every other action frames it. M13 does not emit it itself because it
+`true`, every other action frames it. Veil does not generate it because it
 recognises only literal-`true` writes, and `vote`'s disjunct is computed. -/
 theorem msg_vote_pos_sig_mono {l} (htr : (RTS).tr th s l s') :
     ∀ (r j : node) (m : merkle_root), s.msg_vote_pos_sig r j m = true → s'.msg_vote_pos_sig r j m = true := by
@@ -539,7 +540,7 @@ end Steps
 
 /-! ## Run-level facts
 
-The two chains of `docs/Liveness.md` §4.4, over any labelled Chorus run.
+The two chains of [Liveness.md](../../docs/Liveness.md) §4.4, over any labelled Chorus run.
 The fairness hypothesis is `FJustice`'s body, `∀ l, JusticeLabel l →
 WeaklyFair r l`, so the concrete theorems below pass `FJustice r` through
 unchanged. The quorum instance and the MVBA are implicit arguments here
@@ -753,7 +754,7 @@ theorem eventually_quorum_cast (r : CRun th) (hfj : ∀ l, JusticeLabel l → We
       (fun m hm => Chorus.msg_vote_cast.mono (r.steps m) a hm) (hN a (hnodes a) ha) n hn⟩
 
 /-- **Every correct validator is eventually saturated.** The chain of
-`docs/Liveness.md` §4.4: the phase reaches an arm, `i` votes, an honest
+[Liveness.md](../../docs/Liveness.md) §4.4: the phase reaches an arm, `i` votes, an honest
 quorum's votes are on the network; then, unless `i` saturates, each
 proposer gets a fallback signature from `i` — `fb_sign_pos` once positive
 evidence appears (it is monotone, so the label stays enabled), `fb_sign_neg`
@@ -999,7 +1000,7 @@ end RunFacts
 
 /-! ## At the concrete quorum family, at the system's MVBA
 
-The runs of `Liveness.lean`'s claim, at the family the counting theorems are
+The runs of [Liveness.lean](Liveness.lean)'s claim, at the family the counting theorems are
 stated over: `Fin n` with `byzNodeSetFin` at every `n = 3f+1`. -/
 
 section Concrete
@@ -1022,8 +1023,8 @@ variable {slot merkle_root view Phase PathChoice : Type}
       (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice}
   {thM : Mvba.Theory (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view}
 
-/- Apply a generated `Chorus` declaration at the canonical `Classical`
-instantiation — `Progress.lean`'s `cpv%`, at the `Mvba` model's types and
+/-- Apply a generated `Chorus` declaration at the canonical `Classical`
+instantiation — [Progress.lean](Progress.lean)'s `cpv%`, at the `Mvba` model's types and
 with the MVBA constraint filled by `Mvba.mvbaSafety thM`. -/
 local macro "cpvm%" t:ident args:term:max* : term =>
   `(@$t
@@ -1142,8 +1143,8 @@ The standard Lean trio and nothing else — no `sorryAx`. The stage-3 theorems
 at the concrete family, their generic cores, the three hand-proven
 monotonicity lemmas, and the two run-level facts derived in place of new
 invariants. The reachability they use comes from the
-proof-file family through `Certify.lean`, and the dichotomy from
-`Progress.lean`, each pinned there. -/
+proof-file family through [Certify.lean](Certify.lean), and the dichotomy from
+[Progress.lean](Progress.lean), each pinned there. -/
 
 /--
 info: 'Chorus.msg_vote_pos_sig_mono' depends on axioms: [propext, Classical.choice, Quot.sound]

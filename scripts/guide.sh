@@ -21,9 +21,10 @@ cd "$(dirname "$0")/.."
 OUT="${1:-site/guide}"
 WORK=".lake/build/guide"
 
-if [ ! -d .lake/build/literate/json ]; then
-  echo "error: no literate JSON — run scripts/docs.sh first; the guide quotes" >&2
-  echo "       the models from what its rendering stage wrote" >&2
+if [ ! -d .lake/build/literate/json ] || [ ! -f .lake/build/literate/site-links.js ]; then
+  echo "error: no literate JSON or link table — run scripts/docs.sh first; the" >&2
+  echo "       guide quotes the models from what its rendering stage wrote, and" >&2
+  echo "       resolves its links through the table that stage generates" >&2
   exit 1
 fi
 
@@ -52,6 +53,21 @@ if [ ! -s "$OUT/index.html" ]; then
   echo "error: the guide produced no index.html in $OUT" >&2
   exit 1
 fi
+
+# The guide's own links, resolved in the page itself: they are written
+# relative to docs/guide/CadenceGuide.lean, and the link table
+# (scripts/site-links.sh, via scripts/docs.sh) says where each goes. A site
+# target is relative to the site root, which is `../` from here. Quotations
+# and embedded docstrings were written in other files; those links are
+# resolved in the browser (docs/site-comments.js).
+jq -r '.["docs/guide/CadenceGuide.lean"] // {} | to_entries[]
+       | "\(.key)\t\(.value | if startswith("sources/") then "../" + . else . end)"' \
+  .lake/build/literate/links.json > "$WORK/guide-links.tsv"
+awk -F'\t' 'NR == FNR { map["href=\"" $1 "\""] = "href=\"" $2 "\""; next }
+  { for (k in map) { while ((i = index($0, k)) > 0)
+      $0 = substr($0, 1, i - 1) map[k] substr($0, i + length(k)) }
+    print }' "$WORK/guide-links.tsv" "$OUT/index.html" > "$OUT/index.html.tmp"
+mv "$OUT/index.html.tmp" "$OUT/index.html"
 
 # The palette override (docs/guide/theme.css) is appended to Verso's own
 # variables file, so it wins without patching anything Verso generated.

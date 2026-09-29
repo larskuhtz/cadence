@@ -3,24 +3,19 @@ import Cadence.Mvba.Compose
 import Cadence.Fairness
 import Cadence.ViewOrder
 
-/-! # Mvba.Liveness — the run-level target, and the assumptions it rests on
+/-! # Mvba.Liveness — the run-level claim, the assumptions it rests on, and its proof
 
-[`docs/MvbaPlan.md`](../../docs/MvbaPlan.md) §3.4 and §3.5 step 4. This file
-states the bound-erased termination claim, every premise it takes, **and its
-proof**: `Mvba.termination : TerminationClaim th`.
+This file states the bound-erased termination claim, every premise it takes,
+**and its proof**: `Mvba.termination : TerminationClaim th`. The plan and its
+rationale are [MvbaPlan.md](../../docs/MvbaPlan.md) §3.3–§3.5.
 
-`TerminationClaim` is a `Prop`-valued *definition*, written down before any
-of the proof existed. That was the point of the ordering: the target and its
-premises were fixed, type-checked and citable in advance rather than
-accumulating as a proof went along, so nothing could quietly become a
-hypothesis because a proof turned out to need it. The list moved twice afterwards and both moves are recorded. A
-(F-timeout) premise was added when §3.2's two fairness classes turned out
-not to work, and removed again once the model carried a timer and the proof
-was seen never to use it. Validity of the callers' inputs went the other
-way: it is part of the contract with the consumer, so it is a guard of
+`TerminationClaim` is a `Prop`-valued *definition*, separate from the
+theorem that proves it, so that the target and its premises are stated,
+type-checked and citable on their own: nothing is a hypothesis because a
+proof happened to need it. Validity of the callers' inputs is not among the
+premises: it is part of the contract with the consumer, so it is a guard of
 `Mvba.propose` (the supplement's own precondition), and the contract's
-`MVBATemporal.termination` names it as a caller antecedent, rather than a
-premise here.
+`MVBATemporal.termination` names it as a caller antecedent.
 
 Everything a human has to believe is therefore a named `Prop` in this file,
 each with a docstring and each appearing as an explicit hypothesis of the
@@ -29,29 +24,23 @@ claim — never a side condition discovered by reading a proof.
 four label classes, the five premises, the target and the claim, and
 nothing else.
 
-## The fairness classification, and a correction to §3.2
+## The fairness classification
 
-`MvbaPlan.md` §3.2 fixed **two** scheduling classes: unfair for the `byz_*`
-family (F-byz), weakly fair for the honest actions (F-justice). Writing the
-run-level statement down shows that two is not enough, and that the natural
-reading of the pair is **inconsistent**.
+The scheduling classes are more than the two a first reading suggests —
+unfair for the `byz_*` family (F-byz), weakly fair for the honest actions
+(F-justice) — and the reason is the timeout. `timeout_qc` and
+`timeout_noqc` are honest actions; if their guards said nothing about time,
+a correct validator in a view would have one of them continuously enabled,
+weak fairness would force it to fire in *every* view including the good one,
+and any assumption that the good view survives its timeout would contradict
+that outright. A contradictory premise set makes a theorem vacuous, not hard.
 
-The reason is the timeout. `timeout_qc` and `timeout_noqc` are honest
-actions, so §3.2 puts them under (F-justice); but if their guards say
-nothing about time, a correct validator in a view has one of them
-continuously enabled, weak fairness forces it to fire in *every* view
-including the good one, and any assumption that the good view survives its
-timeout contradicts that outright. A contradictory premise set does not make
-a theorem hard to prove; it makes it vacuous, which is the one outcome worth
-engineering against.
-
-The fix was to put the timing back into the model, as little of it as the
-claim needs: `expire_timer i v` is an **abstract phase marker**, a clock with
-exactly one tick, from before the timeout to after it, and both timeout
-actions are guarded on it. With that the timeouts can be weakly fair like
-every other honest action; what they may no longer do is fire before the
-timer has run out. So there are more classes than §3.2's two, and the whole
-of the timing assumption sits on the timer's.
+So the model carries as little timing as the claim needs: `expire_timer i v`
+is an **abstract phase marker**, a clock with exactly one tick, from before
+the timeout to after it, and both timeout actions are guarded on it. The
+timeouts are then weakly fair like every other honest action; what they may
+not do is fire before the timer has run out, and the whole of the timing
+assumption sits on the timer's class.
 
 Each entry is a scheduling class, the labels in it, and what is assumed of
 them.
@@ -64,12 +53,8 @@ them.
 * **input** — `InputLabel`; nothing here — a premise of the claim, not
   fairness
 
-The availability class is the fifth and was for a while wrongly folded into
-the second. `become_avail_ready` is unguarded, so weak fairness on it
-proves (F-avail) outright — which made a premise of the claim redundant and,
-worse, made the premise list say that MVBA termination needs nothing of the
-availability layer. It does; the model just happens to discharge it in one
-unguarded line. `not_justice_of_avail` pins the separation.
+The availability class is separate from the weakly fair one on purpose:
+`AvailLabel` says why, and `not_justice_of_avail` pins the separation.
 
 **The timer is not weakly fair, and must not be.** Both halves of the
 supplement's timeout discipline are statements about *when* it may tick —
@@ -83,17 +68,15 @@ from the good view to avoid, and the argument is written out at
 `AViewSync`.
 
 **There is no premise saying views eventually close, and none saying
-validators reach the good view.** Both were once on the list. The first
-— (F-timeout) — was dropped when the timer arrived and the proof turned out
-not to use it. The second was (A-viewsync)'s entry clause, and it is now a
-**theorem** (`eventually_entered_good`): the longest argument in the file,
-and the reason [`ViewOrder.lean`](../ViewOrder.lean) exists.
+validators reach the good view.** Both are consequences: reaching the good
+view is the **theorem** `eventually_entered_good`, the longest argument in
+the file and the reason [ViewOrder.lean](../ViewOrder.lean) exists.
 
 The inputs `propose` and `abandon` are the *caller's*, not the scheduler's
-(`Mvba/Compose.lean`'s `Label.isInput`), so no fairness is assumed of them.
-That every correct validator proposes is `AllPropose`, a premise of the
-claim exactly as it is in `thm:termination` ("once every correct validator
-has invoked propose").
+(`Label.isInput` in [Compose.lean](Compose.lean)), so no fairness is
+assumed of them. That every correct validator proposes is `AllPropose`, a
+premise of the claim exactly as it is in `thm:termination` ("once every
+correct validator has invoked propose").
 
 ## What the claim does not mention
 
@@ -101,18 +84,20 @@ Finitely many validators (`Fintype node`), `ByzNodeSetHonestQuorum` and
 `ViewOrderEnum` are absent from the statement and appear as hypotheses of the
 *theorem*. That split is the point: finiteness (which supplies the quorum
 enumeration `ByzNodeSetEnum` the lemmas below take), a constructive quorum of correct validators
-([`ByzQuorum.lean`](../ByzQuorum.lean)) and a discrete, finitely-generated
-view order ([`ViewOrder.lean`](../ViewOrder.lean)) are what a **proof** needs
+([ByzQuorum.lean](../ByzQuorum.lean)) and a discrete, finitely-generated
+view order ([ViewOrder.lean](../ViewOrder.lean)) are what a **proof** needs
 to assemble certificates and to count, not part of what is being claimed.
 
 ## Open: non-vacuity of the premise set
 
-The classification above removes the one contradiction found so far, but
-"these five premises are jointly satisfiable" is not yet proven. It needs a
-run exhibited, which is step 4's work and beyond it; the model's `sat trace`
-blocks witness the protocol half (a decision is reachable) and no more.
-Until then the premise set is checked for consistency by argument, not by
-machine, and this paragraph is the record of that. -/
+"These five premises are jointly satisfiable" is not proven. It needs a run
+exhibited in which every correct validator proposes and the protocol runs to
+a decision; the model's `sat trace` blocks witness the protocol half (a
+decision is reachable) and no more. The premise set is checked for
+consistency by argument, not by machine: the timer's finiteness clause is
+scoped away from the good view precisely so that it and the good view's
+clause cannot conflict. [TODO.md](../../docs/TODO.md) § Liveness tracks the
+witness. -/
 
 namespace Mvba
 
@@ -146,21 +131,20 @@ def ByzLabel : Mvba.Label node nodeset value view → Prop
 /-- The timer label. Just `expire_timer`, the environment action that marks
 a validator's view timer as run out.
 
-The two `timeout_*` actions used to be here. They are ordinary honest
-actions again now that the model carries the marker: they are guarded on it,
-so they are not perpetually enabled, and weak fairness on them is sound —
-see the header. What carries no fairness hypothesis is the *marker*, because
+The two `timeout_*` actions are not here: they are guarded on the marker, so
+they are not perpetually enabled, and weak fairness on them is sound — see
+the header. What carries no fairness hypothesis is the *marker*, because
 when a timer expires is the one piece of timing an untimed model cannot
 derive. -/
 def TimerLabel : Mvba.Label node nodeset value view → Prop
   | .expire_timer .. => True
   | _ => False
 
-/-- The two contract inputs. This restates `Mvba/Compose.lean`'s
-`Label.isInput` rather than using it, and the reason is mechanical, not a
-disagreement about what an input is: since the label type reached
-twenty-five constructors that definition's `match` no longer reduces outside
-its own module, so `¬ Label.isInput (.decide …)` cannot be discharged here.
+/-- The two contract inputs. This restates `Label.isInput`
+([Compose.lean](Compose.lean)) rather than using it, and the reason is
+mechanical, not a disagreement about what an input is: at the label type's
+size that definition's `match` does not reduce outside its own module, so
+`¬ Label.isInput (.decide …)` cannot be discharged here.
 The two are tied together by `not_justice_of_input` below, through
 `Label.isInput_cases`, so a drift between them is caught rather than
 silent. -/
@@ -176,14 +160,13 @@ sub-protocol delivering `i`'s shares, and the supplement bounds when
 
 It has its own class for a reason worth stating, because the alternative
 looks tidier and is wrong. `become_avail_ready` is **unguarded**, so it is
-enabled at every state; leaving it inside `JusticeLabel` therefore made
-(F-avail) a *consequence* of (F-justice) rather than an assumption, and the
-premise list said MVBA termination needs nothing of the availability layer.
-That is false of the protocol and true only of the model, where availability
-is a one-line environment action. Splitting the class restores the
-dependency to the premise list, and weakens the premise set while it is at
-it: the old pair (justice over everything, plus (F-avail)) implies the new
-one and not conversely. -/
+enabled at every state; inside `JusticeLabel` it would make (F-avail) a
+*consequence* of (F-justice) rather than an assumption, and the premise list
+would say MVBA termination needs nothing of the availability layer. That is
+false of the protocol and true only of the model, where availability is a
+one-line environment action. The separate class keeps the dependency in the
+premise list, and is also the weaker premise set: justice over everything
+plus (F-avail) implies it, and not conversely. -/
 def AvailLabel : Mvba.Label node nodeset value view → Prop
   | .become_avail_ready .. => True
   | _ => False
@@ -205,8 +188,8 @@ theorem not_justice_of_timer (l : Mvba.Label node nodeset value view)
     (h : TimerLabel l) : ¬ JusticeLabel l := fun hj => hj.2.1 h
 
 /-- And the caller's inputs are not scheduled here either — stated against
-`Mvba/Compose.lean`'s `Label.isInput`, which is what ties `InputLabel` to the
-module's own notion of an input. -/
+`Label.isInput` ([Compose.lean](Compose.lean)), which is what ties
+`InputLabel` to the module's own notion of an input. -/
 theorem not_justice_of_input (l : Mvba.Label node nodeset value view)
     (h : Label.isInput l) : ¬ JusticeLabel l := by
   rcases Label.isInput_cases h with ⟨i, e, rfl⟩ | ⟨i, rfl⟩
@@ -214,8 +197,7 @@ theorem not_justice_of_input (l : Mvba.Label node nodeset value view)
   · exact fun hj => hj.2.2.1 trivial
 
 /-- And the availability layer's action is the environment's, so
-(F-justice) does not reach it either. This is the one that used to be
-missing. -/
+(F-justice) does not reach it either (`AvailLabel` says why that matters). -/
 theorem not_justice_of_avail (l : Mvba.Label node nodeset value view)
     (h : AvailLabel l) : ¬ JusticeLabel l := fun hj => hj.2.2.2 h
 
@@ -227,10 +209,7 @@ negation of the other three — so this is a classical case split and checks
 nothing about the action list. What does the checking is the two `match`
 definitions above, which are non-exhaustive matches over the model's own
 label type: adding an action and forgetting it lands it in `JusticeLabel`
-silently, and the guard against that is reading them, not this lemma.
-(A `cases l` proof used to stand here and verified no more; it stopped
-elaborating when the twenty-fifth action pushed `Label.isInput`'s match past
-the point where Lean generates its equation lemmas.) -/
+silently, and the guard against that is reading them, not this lemma. -/
 theorem label_classified (l : Mvba.Label node nodeset value view) :
     JusticeLabel l ∨ ByzLabel l ∨ TimerLabel l ∨ InputLabel l ∨ AvailLabel l := by
   classical
@@ -280,9 +259,9 @@ honest-led view `W`, above the first, such that
 Both are needed: without the first a Byzantine leader's view can stall
 forever, and without the second every view can be cut short. With them,
 `termination` reads *given enough time, the protocol decides*. The timed
-premises of `Cadence/Mvba/Schedule.lean` imply both clauses
-(`Mvba.aViewSync_of_sync`). `docs/Liveness.md` §2.1 has the short account,
-and the rest of this docstring the detail.
+premises of [Schedule.lean](Schedule.lean) imply both clauses
+(`Mvba.aViewSync_of_sync`). [Liveness.md](../../docs/Liveness.md) §2.1 has
+the short account, and the rest of this docstring the detail.
 
 The two clauses are the untimed form of the supplement's timeout discipline:
 the first is "every view's timeout is finite", the second "the good view's
@@ -291,11 +270,10 @@ environment's timer (`expire_timer`, the model's phase marker). The second
 does so relative to a protocol event, a commit certificate, because an
 untimed model has no duration to compare the timer against.
 
-**What is no longer here.** This premise used to also assert that every
-correct validator *enters* `W`, which is the strong, protocol-specific half:
-view synchronisation, assumed. It is now derived
-(`eventually_entered_good`), and what is left is a statement about when a
-timer may fire.
+**What is not here.** The premise does not assert that every correct
+validator *enters* `W` — view synchronisation, the strong, protocol-specific
+half. That is derived (`eventually_entered_good`), so what is assumed is only
+a statement about when a timer may fire.
 
 **Why the first clause stops below `W`.** In the timed protocol the two
 clauses are about one object: every view's timeout is finite, and `W`'s
@@ -366,14 +344,14 @@ def NoEarlyAbandon (r : MvbaRun th) : Prop :=
 
 /-- **Bound-erased termination**: every correct validator decides. The
 `O(fΔ)`-free skeleton of `thm:termination`, and the untimed sibling of
-`MVBATemporal.termination` (`Cadence/Interfaces.lean`), whose timed form
-is proven (`Mvba.mvbaTemporal`, `Cadence/Mvba/Temporal.lean`). -/
+`MVBATemporal.termination` ([Interfaces.lean](../Interfaces.lean)), whose
+timed form is proven (`Mvba.mvbaTemporal`, [Temporal.lean](Temporal.lean)). -/
 def Terminates (r : MvbaRun th) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ (n : Nat) (E : value), (r.at' n).decided i E = true
 
-/-- **The step-4 target, stated.** Not a theorem and not asserted anywhere:
-this is the `Prop` that §3.5 step 4 has to prove, written down so that its
-premises are fixed, type-checked and citable before the proof exists.
+/-- **The termination claim.** A `Prop`, proven below as `termination`;
+stated on its own so that its premises are fixed, type-checked and citable
+independently of the proof.
 
 The five premises are exactly the file's named definitions. Input validity
 is **not** among them, and deliberately: it is part of the contract between
@@ -399,13 +377,12 @@ eventually exists", and it is where the three mechanics the rest will reuse
 are worked out — how an action's enabledness is discharged from its guards,
 how a firing's effect is read off, and how (F-justice) is consumed.
 
-Nothing here needs an invariant. That is itself information for §3.5 step 3:
-this link adds nothing to the sweep, and the cells will be bought by the
-links that cannot say the same. -/
+Nothing here needs an invariant: this link costs the model no verification
+condition. -/
 
-/-- Expose an action's transition body in `h` — `Mvba/Compose.lean`'s
-`mvba_tr`, repeated here rather than exported because it is a two-line local
-tactic and the two files have no other reason to depend on each other. -/
+/-- Expose an action's transition body in `h` — the `mvba_tr` of
+[Compose.lean](Compose.lean), repeated here rather than exported because it
+is a two-line local tactic. -/
 local macro "mvba_tr" h:ident : tactic =>
   `(tactic| (simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct] at $h:ident
              simp only [trSimp] at $h:ident))
@@ -456,8 +433,7 @@ abandoned before deciding, and for which *some* commit certificate exists at
 
 Only (F-justice) is used: no timer assumption, no view synchronisation, no
 quorum machinery. `decide` accepts a certificate of any view, so the leader
-schedule plays no part either — which is why this link is the one that can
-be proven before the others exist. -/
+schedule plays no part either. -/
 theorem eventually_decided_of_commitqc
     (r : MvbaRun th) (hfj : FJustice r) (hna : NoEarlyAbandon r)
     {i : node} (hi : ¬ nset.is_byz i = true)
@@ -487,14 +463,14 @@ theorem eventually_decided_of_commitqc
 /-! ## The link before it, and the first use of the rank
 
 `form_commitqc` is the assembly that produces the certificate the last link
-consumes. Its guard is exactly the second summand of `Rank.lean`'s
-`assemblyGap` reaching zero — so the two compose into a statement with no
+consumes. Its guard is exactly the second summand of `assemblyGap`
+([Rank.lean](Rank.lean)) reaching zero — so the two compose into a statement with no
 mention of certificates at all: **if the commit dimension of the rank ever
 bottoms out on a supermajority, every correct participating validator
 decides.**
 
 That is the rank being *used*, not merely defined, and it is the shape every
-remaining link will have: a residual reaches zero, an assembly becomes
+later link has: a residual reaches zero, an assembly becomes
 enabled, weak fairness fires it, and the next residual is one step closer.
 Like the last link, neither of these needs an invariant. -/
 
@@ -540,12 +516,12 @@ theorem eventually_commitqc_of_commit_quorum
 
 /-- **The rank's commit dimension bottoming out entails termination for one
 validator.** The composition of the two links above with
-`Rank.lean`'s `commit_quorum_of_assemblyGap_zero`: no certificate is
-mentioned, only the residual.
+`commit_quorum_of_assemblyGap_zero` ([Rank.lean](Rank.lean)): no certificate
+is mentioned, only the residual.
 
 `enum` appears because `assemblyGap` is defined over an enumerated quorum —
-the proof-side requirement of [`ByzQuorum.lean`](../ByzQuorum.lean), carried
-as a visible hypothesis exactly as intended. -/
+the proof-side requirement of [ByzQuorum.lean](../ByzQuorum.lean), carried
+as a visible hypothesis. -/
 theorem eventually_decided_of_assemblyGap_zero
     (r : MvbaRun th) (hfj : FJustice r) (hna : NoEarlyAbandon r)
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
@@ -563,8 +539,8 @@ theorem eventually_decided_of_assemblyGap_zero
 
 /-! ## The link before *that*: a validator sends its `Commit`
 
-Here the shape changes, and the change is the whole content of §3.1(a).
-Every guard of the two links above was monotone, so "enabled once" meant
+Here the shape changes, and the change is the whole content of
+[MvbaPlan.md](../../docs/MvbaPlan.md) §3.1(a). Every guard of the two links above was monotone, so "enabled once" meant
 "enabled ever after" and weak fairness applied directly. `send_commit` has
 three guards that are **anti-monotone** — `in_view i v`, `¬ timed_out i v`,
 `¬ commit_sent i v` — and each has to be handled differently:
@@ -573,22 +549,19 @@ three guards that are **anti-monotone** — `in_view i v`, `¬ timed_out i v`,
   (A-viewsync) exists to discharge for the good view, and they cannot be
   proven here because a validator may legitimately sync past a view.
 * `¬ commit_sent i v` is **not** assumed, because it is the one whose
-  falsification is the goal. Keeping it analysable is what the two new
-  invariants in the model are for: if the guard dies, the validator has
+  falsification is the goal. Keeping it analysable is what two of the
+  model's invariants are for: if the guard dies, the validator has
   already sent the `Commit` this link was waiting for, so the conclusion
   holds anyway. That is `commit_sent_backed`, and
   `commit_sent_implies_voted` is what makes it inductive — a validator that
   has sent its `Commit` in `v` cannot accept a different vector in `v`,
-  because both `Pre-Prepare` handlers require `∀ W, voted i W → W < v`.
-
-Those two invariants are the first cells §3.5 step 3 buys, and they were
-found by writing this proof rather than guessed. -/
+  because both `Pre-Prepare` handlers require `∀ W, voted i W → W < v`. -/
 
 /-- `i` is **settled in view `v` from `N` on**: at every index from `N` it is
 in view `v`, has not timed out there, and has not been abandoned.
 
 These are exactly the anti-monotone guards the honest per-validator actions
-of a view share — `Progress.lean`'s table of §3.1(a) — so the links take one
+of a view share — the table in [Progress.lean](Progress.lean) — so the links take one
 named hypothesis rather than three unnamed ones, and discharging it for the
 good view is precisely what (A-viewsync) and `NoEarlyAbandon` are for. -/
 def SettledIn (r : MvbaRun th) (i : node) (v : view) (N : Nat) : Prop :=
@@ -673,8 +646,8 @@ of them again covered by `SettledIn`. The third is the lock-view bound
 assumed, because its failure is the goal — but the argument that its failure
 *is* the goal takes three of the model's invariants rather than one:
 
-* `local_prepqc_within_entered` (new, and the third cell liveness buys) pins
-  the offending certificate's view to at most `v`;
+* `local_prepqc_within_entered` pins the offending certificate's view to at
+  most `v`;
 * the guard's failure gives "not below `v`", so the view is `v` exactly;
 * `local_prepqc_backed` sends it to `msg_prepqc v E`, and `prepqc_unique`
   — all prepare certificates of a view are on one vector — identifies `E`
@@ -994,7 +967,7 @@ different kind of step: weak fairness gives each member's message
 eventually, at its own index, and the assembly guard needs one index where
 all of them have arrived.
 
-`Fairness.lean`'s `eventually_forall` is that step, and it is where
+`eventually_forall` ([Fairness.lean](../Fairness.lean)) is that step, and it is where
 finiteness is finally consumed: monotone predicates over a **finite list**
 collapse a family of eventualities into one. `ByzNodeSetEnum` supplies the
 list, and `ByzNodeSetHonestQuorum` supplies a quorum whose members are all
@@ -1105,17 +1078,11 @@ decided by the previous view's timeout certificate, as the protocol decides
 it: with a lock, `leader_repropose` re-offers the locked vector; without one,
 `leader_propose_fresh` offers the leader's own input.
 
-**What this link deliberately does not claim.** It gives a proposal, not a
-*valid* one. For a re-proposal validity is a theorem — `prepqc_valid` on the
-lock the certificate carries — but for a fresh proposal it is not available
-at all: `leader_propose_fresh` requires `input l e` and nothing more, and
-`propose` does not check validity either, the model's header being explicit
-that "`Valid B_i` is the caller's obligation". So an honest leader really can
-propose an invalid vector, no correct validator will accept it
-(`handle_preprepare` requires `valid e`), and its view is wasted. That is a
-genuine premise of `thm:termination` rather than a gap here, and it belongs
-with the other caller premises (`AllPropose`, `NoEarlyAbandon`) when the
-composition needs it. -/
+**What this link does not claim.** It gives a proposal, not a *valid* one;
+that the proposal is one the handlers accept is a separate fact about honest
+leaders, `honest_preprepare_valid` — `propose` requires `valid e`, so a
+leader's own input is valid, and a re-proposal carries a certified vector —
+which the assembly (`terminates_of_good_view_no_timeout`) applies. -/
 
 /-- **`leader_repropose`'s guards are its enabledness.** -/
 theorem enabled_leader_repropose {l : node} {pv v w : view} {e : value}
@@ -1392,8 +1359,8 @@ because a validator only ever times out in a view it has entered
 induction hypothesis.
 
 Note what this does *not* assume: nothing about how many views there are,
-and no ranking. It is a plain induction on the run index. `Rank.lean`'s view
-component measures *progress toward* the good view; this says the run cannot
+and no ranking. It is a plain induction on the run index. The view component
+of the rank ([Rank.lean](Rank.lean)) measures *progress toward* the good view; this says the run cannot
 overshoot it, which is the other half and the one (A-viewsync) is for. -/
 
 /-- The initializer enters no view. -/
@@ -1406,12 +1373,8 @@ theorem init_not_entered
   mvba_effect
 
 /-- **The good view is not overshot.** If no correct validator ever times
-out in `W`, none is ever in a view above it.
-
-The hypothesis used to be "no correct validator ever decides"; weakening
-(A-viewsync) to speak of certificates moved that condition into the caller,
-and this induction turned out not to need it at all — only that the good
-view is never abandoned. -/
+out in `W`, none is ever in a view above it. Nothing about decisions is
+needed: only that no correct validator times out of the good view. -/
 theorem entered_le_of_no_timeout
     (r : MvbaRun th) {W : view}
     (hvs : ∀ i n, ¬ nset.is_byz i = true → (r.at' n).timed_out i W = true → False) :
@@ -1455,18 +1418,17 @@ because it is the whole role of (A-viewsync):
 
 * `¬ abandoned` — from `NoEarlyAbandon`, a caller premise;
 * `¬ timed_out i W` — from (A-viewsync)'s second clause. The lemma takes
-  that already reduced to "no correct validator times out in `W`", because
-  which form the premise has is the caller's business: with the certificate
-  form it is the first link that closes the gap, and stating it this way
-  keeps the two independent;
+  that already reduced to "no correct validator times out in `W`"; the
+  reduction from the certificate form is the caller's
+  (`terminates_of_good_view`), which keeps the two independent;
 * `InView i W` — the hard one, and the only one needing a run-level
   argument. `entered i W` is monotone, so it holds ever after; that *no
   higher view* is entered is `entered_le_of_no_timeout`.
 
 All three are conditioned on the same thing: that no correct validator ever
-decides. That is not a limitation but the shape of the eventual proof — the
-run-level theorem splits on exactly that, and in the other branch there is a
-decision already and nothing to settle. -/
+decides. That is the shape of the proof — the run-level theorem splits on
+exactly that, and in the other branch there is a decision already and
+nothing to settle. -/
 
 /-- **`SettledIn` from (A-viewsync), while nobody has decided.** -/
 theorem settledIn_of_no_decision
@@ -1513,12 +1475,12 @@ theorem exists_settled_quorum_of_no_decision
 
 /-! ## Entering a view is evidence that the one below was closed
 
-`terminates_of_good_view` below asked for a timeout certificate under the
-good view. It turns out not to need one as a *hypothesis*: (A-viewsync)
-already says every correct validator enters the good view, and entering a
-view above the first is only possible through `sync_view` or
-`sync_view_adopt`, whose guards read that certificate at the pre-state. So
-the certificate is a **consequence** of the entry, not a further assumption.
+`terminates_of_good_view` below needs a timeout certificate under the good
+view, but not as a *hypothesis*: every correct validator enters the good
+view (`eventually_entered_good`), and entering a view above the first is
+only possible through `sync_view` or `sync_view_adopt`, whose guards read
+that certificate at the pre-state. So the certificate is a **consequence**
+of the entry, not a further assumption.
 
 The argument needs the first moment the view was entered — `entered` is
 monotone and empty initially, so a least index exists — and there the step
@@ -1791,17 +1753,16 @@ theorem eventually_timed_out_of_timer
 
 /-! ## Closing a view
 
-The half of the climb that was still open. `eventually_entered_above_of_tc`
-advances a validator once a certificate exists; this produces one.
+The other half of the climb. `eventually_entered_above_of_tc` advances a
+validator once a certificate exists; this produces one.
 
 The obstacle is `form_tc_lock`, whose guard names the member carrying the
 **highest** certificate — a maximum, where every other assembly in this file
-needed only a conjunction. It looked at first as though the maximum might
-not exist, since `byz_timeout_qc` lets a Byzantine member carry unboundedly
-many certificates and the monotone relations record no bound. That was
-wrong, and the reason is worth stating because it is what makes the whole
-step cheap: the guard asks each member for *some* carried certificate below
-the chosen one, so it is enough to pick **one per member** and maximise over
+needs only a conjunction. `byz_timeout_qc` lets a Byzantine member carry
+unboundedly many certificates and the monotone relations record no bound,
+so a maximum over all carried certificates need not exist. It is not
+needed: the guard asks each member for *some* carried certificate below the
+chosen one, so it is enough to pick **one per member** and maximise over
 those. The list of members is finite by `ByzNodeSetEnum`; nothing else needs
 to be.
 
@@ -1870,7 +1831,7 @@ theorem form_tc_lock_effect {v : view} {q : nodeset} {r₀ : node} {w : view} {e
 
 /-- **A view all of whose quorum members have timed out gets closed.** The
 two assemblies together: whichever of them the timeouts allow, weak fairness
-fires it. This is the missing half of the climb — `eventually_entered_above_of_tc`
+fires it. This is one half of the climb — `eventually_entered_above_of_tc`
 supplies the other. -/
 theorem eventually_tc_of_timed_out_quorum
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
@@ -1944,7 +1905,7 @@ covering list — and it is also why nobody can *skip* the good view on the
 way past.
 
 **What the view order has to supply** is
-[`ViewOrder.lean`](../ViewOrder.lean): successors exist, and the views below
+[ViewOrder.lean](../ViewOrder.lean): successors exist, and the views below
 one are finitely many. Neither is in `TotalOrderWithMinimum`. The first is
 not a proof convenience — `sync_view` is guarded on `vord.next pv v`, so a
 view with nothing directly above it is a view no validator can leave. -/
@@ -2151,8 +2112,8 @@ theorem eventually_tc_below_good
       (fun n => (r.at' n).msg_tc PV = true) hstep 0
   exact ⟨n, hn⟩
 
-/-- **Every correct validator enters the good view.** What (A-viewsync) used
-to assume, in one step from the certificate below it: a validator that has
+/-- **Every correct validator enters the good view**, in one step from the
+certificate below it: a validator that has
 proposed advances past `PV`, and it cannot advance further than `W`, because
 that would need a correct validator to have timed out there. -/
 theorem eventually_entered_good
@@ -2360,12 +2321,8 @@ theorem terminates_of_good_view
 
 /-! ## The claim, proven
 
-`TerminationClaim` was written down before any of its proof existed, so that
-its premises were fixed in advance rather than discovered. Here it is
-discharged.
-
-Everything it needs is above, and what this adds is only the unpacking —
-which is now literal, every clause of (A-viewsync) going straight to the
+Everything `TerminationClaim` needs is above, and what this adds is only the
+unpacking — which is literal, every clause of (A-viewsync) going straight to the
 argument of the same name. The three hypotheses the claim does not mention
 are finitely many validators, the honest-quorum class and the view order's.
 Finiteness is what the proof consumes as the quorum enumeration
@@ -2381,8 +2338,7 @@ theorem termination [Fintype node]
     r hfj hav hna hap hlead hl hnext hftimer hnto
 
 /-- A decided validator stays decided, so `Terminates` is equivalent to the
-`Eventually` form of the run vocabulary — the shape a future
-`response [termination] … ↝ …` would generate. -/
+`Eventually` form of the run vocabulary. -/
 theorem terminates_iff_eventually (r : MvbaRun th) :
     Terminates r ↔ ∀ i, ¬ nset.is_byz i = true →
       r.Eventually (fun st => ∃ E, st.decided i E = true) := by
@@ -2400,8 +2356,8 @@ end Mvba
 
 /-! ## The pinned trust base
 
-Definitions and five facts about the label classification; the target itself
-is a definition, so nothing here asserts termination. -/
+The termination theorem, the links and lemmas it is assembled from, and the
+label classification: the standard trio or less, no `sorryAx`. -/
 
 /--
 info: 'Mvba.label_classified' depends on axioms: [propext, Classical.choice, Quot.sound]

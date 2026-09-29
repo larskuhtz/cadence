@@ -37,8 +37,8 @@ function view(tree) {
 }
 
 let failures = 0;
-function check(input, block, expected) {
-  const tree = parse(input, block);
+function check(input, block, expected, resolveHref) {
+  const tree = parse(input, block, resolveHref);
   const got = tree ? view(tree) : null;
   if (got !== expected) {
     failures++;
@@ -76,10 +76,14 @@ check(" _under_ stays", false, null);
 // Line breaks: only a code span in a block comment may cross one.
 check(" *open\nclose* no", true, null);
 check(" `code\nacross` block", true, " <c>code\nacross</c> block");
-// Links: absolute http(s) targets only.
+// Links: absolute http(s) targets, and relative ones the link table resolves.
 check(" [`Cadence.lean`](./Cadence.lean)", false, " [<c>Cadence.lean</c>](./Cadence.lean)");
 check(" [paper](https://arxiv.org/abs/2607.02275) link", false,
   " <a https://arxiv.org/abs/2607.02275>paper</a> link");
+const table = (href) => ({ "Interfaces.lean": "https://site/sources/Cadence/Interfaces/" })[href] || null;
+check(" see [Interfaces.lean](Interfaces.lean) §3", false,
+  " see <a https://site/sources/Cadence/Interfaces/>Interfaces.lean</a> §3", table);
+check(" see [Gone.lean](Gone.lean)", false, null, table);
 // Layout: a comment in columns is left alone; code spans and two spaces
 // after a full stop do not count as columns.
 check(" a | b | c with `x`", false, null);

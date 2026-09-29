@@ -2,11 +2,11 @@
 
 *(The per-model design rationale. The top-level architecture document — with
 the methods, the trust bases and the meta-assumption inventory — is
-[`Architecture.md`](./Architecture.md); the entry point for the repository is
-[`README.md`](../README.md).)*
+[Architecture.md](Architecture.md); the entry point for the repository is
+[README.md](../README.md).)*
 
 This document explains the modelling choices in
-[`Cadence/Chorus.lean`](../Cadence/Chorus.lean) and [`Cadence/Primitives.lean`](../Cadence/Primitives.lean):
+[Cadence/Chorus.lean](../Cadence/Chorus.lean) and [Cadence/Primitives.lean](../Cadence/Primitives.lean):
 what is in scope, what is abstracted, and what limitations the chosen
 abstractions impose on the kind of properties that can be proven.
 
@@ -14,7 +14,7 @@ abstractions impose on the kind of properties that can be proven.
 
 Chorus is the inner *per-slot one-shot* BFT consensus layer of Cadence. The
 reference is the Cadence paper, `arXiv:2607.02275v2`; the root
-[`README.md`](../README.md) gives the citation and how to resolve the label
+[README.md](../README.md) gives the citation and how to resolve the label
 names used below. With the source unpacked at `papers/cadence`, the Chorus
 chapter is `src/p2_chorus.tex`, with pseudocode in `src/alg_proposer.tex`,
 `src/alg_voting.tex`, `src/alg_fast.tex`, `src/alg_fallback.tex`,
@@ -65,7 +65,7 @@ already captured at the signature level: a positive vote/commit entry
 for `(s, j, m)` is *only* produced by an honest validator that recorded
 *some* chunk under root `m`, and the proposer signature ties `m` to a
 unique payload via injectivity of the hash (cf.
-[`Cadence/Primitives.lean`](../Cadence/Primitives.lean) `HashFunction` and `MerkleTree`).
+[Cadence/Primitives.lean](../Cadence/Primitives.lean) `HashFunction` and `MerkleTree`).
 
 ## 3. Network model
 
@@ -121,7 +121,7 @@ literal `true`, except `vote`'s bulk updates of `msg_vote_pos_sig`,
 relation's old value (`msg_vote_pos_sig i J M := msg_vote_pos_sig i J M ||
 (…)`). Veil's generated `<f>.mono` lemmas cover the literal-`true` writes
 only, so those three are proven by hand, with the same statement, in
-[`Cadence/Chorus/Termination.lean`](../Cadence/Chorus/Termination.lean)
+[Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)
 (`Chorus.msg_vote_pos_sig_mono` and its two siblings).
 
 `phase` is a 4-valued enum (`pre_deadline → post_deadline →
@@ -213,7 +213,7 @@ safety in an asynchronous network" will silently no longer hold.
 
 Therefore the following is a **contract**, not a documentation aid:
 
-> Actions in `Cadence/Chorus.lean` must consult the **network relations**
+> Actions in [Cadence/Chorus.lean](../Cadence/Chorus.lean) must consult the **network relations**
 > listed in §3.1 only in positive position, both in preconditions and
 > in update right-hand sides — with two documented exception
 > categories: (i) `fb_sign_neg`'s witnessed-quorum guard, whose
@@ -229,7 +229,7 @@ Therefore the following is a **contract**, not a documentation aid:
 > of one's own local state are sound.
 
 (The hand audit's third carve-out — `cast_fb_commit`'s frozen
-decided-vector read, listed alongside these two in `Architecture.md`
+decided-vector read, listed alongside these two in [Architecture.md](Architecture.md)
 §4 item 1 — consults *oracle* state, not a network relation, so it
 sits outside this contract's scope; §3.1 documents it.)
 
@@ -242,7 +242,7 @@ guard consults — and `fb_sign_neg` deviates knowingly: a larger
 pre-state can disable the action for a given `qv` exactly as more
 received votes can in the real protocol. When adding or modifying an
 action, audit it against this contract. A future improvement (tracked
-in [`TODO.md`](./TODO.md) § Soundness and as §9 item 3 below) is an
+in [TODO.md](TODO.md) § Soundness and as §9 item 3 below) is an
 automated syntactic check — one that *classifies* every occurrence
 (positive / self-row / documented exception) rather than merely
 rejects, so that reads like the seven above are reported and
@@ -333,10 +333,10 @@ establish, and prove the protocol consequence asynchronously:
 * **The Conductor layer** — Chorus is one slot. Pipelining via the
   Conductor and the `participate()`/`abandon()` interface through which
   Cadence drives slot instances are out of scope *of this module*; they
-  are modelled separately in [`Cadence/Conductor.lean`](../Cadence/Conductor.lean) and
-  [`Cadence/Cadence.lean`](../Cadence/Cadence.lean) against the module contracts of
-  [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) (see
-  [`ConductorDesign.md`](./ConductorDesign.md) and those files' headers).
+  are modelled separately in [Cadence/Conductor.lean](../Cadence/Conductor.lean) and
+  [Cadence/Cadence.lean](../Cadence/Cadence.lean) against the module contracts of
+  [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) (see
+  [ConductorDesign.md](ConductorDesign.md) and those files' headers).
 * **`FastBlock` dissemination/adoption** (`alg:fast-path-certification`,
   FastBlock handler) — the paper broadcasts a formed fast meta-block so
   peers can adopt `Ev(pid) ← B(pid)` without re-aggregating. In the
@@ -376,7 +376,7 @@ establish, and prove the protocol consequence asynchronously:
 
 ## 3.5 State locality contract
 
-Every state item in [`Cadence/Chorus.lean`](../Cadence/Chorus.lean) falls into one of
+Every state item in [Cadence/Chorus.lean](../Cadence/Chorus.lean) falls into one of
 four categories. The category determines what it **stands for** in the
 real protocol and what part of the soundness argument lifts it back to
 the asynchronous-network world.
@@ -398,7 +398,7 @@ exist. Naming convention: `msg_*`.
 | `msg_commit_pos_sig r j m`, `msg_commit_neg_sig r j` | per-proposer signature inside the `CommitVote` (`alg:fast-path-certification`). |
 | `msg_commit_cast r` | `r` has broadcast its `CommitVote` (`line:fast-commitvote`). Only broadcast commit signatures count toward a commitQC. |
 | `msg_decrypt_share r` | the extraction share released with `r`'s `Vote`. |
-| `msg_fbcommit_sig r` | `r`'s `FallbackCommitVote` broadcast (`line:fb-commitvote`). The entry vector it signs is implicit — an honest vote is over the MVBA-decided entries, unique by the MVBA contract's agreement (§6.4); see the relation's comment in `Cadence/Chorus.lean` for why this over-approximates only the adversary. |
+| `msg_fbcommit_sig r` | `r`'s `FallbackCommitVote` broadcast (`line:fb-commitvote`). The entry vector it signs is implicit — an honest vote is over the MVBA-decided entries, unique by the MVBA contract's agreement (§6.4); see the relation's comment in [Cadence/Chorus.lean](../Cadence/Chorus.lean) for why this over-approximates only the adversary. |
 
 The contract from §3.1.1 applies to all of these.
 
@@ -514,7 +514,7 @@ has `f+1` chunks delivered for the committed root — the counterpart of
 
 ## 4. Cryptographic primitives
 
-[`Cadence/Primitives.lean`](../Cadence/Primitives.lean) declares type classes that state
+[Cadence/Primitives.lean](../Cadence/Primitives.lean) declares type classes that state
 the *signatures and properties* of each cryptographic primitive Chorus
 depends on (hash, signature, threshold IBE, erasure coding, Merkle
 tree, MVBA). The Veil module does **not** instantiate them directly;
@@ -551,30 +551,30 @@ deadline vote.
 
 Chorus consumes the MVBA (`mod:mvba`, `p2_mvba.tex`) exactly as the glue
 consumes the slot consensus and the Conductor the ACS
-([`CompositionContracts.md`](./CompositionContracts.md) §3): the
+([CompositionContracts.md](CompositionContracts.md) §3): the
 state-level contract `MVBASafety` of
-[`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) is a **class
+[Cadence/Interfaces.lean](../Cadence/Interfaces.lean) is a **class
 constraint** — `instantiate mvba : MVBASafety node mvalue mmsg mstate (fun
 i => nset.is_byz i = true)` — over an abstract state `mvba_st : mstate` the
 module holds, and Veil hands every axiom of the class to the solver, so
 agreement, integrity, external validity, the monotonicity of `decided` and
 the frames are *used* in the verification conditions and restated nowhere.
 The instance is the verified leader-based model
-[`Cadence/Mvba.lean`](../Cadence/Mvba.lean) through `Mvba.mvbaSafety`
-([`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean)), plugged in
-by [`Cadence/System.lean`](../Cadence/System.lean); both are stated against
+[Cadence/Mvba.lean](../Cadence/Mvba.lean) through `Mvba.mvbaSafety`
+([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)), plugged in
+by [Cadence/System.lean](../Cadence/System.lean); both are stated against
 the same `nset.is_byz`, so no fault-model transport is needed between them.
 
 **The value is the entry vector.** `mod:mvba` decides a meta-block; the
 supplement proves agreement at the entries level, and Chorus works per
 proposer, so the class is instantiated at `value := node → Option
-merkle_root` (`MvbaPlan.md` §1.2). A Veil module needs a first-order sort
+merkle_root` ([MvbaPlan.md](MvbaPlan.md) §1.2). A Veil module needs a first-order sort
 for it, so `mvalue` is opaque and read through two immutable projections
 `mval_pos v j m` / `mval_neg v j`, with two `assumption`s — functional in
-the root, and exclusive — that `System.lean` discharges at `v j = some m` /
+the root, and exclusive — that [System.lean](../Cadence/System.lean) discharges at `v j = some m` /
 `v j = none ∧ is_proposer j` (the one genuine hypothesis among Chorus's assumptions is then
 `[mvba_init]`, that the abstract state Chorus starts from is an initial
-state of the instance; `System.lean`, `chorusTheory_assumptions`).
+state of the instance; [System.lean](../Cadence/System.lean), `chorusTheory_assumptions`).
 
 **The actions.** `mvba_step` is the oracle step — any internal transition
 `MVBASafety.step` allows, including the ones that output `decide(B)` at
@@ -604,7 +604,7 @@ a FastQC-shaped entry needs a `2f+1` vote quorum; a fallback-shaped entry
 meta-blocks may carry such entries and every valid fallback meta-block
 includes `FBCert` (§`subsection:fallback_path`). This is the interpretation
 of the class's `Valid` in Chorus's vocabulary, and it is a **bridge, not a
-restatement** (`MvbaPlan.md` §1.1): `Valid` is a class parameter fixed
+restatement** ([MvbaPlan.md](MvbaPlan.md) §1.1): `Valid` is a class parameter fixed
 before the module's state exists, so it cannot mention Chorus's network
 relations, while the paper's `Valid B` checks the certificates the
 meta-block *carries* — publicly verifiable objects every receiver can
@@ -621,7 +621,7 @@ carries, so a gate referring to honest validators' aggregated FastQCs would
 not be implementable. None is needed — with commitQC-based finalization the
 paper's own asynchronous agreement argument goes through (§6). The bridge is
 stated in three places and nowhere else: the two handlers in
-`Cadence/Chorus.lean`, and — as the same disjunction — the validity guards
+[Cadence/Chorus.lean](../Cadence/Chorus.lean), and — as the same disjunction — the validity guards
 of `mvba_propose`, where it is the caller's obligation rather than the
 receiver's check.
 
@@ -632,8 +632,8 @@ through two **tie invariants** (`mvba_decided_pos_tied`,
 `mvba_decided_neg_tied`: every record is the projection of some correct
 validator's decision) and the two `mval_*` assumptions. This is how
 `Mvba.mvbaSafety` enters Chorus's trust base: the decision handlers assert no
-agreement property of their own. `spikes/09_mvba_consumer_ok.lean` and
-`10_mvba_consumer_no_tie.lean` are the shape experiment and its negative
+agreement property of their own. [spikes/09_mvba_consumer_ok.lean](../spikes/09_mvba_consumer_ok.lean) and
+[10_mvba_consumer_no_tie.lean](../spikes/10_mvba_consumer_no_tie.lean) are the shape experiment and its negative
 control; without the ties, uniqueness fails at exactly the handlers.
 
 **Two invocation triggers.** The paper invokes MVBA under two triggers
@@ -698,11 +698,11 @@ grows monotonically — unobservable by honest invariants.
 
 Veil's `ByzNodeSet` class provides the first two facts below; the other
 three are Cadence's own class `Cadence.ByzNodeSetCounting`
-([`Cadence/QuorumCounting.lean`](../Cadence/QuorumCounting.lean)), which
+([Cadence/QuorumCounting.lean](../Cadence/QuorumCounting.lean)), which
 Chorus consumes with `instantiate cnt`, so its fields are solver
 hypotheses exactly like `ByzNodeSet`'s. Both are proven for the concrete
 `byzNodeSetFin` (`n = 3f+1`) and `byzNodeSetFinGen` (`n ≥ 3f+1`) families,
-the counting class in [`Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean):
+the counting class in [Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean):
 
 * `supermajorities_intersect_in_honest` — two supermajorities share an
   honest member (`2(2f+1) − (3f+1) = f+1 > f`).
@@ -728,7 +728,7 @@ invariants work around it via `no_equivocation`.
 
 ## 6. Invariants
 
-Grouped by purpose. See `Cadence/Chorus.lean` for the statements; this is a map.
+Grouped by purpose. See [Cadence/Chorus.lean](../Cadence/Chorus.lean) for the statements; this is a map.
 
 ### 6.1 Safety properties
 
@@ -869,7 +869,7 @@ and `mvba_decided_pos_proposer_signed` (filed under §6.4). Together
 with `mvba_decided_pos_chunks_decodable` and `mvba_decided_is_proposer`
 these are the backing and fair-progress content of the commit round —
 see the "Commit-round epilogue" in §7 and the invariant block's header
-comment in `Cadence/Chorus.lean`.
+comment in [Cadence/Chorus.lean](../Cadence/Chorus.lean).
 
 ## 7. Liveness
 
@@ -883,10 +883,10 @@ three named assumptions contribute only *temporal* content — finitely
 many instances of the single rule "*a continuously enabled fair action
 eventually fires*", plus the MVBA primitive's own termination. The
 model-side encoding is the "Liveness" section of
-[`Cadence/Chorus.lean`](../Cadence/Chorus.lean); the theorems live in
-[`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean),
-[`Cadence/Chorus/Counting.lean`](../Cadence/Chorus/Counting.lean) and
-[`Cadence/Chorus/Pigeonhole.lean`](../Cadence/Chorus/Pigeonhole.lean).
+[Cadence/Chorus.lean](../Cadence/Chorus.lean); the theorems live in
+[Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean),
+[Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean) and
+[Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean).
 
 **The chain** — how theorems and temporal steps alternate:
 
@@ -920,12 +920,12 @@ model-side encoding is the "Liveness" section of
    instance then decides at every correct validator ((A-mvba) — the class
    field `MVBATemporal.termination` at `Mvba.mvbaSafety`, proven as
    `Mvba.mvbaTemporal`; consuming it here is the Chorus liveness leg's
-   stage 4, `docs/Liveness.md` §4.6),
+   stage 4, [docs/Liveness.md](Liveness.md) §4.6),
    and the handlers and `mvba_terminate` record the decision
    (`mvba_complete`). The handlers' one enabledness leg the class does
    not give is the bridge's completeness direction — a decided entry's
    certificate is on the network, which is what "publicly verifiable"
-   means and what the liveness step has to name (`MvbaPlan.md` §3).
+   means and what the liveness step has to name ([MvbaPlan.md](MvbaPlan.md) §3).
 5. *(theorem + temporal.)* The fallback commit round
    (`line:fb-mvba-decide`–`line:fb-finalize`) carries decisions to
    finalization: once `mvba_complete` holds, `redisseminate_chunk` is
@@ -956,11 +956,11 @@ model-side encoding is the "Liveness" section of
   eventually decides every proposer and terminates. It stands in for
   `mod:mvba`'s `ℓ_MVBA`-Termination; the probability-1 termination of
   the randomised primitive is a paper-level argument
-  ([`Liveness.md`](./Liveness.md)). Both of `ℓ_MVBA`-Termination's
+  ([Liveness.md](Liveness.md)). Both of `ℓ_MVBA`-Termination's
   protocol-side premises are covered: (i) *all correct validators
   propose* is chain step 4 (the per-validator implementation refinement
   of the build step is the receipt layer — §7.2,
-  [`Architecture.md`](./Architecture.md) §5); (ii) *no correct
+  [Architecture.md](Architecture.md) §5); (ii) *no correct
   validator abandons before the bound* is moot in this single-slot
   model (no `abandon()`), discharged within Cadence by Conductor
   totality (`cor:chorus-correctness-within-cadence`).
@@ -1014,7 +1014,7 @@ Everything state-level — enabledness, counting, certificate formation,
 the case analysis — is theorems, so the assumptions above are consumed
 at exactly the seams the chain names and nowhere else. Internalising
 the temporal layer itself is the liveness-to-safety extension designed
-in the Veil fork ([`Liveness.md`](./Liveness.md) §3 points to it).
+in the Veil fork ([Liveness.md](Liveness.md) §3 points to it).
 Safety properties are unaffected by all of this: they hold in every
 reachable state regardless of scheduling.
 
@@ -1088,8 +1088,8 @@ carries both changes below.
   conflicting positive entries, else a FallbackQC from `f+1` matching
   entries. The counting argument (if neither of the first two cases
   applies, the `2f+1` bare entries span at most two values — one root
-  and `⊥` — so one value has `f+1` matching copies) is now inline in
-  the paper (§`subsection:fallback_path`, meta-block paragraph) and
+  and `⊥` — so one value has `f+1` matching copies) is inline in
+  the v2 paper (§`subsection:fallback_path`, meta-block paragraph) and
   spelled out in the `M+3Δ` step of `prop:chorus-finalization-time`.
 
 Against v2 the counterexample above is dead — the EquivCert-carrying
@@ -1104,10 +1104,10 @@ EquivCerts without counting them, leaving the counting hole open; it is the
 restriction at `line:fb-accept` that closes it.
 
 **Mechanised:**
-[`Cadence/FallbackReceipt/PreFix.lean`](../Cadence/FallbackReceipt/PreFix.lean)
+[Cadence/FallbackReceipt/PreFix.lean](../Cadence/FallbackReceipt/PreFix.lean)
 reproduces the counterexample above mechanically (a model-checker
 violation at `n = 4, f = 1` whose trace is exactly this scenario), and
-[`Cadence/FallbackReceipt.lean`](../Cadence/FallbackReceipt.lean) verifies the
+[Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) verifies the
 v2 design ("valid by construction" by SMT for all `n`; the per-validator
 counting argument exhaustively at `n = 4, f = 1`).
 
@@ -1151,7 +1151,7 @@ f+1 accepted positive votes pin f+1 *distinct* chunks.
   `msg_decrypt_share` and the `slot_key_released` ghost capture the
   share-release discipline; `hiding_until_deadline` is the protocol
   half of hiding, `ThresholdIBE` in
-  [`Cadence/Primitives.lean`](../Cadence/Primitives.lean) the cryptographic half.
+  [Cadence/Primitives.lean](../Cadence/Primitives.lean) the cryptographic half.
 
 * **EquivCert is the pair of proposer signatures.** `equiv_evidence j`
   holds iff the proposer signed two distinct roots — the content of
@@ -1166,7 +1166,7 @@ f+1 accepted positive votes pin f+1 *distinct* chunks.
   sender's own signed entry — exactly this model's
   `msg_fb_pos_sig`/`msg_fb_neg_sig` vocabulary — and EquivCerts /
   FallbackQCs exist only as objects assembled at propose time from the
-  signed entries in `M_i`, i.e. the paper itself now treats these
+  signed entries in `M_i`, i.e. the v2 paper itself treats these
   certificates as derived from network-visible signatures, which is
   precisely the ghost-relation view here.
 
@@ -1194,20 +1194,20 @@ f+1 accepted positive votes pin f+1 *distinct* chunks.
 ## 9. What is left for the next iteration
 
 These are places the model could go further. Nothing here is a gap in what
-the development *claims* — see [`TODO.md`](./TODO.md) for the cross-cutting
+the development *claims* — see [TODO.md](TODO.md) for the cross-cutting
 list, and §§10.1–10.3 below for the bigger lifts.
 
-1. Instantiate the abstract classes of `Cadence/Primitives.lean` (for
+1. Instantiate the abstract classes of [Cadence/Primitives.lean](../Cadence/Primitives.lean) (for
    instance an example model instantiation of the whole module) to
    demonstrate satisfiability of the axioms end-to-end. `ThresholdIBE` is the
    one primitive class still without a model instance; the `MVBA` contract,
-   which lives in `Cadence/Interfaces.lean`, has `Mvba.mvbaSafety` /
-   `Mvba.mvba_of_temporal` ([`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean)),
+   which lives in [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), has `Mvba.mvbaSafety` /
+   `Mvba.mvba_of_temporal` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)),
    consumed by Chorus (§4).
 
 2. Move the explicit `is_proposer` immutable relation to a derivation
    from a VRF-output relation, once a `VRF` primitive class exists in
-   `Cadence/Primitives.lean`. Epochs and proposer rotation stay out of
+   [Cadence/Primitives.lean](../Cadence/Primitives.lean). Epochs and proposer rotation stay out of
    scope (outside the papers' consensus-layer treatment).
 
 3. An automated syntactic audit of the §3.1.1 positive-position
@@ -1218,8 +1218,8 @@ list, and §§10.1–10.3 below for the bigger lifts.
 4. An in-build reachability witness (`sat trace`) for Chorus. Blocked
    twice over today (the disabled model-check scaffolding; `decide` in
    `vote`'s bulk update); until a refactor clears both, the non-vacuity
-   witness is the monitor fixture run in CI — [`TODO.md`](./TODO.md)
-   § Soundness has the full record, [`Monitor.md`](./Monitor.md) the
+   witness is the monitor fixture run in CI — [TODO.md](TODO.md)
+   § Soundness has the full record, [Monitor.md](Monitor.md) the
    mechanism.
 
 ## 10. Bigger lifts — what would need new machinery
@@ -1229,7 +1229,7 @@ list, and §§10.1–10.3 below for the bigger lifts.
 The async-soundness argument in §3.2–§3.3 is a **meta-level claim**: it
 depends on the (M-update)+(M-frame) contract of §3.1.1, which Veil does not
 enforce. Making the simulation a theorem in the system would remove the
-largest item of [`Architecture.md`](./Architecture.md) §4. Two routes:
+largest item of [Architecture.md](Architecture.md) §4. Two routes:
 
 **(a) Model the network explicitly.** Introduce a per-recipient
 delivery relation `delivered_to i σ` and precondition every consuming
@@ -1260,7 +1260,7 @@ See §7.1: the one thing not encoded is the temporal rule itself. The
 designed extension — ω-acceptance annotations on actions, discharged
 via a liveness-to-safety (L2S) reduction reusing the existing
 safety-VC machinery — is Veil work and lives in the fork
-([`Liveness.md`](./Liveness.md) §3 points to it). Out of scope even
+([Liveness.md](Liveness.md) §3 points to it). Out of scope even
 then: real-time / GST-style bounded delivery, and probabilistic
 termination (axiomatise the randomised primitive, discharge the
 probability argument on paper — the (A-mvba) treatment).

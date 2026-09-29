@@ -22,9 +22,6 @@ matches, so the SMT cost is exactly the cost of the targeted VCs.
 These commands rely on Veil's `VCMetadata.induction` carrying both
 `.action` and `.property` fields (see
 `Veil/Frontend/DSL/Infra/Metadata.lean`).
-
-Eventually it would be nice to upstream these to Veil itself — the
-implementations are tiny and orthogonal to the rest of the framework.
 -/
 
 namespace Veil

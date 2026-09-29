@@ -117,8 +117,8 @@ History: [docs/History.md](./docs/History.md).
 ## Build
 
 * Always build from the **project root**.
-* `lake build` verifies everything. But it schedules all 76 per-action proof
-  files at once and a *cold* proof file peaks ~5 GB (lake has no job cap):
+* `lake build` verifies everything. But it schedules every per-action proof
+  file at once and a *cold* proof file peaks ~5 GB (lake has no job cap):
   on <64 GB use `scripts/revalidate.sh`, which stages the same targets.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
   only, ~2 min), `Cadence.Chorus.Proofs.Vote` (one action's ~98 cells, ~16 s
@@ -209,7 +209,11 @@ History: [docs/History.md](./docs/History.md).
 * Editor: set `VEIL_NO_VERIFY=1` in the *editor's* environment (VS Code
   `lean4.serverEnv`) — never in your shell profile, since `lake build` must
   still verify. Skipped commands emit `⏭ skipped (veil.noVerify)`, so "no
-  errors" in that mode never means "verified".
+  errors" in that mode never means "verified". The same mode is the quick
+  check that a comment-only edit still parses (`VEIL_NO_VERIFY=1
+  scripts/scratch.sh <file>`) — except in `FallbackReceipt/PreFix.lean` and
+  `Mvba/NoLock.lean`, whose `#guard_msgs` pins expect a `#model_check`
+  counterexample and so always fail when the check is skipped.
 
 ### Expected warnings
 
@@ -282,10 +286,14 @@ measurements and the audit ladder:
 
 ## Hard rules (each has bitten before)
 
-* **No doc comments on Veil declarations.** `/-- … -/` before `safety`,
-  `invariant`, `action` makes the parser expect `lemma` and fail. Use plain
-  block comments `/- … -/`. (And mind that `-/` inside prose closes a block
-  comment — "pre-/post-state".)
+* **A doc comment goes directly in front of what it documents.** Every
+  Veil command that declares something takes one (`type`, `relation`,
+  `action`, `safety`, `invariant`, `step_property`, `instantiate`, …; the
+  Veil fork's `VeilTest/DocComments.lean` is the list). In front of a
+  `set_option … in` it is an error — write it after the `in` — and so is one
+  in front of a command that declares nothing (`#gen_spec`,
+  `open_isolate`). Block comments nest, so `/-` or `-/` inside prose opens
+  or closes one ("pre-/post-state").
 * **The monotone-network contract is not enforced by the tool.** Network
   relations (`msg_*`) may be consulted in **positive position only**.
   Violations do not fail the build — they silently void the async-safety
@@ -316,6 +324,10 @@ measurements and the audit ladder:
   the `synthInstance.*` raises: without it the pre-simplification of the large
   invariant clump fails — as a *warning*, not an error — and every VC
   re-simplifies the clump, degrading the sweep from minutes to hours.
+  Two related limits: a file-level `set_option maxHeartbeats` does not reach
+  `#gen_state`'s elaboration, and a `set_option … in` wrapped around a Veil
+  command breaks the module state ("already declared" on the next command),
+  so raise these options file-level, before the command that needs them.
 * **Universal indices in bulk assignments are single capital letters.** A
   multi-letter capitalised name is not recognised and fails with "unknown
   identifier". If the letter also names a declaration in scope (Mathlib's `W`,
@@ -480,8 +492,26 @@ is a change to what this project *claims*, not a refactor.
 * [docs/History.md](./docs/History.md) is a historical ledger and says so at
   the top. When something in it becomes false, mark it superseded rather than
   quietly editing history.
-* Relative links in `docs/` and in Lean doc comments are repo-root-relative
-  paths in backticks; keep them checkable (a broken link is a small lie).
+* **A reference to a file is a Markdown link relative to the file it is
+  written in** — GitHub's convention: `[Interfaces.lean](Interfaces.lean)`
+  from `Cadence/`, `[ChorusDesign.md](../docs/ChorusDesign.md) §3.1.1`, in
+  Lean comments of every kind, in `docs/` and in the guide alike. Never a
+  path in backticks, never an absolute URL into this repository. GitHub
+  resolves these links natively; `scripts/docs.sh` resolves them for the
+  site — a Lean file to its rendered page, anything else to the repository
+  at the commit being rendered — and **fails on a link whose target does not
+  exist** (a broken link is a small lie). `scripts/site-links.sh check` runs
+  that check over the whole repository in a second.
+* **Three layers of comment in a Lean file, by reader.** `/-! … -/` is
+  prose for the reader of the file — the header, and a section's heading
+  with anything that frames several declarations. `/-- … -/` says what one
+  declaration is and means, directly in front of it; for a Veil model this
+  is where a relation's, an action's or a property's explanation goes (the
+  site shows it with the declaration, the editor on hover). `--` and
+  `/- … -/` are notes for whoever edits the code — why an option is set,
+  what a proof step relies on — kept short, and pointing here or into the
+  skill for a pitfall rather than retelling it. None of the three carries
+  history: how the code came to be goes in [docs/History.md](./docs/History.md).
 * **Every repeated fact has one home.** A count or measurement lives in its
   canonical place — a machine-checked pin where one exists (`#veil_status`,
   `#guard_msgs`), else the tables in

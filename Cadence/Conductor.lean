@@ -3,11 +3,12 @@ import Cadence.Interfaces
 import Cadence.Windows
 import Cadence.Tooling
 
-/-! # Conductor — the window-based orchestrator (`algorithm:conductor`)
+-- Opening this file in a Lean-enabled editor re-runs its verification sweep
+-- in the language server (~1 min, one SMT solve per VC). Prefer
+-- `lake build Cadence.Conductor`; see [README.md](../README.md),
+-- "Working on the models".
 
-*Note: opening this file in a Lean-enabled editor re-runs its verification
-sweep in the language server (~1 min, one SMT solve per VC). Prefer
-`lake build Cadence.Conductor`; see `README.md` § "Working on the models".*
+/-! # Conductor — the window-based orchestrator (`algorithm:conductor`)
 
 Veil model of the Conductor, the orchestrator instantiation of the Cadence
 extreme-pipelining framework. Reference:
@@ -17,15 +18,15 @@ paper proves. The rendered overview (`p1_informal.tex`
 `§section:conductor-overview`) uses the same ACS + median mechanism; its
 one deliberate difference — agreeing on the first slot's *deadline* rather
 than on the first *slot* over read-only deadlines — is the deadline↔slot
-equivalence of `docs/ConductorDesign.md` §1. (The source tree's
-`p2_conductor*.tex` deadline-MVBA files are unrendered drafts, not the
-paper — see that section's source-tree note.) Design: `docs/ConductorDesign.md`
-§3; contracts: [`Interfaces.lean`](./Interfaces.lean) — this module
-*implements* `Orchestrator` (its state-level fragment is proven in
-[`Composition.lean`](./Composition.lean), `Conductor.orchestratorSafety`)
-and *consumes* `ACS` as a class constraint (`instantiate acs : ACSSafety …`
-below, one abstract instance state per window); support theory:
-[`Windows.lean`](./Windows.lean).
+equivalence of [ConductorDesign.md](../docs/ConductorDesign.md) §1. (The
+source tree's `p2_conductor*.tex` deadline-MVBA files are unrendered drafts,
+not the paper — see that section's source-tree note.) Design:
+[ConductorDesign.md](../docs/ConductorDesign.md) §3; contracts:
+[Interfaces.lean](Interfaces.lean) — this module *implements* `Orchestrator`
+(its state-level fragment is proven in [Composition.lean](Composition.lean),
+`Conductor.orchestratorSafety`) and *consumes* `ACS` as a class constraint
+(`instantiate acs : ACSSafety …` below, one abstract instance state per
+window); support theory: [Windows.lean](Windows.lean).
 
 ## Protocol summary (`algorithm:conductor`)
 
@@ -41,7 +42,7 @@ window's first slot is the **median** of the decided proposals
 its `W` slots (`line:open-foreach`), each opening at its starting time
 (`line:conductor-wait-for-open`).
 
-## What is modelled vs. meta (per `docs/ConductorDesign.md` §3)
+## What is modelled vs. meta (per [ConductorDesign.md](../docs/ConductorDesign.md) §3)
 
 SMT-checked here (the safety-shaped content):
 * window-entry order (`lemma:window-entry`) — `[entered_prefix]`;
@@ -71,11 +72,11 @@ Meta (documented; genuinely temporal — see the Liveness section):
   `(2Wτ)`-recovery — the paper's per-window induction;
 * the four parameter assumptions (`line:assumption-one..four`);
 * `ℓ`-termination / `Δ`-totality of ACS — **(A-acs-termination)** /
-  **(A-acs-totality)** (`Interfaces.lean` `ACS.termination`, `ACS.totality`
-  — the upper level of the contract this module's `acs` constraint is the
-  state-level fragment of);
+  **(A-acs-totality)** ([Interfaces.lean](Interfaces.lean) `ACS.termination`,
+  `ACS.totality` — the upper level of the contract this module's `acs`
+  constraint is the state-level fragment of);
 * window width `= W` and every cardinality statement (interval
-  formulations replace them, per plan §3).
+  formulations replace them).
 
 ## The eager `opened_i` variable vs. the `open(s)` output
 
@@ -117,39 +118,39 @@ opening may stay unfired while the clock advances. Two consequences:
 ## Adversary
 
 Conductor has **no Byzantine message surface beyond ACS**
-(`docs/ConductorDesign.md` §3): its only inputs are local `completed(s)`
-callbacks and ACS decisions. Byzantine influence enters as (i) Byzantine
-validators' own ACS proposals — internal steps of the ACS instance
-(`acs_step`), which the contract leaves unconstrained for Byzantine
+([ConductorDesign.md](../docs/ConductorDesign.md) §3): its only inputs are
+local `completed(s)` callbacks and ACS decisions. Byzantine influence enters
+as (i) Byzantine validators' own ACS proposals — internal steps of the ACS
+instance (`acs_step`), which the contract leaves unconstrained for Byzantine
 validators — and (ii) up to `f` Byzantine pairs inside the decided core
 set, captured by the median-range `require` of `acs_decide` (a *correct*
 pair of the decided set bracketing the median from below, as an explicit
 witness), justified by the quantitative half of ACS validity through the
-median lemma (`Windows.lean` `lowerMedian_between_correct`). No quorum
-machinery and no `ByzNodeSet` are needed; the fault pattern is the
+median lemma ([Windows.lean](Windows.lean) `lowerMedian_between_correct`).
+No quorum machinery and no `ByzNodeSet` are needed; the fault pattern is the
 `FaultModel` the ACS contract is stated against, otherwise unconstrained,
 and the resilience arithmetic (`n = 3f + 1`, `≤ f` faulty pairs in a
 `2f+1`-sized core set) lives in the ACS contract's quantitative validity
 (`ACS.validity_quantitative`, upper level) and the median lemma's
 hypotheses.
 
-## Obligation discharge map (→ `Interfaces.lean` `Orchestrator`)
+## Obligation discharge map (→ [Interfaces.lean](Interfaces.lean) `Orchestrator`)
 
 The machine-checked half of this table is `Conductor.orchestratorSafety`
-([`Composition.lean`](./Composition.lean)); the rest is
+([Composition.lean](Composition.lean)); the rest is
 `OrchestratorTemporal` there, the same rows as the fields of a class this
 development supplies no instance of.
 
 Each entry is a contract item and what discharges it.
 
 * **`open_prefix_agreement`** — `safety [open_prefix_agreement]`
-* **Integrity "at most once" (`opened_mono`)** — `opened` is only ever set,
-  proven action by action from the transition bodies
+* **Integrity "at most once" (`opened_mono`)** — `opened` is only ever set
+  (the generated lemma `Conductor.opened.mono`)
 * **Integrity "not before starting time" (`integrity_timing`)** — `safety
   [opened_after_start]` (+ synchronized-clocks assumption); first-order, so it
   is a field of the *fragment*
-* **Monotonicity (`monotonicity`)** — `[open_local_order]` + the `open_slot`
-  guard
+* **Monotonicity (`monotonicity`)** — `step_property [monotonicity]`, from
+  `[open_local_order]` and the `open_slot` guard
 * **the observables' frames (`completed_step_frame`, `complete_frame`,
   `complete_effect`)** — the transition bodies: only `complete_slot` touches
   `completed`, and only its own pair
@@ -163,17 +164,19 @@ veil module Conductor
 
 /-! ## Types -/
 
--- Slot identifiers with a total order, a least slot (the paper's slot 1),
--- and a derived successor. No `+W` arithmetic (plan §3, ingredient 1).
+/-- Slot identifiers with a total order, a least slot (the paper's slot 1),
+and a derived successor. No `+W` arithmetic
+([ConductorDesign.md](../docs/ConductorDesign.md) §3, "Modelling ingredients
+beyond Chorus's", item 1). -/
 type slot
--- Window indices (the paper's `ω ∈ ℕ≥1`): least window = window 1,
--- `next` = the `ω + 1` of `line:window-increment`.
+/-- Window indices (the paper's `ω ∈ ℕ≥1`): least window = window 1,
+`next` = the `ω + 1` of `line:window-increment`. -/
 type window
--- Abstract clock values.
+/-- Abstract clock values. -/
 type time
--- Validator identity.
+/-- Validator identity. -/
 type node
--- The abstract state of an ACS instance `ACS[w]` (one per window).
+/-- The abstract state of an ACS instance `ACS[w]` (one per window). -/
 type acsstate
 
 instantiate slot_ord : TotalOrderWithMinimum slot
@@ -183,7 +186,7 @@ instantiate time_ord : TotalOrder time
 /-! ## The contracts
 
 The fault pattern, and the ACS as the state-level fragment of its contract
-([`Interfaces.lean`](./Interfaces.lean) `ACSSafety`): one abstract state per
+([Interfaces.lean](Interfaces.lean) `ACSSafety`): one abstract state per
 window, advanced by the oracle step `acs_step` and by this module's own
 `propose` inputs, read through the contract's observables. Every axiom of the
 class is available to the solver in every verification condition below; the
@@ -194,93 +197,99 @@ instantiate acs : ACSSafety node slot acsstate fm.byz
 
 /-! ## Immutable configuration -/
 
--- The slot's starting time `s.deadline − Δ` (`line:conductor-wait-for-open`).
+/-- The slot's starting time `s.deadline − Δ` (`line:conductor-wait-for-open`). -/
 immutable function start_time : slot → time
--- Window 1's interval is `[slot 1, genesis_last]` with readiness boundary
--- `genesis_boundary` (the paper's slots `p` and `W` of window 1,
--- `line:startup-last`). Later windows' bounds are ACS-decided state.
+/-- Window 1's readiness boundary: the paper's slot `p` of window 1
+(`line:startup-last`). Later windows' bounds are ACS-decided state. -/
 immutable individual genesis_boundary : slot
+/-- Window 1's last slot: its interval is `[slot 1, genesis_last]`, the
+paper's slot `W` (`line:startup-last`). -/
 immutable individual genesis_last : slot
--- Initial clock value.
+/-- Initial clock value. -/
 immutable individual genesis_time : time
--- The ACS instances' initial states: per-execution data, constrained below
--- to be initial states of the contract.
+/-- The ACS instances' initial states: per-execution data, constrained below
+to be initial states of the contract. -/
 immutable function acs_init_state : window → acsstate
 
 /-! ## Mutable state -/
 
--- The abstract global clock (synchronized clocks are a protocol
--- assumption — `algorithm:conductor` preamble "recall that validators'
--- clocks are synchronized").
+/-- The abstract global clock (synchronized clocks are a protocol
+assumption — `algorithm:conductor` preamble "recall that validators'
+clocks are synchronized"). -/
 individual now : time
 
--- (A) The ACS instances' states, per window `ACS[w]` (`line:acs-instances`).
--- Honest proposals are this module's `propose` inputs (`acs_propose`);
--- Byzantine proposals and the decision itself are the instance's own
--- internal steps (`acs_step`), constrained only by the contract.
+/-! ### (A) The ACS instances -/
+
+/-- The ACS instances' states, per window `ACS[w]` (`line:acs-instances`).
+Honest proposals are this module's `propose` inputs (`acs_propose`);
+Byzantine proposals and the decision itself are the instance's own
+internal steps (`acs_step`), constrained only by the contract. -/
 function acs_state (w : window) : acsstate
--- The decided window interval: first slot (the extracted median,
--- `line:median-compute`), readiness-boundary slot (the window's `p`-th
--- slot) and last slot (`line:last-update`). Computed from the decided set
--- (`acs_decide`), global because ACS agreement makes every correct
--- validator compute the same interval. Unique per window.
+/-- The decided window interval: first slot (the extracted median,
+`line:median-compute`), readiness-boundary slot (the window's `p`-th
+slot) and last slot (`line:last-update`). Computed from the decided set
+(`acs_decide`), global because ACS agreement makes every correct
+validator compute the same interval. Unique per window. -/
 relation acs_decided (w : window) (first : slot) (boundary : slot) (last : slot)
 
--- (L) Per-validator local state. (The paper's `proposed_i` set,
--- `line:proposed-update`, is the ACS state's own record of `i`'s input —
--- `acs.proposed (acs_state w) i s` — and needs no local copy.)
--- `i` has entered window `w` (`line:enter_window_1`, `line:enter_window_omega`).
+/-! ### (L) Per-validator local state
+
+The paper's `proposed_i` set (`line:proposed-update`) is the ACS state's own
+record of `i`'s input — `acs.proposed (acs_state w) i s` — and needs no local
+copy. -/
+
+/-- `i` has entered window `w` (`line:enter_window_1`, `line:enter_window_omega`). -/
 relation entered (i : node) (w : window)
--- The `open(s)` *output* has fired at `i` (`line:trigger-open`).
+/-- The `open(s)` *output* has fired at `i` (`line:trigger-open`). -/
 relation opened (i : node) (s : slot)
--- ... recording the window it was scheduled under (proof bookkeeping).
+/-- The window `i` opened `s` under (proof bookkeeping). -/
 relation opened_win (i : node) (s : slot) (w : window)
--- `i` has received the `completed(s)` input (`line:upon-completed`;
--- within Cadence: `i` finalized `S[s]`).
+/-- `i` has received the `completed(s)` input (`line:upon-completed`;
+within Cadence: `i` finalized `S[s]`). -/
 relation completed (i : node) (s : slot)
 
 #gen_state
 
--- The ACS instances start in initial states of their contract.
+/-- The ACS instances start in initial states of their contract. -/
 assumption [acs_init]
   ∀ (w : window), acs.init (acs_init_state w)
--- Window 1's interval is well-formed: `slot 1 ≤ boundary ≤ last`
--- (the `p`-th and `W`-th slots of `[1, W]`).
+/-- Window 1's interval is well-formed: `slot 1 ≤ boundary ≤ last`
+(the `p`-th and `W`-th slots of `[1, W]`). -/
 assumption [genesis_shape]
   slot_ord.le slot_ord.zero genesis_boundary ∧
   slot_ord.le genesis_boundary genesis_last
--- Starting times are monotone in slot order (`τ`-spaced deadlines,
--- `subsection:mcp-preliminaries`). Not consumed by any invariant below —
--- recorded for model faithfulness (it constrains reachability traces).
+/-- Starting times are monotone in slot order (`τ`-spaced deadlines,
+`subsection:mcp-preliminaries`). Not consumed by any invariant below —
+recorded for model faithfulness (it constrains reachability traces). -/
 assumption [start_time_mono]
   ∀ (s s' : slot), slot_ord.lt s s' →
     time_ord.le (start_time s) (start_time s')
 
 /-! ## Derived state -/
 
--- The bounds of window `w`: window 1's are immutable configuration,
--- later windows' are the ACS decision (`acs_decide` requires
--- `w ≠ zero`, so the disjuncts are exclusive).
+/-- The bounds of window `w`: window 1's are immutable configuration,
+later windows' are the ACS decision (`acs_decide` requires
+`w ≠ zero`, so the disjuncts are exclusive). -/
 ghost relation win_bounds (w : window) (f : slot) (b : slot) (l : slot) :=
   (w = win_ord.zero ∧ f = slot_ord.zero ∧ b = genesis_boundary ∧ l = genesis_last) ∨
   acs_decided w f b l
 
--- The paper's eager `opened_i` variable (`line:startup-opened-update`,
--- `line:acs-opened-update`): the union of the entered windows' intervals.
+/-- The paper's eager `opened_i` variable (`line:startup-opened-update`,
+`line:acs-opened-update`): the union of the entered windows' intervals. -/
 ghost relation slot_scheduled (i : node) (s : slot) :=
   ∃ w f b l, entered i w ∧ win_bounds w f b l ∧
     slot_ord.le f s ∧ slot_ord.le s l
 
--- `i` is *in* window `w`: entered it, not yet entered its successor
--- (the `current_window_i` variable, `line:current_window_init` /
--- `line:window-increment`; negative observation of own local state only).
+/-- `i` is *in* window `w`: entered it, not yet entered its successor
+(the `current_window_i` variable, `line:current_window_init` /
+`line:window-increment`; negative observation of own local state only). -/
 ghost relation in_window (i : node) (w : window) :=
   entered i w ∧ ∀ w', win_ord.next w w' → ¬ entered i w'
 
--- `ready_for_next_window()` (`line:ready-check`) while in window `w`:
--- every scheduled slot up to `w`'s readiness boundary is completed
--- (equivalently, per the paper: all but the last `W − p` of the eager
--- `opened_i` are complete).
+/-- `ready_for_next_window()` (`line:ready-check`) while in window `w`:
+every scheduled slot up to `w`'s readiness boundary is completed
+(equivalently, per the paper: all but the last `W − p` of the eager
+`opened_i` are complete). -/
 ghost relation ready_next (i : node) (w : window) :=
   ∀ (f b l : slot), win_bounds w f b l →
     ∀ (s : slot) (w0 : window) (f0 b0 l0 : slot),
@@ -288,6 +297,8 @@ ghost relation ready_next (i : node) (w : window) :=
       slot_ord.le f0 s → slot_ord.le s l0 → slot_ord.le s b →
       completed i s
 
+/-- Every validator starts in window 1 (`line:enter_window_1`), with nothing
+opened or completed and no window beyond 1 decided. -/
 after_init {
   now := genesis_time
   -- Capitalized single letters are universal indices. `V` ranges over
@@ -304,16 +315,16 @@ after_init {
 
 /-! ## Clock -/
 
-/- The abstract clock advances monotonically and nondeterministically.
+/-- The abstract clock advances monotonically and nondeterministically.
 (Only the guard "not before the starting time" consumes it.) -/
 action tick (t : time) {
   require time_ord.le now t
   now := t
 }
 
-/-! ## ACS proposal (`line:ready`–`line:proposed-update`)
+/-! ## ACS proposal (`line:ready`–`line:proposed-update`) -/
 
-An honest validator in window `w`, once ready, proposes a first slot for
+/-- An honest validator in window `w`, once ready, proposes a first slot for
 the successor window `w'`, at most once. The `require` on `s_star` is the
 state residue of `line:sstar-compute`–`line:sstar-update`: the proposed
 slot lies strictly beyond the current window's last slot. (The other half
@@ -338,9 +349,9 @@ action acs_propose (i : node) (w : window) (w' : window) (s_star : slot)
   acs_state w' := acs_next
 }
 
-/-! ## Oracle: an ACS instance takes an internal step
+/-! ## Oracle: an ACS instance takes an internal step -/
 
-Any transition `ACSSafety.step` allows — a Byzantine validator's proposal
+/-- Any transition `ACSSafety.step` allows — a Byzantine validator's proposal
 appearing (the contract constrains only *correct* validators' proposals), or
 the instance deciding. What this module knows about the new state is exactly
 the contract: reachability is preserved, correct validators' proposals are
@@ -352,9 +363,9 @@ action acs_step (w : window) (acs_next : acsstate) {
 }
 
 /-! ## ACS decision (oracle; `line:acs-decide`–`line:median-compute` +
-`line:last-update`)
+`line:last-update`) -/
 
-The handler of the output "`ACS[w]` decides": median extraction yields the
+/-- The handler of the output "`ACS[w]` decides": median extraction yields the
 window interval `[first, last]` with readiness boundary `boundary`. The
 `require`s are the handler's own guards plus the one bridge between the
 contract and the median computation:
@@ -367,19 +378,18 @@ contract and the median computation:
   `has_decided`);
 * *median range validity, lower half* — the decided first slot is at
   least the slot of some correct pair in the decided set (`r1/s1`, passed
-  as **explicit witnesses** — the standing discipline here: witnesses at
-  the assembly action, not `∃`-ghosts in consumers). That such a pair
-  brackets the median from below is the quantitative half of ACS validity
-  (≥ `2f+1` pairs, ≤ `f` Byzantine) through `Windows.lean`
+  as **explicit witnesses** — witnesses at the assembly action, not
+  `∃`-ghosts in consumers). That such a pair brackets the median from below
+  is the quantitative half of ACS validity (≥ `2f+1` pairs, ≤ `f`
+  Byzantine) through [Windows.lean](Windows.lean)
   `lowerMedian_between_correct`; cardinality is outside the first-order
   fragment, so this is the **one stated bridge** between the contract and
   the model, and it is a `require`, not a derivation. That the witness *is*
-  a genuine correct proposal is then the contract's `validity_genuine`,
-  no longer a guard. The *upper* half of the bracket (`median ≤` some
-  correct proposal — also provided by the median lemma) is deliberately
-  not modelled: no safety property consumes it — it feeds only the
-  recovery timing argument (`prop:first-post-gst-window-time`), which is
-  meta;
+  a genuine correct proposal is the contract's `validity_genuine`. The
+  *upper* half of the bracket (`median ≤` some correct proposal — also
+  provided by the median lemma) is deliberately not modelled: no safety
+  property consumes it — it feeds only the recovery timing argument
+  (`prop:first-post-gst-window-time`), which is meta;
 * *sequencing* — the predecessor window `w0` and its bounds are witnesses
   too: a decision presupposes correct proposals, whose proposers had
   entered `w0` (which therefore has bounds). This is what keeps window
@@ -389,8 +399,8 @@ contract and the median computation:
   window's `p`-th slot, its last the `W`-th; widths stay meta).
 
 The decided interval is deliberately *not* forced to be exactly `W` slots
-wide — cardinalities are outside the relational layer (plan §3); every
-safety property below is width-independent. -/
+wide — cardinalities are outside the relational layer; every safety property
+below is width-independent. -/
 action acs_decide (w0 : window) (w : window)
     (first : slot) (boundary : slot) (last : slot)
     (f0 : slot) (b0 : slot) (l0 : slot)
@@ -420,9 +430,9 @@ action acs_decide (w0 : window) (w : window)
 }
 
 /-! ## Window entry (`line:acs-decide` handler:
-`line:window-increment`–`line:enter_window_omega`)
+`line:window-increment`–`line:enter_window_omega`) -/
 
-An honest validator in window `w` enters the successor `w'` once `ACS[w']`
+/-- An honest validator in window `w` enters the successor `w'` once `ACS[w']`
 has decided and the readiness condition holds (the two activation
 conditions of `line:acs-decide`). Entry *schedules* the window's slots
 (the eager `opened_i` update — here the ghost `slot_scheduled` grows by
@@ -438,9 +448,9 @@ action enter_window (i : node) (w : window) (w' : window)
 }
 
 /-! ## Opening a slot (`schedule_opening` trigger,
-`line:conductor-wait-for-open`–`line:trigger-open`)
+`line:conductor-wait-for-open`–`line:trigger-open`) -/
 
-The `open(s)` output fires at honest validator `i` for a slot of an
+/-- The `open(s)` output fires at honest validator `i` for a slot of an
 entered window's interval, guarded by:
 
 * integrity — not opened before, and not before the slot's starting time
@@ -468,15 +478,15 @@ action open_slot (i : node) (s : slot) (w : window)
   opened_win i s w := true
 }
 
-/-! ## Completion input (`line:upon-completed`)
+/-! ## Completion input (`line:upon-completed`) -/
 
-The `completed(s)` callback — within Cadence, `i`'s finalization of
+/-- The `completed(s)` callback — within Cadence, `i`'s finalization of
 `S[s]`: the glue module's `on_finalize` handler drives this action as the
 contract's `complete` input (`OrchestratorSafety.complete`, which
 `Conductor.orchestratorSafety` defines as exactly this action's
 transition). Asynchronous and unforced; only opened slots complete (the
-assumed behaviour verified structurally on the glue side,
-`Cadence.[delivered_opened]`). -/
+assumed behaviour verified structurally on the glue side, the glue's
+`[delivered_opened]`). -/
 action complete_slot (i : node) (s : slot) {
   require ¬ fm.byz i
   require opened i s
@@ -486,7 +496,7 @@ action complete_slot (i : node) (s : slot) {
 
 /-! ## Safety properties -/
 
-/- Window-assignment agreement (`prop:window-agreement`, and the
+/-- Window-assignment agreement (`prop:window-agreement`, and the
 Conductor-module "Safety"): the window intervals are agreed — one decided
 interval per window. (The per-validator statement of the paper collapses
 to this because the model globalizes the ACS decision, which its
@@ -497,7 +507,7 @@ safety [window_assignment_agreement]
     acs_decided w f b l ∧ acs_decided w f' b' l' →
     f = f' ∧ b = b' ∧ l = l'
 
-/- Cross-window slot monotonicity (`prop:acs-nonoverlap`): a decided
+/-- Cross-window slot monotonicity (`prop:acs-nonoverlap`): a decided
 window's interval lies strictly above its predecessor's (the paper's
 `s.number ≥ s'.number + W`, in interval form). -/
 safety [win_separation]
@@ -505,26 +515,26 @@ safety [win_separation]
     win_ord.next w0 w ∧ win_bounds w0 f0 b0 l0 ∧ acs_decided w f b l →
     slot_ord.lt l0 f
 
-/- Open-prefix agreement — the `OrchestratorSafety.open_prefix_agreement`
-contract field (`Interfaces.lean`), which the Cadence glue module consumes
-through the class: if honest `j` has opened `s` and honest `i` has opened a
-smaller `s'`, then `j` has opened `s'` too. The instance
-`Conductor.orchestratorSafety` (`Composition.lean`) projects this property
-out of `invariants_of_reachable`, converting `slot_ord.lt` to the contract's
-`le ∧ ≠` by `TotalOrderWithMinimum.le_lt`. -/
+/-- Open-prefix agreement — the `OrchestratorSafety.open_prefix_agreement`
+contract field ([Interfaces.lean](Interfaces.lean)), which the Cadence glue
+module consumes through the class: if honest `j` has opened `s` and honest
+`i` has opened a smaller `s'`, then `j` has opened `s'` too. The instance
+`Conductor.orchestratorSafety` ([Composition.lean](Composition.lean))
+projects this property out of `invariants_of_reachable`, converting
+`slot_ord.lt` to the contract's `le ∧ ≠` by `TotalOrderWithMinimum.le_lt`. -/
 safety [open_prefix_agreement]
   ∀ (i j : node) (s s' : slot),
     ¬ fm.byz i ∧ ¬ fm.byz j ∧ opened i s' ∧ opened j s ∧ slot_ord.lt s' s →
     opened j s'
 
-/- Integrity, clock half (`mod:orchestrator_2` Integrity; the
+/-- Integrity, clock half (`mod:orchestrator_2` Integrity; the
 `line:conductor-wait-for-open` guard persisted): no slot is opened before
 its starting time. -/
 safety [opened_after_start]
   ∀ (i : node) (s : slot),
     ¬ fm.byz i ∧ opened i s → time_ord.le (start_time s) now
 
-/- Boundedness, interval form (`lem:boundedness`), stated as the
+/-- Boundedness, interval form (`lem:boundedness`), stated as the
 persisted readiness residue: once a validator has entered window `w'`,
 every scheduled slot up to the readiness boundary of `w'`'s predecessor
 is completed. Contrapositive reading for the *current* window `ω`: every
@@ -547,28 +557,28 @@ safety [bounded_tail]
 
 /-! ## Invariants — window structure -/
 
-/- Windows are entered in order, prefix-closed (`lemma:window-entry`):
+/-- Windows are entered in order, prefix-closed (`lemma:window-entry`):
 whoever is in window `w` has entered every window below. ("At most once"
 needs no statement — `entered` is a set.) -/
 invariant [entered_prefix]
   ∀ (i : node) (w w' : window),
     ¬ fm.byz i ∧ entered i w' ∧ win_ord.lt w w' → entered i w
 
-/- Everyone starts in window 1 (`line:enter_window_1`). -/
+/-- Everyone starts in window 1 (`line:enter_window_1`). -/
 invariant [entered_zero]
   ∀ (i : node), entered i win_ord.zero
 
-/- Window 1 is never ACS-decided (its bounds are configuration). -/
+/-- Window 1 is never ACS-decided (its bounds are configuration). -/
 invariant [decided_nonzero]
   ∀ (w : window) (f b l : slot),
     acs_decided w f b l → ¬ w = win_ord.zero
 
-/- Interval shape: first ≤ boundary ≤ last. -/
+/-- Interval shape: first ≤ boundary ≤ last. -/
 invariant [bounds_shape]
   ∀ (w : window) (f b l : slot),
     win_bounds w f b l → slot_ord.le f b ∧ slot_ord.le b l
 
-/- Decisions are sequential: every nonzero window below a decided window
+/-- Decisions are sequential: every nonzero window below a decided window
 is decided (the ACS instances are driven one window at a time —
 `lemma:window-entry` + the activation chain). -/
 invariant [decided_downward_closed]
@@ -576,7 +586,7 @@ invariant [decided_downward_closed]
     acs_decided w' f' b' l' ∧ win_ord.lt w w' ∧ ¬ w = win_ord.zero →
     ∃ f b l, acs_decided w f b l
 
-/- Transitive interval ordering (`prop:acs-fate-range`'s "later windows
+/-- Transitive interval ordering (`prop:acs-fate-range`'s "later windows
 cover slots of strictly larger number", closed under the window order):
 the intervals of any two bounded windows are strictly separated. -/
 invariant [win_bounds_ordered]
@@ -586,7 +596,7 @@ invariant [win_bounds_ordered]
 
 /-! ## Invariants — ACS proposals -/
 
-/- An honest ACS proposal for window `w'` is strictly beyond the
+/-- An honest ACS proposal for window `w'` is strictly beyond the
 predecessor window's interval (`line:sstar-guard`/`line:sstar-update`
 persisted; feeds `[win_separation]` through the median witnesses). -/
 invariant [acs_proposal_above_prev]
@@ -595,14 +605,14 @@ invariant [acs_proposal_above_prev]
     win_bounds w0 f0 b0 l0 →
     slot_ord.lt l0 s
 
-/- An honest proposal to `ACS[w']` presupposes having entered the
+/-- An honest proposal to `ACS[w']` presupposes having entered the
 predecessor window (the `line:ready` activation context). -/
 invariant [proposal_prev_entered]
   ∀ (r : node) (w' : window) (s : slot),
     ¬ fm.byz r ∧ acs.proposed (acs_state w') r s →
     ∃ w0, win_ord.next w0 w' ∧ entered r w0
 
-/- Entered windows have (fixed) bounds: window 1 by configuration, later
+/-- Entered windows have (fixed) bounds: window 1 by configuration, later
 windows by the ACS decision that gated entry. -/
 invariant [entered_has_bounds]
   ∀ (i : node) (w : window),
@@ -610,17 +620,17 @@ invariant [entered_has_bounds]
 
 /-! ## Invariants — openings -/
 
-/- Every opening is recorded with its window. -/
+/-- Every opening is recorded with its window. -/
 invariant [opened_backed]
   ∀ (i : node) (s : slot),
     ¬ fm.byz i ∧ opened i s → ∃ w, opened_win i s w
 
-/- The recorded window was entered. -/
+/-- The recorded window was entered. -/
 invariant [opened_win_entered]
   ∀ (i : node) (s : slot) (w : window),
     ¬ fm.byz i ∧ opened_win i s w → entered i w
 
-/- The opened slot lies in its recorded window's interval
+/-- The opened slot lies in its recorded window's interval
 (`prop:acs-fate-range`, interval form; bounds are unique, so the
 ∀-formulation is exact). -/
 invariant [opened_win_contained]
@@ -628,7 +638,7 @@ invariant [opened_win_contained]
     ¬ fm.byz i ∧ opened_win i s w ∧ win_bounds w f b l →
     slot_ord.le f s ∧ slot_ord.le s l
 
-/- In-order openings (`prop:fate-order` + `lemma:conductor-monotonicity`,
+/-- In-order openings (`prop:fate-order` + `lemma:conductor-monotonicity`,
 per-validator): below an opened slot, every scheduled slot is opened. -/
 invariant [open_local_order]
   ∀ (i : node) (s s' : slot) (w0 : window) (f0 b0 l0 : slot),
@@ -637,7 +647,7 @@ invariant [open_local_order]
     slot_ord.le f0 s' ∧ slot_ord.le s' l0 ∧ slot_ord.lt s' s →
     opened i s'
 
-/- Completions are of opened slots (`mod:orchestrator_2` assumed
+/-- Completions are of opened slots (`mod:orchestrator_2` assumed
 behaviour (i), enforced by the guard). -/
 invariant [completed_opened]
   ∀ (i : node) (s : slot),
@@ -648,6 +658,9 @@ invariant [completed_opened]
 Everything the contract promises is promised at *reachable* states, so the
 module tracks that every instance's abstract state is reachable: initially
 by `[acs_init]`, then by the contract's closure axioms. -/
+
+/-- Every ACS instance's abstract state is a reachable state of the
+contract. -/
 invariant [acs_reachable]
   ∀ (w : window), acs.reachable (acs_state w)
 
@@ -656,10 +669,10 @@ invariant [acs_reachable]
 Totality and `(2Wτ)`-recovery are genuinely temporal: the paper proves
 them **only for Conductor run within Cadence** (they hinge on slots
 actually completing — `lemma:conductor-totality` intro), by an intricate
-per-window induction. Following the Chorus doctrine (`docs/ChorusDesign.md` §7),
-the temporal glue lives here as named meta-axioms over the composed
-system, and the state-level content they need is exactly the invariant
-set above.
+per-window induction. Following the Chorus doctrine
+([ChorusDesign.md](../docs/ChorusDesign.md) §7), the temporal glue lives here
+as named meta-axioms over the composed system, and the state-level content
+they need is exactly the invariant set above.
 
 ### Meta-axioms
 
@@ -673,7 +686,7 @@ set above.
 * **(A-acs-termination)** (`mod:acs` ℓ-Termination) — once every honest
   validator has proposed to `ACS[w]`, the `acs_decide w` oracle
   eventually fires (with witnesses supplied by the median lemma,
-  `Windows.lean` `lowerMedian_between_correct`).
+  [Windows.lean](Windows.lean) `lowerMedian_between_correct`).
 * **(A-acs-totality)** (`mod:acs` Δ-Totality) — the decision is global
   state here, so its propagation is immediate by encoding; the paper's
   `Δ` materialises in the timing bounds only.
@@ -706,49 +719,44 @@ the four parameter assumptions (`line:assumption-one..four`)
 with `Φ_oc = ℓ_chorus + d_tot` (`prop:conductor-open-to-complete`).
 These are arithmetic side conditions on real-time constants that do not
 exist at this abstraction; they are recorded here as the assumptions the
-meta-argument consumes (plan §3). The quantitative conclusions
-(`d_tot`-totality of openings, on-time opening from the second post-GST
-window) are theorems *about the timed system*, out of scope for the
-untimed model by design. -/
+meta-argument consumes. The quantitative conclusions (`d_tot`-totality of
+openings, on-time opening from the second post-GST window) are theorems
+*about the timed system*, out of scope for the untimed model by design. -/
 
 /- The `Enumeration`/`FinEncodable` derivation over the action `Label`
-sum must traverse `acs_decide`'s 12-nested parameter sigma, which
-exceeds the default instance-search budgets (the Chorus lesson struck
-via action *count*; here via parameter *arity*). Disabling the
-scaffolding entirely is not an option — the `sat trace` queries below
-need the generated `ActionTag_EnumClass` — so raise the budgets
-instead. -/
+sum must traverse `acs_decide`'s 12-nested parameter sigma, which exceeds
+the default instance-search budgets. The scaffolding cannot be disabled —
+the `sat trace` queries below need the generated `ActionTag_EnumClass` — so
+the budgets are raised instead. -/
 set_option synthInstance.maxHeartbeats 2000000
 set_option synthInstance.maxSize 4096
 set_option maxRecDepth 8192
 
 /- Proof reconstruction ON: the sweep and the persisted VC theorems below
-carry no trusted-SMT step, which is what makes `Composition.lean`'s
-theorems (`Conductor ⊨ Orchestrator`, positional MCP Safety)
-kernel-checked (axiom-pinned there).
+carry no trusted-SMT step, which is what makes the theorems of
+[Composition.lean](Composition.lean) (`Conductor ⊨ Orchestrator`, positional
+MCP Safety) kernel-checked (axiom-pinned there).
 
-Expect one tolerated attempt failure: `trust false` also flips
+One discharge attempt is expected to fail: `trust false` also flips
 `embedBool`, changing the SMT query, and one attempt diverges under the
-reconstruction encoding — it times out at 60 s and at 120 s while the VC
-stays ✅ via its alternative form. That is fine and needs no budget. -/
+reconstruction encoding while the VC stays ✅ via its alternative form. -/
 set_option veil.smt.trust false
 
-/- Streaming theorem persistence (pairs with `trust false`; cf. the same
-note in `Cadence.lean`). Captured at `#gen_spec`. -/
+/- Streaming theorem persistence (pairs with `trust false`): dischargers
+retain their reconstructed witnesses and `#gen_theorems` persists them
+incrementally. Captured at `#gen_spec`. -/
 set_option veil.gen.streamTheorems true
 
-/- VC registry (`docs/Dependencies.md` §1): persist the VC
-statements + metadata for the cross-file check/prove commands. -/
+/- VC registry ([Dependencies.md](../docs/Dependencies.md) §1): persist the
+VC statements + metadata for the cross-file check/prove commands. -/
 set_option veil.gen.vcRegistry true
 
-/- Proof cache (`docs/Dependencies.md` §2): store every
+/- Proof cache ([Dependencies.md](../docs/Dependencies.md) §2): store every
 reconstructed proof this sweep produces in the content-addressed on-disk
-cache (`.lake/build/veilcache/`) and consult it before every solve — a
-statement-unchanged rebuild re-checks cached proofs instead of re-solving,
-and slice/consumer files hit the entries this sweep stores. The key is the
-statement itself (solver-independent); every hit is re-checked against the
-live goal, and the kernel still checks at every persistence point.
-File-level so the dischargers capture it at `#gen_spec` (§1.9 semantics). -/
+cache (`.lake/build/veilcache/`) and consult it before every solve. The key
+is the statement itself; every hit is re-checked against the live goal, and
+the kernel still checks at every persistence point. File-level so the
+dischargers capture it at `#gen_spec`. -/
 set_option veil.cache.proofs true
 
 /-! ## Step properties — two-state cells, checked per action
@@ -757,8 +765,14 @@ Stated for the contract's step-level fields: the two monotonicities (also
 derivable from the update records) and the paper's Monotonicity, which
 needs `[open_local_order]` at the pre-state together with `open_slot`'s
 guard. -/
+
+/-- `opened` is only ever set. -/
 step_property [opened_mono] { opened I S → opened' I S }
+/-- `completed` is only ever set. -/
 step_property [completed_mono] { completed I S → completed' I S }
+/-- The paper's Monotonicity (`lemma:conductor-monotonicity`): a slot below
+one an honest validator has opened, and not opened itself, is never opened
+afterwards. -/
 step_property [monotonicity] {
   ∀ (i : node) (s0 s1 : slot),
     ¬ fm.byz i ∧ opened i s1 ∧ slot_ord.le s0 s1 ∧ s0 ≠ s1 ∧ ¬ opened i s0 →
@@ -766,26 +780,19 @@ step_property [monotonicity] {
 
 /- Solver budget for this module's in-file sweep: three times Veil's 60 s
 default, for the same reason the proof files carry it
-(`Cadence/ProofPrelude.lean`) — the budget has to hold on the slowest
-machine that runs cold, which is CI's 4-core runner, not a workstation. At
-the last measurement this module's slowest cell,
-`enter_window × bounded_tail`, ran there at 95% of the 60 s budget. It is a
-*completed* solve, so the remedy
-is the budget; a cell that starts needing minutes is diverging, and that
-wants a manual proof instead.
-
-**File-level, before `#gen_spec`, deliberately.** On the in-file sweep path
-the dischargers capture solver options when the module elaborates its
-specification, so a `set_option … in #check_invariants` further down is
-silently inert — this project shipped exactly that mistake for weeks
-(`docs/History.md`, Build #12). -/
+([ProofPrelude.lean](ProofPrelude.lean)) — the budget has to hold on the
+slowest machine that runs cold, which is CI's 4-core runner. At the last
+measurement this module's slowest cell, `enter_window × bounded_tail`, ran
+there at 95% of the 60 s budget. It is a *completed* solve, so the remedy is
+the budget; a cell that starts needing minutes is diverging, and wants a
+manual proof instead. File-level, before `#gen_spec`: solver options are
+captured there ([CLAUDE.md](../CLAUDE.md), "Build"). -/
 set_option veil.smt.timeout 180
 
 #gen_spec
 
-/- The sweep runs at Veil's solver defaults. Do not try to override them
-around this command: dischargers capture solver options at `#gen_spec`,
-so a `set_option ... in` here is silently inert. -/
+/- The sweep runs with the solver options set above. They are captured at
+`#gen_spec`, so a `set_option … in` around this command is inert. -/
 #check_invariants
 
 /- Persist the discharged VCs as environment theorems for the
@@ -795,12 +802,12 @@ witnesses are persisted incrementally, with no re-elaboration. -/
 
 /-! ## Reachability sanity checks
 
-Against vacuous safety (`docs/TODO.md` § "Soundness"): the ACS pipeline
-is exercisable end-to-end — open and complete a slot of window 1, become
-ready, propose, let the oracle decide, and enter window 2. (The steps are
-named — an `any 5 actions` trace's transition disjunction exceeds the
-trace pipeline's simp budget.) -/
+Against vacuous safety ([TODO.md](../docs/TODO.md) § "Soundness"): the ACS
+pipeline is exercisable end-to-end — open and complete a slot of window 1,
+become ready, propose, let the oracle decide, and enter window 2. -/
 
+-- The steps are named: an `any 5 actions` trace's transition disjunction
+-- exceeds the trace pipeline's simp budget.
 sat trace {
   open_slot
   complete_slot

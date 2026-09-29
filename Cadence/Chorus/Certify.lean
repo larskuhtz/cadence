@@ -61,7 +61,7 @@ info: 'Chorus.invariants_of_reachable' depends on axioms: [propext, Classical.ch
 #guard_msgs in
 #print axioms Chorus.invariants_of_reachable
 
-/- `#veil_status` (M7): the machine-checked trust table — every registry
+/- `#veil_status`: the machine-checked trust table — every registry
 cell (the action × property obligations, the step-property cells and one
 doesNotThrow per action) has a real, statement-matching, kernel-checked
 theorem in the import closure, over exactly the standard axioms. Run `#veil_status Chorus table`

@@ -46,12 +46,12 @@ once by `#gen_proof_files Chorus` and are hand-owned since.
 their VC statements out of the registry the model wrote, so they cannot drift
 from what the model declares. Never restate a VC by hand.
 
-`Cadence/Cadence.lean` and `Cadence/Conductor.lean` are small enough to sweep
+[Cadence/Cadence.lean](../../../Cadence/Cadence.lean) and [Cadence/Conductor.lean](../../../Cadence/Conductor.lean) are small enough to sweep
 in-file (`#check_invariants`) and persist their real proofs directly with
 `#gen_theorems` (which also emits their per-action preservation lemmas);
-`Cadence/Composition.lean` turns those into the two reachability inductions
+[Cadence/Composition.lean](../../../Cadence/Composition.lean) turns those into the two reachability inductions
 with one `#gen_composition` each, and
-`Cadence/System.lean` instantiates the glue's end theorem at the Conductor
+[Cadence/System.lean](../../../Cadence/System.lean) instantiates the glue's end theorem at the Conductor
 and Chorus contract instances.
 
 ## 2. The commands
@@ -59,8 +59,8 @@ and Chorus contract instances.
 | Command | Use |
 |---|---|
 | `#check_invariants` / `#check_action <a>` | in-file sweep (the small models only) |
-| `#check_invariant <name>` | one invariant × all actions — from `Cadence/Tooling.lean` |
-| `#check_vc <action> <invariant>` | one cell — from `Cadence/Tooling.lean` |
+| `#check_invariant <name>` | one invariant × all actions — from [Cadence/Tooling.lean](../../../Cadence/Tooling.lean) |
+| `#check_vc <action> <invariant>` | one cell — from [Cadence/Tooling.lean](../../../Cadence/Tooling.lean) |
 | `#check_invariants <Module>`, `#check_action <Module> <a>`, `#check_vc <Module> <a> <p>` | the **cross-file** forms, in any file importing the model |
 | `#prove_vc <Module> <a> <p> by <tac>` | prove one cell for real, cross-file. A later `#prove_action` consumes it after a statement check instead of re-solving |
 | `#prove_action <Module> <a>` | the proof files' workhorse |
@@ -72,8 +72,8 @@ same discharger scheduler and slow each other down.
 
 **Solver options are read in different places depending on the path.** For an
 in-file sweep they are captured when the module elaborates its spec, so a
-`set_option … in #check_invariants` is *inert* (this project shipped an inert
-900 s timeout for weeks — see [History](../../../docs/History.md) Build #12).
+`set_option … in #check_invariants` is *inert* — and silently so
+([History.md](../../../docs/History.md), Build #12, is what that costs).
 On the cross-file path they are read at tactic runtime, in the *consuming*
 file. That is why every proof file sets its own `veil.smt.trust false` and
 cache options at the top.
@@ -86,7 +86,9 @@ cache options at the top.
    `set_option veil.smt.trust false`, `veil_proof_options`,
    `veil_large_clump_budgets`.
 3. Put `#prove_vc Chorus <action> <property> by <tac>` cells in it and run
-   `lake env lean <scratch>`. Seconds per cell.
+   [scripts/scratch.sh](../../../scripts/scratch.sh) `<scratch>` — not bare
+   `lake env lean`, which lacks the solver's native plugins
+   ([CLAUDE.md](../../../CLAUDE.md), "Build"). Seconds per cell.
 4. To see what you are proving, end the tactic after the `obtain`s and read
    the unsolved-goals dump.
 5. Move the finished cell into the action's proof file, **before** that
@@ -119,7 +121,7 @@ never write one by hand.
 * A failing cell in a proof file already retries through the built-in ladder
   (perturbed solver seeds, then the alternative two-state encoding) before it
   is reported. Only write a manual proof once that ladder has genuinely failed
-  — and check it is divergence, not slowness (see CLAUDE.md).
+  — and check it is divergence, not slowness (see [CLAUDE.md](../../../CLAUDE.md)).
 
 ## 5. Adding or changing an invariant
 
@@ -133,11 +135,16 @@ never write one by hand.
 3. Expect the clump to get harder: growing it has previously tipped
    *formerly green* cells into e-matching divergence (History, Build #11).
    Make the broken ones manual, mirroring their neighbours.
-4. Update the `#veil_status` pins in the `Certify.lean` files — the counts
+4. Update the `#veil_status` pins in the certificates
+   ([Chorus/Certify.lean](../../../Cadence/Chorus/Certify.lean),
+   [Mvba/Certify.lean](../../../Cadence/Mvba/Certify.lean),
+   [FallbackReceipt/Certify.lean](../../../Cadence/FallbackReceipt/Certify.lean)) — the counts
    change — and sanity-check that the new counts are what you expect
    (actions × properties + one does-not-throw per action).
 5. Any edit to a model file — **even a comment** — rebuilds its proof family.
-   Budget the staged build before touching it.
+   Budget the staged build before touching it. The invariant's explanation is
+   a `/-- … -/` doc comment directly in front of it; [CLAUDE.md](../../../CLAUDE.md)
+   ("Documentation rules") has the three comment layers.
 
 ## 6. Model-specific traps
 
@@ -150,7 +157,8 @@ never write one by hand.
   pattern), or record witnesses in auxiliary history relations (the
   `local_fb_neg_qv` pattern).
 * One cell (`vote × fastqc_complete_implies_mvba_evidence`) turns
-  `veil.smt.foldBoolAtoms` off file-locally in `Proofs/Vote.lean`. The
+  `veil.smt.foldBoolAtoms` off file-locally in
+  [Proofs/Vote.lean](../../../Cadence/Chorus/Proofs/Vote.lean). The
   reasoning is in that file's header; the option is tactic-side, so statements
   and cache keys are unaffected.
 
@@ -158,7 +166,7 @@ never write one by hand.
 
 * **The sub-protocols are class constraints, not restated guards.** The glue
   `instantiate`s `OrchestratorSafety` and `SlotConsensusSafety`, the Conductor
-  `ACSSafety` (`Cadence/Interfaces.lean`), each over an abstract state the
+  `ACSSafety` ([Cadence/Interfaces.lean](../../../Cadence/Interfaces.lean)), each over an abstract state the
   module holds (`os`, `sc_state s`, `acs_state w`) and reads only through the
   contract's observables. Veil hands every axiom of an instantiated class to
   the solver, so a contract property is *used* in a cell, never written into
@@ -167,7 +175,7 @@ never write one by hand.
   `acs_step`) take any transition the contract allows; handlers
   (`on_propose`, `on_finalize`, `acs_decide`) react to observables and drive
   the contract's *input* transitions. The pattern and its evidence:
-  `docs/CompositionContracts.md`.
+  [docs/CompositionContracts.md](../../../docs/CompositionContracts.md).
 * **Only first-order fields go in the `…Safety` fragment.** A field that
   quantifies over a run or a function is outside the fragment the SMT
   translation accepts; the check commands report it as an error naming the
@@ -180,7 +188,7 @@ never write one by hand.
   an explicit witness parameter or a derivable `require` (see `acs_decide`'s
   decision-precedes-entry require) instead of hoping e-matching finds the
   invariant chain.
-* `Conductor.lean` needs the raised `synthInstance` budgets that precede its
+* [Conductor.lean](../../../Cadence/Conductor.lean) needs the raised `synthInstance` budgets that precede its
   `#gen_spec` even at 10 action parameters.
 
 ### Composition.lean and Chorus/Compose.lean — the instances
@@ -204,9 +212,8 @@ never write one by hand.
      `relationalTransitionSystem`/`Next`/`NextAct` line),
      `repeat (obtain ⟨_, h⟩ := h)` (the last step substitutes the post-state
      — a following `subst` is a no-op), then the field-representation simp
-     set (`conductor_field_simp` / `mvba_field_simp`). `Chorus/Compose.lean`
-     needs no such macro any more — all of its step facts come from (1) or
-     (2). Do not reach for
+     set (`conductor_field_simp` / `mvba_field_simp`). [Chorus/Compose.lean](../../../Cadence/Chorus/Compose.lean)
+     needs no such macro: all of its step facts come from (1) or (2). Do not reach for
      `actSimp`/`nextSimp` here: they unfold the action bodies first and
      defeat the rewrite.
 * Adding an action to a model needs no edit in the composition files: the
@@ -221,9 +228,9 @@ never write one by hand.
 
 ### FallbackReceipt
 
-* `PreFix.lean`'s model-check **violation is the expected result** and is
+* [PreFix.lean](../../../Cadence/FallbackReceipt/PreFix.lean)'s model-check **violation is the expected result** and is
   `#guard_msgs`-pinned. A green build requires it.
-* The layer's `#model_check` (23 975 states at `n = 4, f = 1`) is a redundant,
+* The layer's `#model_check` (exhaustive at `n = 4, f = 1`) is a redundant,
   solver-free regression over properties that also have unbounded proofs — and
   a non-vacuity witness, since the explored graph is checked to contain
   proposing runs. Keep both.

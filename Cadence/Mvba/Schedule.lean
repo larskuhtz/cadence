@@ -7,14 +7,14 @@ import Mathlib.Data.Fintype.Defs
 
 /-! # Mvba.Schedule — the timing model, and the bounded claim stated
 
-[`docs/Bounds.md`](../../docs/Bounds.md) §6.2, step 1. This file states the
-**timing model** under which the leader-based MVBA is to be shown to satisfy
+[Bounds.md](../../docs/Bounds.md) §6.2, step 1. This file states the
+**timing model** under which the leader-based MVBA satisfies
 `MVBATemporal.termination` — every premise a named `Prop` on a labelled
-timed run — and the **target** as a `Prop`-valued definition, before any of
-its proof exists. That ordering is `Mvba/Liveness.lean`'s discipline and it
-is kept for the same reason: the premises are fixed, type-checked and
-citable in advance, so none can become a hypothesis because a proof turned
-out to need it.
+timed run — and the **target** as a `Prop`-valued definition, apart from
+its proof. That separation is [Mvba/Liveness.lean](Liveness.lean)'s
+discipline and it is kept for the same reason: the premises are fixed,
+type-checked and citable on their own, so none can become a hypothesis
+because a proof needs it.
 
 `grep -n '^def [A-Z]' Cadence/Mvba/Schedule.lean` prints the whole list —
 the hop table, the schedule, the four clauses and their conjunction,
@@ -26,7 +26,8 @@ and nothing else.
 An admissible run satisfies exactly four clauses, all relating an
 *environment* event — a label firing, a clock reading — to a guard or a
 local record. None mentions `decided`, a commit certificate, a good view, a
-leader or GST as a model event; `docs/Bounds.md` §6.2.4 has the table.
+leader or GST as a model event; [Bounds.md](../../docs/Bounds.md) §6.2.4
+has the table.
 
 Each entry is the clause, what this file calls it, and the sentence of the
 supplement it is the formal shape of.
@@ -55,7 +56,8 @@ leader in every `k` consecutive views (`LeaderRotation`, the supplement's
 hypotheses (`Schedule`): the timeout is bounded, eventually exceeds the
 chain's latency, and the constants are non-negative. Why the timeout *must*
 be bounded for a fixed `ℓ` to exist — the supplement's backoff remark is
-incompatible with its `O(fΔ)` theorem — is `docs/Bounds.md` §6.2.3.
+incompatible with its `O(fΔ)` theorem — is [Bounds.md](../../docs/Bounds.md)
+§6.2.3.
 
 ## The two constants
 
@@ -65,25 +67,26 @@ at `δ = 0` it is the supplement's `3Δ + max{Δ, Δ_sync}` (`Lcert_paper`),
 with `Δ_R = 0` because `Recover` is the identity in this model.
 `Schedule.ℓ` is the contract's `ℓ_MVBA`: one hop to synchronise, at most
 `|below v_L| + k` burnt views, the good view's chain, one local step to
-decide. Their derivation is `docs/Bounds.md` §6.2.6; the proof that `ℓ`
-bounds termination is `Mvba.bounded_termination`
-(`Cadence/Mvba/BoundedTermination.lean`). `Cadence/Mvba/Temporal.lean` turns
-it into the contract's `MVBATemporal` instance, with `Admissible` below as
-the run model.
+decide. Their derivation is [Bounds.md](../../docs/Bounds.md) §6.2.6; the
+proof that `ℓ` bounds termination is `Mvba.bounded_termination`
+([Mvba/BoundedTermination.lean](BoundedTermination.lean)).
+[Mvba/Temporal.lean](Temporal.lean) turns it into the contract's
+`MVBATemporal` instance, with `Admissible` below as the run model.
 
 ## What this file does not do
 
 Prove anything about the protocol. Its theorems are about its own
 definitions: the hop table is defined on exactly the `JusticeLabel`s
-(`hop_isSome_iff`), and the latency constant is the paper's at `δ = 0`. The
-model, its proof files, `Interfaces.lean`, `Fairness.lean` and
-`Mvba/Liveness.lean` are untouched. -/
+(`hop_isSome_iff`), and the latency constant is the paper's at `δ = 0`. It
+builds on the model and on [Mvba/Liveness.lean](Liveness.lean), and neither
+depends on it. -/
 
 namespace Mvba
 
 open Cadence
 -- Veil's `TotalOrder` on the clock is the scoped bridge from its linear
--- order (`Cadence/Timed.lean`); every `TimedRun` projection below needs it.
+-- order ([Timed.lean](../Timed.lean)); every `TimedRun` projection below
+-- needs it.
 open scoped Cadence.Timed
 
 /-! ## The hop table
@@ -159,7 +162,7 @@ view to its commit certificate, when no correct validator times out: one
 network hop to synchronise the entries, a local step for the leader's
 `Pre-Prepare`, a hop to accept it, a hop to the prepare certificate and a
 local step to adopt it — in parallel with availability — a local step to
-send `Commit`, and a hop to the commit certificate. `docs/Bounds.md` §6.2.6
+send `Commit`, and a hop to the commit certificate. [Bounds.md](../../docs/Bounds.md) §6.2.6
 is the table. -/
 def Lcert (Δ δ Δsync : time) : time :=
   3 • Δ + max (Δ + δ) Δsync + 2 • δ
@@ -215,7 +218,7 @@ def bound (sch : Schedule view time) : Hop → time
 
 /-- **What one view costs at most** when it does not decide: its budget,
 at most one adoption and the timeout (two local steps), the certificate
-(one hop), the advance (one hop). `docs/Bounds.md` §6.2.6. -/
+(one hop), the advance (one hop). [Bounds.md](../../docs/Bounds.md) §6.2.6. -/
 def burn (sch : Schedule view time) : time :=
   sch.τmax + 2 • sch.δ + 2 • sch.Δ
 
@@ -243,13 +246,13 @@ variable {node nodeset value view : Type}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedAddMonoid time]
 
 /-- A labelled timed run of the MVBA: the object every premise below is
-about. Its `toLRun` is `Mvba/Liveness.lean`'s `MvbaRun`. -/
+about. Its `toLRun` is [Mvba/Liveness.lean](Liveness.lean)'s `MvbaRun`. -/
 abbrev TMvbaRun (th : Theory node nodeset value view) (time : Type) [LinearOrder time] :=
   TLRun (Mvba.relationalTransitionSystem node nodeset value view) th time
 
 /-- **(Δ-justice)** — bounded weak fairness after GST of every label the hop
 table covers, at its hop bound. The timed form of `FJustice`, with
-`EnabledMove` for `Enabled` (`Cadence/Timed.lean`, the header). -/
+`EnabledMove` for `Enabled` ([Timed.lean](../Timed.lean), the header). -/
 def BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
   ∀ (l : Mvba.Label node nodeset value view) (h : Hop), hop l = some h →
     BoundedFair r (sch.bound h) l
@@ -301,7 +304,7 @@ def LeaderRotation (vfin : ViewOrderEnum view vord) (k : Nat)
 
 /-- A `TimedRun` of the MVBA — the object `MVBATemporal`'s fields quantify
 over, at `Mvba.mvbaSafety th`: the model's states with a clock reading at
-every index. The `TotalOrder` on `time` is `Cadence/Timed.lean`'s scoped
+every index. The `TotalOrder` on `time` is [Timed.lean](../Timed.lean)'s scoped
 bridge from the linear order. -/
 abbrev TimedMvbaRun (th : Theory node nodeset value view) (time : Type) [LinearOrder time] :=
   TimedRun (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
@@ -345,16 +348,15 @@ def BoundedTerminationClaim (sch : Schedule view time) (vfin : ViewOrderEnum vie
 /-- **(A-viewsync) is a consequence.** For finitely many validators, under
 (A-leader-rotation-k) and the three clauses, a run in which every correct
 validator proposes and none is abandoned before deciding satisfies
-`Mvba/Liveness.lean`'s `AViewSync`: both clauses, and the existence of the
+[Mvba/Liveness.lean](Liveness.lean)'s `AViewSync`: both clauses, and the existence of the
 good view. The premises besides the timing model are `Mvba.termination`'s
 own, `AllPropose` and `NoEarlyAbandon`, so this is the formal version of the
-trust-base move that `docs/Liveness.md` §2.1 describes.
+trust-base move that [Liveness.md](../../docs/Liveness.md) §2.1 describes.
 
 The finite validator set is load-bearing. It turns "every correct validator
 proposes at some index" into a common deadline, and without one nothing
 stops every correct-led view from being burnt before its leader has
-proposed. `docs/Bounds.md` §6.2.8, the step-4 reassessment, has the
-argument. -/
+proposed. [Bounds.md](../../docs/Bounds.md) §6.2.8 has the argument. -/
 def AViewSyncClaim [Fintype node] (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (th : Theory node nodeset value view) : Prop :=
   LeaderRotation vfin sch.k th →

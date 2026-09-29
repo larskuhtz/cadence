@@ -5,11 +5,11 @@ import Mathlib.Tactic.Push
 /-! # Slot/window theory and the ACS median lemma
 
 Support theory for the Conductor orchestrator model
-([`Conductor.lean`](./Conductor.lean)): the ordered slot/window structure
+([Conductor.lean](Conductor.lean)): the ordered slot/window structure
 and the order-statistics lemma justifying the median-range `require` of the
 Conductor's ACS-decide oracle action. Reference:
-`docs/ConductorDesign.md` §3 (new modelling ingredients 1–2)
-and `papers/cadence/src/p2_conductor_proofs.tex` (`algorithm:conductor`,
+[ConductorDesign.md](../docs/ConductorDesign.md) §3 ("Modelling ingredients
+beyond Chorus's", items 1–2) and `papers/cadence/src/p2_conductor_proofs.tex` (`algorithm:conductor`,
 `line:median-compute`; median range validity is used in
 `prop:acs-nonoverlap` and `prop:window-open-time`).
 
@@ -35,7 +35,7 @@ execution-dependent state. The design therefore splits:
   axioms are introduced at all**.
 * **Dynamic** — the window *intervals* `[first(ω), last(ω)]` (and the
   readiness boundary, the paper's "first `p` slots of the window") are
-  *oracle state* in `Conductor.lean`: relations populated by the ACS-decide
+  *oracle state* in [Conductor.lean](Conductor.lean): relations populated by the ACS-decide
   oracle action, unique per window by its `require`s (= ACS agreement).
   Cardinality facts ("exactly `W` slots wide", `prop:open-count-window`)
   stay meta: the model states intervals, never cardinalities.
@@ -52,11 +52,11 @@ existing examples (NOPaxos `seq_t`) already exercise.
 numbers in the decided ACS set (`line:median-compute`). The paper's
 argument (stated after `lemma:window-entry`): the decided set contains at
 least `2f + 1` pairs of which at most `f` are Byzantine, so the median
-lies between two *correct* proposals. The Conductor model imports exactly
-this consequence as a `require` on its ACS-decide oracle action, with the
-two correct bracketing proposals as explicit action parameters — witness
-materialisation, the discipline described below. This file proves
-the justifying lemma, in two layers:
+lies between two *correct* proposals. The Conductor model imports the lower
+half of this consequence — the half its safety properties consume — as a
+`require` on its ACS-decide oracle action, with the correct witness pair
+as explicit action parameters (witness materialisation). This file proves
+the justifying lemma, both halves, in two layers:
 
 1. `IsMedian` — the abstract order-statistics property ("at least half the
    values are ≤ m, at least half are ≥ m") — and the bracketing lemma
@@ -64,7 +64,7 @@ the justifying lemma, in two layers:
    ≤ `f` are Byzantine-attributed is bracketed by two correct values.
    Stated over an abstract correctness predicate, *not* over cardinality
    of node sets — per the stake-weighting design rule of
-   `docs/ConductorDesign.md` §6 (a weighted instance re-proves `IsMedian`
+   [ConductorDesign.md](../docs/ConductorDesign.md) §6 (a weighted instance re-proves `IsMedian`
    membership for its weighted median and inherits the bracketing).
 2. `lowerMedian` — the deterministic sorted-middle median an
    implementation computes — and `lowerMedian_isMedian`, the instance
@@ -74,7 +74,7 @@ the justifying lemma, in two layers:
    abstract property.)
 
 `lowerMedian_between_correct` packages the two for citation from
-`Conductor.lean`.
+[Conductor.lean](Conductor.lean).
 -/
 
 namespace Cadence
@@ -228,7 +228,7 @@ theorem lowerMedian_isMedian {α : Type} [LinearOrder α]
     omega
 
 /-- **The packaged median lemma** cited by the ACS-decide oracle action of
-[`Conductor.lean`](./Conductor.lean): the sorted-middle median of the
+[Conductor.lean](Conductor.lean): the sorted-middle median of the
 values of a decided ACS set (≥ `2f+1` pairs, ≤ `f` Byzantine-attributed —
 the quantitative half of ACS validity, `mod:acs`) is bracketed by two
 correct entries' values. -/

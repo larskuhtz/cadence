@@ -4,24 +4,28 @@ import Cadence.Mvba.Compose
 
 /-! # The composed system — the glue's theorems at the verified instances
 
-[`Cadence.lean`](./Cadence.lean) is verified against the two module
+[Cadence.lean](Cadence.lean) is verified against the two module
 contracts as *class constraints*: its theorems hold for every orchestrator
 satisfying `OrchestratorSafety` and every slot consensus satisfying
-`SlotConsensusSafety`. [`Composition.lean`](./Composition.lean) proves that
+`SlotConsensusSafety`. [Composition.lean](Composition.lean) proves that
 the Conductor is such an orchestrator (`Conductor.orchestratorSafety`) and
-[`Chorus/Compose.lean`](./Chorus/Compose.lean) that Chorus is such a slot
+[Chorus/Compose.lean](Chorus/Compose.lean) that Chorus is such a slot
 consensus (`Chorus.slotConsensusSafety`) — Chorus itself being verified
 against the MVBA contract `MVBASafety` as a class constraint, which
-[`Mvba/Compose.lean`](./Mvba/Compose.lean) instantiates from the
+[Mvba/Compose.lean](Mvba/Compose.lean) instantiates from the
 leader-based MVBA model (`Mvba.mvbaSafety`). This file does the last step: it
 **instantiates** the glue's end theorem at those instances, with Chorus's
-MVBA constraint filled by `Mvba.mvbaSafety`, so that the resulting statement
-carries no contract hypothesis at all — it speaks about the glue running
-the Conductor's and Chorus's own transition systems, Chorus running the
-`Mvba` model's.
+MVBA constraint filled by `Mvba.mvbaSafety` — it speaks about the glue
+running the Conductor's and Chorus's own transition systems, Chorus running
+the `Mvba` model's.
 
-What remains as a hypothesis is exactly what genuinely is one:
+What remains as a hypothesis:
 
+* **one module contract, `ACSSafety`** — the agreement-on-a-common-subset
+  primitive the Conductor runs once per window, which it consumes as a class
+  constraint. The ACS is a standard primitive whose implementation is out of
+  scope, so the theorem holds for every ACS meeting that contract, and its
+  fields are read as an assumption;
 * the three modules' immutable configurations (`thC`, `thS`, `thM` — who is
   Byzantine, the slots' starting times, the proposers, the well-encoded
   roots, the MVBA's leader schedule and validity predicate, and the
@@ -37,8 +41,8 @@ What remains as a hypothesis is exactly what genuinely is one:
   Chorus's constraint asks for.
 
 **Chorus's three assumptions at this instantiation.** Chorus states three
-`assumption`s about its immutable configuration (`Chorus.lean`,
-"Assumptions"): the MVBA starts in an initial state (`[mvba_init]`), and
+`assumption`s about its immutable configuration
+([Chorus.lean](Chorus.lean), "Assumptions"): the MVBA starts in an initial state (`[mvba_init]`), and
 the two facts about the entry-vector projections `mval_pos` / `mval_neg`
 that its agreement argument uses (`[mval_pos_functional]`,
 `[mval_pos_neg_excl]`). They enter the composed statement as the
@@ -53,16 +57,18 @@ MVBA state Chorus starts from is an initial state of `Mvba`
 Nothing about the temporal obligations enters here — MCP Safety is a safety
 property, and its proof needs only the proven `…Safety` fragments. The
 temporal levels (`OrchestratorTemporal`, `SlotConsensusTemporal`,
-`MVBATemporal`), of which this development has no instance, are consumed by
-nothing in this file.
+`MVBATemporal`) are consumed by nothing in this file; of the three, only
+`MVBATemporal` has an instance in this development (`Mvba.mvbaTemporal`, in
+[Mvba/Temporal.lean](Mvba/Temporal.lean), from named hypotheses).
 
 The one composition claim this file does *not* make is the one declared out
-of scope throughout (`docs/ChorusDesign.md` §10.1): that running the
+of scope throughout ([CompositionContracts.md](../docs/CompositionContracts.md)
+§7): that running the
 Conductor and Chorus *implements* the glue's oracle steps — trace-level
 refinement. Here the glue's `orch_step`/`sc_step` are the modules' own
 transitions, and Chorus's `mvba_step` is the `Mvba` model's own internal
 transition, which is as close as a state-based composition comes; the
-remaining seam is named in `Cadence.lean`'s header. -/
+remaining seam is named in [Cadence.lean](Cadence.lean)'s header. -/
 
 namespace Cadence
 open Classical Conductor
@@ -79,7 +85,7 @@ variable {slot window time node acsstate nodeset merkle_root view Phase PathChoi
   [nset : ByzNodeSet node nodeset]
   -- The quorum counting facts beyond `ByzNodeSet`'s intersection axioms,
   -- which Chorus consumes; proven for the concrete quorum families in
-  -- `Cadence/ByzQuorum.lean`, like `ByzNodeSet` itself.
+  -- [ByzQuorum.lean](ByzQuorum.lean), like `ByzNodeSet` itself.
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   [Phase_Enum : Chorus.Phase_EnumClass Phase]
   [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
@@ -98,7 +104,7 @@ def SlotConsensusSafety.castByz {slot validator proposal pvector state : Type}
 
 The three abstract sorts Chorus's MVBA constraint is stated over are
 instantiated at the `Mvba` model's own types: the value is the entry vector
-`node → Option merkle_root` (`docs/MvbaPlan.md` §1.2), the state is the
+`node → Option merkle_root` ([MvbaPlan.md](../docs/MvbaPlan.md) §1.2), the state is the
 model's abstract state, the message type the model's `Msg`. -/
 
 /-- Chorus's slot-consensus instance with its MVBA constraint filled by
@@ -140,9 +146,10 @@ noncomputable abbrev systemRTS (thC : Conductor.Theory slot window time node acs
 /-- **MCP Safety, positional form, for the composed system** (`def:safety`,
 `lemma:cadence-safety`): in every reachable state of the glue running the
 Conductor and Chorus — Chorus running the `Mvba` model as its MVBA — two
-correct validators never disagree on the log entry at a given position. No
-contract hypothesis remains — only the three modules' configurations and
-the Conductor's and Chorus's agreement on the fault pattern. -/
+correct validators never disagree on the log entry at a given position. The
+one contract hypothesis left is `ACSSafety`, the ACS primitive the Conductor
+consumes; beyond it, only the three modules' configurations and the
+Conductor's and Chorus's agreement on the fault pattern. -/
 theorem system_positional_log_safety
     (thC : Conductor.Theory slot window time node acsstate)
     (thS : Chorus.Theory slot node nodeset merkle_root
@@ -190,8 +197,8 @@ A vector's entry for `j` is either a root (`mval_pos`) or a proposer's
 explicit absence (`mval_neg`); a non-proposer has neither. `mvba_propose`
 requires every entry to be a proposer's, so with `mval_neg v j := v j =
 none` alone a non-proposer would always have an entry, no vector would be
-proposable, and the MVBA would never receive an input (`docs/Liveness.md`
-§4.6, Finding 1). -/
+proposable, and the MVBA would never receive an input
+([Liveness.md](../docs/Liveness.md) §4.6, Finding 1). -/
 @[implicit_reducible]
 noncomputable def chorusTheory (is_proposer : node → Bool) (well_encoded : merkle_root → Bool)
     (mvba_init_state : Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)) :
@@ -237,8 +244,8 @@ end Cadence
 /-! ## The pinned trust base
 
 The composed theorem rests on the standard Lean trio alone: it is the glue's
-theorem applied to three kernel-checked instances (the Conductor's, Chorus's
-— with the `Mvba` model's plugged into it — and the transport of Chorus's
+theorem applied to kernel-checked instances (the Conductor's, given an
+`ACSSafety`; Chorus's, with the `Mvba` model's plugged into it; and the transport of Chorus's
 instance to the system's fault model, a rewrite along a propositional
 equality of predicates). -/
 

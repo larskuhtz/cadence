@@ -29,14 +29,14 @@ hand-written assertions in an implementation test suite would not, and it
 reports them in the vocabulary of the proven properties.
 
 It carries one further load: the fixture run is the build's **non-vacuity
-witness for Chorus**. `Cadence.lean` and `Conductor.lean` carry in-build
-`sat trace` witnesses; Chorus cannot ([`TODO.md`](./TODO.md) § Soundness has
+witness for Chorus**. [Cadence.lean](../Cadence.lean) and [Conductor.lean](../Cadence/Conductor.lean) carry in-build
+`sat trace` witnesses; Chorus cannot ([TODO.md](TODO.md) § Soundness has
 the two blockers), so `traces/fast_path_positive.jsonl` — which drives three
 honest validators through the full fast path to `finalize_commit` against the
 model's extracted actions — is what shows the Chorus safety properties are
 not vacuously true. CI runs the monitor suites on every commit
 (`scripts/container.sh monitor`, in
-[`.github/workflows/verify.yml`](../.github/workflows/verify.yml)), so an
+[.github/workflows/verify.yml](../.github/workflows/verify.yml)), so an
 edit that made finalization unreachable turns that step red.
 
 ## 2. How the pieces fit together
@@ -58,7 +58,7 @@ edit that made finalization unreachable turns that step red.
 
 The model side needs no new trust: `veil.gen.executableActions` emits an
 *executable* form of the same action bodies the verification conditions are
-generated from (see [Dependencies.md](./Dependencies.md) §5).
+generated from (see [Dependencies.md](Dependencies.md) §5).
 
 ## 3. Two stages: observable emission, then model-side bridging
 
@@ -97,11 +97,11 @@ emitter which *reconstructed* the schedule would have masked: see the
 
 | File | Role |
 |---|---|
-| [`Cadence/Monitor/ChorusMonitor.lean`](../Cadence/Monitor/ChorusMonitor.lean) | the hand-written monitor: instantiation, a JSONL→`Label` decoder with one arm per constructor, the trace fold, and a `main` reading JSONL from stdin. **The test oracle.** |
-| [`Cadence/Monitor/MvbaStub.lean`](../Cadence/Monitor/MvbaStub.lean) | the stand-in for Chorus's MVBA class constraint (Chorus `instantiate`s `MVBASafety` over three abstract sorts): state and message `Unit`, the value a finite entry-vector record with the two projections Chorus's `Theory` needs, and a *silent* instance of the class that never decides — a consistent model of `MVBASafety` under which every guard reading it is decidable. Shared by both monitors; its coverage consequence is §8. |
-| [`Cadence/Monitor/ChorusMonitorGen.lean`](../Cadence/Monitor/ChorusMonitorGen.lean) | the same monitor with its instantiation produced by Veil's `#gen_monitor` instead of hand-written. Must agree with the oracle on every fixture. |
-| [`Cadence/Monitor/Alphabet.lean`](../Cadence/Monitor/Alphabet.lean) | the published alphabet: the monitor's alphabet **is** the constructors of `Chorus.Label`, reflected mechanically so it cannot drift from the model. Each action is tagged **observable** (Stage A emits it) or **internal** (Stage B inserts it). |
-| [`Cadence/Monitor/TraceMutate.lean`](../Cadence/Monitor/TraceMutate.lean) | the trace-mutation tool: corrupt a valid trace in a way that models a class of implementation bug. |
+| [Cadence/Monitor/ChorusMonitor.lean](../Cadence/Monitor/ChorusMonitor.lean) | the hand-written monitor: instantiation, a JSONL→`Label` decoder with one arm per constructor, the trace fold, and a `main` reading JSONL from stdin. **The test oracle.** |
+| [Cadence/Monitor/MvbaStub.lean](../Cadence/Monitor/MvbaStub.lean) | the stand-in for Chorus's MVBA class constraint (Chorus `instantiate`s `MVBASafety` over three abstract sorts): state and message `Unit`, the value a finite entry-vector record with the two projections Chorus's `Theory` needs, and a *silent* instance of the class that never decides — a consistent model of `MVBASafety` under which every guard reading it is decidable. Shared by both monitors; its coverage consequence is §8. |
+| [Cadence/Monitor/ChorusMonitorGen.lean](../Cadence/Monitor/ChorusMonitorGen.lean) | the same monitor with its instantiation produced by Veil's `#gen_monitor` instead of hand-written. Must agree with the oracle on every fixture. |
+| [Cadence/Monitor/Alphabet.lean](../Cadence/Monitor/Alphabet.lean) | the published alphabet: the monitor's alphabet **is** the constructors of `Chorus.Label`, reflected mechanically so it cannot drift from the model. Each action is tagged **observable** (Stage A emits it) or **internal** (Stage B inserts it). |
+| [Cadence/Monitor/TraceMutate.lean](../Cadence/Monitor/TraceMutate.lean) | the trace-mutation tool: corrupt a valid trace in a way that models a class of implementation bug. |
 
 The monitor runs on the Lean **interpreter** (`lean --run`); it needs no
 compiled binary.
@@ -156,9 +156,9 @@ cannot drift from the model.
 
 ## 6. Validation: mutation testing
 
-`scripts/test-monitor-divergence.sh` starts from a model-ACCEPTED trace (by
+[scripts/test-monitor-divergence.sh](../scripts/test-monitor-divergence.sh) starts from a model-ACCEPTED trace (by
 default the one emitted from a real run), applies each mutation in
-`TraceMutate.lean`, and asserts the monitor **rejects** the result at the guard
+[TraceMutate.lean](../Cadence/Monitor/TraceMutate.lean), and asserts the monitor **rejects** the result at the guard
 that should fail:
 
 ```
@@ -207,7 +207,7 @@ from the number of monitored nodes.
 
 Soundness rests on the same property as the network abstraction: the model
 reads environment facts only in guards, in positive position — the monotone
-contract of [ChorusDesign.md](./ChorusDesign.md) §3.1–§3.3. As everywhere in
+contract of [ChorusDesign.md](ChorusDesign.md) §3.1–§3.3. As everywhere in
 this document, it is a refinement/safety check, not liveness.
 
 Current coverage: the negative fast path with proposer = node 0, matching the
@@ -232,8 +232,8 @@ theorems are proven **universally** (every `n = 3f+1`, every Byzantine set of
 size ≤ f), so no instantiation is required for the properties to transfer —
 the instance only fixes which run is being checked. The trace additionally
 pins the nondeterminism at the monitored components' boundary. See
-[ChorusDesign.md](./ChorusDesign.md) §3 and
-[Architecture.md](./Architecture.md) §4.
+[ChorusDesign.md](ChorusDesign.md) §3 and
+[Architecture.md](Architecture.md) §4.
 
 **The MVBA leg is a coverage gap.** Chorus consumes the MVBA as the class
 constraint `MVBASafety` over three abstract sorts, and no implementation
@@ -241,19 +241,19 @@ event corresponds to them: the MVBA's internal state and messages are not
 observable at the Chorus trace boundary, and the emitter does not emit
 decisions. The monitor
 therefore instantiates the constraint with the **silent stub** of
-[`Cadence/Monitor/MvbaStub.lean`](../Cadence/Monitor/MvbaStub.lean) —
+[Cadence/Monitor/MvbaStub.lean](../Cadence/Monitor/MvbaStub.lean) —
 state and message `Unit`, a `decided` relation that never holds — under
 which the oracle step `mvba_step` is a silent no-op (tagged *internal*, so
 Stage B absorbs it) and the decision handlers `on_mvba_decide_*` and
 `mvba_terminate` can **never be enabled**: a trace carrying a fallback-path
 decision is rejected at the first handler. That is a limit of the monitor,
 not of the model — the model's MVBA is the verified `Mvba` instance
-(`Cadence/System.lean`) — and closing it means giving the monitor a real
+([Cadence/System.lean](../Cadence/System.lean)) — and closing it means giving the monitor a real
 MVBA leg: either a concrete executable `MVBASafety` instance driven by
 MVBA-level trace events (the `Mvba` model's own extracted actions would
 do), or an emitter that observes decisions at the `MVBA.decide` interface
 so that a decision event can seed a `decided`-true stub state. The fixtures
-under `traces/` are fast-path only and never reach the MVBA, so they are
+under [traces/](../traces) are fast-path only and never reach the MVBA, so they are
 unaffected.
 
 Future scope, in rough order: positive-path emission; finer per-message

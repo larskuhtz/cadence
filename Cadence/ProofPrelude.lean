@@ -2,11 +2,11 @@ import Veil
 
 /-! # Shared prelude for the per-action proof files
 
-The verified-module file family (`docs/Architecture.md` §6) puts one
-`<Model>/Proofs/<Action>.lean` file per action next to the model. Those
-files are generated from a common scaffold and are, apart from the action
-name and the occasional manual cell, identical. This module carries the
-parts that were previously copy-pasted into every one of them:
+The verified-module file family ([Architecture.md](../docs/Architecture.md)
+§6) puts one `<Model>/Proofs/<Action>.lean` file per action next to the
+model. Those files are generated from a common scaffold and are, apart from
+the action name and the occasional manual cell, identical. This module
+carries the parts they share:
 
 * **`veil_proof_options`** and **`veil_large_clump_budgets`** — the
   option blocks each proof file must set, together with the reasoning for
@@ -19,11 +19,11 @@ parts that were previously copy-pasted into every one of them:
 The two tactics the manual cells use — `unveil_local`, the cheap
 counterpart of `unveil` that leaves the invariant clump unsimplified, and
 `veil_inv_have h := <invariant>`, which projects a single conjunct out of
-that clump *by invariant name* rather than by a hand-counted chain of
-`.2`s — were defined here until 2026-09-10 and are now **Veil's own**
+that clump *by invariant name* — are Veil's own
 (`Veil/Frontend/DSL/Tactic.lean`), where they are also the two halves of
 the discharger's cheap first rung `veil_solve_frame`
-(`docs/Dependencies.md`). They need no `open` beyond `Veil`.
+([Dependencies.md](../docs/Dependencies.md)). They need no `open` beyond
+`Veil`.
 
 Nothing here is part of any theorem's trust base: these commands only set
 options. -/
@@ -32,23 +32,21 @@ open Lean Elab Command
 
 /-- The option block every Veil proof file in this development sets — except
 `veil.smt.trust false`, which each file writes out itself: the
-no-trusted-solver rule is the repository's headline claim (`README.md`),
+no-trusted-solver rule is the repository's headline claim ([README.md](../README.md)),
 and keeping the literal in every file keeps it greppable.
 
 * `veil.smt.timeout 180` — three times Veil's 60 s default. Not because
   any cell needs 180 s to solve, but because the budget has to be sized for
   the *slowest machine that runs the family cold*, and that is CI (a 4-core
   `ubuntu-24.04-arm` runner at `BATCH=1`, with no proof cache), not a
-  workstation. Measured on the same file and runner:
-  `fb_sign_neg × inclusion_no_honest_fb_neg` takes 6.2–17.0 s here, 52.8 s
-  on CI before the step properties landed (88% of the old budget) and
-  62.5 s after them — a *completed* solve that overran, with its TR retry
-  at 63.3 s, so the build failed on a cell cvc5 can discharge. Raising the
-  budget is close to free: a timeout bounds a **failing** search only, so a
-  green run costs the same wall clock either way. It is not a licence to
-  ignore a slow cell — a cell that starts needing minutes is diverging, and
-  the remedy for that is a manual proof, not a bigger number (`CLAUDE.md`
-  § Build, "Distinguish *slow* from *divergent*").
+  workstation: on the same file, `fb_sign_neg × inclusion_no_honest_fb_neg`
+  took 6.2–17.0 s on a workstation and 62.5 s on CI — a *completed* solve
+  that overran the default. Raising the budget is close to free: a timeout
+  bounds a **failing** search only, so a green run costs the same wall clock
+  either way. It is not a licence to ignore a slow cell — a cell that starts
+  needing minutes is diverging, and the remedy for that is a manual proof,
+  not a bigger number ([CLAUDE.md](../CLAUDE.md), "Build", "Distinguish
+  *slow* from *divergent*").
 * `veil.cache.proofs true` — consume the proof-cache entries earlier
   solves stored and store fresh ones. Every hit is kernel-replayed
   (`veil.cache.kernelReplay`), so the cache skips *search*, not checking.
@@ -57,10 +55,10 @@ and keeping the literal in every file keeps it greppable.
   and never elaborates the `by` suffix, which those two linters would
   otherwise flag. That is by design here — and it also means a warm cache
   green-lights a cell without exercising its tactic script, so an edited
-  cell must be solved cold once (the cache discipline in `CLAUDE.md`
-  § Build). `linter.unusedTactic` is Mathlib's, so it is switched off only
+  cell must be solved cold once (the cache discipline in
+  [CLAUDE.md](../CLAUDE.md), "Build"). `linter.unusedTactic` is Mathlib's, so it is switched off only
   where an import registers it (the Chorus family, through
-  `Cadence/Primitives.lean`); elsewhere there is nothing to switch off. -/
+  [Primitives.lean](Primitives.lean)); elsewhere there is nothing to switch off. -/
 elab "veil_proof_options" : command => do
   for stx in #[← `(command| set_option veil.smt.timeout 180),
                ← `(command| set_option veil.cache.proofs true),

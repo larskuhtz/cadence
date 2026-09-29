@@ -35,24 +35,22 @@ exclude = [
   "Cadence.Tooling",
 ]
 
-# Declaration docstrings stay *in* the code, next to what they document.
+# Doc comments stay *in* the code, next to what they document.
 #
-# The tempting setting is the other one, on the grounds that this development
-# keeps its rationale in prose — but the prose is in the `/-! … -/` *module*
-# headers (183 blocks, averaging ~1 100 characters), and those render as prose
-# either way. `/-- … -/` here is the other thing: 262 short annotations
-# averaging ~235 characters, most of them one line on a class field.
-#
-# Rendering those as text hoists each one out of its declaration and stacks
-# them above it, so a class arrives as a run of context-free sentences
-# followed by a wall of code — the field docs no longer sit beside the fields.
+# The other setting renders each doc comment as prose above its declaration.
+# That hoists it out of the listing, so a Veil model — whose doc comments sit
+# on each relation, action and property — and a class, with one per field,
+# would arrive as runs of context-free sentences followed by walls of code.
+# The reasoning that frames several declarations is in the `/-! … -/` module
+# docs, which render as prose either way.
 docstrings_as_text = false
 
 # Site overrides, loaded after Verso's own stylesheet. They patch two gaps in
 # its *Markdown* rendering path — list items emitted without `<li>`, and
 # missing indentation on `ol` in a code box — both documented in the file and
-# both still present upstream. This is also the hook for any further
-# presentation tweak; nothing in the generated output needs patching.
+# both still present upstream, and they hold this site's own presentation
+# choices, the style of the home link `scripts/docs.sh` adds to every page's
+# navigation among them.
 #
 # The basename must not be `literate.css`: extra files are copied into the
 # output directory under their own name, and Verso's own stylesheet is called
@@ -61,12 +59,17 @@ extra_css = ["docs/site-overrides.css"]
 
 # Inline Markdown in plain comments. Verso renders a doc comment's Markdown
 # but prints a `--` or `/- … -/` comment as literal text, and this
-# development writes `code`, *emphasis* and **strong** in its comments too
-# (the Veil declarations in particular cannot take a doc comment). The script
-# renders that inline subset in place and leaves anything it could misread as
-# written; `docs/VersoIssues.md` §6 has the reasoning. Its styles are
-# `site-overrides.css` §5.
-extra_js = ["docs/site-comments.js"]
+# development writes `code`, *emphasis*, **strong** and links in its
+# maintainer comments too. The script renders that inline subset in place and
+# leaves anything it could misread as written;
+# [VersoIssues.md](docs/VersoIssues.md) §6 has the reasoning, and its styles
+# are [site-overrides.css](docs/site-overrides.css) §5.
+#
+# `site-links.js` is the site's link table — where each relative link in the
+# sources goes — which `scripts/docs.sh` generates before this file is read,
+# from `scripts/site-links.sh`. The comment script resolves links in plain
+# comments through it.
+extra_js = [".lake/build/literate/site-links.js", "docs/site-comments.js"]
 
 # Everything in the one library the project builds.
 [[targets]]

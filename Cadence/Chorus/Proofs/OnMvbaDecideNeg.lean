@@ -7,20 +7,19 @@ Scaffolded by `#gen_proof_files Chorus`; yours to edit. Proves every
 registered VC of `on_mvba_decide_neg` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
-`Certify.lean`'s `#gen_composition`.
+[Certify.lean](../Certify.lean)'s `#gen_composition`.
 
 Manual cells go on `#prove_vc Chorus on_mvba_decide_neg <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
 false` is written out below, and the shared blocks from
-`Cadence/ProofPrelude.lean` record what each of the other options is
+[ProofPrelude.lean](../../ProofPrelude.lean) record what each of the other options is
 for.
 
-The two manual cells are ported from the retired oracle action
-`mvba_decide_neg` (2026-09-10, `docs/MvbaPlan.md` §6) with only the `intro`
-pattern changed (the handler's guards precede the bridge `require`, which is
-the evidence hypothesis `hev`): the commitQC-versus-negative-decision quorum
+The two manual cells ([MvbaPlan.md](../../../docs/MvbaPlan.md) §6) take the
+handler's guards and then its bridge `require`, the evidence hypothesis
+`hev`: the commitQC-versus-negative-decision quorum
 intersection, and the proposal-inclusion step that a negative decision for
 an on-time correct proposer is impossible — its evidence would contain an
 honest negative vote or fallback entry, or an EquivCert on a proposer that
@@ -28,9 +27,9 @@ signed one root. -/
 
 open Veil Chorus
 
--- The no-trusted-solver rule (README.md) stays written out per proof file so
+-- The no-trusted-solver rule ([README.md](../../../README.md)) stays written out per proof file so
 -- it remains greppable; the shared blocks below are defined and documented
--- in `Cadence/ProofPrelude.lean`.
+-- in [ProofPrelude.lean](../../ProofPrelude.lean).
 set_option veil.smt.trust false
 veil_proof_options
 veil_large_clump_budgets

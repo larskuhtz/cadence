@@ -1,8 +1,5 @@
-/-
-Cadence — the audit root.  (Plain comment, not a module docstring: Lean
-requires `import` lines to come before any command.  The module
-documentation follows the imports below.)
--/
+-- Cadence — the audit root. The module documentation follows the imports,
+-- which Lean requires to come first.
 
 -- The per-slot consensus leg.
 import Cadence.Chorus.Certify
@@ -42,26 +39,26 @@ build-checked pin. If any end theorem ever came to depend on an extra axiom
 hand-added assumption — this file would stop compiling.
 
 Reading it top to bottom answers one question: *what exactly has been
-proven, and what is it proven from?* [README.md](./README.md) is the
+proven, and what is it proven from?* [README.md](README.md) is the
 orientation document; the verification architecture, the methods, and the
 complete inventory of what is **not** in Lean are
-[docs/Architecture.md](./docs/Architecture.md).
+[docs/Architecture.md](docs/Architecture.md).
 
 ## The end results
 
 Each entry is the result, the file its statement lives in, and what it says.
 
-* **`Chorus.invariants_of_reachable`** (`Cadence/Chorus/Certify.lean`) — every
+* **`Chorus.invariants_of_reachable`** ([Chorus/Certify.lean](Cadence/Chorus/Certify.lean)) — every
   reachable state of the per-slot consensus satisfies all its declared safety
   properties and invariants (the count is pinned by `#veil_status Chorus` in
   that file)
-* **`Chorus.slotConsensusSafety`** (`Cadence/Chorus/Compose.lean`) — Chorus ⊨
+* **`Chorus.slotConsensusSafety`** ([Chorus/Compose.lean](Cadence/Chorus/Compose.lean)) — Chorus ⊨
   `SlotConsensusSafety` — the state-level fragment of the paper's per-slot
   module contract (agreement, slot safety, proposal inclusion, and the
   monotonicity of finalization), for every slot's copy of the model and for
   every MVBA satisfying `MVBASafety` (Chorus's own class constraint); this is
   the object the glue consumes as its `sc` constraint
-* **`Chorus.slotConsensus_of_temporal`** (`Cadence/Chorus/Compose.lean`) —
+* **`Chorus.slotConsensus_of_temporal`** ([Chorus/Compose.lean](Cadence/Chorus/Compose.lean)) —
   given an instance of `SlotConsensusTemporal` **at the proven fragment** —
   the participation interface, the admissible-run model, Termination and
   Quiescence — Chorus is a full `SlotConsensus`. This development has no such
@@ -70,93 +67,94 @@ Each entry is the result, the file its statement lives in, and what it says.
   system, restated nowhere. Hiding's protocol half is first-order and is
   proven in the fragment
 * **`Chorus.evidence_pigeonhole_of_reachable`**
-  (`Cadence/Chorus/Pigeonhole.lean`) — `2f+1` honest fallback entries always
+  ([Chorus/Pigeonhole.lean](Cadence/Chorus/Pigeonhole.lean)) — `2f+1` honest fallback entries always
   yield certified per-proposer evidence, for **every** `n = 3f+1` (the
   counting step of the fallback liveness branch)
 * **`Chorus.fbcert_of_honest_fallback_votes`,
   `Chorus.fbcommitqc_of_honest_commit_votes`**
-  (`Cadence/Chorus/Counting.lean`) — certificate formation: once every honest
+  ([Chorus/Counting.lean](Cadence/Chorus/Counting.lean)) — certificate formation: once every honest
   validator has cast its fallback (resp. fallback commit) vote, `FBCert`
   (resp. `fbCommitQC`) exists — the honest population is itself the quorum,
   for **every** `n = 3f+1`
 * **`Chorus.commitqc_of_honest_fast_dominant`**
-  (`Cadence/Chorus/Counting.lean`) — a supermajority of honest fast commit
+  ([Chorus/Counting.lean](Cadence/Chorus/Counting.lean)) — a supermajority of honest fast commit
   votes yields, per proposer, a commitQC from honest votes alone (the counting
   step of the fast-dominant liveness branch), for **every** `n = 3f+1`
 * **`Chorus.progress_dichotomy_of_saturation`**
-  (`Cadence/Chorus/Progress.lean`) — the liveness case split as **one
+  ([Chorus/Progress.lean](Cadence/Chorus/Progress.lean)) — the liveness case split as **one
   theorem**: in any reachable state where every honest validator has cast its
   path vote, either commitQCs exist for every proposer from honest votes
   alone, or the MVBA stands invoked with certified evidence for every proposer
   (verbatim the decision handlers' bridge `require` and `mvba_propose`'s
   validity guards), for **every** `n = 3f+1`
-* **`Chorus.build_totality_of_reachable`** (`Cadence/Chorus/Counting.lean`) —
+* **`Chorus.build_totality_of_reachable`** ([Chorus/Counting.lean](Cadence/Chorus/Counting.lean)) —
   any supermajority of per-proposer fallback entries — arbitrary
   honest/Byzantine mix, i.e. a validator's `2f+1` accepted receipts — yields a
   buildable meta-block entry (FallbackQC or EquivCert) for every proposer: the
   state-level half of "every correct validator can propose", for **every** `n
   = 3f+1`
-* **`Conductor.orchestratorSafety`** (`Cadence/Composition.lean`) — Conductor
+* **`Conductor.orchestratorSafety`** ([Composition.lean](Cadence/Composition.lean)) — Conductor
   ⊨ `OrchestratorSafety` — the state-level fragment of the paper's
   slot-scheduling module contract (open-prefix agreement, Monotonicity,
   Integrity's at-most-once half, the observables' monotonicity and frames),
   every field proven from the Conductor's own transition system; the object
   the glue consumes as its `orch` constraint
-* **`Conductor.orchestrator_of_temporal`** (`Cadence/Composition.lean`) —
+* **`Conductor.orchestrator_of_temporal`** ([Composition.lean](Cadence/Composition.lean)) —
   given an instance of `OrchestratorTemporal` **at the proven fragment** —
   Totality, `B`-Boundedness, `R`-Recovery and the admissible-run model — the
   Conductor is a full `Orchestrator`. This development has no such instance,
   and that is the statement of what is *not* proven about the Conductor as an
   orchestrator. Integrity's timing half is first-order and is proven in the
   fragment
-* **`Cadence.positional_log_safety`** (`Cadence/Composition.lean`) — MCP
+* **`Cadence.positional_log_safety`** ([Composition.lean](Cadence/Composition.lean)) — MCP
   Safety in the paper's positional form — two correct validators never
   disagree on the log entry at a given position — for the glue over *any*
   orchestrator and slot consensus satisfying the two `…Safety` contracts
-* **`Cadence.system_positional_log_safety`** (`Cadence/System.lean`) — the
+* **`Cadence.system_positional_log_safety`** ([System.lean](Cadence/System.lean)) — the
   same, **for the composed system**: the glue running the Conductor's and
   Chorus's own transition systems, Chorus running the `Mvba` model's as its
   MVBA (`Mvba.mvbaSafety` fills Chorus's class constraint; its full
-  contract is proven, `Mvba.mvbaFull` below). No contract
-  hypothesis remains; what is assumed is the three modules' configurations and
-  that the Conductor and Chorus agree on who is Byzantine
+  contract is proven, `Mvba.mvbaFull` below). The one contract hypothesis
+  left is `ACSSafety`, the ACS primitive the Conductor runs once per window;
+  beyond it, what is assumed is the three modules' configurations and that
+  the Conductor and Chorus agree on who is Byzantine
 * **`FallbackReceipt.invariants_of_reachable`**
-  (`Cadence/FallbackReceipt/Certify.lean`) — every reachable state of the
+  ([FallbackReceipt/Certify.lean](Cadence/FallbackReceipt/Certify.lean)) — every reachable state of the
   fallback receipt/propose layer satisfies its declared invariants
 * **`FallbackReceipt.build_totality_of_reachable`**
-  (`Cadence/FallbackReceipt/Totality.lean`) — an honest validator can always
+  ([FallbackReceipt/Totality.lean](Cadence/FallbackReceipt/Totality.lean)) — an honest validator can always
   build a *valid* fallback meta-block, for **every** `n = 3f+1`
-* **`Mvba.invariants_of_reachable`** (`Cadence/Mvba/Certify.lean`) — every
-  reachable state of the leader-based MVBA instantiation (`Cadence/Mvba.lean`
+* **`Mvba.invariants_of_reachable`** ([Mvba/Certify.lean](Cadence/Mvba/Certify.lean)) — every
+  reachable state of the leader-based MVBA instantiation ([Mvba.lean](Cadence/Mvba.lean)
   — the protocol of the paper repository's *internal supplement*, pinned to a
   paper-repository commit in the model's header, not yet part of the published
   paper) satisfies all its declared safety properties and invariants
 * **`Mvba.reachable_agreement`, `Mvba.reachable_integrity`,
-  `Mvba.reachable_external_validity`** (`Cadence/Mvba/Certify.lean`) — the
+  `Mvba.reachable_external_validity`** ([Mvba/Certify.lean](Cadence/Mvba/Certify.lean)) — the
   three safety properties of `mod:mvba` at every reachable state — the
   supplement's `thm:agreement` at the entries level, integrity (a correct
   validator decides at most once), `lem:external-validity`
-* **`Mvba.mvbaFull`** (`Cadence/Mvba/Temporal.lean`) — **Mvba ⊨ `MVBA`,
+* **`Mvba.mvbaFull`** ([Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean)) — **Mvba ⊨ `MVBA`,
   the whole contract**, and the MVBA the composed system runs: its safety
-  fragment is by `rfl` `Mvba.mvbaSafety`, the instance `Cadence/System.lean`
+  fragment is by `rfl` `Mvba.mvbaSafety`, the instance [System.lean](Cadence/System.lean)
   plugs into Chorus (`Mvba.mvbaFull_toSafety`). It joins the two rows
   below through `mvba_of_temporal`
-* **`Mvba.mvbaSafety`** (`Cadence/Mvba/Compose.lean`) — Mvba ⊨ `MVBASafety` —
+* **`Mvba.mvbaSafety`** ([Mvba/Compose.lean](Cadence/Mvba/Compose.lean)) — Mvba ⊨ `MVBASafety` —
   the state-level fragment of the paper's MVBA module contract (agreement,
   integrity, external validity, the monotonicity of `decided`, the inputs,
   their observables and one-step Quiescence), every field proven from the
-  model's own transition system (`docs/MvbaPlan.md` §6)
-* **`Mvba.mvbaTemporal`** (`Cadence/Mvba/Temporal.lean`) — **Mvba ⊨
+  model's own transition system ([MvbaPlan.md](docs/MvbaPlan.md) §6)
+* **`Mvba.mvbaTemporal`** ([Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean)) — **Mvba ⊨
   `MVBATemporal`**: `ℓ_MVBA`-Termination with an explicit `ℓ`, the
   supplement's `O(fΔ)` at `k = f + 1`. If every correct validator proposes a
   valid value by `t` and none abandons early, every correct validator
   decides by `max(t, GST) + ℓ`, in every admissible run. The admissible runs
   are those with a labelling satisfying the timing model of
-  `Cadence/Mvba/Schedule.lean`: bounded weak fairness after GST at a hop
+  [Mvba/Schedule.lean](Cadence/Mvba/Schedule.lean): bounded weak fairness after GST at a hop
   bound per label, a punctual view timer, and availability within
   `Δ_sync`. Such runs exist (`Mvba.admissible_exists`). Termination is
   `Mvba.timed_termination`, from `Mvba.bounded_termination`
-  (`Cadence/Mvba/BoundedTermination.lean`). No field is weakened. The
+  ([Mvba/BoundedTermination.lean](Cadence/Mvba/BoundedTermination.lean)). No field is weakened. The
   hypotheses, none of them an axiom:
   * finitely many validators (`Fintype node`);
   * `ByzNodeSetHonestQuorum` (a supermajority of correct validators) and
@@ -167,7 +165,7 @@ Each entry is the result, the file its statement lives in, and what it says.
     latency (`Schedule`);
   * a time theory that is a cancellative, Archimedean, linearly ordered
     monoid.
-* **`Mvba.termination`** (`Cadence/Mvba/Liveness.lean`) — **the same
+* **`Mvba.termination`** ([Mvba/Liveness.lean](Cadence/Mvba/Liveness.lean)) — **the same
   statement, untimed**: every correct validator eventually decides. Its
   premises are fair scheduling, the supplement's caller conditions (all
   correct validators propose, none is abandoned before deciding), (F-avail),
@@ -175,26 +173,25 @@ Each entry is the result, the file its statement lives in, and what it says.
   fire; the good view's timer waits for a certificate), so the theorem reads
   *given enough time, the protocol decides*. The timed premises imply
   (A-viewsync) (`Mvba.aViewSync_of_sync`). Hypotheses: finitely many
-  validators, `ByzNodeSetHonestQuorum`, `ViewOrderEnum`. `docs/Liveness.md`
+  validators, `ByzNodeSetHonestQuorum`, `ViewOrderEnum`. [Liveness.md](docs/Liveness.md)
   §2.1 explains the premise in short
 
 Three further build-checked claims are pinned where they are made, because
 their form is not an axiom footprint:
 
 * **Completeness of the per-VC evidence.** `#veil_status Chorus` (in
-  `Cadence/Chorus/Certify.lean`), `#veil_status FallbackReceipt` (in
-  `Cadence/FallbackReceipt/Certify.lean`) and `#veil_status Mvba` (in
-  `Cadence/Mvba/Certify.lean`) walk each model's registry of
+  [Chorus/Certify.lean](Cadence/Chorus/Certify.lean)), `#veil_status FallbackReceipt` (in
+  [FallbackReceipt/Certify.lean](Cadence/FallbackReceipt/Certify.lean)) and `#veil_status Mvba` (in
+  [Mvba/Certify.lean](Cadence/Mvba/Certify.lean)) walk each model's registry of
   verification conditions and report, per condition, whether a real,
   statement-matching, kernel-checked theorem is in scope. All three are
-  pinned: `4222/4222 real`, `220/220 real` and `1325/1325 real`, three
-  axioms. That is the claim "nothing here is stubbed", as a command rather
+  pinned at every condition real, over the three standard axioms. That is the claim "nothing here is stubbed", as a command rather
   than as prose.
 * **The pre-fix receipt rules are broken.**
-  `Cadence/FallbackReceipt/PreFix.lean` pins the model checker's
+  [FallbackReceipt/PreFix.lean](Cadence/FallbackReceipt/PreFix.lean) pins the model checker's
   *counterexample* to the receipt rules as published in `arXiv:2607.02275v1`.
   That file builds only if the bug is still found, verbatim.
-* **The MVBA's lock check is load-bearing.** `Cadence/Mvba/NoLock.lean`
+* **The MVBA's lock check is load-bearing.** [Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean)
   pins the model checker's *counterexample* to the MVBA instantiation with
   the `Pre-Prepare` handler's lock check removed — two correct validators
   deciding different vectors — found on a restriction of that mutant every
@@ -204,11 +201,11 @@ their form is not an axiom footprint:
 
 ## What this module does not import
 
-The model-conformance monitor (`Cadence/Monitor/`) is a separate concern — it
+The model-conformance monitor ([Cadence/Monitor](Cadence/Monitor)) is a separate concern — it
 checks whether a real implementation trace is *simulated by* the model, which
 is neither a proof nor part of any theorem's trust base. Its modules each
 carry a `main` for `lean --run`, so they cannot share one import closure;
-`lake build` still elaborates them. See [docs/Monitor.md](./docs/Monitor.md).
+`lake build` still elaborates them. See [docs/Monitor.md](docs/Monitor.md).
 
 ## The trust base, re-derived
 
@@ -228,7 +225,7 @@ is complete and kernel-checked from Lean's axioms. They do **not** say that
 the *statement* is the right one — that the model faithfully formalises the
 protocol, and that the assumptions the statements are conditioned on are
 sound, is the part an auditor has to read, and it is inventoried in
-[docs/Architecture.md](./docs/Architecture.md) §4.
+[docs/Architecture.md](docs/Architecture.md) §4.
 -/
 
 /--

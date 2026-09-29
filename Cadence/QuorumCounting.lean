@@ -18,14 +18,14 @@ validators Byzantine:
 
 This class states them over an abstract `ByzNodeSet`. Like the other quorum
 requirements (`ByzNodeSetEnum`, `ByzNodeSetHonestQuorum` in
-[`ByzQuorum.lean`](./ByzQuorum.lean)) it takes the `ByzNodeSet` as an
+[ByzQuorum.lean](ByzQuorum.lean)) it takes the `ByzNodeSet` as an
 explicit parameter, so a theorem that uses the facts names them in its
 statement. A Veil model consumes the class with `instantiate`, and then
 every field is a hypothesis of the model's solver queries, exactly like the
 fields of `ByzNodeSet` itself.
 
 The class is proven, never assumed, wherever the validator set is concrete:
-[`ByzQuorum.lean`](./ByzQuorum.lean) instantiates it for Veil's
+[ByzQuorum.lean](ByzQuorum.lean) instantiates it for Veil's
 `byzNodeSetFin` (`n = 3f+1`) and for `byzNodeSetFinGen` (every `n ≥ 3f+1`).
  -/
 

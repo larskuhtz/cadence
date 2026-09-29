@@ -8,9 +8,9 @@ alike — [§5](#5-why-a-container-at-all) says what the container buys over it.
 
 The images are built and verified by CI and published for `linux/arm64` and
 `linux/amd64`: `ghcr.io/larskuhtz/cadence-{verified,dev,deps,verified-cache}`.
-[`../scripts/container.sh`](../scripts/container.sh) pulls the image a command
+[scripts/container.sh](../scripts/container.sh) pulls the image a command
 needs on first use — nothing has to be built. Building the images yourself,
-and how CI publishes them, is [Images.md](./Images.md); that is needed only
+and how CI publishes them, is [Images.md](Images.md); that is needed only
 when the dependency tree or the Containerfile changes.
 
 ## 1. Quick start
@@ -52,11 +52,11 @@ the Chorus model alone: 12 threads → killed; 4 threads → 131 s at an 11.0 GB
 peak; 2 threads → 226 s at 4.8 GB. All 66 modules at `LEAN_NUM_THREADS=4`
 take 4 min 12 s with a 12.9 GB peak, which is what the script sets. Lower it
 if you have less memory. `verify` needs no such care —
-`scripts/revalidate.sh` bounds its own concurrency and is comfortable at
+[scripts/revalidate.sh](../scripts/revalidate.sh) bounds its own concurrency and is comfortable at
 12 CPUs / 20 GB.
 
 For an editor, open the folder in VS Code with the **Dev Containers**
-extension; [`../.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json)
+extension; [.devcontainer/devcontainer.json](../.devcontainer/devcontainer.json)
 uses the published `dev` image, so nothing is built there either. The
 extension drives a *Docker-compatible* CLI: podman works
 (`"dev.containers.dockerPath": "podman"`), docker works, but Apple's
@@ -98,7 +98,7 @@ Two things about the images that are easy to get wrong:
 * **The workspace path is baked in** (`/workspaces/cadence`). Lake records
   absolute paths in its trace files, so a build tree is only reusable at the
   path it was built at. Anything that mounts sources over the image must use the
-  same path — which is why `devcontainer.json` pins `workspaceFolder`.
+  same path — which is why [devcontainer.json](../.devcontainer/devcontainer.json) pins `workspaceFolder`.
 * A bind mount of your checkout would **shadow** the image's `.lake`. Both
   entry points therefore keep `.lake` in a named volume, which the runtime
   initialises from the image's content the first time it is mounted.
@@ -128,7 +128,7 @@ part an auditor should read closely.
 
 Each tier is a superset of the one above it. Every tier also runs natively —
 the commands below are the container's convenience wrappers around
-`leanchecker` and `scripts/revalidate.sh`, both of which work on a plain
+`leanchecker` and [scripts/revalidate.sh](../scripts/revalidate.sh), both of which work on a plain
 checkout.
 
 The times below were taken on the previously published images and are the one
@@ -151,7 +151,7 @@ modules — every reconstructed Chorus proof included — in four minutes, with
 CI runs tiers 1 and 2a on every commit, as parallel jobs of the same workflow:
 `verify` re-validates the sources against the published image, and `check`
 kernel-replays every proof that image stores. The header of
-[`.github/workflows/verify.yml`](../.github/workflows/verify.yml) has the
+[.github/workflows/verify.yml](../.github/workflows/verify.yml) has the
 argument for why the two jobs compose — including what happens to a module
 added after the image was published.
 
@@ -171,7 +171,7 @@ bash scripts/revalidate.sh /tmp        # 9 min 12 s, proof cache retained
 
 Narrow the batches when verification conditions are actually re-solved —
 `BATCH=3` for a cold run, `BATCH=1` on few cores (it passes through
-`scripts/container.sh` into `revalidate.sh`). The default of 6 makes
+[scripts/container.sh](../scripts/container.sh) into [revalidate.sh](../scripts/revalidate.sh)). The default of 6 makes
 concurrent dischargers contend for wall-clock, and a near-limit VC that
 passes comfortably alone then times out: measured by the 2026-08 external
 audit on 8 cores at 21 s alone against a 60 s budget versus a timeout in a
@@ -191,7 +191,7 @@ establishes that correspondence, which is tier 2, and why the proof cache is
 worth shipping: it makes tier 2 fifteen minutes rather than an hour and a half.
 
 For the complementary question — what the *statements* mean, and what is
-assumed rather than proven — see [Architecture.md](./Architecture.md) §4.
+assumed rather than proven — see [Architecture.md](Architecture.md) §4.
 
 **Reproduction note — `libLake_shared.so` (auditing outside these
 images).** In a fresh Linux environment that is not one of the images
@@ -206,7 +206,7 @@ TC="$HOME/.elan/toolchains/<toolchain>"
 export LD_LIBRARY_PATH="$TC/lib/lean:$TC/lib:${LD_LIBRARY_PATH:-}"
 ```
 
-before `lake build` (this is exactly what `scripts/run-chorus-monitor.sh`
+before `lake build` (this is exactly what [scripts/run-chorus-monitor.sh](../scripts/run-chorus-monitor.sh)
 does for the interpreter). The published images and the devcontainer do
 not need this. Reported by the 2026-08 external audit.
 
@@ -218,7 +218,7 @@ macOS from any checkout path. What the container buys:
 * **Nothing to build.** The `verified` image already holds this project's
   oleans, produced by a run that printed `ALL STAGES GREEN` inside the image
   build. Tier 1 costs a pull and 4 minutes; a first native build re-solves
-  every verification condition ([`Architecture.md`](./Architecture.md) §2).
+  every verification condition ([Architecture.md](Architecture.md) §2).
 * **A fixed environment.** The toolchain, the system `clang`/`libc++` that
   cvc5's FFI shim needs, and every dependency revision are pinned in the
   image, so CI, a reviewer and an auditor run the identical tree.
@@ -240,7 +240,7 @@ absolute times, which move with the toolchain:
 
 ## 6. Building and publishing the images
 
-In [Images.md](./Images.md): building the images locally, sizing the image
+In [Images.md](Images.md): building the images locally, sizing the image
 build, the layer-sharing rules, why the images are the size they are, and the
 CI pipeline that publishes them. None of it is needed to *use* the published
 images.

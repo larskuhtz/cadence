@@ -3,17 +3,17 @@ import Mathlib.Order.MinMax
 
 /-! # Timed — labelled timed runs, and bounded fairness after GST
 
-The timed vocabulary of the bounds work ([`docs/Bounds.md`](../docs/Bounds.md)
+The timed vocabulary of the bounds work ([Bounds.md](../docs/Bounds.md)
 §6.2), one level below the module contracts and one level above
-[`Fairness.lean`](./Fairness.lean): a labelled run **with a clock**, what it
+[Fairness.lean](Fairness.lean): a labelled run **with a clock**, what it
 means for a step to change the state, and weak fairness with a *deadline*
 instead of an *eventually*. Nothing here is Cadence-specific and nothing
-here is assumed — these are definitions, and the two lemmas about them are
-the two shapes every bounded-liveness proof uses.
+here is assumed — these are definitions, and the lemmas about them are the
+shapes every bounded-liveness proof uses.
 
 ## Why a second run type
 
-[`Interfaces.lean`](./Interfaces.lean)'s `TimedRun` is what the contracts
+[Interfaces.lean](Interfaces.lean)'s `TimedRun` is what the contracts
 quantify over: states and a clock sequence, but no labels. Fairness is about
 labels, so the load-bearing object here is `TLRun`: an `LRun`, labels
 included, together with the same clock sequence (monotone, unbounded) and
@@ -26,15 +26,15 @@ the run's `gst`. `TLRun.toTimedRun` forgets the labels, and a contract's
 some `n ≥ N` with `clk (n + 1) ≤ ref N + D`: the step's *effect* is inside
 the window, not merely its start. A run whose clock jumps past `ref N + D`
 while `l` is pending therefore satisfies no `FiresWithin`, and `BoundedFair`
-rejects it — the Zeno-guard of `docs/Bounds.md` §3(b), stated as a property
+rejects it — the Zeno-guard of [Bounds.md](../docs/Bounds.md) §3(b), stated as a property
 of runs rather than as a guard in the model. `ref N := max (clk N) gst`
 makes the same clause bite across GST: an obligation pending when GST
 arrives is due `D` after GST.
 
-**Fairness is about steps that change the state.** `Fairness.lean`'s
+**Fairness is about steps that change the state.** [Fairness.lean](Fairness.lean)'s
 `Enabled` holds when *some* transition exists under the label, a stutter
 included; `EnabledMove` asks for a transition to a *different* state — TLA+'s
-`⟨A⟩_v`. The reason is recorded in `Bounds.md` §6.2.4: assembly actions are
+`⟨A⟩_v`. The reason is recorded in [Bounds.md](../docs/Bounds.md) §6.2.4: assembly actions are
 idempotent, so under plain enabledness every one of the (possibly
 infinitely many) quorum-indexed labels with the same effect stays enabled
 forever and must fire, and no run is fair. Under `EnabledMove` one firing
@@ -82,8 +82,8 @@ variable {time : Type} [LinearOrder time]
 reading at every index — monotone, unbounded (no Zeno runs) — and the
 run's global stabilisation time.
 
-The clock is a separate sequence and not a state field on purpose; the
-header says why. Dot-notation reaches the `LRun` API (`r.reachable`,
+The clock belongs to the run, as in the contracts' `TimedRun`, so a model
+whose state has no clock is timed without adding one. Dot-notation reaches the `LRun` API (`r.reachable`,
 `r.mono`, `r.steps`, …) through the parent projection. -/
 structure TLRun (sys : RelationalTransitionSystem ρ σ lbl) (th : ρ)
     (time : Type) [LinearOrder time] extends LRun sys th where

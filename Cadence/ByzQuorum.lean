@@ -16,7 +16,7 @@ Rather than touch the shared Veil instance (used by other examples), this is a
 Cadence-local copy with the **`n`-scaled** supermajority threshold
 `n − f ≤ |q|` (written `n ≤ |q| + f` to keep Nat subtraction out of `omega`;
 it collapses to `2f+1` when `n = 3f+1`), and `hf` relaxed to `3f+1 ≤ n`. The
-eight `ByzNodeSet` axioms then hold for the whole family `n ≥ 3f+1`
+four `ByzNodeSet` axioms then hold for the whole family `n ≥ 3f+1`
 (`2(n−f) − n = n − 2f ≥ f+1`). `greater_than_third := f+1 ≤ |q|` is unchanged
 (it never depended on `n`). The proofs are Veil's, with the arithmetic relaxed.
 -/
@@ -26,21 +26,20 @@ namespace Cadence
 /-! ## The constructive side — what liveness needs and safety does not
 
 `ByzNodeSet` axiomatises quorums by **intersection alone**: every one of its
-eight fields says that two sets of a given strength share a member of some
+four axioms says that two sets of a given strength share a member of some
 kind, and not one of them says anything about a quorum's size or about how
 to enumerate it. That is exactly right for safety, which only ever consumes
 an intersection, and it is why every safety theorem in this development
 holds for an abstract `node` of any cardinality.
 
-Liveness is different, and this is the first place the difference bites.
-Assembling a certificate takes one firing per member — `Mvba.form_prepqc`
+Liveness is different. Assembling a certificate takes one firing per member — `Mvba.form_prepqc`
 requires `∀ r, member r q → msg_prepare r v e` — so weak fairness produces
 it in finite time only if a quorum has finitely many members. This class is
 the minimal statement of that, and it is kept **separate from
 `ByzNodeSet`** for two reasons: nothing on the safety side should acquire a
 cardinality assumption it does not need, and a liveness theorem should
 carry the requirement as a *visible hypothesis* rather than inherit it
-silently ([`docs/MvbaPlan.md`](../docs/MvbaPlan.md) §3.3).
+silently ([MvbaPlan.md](../docs/MvbaPlan.md) §3.3).
 
 It is discharged, never assumed, wherever the validator set is concrete: a
 `ByzNSet n` quorum *is* a sorted list, so `byzNodeSetFinGen_enum` below
@@ -52,7 +51,7 @@ trick.
 `ByzNodeSetHonestQuorum` below is the second requirement of the same kind,
 and the two are kept apart for the same reason they are kept out of
 `ByzNodeSet`: a theorem should carry what it uses. The ranking of
-[`Mvba/Rank.lean`](./Mvba/Rank.lean) needs enumerability alone; only a
+[Mvba/Rank.lean](Mvba/Rank.lean) needs enumerability alone; only a
 run-level theorem, which must exhibit the quorum that actually assembles,
 needs the second. -/
 class ByzNodeSetEnum (node nset : Type) (B : ByzNodeSet node nset) where
@@ -73,7 +72,7 @@ noncomputable def ByzNodeSetEnum.ofFintype (node nset : Type) (B : ByzNodeSet no
 
 /-! ### A quorum of correct validators
 
-All eight `ByzNodeSet` axioms are *intersection* statements: two sets of a
+All four `ByzNodeSet` axioms are *intersection* statements: two sets of a
 given strength share a member of some kind. Not one of them says that a
 supermajority of **correct** validators exists. Safety never needs that — it
 consumes quorums the adversary may have helped to form, and the intersection
@@ -358,29 +357,31 @@ end Tight
 The whole point: a valid `ByzNodeSet` at a **non-tight** committee size
 `n > 3f+1` — impossible with Veil's `byzNodeSetFin` (`n = 3f+1` exactly). -/
 
--- n = 5 > 3f+1 = 4 (f = 1): the case the tight Veil instance cannot express.
+/-- `n = 5 > 3f+1 = 4` (`f = 1`): the case the tight Veil instance cannot
+express. -/
 example : ByzNodeSet (Fin 5) (ByzNSet 5) :=
   byzNodeSetFinGen 5 1 (by decide) (fun i => i.val = 0) (by decide)
 
--- n = 6 (f = 1) — another non-tight size.
+/-- `n = 6` (`f = 1`) — another non-tight size. -/
 example : ByzNodeSet (Fin 6) (ByzNSet 6) :=
   byzNodeSetFinGen 6 1 (by decide) (fun i => i.val = 0) (by decide)
 
--- n = 4 = 3f+1 (f = 1): the tight case, equivalent to Veil's instance
--- (threshold `n − f = 3 = 2f+1`) — the monitor's current instantiation.
+/-- `n = 4 = 3f+1` (`f = 1`): the tight case, equivalent to Veil's instance
+(threshold `n − f = 3 = 2f+1`) — the instantiation the conformance monitor
+runs. -/
 example : ByzNodeSet (Fin 4) (ByzNSet 4) :=
   byzNodeSetFinGen 4 1 (by decide) (fun _ => False) (by decide)
 
--- The liveness-side enumerability witness exists at the same instance, so a
--- liveness theorem carrying `ByzNodeSetEnum` as a hypothesis is discharged,
--- not merely assumed, wherever the committee is concrete.
+/-- The liveness-side enumerability witness exists at the same instance, so a
+liveness theorem carrying `ByzNodeSetEnum` as a hypothesis is discharged,
+not merely assumed, wherever the committee is concrete. -/
 example : ByzNodeSetEnum (Fin 4) (ByzNSet 4)
     (byzNodeSetFinGen 4 1 (by decide) (fun _ => False) (by decide)) :=
   byzNodeSetFinGen_enum 4 1 (by decide) (fun _ => False) (by decide)
 
--- And so does the constructive quorum of correct validators, at a committee
--- that actually has a Byzantine member (`n = 5`, `f = 1`, node 0 faulty):
--- the remaining four are a supermajority under the `n`-scaled threshold.
+/-- And so does the constructive quorum of correct validators, at a committee
+that actually has a Byzantine member (`n = 5`, `f = 1`, node 0 faulty):
+the remaining four are a supermajority under the `n`-scaled threshold. -/
 example : ByzNodeSetHonestQuorum (Fin 5) (ByzNSet 5)
     (byzNodeSetFinGen 5 1 (by decide) (fun i => i.val = 0) (by decide)) :=
   byzNodeSetFinGen_honest 5 1 (by decide) (fun i => i.val = 0) (by decide)

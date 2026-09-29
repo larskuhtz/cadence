@@ -4,14 +4,14 @@ import Cadence.ByzQuorum
 
 /-! # Chorus/Counting — the certificate-formation counting steps, mechanised
 
-Companion to [`Pigeonhole.lean`](./Pigeonhole.lean) (read its header first):
+Companion to [Pigeonhole.lean](Pigeonhole.lean) (read its header first):
 the remaining *counting* steps of the fair-progress argument
-(`docs/ChorusDesign.md` §7), as Lean theorems over the concrete instance
+([ChorusDesign.md](../../docs/ChorusDesign.md) §7), as Lean theorems over the concrete instance
 family `byzNodeSetFin n f` — **every** `n = 3f+1`, every Byzantine set of
 size `≤ f`. With these, the counting content of all three branches of the
 case split is mechanised, and what remains meta in the liveness argument is
 *purely* the temporal glue ((F-justice)/(F-byz)/(A-mvba);
-`docs/Architecture.md` §4 item 2).
+[Architecture.md](../../docs/Architecture.md) §4 item 2).
 
 1. `honest_supermajority` — the honest population itself is a
    supermajority-sized node set: `n = 3f+1` minus `≤ f` Byzantine leaves
@@ -21,7 +21,7 @@ case split is mechanised, and what remains meta in the liveness argument is
    (resp. fallback commit vote), the certificate exists: the honest
    population is the quorum. These discharge the "`FBCert` forms" step of
    the `x = 0` branch and the "`2f+1` honest commit votes form
-   `fbCommitQC`" step of the commit round (`docs/ChorusDesign.md` §7).
+   `fbCommitQC`" step of the commit round ([ChorusDesign.md](../../docs/ChorusDesign.md) §7).
    State-level and reachability-free: the certificates are existential
    statements the honest quorum witnesses directly.
 3. `commitqc_of_honest_fast_dominant` — the `x ≥ 2f+1` branch: any
@@ -30,10 +30,10 @@ case split is mechanised, and what remains meta in the liveness argument is
    polarity/root agreement comes from the invariant chain
    `commit_*_sig_from_local_fastqc` → `local_fastqc_pos_cross_unique` /
    `local_fastqc_pos_neg_excl` over the named reachability projections of
-   [`Certify.lean`](./Certify.lean).
+   [Certify.lean](Certify.lean).
 4. `build_totality_of_reachable` — the network-level counterpart of the
    receipt layer's build totality
-   ([`FallbackReceipt/Totality.lean`](../FallbackReceipt/Totality.lean)),
+   ([FallbackReceipt/Totality.lean](../FallbackReceipt/Totality.lean)),
    and the state-level half of "(A-mvba)'s *all correct validators
    propose* premise is implementable": from **any** supermajority of
    per-proposer fallback entries — arbitrary honest/Byzantine mix, which
@@ -49,11 +49,11 @@ The hypotheses are exactly what the (F-justice) temporal layer delivers —
 theorems slot into the meta-argument at the stated seam. Stated for the
 concrete instance family because "the honest population is a set the
 quorum language can quantify over" is not expressible over the abstract
-`ByzNodeSet` axioms (cf. the header of `FallbackReceipt/Totality.lean`).
+`ByzNodeSet` axioms (cf. the header of [FallbackReceipt/Totality.lean](../FallbackReceipt/Totality.lean)).
 
 Trust base: `[propext, Classical.choice, Quot.sound]`, pinned below.
 `commitqc_of_honest_fast_dominant` consumes the proof-file family's
-kernel-checked VC theorems through `Certify.lean`'s reachability
+kernel-checked VC theorems through [Certify.lean](Certify.lean)'s reachability
 projections; the other theorems are kernel-checked counting outright. -/
 
 namespace Chorus
@@ -79,7 +79,7 @@ variable {slot merkle_root mstate mvalue mmsg Phase PathChoice : Type}
 /- Apply a generated `Chorus` declaration at the canonical `Classical`
 instantiation, at the concrete quorum instance family (the generated
 composition's regime with `node := Fin n`,
-`nset := byzNodeSetFin n f hf is_byz hbyz`); cf. `Pigeonhole.lean`. -/
+`nset := byzNodeSetFin n f hf is_byz hbyz`); cf. [Pigeonhole.lean](Pigeonhole.lean). -/
 local macro "cpv%" t:ident args:term:max* : term =>
   `(@$t
     (Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice)
@@ -111,7 +111,7 @@ local macro "cpv%" t:ident args:term:max* : term =>
     $args*)
 
 /- The abstract field representation at the canonical instances
-(cf. `Pigeonhole.lean`'s `pafr%`). -/
+(cf. [Pigeonhole.lean](Pigeonhole.lean)'s `pafr%`). -/
 local macro "cafr%" fld:ident : term =>
   `(@Chorus.instAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
@@ -186,7 +186,7 @@ private abbrev pSigned (j : Fin n) (m : merkle_root) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (cafr% Chorus.State.Label.msg_proposer_signed)
     st.msg_proposer_signed j m = true
 
-/-- **`FBCert` formation** (`x = 0` branch, `docs/ChorusDesign.md` §7): once
+/-- **`FBCert` formation** (`x = 0` branch, [ChorusDesign.md](../../docs/ChorusDesign.md) §7): once
 every honest validator has cast its fallback vote, `fbcert` holds — the
 honest population is itself the certifying quorum. Reachability-free. -/
 theorem fbcert_of_honest_fallback_votes
@@ -219,7 +219,7 @@ theorem fbcommitqc_of_honest_commit_votes
 
 set_option maxHeartbeats 1000000 in
 /-- **CommitQC formation in the fast-dominant branch** (`x ≥ 2f+1`,
-`docs/ChorusDesign.md` §7): in any reachable state, a supermajority `H` of
+[ChorusDesign.md](../../docs/ChorusDesign.md) §7): in any reachable state, a supermajority `H` of
 honest validators that have cast fast commit votes — each carrying its
 per-proposer entry for `j`, as `cast_fast_commit` requires — yields a
 commitQC for `j` from honest votes alone. Agreement across `H` is the
@@ -368,7 +368,7 @@ end Chorus
 
 The standard Lean trio and nothing else — no `sorryAx`.
 `commitqc_of_honest_fast_dominant` consumes the proof-file family's
-re-proved, kernel-checked VC theorems through `Certify.lean`'s
+re-proved, kernel-checked VC theorems through [Certify.lean](Certify.lean)'s
 reachability projections; the certificate-formation theorems are
 kernel-checked counting outright. A regression anywhere in that chain
 fails these guards. -/

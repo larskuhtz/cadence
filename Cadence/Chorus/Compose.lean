@@ -3,10 +3,12 @@ import Cadence.Interfaces
 
 /-! # ChorusCompose — `Chorus ⊨ SlotConsensusSafety`
 
-The final leg of the composition layer (`docs/ConductorDesign.md` §5.2,
-`docs/CompositionContracts.md`): the Chorus transition system, packaged as
-the state-level slot-consensus contract that the `Cadence` glue module
-consumes as its `sc` constraint ([`Interfaces.lean`](../Interfaces.lean)).
+The final leg of the composition layer
+([ConductorDesign.md](../../docs/ConductorDesign.md) §5.2,
+[CompositionContracts.md](../../docs/CompositionContracts.md)): the Chorus
+transition system, packaged as the state-level slot-consensus contract that
+the `Cadence` glue module consumes as its `sc` constraint
+([Interfaces.lean](../Interfaces.lean)).
 
 **The family.** `mod:slotconsensus` is one instance per slot, and the
 contract is stated as the family over slots. Chorus is a single-slot model,
@@ -49,7 +51,7 @@ Each entry is a `SlotConsensusSafety` field and what discharges it.
   constructors
 
 all consumed through the named reachability projections of
-[`Chorus/Certify.lean`](./Certify.lean) (emitted by `#gen_composition` from
+[Chorus/Certify.lean](Certify.lean) (emitted by `#gen_composition` from
 the proof-file family's preservation lemmas).
 
 **What stays unproven.** Chorus models neither the participation interface
@@ -63,21 +65,20 @@ development has no instance —
 `SlotConsensus`, discharging on the way the one upper-level field Chorus
 *does* prove: the protocol half of Hiding (`safety [hiding_until_deadline]`,
 the contract's `hiding_residue`). The residual is the formal statement of
-`docs/Architecture.md` §4 item 4 for this module.
+[Architecture.md](../../docs/Architecture.md) §4 item 4 for this module.
 
 Trust base: `[propext, Classical.choice, Quot.sound]` — the standard Lean
 trio, nothing else — pinned by the `#guard_msgs` axiom checks at the end of
 this file. The composition consumes the proof-file family
-(`Chorus/Proofs/`, via `Chorus/Certify.lean`'s `#gen_composition`):
+([Chorus/Proofs](Proofs), via [Chorus/Certify.lean](Certify.lean)'s `#gen_composition`):
 every VC statement re-created from the persistent registry, solved as a
 fresh kernel-checked reconstruction, assembled per action into a
 preservation lemma, and composed — kernel-checked at every `addDecl` —
 inside Veil. -/
 
--- NOTE: deliberately NO `open Veil` here — it activates the Veil DSL's
--- scoped keywords, one of which (`includes`) collides with the
--- `SlotConsensusSafety` field name in the `where` block below. Veil names
--- are used fully qualified instead.
+-- No `open Veil` here: the DSL's scoped keyword `includes` collides with the
+-- `SlotConsensusSafety` field of that name ([CLAUDE.md](../../CLAUDE.md),
+-- "Hard rules"). Veil names are qualified instead.
 
 namespace Chorus
 open Classical ByzNodeSet
@@ -92,14 +93,14 @@ variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Ty
   -- The quorum counting facts Chorus consumes (its `cnt` class constraint).
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   -- The MVBA contract Chorus consumes (its `mvba` class constraint), stated
-  -- against the module's own fault pattern; `System.lean` instantiates it at
+  -- against the module's own fault pattern; [System.lean](../System.lean) instantiates it at
   -- `Mvba.mvbaSafety`.
   [mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)]
   [Phase_Enum : Chorus.Phase_EnumClass Phase]
   [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
 
 /- The abstract field representation of the Chorus state at the canonical
-`Classical` instances (cf. `Composition.lean`'s `afr%`). -/
+`Classical` instances (cf. [Composition.lean](../Composition.lean)'s `afr%`). -/
 local macro "afr%" f:ident : term =>
   `(@Chorus.instAbstractFieldRepresentation slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
@@ -147,9 +148,9 @@ noncomputable def decisionVector
       if hpos : ∃ M, CommittedPos st i J M then some hpos.choose else none
     else none
 
-/-! ### Step-level facts, uniformly over all 38 actions
+/-! ### Step-level facts, uniformly over every action
 
-None of these is a hand-written case analysis any more. Three of them —
+None of these is a hand-written case analysis. Three of them —
 `committedAll_mono`, `committedPos_mono`, `recorded_mono` — are Veil's
 generated whole-system monotonicity lemmas (`<relation>.mono`, emitted at
 `#gen_spec` because every action either frames the relation or only ever
@@ -158,8 +159,9 @@ initial-value lemma. The one fact the update records cannot give is that a
 *committed* validator's entries are frozen: that rests on
 `commit_assign_pos`'s guard `¬ local_committed i`, so it is a
 `step_property` in the model, checked per action, and reaches this file as
-`Chorus.reachable_committed_pos_frozen_step`. `docs/CompositionContracts.md`
-§4 explains the three sources and when each applies. -/
+`Chorus.reachable_committed_pos_frozen_step`.
+[CompositionContracts.md](../../docs/CompositionContracts.md) §4 explains the
+three sources and when each applies. -/
 
 section StepFacts
 variable {st st' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
@@ -183,7 +185,7 @@ theorem committedPos_mono
 /-- A committed validator's positive entries are frozen (`commit_assign_pos`
 requires `¬ local_committed i`): from the checked `step_property
 [committed_pos_frozen]` cells, along any step from a reachable state
-(`reachable_<property>_step`, emitted by `Chorus/Certify.lean`'s
+(`reachable_<property>_step`, emitted by [Chorus/Certify.lean](Certify.lean)'s
 `#gen_composition`). The contract's `finalized_mono` takes the pre-state's
 reachability, which the glue tracks as an invariant. -/
 theorem committedPos_frozen_of_reachable
@@ -237,15 +239,14 @@ slot-indexed copies of the Chorus transition system are an instance of the
 state-level slot-consensus contract, with `byz` the Byzantine predicate of
 the module's `ByzNodeSet` instance.
 
-The contract is unindexed (`Interfaces.lean`, "Slot Consensus"): a state
+The contract is unindexed ([Interfaces.lean](../Interfaces.lean), "Slot Consensus"): a state
 carries the slot of the instance it belongs to. Chorus's own state does not,
 because the model is single-slot — so the instance runs on **pairs**
 `slot × Chorus.State`, whose first component is exactly the contract's
 `tag`. Transitions leave it alone, which is `tag_frame`; `finalized` tags
 each vector with it, which is what makes `slot_safety` hold by
-construction. Nothing about the Chorus model changes: every field below
-reads the pair's second component and defers to the same reachability
-projections as before. -/
+construction. Every other field reads the pair's second component and
+defers to the reachability projections of the Chorus model. -/
 @[implicit_reducible]
 noncomputable def slotConsensusSafety :
     SlotConsensusSafety slot node merkle_root (slot × (node → Option merkle_root))
@@ -340,7 +341,7 @@ the full `SlotConsensus` is therefore an instance of
 none. Its fields are exactly that missing interface (`participate`,
 `abandon`, `propose` with their observables and frames) together with the
 clock, the admissible-run model, Termination ((A-sc-termination) of
-[`docs/Architecture.md`](../../docs/Architecture.md) §4 item 4) and
+[Architecture.md](../../docs/Architecture.md) §4 item 4) and
 Quiescence, whose participation-window statement needs the interface Chorus
 lacks — its in-model shadow being phase confinement.
 
@@ -379,7 +380,7 @@ The instance rests on the standard Lean trio and nothing else — in
 particular, **no `sorryAx`**: no trusted-SMT step and no statement stub
 anywhere in the chain. The Chorus model persists no per-VC theorems (its
 VC *statements* are carried claim-free by the persistent VC registry);
-the composition consumes the **proof-file family** (`Chorus/Proofs/`):
+the composition consumes the **proof-file family** ([Chorus/Proofs](Proofs)):
 one file per action, each re-proving its action's
 registered VC statements from scratch as fresh kernel-checked
 reconstructions (`veil.smt.trust false`), persisted as real proofs in

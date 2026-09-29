@@ -30,8 +30,8 @@ info: 'FallbackReceipt.invariants_of_reachable' depends on axioms: [propext, Cla
 #guard_msgs in
 #print axioms FallbackReceipt.invariants_of_reachable
 
-/- `#veil_status` (M7): the machine-checked trust table — every registry
-cell has a real, statement-matching, kernel-checked theorem in the import
+/-! `#veil_status`: the machine-checked trust table — every registry cell
+has a real, statement-matching, kernel-checked theorem in the import
 closure, over exactly the standard axioms. Run
 `#veil_status FallbackReceipt table` interactively for the per-cell table
 (theorem, defining file, per-cell axiom set). -/

@@ -5,8 +5,8 @@ how the paper's concrete finite bounds relate to the model's theorems, why
 the two are incomparable rather than ordered by strength, and the routes by
 which bounds could be brought into the model — including tooling
 constraints observed in practice. The proven liveness state of affairs is
-[`Liveness.md`](./Liveness.md); the open-items list is
-[`TODO.md`](./TODO.md).*
+[Liveness.md](Liveness.md); the open-items list is
+[TODO.md](TODO.md).*
 
 ## 1. What the paper proves, and how the model relates
 
@@ -25,14 +25,15 @@ two assumed primitive bounds:
 * **The parametric holes**: `ℓ_MVBA` (`mod:mvba`) and the ACS's `ℓ`
   (`mod:acs`) are *assumed module properties*, stated as deterministic
   bounds — an idealisation, since the randomised constructions satisfy
-  them only in expectation / with high probability. The first hole has a
-  referent in this development: the MVBA instantiation of the
-  paper repository's internal supplement is modelled
-  ([`Cadence/Mvba.lean`](../Cadence/Mvba.lean)), and `ℓ_MVBA` is the field
-  `ℓ` of `MVBATemporal`
-  ([`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean)) — data, next
-  to the Termination it bounds (the supplement's `thm:termination`,
-  `O(fΔ)`); the model is untimed, so the bound stays a paper quantity.
+  them only in expectation / with high probability. The first hole is
+  closed in this development: the MVBA instantiation of the paper
+  repository's internal supplement is modelled
+  ([Cadence/Mvba.lean](../Cadence/Mvba.lean)), `ℓ_MVBA` is the field `ℓ`
+  of `MVBATemporal` ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean)),
+  and the instance `Mvba.mvbaTemporal`
+  ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) proves the
+  Termination it bounds — the supplement's `thm:termination`, `O(fΔ)` — over
+  timed runs of the untimed model (§6.2).
 
 The model relates to these in three distinct ways:
 
@@ -48,8 +49,8 @@ The model relates to these in three distinct ways:
    stated over timed runs, and for the two implementations the fields of
    the `…Temporal` classes ((A-sc-termination), (A-acs-termination),
    (A-acs-totality), (A-orch-totality), (A-orch-boundedness),
-   (A-orch-recovery); [`Architecture.md`](./Architecture.md) §4 item 4,
-   [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean),
+   (A-orch-recovery); [Architecture.md](Architecture.md) §4 item 4,
+   [Cadence/Interfaces.lean](../Cadence/Interfaces.lean),
    `OrchestratorTemporal`, `SlotConsensusTemporal`). What the
    model proves instead is the **bound-erased skeleton of their paper
    proofs**: each timeline milestone's state content is a theorem
@@ -123,7 +124,7 @@ monotone `laterΔ`, deadlines as ghost elements — mixed quantifiers with
 arithmetic is where e-matching pain returns); route deadline bookkeeping
 through ghost obligation relations so `tick`'s universal guard does not
 read network relations negatively (the (M-frame) contract,
-[`ChorusDesign.md`](./ChorusDesign.md) §3.1.1); and guard vacuity — in
+[ChorusDesign.md](ChorusDesign.md) §3.1.1); and guard vacuity — in
 this encoding the bounded invariants are safe *by construction of the
 guard*, so the theorems are the tick-enabledness results and the
 non-vacuity witnesses that `now` exceeds the interesting thresholds.
@@ -157,7 +158,7 @@ tool-side work belongs in the Veil fork, not in this repository.
   Lean. For that (much simpler) protocol this was efficient — most VCs
   were one-liners. It is **not** an attractive route for Chorus, whose
   combinatorial/discrete core (quorum reasoning at the scale of
-  [`Architecture.md`](./Architecture.md) §2) is exactly where SMT earns its
+  [Architecture.md](Architecture.md) §2) is exactly where SMT earns its
   keep.
 
 None of these constraints bites route (a): the add-on schedule theorem is
@@ -165,14 +166,11 @@ plain Lean over an abstract order, outside the Veil pipeline entirely.
 
 ## 5. Recorded decision
 
-Bounds are currently out of scope ([`Architecture.md`](./Architecture.md)
-§4 item 4) and stay so until timing claims become a priority. One input to
-that decision changed after this was written: the MVBA now has an untimed
-liveness theorem, so there is a leg of route (a) that **removes** an
-assumption rather than attaching a bound to one (§6.1). Whether that
-re-ranks bounds against the two items ahead of them in
-[`TODO.md`](./TODO.md) § Soundness is a call to make deliberately, not a
-consequence of the MVBA work. When they do go ahead: route (a) first — cheap, no model change, pins the schedule
+Beyond the MVBA's `ℓ_MVBA` (§6.2, proven), bounds are out of scope
+([Architecture.md](Architecture.md) §4 item 4) until timing claims become a
+priority; where they rank against the two items ahead of them in
+[TODO.md](TODO.md) § Soundness is a call to make deliberately. When they do
+go ahead: route (a) first — cheap, no model change, pins the schedule
 arithmetic; route (b) Conductor-first if in-model timing is wanted, with
 the three design costs above addressed up front; route (c) only against
 demonstrated benefit. Ordering relative to the L2S extension (the fork's
@@ -184,7 +182,7 @@ the ghost clock would incidentally hand L2S its simplest ω-target
 
 Recorded so a future session can pick this up without re-deriving the
 design. Priority context: this ranks *behind* primitive instantiation and
-the (M-frame) checker ([`TODO.md`](./TODO.md) § Soundness) on
+the (M-frame) checker ([TODO.md](TODO.md) § Soundness) on
 auditor-confidence per effort, and *ahead* of L2S on near-term
 value-per-effort — it is executable today, entirely in plain Lean, with
 none of §4's tooling constraints in play.
@@ -195,12 +193,12 @@ A run is `σ : ℕ → State` stepping through the actual Chorus transitions
 with a monotone clock `c : ℕ → T`, where `T` carries a linear order plus
 two abstract inflationary monotone shifts (`+Δ`, `+ℓ_MVBA`) — no `Real`,
 no Archimedean axiom, `max` from the order. Every run point is reachable,
-so the chain theorems of [`Liveness.md`](./Liveness.md) §1 apply at every
+so the chain theorems of [Liveness.md](Liveness.md) §1 apply at every
 milestone state. The abstract-propositions variant is the fallback only:
 it checks arithmetic an auditor can check by eye.
 
 **Hypotheses.** One named per-seam bound assumption per temporal step of
-the chain ([`ChorusDesign.md`](./ChorusDesign.md) §7): "this seam
+the chain ([ChorusDesign.md](ChorusDesign.md) §7): "this seam
 completes within Δ after GST" for the (F-justice) seams, `ℓ_MVBA` for the
 oracle seam. These hypotheses *are* the strong-partial-synchrony content;
 the design rule is that they stay minimal and checkable against the
@@ -233,13 +231,15 @@ give or take):
    alternating-window non-circularity — the subtlest statement work and
    the highest-value single piece.
 
-### 6.1 The MVBA leg, which did not exist when the plan above was written
+### 6.1 The MVBA leg
+
+*Complete: §6.2 is the design as carried out, and §6.2.8 the record of each
+step. This subsection is the plan it started from, kept for the argument.*
 
 Step 3 above treats `ℓ_MVBA` as a **per-seam hypothesis** — "the oracle seam
-completes within `ℓ_MVBA`" — because when this plan was written the MVBA had
-no liveness theorem to discharge it with. It has one now
-(`Mvba.termination`, [`Liveness.md`](./Liveness.md) §2.1), so there is a
-second leg available: *prove* `ℓ_MVBA` rather than assume it.
+completes within `ℓ_MVBA`". The MVBA's liveness theorem
+(`Mvba.termination`, [Liveness.md](Liveness.md) §2.1) makes a second leg
+available: *prove* `ℓ_MVBA` rather than assume it.
 
 **Why it is tractable.** The untimed theorem was built so that this would be
 the only remaining step. Every one of its five premises is a predicate on a
@@ -262,31 +262,29 @@ skeleton exists; it probably is not.
 **What it buys, and why it may still rank first.** It is the only piece of
 the bounds work that *removes an assumption* rather than attaching a bound to
 one. (A-viewsync) is the strongest premise of the liveness result and the
-only one not derivable in an untimed model ([`MvbaPlan.md`](./MvbaPlan.md)
+only one not derivable in an untimed model ([MvbaPlan.md](MvbaPlan.md)
 §3.7); with a clock both of its clauses become theorems — bounded post-GST
 delivery gives the decision chain a finite latency, timeout growth makes some
 view's budget exceed it, and (A-leader-rotation) supplies the honest leader.
-That in turn is what `MVBATemporal.termination` needs, which `Cadence.lean`
-calls "the smallest gap of the three implementations", and it is the formal
-version of the trust-base move §2.1 describes informally.
+That in turn is what `MVBATemporal.termination` needs, and it is the formal
+version of the trust-base move [Liveness.md](Liveness.md) §2.1 describes informally.
 
-**It also subsumes an open item.** [`TODO.md`](./TODO.md) § Liveness asks for
-a run witnessing that `Mvba.termination`'s five premises are jointly
-satisfiable. `MVBATemporal.admissible_exists` requires constructing admissible
-timed runs anyway, so that witness falls out of this leg rather than needing
-a session of its own. It is not worth doing separately.
+**It does not subsume the premise witness.** [TODO.md](TODO.md) § Liveness
+asks for a run witnessing that `Mvba.termination`'s five premises are jointly
+satisfiable. `MVBATemporal.admissible_exists` is a run in which nobody
+proposes (§6.2.7), so that item stays open.
 
 This leg can run **in parallel with** the Chorus run-level liveness leg;
 the rules that keep the two from colliding — and the one piece of design
 they share, the projection from a composed run to an MVBA run — are
-[`Liveness.md`](./Liveness.md) §4.1.
+[Liveness.md](Liveness.md) §4.1.
 
 **Staging**, in the shape of §6's:
 
 1. Timed runs over `Mvba`'s generated transition system, and the time
    theory with a growing timeout schedule. Reuses §6 step 1's scaffolding if
    the Chorus leg went first.
-2. The chain latency bound: the links of `Mvba/Liveness.lean` from the
+2. The chain latency bound: the links of [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) from the
    leader's `Pre-Prepare` to the commit certificate, each with a Δ attached.
    Mostly plugging in proven theorems, and the cheap validation of the
    scaffolding.
@@ -295,18 +293,18 @@ they share, the projection from a composed run to an MVBA run — are
    `eventually_entered_good`. The untimed argument's structure carries over
    (the climb, the common view, the overshoot bound); the bounds are new.
 4. Discharge both (A-viewsync) clauses, then `MVBATemporal.termination`;
-   axiom pins, docs, and the `Cadence.lean` row moves from conditional to
+   axiom pins, docs, and the [Cadence.lean](../Cadence.lean) row moves from conditional to
    a discharged instance.
 
 
-**Placement.** A sibling of the end-theorem files — e.g.
+**Placement.** A sibling of the end-theorem files — e.g. a new
 `Cadence/Chorus/Schedule.lean` at the `Compose`/`Pigeonhole`/`Counting`
 layer: plain Lean, kernel-only, in-file `#guard_msgs` pins, a row and pin
 at the audit root. On completion, the corresponding fields leave the
 `…Temporal` classes (`SlotConsensusTemporal`,
 `OrchestratorTemporal`) and are proven in the `…_of_temporal`
 definitions — the contract fields in
-[`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean) themselves do not
+[Cadence/Interfaces.lean](../Cadence/Interfaces.lean) themselves do not
 change, which is the point of stating them there.
 
 **Effort and risk.** Chorus-only (steps 1–3) ≈ 2–4 sessions; the full
@@ -318,11 +316,11 @@ bounded lemmas (the timeline arithmetic has drifted once already,
 content is verified. The timed-run scaffolding is reusable by a later
 L2S bring-up — nothing here is throwaway.
 
-### 6.2 The MVBA leg, workshopped (2026-09-16)
+### 6.2 The MVBA leg, as designed and carried out
 
-The per-seam statements §6 asked to be settled before any Lean, settled.
-Everything below is a *design*, not a result: what is proven is what
-[`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean) says is proven,
+The per-seam statements §6 asked to be settled before any Lean. Everything
+below is a *design*, not a result: what is proven is what
+[Cadence/Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean) says is proven,
 and its `#guard_msgs` pins, not this section. The section exists so that the
 decisions and the two findings are not re-derived, and so that a reader can
 check the premises against the supplement without reading Lean.
@@ -330,10 +328,8 @@ check the premises against the supplement without reading Lean.
 **Decisions in one place.**
 
 * The clock belongs to the run: timed runs are labelled runs of the
-  generated `Mvba` transition system with a clock sequence. The contract
-  was first instantiated at a product state `Mvba.State × time`; since the
-  2026-09-29 `TimedRun` revision it is instantiated at `mvbaSafety th`
-  itself (§6.2.1). No model change; nothing under `Mvba/Proofs/` re-solves.
+  generated `Mvba` transition system with a clock sequence, and the
+  contract is instantiated at `mvbaSafety th` itself (§6.2.1). No model change; nothing under `Mvba/Proofs/` re-solves.
 * Time is a linearly ordered additive commutative monoid with `max`
   (§6.2.2). The theorem needs no Archimedean axiom; the non-vacuity
   witness `admissible_exists` needs an unbounded clock and gets it from
@@ -346,7 +342,7 @@ check the premises against the supplement without reading Lean.
   with a per-label hop bound — `Δ` for a step that consumes another party's
   message, `δ` for a local step — and the window measured from
   `max(now, gst)` so that a clock jump over a pending obligation's deadline
-  is inadmissible (§6.2.4). Plain enabledness, as in `Fairness.lean`, would
+  is inadmissible (§6.2.4). Plain enabledness, as in [Fairness.lean](../Cadence/Fairness.lean), would
   make every admissible model unsatisfiable once a proposal exists; that is
   the second finding and it concerns the untimed leg too.
 * (A-viewsync) is not assumed anywhere. Its two clauses are derived as a
@@ -354,10 +350,11 @@ check the premises against the supplement without reading Lean.
   a timed re-run of the chain and does **not** consume `Mvba.termination`
   (§6.2.7 says why it cannot).
 
-#### 6.2.1 The clock is read off the state, and the state has none
+#### 6.2.1 The clock belongs to the run
 
-*Decided 2026-09-29: route 2 was taken, and the lift described below is
-deleted. The end of this section records the outcome.*
+*Outcome first: `TimedRun` carries its own clock (route 2 below); the
+product-state lift the section goes on to weigh no longer exists. The rest
+of the section is the decision record, ending in the outcome.*
 
 `MVBATemporal.clock : state → time`, and `TimedRun … clock` reads the clock
 off each state; that is right for the Conductor, whose `now` is a state
@@ -365,14 +362,14 @@ field, and it was written that way for all three modules. `Mvba.State` has
 no clock, and §6's "monotone clock `c : ℕ → T`" alongside the state is a
 different object. Three ways to reconcile them were weighed:
 
-1. **A ghost `now` in `Mvba.lean`** (§3(b)'s device with no guards). Changes
+1. **A ghost `now` in [Mvba.lean](../Cadence/Mvba.lean)** (§3(b)'s device with no guards). Changes
    every VC statement — a cold re-solve of the family — moves the audit pin,
    and adds a 26th label that the read-only label classification of
-   `Mvba/Liveness.lean` would silently file under `JusticeLabel`, so
+   [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) would silently file under `JusticeLabel`, so
    `FJustice` would demand weak fairness of `tick`. Out, on
-   [`Liveness.md`](./Liveness.md) §4.1's rules alone.
+   [Liveness.md](Liveness.md) §4.1's rules alone.
 2. **Change `TimedRun` to carry its own clock sequence.** Arguably the right
-   design for untimed models, but an edit to `Interfaces.lean` — a joint
+   design for untimed models, but an edit to [Interfaces.lean](../Cadence/Interfaces.lean) — a joint
    decision under §4.1, and a Chorus-family rebuild.
 3. **Pair the state with the clock.** `MVBASafety.timed S : MVBASafety … (state × time) byz`
    is a generic lift — every field is `S`'s on the first component, and a
@@ -384,9 +381,9 @@ different object. Three ways to reconcile them were weighed:
 Route 3 is taken. What it costs is a **seam**, stated so it is not
 mistaken for a gap: the full `MVBA` instance this leg produces is at the
 lifted fragment, while Chorus consumes `mvbaSafety th` at `Mvba.State`, so
-`mvba_of_temporal` is not the join used and `System.lean` does not
+`mvba_of_temporal` is not the join used and [System.lean](../Cadence/System.lean) does not
 automatically inherit the timed instance. Closing it is one of two edits —
-instantiate Chorus at the lifted fragment in `System.lean` (the composed
+instantiate Chorus at the lifted fragment in [System.lean](../Cadence/System.lean) (the composed
 system's MVBA sub-state then carries the clock the composition's own timing
 needs anyway), or route 2 — and both are decisions to take with the Chorus
 leg when its composition step (§6 step 5) is designed. The labelled timed
@@ -395,7 +392,7 @@ bridge, and if route 2 is taken later the bridge is deleted and the
 premises are restated on `TLRun` unchanged.
 
 The Chorus leg's projection from a composed run to an MVBA run
-([`Liveness.md`](./Liveness.md) §4.1) lifts to `TLRun` by carrying the
+([Liveness.md](Liveness.md) §4.1) lifts to `TLRun` by carrying the
 clock along the projected indices; `TLRun.toLRun` is the forgetful map, so
 the projection is theirs to define and this leg's timed form is its
 pullback, not a second definition.
@@ -403,11 +400,11 @@ pullback, not a second definition.
 **The seam, as a proposal to the Chorus leg** (step 4, 2026-09-28; the
 decision is open). The instance now exists: `Mvba.mvbaTemporal` at
 `(mvbaSafety th).timed time`, and the full `Mvba.mvbaTimed`. Chorus holds
-the MVBA state as an abstract sort `mstate` and `System.lean` fills it with
+the MVBA state as an abstract sort `mstate` and [System.lean](../Cadence/System.lean) fills it with
 `Mvba.State`. There are two ways to hand the composed system the timed
 instance:
 
-* **(a) Plug the lifted fragment in at `System.lean`.** Fill `mstate` with
+* **(a) Plug the lifted fragment in at [System.lean](../Cadence/System.lean).** Fill `mstate` with
   `Mvba.State × time` and Chorus's constraint with `(mvbaSafety thM).timed
   time`. No class changes and nothing in Chorus re-solves: Chorus is generic
   in the class, and the lift is the same fragment on the first component, so
@@ -422,28 +419,28 @@ instance:
   `clock : state → time` from the temporal classes. The Conductor, whose
   state has `now`, then states `clk n = now (at' n)` inside its
   `Admissible`. `MVBATemporal` is instantiated at `mvbaSafety th` itself,
-  the existing `mvba_of_temporal` gives the full `MVBA`, and `System.lean`
+  the existing `mvba_of_temporal` gives the full `MVBA`, and [System.lean](../Cadence/System.lean)
   inherits it with no lift. The Chorus leg's projection takes the composed
   run's clock at the projected indices, with no ghost state and no stamping
   condition. On this leg's side, `MVBASafety.timed` and `TLRun.toTimedRun`
   are deleted and `Admissible` keeps its `TLRun` form, as said above. The
-  cost is one `Interfaces.lean` edit, which is a warm Chorus-family rebuild,
+  cost is one [Interfaces.lean](../Cadence/Interfaces.lean) edit, which is a warm Chorus-family rebuild,
   and a joint decision.
 
-**Recommendation: (b), bundled with the next `Interfaces.lean` edit** (the
+**Recommendation: (b), bundled with the next [Interfaces.lean](../Cadence/Interfaces.lean) edit** (the
 one that also carries `propose_valid`'s move to the rely form,
-[`CompositionContracts.md`](./CompositionContracts.md) §2), and taken when
+[CompositionContracts.md](CompositionContracts.md) §2), and taken when
 the Chorus leg designs its composition step (§6 step 5). (a) works too, but
 it puts a clock into the state that nothing but the MVBA steps maintain, and
 that is the device route 1 was rejected for, moved one level up.
 
 **Outcome (2026-09-29): (b), done before Chorus stage 4 started**, in one
-`Interfaces.lean` edit together with `propose_valid`'s move to the rely
+[Interfaces.lean](../Cadence/Interfaces.lean) edit together with `propose_valid`'s move to the rely
 form. `TimedRun` carries `clk : Nat → time`, the temporal classes have no
 `clock` field, and `OrchestratorTemporal.clock_agrees` ties a Conductor run's
 clock to its `now`. `Mvba.mvbaTemporal` is at `mvbaSafety th`, and the full
 class is `Mvba.mvbaFull := mvba_of_temporal th (mvbaTemporal …)`, whose
-fragment is by `rfl` the one `System.lean` plugs into Chorus. The seam is
+fragment is by `rfl` the one [System.lean](../Cadence/System.lean) plugs into Chorus. The seam is
 gone. `MVBASafety.timed` and the product state are deleted, and
 `TLRun.toTimedRun` is the label-forgetting map. The witness run's clock is
 `n • Δ`, since a run no longer has to start at a state's clock value, so the
@@ -507,7 +504,7 @@ is compatible with *eventual* termination but not with its `O(fΔ)`
 theorem as stated; the theorem is a fixed-timeout (or capped-backoff)
 result, and a real implementation with exponential backoff satisfies it
 only if the backoff is capped at `O(Δ)`. Recorded in
-[`PaperAlignment.md`](./PaperAlignment.md) §6. §6.1's "a sequence `Δ_v`
+[PaperAlignment.md](PaperAlignment.md) §6. §6.1's "a sequence `Δ_v`
 unbounded relative to a fixed bound" was therefore the wrong requirement:
 the sequence must be *eventually above* `L_cert` and *bounded*, which is
 what (S-ramp) and (S-cap) say.
@@ -549,7 +546,7 @@ from `max(t, gst)`.
 With `δ = 0` the model's latency is the paper's constant (§6.2.6), which is
 the check that the classification is the paper's and not a convenience.
 
-**Move-enabledness, and the second finding.** `Fairness.lean`'s `Enabled`
+**Move-enabledness, and the second finding.** [Fairness.lean](../Cadence/Fairness.lean)'s `Enabled`
 holds whenever *some* transition under the label exists — a stutter
 included. Two of the model's assembly labels differ only in the quorum
 parameter `q`, and the actions are idempotent: once `msg_prepqc v e` is
@@ -566,9 +563,9 @@ move-enabled label is a move; the proofs pay one side condition per link
 states differ). **This finding applies to the untimed leg**: `FJustice`
 is stated with `Enabled`, so `TerminationClaim`'s premise set is
 unsatisfiable at any instance with infinitely many supermajorities, and
-[`TODO.md`](./TODO.md) § Liveness's non-vacuity item should be read with
+[TODO.md](TODO.md) § Liveness's non-vacuity item should be read with
 that in mind. It does not affect `Mvba.termination`'s truth — a stronger
-premise — and the fix is the Chorus leg's to make in `Fairness.lean`, so
+premise — and the fix is the Chorus leg's to make in [Fairness.lean](../Cadence/Fairness.lean), so
 it is reported there rather than made here.
 
 **What is deliberately absent**, the checklist §6 asked for: no clause
@@ -601,7 +598,7 @@ length of `ViewOrderEnum.below v_L`.
 
 Write `E₀` for the clock at the first index at which a correct validator
 has entered the view in question, and `u := max(t, gst)`. Two lemmas carry
-the schedule; the exact constants live in `Schedule.lean`, this table is
+the schedule; the exact constants live in [Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean), this table is
 their derivation.
 
 **A Byzantine-led (or ramp) view `v`, from `Synced v X`** — every correct
@@ -642,7 +639,7 @@ monotonicity, a view above `W` needs a correct timeout in `W`
 (`entered_le_of_no_timeout`, in its prefix form), and every guard the
 chain needs is stable on that prefix. At `δ = 0` this is
 `3Δ + max(Δ, Δ_sync)`, the supplement's constant with `Δ_R = 0` — `Recover`
-is the identity in this model (`Mvba.lean`, "The value type").
+is the identity in this model ([Mvba.lean](../Cadence/Mvba.lean), "The value type").
 
 **The assembly.** Let `N₀` be the last index with `clk ≤ u` (the state at
 time `u`; every proposal is at or before it), `M` the highest view any
@@ -669,7 +666,7 @@ where `NoEarlyAbandon` did: no correct validator abandons at a clock
 `Mvba.termination` is **not consumed** by the bound and cannot be: it
 yields `∃ n, decided`, and no timed premise turns an index into a clock
 reading after the fact. The bound is a re-run of the chain with "within
-`D`" in place of "eventually" — each of `Liveness.lean`'s links is
+`D`" in place of "eventually" — each of [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s links is
 `enabled_<action>` (guards ⇒ enabledness) + one weak-fairness step +
 `<action>_effect`; the timed twin keeps the first and third and replaces
 the second by one (Δ-justice) step and a stability argument on the window.
@@ -687,51 +684,52 @@ time against (T1). The proof (`Mvba.aViewSync_of_sync`) went differently
 and needs less, and its statement needed a finite validator set. §6.2.8's
 step-4 reassessment has both. That
 theorem is the formal version of the trust-base move
-[`Liveness.md`](./Liveness.md) §2.1 describes, and it retires the only
+[Liveness.md](Liveness.md) §2.1 describes, and it retires the only
 premise of `Mvba.termination` that was not fair scheduling or a caller's
 condition. `admissible_exists` is the run in which no one proposes and the
 environment only marks availability, at every sort. `Admissible` holds of
 it because no `JusticeLabel` is move-enabled at any of its states: sixteen
 guard facts, and a member of each quorum for the assemblies. It does *not*
-discharge `TODO.md` § Liveness's witness item, as this section once said:
+discharge [TODO.md](TODO.md) § Liveness's witness item, as this section once said:
 nobody proposes in it, so it is no witness for `TerminationClaim`'s
 `AllPropose`.
 
 #### 6.2.8 Staging, revised
 
 Reassess after step 2, as §6 says. No step touches the model, the proof
-files, `Interfaces.lean`, `Fairness.lean` or `Mvba/Liveness.lean`.
+files, [Interfaces.lean](../Cadence/Interfaces.lean), [Fairness.lean](../Cadence/Fairness.lean) or [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean).
 
-1. **This session.** [`Cadence/Timed.lean`](../Cadence/Timed.lean): `TLRun`,
+1. **This session.** [Cadence/Timed.lean](../Cadence/Timed.lean): `TLRun`,
    the `TotalOrder` bridge, move-enabledness, bounded fairness and its
    contrapositive, the bounded finite-conjunction lemma, `MVBASafety.timed`
-   and `TLRun.toTimedRun`. [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean):
+   and `TLRun.toTimedRun`. [Cadence/Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean):
    `hop`, `Schedule` with its hypotheses, the four clauses, `Admissible`,
    (A-leader-rotation-k), `ℓ`, and the target as a `Prop`-valued
-   definition **before** any proof — `Liveness.lean`'s discipline.
+   definition **before** any proof — [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s discipline.
 2. **Done (2026-09-28).** The good-view lemma: the eight timed links, the
    prefix form of `entered_le_of_no_timeout`, the stability arguments. The
    cheap validation of the scaffolding, and where a misclassified `hop`
-   would show up. [`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean),
+   would show up. [Cadence/Mvba/Bound.lean](../Cadence/Mvba/Bound.lean),
    `Mvba.good_view_decides`; the reassessment is below.
 3. **Done (2026-09-28).** The burn lemma, the finite starting point, the
    successor-chain count against `below v_L`, the assembly, and `ℓ`.
-   [`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean),
+   [Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean),
    `Mvba.bounded_termination`; the reassessment is below step 2's.
 4. **Done (2026-09-28).** `MVBATemporal` at the lifted fragment
    (`Mvba.mvbaTemporal`, with `Mvba.admissible_exists` and
-   `Mvba.timed_termination`) and the full `Mvba.mvbaTimed`, in
-   [`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean).
+   `Mvba.timed_termination`) and the full class (then `Mvba.mvbaTimed`, now
+   `Mvba.mvbaFull`), in
+   [Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean).
    (A-viewsync) as a corollary is `Mvba.aViewSync_of_sync`, and the
    assembly's first half is factored out as `Mvba.exists_good_view`, both in
-   [`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean).
-   The axiom pins, the `Cadence.lean` rows and the verification-status text
-   in `CLAUDE.md` and `Architecture.md` §4 are updated, and the seam is put
+   [Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean).
+   The axiom pins, the [Cadence.lean](../Cadence.lean) rows and the verification-status text
+   in [CLAUDE.md](../CLAUDE.md) and [Architecture.md](Architecture.md) §4 are updated, and the seam is put
    to the Chorus leg in §6.2.1. The reassessment is below step 3's.
 
 **Reassessment after step 2** (2026-09-28, as §6 asks). The good-view lemma
 is `Mvba.good_view_decides` in
-[`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean), kernel-checked, axioms
+[Cadence/Mvba/Bound.lean](../Cadence/Mvba/Bound.lean), kernel-checked, axioms
 at the standard trio. Its premises are the three clauses of `Sync` and the
 two quorum classes; it builds in seconds and touched nothing under §4.1's
 rules. The three questions the plan left open:
@@ -749,7 +747,7 @@ rules. The three questions the plan left open:
   (Δ-avail) directly, joined to the adoption by taking the later of two
   indices (`TLRun.clk_max_le`). The cost the plan did not foresee was on the
   *stability* side, not the fairness side. Three state facts
-  `Mvba/Liveness.lean` does not export had to be proven locally:
+  [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) does not export had to be proven locally:
   `timer_set_label` (only `expire_timer i v` sets `timer_expired i v`, one
   case per action from M13's frame lemmas), the prefix form of
   `entered_le_of_no_timeout`, and the timeout certificate below `W` present
@@ -779,7 +777,7 @@ Two findings, both about statements rather than about the protocol:
   `⊤`. A correct `W`-timer may then fire inside the window, and a validator
   that times out in `W` stops the chain. The lemma therefore takes
   `[IsOrderedCancelAddMonoid time]`; `ℕ`, `ℚ≥0` and `ℝ≥0` are instances, so
-  the intended models are unaffected. The claims in `Schedule.lean` are
+  the intended models are unaffected. The claims in [Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean) are
   stated over the weaker class and are unchanged. The theorem proving
   `BoundedTerminationClaim` (step 3's `bounded_termination`) carries the cancellative class as an explicit
   hypothesis. No run predicate can express it, because it constrains the
@@ -801,12 +799,12 @@ this file's link shape and prefix facts unchanged.
 
 **Reassessment after step 3** (2026-09-28). The bound is
 `Mvba.bounded_termination` in
-[`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean):
+[Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean):
 `BoundedTerminationClaim`, kernel-checked, axioms at the standard trio,
 from the two quorum classes and a cancellative time theory. The burn lemma
 is `Mvba.synced_succ`, and its iteration is `Mvba.synced_iterate`. Nothing
 under §4.1's rules was touched: no model change, no new invariant or step
-property, nothing exported from `Mvba/Liveness.lean`, and so the
+property, nothing exported from [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean), and so the
 `#veil_status Mvba` pin is unchanged. The questions the plan left open:
 
 * **Whether the `2δ` timeout restart held.** It did, and it was the first
@@ -836,7 +834,7 @@ property, nothing exported from `Mvba/Liveness.lean`, and so the
   entered. Their fairness is a premise the bound does not use, which
   weakens nothing. Step 4's `admissible_exists` must still satisfy it,
   which it does vacuously where the labels are never move-enabled.
-* **Whether `burn` and `ℓ` are still the constants in `Schedule.lean`.**
+* **Whether `burn` and `ℓ` are still the constants in [Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean).**
   `burn = τ_max + 2δ + 2Δ` is. The proof names the four deadlines and closes
   `X + burn =` their sum by `abel`. **`ℓ` moved**, from
   `Δ + (1 + |below v_L| + k) • C + L_cert + δ` to
@@ -858,7 +856,7 @@ property, nothing exported from `Mvba/Liveness.lean`, and so the
   views, which is all the argument needs.
 * **Where cancellation goes.** On the theorem only.
   `bounded_termination` takes `[IsOrderedCancelAddMonoid time]`, and
-  `Schedule.lean`'s variables and both claims keep the weaker class. The
+  [Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean)'s variables and both claims keep the weaker class. The
   burn lemma needs no cancellation. The assembly needs it twice: through
   `good_view_decides` (step 2's `ℕ∞` finding), and for `u < u + Δ`, which
   is how the last index at or before `u` is found by `Nat.find`. Keeping the
@@ -866,7 +864,7 @@ property, nothing exported from `Mvba/Liveness.lean`, and so the
   a proof uses it, and is not built into the definitions a reader checks
   against the paper.
 
-Three facts are proven locally that neither `Mvba/Liveness.lean` nor step 2
+Three facts are proven locally that neither [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) nor step 2
 had: the certificate below a view with its predecessor produced
 (`exists_tc_pred_of_entered`); that the first correct validator at or above
 a view is *in* it (`entered_eq_of_first_above`, since skipping it needs a
@@ -887,8 +885,8 @@ is plumbing between the claim and the contract, plus the corollary:
   with `good_view_decides`'s premises, then prove both
   `bounded_termination` and `AViewSyncClaim` from it. The first clause is
   (T2) plus `clk_unbounded`, as planned.
-* The axiom pins, the `Cadence.lean` row, and the text in `CLAUDE.md` and
-  `Architecture.md` §4 about the timed instance and its seam, as listed in
+* The axiom pins, the [Cadence.lean](../Cadence.lean) row, and the text in [CLAUDE.md](../CLAUDE.md) and
+  [Architecture.md](Architecture.md) §4 about the timed instance and its seam, as listed in
   the staging above.
 
 **Reassessment after step 4** (2026-09-28; the names are those before the
@@ -896,11 +894,11 @@ is plumbing between the claim and the contract, plus the corollary:
 `mvbaSafety th`). The instance is
 `Mvba.mvbaTemporal : MVBATemporal … (S := (mvbaSafety th).timed time)` and
 the full class is `Mvba.mvbaTimed`, in
-[`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean). Both are
+[Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean). Both are
 kernel-checked, with axioms at the standard trio, and
 `Mvba.mvbaTimed_toSafety` hands back the lifted fragment by `rfl`. Nothing
 under §4.1's rules was touched except one docstring sentence in
-`Mvba/Liveness.lean` (`Terminates`, which said the timed form had no
+[Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) (`Terminates`, which said the timed form had no
 instance). No model change, and the `#veil_status Mvba` pin is unchanged.
 The **MVBA bounds leg is complete**; what it leaves open is the seam
 proposal in §6.2.1. The questions the task set:
@@ -925,7 +923,7 @@ proposal in §6.2.1. The questions the task set:
   `Iff.rfl` (`timed_decided_iff`, `timed_proposed_iff`,
   `timed_abandoned_iff`). The least upper bound in `byGstBound` and in the
   abandonment premise is `max` by one generic lemma, `Cadence.gstLub_iff`
-  in `Timed.lean`, with `TimedRun.byGstBound_iff` built on it. So
+  in [Timed.lean](../Cadence/Timed.lean), with `TimedRun.byGstBound_iff` built on it. So
   `timed_termination` is `bounded_termination` read through `Admissible`'s
   labelling and nothing else.
 * **One correction to the plan, not a hypothesis.** The witness clock
@@ -968,7 +966,7 @@ proposal in §6.2.1. The questions the task set:
   or from an early abandonment. The factored good view (`GoodView`,
   `exists_good_view`) is what `bounded_termination` consumes, but this proof
   does not need it. **The finding** is about what kind of premise
-  (A-viewsync) is, and [`Liveness.md`](./Liveness.md) §2.1 now opens with
+  (A-viewsync) is, and [Liveness.md](Liveness.md) §2.1 now opens with
   the short account. It does not weaken `Mvba.termination`. It is the view
   timer stated as ordering constraints: the untimed model has the timer but
   no clock, so on its own a timer may fire at any moment, and the premise
@@ -991,29 +989,26 @@ proposal in §6.2.1. The questions the task set:
   well-founded, except through `ViewOrderEnum`. In the timed model the two
   clauses are (T2), not late, and (T1) with `τ W > L_cert`, not early.
 * **What the seam proposal says.** Two ways to hand the composed system the
-  instance (§6.2.1). (a) plugs the lifted fragment in at `System.lean`: no
+  instance (§6.2.1). (a) plugs the lifted fragment in at [System.lean](../Cadence/System.lean): no
   class change, but the composed run must require each MVBA step to stamp
   the global time into the sub-state. (b) is route 2: `TimedRun` carries its
   own clock sequence, the instance moves to `mvbaSafety th` itself, and the
   existing `mvba_of_temporal` joins it. The recommendation is (b), bundled
-  with the next `Interfaces.lean` edit and decided with the Chorus leg's
+  with the next [Interfaces.lean](../Cadence/Interfaces.lean) edit and decided with the Chorus leg's
   composition step. The decision is open.
-* **One stale sentence left on purpose.** `Interfaces.lean`'s MVBA
-  obligations list still says `termination, ℓ` are "not proven … the model
-  is untimed". That is still true of the unlifted fragment the list is
-  about, but it no longer mentions the lifted instance. Updating it costs a
-  Chorus-family rebuild, so it goes with the next `Interfaces.lean` edit,
-  and with (b) if (b) is taken.
+* **The obligations list in [Interfaces.lean](../Cadence/Interfaces.lean)** was left naming
+  `termination, ℓ` as unproven until the next edit of that file; it now
+  names `Mvba.mvbaTemporal`.
 * **Finiteness of the validator set, as a convention for claims.** It came
   up three times, spelled three ways: the class `ByzNodeSetEnum` (the
   MVBA's quorum enumeration), a complete list `nodes` with a proof that it
-  contains every validator (`Chorus/Termination.lean`), and the deadline
+  contains every validator ([Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), and the deadline
   form of this claim. None of them concerns the protocol. They are the
   point at which a liveness argument collapses finitely many per-validator
   eventualities into one index, which is sound only over a finite set. So
   the contract-level results of this leg (`mvbaTemporal`, `mvbaTimed`,
   `timed_termination`, `aViewSync_of_sync`) take `[Fintype node]`, and
-  `ByzNodeSetEnum.ofFintype` (`ByzQuorum.lean`) supplies the enumeration
+  `ByzNodeSetEnum.ofFintype` ([ByzQuorum.lean](../Cadence/ByzQuorum.lean)) supplies the enumeration
   their proofs use. The building-block lemmas keep `ByzNodeSetEnum`, which
   is weaker: finite quorums over any node sort. `bounded_termination` keeps
   it too, as the general form.
@@ -1026,7 +1021,7 @@ proposal in §6.2.1. The questions the task set:
   stays out of the Veil models and the safety theorems, which hold at any
   cardinality and whose solver could not use it anyway. **Proposal to the
   Chorus leg:** adopt the same convention. That means `[Fintype node]` in
-  place of the `nodes`/`hnodes` argument in `Chorus/Termination.lean`, and,
+  place of the `nodes`/`hnodes` argument in [Chorus/Termination.lean](../Cadence/Chorus/Termination.lean), and,
   when `Mvba.termination` is next touched, `[Fintype node]` in place of its
   `ByzNodeSetEnum` argument. At the concrete families `Fin n` both are
   instances already.

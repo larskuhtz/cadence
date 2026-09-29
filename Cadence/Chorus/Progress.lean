@@ -3,10 +3,10 @@ import Cadence.Chorus.Pigeonhole
 
 /-! # Chorus/Progress — the fair-progress case split, as one theorem
 
-The composition of the counting theorems ([`Counting.lean`](./Counting.lean))
-and the evidence pigeonhole ([`Pigeonhole.lean`](./Pigeonhole.lean)): the
+The composition of the counting theorems ([Counting.lean](Counting.lean))
+and the evidence pigeonhole ([Pigeonhole.lean](Pigeonhole.lean)): the
 **entire state-level content of the liveness case split**
-(`docs/ChorusDesign.md` §7) as a single statement over reachable states, for
+([ChorusDesign.md](../../docs/ChorusDesign.md) §7) as a single statement over reachable states, for
 the concrete instance family at every `n = 3f+1`.
 
 > **(Progress dichotomy.)** In any reachable *saturated* state — every
@@ -38,8 +38,8 @@ evidence pigeonhole supplies each proposer's certificate.
 
 Trust base: `[propext, Classical.choice, Quot.sound]`, pinned below — the
 reachability projections consume the proof-file family's kernel-checked VC
-theorems through [`Certify.lean`](./Certify.lean); the counting inputs are
-the pinned theorems of `Counting.lean` and `Pigeonhole.lean`. -/
+theorems through [Certify.lean](Certify.lean); the counting inputs are
+the pinned theorems of [Counting.lean](Counting.lean) and [Pigeonhole.lean](Pigeonhole.lean). -/
 
 namespace Chorus
 open Classical ByzNodeSet
@@ -63,7 +63,7 @@ variable {slot merkle_root mstate mvalue mmsg Phase PathChoice : Type}
 
 /- Apply a generated `Chorus` declaration at the canonical `Classical`
 instantiation, at the concrete quorum instance family (cf. the identical
-local macros of `Pigeonhole.lean` and `Counting.lean`). -/
+local macros of [Pigeonhole.lean](Pigeonhole.lean) and [Counting.lean](Counting.lean)). -/
 local macro "cpv%" t:ident args:term:max* : term =>
   `(@$t
     (Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice)
@@ -138,7 +138,7 @@ private abbrev pFbNeg (r j : Fin n) : Prop :=
 
 set_option maxHeartbeats 1600000 in
 /-- **The progress dichotomy** — the liveness case split of
-`docs/ChorusDesign.md` §7 as one theorem. In any reachable state in which
+[ChorusDesign.md](../../docs/ChorusDesign.md) §7 as one theorem. In any reachable state in which
 every honest validator has cast its path vote with the per-proposer entries
 that cast required (*saturation* — what (F-justice) eventually delivers),
 either a commitQC exists for every proposer from honest votes alone, or
@@ -249,8 +249,8 @@ end Chorus
 
 The standard Lean trio and nothing else — no `sorryAx`: the whole chain
 (the proof-file family's kernel-checked VC theorems through
-`Certify.lean`'s reachability projections; the counting theorems of
-`Counting.lean` and the pigeonhole of `Pigeonhole.lean`) is real proofs
+[Certify.lean](Certify.lean)'s reachability projections; the counting theorems of
+[Counting.lean](Counting.lean) and the pigeonhole of [Pigeonhole.lean](Pigeonhole.lean)) is real proofs
 end-to-end. A regression anywhere in that chain fails this guard. -/
 
 /--

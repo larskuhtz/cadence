@@ -1,6 +1,6 @@
 # Verso issues this project works around
 
-*What the documentation site ([Documentation.md](./Documentation.md)) has to
+*What the documentation site ([Documentation.md](Documentation.md)) has to
 compensate for in Verso's literate renderer, why, and what the fix would be.
 Kept so the workarounds can be removed when they stop being necessary —
 each entry says what to delete.*
@@ -76,7 +76,7 @@ wraps them correctly, so only the Markdown path is affected.
 **Fix.** Wrap each item's blocks in `<li>`, as `Doc/Html.lean` does.
 
 **Our workaround.** `display: list-item` on those paragraphs, in
-[`site-overrides.css`](./site-overrides.css) §1. Delete that section when
+[site-overrides.css](site-overrides.css) §1. Delete that section when
 this is fixed. Note the selectors have to out-specify Verso's
 `.code-content > .md-text.mod-doc :is(p, ul, ol, …) { display: block }`,
 which is (0,3,1).
@@ -123,7 +123,7 @@ occurrences here, all of them axiom or `#veil_status` pins.
 **Fix.** Strip `/--` and then any leading whitespace, mirroring the suffix.
 
 **Our workaround.** `fix_docstring_markers` in
-[`../scripts/docs.sh`](../scripts/docs.sh) removes the leftover inline from
+[docs.sh](../scripts/docs.sh) removes the leftover inline from
 the JSON. Delete that function when this is fixed.
 
 ## 5. The `/--` marker in a code box wraps onto two lines
@@ -140,7 +140,7 @@ the width of `--`. Measured in Chrome: 16.86px wide by 32px tall, against
 **Fix.** `white-space: nowrap`, or `max-content` as elsewhere.
 
 **Our workaround.** Moot — this site drops the markers entirely
-([`site-overrides.css`](./site-overrides.css) §3) and marks docstrings by
+([site-overrides.css](site-overrides.css) §3) and marks docstrings by
 colour instead. The bug is recorded because anyone keeping the markers will
 hit it.
 
@@ -155,28 +155,50 @@ attaches to a declaration, and Verso renders it as a Markdown block; a
 plain comment is not in Lean's syntax tree at all — SubVerso emits it as a
 `lineComment` or `blockComment` token, which the HTML stage prints as one
 `<span class="comment">` of text. Nothing is configurable: `literate.toml`
-has no option for comments. It matters here more than elsewhere because a
-Veil `safety`, `invariant` or `action` cannot take a doc comment (`CLAUDE.md`,
-hard rules), so the explanation of every model declaration is a plain
-comment.
+has no option for comments. Here it affects the maintainers' notes and the
+comments inside action bodies and proofs; what a declaration means is in its
+doc comment ([CLAUDE.md](../CLAUDE.md), "Documentation rules").
 
 **Fix.** Upstream, the HTML stage could render a comment token's text as
 inline Markdown. Not proposed yet.
 
-**Our workaround.** [`site-comments.js`](./site-comments.js), loaded through
+**Our workaround.** [site-comments.js](site-comments.js), loaded through
 `extra_js`, renders the inline subset in place, with its styles in
-[`site-overrides.css`](./site-overrides.css) §5. It is deliberately
+[site-overrides.css](site-overrides.css) §5. It is deliberately
 conservative — anything it could misread stays as written, and a comment laid
 out in columns is left alone, because hiding delimiters would shift its
 alignment — and it keeps every delimiter in the DOM, hidden, so the copy
 button still copies the source. The rules are in the file's header, and
 `node scripts/test-site-comments.js [site/sources]` tests them — given a
-rendered site, against every comment on it. Delete the script, its test,
-the `extra_js` line and the markup rules of §5 when Verso renders comment
-markup itself, or when the comments it serves have become doc comments.
+rendered site, against every comment on it. The guide loads the same script
+and stylesheet ([GuideMain.lean](guide/GuideMain.lean)), since its model
+quotations are the same highlighted code. Delete the script's markup
+rendering, its test and the markup rules of §5 when Verso renders comment
+markup itself; its link resolution is §7's.
 The first rule of §5 — comments a notch smaller, in a quieter blue than the
 docstrings, so the code stays in front — is a presentation choice rather
 than a workaround, and stays.
+
+## 7. Relative links are emitted as written
+
+**Symptom.** A link written relative to its source file — the form GitHub
+resolves, `[Interfaces.lean](Interfaces.lean)` — is a 404 on the site: the
+page for `Cadence/Cadence.lean` sits at `sources/Cadence/Cadence/`, behind a
+`<base href>` at the sources root, and a Markdown file under `docs/` is not
+on the site at all.
+
+**Cause.** Not a bug: the renderer knows modules, not the repository they
+live in, and passes a link target through untouched, as any Markdown
+renderer does. `literate.toml` has no link-mapping option.
+
+**Our workaround.** [site-links.sh](../scripts/site-links.sh) resolves every
+relative link in the published sources and the guide — a rendered module to
+its page, any other file to the repository at the rendered commit — and
+`scripts/docs.sh` rewrites the doc-comment links in the JSON before the HTML
+stage, and hands the same table to [site-comments.js](site-comments.js) for
+plain comments and the guide ([Documentation.md](Documentation.md),
+"Links"). This one stays: a relative link that works on GitHub and on the
+site cannot be resolved by either renderer alone.
 
 ## Not bugs, but sharp edges
 
