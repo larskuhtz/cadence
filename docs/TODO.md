@@ -162,35 +162,21 @@ come first.
   `Mvba.timedTermination_premises_satisfiable` and
   `Mvba.termination_premises_satisfiable`
   ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)), with the
-  premise-by-premise ledger in [Bounds.md](Bounds.md) §6.3. The plan here
-  said "everyone proposing and deciding within one view, then idling"; no
-  such run exists, because a decision does not stop the view timer, so the
-  witness ends with the caller abandoning the correct validators after `ℓ`
-  (§6.3.2). `FJustice` with plain `Enabled` is satisfied there because the
-  quorum sort is finite. Its caveat ([Bounds.md](Bounds.md) §6.2.4) still
+  premise-by-premise ledger in [Bounds.md](Bounds.md) §6.3. The run is the
+  one planned here — everyone proposes and decides in one view, then idles —
+  after a model fix the witness exposed: the model did not halt a validator
+  after deciding, as the supplement does (§6.3.2). `FJustice` with plain
+  `Enabled` is satisfied there because the quorum sort is finite. Its caveat ([Bounds.md](Bounds.md) §6.2.4) still
   stands at infinite quorum sorts, and the general fix is still the Chorus
   leg's in [Fairness.lean](../Cadence/Fairness.lean).
 
   **What the Chorus `TerminationClaim` will need, after stage 5:** the same
   two things, a ledger of its premises and one model satisfying all of
-  them. The MVBA sub-state can reuse the model above. It must abandon its
-  MVBA instances for the same reason, or else carry their view changes
-  forever. The premise that needs thought is **`ValidBridge`**: it relates
+  them. The MVBA sub-state can reuse the model above, which halts on its
+  own. The premise that needs thought is **`ValidBridge`**: it relates
   Chorus's decision handlers to the network's certificates, so the model
   has to produce certificates that satisfy it, not merely an MVBA run that
   decides ([Bounds.md](Bounds.md) §6.3.3).
-
-* **Model the MVBA's self-abandon on decision.** The supplement ends both
-  decision paths with `abandon()` and guards its timeout on "no decision in
-  view `v`"; [Cadence/Mvba.lean](../Cadence/Mvba.lean) does neither, and its
-  `abandon` is the caller's only. Sound for safety and for
-  `Mvba.termination`, but a supplement run in which a validator decides
-  and stops early does not meet `Mvba.timed_termination`'s "no abandonment
-  before `max(t, GST) + ℓ`" when read as a model run. Options: a separate
-  internal halt set by `decide`, or the no-decision timeout guard; either is
-  a model change (re-solve, new `#veil_status Mvba` count).
-  [PaperAlignment.md](PaperAlignment.md) §4 item 4, [Bounds.md](Bounds.md)
-  §6.3.2.
 
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
   meta-axioms become premises of a Lean theorem rather than named

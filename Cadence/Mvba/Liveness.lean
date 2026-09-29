@@ -94,10 +94,9 @@ The five premises, together with the theorem's hypotheses and the model's
 assumptions, are jointly satisfiable: `Mvba.termination_premises_satisfiable`
 ([Witness.lean](Witness.lean)) exhibits one instance and one run meeting all
 of them, and [Bounds.md](../../docs/Bounds.md) §6.3 is the ledger. In that
-run the caller abandons every correct validator after it decided, which
-`NoEarlyAbandon` allows. In this model a decision does not stop the view
-timer, so without abandonment the validators keep changing views; §6.3.2
-there says why, and how the supplement differs. -/
+run every correct validator decides in the first view and then halts, as
+the supplement's `decide(…); abandon()` does; nobody is abandoned by the
+caller. -/
 
 namespace Mvba
 
@@ -557,8 +556,18 @@ three guards that are **anti-monotone** — `in_view i v`, `¬ timed_out i v`,
   has sent its `Commit` in `v` cannot accept a different vector in `v`,
   because both `Pre-Prepare` handlers require `∀ W, voted i W → W < v`. -/
 
+/-- `i` is **active**: the caller has not abandoned it, and it has not
+halted after deciding. Every honest send requires both: the supplement's
+decision paths end in `decide(…); abandon()` (`line:mvba:td-decide`,
+`line:mvba:qc-decide`), and the model keeps that halt apart from the
+caller's `abandon` ([Mvba.lean](../Mvba.lean), "A decided validator
+halts"). -/
+def Active (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (i : node) : Prop :=
+  ¬ st.abandoned i = true ∧ ∀ E, ¬ st.decided i E = true
+
 /-- `i` is **settled in view `v` from `N` on**: at every index from `N` it is
-in view `v`, has not timed out there, and has not been abandoned.
+in view `v`, has not timed out there, and is active (neither abandoned nor
+halted after deciding).
 
 These are exactly the anti-monotone guards the honest per-validator actions
 of a view share — the table in [Progress.lean](Progress.lean) — so the links take one
@@ -567,13 +576,13 @@ good view is precisely what (A-viewsync) and `NoEarlyAbandon` are for. -/
 def SettledIn (r : MvbaRun th) (i : node) (v : view) (N : Nat) : Prop :=
   ∀ n, N ≤ n →
     InView (r.at' n) i v ∧ ¬ (r.at' n).timed_out i v = true ∧
-      ¬ (r.at' n).abandoned i = true
+      Active (r.at' n) i
 
 /-- **`send_commit`'s guards are its enabledness.** -/
 theorem enabled_send_commit {i : node} {v : view} {e : value}
     (hi : ¬ nset.is_byz i = true)
     (hin : ∃ E, st.input i E = true)
-    (hab : ¬ st.abandoned i = true)
+    (hact : Active st i)
     (hview : InView st i v)
     (hacc : st.accepted i v e = true)
     (hloc : st.local_prepqc i v e = true)
@@ -583,7 +592,7 @@ theorem enabled_send_commit {i : node} {v : view} {e : value}
     Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
       (.send_commit i v e) := by
   mvba_enabled
-  exact ⟨_, hi, hin, hab, hview.1, hview.2, hacc, hloc, hnto, hncs, hav, rfl⟩
+  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hacc, hloc, hnto, hncs, hav, rfl⟩
 
 /-- **`send_commit`'s effect**: the flag is set and the `Commit` is sent, in
 the same step — which is what `commit_sent_backed` lifts to an invariant. -/
@@ -592,7 +601,7 @@ theorem send_commit_effect {i : node} {v : view} {e : value}
       (.send_commit i v e) st') :
     st'.commit_sent i v = true ∧ st'.msg_commit i v e = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   constructor <;> mvba_effect
 
 /-- **The `send_commit` link.** A correct validator settled in view `v` that
@@ -660,7 +669,7 @@ very certificate the argument was waiting for. -/
 theorem enabled_adopt_prepqc {i : node} {v : view} {e : value}
     (hi : ¬ nset.is_byz i = true)
     (hin : ∃ E, st.input i E = true)
-    (hab : ¬ st.abandoned i = true)
+    (hact : Active st i)
     (hview : InView st i v)
     (hqc : st.msg_prepqc v e = true)
     (hacc : st.accepted i v e = true)
@@ -669,14 +678,14 @@ theorem enabled_adopt_prepqc {i : node} {v : view} {e : value}
     Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
       (.adopt_prepqc i v e) := by
   mvba_enabled
-  exact ⟨_, hi, hin, hab, hview.1, hview.2, hqc, hacc, hlow, hnto, rfl⟩
+  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hqc, hacc, hlow, hnto, rfl⟩
 
 /-- **`adopt_prepqc`'s effect**: the certificate is held. -/
 theorem adopt_prepqc_effect {i : node} {v : view} {e : value}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
       (.adopt_prepqc i v e) st') : st'.local_prepqc i v e = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   mvba_effect
 
 /-- **A lapsed lock-view guard is the adoption itself.** At a reachable state
@@ -863,7 +872,7 @@ all, and why (A-viewsync) produces one. -/
 theorem enabled_handle_preprepare {i l : node} {pv v : view} {e : value}
     (hi : ¬ nset.is_byz i = true)
     (hin : ∃ E, st.input i E = true)
-    (hab : ¬ st.abandoned i = true)
+    (hact : Active st i)
     (hview : InView st i v)
     (hnext : vord.next pv v)
     (hlead : th.leader v l = true)
@@ -874,7 +883,7 @@ theorem enabled_handle_preprepare {i l : node} {pv v : view} {e : value}
     Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
       (.handle_preprepare i l pv v e) := by
   mvba_enabled
-  exact ⟨_, hi, hin, hab, hview.1, hview.2, hnext, hlead, hpp, hvalid, hjust, hvote, rfl⟩
+  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hnext, hlead, hpp, hvalid, hjust, hvote, rfl⟩
 
 /-- **`handle_preprepare`'s effect**: the vector is accepted and the
 `Prepare` is sent. -/
@@ -883,7 +892,7 @@ theorem handle_preprepare_effect {i l : node} {pv v : view} {e : value}
       (.handle_preprepare i l pv v e) st') :
     st'.accepted i v e = true ∧ st'.msg_prepare i v e = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   constructor <;> mvba_effect
 
 /-- **A lapsed vote guard is the acceptance itself**, under an honest
@@ -1088,7 +1097,7 @@ which the assembly (`terminates_of_good_view_no_timeout`) applies. -/
 theorem enabled_leader_repropose {l : node} {pv v w : view} {e : value}
     (hl : ¬ nset.is_byz l = true)
     (hin : ∃ E, st.input l E = true)
-    (hab : ¬ st.abandoned l = true)
+    (hact : Active st l)
     (hnext : vord.next pv v)
     (hlead : th.leader v l = true)
     (hview : InView st l v)
@@ -1097,12 +1106,12 @@ theorem enabled_leader_repropose {l : node} {pv v w : view} {e : value}
     Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
       (.leader_repropose l pv v w e) := by
   mvba_enabled
-  exact ⟨_, hl, hin, hab, hnext, hlead, hview.1, hview.2, hlock, hnp, rfl⟩
+  exact ⟨_, hl, hin, hact.1, hact.2, hnext, hlead, hview.1, hview.2, hlock, hnp, rfl⟩
 
 /-- **`leader_propose_fresh`'s guards are its enabledness.** -/
 theorem enabled_leader_propose_fresh {l : node} {pv v : view} {e : value}
     (hl : ¬ nset.is_byz l = true)
-    (hab : ¬ st.abandoned l = true)
+    (hact : Active st l)
     (hnext : vord.next pv v)
     (hlead : th.leader v l = true)
     (hview : InView st l v)
@@ -1112,20 +1121,20 @@ theorem enabled_leader_propose_fresh {l : node} {pv v : view} {e : value}
     Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
       (.leader_propose_fresh l pv v e) := by
   mvba_enabled
-  exact ⟨_, hl, hab, hnext, hlead, hview.1, hview.2, hnl, hinp, hnp, rfl⟩
+  exact ⟨_, hl, hact.1, hact.2, hnext, hlead, hview.1, hview.2, hnl, hinp, hnp, rfl⟩
 
 theorem leader_repropose_effect {l : node} {pv v w : view} {e : value}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
       (.leader_repropose l pv v w e) st') : st'.msg_preprepare l v e = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   mvba_effect
 
 theorem leader_propose_fresh_effect {l : node} {pv v : view} {e : value}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
       (.leader_propose_fresh l pv v e) st') : st'.msg_preprepare l v e = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   mvba_effect
 
 /-- **The leader link.** An honest leader settled in a view above the first,
@@ -1234,21 +1243,21 @@ theorem eventually_tc_of_timeout_quorum
 theorem enabled_sync_view {i : node} {pv v : view}
     (hi : ¬ nset.is_byz i = true)
     (hin : ∃ E, st.input i E = true)
-    (hab : ¬ st.abandoned i = true)
+    (hact : Active st i)
     (hnext : vord.next pv v)
     (htc : st.msg_tc pv = true)
     (hbelow : ∀ V, st.entered i V = true → vord.le V pv) :
     Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
       (.sync_view i pv v) := by
   mvba_enabled
-  exact ⟨_, hi, hin, hab, hnext, htc, hbelow, rfl⟩
+  exact ⟨_, hi, hin, hact.1, hact.2, hnext, htc, hbelow, rfl⟩
 
 /-- **`sync_view`'s effect**: the next view is entered. -/
 theorem sync_view_effect {i : node} {pv v : view}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
       (.sync_view i pv v) st') : st'.entered i v = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
   mvba_effect
 
 /-- **The view-advance link.** Given a timeout certificate for `pv`, a
@@ -1263,7 +1272,7 @@ theorem eventually_entered_above_of_tc
     (r : MvbaRun th) (hfj : FJustice r)
     {i : node} (hi : ¬ nset.is_byz i = true) {pv v : view} {N : Nat}
     (hnext : vord.next pv v)
-    (hnab : ∀ n, N ≤ n → ¬ (r.at' n).abandoned i = true)
+    (hnab : ∀ n, N ≤ n → Active (r.at' n) i)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (htc : (r.at' N).msg_tc pv = true) :
     ∃ (n : Nat) (V : view), N ≤ n ∧ (r.at' n).entered i V = true ∧ vord.lt pv V := by
@@ -1445,7 +1454,7 @@ theorem settledIn_of_no_decision
   refine fun n hn => ⟨⟨hent n hn, ?_⟩, ?_, ?_⟩
   · exact fun V hV => entered_le_of_no_timeout r hvs n i V hi hV
   · exact fun hto => hvs i n hi hto
-  · intro hab
+  · refine ⟨fun hab => ?_, fun E => hnodec i n E hi⟩
     obtain ⟨E, hE⟩ := hna i n hi hab
     exact hnodec i n E hi hE
 
@@ -1648,7 +1657,7 @@ below the current view), and once it has, a highest one exists
 theorem enabled_timeout_noqc {i : node} {v : view}
     (hi : ¬ nset.is_byz i = true)
     (hin : ∃ E, st.input i E = true)
-    (hab : ¬ st.abandoned i = true)
+    (hact : Active st i)
     (hview : InView st i v)
     (htimer : st.timer_expired i v = true)
     (hnto : ¬ st.timed_out i v = true)
@@ -1656,13 +1665,13 @@ theorem enabled_timeout_noqc {i : node} {v : view}
     Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
       (.timeout_noqc i v) := by
   mvba_enabled
-  exact ⟨_, hi, hin, hab, hview.1, hview.2, htimer, hnto, hno, rfl⟩
+  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, htimer, hnto, hno, rfl⟩
 
 /-- **`timeout_qc`'s guards are its enabledness.** -/
 theorem enabled_timeout_qc {i : node} {v w : view} {e : value}
     (hi : ¬ nset.is_byz i = true)
     (hin : ∃ E, st.input i E = true)
-    (hab : ¬ st.abandoned i = true)
+    (hact : Active st i)
     (hview : InView st i v)
     (htimer : st.timer_expired i v = true)
     (hnto : ¬ st.timed_out i v = true)
@@ -1671,24 +1680,24 @@ theorem enabled_timeout_qc {i : node} {v w : view} {e : value}
     Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
       (.timeout_qc i v w e) := by
   mvba_enabled
-  exact ⟨_, hi, hin, hab, hview.1, hview.2, htimer, hnto, hloc, hmax, rfl⟩
+  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, htimer, hnto, hloc, hmax, rfl⟩
 
 theorem timeout_noqc_effect {i : node} {v : view}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
       (.timeout_noqc i v) st') : st'.timed_out i v = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
   mvba_effect
 
 theorem timeout_qc_effect {i : node} {v w : view} {e : value}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
       (.timeout_qc i v w e) st') : st'.timed_out i v = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   mvba_effect
 
 /-- **An expired timer produces a `Timeout`.** A correct validator that stays
-in view `v`, is not abandoned, and whose timer for `v` has run out, times
+in view `v`, is active, and whose timer for `v` has run out, times
 out — given a list covering the views at or below `v`, which is what bounds
 its held certificates. -/
 theorem eventually_timed_out_of_timer
@@ -1696,7 +1705,7 @@ theorem eventually_timed_out_of_timer
     {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {N : Nat}
     (Vs : List view) (hcov : ∀ V, vord.le V v → V ∈ Vs)
     (hview : ∀ n, N ≤ n → InView (r.at' n) i v)
-    (hnab : ∀ n, N ≤ n → ¬ (r.at' n).abandoned i = true)
+    (hnab : ∀ n, N ≤ n → Active (r.at' n) i)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (htimer : (r.at' N).timer_expired i v = true) :
     ∃ n, N ≤ n ∧ (r.at' n).timed_out i v = true := by
@@ -1934,8 +1943,7 @@ theorem eventually_tc_below_good
     (vfin : Cadence.ViewOrderEnum view vord)
     (r : MvbaRun th) (hfj : FJustice r) (hap : AllPropose r)
     {W PV : view} (hnext : vord.next PV W)
-    (hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
-      ¬ (r.at' n).abandoned i = true)
+    (hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true → Active (r.at' n) i)
     (hto : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
       (r.at' n).timed_out i W = true → False)
     (hftimer : ∀ (i : node) (V : view), ¬ nset.is_byz i = true → vord.lt V W →
@@ -2119,8 +2127,7 @@ that would need a correct validator to have timed out there. -/
 theorem eventually_entered_good
     (r : MvbaRun th) (hfj : FJustice r) (hap : AllPropose r)
     {W PV : view} (hnext : vord.next PV W)
-    (hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
-      ¬ (r.at' n).abandoned i = true)
+    (hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true → Active (r.at' n) i)
     (hto : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
       (r.at' n).timed_out i W = true → False)
     (htc : ∃ n, (r.at' n).msg_tc PV = true) :
@@ -2210,10 +2217,10 @@ theorem terminates_of_good_view_no_timeout
     (hto : ∀ i n, ¬ nset.is_byz i = true →
       (r.at' n).timed_out i W = true → False) :
     Terminates r := by
-  -- Nobody is abandoned either, for the same reason.
-  have hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
-      ¬ (r.at' n).abandoned i = true := by
-    intro i n hi hab
+  -- Nobody is abandoned either, for the same reason, so everyone is active.
+  have hnab : ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true → Active (r.at' n) i := by
+    intro i n hi
+    refine ⟨fun hab => ?_, fun E => hnodec i n E hi⟩
     obtain ⟨E, hE⟩ := hna i n hi hab
     exact hnodec i n E hi hE
   -- The good view is *reached*, not assumed.

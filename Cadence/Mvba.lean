@@ -138,9 +138,20 @@ the environment relation `avail_ready i e` (`AvailReady_i`).
   unguarded environment action, `send_commit` reads it positively.
   Safety-neutral, and the hook for the supplement's `Δ_sync` assumption.
 * **`abandon` is modelled** as a monotone flag every honest send requires
-  unset, and `propose` is the `input` record; the paper's self-`abandon()`
-  after a decision is the *caller's* input in the contract (`MVBA.abandon`),
-  so `decide` records the decision and leaves `abandoned` to `abandon`.
+  unset, and `propose` is the `input` record. `abandoned` is the *caller's*
+  input only, the contract's `MVBA.abandon`.
+* **A decided validator halts.** Both of the supplement's decision paths
+  end in `decide(…); abandon()` (`line:mvba:td-decide`,
+  `line:mvba:qc-decide`), where `abandon()` "halts all MVBA sending and
+  stops `W`", and its timeout fires only when there is "no decision in view
+  `v`" (`line:mvba:timeout-send`). So every honest send also requires
+  `∀ E, ¬ decided i E`: after deciding, `i` sends nothing, and in
+  particular never times out. The halt is kept apart from `abandoned`,
+  because the contract's Termination premise ("no correct validator
+  abandons before the bound") is about the caller's `abandon()`, and a
+  validator's own halt after deciding must not count against it.
+  `expire_timer`, the environment's marker, stays unguarded: once `i` has
+  halted, no action reads its timer.
 * **Integrity by construction**: `decide` requires `∀ E, ¬ decided i E`.
 * **Not modelled**: persistence and crash recovery (`line:mvba:reload`,
   `cor:mvba-recovery-termination`), the `Pool` cache, the availability
@@ -352,6 +363,7 @@ action abandon (i : node) {
 action leader_propose_first (l : node) (e : value) {
   require ¬ is_byz l
   require ¬ abandoned l
+  require ∀ E, ¬ decided l E
   require leader vord.zero l
   require in_view l vord.zero
   require input l e
@@ -369,6 +381,7 @@ action leader_repropose (l : node) (pv : view) (v : view) (w : view) (e : value)
   require ¬ is_byz l
   require ∃ E, input l E
   require ¬ abandoned l
+  require ∀ E, ¬ decided l E
   require vord.next pv v
   require leader v l
   require in_view l v
@@ -382,6 +395,7 @@ action leader_repropose (l : node) (pv : view) (v : view) (w : view) (e : value)
 action leader_propose_fresh (l : node) (pv : view) (v : view) (e : value) {
   require ¬ is_byz l
   require ¬ abandoned l
+  require ∀ E, ¬ decided l E
   require vord.next pv v
   require leader v l
   require in_view l v
@@ -402,6 +416,7 @@ action handle_preprepare_first (i : node) (l : node) (e : value) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i vord.zero
   require leader vord.zero l
   require msg_preprepare l vord.zero e
@@ -419,6 +434,7 @@ action handle_preprepare (i : node) (l : node) (pv : view) (v : view) (e : value
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i v
   require vord.next pv v
   require leader v l
@@ -448,6 +464,7 @@ action adopt_prepqc (i : node) (v : view) (e : value) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i v
   require msg_prepqc v e
   require accepted i v e
@@ -485,6 +502,7 @@ action send_commit (i : node) (v : view) (e : value) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i v
   require accepted i v e
   require local_prepqc i v e
@@ -526,6 +544,7 @@ action timeout_qc (i : node) (v : view) (w : view) (e : value) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i v
   require timer_expired i v
   require ¬ timed_out i v
@@ -542,6 +561,7 @@ action timeout_noqc (i : node) (v : view) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require in_view i v
   require timer_expired i v
   require ¬ timed_out i v
@@ -581,6 +601,7 @@ action sync_view (i : node) (pv : view) (v : view) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require vord.next pv v
   require msg_tc pv
   require ∀ V, entered i V → vord.le V pv
@@ -594,6 +615,7 @@ action sync_view_adopt (i : node) (pv : view) (v : view) (w : view) (e : value) 
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
+  require ∀ E, ¬ decided i E
   require vord.next pv v
   require tc_lock pv w e
   require ∀ V, entered i V → vord.le V pv

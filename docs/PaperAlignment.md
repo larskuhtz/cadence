@@ -220,28 +220,23 @@ Four consequences for this repository:
    matches the supplement rather than the published contract, and it is the
    sound direction: assuming the stronger contract while needing only the
    weaker one.
-4. **A liveness-level observation** (recorded 2026-09-29, while building
-   the non-vacuity witness, [Bounds.md](Bounds.md) §6.3.2). The supplement
-   stops a validator once it decides: both decision paths end in
-   `decide(…); abandon()` (`line:mvba:td-decide`, `line:mvba:qc-decide`),
-   and the timeout fires only when there is "no decision in view `v`"
-   (`line:mvba:timeout-send`). The model has neither. Its `decide` only
-   records the decision, and `abandon` is the caller's input alone. That is
-   more behaviours, so the safety theorems and the untimed termination
-   theorem cover the supplement's runs. For the timed theorem it leaves one
-   question open: the supplement's own `abandon()` right after deciding
-   reads, in the model, as an abandonment before `max(t, GST) + ℓ`, which
-   the theorem's caller condition excludes. Modelling the self-abandon
-   separately from the caller's would close it. [TODO.md](TODO.md)
-   § Liveness tracks it.
+4. **A liveness-level divergence, fixed** (2026-09-29, found while
+   building the non-vacuity witness, [Bounds.md](Bounds.md) §6.3.2). The
+   supplement stops a validator once it decides: both decision paths end
+   in `decide(…); abandon()` (`line:mvba:td-decide`,
+   `line:mvba:qc-decide`), and the timeout fires only when there is "no
+   decision in view `v`" (`line:mvba:timeout-send`), at the pinned
+   `026dc8b` as now. The model had neither, which left the timed
+   Termination theorem silent about the supplement's own runs. The model
+   now halts a decided validator (every honest send requires
+   `∀ E, ¬ decided i E`), kept apart from the caller's `abandon`.
 
 ## 5. What this implies for the models
 
-Nothing so far. No model changes, and no change to what this repository
-claims: the published algorithms are unchanged, and the divergences in §3
-are between the paper's two documents. The one candidate for a model
-change is §4 item 4, the MVBA's self-abandon on decision, which is open in
-[TODO.md](TODO.md).
+One model change, §4 item 4: the MVBA now halts a validator after it
+decides, as the supplement does. Otherwise nothing: the published
+algorithms are unchanged, and the divergences in §3 are between the
+paper's two documents.
 
 What is worth doing is documentary, and is tracked in
 [TODO.md](TODO.md): cite `sec:domain-separation` where the network

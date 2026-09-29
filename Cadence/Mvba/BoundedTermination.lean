@@ -124,14 +124,14 @@ theorem local_prepqc_set {l : Mvba.Label node nodeset value view} {i : node} {W 
   cases l
   case adopt_prepqc i' v' e' =>
     mvba_tr htr
-    obtain ⟨-, -, -, hent, hle, -, -, -, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, hent, hle, -, -, -, -, rfl⟩ := htr
     mvba_effect_at h1
     rcases h1 with ⟨rfl, rfl, rfl⟩ | h1
     · exact Or.inl ⟨hent, hle⟩
     · exact absurd h1 h0
   case sync_view_adopt i' pv v' w' e' =>
     mvba_tr htr
-    obtain ⟨-, -, -, hnext, -, hbelow, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, hnext, -, hbelow, -, rfl⟩ := htr
     mvba_effect_at h1
     rcases h1 with ⟨rfl, rfl, rfl⟩ | h1
     · exact Or.inr ⟨pv, v', hnext, hbelow, by mvba_effect⟩
@@ -251,14 +251,14 @@ theorem entered_set_view {l : Mvba.Label node nodeset value view} {j : node} {V 
     · exact absurd h h0
   case sync_view i' pv v' =>
     mvba_tr htr
-    obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
     mvba_effect_at h1
     rcases h1 with ⟨-, h⟩ | h
     · subst h; rfl
     · exact absurd h h0
   case sync_view_adopt i' pv v' w' e' =>
     mvba_tr htr
-    obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, -, -, -, -, rfl⟩ := htr
     mvba_effect_at h1
     rcases h1 with ⟨-, h⟩ | h
     · subst h; rfl
@@ -477,7 +477,7 @@ theorem within_timed_out_of_top (hbj : BoundedJustice sch r)
     (hent : (r.at' N).entered i v = true)
     (htimer : (r.at' N).timer_expired i v = true)
     (htop : (r.at' N).local_prepqc i v e = true)
-    (hnab : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true) :
+    (hnab : ∀ n, N ≤ n → r.clk n ≤ B → Active (r.at' n) i) :
     r.WithinFrom N B (fun s => TimedOutOrAbove s i v) := by
   refine r.withinFrom_of_boundedFair (hbj (.timeout_qc i v v e) .loc rfl) hB
     (fun _ _ h => Or.inl (timeout_qc_effect h)) ?_
@@ -512,7 +512,7 @@ theorem within_timed_out (vfin : ViewOrderEnum view vord) (hbj : BoundedJustice 
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hent : (r.at' N).entered i v = true)
     (htimer : (r.at' N).timer_expired i v = true)
-    (hnab : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true) :
+    (hnab : ∀ n, N ≤ n → r.clk n ≤ B → Active (r.at' n) i) :
     r.WithinFrom N B (fun s => TimedOutOrAbove s i v) := by
   classical
   have hδ : (0 : time) ≤ sch.δ := sch.δ_nonneg
@@ -616,7 +616,7 @@ theorem within_entered_above_of_tc (hbj : BoundedJustice sch r)
     {N : Nat} {B : time} (hB : r.ref N + sch.Δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (htc : (r.at' N).msg_tc pv = true)
-    (hnab : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true) :
+    (hnab : ∀ n, N ≤ n → r.clk n ≤ B → Active (r.at' n) i) :
     r.WithinFrom N B (fun s => ∃ V, vord.lt pv V ∧ s.entered i V = true) := by
   refine r.withinFrom_of_boundedFair (hbj (.sync_view i pv v) .net rfl) hB
     (fun _ _ h => ⟨v, ((vord.next_def pv v).mp hnext).1, sync_view_effect h⟩) ?_
@@ -693,8 +693,8 @@ theorem Schedule.burn_nonneg (sch : Schedule view time) : 0 ≤ sch.burn :=
 /-- **The burn lemma** ([Bounds.md](../../docs/Bounds.md) §6.2.6, the first
 table). From
 `Synced v X` with `X` at or after GST, `Synced (succ v) (X + burn)` — whatever
-the leader or the outcome of `v`, provided nobody correct is abandoned by
-then. The four rows:
+the leader or the outcome of `v`, provided every correct validator is
+active (neither abandoned nor halted after deciding) until then. The four rows:
 
 * every correct validator still in `v` has its timer expired by
   `X + τ v ≤ X + τmax` — (T2) from its entry, which is by `X`;
@@ -715,7 +715,7 @@ theorem synced_succ (enum : ByzNodeSetEnum node nodeset nset)
     {sch : Schedule view time} {r : TMvbaRun th time} (hsync : Sync sch r)
     {v : view} {X : time} (hX : r.gst ≤ X) (hs : Synced r v X)
     (hnab : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true → r.clk n ≤ X + sch.burn →
-      ¬ (r.at' n).abandoned p = true) :
+      Active (r.at' n) p) :
     Synced r (vfin.succ v) (X + sch.burn) := by
   obtain ⟨hbj, htp, -⟩ := hsync
   have hQc := hqe.honestQuorum_correct
@@ -742,7 +742,7 @@ theorem synced_succ (enum : ByzNodeSetEnum node nodeset nset)
   have hX₃ : X ≤ t₃ := le_trans hX₂ h₂₃
   have h₂T : t₂ ≤ T := le_trans h₂₃ h₃T
   have hnab' : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true → r.clk n ≤ T →
-      ¬ (r.at' n).abandoned p = true := fun p n hp h => hnab p n hp (hTb ▸ h)
+      Active (r.at' n) p := fun p n hp h => hnab p n hp (hTb ▸ h)
   have hinp : ∀ p, ¬ nset.is_byz p = true → ∀ {m V}, (r.at' m).entered p V = true →
       ∀ n, m ≤ n → ∃ E, (r.at' n).input p E = true := fun p hp m V hent n hn =>
     let ⟨E, hE⟩ := Mvba.reachable_entered_implies_input (r.reachable m) p V hp hent
@@ -817,7 +817,7 @@ theorem synced_iterate (enum : ByzNodeSetEnum node nodeset nset)
     {sch : Schedule view time} {r : TMvbaRun th time} (hsync : Sync sch r)
     {v : view} {X D : time} (hX : r.gst ≤ X) (hs : Synced r v X)
     (hnab : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true → r.clk n ≤ D →
-      ¬ (r.at' n).abandoned p = true) :
+      Active (r.at' n) p) :
     ∀ k : Nat, X + k • sch.burn ≤ D → Synced r (vfin.succ^[k] v) (X + k • sch.burn)
   | 0, _ => by simpa using hs
   | k + 1, hD => by
@@ -888,8 +888,9 @@ structure GoodView (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
 
 /-- **The assembly's first half** ([Bounds.md](../../docs/Bounds.md)
 §6.2.6, "The assembly", up to the good-view lemma): if every correct validator has
-proposed by `t` and none is abandoned by `max(t, gst) + ℓ`, a good view is
-reached from `u := max(t, gst)`. `bounded_termination` is this plus
+proposed by `t` and every correct validator is active (not abandoned, not
+yet decided) until the last burn, a good view is reached from
+`u := max(t, gst)`. `bounded_termination` is this plus
 `good_view_decides`. -/
 theorem exists_good_view (enum : ByzNodeSetEnum node nodeset nset)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
@@ -899,7 +900,8 @@ theorem exists_good_view (enum : ByzNodeSetEnum node nodeset nset)
     (hprop : ∀ p, ¬ nset.is_byz p = true →
       ∃ (n : Nat) (E : value), r.clk n ≤ t ∧ (r.at' n).input p E = true)
     (hnab' : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true →
-      r.clk n ≤ max t r.gst + sch.ℓ vfin → ¬ (r.at' n).abandoned p = true) :
+      r.clk n ≤ max t r.gst + (sch.Δ + ((vfin.below sch.vL).length + sch.k) • sch.burn) →
+        Active (r.at' n) p) :
     Nonempty (GoodView sch vfin r (max t r.gst)) := by
   classical
   have hQc := hqe.honestQuorum_correct
@@ -971,7 +973,8 @@ theorem exists_good_view (enum : ByzNodeSetEnum node nodeset nset)
       obtain ⟨n, -, hc, V, hlt, hent⟩ :=
         within_entered_above_of_tc hsync.1 hi hPV (N := N₀) (B := u + sch.Δ)
           (add_le_add (r.ref_le hcN₀ hgu) le_rfl) hE htc
-          (fun n _ h => hnab' i n hi (le_trans h (add_le_add le_rfl hΔℓ)))
+          (fun n _ h => hnab' i n hi (le_trans h (add_le_add le_rfl
+            (le_add_of_nonneg_right (nsmul_nonneg hb _)))))
       exact ⟨n, hc, V, ((vord.next_def PV M).mp hPV).2 V hlt, hent⟩
   /- `W`: past the ramp, then a correct leader within `k` views. -/
   obtain ⟨a, ha1, haL, hvL⟩ := exists_iterate_succ_ge vfin M sch.vL
@@ -999,7 +1002,9 @@ theorem exists_good_view (enum : ByzNodeSetEnum node nodeset nset)
   have hsW : Synced r W T := by
     rw [hT, hW]
     exact synced_iterate enum hqe vfin hsync (le_trans hgu (le_add_of_nonneg_right hΔ)) hsM
-      hnab' (j + a) (hT ▸ hTℓ')
+      hnab' (j + a) (by
+        rw [add_assoc]
+        exact add_le_add le_rfl (add_le_add le_rfl (nsmul_le_nsmul_left hb hK)))
   /- `N_W`, the first index at which a correct validator is at or above `W`. -/
   have hexW : ∃ n, ∃ i, ¬ nset.is_byz i = true ∧ ∃ V, vord.le W V ∧
       (r.at' n).entered i V = true := by
@@ -1053,8 +1058,19 @@ theorem exists_good_view (enum : ByzNodeSetEnum node nodeset nset)
 /-- **Bounded termination** ([Bounds.md](../../docs/Bounds.md) §6.2.6, "The
 assembly").
 `BoundedTerminationClaim`, proven, under the two quorum classes and a
-cancellative time theory (§6.2.8 says why cancellation is needed): the good
-view `exists_good_view` reaches, decided by `good_view_decides`. -/
+cancellative time theory (§6.2.8 says why cancellation is needed). Two
+cases, split at the certificate deadline `C = ℓ − δ` past `max(t, gst)`:
+
+* a correct validator has decided by then. A decision is certificate-backed
+  (`decided_backed`), so every correct validator decides within `δ` of it
+  (`within_decided_ref`);
+* none has. Then every correct validator is active up to the deadline, the
+  good view `exists_good_view` reaches is decided by `good_view_decides`,
+  and its certificate is inside the deadline.
+
+The split is what the halt after deciding costs: a decided validator sends
+nothing more, so the chain may use only validators that have not decided,
+and a decision before the chain completes is its own route to the bound. -/
 theorem bounded_termination (enum : ByzNodeSetEnum node nodeset nset)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord) :
@@ -1063,22 +1079,71 @@ theorem bounded_termination (enum : ByzNodeSetEnum node nodeset nset)
   have hnab' : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true →
       r.clk n ≤ max t r.gst + sch.ℓ vfin → ¬ (r.at' n).abandoned p = true :=
     fun p n hp h hab => hnab p hp n hab h
-  obtain ⟨g⟩ := exists_good_view enum hqe sch vfin hrot hsync hprop hnab'
-  /- The good view's decisions are inside `max(t, gst) + ℓ`. -/
   have hb : (0 : time) ≤ sch.burn := sch.burn_nonneg
-  have hE : r.clk g.N + Lcert sch.Δ sch.δ sch.Δsync + sch.δ ≤ max t r.gst + sch.ℓ vfin := by
-    have h := nsmul_le_nsmul_left hb g.burns_le
-    calc r.clk g.N + Lcert sch.Δ sch.δ sch.Δsync + sch.δ
-        ≤ max t r.gst + sch.Δ + ((vfin.below sch.vL).length + sch.k) • sch.burn
-            + Lcert sch.Δ sch.δ sch.Δsync + sch.δ := by
-          gcongr
-          exact le_trans g.within (add_le_add le_rfl h)
-      _ = max t r.gst + sch.ℓ vfin := by simp only [Schedule.ℓ]; abel
-  obtain ⟨e, -, hdec⟩ :=
-    good_view_decides enum hqe hsync g.next g.leads g.leader_correct g.ramp g.i₀_correct
-      g.entered g.first g.gst_le g.input (fun p n hp h => hnab' p n hp (le_trans h hE))
-  obtain ⟨n, -, hc, E, hE'⟩ := hdec q hq
-  exact ⟨n, E, le_trans hc hE, hE'⟩
+  have hδ : (0 : time) ≤ sch.δ := sch.δ_nonneg
+  have hL0 : (0 : time) ≤ Lcert sch.Δ sch.δ sch.Δsync :=
+    add_nonneg (add_nonneg (nsmul_nonneg (le_of_lt sch.Δ_pos) 3)
+      (le_trans sch.Δsync_nonneg (le_max_right _ _))) (nsmul_nonneg hδ 2)
+  /- `C`, the certificate deadline: `ℓ` without the final decision step. -/
+  obtain ⟨C, hC⟩ : ∃ C, C = sch.Δ + ((vfin.below sch.vL).length + sch.k) • sch.burn
+      + Lcert sch.Δ sch.δ sch.Δsync := ⟨_, rfl⟩
+  have hℓ : sch.ℓ vfin = C + sch.δ := by simp only [Schedule.ℓ, hC]
+  have hgu : r.gst ≤ max t r.gst := le_max_right _ _
+  have hCℓ : max t r.gst + C ≤ max t r.gst + sch.ℓ vfin := by
+    rw [hℓ, ← add_assoc]; exact le_add_of_nonneg_right hδ
+  by_cases hdec : ∃ (j : node) (n : Nat) (E : value), ¬ nset.is_byz j = true ∧
+      r.clk n ≤ max t r.gst + C ∧ (r.at' n).decided j E = true
+  /- A correct validator decided by the certificate deadline. A decision is
+  certificate-backed, so every correct validator decides within `δ` of it. -/
+  · obtain ⟨j, n, E, hj, hcn, hjE⟩ := hdec
+    obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed (r.reachable n) j E hj hjE
+    obtain ⟨m, E₀, hm, hin⟩ := hprop q hq
+    have hcm : r.clk m ≤ max t r.gst + C :=
+      le_trans hm (le_trans (le_max_left _ _) (le_add_of_nonneg_right
+        (by rw [hC]; exact add_nonneg (add_nonneg (le_of_lt sch.Δ_pos) (nsmul_nonneg hb _)) hL0)))
+    have href : r.ref (max n m) ≤ max t r.gst + C := by
+      refine r.ref_le ?_ (le_trans hgu (le_add_of_nonneg_right ?_))
+      · rcases Nat.le_total n m with h | h
+        · rw [Nat.max_eq_right h]; exact hcm
+        · rw [Nat.max_eq_left h]; exact hcn
+      · rw [hC]; exact add_nonneg (add_nonneg (le_of_lt sch.Δ_pos) (nsmul_nonneg hb _)) hL0
+    obtain ⟨k, -, hk, E', hE'⟩ :=
+      within_decided_ref hsync.1 hq (B := max t r.gst + sch.ℓ vfin)
+        (by rw [hℓ, ← add_assoc]; exact add_le_add_left href _)
+        (r.mono (P := fun s => s.input q E₀ = true)
+          (fun a ha => Mvba.input.mono (r.steps a) q E₀ ha) hin _ (Nat.le_max_right _ _))
+        (r.mono (P := fun s => s.msg_commitqc V E = true)
+          (fun a ha => Mvba.msg_commitqc.mono (r.steps a) V E ha) hV _ (Nat.le_max_left _ _))
+        (fun k _ h => hnab' q k hq h)
+    exact ⟨k, E', hk, hE'⟩
+  /- Nobody correct decided by the certificate deadline, so every correct
+  validator is active up to it, and the good view decides. -/
+  · push Not at hdec
+    have hact : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true →
+        r.clk n ≤ max t r.gst + (sch.Δ + ((vfin.below sch.vL).length + sch.k) • sch.burn) →
+          Active (r.at' n) p := fun p n hp h =>
+      ⟨hnab' p n hp (le_trans h (le_trans (add_le_add le_rfl
+          (by rw [hC]; exact le_add_of_nonneg_right hL0)) hCℓ)),
+        fun E hE => hdec p n E hp (le_trans h (add_le_add le_rfl
+          (by rw [hC]; exact le_add_of_nonneg_right hL0))) hE⟩
+    obtain ⟨g⟩ := exists_good_view enum hqe sch vfin hrot hsync hprop hact
+    /- The good view's certificate is inside the deadline `max(t, gst) + C`. -/
+    have hEC : r.clk g.N + Lcert sch.Δ sch.δ sch.Δsync ≤ max t r.gst + C := by
+      have h := nsmul_le_nsmul_left hb g.burns_le
+      calc r.clk g.N + Lcert sch.Δ sch.δ sch.Δsync
+          ≤ max t r.gst + sch.Δ + ((vfin.below sch.vL).length + sch.k) • sch.burn
+              + Lcert sch.Δ sch.δ sch.Δsync := by
+            gcongr
+            exact le_trans g.within (add_le_add le_rfl h)
+        _ = max t r.gst + C := by rw [hC]; abel
+    have hE : r.clk g.N + Lcert sch.Δ sch.δ sch.Δsync + sch.δ ≤ max t r.gst + sch.ℓ vfin := by
+      rw [hℓ, ← add_assoc]; exact add_le_add_left hEC _
+    obtain ⟨e, -, hdec'⟩ :=
+      good_view_decides enum hqe hsync g.next g.leads g.leader_correct g.ramp g.i₀_correct
+        g.entered g.first g.gst_le g.input (fun p n hp h => hnab' p n hp (le_trans h hE))
+        (fun p n hp h E hE' => hdec p n E hp (le_trans h hEC) hE')
+    obtain ⟨n, -, hc, E, hE'⟩ := hdec' q hq
+    exact ⟨n, E, le_trans hc hE, hE'⟩
 
 end Assembly
 
