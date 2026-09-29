@@ -767,18 +767,48 @@ need stay enabled, and a scheduler that satisfies `FJustice` can keep `i`
 from ever proposing. Then `AllPropose` cannot be derived, and neither can
 termination. (Argued, not machine-checked; the obstacle is structural.)
 **Recommended fix, in the model:** choose the successor inside the action
-with Veil's `pick` — `let n ← pick mstate; require mvba.propose mvba_st i v
-n; mvba_st := n` — so that the label is `mvba_propose i v`, the paper's
-`propose(B_i)`, and it is enabled whenever *some* successor exists. That
-is one `Chorus.lean` edit whose statement change reaches only
-`mvba_propose`'s cells; `Chorus/Liveness.lean`'s `MvbaStepLabel`,
-`mvbaStepLabel_iff`, `mvba_propose_tr` and `mvbaComponent.step` follow the
-new arity (a change to the statement file, to be recorded here), and
-`mvba_step` stays as it is — it is the oracle step, outside (F-justice),
-and its labels are the projection's business. The alternative is to state
-`FJustice` for `mvba_propose` over the family `∃ mvba_next`, which is TLA+'s
-`WF(∃ n. Propose(i, v, n))`; it keeps the model but makes one premise
-different in kind from all the others.
+— `let n :| mvba.propose mvba_st i v n; mvba_st := n` (Veil's
+`pickSuchThat`; `pick` plus a `require` is the same) — so that the label is
+`mvba_propose i v`, the paper's `propose(B_i)`, and it is enabled whenever
+*some* successor exists. It is faithful: `mvba_next` is not a choice the
+validator makes but the MVBA's state after the input, which the contract
+determines (at the `Mvba` instance, uniquely). In the transition relation a
+picked value is an existential, so for safety nothing changes — it is a
+free parameter of the relation, only no longer of the label. That is one
+`Chorus.lean` edit whose statement change reaches only `mvba_propose`'s
+cells; `Chorus/Liveness.lean`'s `MvbaStepLabel`, `mvbaStepLabel_iff`,
+`mvba_propose_tr` and `mvbaComponent.step` follow the new arity (a change to
+the statement file, to be recorded here), and so does the monitor's label
+decoder (`Monitor/ChorusMonitor.lean` and the generated
+`Monitor/ChorusMonitorGen.lean` both decode `mvba_propose` with three
+arguments). `mvba_step` stays as it is — it is the oracle step, outside
+(F-justice), and its labels are the projection's business. Strong fairness
+of the old label would not help: it still needs the one successor-specific
+label enabled infinitely often. The alternative is to state `FJustice` for
+`mvba_propose` over the family `∃ mvba_next`, TLA+'s `WF(∃ n. Propose(i, v,
+n))`; it keeps the model but makes one premise different in kind from all
+the others.
+
+**The criterion behind Finding 2**, for every label this leg relies on.
+Whether a variable is an action parameter or picked in the body makes no
+difference to safety — an invariant is proven over every transition either
+way — but a label is the unit weak fairness speaks about, so its parameters
+decide *what* is fair. Parameters that identify **who acts or on what**
+(the validator `i`, the proposer `j`, the proposed value `v`) belong in the
+label: fairness per process is the standard assumption, and the coarser
+`WF(∃ i. A i)` only promises that *some* validator acts, which starves a
+repeated action at one of them. Parameters that are **witnesses or results**
+(a successor state, the quorum `q` that witnesses a guard) belong in the
+body, because a label containing them tracks state that other actions
+change. The test: a label's enabledness should be stable under steps
+irrelevant to its action. `mvba_propose i v next` fails it;
+`on_mvba_decide_pos i j m v` passes (`v` is fixed once decided). The
+witness-parameterised assembly labels (`broadcast_commitqc_* … q`,
+`aggregate_fastqc_* … q`, the MVBA's `form_* … q`) are also the ones that
+stay enabled as stutters — the bounds workshop's caveat (§4.5) — and
+picking `q` in the body would settle that in the model; it is not needed for
+stage 4, whose uses of them are sound as they stand, but it is the uniform
+fix if the caveat is taken up.
 
 **What stage 4 proves**, given both fixes, at the concrete family and
 `chorusTheory`, from `FJustice`, `MvbaAdmissible` and `ValidBridge`: from
