@@ -329,11 +329,11 @@ check the premises against the supplement without reading Lean.
 
 **Decisions in one place.**
 
-* The clock is a *product*: timed runs are labelled runs of the generated
-  `Mvba` transition system paired with a clock sequence, and the contract
-  is instantiated at the state type `Mvba.State × time`, through a generic
-  lift of the safety fragment (§6.2.1). No model change; nothing under
-  `Mvba/Proofs/` re-solves.
+* The clock belongs to the run: timed runs are labelled runs of the
+  generated `Mvba` transition system with a clock sequence. The contract
+  was first instantiated at a product state `Mvba.State × time`; since the
+  2026-09-29 `TimedRun` revision it is instantiated at `mvbaSafety th`
+  itself (§6.2.1). No model change; nothing under `Mvba/Proofs/` re-solves.
 * Time is a linearly ordered additive commutative monoid with `max`
   (§6.2.2). The theorem needs no Archimedean axiom; the non-vacuity
   witness `admissible_exists` needs an unbounded clock and gets it from
@@ -355,6 +355,9 @@ check the premises against the supplement without reading Lean.
   (§6.2.7 says why it cannot).
 
 #### 6.2.1 The clock is read off the state, and the state has none
+
+*Decided 2026-09-29: route 2 was taken, and the lift described below is
+deleted. The end of this section records the outcome.*
 
 `MVBATemporal.clock : state → time`, and `TimedRun … clock` reads the clock
 off each state; that is right for the Conductor, whose `now` is a state
@@ -433,6 +436,18 @@ one that also carries `propose_valid`'s move to the rely form,
 the Chorus leg designs its composition step (§6 step 5). (a) works too, but
 it puts a clock into the state that nothing but the MVBA steps maintain, and
 that is the device route 1 was rejected for, moved one level up.
+
+**Outcome (2026-09-29): (b), done before Chorus stage 4 started**, in one
+`Interfaces.lean` edit together with `propose_valid`'s move to the rely
+form. `TimedRun` carries `clk : Nat → time`, the temporal classes have no
+`clock` field, and `OrchestratorTemporal.clock_agrees` ties a Conductor run's
+clock to its `now`. `Mvba.mvbaTemporal` is at `mvbaSafety th`, and the full
+class is `Mvba.mvbaFull := mvba_of_temporal th (mvbaTemporal …)`, whose
+fragment is by `rfl` the one `System.lean` plugs into Chorus. The seam is
+gone. `MVBASafety.timed` and the product state are deleted, and
+`TLRun.toTimedRun` is the label-forgetting map. The witness run's clock is
+`n • Δ`, since a run no longer has to start at a state's clock value, so the
+negative-initial-clock remark of the step-4 reassessment no longer applies.
 
 #### 6.2.2 The time theory
 
@@ -876,7 +891,9 @@ is plumbing between the claim and the contract, plus the corollary:
   `Architecture.md` §4 about the timed instance and its seam, as listed in
   the staging above.
 
-**Reassessment after step 4** (2026-09-28). The instance is
+**Reassessment after step 4** (2026-09-28; the names are those before the
+§6.2.1 outcome: `mvbaTimed` is now `mvbaFull`, and the instance is at
+`mvbaSafety th`). The instance is
 `Mvba.mvbaTemporal : MVBATemporal … (S := (mvbaSafety th).timed time)` and
 the full class is `Mvba.mvbaTimed`, in
 [`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean). Both are

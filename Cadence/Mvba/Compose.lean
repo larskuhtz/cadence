@@ -40,14 +40,10 @@ their observables (`proposed := input`, `abandoned`, `sent` by cases on
 proven here — Quiescence is the one-step fact `sent_new_tr`: a correct
 party's new message row comes from an honest send, and every honest send
 requires `∃ E, input i E` and `¬ abandoned i`. What remains is the timed
-part alone — `clock`, the admissible-run model, `ℓ` and
-`ℓ_MVBA`-Termination — the four fields of `MVBATemporal`. At this fragment
-there is no instance of them, because the model's state has no clock; the
-inputs, their observables, the frames and one-step Quiescence are all
-proven into the fragment. `mvba_of_temporal` joins the two levels. The
-timed instance is `Mvba.mvbaTemporal` (`Cadence/Mvba/Temporal.lean`), at
-the clock-lifted fragment `(mvbaSafety th).timed time`, joined there as
-`Mvba.mvbaTimed`.
+part alone — the admissible-run model, `ℓ` and `ℓ_MVBA`-Termination, the
+fields of `MVBATemporal` — and that is proven too, in
+`Cadence/Mvba/Temporal.lean` (`Mvba.mvbaTemporal`). `mvba_of_temporal`
+joins the two levels, which gives the full `MVBA` (`Mvba.mvbaFull`).
 -/
 
 -- NOTE: no `open Veil` here, as in `Chorus/Compose.lean` — Veil names are
@@ -318,7 +314,6 @@ noncomputable def mvbaSafety :
   abandoned_mono _ _ p hn h := abandoned_mono_tr th hn.choose_spec p h
   sent_mono _ _ p m hn h := sent_mono_tr th hn.choose_spec p m h
   propose_effect _ _ _ _ h := propose_effect_tr th h
-  propose_valid _ _ _ _ h := propose_valid_tr th h
   abandon_effect _ _ _ h := abandon_effect_tr th h
   proposed_step_frame _ _ p v h _ := proposed_frame_internal th h.choose_spec.1 h.choose_spec.2 p v
   abandoned_step_frame _ _ p h _ := abandoned_frame_internal th h.choose_spec.1 h.choose_spec.2 p
@@ -338,15 +333,10 @@ noncomputable def mvbaSafety :
 
 With the inputs, their observables, the frames and one-step Quiescence all
 proven above, what stands between the fragment and the full `MVBA` is an
-instance of **`MVBATemporal … (S := mvbaSafety th)`** — and there is none.
-Its fields are exactly four: the clock, the admissible-run model, `ℓ` and
-`ℓ_MVBA`-Termination (the supplement's `thm:termination`, `O(fΔ)`). The
-clock field reads the clock off the state, and this state has none.
-
-The four fields **are** proven one level up, at the lifted fragment
-`(mvbaSafety th).timed time`, which pairs the state with a clock
-(`Mvba.mvbaTemporal`, `Cadence/Mvba/Temporal.lean`). Which fragment Chorus
-should consume is the seam of `docs/Bounds.md` §6.2.1. -/
+instance of **`MVBATemporal … (S := mvbaSafety th)`**: the admissible-run
+model, `ℓ` and `ℓ_MVBA`-Termination (the supplement's `thm:termination`,
+`O(fΔ)`). It is `Mvba.mvbaTemporal` (`Cadence/Mvba/Temporal.lean`), and
+this join makes it the full `MVBA` of the fragment Chorus consumes. -/
 
 /-- Given a temporal level **at this fragment**, `Mvba` is a full `MVBA`.
 Nothing is restated to join them, and the fragment comes back out by

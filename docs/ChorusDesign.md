@@ -572,7 +572,7 @@ merkle_root` (`MvbaPlan.md` §1.2). A Veil module needs a first-order sort
 for it, so `mvalue` is opaque and read through two immutable projections
 `mval_pos v j m` / `mval_neg v j`, with two `assumption`s — functional in
 the root, and exclusive — that `System.lean` discharges at `v j = some m` /
-`v j = none` (the one genuine hypothesis among Chorus's assumptions is then
+`v j = none ∧ is_proposer j` (the one genuine hypothesis among Chorus's assumptions is then
 `[mvba_init]`, that the abstract state Chorus starts from is an initial
 state of the instance; `System.lean`, `chorusTheory_assumptions`).
 
@@ -918,8 +918,9 @@ model-side encoding is the "Liveness" section of
    the dichotomy's vote-quorum evidence (`vote_quorum_pos`'s definition
    and `aggregate_fastqc_pos`'s requires are the same two lines). The
    instance then decides at every correct validator ((A-mvba) — the class
-   field `MVBATemporal.termination` at `Mvba.mvbaSafety`, of which the
-   untimed model has no instance),
+   field `MVBATemporal.termination` at `Mvba.mvbaSafety`, proven as
+   `Mvba.mvbaTemporal`; consuming it here is the Chorus liveness leg's
+   stage 4, `docs/Liveness.md` §4.6),
    and the handlers and `mvba_terminate` record the decision
    (`mvba_complete`). The handlers' one enabledness leg the class does
    not give is the bridge's completeness direction — a decided entry's

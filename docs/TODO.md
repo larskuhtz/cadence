@@ -31,16 +31,6 @@ order worth taking:
   decided entry's certificate is visible on Chorus's network — is what
   enables the decision handlers, and is what the liveness argument has to
   name ([`CompositionContracts.md`](./CompositionContracts.md) §7 item 1).
-* **`propose_valid`'s placement.** The caller's validity obligation is
-  encoded as a guard on the callee's `propose` — a checked precondition in
-  the safety fragment — rather than as a rely-side antecedent at the temporal
-  level. The reasons it was put there, what it costs, and the rely-form
-  alternative are [`CompositionContracts.md`](./CompositionContracts.md) §7
-  item 1. Move it **when `Interfaces.lean` is next edited for another
-  reason** — one Chorus re-solve instead of two — and not before, unless a
-  second MVBA implementation that trusts its caller appears or the
-  composition-level non-vacuity instrument (§ Liveness below) shows the
-  bridge biting.
 * **The monitor's MVBA leg** is a coverage gap: the monitor instantiates
   Chorus's MVBA constraint with a stub that never decides, so no fallback-path
   trace can be checked ([`Monitor.md`](./Monitor.md) §8).
@@ -135,8 +125,8 @@ come first.
   module's parameter meets another's state, would not fail a build: the
   invariants would hold vacuously and every pin would stay green.
 
-  That is not hypothetical. Adding `MVBASafety.propose_valid` made Chorus's
-  `mvba_propose` depend, at the composed instance, on a bridge between two
+  That is not hypothetical. Making the MVBA check validity on `propose` made
+  Chorus's `mvba_propose` depend, at the composed instance, on a bridge between two
   notions of validity that nothing identifies
   ([`CompositionContracts.md`](./CompositionContracts.md) §7 item 1). The
   composed safety theorem is unaffected, being parametric in the MVBA
@@ -181,8 +171,12 @@ come first.
   which nobody proposes, so it satisfies every scheduling premise vacuously
   and `AllPropose` not at all. A `TerminationClaim` witness still needs a run
   in which every correct validator proposes and the protocol runs to a
-  decision. The timed claim needs no such witness, since its caller's
-  premises are hypotheses of `MVBATemporal.termination`.
+  decision. **The timed claim needs one too**: `admissible_exists` shows
+  that admissible runs exist, not that one exists in which the caller's
+  premises hold, and only that shows the premises of
+  `MVBATemporal.termination` consistent. One concrete run would serve both:
+  four validators, clock `ℕ`, `Schedule.fixedNat`, everyone proposing and
+  deciding within one view, then idling. This is the MVBA leg's next step.
 
   **Caveat found by the bounds workshop** ([`Bounds.md`](./Bounds.md)
   §6.2.4): `FJustice` is stated with `Fairness.lean`'s `Enabled`, which a
@@ -224,11 +218,11 @@ come first.
   claim (`Mvba.bounded_termination`,
   [`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)),
   (A-viewsync) as a corollary (`Mvba.aViewSync_of_sync`) and the
-  `MVBATemporal` instance at the clock-lifted fragment (`Mvba.mvbaTemporal`,
-  [`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)) are proven.
-  What remains of it is the seam: Chorus consumes the unlifted fragment, and
-  the proposal to close it is [`Bounds.md`](./Bounds.md) §6.2.1, a decision
-  for the Chorus leg's composition step.
+  `MVBATemporal` instance (`Mvba.mvbaTemporal`,
+  [`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)) are proven,
+  at the fragment the composed system runs (the 2026-09-29 `TimedRun`
+  revision removed the seam). Still open on this leg: a machine-checked
+  admissible run in which everyone proposes, the non-vacuity witness below.
 
 ## Model hygiene
 

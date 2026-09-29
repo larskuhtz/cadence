@@ -97,8 +97,11 @@ Each module `X` is two classes over a shared skeleton.
   the Conductor already carry `orch_reachable` / `sc_reachable` / `acs_*` as
   invariants — and it matches what this list has always promised.
 * **Runs.** `Run state init trans` is an infinite sequence of states along
-  `trans`; `TimedRun` adds a clock read off the state, non-Zeno progress, and
-  the run's global stabilisation time `gst`. The paper's execution model —
+  `trans`; `TimedRun` adds a clock reading at every index (monotone,
+  non-Zeno) and the run's global stabilisation time `gst`. The clock is the
+  run's, not the state's: a module whose state has a clock (the
+  Conductor's `now`) ties the two in its own contract
+  (`OrchestratorTemporal.clock_agrees`). The paper's execution model —
   fair scheduling of the module's own transitions plus partial synchrony —
   is not expressible against an abstract state, so each upper class carries
   an **`Admissible : TimedRun → Prop`** field that the implementation
@@ -177,28 +180,31 @@ def eventually (r : Run state init trans) (P : state → Prop) : Prop := ∃ n, 
 
 end Run
 
-/-- A timed run: the run's clock is read off its states by `clock` (the
-paper's synchronized clocks — Conductor's `now`), is monotone and unbounded
-(no Zeno runs), and the run fixes its global stabilisation time `gst`. -/
+/-- A timed run: a run with a clock reading `clk n` at every index (the
+paper's synchronized clocks), monotone and unbounded (no Zeno runs), and the
+run's global stabilisation time `gst`. The clock belongs to the run, so a
+module whose state has no clock is timed without adding one to its state. -/
 structure TimedRun (state time : Type) [TotalOrder time]
-    (init : state → Prop) (trans : state → state → Prop) (clock : state → time)
+    (init : state → Prop) (trans : state → state → Prop)
     extends Run state init trans where
-  clock_mono : ∀ n, TotalOrder.le (clock (at' n)) (clock (at' (n + 1)))
-  clock_unbounded : ∀ t, ∃ n, TotalOrder.le t (clock (at' n))
+  /-- The clock reading at each index. -/
+  clk : Nat → time
+  clock_mono : ∀ n, TotalOrder.le (clk n) (clk (n + 1))
+  clock_unbounded : ∀ t, ∃ n, TotalOrder.le t (clk n)
   gst : time
 
 namespace TimedRun
 variable {state time : Type} [TotalOrder time]
-  {init : state → Prop} {trans : state → state → Prop} {clock : state → time}
+  {init : state → Prop} {trans : state → state → Prop}
 
 /-- `P` holds at some point of the run whose clock reads at most `t`
 ("by time `t`"). -/
-def byTime (r : TimedRun state time init trans clock) (t : time) (P : state → Prop) : Prop :=
-  ∃ n, TotalOrder.le (clock (r.at' n)) t ∧ P (r.at' n)
+def byTime (r : TimedRun state time init trans) (t : time) (P : state → Prop) : Prop :=
+  ∃ n, TotalOrder.le (r.clk n) t ∧ P (r.at' n)
 
 /-- The paper's "by time `max(t, GST) + d`", without `max`: `P` holds by
 `u + d` where `u` is the least time above both `t` and the run's `gst`. -/
-def byGstBound [Add time] (r : TimedRun state time init trans clock) (t d : time)
+def byGstBound [Add time] (r : TimedRun state time init trans) (t d : time)
     (P : state → Prop) : Prop :=
   ∃ u, TotalOrder.le t u ∧ TotalOrder.le r.gst u ∧
     (∀ u', TotalOrder.le t u' → TotalOrder.le r.gst u' → TotalOrder.le u u') ∧
@@ -378,23 +384,20 @@ class SlotConsensusTemporal (slot validator proposal pvector state time message 
   init_abandoned : ∀ st i, S.init st → ¬ abandoned st i
   init_proposed : ∀ st i P, S.init st → ¬ proposed st i P
 
-  /-- The module's clock, read off its state (the paper's synchronized
-      clocks). -/
-  clock : state → time
   /-- The executions under which the temporal guarantees hold: the
       implementation's fair-scheduling and network assumptions, *defined by
       the implementation*. The properties below are stated for admissible
       runs only. -/
-  Admissible : TimedRun state time S.init S.trans clock → Prop
+  Admissible : TimedRun state time S.init S.trans → Prop
   /-- Admissibility is not vacuous: every initial state starts some
       admissible run. -/
   admissible_exists : ∀ st, S.init st →
-    ∃ r : TimedRun state time S.init S.trans clock, Admissible r ∧ r.at' 0 = st
+    ∃ r : TimedRun state time S.init S.trans, Admissible r ∧ r.at' 0 = st
 
   /-- **Termination** — if every correct validator starts participating (and
       none abandons before finalizing — the paper's assumed behaviour of
       correct validators), then every correct validator eventually finalizes. -/
-  termination : ∀ (r : TimedRun state time S.init S.trans clock), Admissible r →
+  termination : ∀ (r : TimedRun state time S.init S.trans), Admissible r →
     (∀ i, ¬ byz i → r.eventually (fun st => participating st i)) →
     (∀ i, ¬ byz i → ∀ n, abandoned (r.at' n) i → ∃ V, S.finalized (r.at' n) i V) →
     ∀ j, ¬ byz j → r.eventually (fun st => ∃ V, S.finalized st j V)
@@ -443,25 +446,25 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
   /-- **Δ-synchronized participation**: if a correct validator starts
       participating at time `t`, every correct validator does so by
       `max(t, GST) + Δ`. -/
-  SyncParticipation : TimedRun state time S.init S.trans T.clock → Prop
-  syncParticipation_def : ∀ r : TimedRun state time S.init S.trans T.clock,
+  SyncParticipation : TimedRun state time S.init S.trans → Prop
+  syncParticipation_def : ∀ r : TimedRun state time S.init S.trans,
     SyncParticipation r ↔
       ∀ n i, ¬ byz i → T.participating (r.at' n) i →
-        ∀ j, ¬ byz j → r.byGstBound (T.clock (r.at' n)) Δ (fun st => T.participating st j)
+        ∀ j, ¬ byz j → r.byGstBound (r.clk n) Δ (fun st => T.participating st j)
   /-- **ℓ-Termination** — under Δ-synchronized participation, if all correct
       validators participate by `t`, every correct validator finalizes by
       `max(t, GST) + ℓ`. -/
-  bounded_termination : ∀ r : TimedRun state time S.init S.trans T.clock,
+  bounded_termination : ∀ r : TimedRun state time S.init S.trans,
     T.Admissible r → SyncParticipation r →
     ∀ t, (∀ i, ¬ byz i → r.byTime t (fun st => T.participating st i)) →
     ∀ j, ¬ byz j → r.byGstBound t ℓ (fun st => ∃ V, S.finalized st j V)
   /-- **d_tot-Totality** — under Δ-synchronized participation, if a correct
       validator finalizes at time `t`, every correct validator finalizes by
       `max(t, GST) + d_tot`. -/
-  totality : ∀ r : TimedRun state time S.init S.trans T.clock,
+  totality : ∀ r : TimedRun state time S.init S.trans,
     T.Admissible r → SyncParticipation r →
     ∀ n i V, ¬ byz i → S.finalized (r.at' n) i V →
-    ∀ j, ¬ byz j → r.byGstBound (T.clock (r.at' n)) d_tot (fun st => ∃ V', S.finalized st j V')
+    ∀ j, ¬ byz j → r.byGstBound (r.clk n) d_tot (fun st => ∃ V', S.finalized st j V')
 
 /-! ## Orchestrator (`mod:orchestrator_2`)
 
@@ -571,13 +574,18 @@ class OrchestratorTemporal (validator slot state time : Type) [ord : TotalOrder 
     [S : OrchestratorSafety validator slot state time byz] where
   /-- The executions under which the temporal guarantees hold, defined by the
       implementation (see the file header). -/
-  Admissible : TimedRun state time S.init S.trans S.clock → Prop
+  Admissible : TimedRun state time S.init S.trans → Prop
   admissible_exists : ∀ st, S.init st →
-    ∃ r : TimedRun state time S.init S.trans S.clock, Admissible r ∧ r.at' 0 = st
+    ∃ r : TimedRun state time S.init S.trans, Admissible r ∧ r.at' 0 = st
+  /-- In an admissible run the run's clock is the module's own (`S.clock`,
+      Conductor's `now`), so the timed properties below and the fragment's
+      `integrity_timing` speak about one clock. -/
+  clock_agrees : ∀ (r : TimedRun state time S.init S.trans), Admissible r →
+    ∀ n, r.clk n = S.clock (r.at' n)
 
   /-- **Totality** — if some correct validator opens `s`, every correct
       validator eventually opens `s`. -/
-  totality : ∀ (r : TimedRun state time S.init S.trans S.clock), Admissible r →
+  totality : ∀ (r : TimedRun state time S.init S.trans), Admissible r →
     ∀ i j s, ¬ byz i → ¬ byz j →
       r.eventually (fun st => S.opened st i s) → r.eventually (fun st => S.opened st j s)
   /-- The bound `B` (`2W − p` for Conductor). -/
@@ -595,7 +603,7 @@ class OrchestratorTemporal (validator slot state time : Type) [ord : TotalOrder 
   /-- **`R`-Recovery** — every slot whose starting time is at least `R` after
       `gst` is opened by every correct validator, and no later than its
       starting time (with `integrity_timing`: exactly then). -/
-  recovery : ∀ (r : TimedRun state time S.init S.trans S.clock), Admissible r →
+  recovery : ∀ (r : TimedRun state time S.init S.trans), Admissible r →
     ∀ s, TotalOrder.le (r.gst + recovery_time) (S.start_time s) →
     ∀ i, ¬ byz i → r.byTime (S.start_time s) (fun st => S.opened st i s)
 
@@ -701,10 +709,9 @@ class ACSTemporal (validator slot state time message : Type)
     (abandoned st' i ↔ abandoned st i)
   init_abandoned : ∀ st i, S.init st → ¬ abandoned st i
 
-  clock : state → time
-  Admissible : TimedRun state time S.init S.trans clock → Prop
+  Admissible : TimedRun state time S.init S.trans → Prop
   admissible_exists : ∀ st, S.init st →
-    ∃ r : TimedRun state time S.init S.trans clock, Admissible r ∧ r.at' 0 = st
+    ∃ r : TimedRun state time S.init S.trans, Admissible r ∧ r.at' 0 = st
 
   /-- The resilience parameter `f` (at most `f` Byzantine validators). -/
   fault_bound : Nat
@@ -719,28 +726,28 @@ class ACSTemporal (validator slot state time message : Type)
   /-- The module's first assumption, **Δ-synchronized proposals**: if a correct
       validator proposes at `t`, every correct validator proposes by
       `max(t, GST) + Δ`. -/
-  SyncProposals : TimedRun state time S.init S.trans clock → Prop
-  syncProposals_def : ∀ r : TimedRun state time S.init S.trans clock, SyncProposals r ↔
+  SyncProposals : TimedRun state time S.init S.trans → Prop
+  syncProposals_def : ∀ r : TimedRun state time S.init S.trans, SyncProposals r ↔
     ∀ n p s, ¬ byz p → S.proposed (r.at' n) p s →
-      ∀ q, ¬ byz q → r.byGstBound (clock (r.at' n)) Δ (fun st => ∃ s', S.proposed st q s')
+      ∀ q, ¬ byz q → r.byGstBound (r.clk n) Δ (fun st => ∃ s', S.proposed st q s')
   /-- The module's second assumption, **no premature abandonment**: a correct
       validator that has proposed does not abandon before deciding. -/
-  NoPrematureAbandon : TimedRun state time S.init S.trans clock → Prop
-  noPrematureAbandon_def : ∀ r : TimedRun state time S.init S.trans clock,
+  NoPrematureAbandon : TimedRun state time S.init S.trans → Prop
+  noPrematureAbandon_def : ∀ r : TimedRun state time S.init S.trans,
     NoPrematureAbandon r ↔
       ∀ n i, ¬ byz i → abandoned (r.at' n) i → S.has_decided (r.at' n) i
   /-- **ℓ-Termination** — under the two assumptions: if all correct validators
       propose by `t`, every correct validator decides by `max(t, GST) + ℓ`. -/
-  termination : ∀ r : TimedRun state time S.init S.trans clock,
+  termination : ∀ r : TimedRun state time S.init S.trans,
     Admissible r → SyncProposals r → NoPrematureAbandon r →
     ∀ t, (∀ i, ¬ byz i → r.byTime t (fun st => ∃ s, S.proposed st i s)) →
     ∀ j, ¬ byz j → r.byGstBound t ℓ (fun st => S.has_decided st j)
   /-- **Δ-Totality** — under the two assumptions: if a correct validator
       decides at `t`, all correct validators decide by `max(t, GST) + Δ`. -/
-  totality : ∀ r : TimedRun state time S.init S.trans clock,
+  totality : ∀ r : TimedRun state time S.init S.trans,
     Admissible r → SyncProposals r → NoPrematureAbandon r →
     ∀ n i, ¬ byz i → S.has_decided (r.at' n) i →
-    ∀ j, ¬ byz j → r.byGstBound (clock (r.at' n)) Δ (fun st => S.has_decided st j)
+    ∀ j, ¬ byz j → r.byGstBound (r.clk n) Δ (fun st => S.has_decided st j)
   /-- **Quiescence** — no protocol message before proposing or after
       abandoning. Stated in one-step form, over a transition, as in the other
       three contracts. -/
@@ -769,7 +776,7 @@ what that referent is and is not — with `value` the entry vector and
 ([`Mvba/Compose.lean`](./Mvba/Compose.lean)), every field of the fragment
 proven — the inputs, their observables, the frames and one-step Quiescence
 included, which is why they sit in the fragment. What the full class still
-owes is exactly `MVBATemporal`: the clock, the admissible-run model, `ℓ` and
+owes is exactly `MVBATemporal`: the admissible-run model, `ℓ` and
 Termination.
 
 **Chorus consumes this class as a constraint**
@@ -802,9 +809,9 @@ and where it is discharged.
   [integrity]` — `Mvba.mvbaSafety`
 * **`external_validity`** — External validity; *safety*. Mvba `safety
   [external_validity]` — `Mvba.mvbaSafety`
-* **`termination`, `ℓ`** — `ℓ_MVBA`-Termination; *temporal*. **not proven**:
-  the supplement's `thm:termination`, `O(fΔ)`; the model is untimed
-  (`docs/MvbaPlan.md` §3)
+* **`termination`, `ℓ`** — `ℓ_MVBA`-Termination; *temporal*. The
+  supplement's `thm:termination`, `O(fΔ)` — `Mvba.mvbaTemporal`
+  (`Mvba/Temporal.lean`), under the timing model of `Mvba/Schedule.lean`
 * **`quiescence`** — Quiescence; *safety (one-step form)*. Mvba, from the
   transition bodies (`sent_new_tr`: every honest send requires the input and
   `¬ abandoned`) — `Mvba.mvbaSafety` -/
@@ -815,7 +822,9 @@ class MVBASafety (party value message state : Type) (byz : party → Prop)
   /-- The publicly verifiable validity predicate. -/
   Valid : value → Prop
 
-  /-- Input `propose(v)` by party `p` (`Valid v` is the caller's obligation). -/
+  /-- Input `propose(v)` by party `p`. That `v` is `Valid` is the caller's
+      obligation; it is an antecedent of `MVBATemporal.termination`, the rely
+      side of the contract, and not a field here. -/
   propose : state → party → value → state → Prop
   /-- Input `abandon()` at party `p`. -/
   abandon : state → party → state → Prop
@@ -834,29 +843,6 @@ class MVBASafety (party value message state : Type) (byz : party → Prop)
   abandoned_mono : ∀ st st' p, trans st st' → abandoned st p → abandoned st' p
   sent_mono : ∀ st st' p m, trans st st' → sent st p m → sent st' p m
   propose_effect : ∀ st p v st', propose st p v st' → proposed st' p v
-  /-- **External validity of the input.** `propose(v)` carries a valid `v`.
-
-      This is the caller's half of the contract and it is stated here rather
-      than left to a docstring, because both sides need it: a consumer must
-      establish it to call `propose` at all, and an implementation may rely
-      on it — `Mvba`'s termination does, since a leader that proposed an
-      invalid vector would have its view rejected by every correct validator
-      and wasted. `subsec:mvba-protocol` gives the call the same
-      precondition, and `thm:termination` reasons from it.
-
-      **This is a liveness requirement living in the safety fragment**, and
-      that is a wart rather than a design. Nothing in this module's safety
-      proofs needs it — `Mvba`'s `external_validity` comes from
-      `handle_preprepare`'s own `valid e` check, not from the input's — so
-      by the placement rule above it belongs in `MVBATemporal`. It is here
-      because it constrains `propose`, which is a *field of this class*: an
-      upper-class field would have to re-declare the input relation to say
-      anything about it, and the two would then have to be kept in step by
-      hand. The trade is deliberate and costs nothing formal: it weakens no
-      proof and adds no assumption, since every implementation must check
-      the precondition anyway. If the temporal classes ever grow a way to
-      constrain a fragment field, this should move. -/
-  propose_valid : ∀ st p v st', propose st p v st' → Valid v
   abandon_effect : ∀ st p st', abandon st p st' → abandoned st' p
   proposed_step_frame : ∀ st st' p v, step st st' → ¬ byz p →
     (proposed st' p v ↔ proposed st p v)
@@ -886,26 +872,28 @@ class MVBASafety (party value message state : Type) (byz : party → Prop)
 
 /-- The temporal level of `mod:mvba`, over a safety instance `S`. With the
 inputs, their observables, the frames and Quiescence all in the fragment —
-`Mvba` proves every one of them — this level is exactly the clock, the
-admissible-run model, `ℓ` and Termination. -/
+`Mvba` proves every one of them — this level is exactly the admissible-run
+model, `ℓ` and Termination. -/
 class MVBATemporal (party value message state time : Type)
     [TotalOrder time] [Add time] (byz : party → Prop)
     [S : MVBASafety party value message state byz] where
-  clock : state → time
-  Admissible : TimedRun state time S.init S.trans clock → Prop
+  Admissible : TimedRun state time S.init S.trans → Prop
   admissible_exists : ∀ st, S.init st →
-    ∃ r : TimedRun state time S.init S.trans clock, Admissible r ∧ r.at' 0 = st
+    ∃ r : TimedRun state time S.init S.trans, Admissible r ∧ r.at' 0 = st
 
   ℓ : time
-  /-- **ℓ_MVBA-Termination** — if all correct parties propose by `t` and no
-      correct party abandons before `max(t, GST) + ℓ`, every correct party
-      decides by `max(t, GST) + ℓ`. -/
-  termination : ∀ r : TimedRun state time S.init S.trans clock, Admissible r →
+  /-- **ℓ_MVBA-Termination** — if all correct parties propose valid values
+      by `t` and no correct party abandons before `max(t, GST) + ℓ`, every
+      correct party decides by `max(t, GST) + ℓ`. The three antecedents are
+      the caller's side of the contract: when to propose, what (`Valid`
+      inputs, `subsec:mvba-protocol`'s precondition), and not to abandon. -/
+  termination : ∀ r : TimedRun state time S.init S.trans, Admissible r →
     ∀ t, (∀ p, ¬ byz p → r.byTime t (fun st => ∃ v, S.proposed st p v)) →
+    (∀ p, ¬ byz p → ∀ n v, S.proposed (r.at' n) p v → S.Valid v) →
     (∀ p, ¬ byz p → ∀ n, S.abandoned (r.at' n) p →
       ∃ u, TotalOrder.le t u ∧ TotalOrder.le r.gst u ∧
         (∀ u', TotalOrder.le t u' → TotalOrder.le r.gst u' → TotalOrder.le u u') ∧
-        ¬ TotalOrder.le (clock (r.at' n)) (u + ℓ)) →
+        ¬ TotalOrder.le (r.clk n) (u + ℓ)) →
     ∀ q, ¬ byz q → r.byGstBound t ℓ (fun st => ∃ v, S.decided st q v)
 
 /-- `mod:mvba` in full. -/

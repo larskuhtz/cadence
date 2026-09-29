@@ -299,17 +299,13 @@ def LeaderRotation (vfin : ViewOrderEnum view vord) (k : Nat)
 
 /-! ## The contract's runs, and admissibility -/
 
-/-- The lifted state: the model's state paired with the clock. -/
-abbrev TimedState (node nodeset value view time : Type) :=
-  Mvba.State (Mvba.FieldAbstractType node nodeset value view) × time
-
-/-- A `TimedRun` of the lifted fragment — the object `MVBATemporal`'s fields
-quantify over, at `Mvba.mvbaSafety th` lifted by the clock. The
-`TotalOrder` on `time` is `Cadence/Timed.lean`'s scoped bridge from the
-linear order. -/
+/-- A `TimedRun` of the MVBA — the object `MVBATemporal`'s fields quantify
+over, at `Mvba.mvbaSafety th`: the model's states with a clock reading at
+every index. The `TotalOrder` on `time` is `Cadence/Timed.lean`'s scoped
+bridge from the linear order. -/
 abbrev TimedMvbaRun (th : Theory node nodeset value view) (time : Type) [LinearOrder time] :=
-  TimedRun (TimedState node nodeset value view time) time
-    ((mvbaSafety th).timed time).init ((mvbaSafety th).timed time).trans Prod.snd
+  TimedRun (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
+    (mvbaSafety th).init (mvbaSafety th).trans
 
 /-- **`MVBATemporal.Admissible`**, as this instance defines it: the run has a
 labelling — a `TMvbaRun` with its states and clocks — that satisfies
@@ -318,7 +314,7 @@ a `TimedRun` does not carry. -/
 def Admissible (sch : Schedule view time) (th : Theory node nodeset value view)
     (tr : TimedMvbaRun th time) : Prop :=
   ∃ r : TMvbaRun th time,
-    (∀ n, tr.at' n = (r.at' n, r.clk n)) ∧ tr.gst = r.gst ∧ Sync sch r
+    (∀ n, tr.at' n = r.at' n) ∧ (∀ n, tr.clk n = r.clk n) ∧ tr.gst = r.gst ∧ Sync sch r
 
 /-! ## The targets, stated
 
@@ -330,8 +326,8 @@ statement that (A-viewsync) is a consequence rather than a premise. -/
 the three clauses, if every correct validator has proposed by `t` and none
 is abandoned at a clock at or before `max(t, gst) + ℓ`, then every correct
 validator has decided at some index whose clock is at most
-`max(t, gst) + ℓ`. This is `MVBATemporal.termination`'s statement at the
-lifted fragment, with `byGstBound`'s least upper bound written as `max` and
+`max(t, gst) + ℓ`. This is `MVBATemporal.termination`'s statement at
+`Mvba.mvbaSafety th`, with `byGstBound`'s least upper bound written as `max` and
 the observables read off the model's state. -/
 def BoundedTerminationClaim (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (th : Theory node nodeset value view) : Prop :=

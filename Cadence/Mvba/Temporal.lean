@@ -4,11 +4,9 @@ import Mathlib.Algebra.Order.Archimedean.Basic
 /-! # Mvba.Temporal — the timed `MVBATemporal` instance, and the full `MVBA`
 
 [`docs/Bounds.md`](../../docs/Bounds.md) §6.2, step 4. The contract's
-temporal level, instantiated at the **lifted fragment**
-`(mvbaSafety th).timed time`, which is the model's state paired with a clock
-(`docs/Bounds.md` §6.2.1). Its four fields:
+temporal level, instantiated at `mvbaSafety th`, the fragment Chorus
+consumes. Its fields:
 
-* **`clock`** is the second component, `Prod.snd`;
 * **`Admissible`** is `Schedule.Admissible sch th`: the run has a labelling
   satisfying the three clauses of `Sync`;
 * **`ℓ`** is `Schedule.ℓ sch vfin`, a closed term in the schedule's constants;
@@ -17,9 +15,10 @@ temporal level, instantiated at the **lifted fragment**
 * **`admissible_exists`** is the run in which nobody proposes and the
   environment only marks availability (`admissible_exists`).
 
-`mvbaTimed` joins it with the fragment into the full `MVBA` class, the way
-`Mvba/Compose.lean`'s `mvba_of_temporal` does, and `mvbaTimed_toSafety`
-checks that the join hands back the lifted fragment by `rfl`.
+`mvbaFull` joins it with the fragment into the full `MVBA` class, through
+`Mvba/Compose.lean`'s `mvba_of_temporal`, and `mvbaFull_toSafety` checks
+that the join hands back `mvbaSafety th` by `rfl`. The run carries the clock
+(`TimedRun.clk`), so neither the model nor the fragment has one.
 
 ## What the instance is proven from
 
@@ -27,24 +26,18 @@ Nothing is assumed of the protocol. The instance takes as hypotheses what
 §6.2.5 says an instance must, since no run predicate can say it:
 
 * **finitely many validators**, `[Fintype node]`: every concrete instance
-  has them, and it supplies the quorum enumeration `Mvba.termination` takes
-  as the class `ByzNodeSetEnum` (`ByzNodeSetEnum.ofFintype`);
+  has them, and they supply the quorum enumeration the proofs use
+  (`ByzNodeSetEnum.ofFintype`);
 * `ByzNodeSetHonestQuorum`, a supermajority of correct validators, and
-  `ViewOrderEnum`, as for `Mvba.termination`;
+  `ViewOrderEnum`;
+  these three are `Mvba.termination`'s hypotheses too;
 * (A-leader-rotation-k), `LeaderRotation vfin sch.k th`;
 * the time theory: a linearly ordered, **cancellative** additive monoid
   (§6.2.8's `ℕ∞` finding), and **Archimedean**, which only
   `admissible_exists` uses (§6.2.2).
 
 The schedule `sch` carries its own hypotheses (S-cap), (S-ramp) and
-`0 < Δ` as fields.
-
-## The seam
-
-This instance is at the lifted fragment, and Chorus consumes
-`mvbaSafety th` at `Mvba.State`, so `System.lean` does not inherit it.
-`docs/Bounds.md` §6.2.1 states the seam and the proposal to the Chorus leg
-for closing it. -/
+`0 < Δ` as fields. -/
 
 namespace Mvba
 
@@ -151,37 +144,6 @@ theorem quiet_iterate {s : Mvba.State (Mvba.FieldAbstractType node nodeset value
 
 end Witness
 
-/-! ## The witness run's clock
-
-`c`, then `max c ((n + 1) • Δ)`. The `max` is there because `c + n • Δ`,
-§6.2.7's first plan, need not be unbounded: in an Archimedean monoid with
-negative elements, `c + n • Δ` can stay below `0` for every `n`
-(`docs/Bounds.md` §6.2.8, the step-4 reassessment, has the example). The
-Archimedean axiom bounds `n • Δ` from below, and that is all this clock
-needs. -/
-
-section Clock
-
-variable {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedAddMonoid time]
-
-/-- The witness run's clock. -/
-def witnessClock (c Δ : time) : Nat → time
-  | 0 => c
-  | n + 1 => max c ((n + 1) • Δ)
-
-theorem witnessClock_mono {Δ : time} (hΔ : 0 ≤ Δ) (c : time) :
-    ∀ n, witnessClock c Δ n ≤ witnessClock c Δ (n + 1)
-  | 0 => le_max_left _ _
-  | _ + 1 => max_le_max le_rfl (nsmul_le_nsmul_left hΔ (Nat.le_succ _))
-
-theorem witnessClock_unbounded [Archimedean time] {Δ : time} (hΔ : 0 < Δ) (c t : time) :
-    ∃ n, t ≤ witnessClock c Δ n := by
-  obtain ⟨m, hm⟩ := Archimedean.arch t hΔ
-  exact ⟨m + 1, le_trans hm
-    (le_trans (nsmul_le_nsmul_left hΔ.le (Nat.le_succ m)) (le_max_right _ _))⟩
-
-end Clock
-
 /-! ## The instance -/
 
 section Instance
@@ -189,36 +151,17 @@ section Instance
 variable {node nodeset value view : Type}
   [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {time : Type} [LinearOrder time]
+  {time : Type} [LinearOrder time] [AddCommMonoid time]
 
-/-! ### The observables are the model's fields
-
-The lifted fragment's observables are `mvbaSafety th`'s on the first
-component, and those are the model's relations. All three facts hold by
-definition, and nothing is translated. -/
-
-theorem timed_decided_iff (th : Theory node nodeset value view)
-    (st : TimedState node nodeset value view time) (q : node) (v : value) :
-    ((mvbaSafety th).timed time).decided st q v ↔ st.1.decided q v = true := Iff.rfl
-
-theorem timed_proposed_iff (th : Theory node nodeset value view)
-    (st : TimedState node nodeset value view time) (q : node) (v : value) :
-    ((mvbaSafety th).timed time).proposed st q v ↔ st.1.input q v = true := Iff.rfl
-
-theorem timed_abandoned_iff (th : Theory node nodeset value view)
-    (st : TimedState node nodeset value view time) (q : node) :
-    ((mvbaSafety th).timed time).abandoned st q ↔ st.1.abandoned q = true := Iff.rfl
-
-variable [AddCommMonoid time]
-
-/-- The witness run from an initial state `st` and clock `c`: nobody
-proposes, the environment only marks availability, and the clock is
-`witnessClock c Δ`. -/
-noncomputable def witnessRun [IsOrderedAddMonoid time] [Archimedean time] (th : Theory node nodeset value view)
+/-- The witness run from an initial state `st`: nobody proposes, the
+environment only marks availability, and the clock reads `n • Δ` at index
+`n`. The Archimedean axiom makes that clock unbounded. -/
+noncomputable def witnessRun [IsOrderedAddMonoid time] [Archimedean time]
+    (th : Theory node nodeset value view)
     (hth : (Mvba.relationalTransitionSystem node nodeset value view).assumptions th)
     (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
     (hst : (Mvba.relationalTransitionSystem node nodeset value view).init th st)
-    (c Δ : time) (hΔ : 0 < Δ) : TMvbaRun th time where
+    (Δ : time) (hΔ : 0 < Δ) : TMvbaRun th time where
   at' n := (availStep th)^[n] st
   lbl _ := .become_avail_ready default default
   holds := hth
@@ -228,10 +171,10 @@ noncomputable def witnessRun [IsOrderedAddMonoid time] [Archimedean time] (th : 
       ((availStep th)^[n + 1] st)
     rw [Function.iterate_succ_apply']
     exact availStep_tr _
-  clk := witnessClock c Δ
-  clk_mono := witnessClock_mono hΔ.le c
-  clk_unbounded := witnessClock_unbounded hΔ c
-  gst := c
+  clk n := n • Δ
+  clk_mono n := nsmul_le_nsmul_left hΔ.le (Nat.le_succ n)
+  clk_unbounded t := Archimedean.arch t hΔ
+  gst := 0
 
 /-- **The witness run is admissible.** (Δ-justice) is vacuous because no
 fair label is ever move-enabled (`not_moveEnabled_of_quiet`), at index `N`
@@ -244,8 +187,8 @@ theorem witnessRun_sync [IsOrderedAddMonoid time] [Archimedean time] (sch : Sche
     {th : Theory node nodeset value view}
     (hth : (Mvba.relationalTransitionSystem node nodeset value view).assumptions th)
     {st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
-    (hst : (Mvba.relationalTransitionSystem node nodeset value view).init th st) (c : time) :
-    Sync sch (witnessRun th hth st hst c sch.Δ sch.Δ_pos) := by
+    (hst : (Mvba.relationalTransitionSystem node nodeset value view).init th st) :
+    Sync sch (witnessRun th hth st hst sch.Δ sch.Δ_pos) := by
   have hq := quiet_iterate (th := th) (quiet_init hst)
   refine ⟨fun l h hh N hen => ?_, ⟨fun n i v _ hl => ?_, fun m i v _ hent => ?_⟩,
     fun m i v e _ hacc => ?_⟩
@@ -259,23 +202,27 @@ theorem witnessRun_sync [IsOrderedAddMonoid time] [Archimedean time] (sch : Sche
   · exact absurd hent (by simp [witnessRun, (hq m).2.1 i v])
   · exact absurd hacc (by simp [witnessRun, (hq m).2.2.1 i v e])
 
-/-- **`admissible_exists`** — every initial lifted state starts an
-admissible run: the witness run, labelled by itself. -/
+/-- **`admissible_exists`** — every initial state starts an admissible run:
+the witness run, labelled by itself. -/
 theorem admissible_exists [IsOrderedAddMonoid time] [Archimedean time] (sch : Schedule view time)
-    {th : Theory node nodeset value view} (st : TimedState node nodeset value view time)
-    (h : ((mvbaSafety th).timed time).init st) :
+    {th : Theory node nodeset value view}
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+    (h : (mvbaSafety th).init st) :
     ∃ tr : TimedMvbaRun th time, Admissible sch th tr ∧ tr.at' 0 = st := by
-  obtain ⟨s, c⟩ := st
   obtain ⟨hth, hst⟩ : (Mvba.relationalTransitionSystem node nodeset value view).assumptions th ∧
-      (Mvba.relationalTransitionSystem node nodeset value view).init th s := h
-  let r := witnessRun th hth s hst c sch.Δ sch.Δ_pos
-  exact ⟨r.toTimedRun (mvbaSafety th) ⟨hth, hst⟩ (fun n => ⟨_, r.steps n⟩),
-    ⟨r, fun _ => rfl, rfl, witnessRun_sync sch hth hst c⟩, rfl⟩
+      (Mvba.relationalTransitionSystem node nodeset value view).init th st := h
+  let r := witnessRun th hth st hst sch.Δ sch.Δ_pos
+  exact ⟨r.toTimedRun (mvbaSafety th).init (mvbaSafety th).trans ⟨hth, hst⟩
+      (fun n => ⟨_, r.steps n⟩),
+    ⟨r, fun _ => rfl, fun _ => rfl, rfl, witnessRun_sync sch hth hst⟩, rfl⟩
 
-/-- **`termination` at the lifted fragment** — `MVBATemporal.termination`'s
-statement, instantiated. It is `bounded_termination` read through the
-labelling `Admissible` provides, with `byGstBound`'s least upper bound and
-the abandonment premise's written as `max t gst` (`gstLub_iff`). -/
+/-- **`termination`** — `MVBATemporal.termination`'s statement, instantiated.
+It is `bounded_termination` read through the labelling `Admissible`
+provides, with `byGstBound`'s least upper bound and the abandonment
+premise's written as `max t gst` (`gstLub_iff`). The caller's validity
+antecedent is not used: `Mvba.propose` checks validity itself. The
+observables are the model's fields by definition, so no translation is
+needed. -/
 theorem timed_termination [IsOrderedCancelAddMonoid time] [Fintype node]
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
@@ -283,77 +230,80 @@ theorem timed_termination [IsOrderedCancelAddMonoid time] [Fintype node]
     ∀ tr : TimedMvbaRun th time, Admissible sch th tr →
       ∀ t : time,
         (∀ p, ¬ nset.is_byz p = true →
-          tr.byTime t (fun st => ∃ v, ((mvbaSafety th).timed time).proposed st p v)) →
+          tr.byTime t (fun st => ∃ v, (mvbaSafety th).proposed st p v)) →
+        (∀ p, ¬ nset.is_byz p = true → ∀ n v,
+          (mvbaSafety th).proposed (tr.at' n) p v → (mvbaSafety th).Valid v) →
         (∀ p, ¬ nset.is_byz p = true → ∀ n,
-          ((mvbaSafety th).timed time).abandoned (tr.at' n) p →
+          (mvbaSafety th).abandoned (tr.at' n) p →
             ∃ u, TotalOrder.le t u ∧ TotalOrder.le tr.gst u ∧
               (∀ u', TotalOrder.le t u' → TotalOrder.le tr.gst u' → TotalOrder.le u u') ∧
-              ¬ TotalOrder.le (tr.at' n).2 (u + sch.ℓ vfin)) →
+              ¬ TotalOrder.le (tr.clk n) (u + sch.ℓ vfin)) →
         ∀ q, ¬ nset.is_byz q = true →
           tr.byGstBound t (sch.ℓ vfin)
-            (fun st => ∃ v, ((mvbaSafety th).timed time).decided st q v) := by
-  rintro tr ⟨r, hat, hgst, hsync⟩ t hprop hnab q hq
+            (fun st => ∃ v, (mvbaSafety th).decided st q v) := by
+  rintro tr ⟨r, hat, hclk, hgst, hsync⟩ t hprop - hnab q hq
   rw [TimedRun.byGstBound_iff, hgst]
   obtain ⟨n, E, hc, hd⟩ :=
     bounded_termination (ByzNodeSetEnum.ofFintype node nodeset nset) hqe sch vfin hrot r hsync t
-    (fun p hp => by
-      obtain ⟨n, hle, v, hv⟩ := hprop p hp
-      rw [hat n] at hle hv
-      exact ⟨n, v, hle, (timed_proposed_iff th _ p v).mp hv⟩)
-    (fun p hp n hab hle => by
-      obtain ⟨u, h₁, h₂, h₃, hnot⟩ :=
-        hnab p hp n (by rw [hat n]; exact (timed_abandoned_iff th _ p).mpr hab)
-      rw [gstLub_iff.mp ⟨h₁, h₂, h₃⟩, hat n, hgst] at hnot
-      exact hnot hle)
-    q hq
+      (fun p hp => by
+        obtain ⟨n, hle, v, hv⟩ := hprop p hp
+        rw [hat n] at hv
+        rw [hclk n] at hle
+        exact ⟨n, v, hle, hv⟩)
+      (fun p hp n hab hle => by
+        obtain ⟨u, h₁, h₂, h₃, hnot⟩ := hnab p hp n (by rw [hat n]; exact hab)
+        rw [gstLub_iff.mp ⟨h₁, h₂, h₃⟩, hclk n, hgst] at hnot
+        exact hnot hle)
+      q hq
   unfold TimedRun.byTime
-  exact ⟨n, by rw [hat n]; exact hc, E, by rw [hat n]; exact (timed_decided_iff th _ q E).mpr hd⟩
+  exact ⟨n, by rw [hclk n]; exact hc, E, by rw [hat n]; exact hd⟩
 
-/-- **`Mvba ⊨ MVBATemporal`, at the lifted fragment.** The temporal level of
-`mod:mvba` for the clock-carrying lift of `mvbaSafety th`, proven from the
-instance hypotheses of §6.2.5: finitely many validators,
-`ByzNodeSetHonestQuorum`, `ViewOrderEnum`, (A-leader-rotation-k), and a
-cancellative, Archimedean time theory. No field
-of `MVBATemporal` is weakened. `Admissible` is this development's run
-model (`Schedule.Admissible`), and the class leaves that choice to the
-instance. -/
+/-- **`Mvba ⊨ MVBATemporal`.** The temporal level of `mod:mvba` at the
+fragment Chorus consumes, `mvbaSafety th`, proven from the instance
+hypotheses of §6.2.5: finitely many validators, `ByzNodeSetHonestQuorum`,
+`ViewOrderEnum`, (A-leader-rotation-k), and a cancellative, Archimedean
+time theory. No field of `MVBATemporal` is weakened. `Admissible` is this
+development's run model (`Schedule.Admissible`), and the class leaves that
+choice to the instance. -/
 @[implicit_reducible]
 noncomputable def mvbaTemporal [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
     (th : Theory node nodeset value view)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : LeaderRotation vfin sch.k th) :
-    MVBATemporal node value (Msg view value) (TimedState node nodeset value view time) time
-      (fun i => nset.is_byz i = true) (S := (mvbaSafety th).timed time) :=
+    MVBATemporal node value (Msg view value)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
+      (fun i => nset.is_byz i = true) (S := mvbaSafety th) :=
   -- The constructor with `S` named: a `where` instance would synthesise the
   -- class's `[S : MVBASafety …]` argument by search, which finds none.
-  MVBATemporal.mk (S := (mvbaSafety th).timed time)
-    (clock := Prod.snd)
+  MVBATemporal.mk (S := mvbaSafety th)
     (Admissible := Admissible sch th)
     (admissible_exists := admissible_exists sch)
     (ℓ := sch.ℓ vfin)
     (termination := timed_termination hqe sch vfin hrot)
 
-/-- **`Mvba ⊨ MVBA`, at the lifted fragment**: the fragment and the
-temporal level joined, as `mvba_of_temporal` joins them. Nothing is
-restated. -/
+/-- **`Mvba ⊨ MVBA`**: the full contract, the fragment and the temporal level
+joined by `mvba_of_temporal`. Its safety fragment is `mvbaSafety th`, the
+instance `Cadence/System.lean` plugs into Chorus, so the MVBA the composed
+system runs is this one. -/
 @[implicit_reducible]
-noncomputable def mvbaTimed [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
+noncomputable def mvbaFull [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
     (th : Theory node nodeset value view)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : LeaderRotation vfin sch.k th) :
-    MVBA node value (Msg view value) (TimedState node nodeset value view time) time
+    MVBA node value (Msg view value)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
       (fun i => nset.is_byz i = true) :=
-  { (mvbaSafety th).timed time, mvbaTemporal th hqe sch vfin hrot with }
+  mvba_of_temporal th (mvbaTemporal th hqe sch vfin hrot)
 
-/-- The join hands back exactly the lifted fragment. -/
-theorem mvbaTimed_toSafety [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
+/-- The join hands back exactly the fragment Chorus consumes. -/
+theorem mvbaFull_toSafety [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
     (th : Theory node nodeset value view)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : LeaderRotation vfin sch.k th) :
-    (mvbaTimed th hqe sch vfin hrot).toMVBASafety = (mvbaSafety th).timed time := rfl
+    (mvbaFull th hqe sch vfin hrot).toMVBASafety = mvbaSafety th := rfl
 
 end Instance
 
@@ -392,8 +342,9 @@ noncomputable example {node nodeset value view : Type} [Fintype node]
     (th : Theory node nodeset value view)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (vfin : ViewOrderEnum view vord) (k : Nat) (hrot : LeaderRotation vfin k th) :
-    MVBATemporal node value (Msg view value) (TimedState node nodeset value view ℕ) ℕ
-      (fun i => nset.is_byz i = true) (S := (mvbaSafety th).timed ℕ) :=
+    MVBATemporal node value (Msg view value)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) ℕ
+      (fun i => nset.is_byz i = true) (S := mvbaSafety th) :=
   mvbaTemporal th hqe (Schedule.fixedNat view k) vfin hrot
 
 end Mvba
@@ -421,13 +372,13 @@ info: 'Mvba.mvbaTemporal' depends on axioms: [propext, Classical.choice, Quot.so
 #print axioms Mvba.mvbaTemporal
 
 /--
-info: 'Mvba.mvbaTimed' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.mvbaFull' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.mvbaTimed
+#print axioms Mvba.mvbaFull
 
 /--
-info: 'Mvba.mvbaTimed_toSafety' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.mvbaFull_toSafety' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.mvbaTimed_toSafety
+#print axioms Mvba.mvbaFull_toSafety

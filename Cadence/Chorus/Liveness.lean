@@ -58,9 +58,9 @@ of `MVBATemporal.Admissible`.
   the **one stated bridge** of `docs/CompositionContracts.md` §3, and a
   liveness proof needs it in both directions: *soundness* — a vector every
   one of whose proposer entries is certificate-backed on the network is
-  `Valid`, which is what lets `mvba_propose` fire at all, since the
-  contract's `propose` requires `Valid` of its input (`propose_valid`,
-  `Mvba.propose`'s guard); and *completeness* — a vector a correct
+  `Valid`, which is what lets `mvba_propose` fire at all, since at the
+  `Mvba` instance the contract's `propose` is `Mvba.propose`, whose guard
+  requires `valid e`; and *completeness* — a vector a correct
   validator decided has every proposer entry certificate-backed, which is
   what enables the decision handlers, whose bridge `require` is that
   check. The safety proofs need neither direction (the guard only removes

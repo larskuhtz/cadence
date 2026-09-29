@@ -45,7 +45,7 @@ that its agreement argument uses (`[mval_pos_functional]`,
 `assumptions` conjunct of the slot-consensus instance's `init` — a
 hypothesis on the *initial* states, as the glue's own `[sc_init]` is. At the
 intended configuration — `mval_pos v j m := v j = some m`, `mval_neg v j :=
-v j = none` (`chorusTheory` below) — the two projection assumptions are
+v j = none ∧ is_proposer j` (`chorusTheory` below) — the two projection assumptions are
 theorems, so the one genuine hypothesis among the three is that the abstract
 MVBA state Chorus starts from is an initial state of `Mvba`
 (`chorusTheory_assumptions`).
@@ -183,7 +183,15 @@ at it. -/
 
 /-- The Chorus configuration at the system's instantiation: the proposers,
 the well-encoded roots, and the abstract MVBA state Chorus starts from, with
-`mval_pos v j m := v j = some m` and `mval_neg v j := v j = none`. -/
+`mval_pos v j m := v j = some m` and `mval_neg v j := v j = none ∧
+is_proposer j`.
+
+A vector's entry for `j` is either a root (`mval_pos`) or a proposer's
+explicit absence (`mval_neg`); a non-proposer has neither. `mvba_propose`
+requires every entry to be a proposer's, so with `mval_neg v j := v j =
+none` alone a non-proposer would always have an entry, no vector would be
+proposable, and the MVBA would never receive an input (`docs/Liveness.md`
+§4.6, Finding 1). -/
 @[implicit_reducible]
 noncomputable def chorusTheory (is_proposer : node → Bool) (well_encoded : merkle_root → Bool)
     (mvba_init_state : Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)) :
@@ -191,7 +199,8 @@ noncomputable def chorusTheory (is_proposer : node → Bool) (well_encoded : mer
       (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
       (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice :=
   ⟨is_proposer, well_encoded,
-    fun v j m => decide (v j = some m), fun v j => decide (v j = none), mvba_init_state⟩
+    fun v j m => decide (v j = some m), fun v j => decide (v j = none ∧ is_proposer j = true),
+    mvba_init_state⟩
 
 omit [TotalOrderWithMinimum slot] fm in
 /-- At `chorusTheory`, Chorus's three assumptions reduce to the one that is a
@@ -220,7 +229,7 @@ theorem chorusTheory_assumptions
     · rintro v j m ⟨h1, h2⟩
       simp only [decide_eq_true_eq] at h1 h2
       rw [h1] at h2
-      exact Option.some_ne_none _ h2
+      exact Option.some_ne_none _ h2.1
 
 end System
 end Cadence

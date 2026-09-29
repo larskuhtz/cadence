@@ -206,9 +206,8 @@ obligation it leaves open.
 The rows marked _assumed_ are the whole of what this development owes: each
 temporal class is stated over its fragment's own relations, so there is no
 second place where these obligations are written down. The MVBA's temporal
-level is provided at a *clock-lifted* fragment, the model's state paired with
-a clock. That is not the fragment Chorus consumes, which is the seam
-`docs/Bounds.md` §6.2.1 describes.
+level is provided, from named hypotheses, at the fragment the composed
+system runs.
 
 # What no machine checks
 

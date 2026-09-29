@@ -94,7 +94,6 @@ synthesis sees through its fields. -/
   abandon _ _ _ := False
   propose_trans _ _ _ _ h := h.elim
   -- Vacuous: this stub has no `propose` transition at all.
-  propose_valid _ _ _ _ h := h.elim
   abandon_trans _ _ _ h := h.elim
   decided _ _ _ := False
   proposed _ _ _ := False
