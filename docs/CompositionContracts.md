@@ -464,8 +464,10 @@ for the composed system as well
 once a provider's own progress theorem is discharged and its consumer's
 corresponding assumption with it, non-vacuity along that path stops being a
 question about witnesses. [Mvba.termination](../Cadence/Mvba/Liveness.lean)
-is that theorem for the MVBA; what is still open is Chorus's (A-mvba)
-([Architecture.md](Architecture.md) §4 item 2).
+is that theorem for the MVBA, and `Chorus.termination` consumes it, which
+retires Chorus's (A-mvba) ([Architecture.md](Architecture.md) §4 item 2).
+What is still open along that path is the joint satisfiability of
+`Chorus.termination`'s premises ([TODO.md](TODO.md) § Liveness).
 
 ## 8. Reproductions
 

@@ -6,8 +6,19 @@ import Cadence.System
 
 [Liveness.md](../../docs/Liveness.md) §4, stages 3–5, against the
 claim and premises stated in [Liveness.lean](Liveness.lean). This file
-holds the proof, so far through stage 4; that one holds the statement, and
-nothing here adds a premise to it.
+holds the proof; that one holds the statement, and nothing here adds a
+premise to it.
+
+## The result
+
+**`Chorus.termination`** — `TerminationClaim`, proven at every `n = 3f+1`
+with at most `f` Byzantine validators and at the system's configuration
+`Cadence.chorusTheory`: every run satisfying `FJustice`, `MvbaAdmissible`
+and `ValidBridge` terminates, i.e. every correct validator finalizes the
+slot. The one further hypothesis is the view order's enumeration, which
+`Mvba.termination` takes. The proof is a case split on the progress
+dichotomy (stage 3), with the commit route on one side (stage 3) and the MVBA
+arm on the other (stage 4).
 
 ## Stage 3: the fast route, from (F-justice) alone
 
@@ -45,7 +56,7 @@ completed by `mvba_terminate`; every correct validator's own chunks arrive
 and it casts its fallback commit vote; and the fallback commit certificate
 makes every proposer's entry assignable, which is the commit route's
 hypothesis in its general form (`eventually_committed_of_assignable`).
-What remains for stage 5 is the case split on the dichotomy.
+Stage 5 is the case split on the dichotomy: `Chorus.termination`.
 
 ## How it is built
 
@@ -2031,18 +2042,47 @@ theorem terminates_of_mvba_arm (vfin : Cadence.ViewOrderEnum view vord)
     (fun hb => hi (by simpa +instances [byzNodeSetFin] using hb))
   exact ⟨k, hk⟩
 
+omit cnt in
+set_option maxHeartbeats 1600000 in
+/-- **Stage 5: Chorus terminates.** [Liveness.lean](Liveness.lean)'s `TerminationClaim`, proven:
+at every `n = 3f+1` with at most `f` Byzantine validators, at the system's
+configuration `Cadence.chorusTheory`, every run satisfying `FJustice`,
+`MvbaAdmissible` and `ValidBridge` `Terminates` — every correct validator
+finalizes the slot.
+
+The proof is the case split on the progress dichotomy, which (F-justice)
+alone makes hold at some index: the commit route on its left disjunct, the
+MVBA arm on its right. `vfin`, the view order's enumeration, is the one
+further hypothesis, and like `Mvba.termination`'s it belongs to the proof,
+not to the claim. The quorum counting facts are the concrete family's own
+instance (`Cadence.byzNodeSetFin_counting`), not a hypothesis. -/
+theorem termination (vfin : Cadence.ViewOrderEnum view vord) :
+    TerminationClaim (nset := byzNodeSetFin n f hf is_byz hbyz)
+      (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz) (thC) thM := by
+  intro r hfj hadm hbr
+  obtain ⟨N, hleft | hright⟩ := eventually_progress_dichotomy n f hf is_byz hbyz r hfj
+  · exact terminates_of_commit_route n f hf is_byz hbyz r hfj hleft
+  · exact terminates_of_mvba_arm n f hf is_byz hbyz vfin r hfj hadm hbr hright
+
 end Concrete
 
 end Chorus
 
 /-! ## The pinned trust base
 
-The standard Lean trio and nothing else — no `sorryAx`. The stage-3 and
-stage-4 theorems at the concrete family, their generic cores, the three
+The standard Lean trio and nothing else — no `sorryAx`. The claim itself
+(`Chorus.termination`), the stage-3 and stage-4 theorems at the concrete
+family, their generic cores, the three
 hand-proven monotonicity lemmas, and the run-level facts derived in place of
 new invariants. The reachability they use comes from the proof-file family
 through [Certify.lean](Certify.lean), the dichotomy from [Progress.lean](Progress.lean),
 and the MVBA's termination from [Mvba/Liveness.lean](../Mvba/Liveness.lean), each pinned there. -/
+
+/--
+info: 'Chorus.termination' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.termination
 
 /--
 info: 'Chorus.msg_vote_pos_sig_mono' depends on axioms: [propext, Classical.choice, Quot.sound]

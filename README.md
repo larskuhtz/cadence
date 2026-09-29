@@ -136,8 +136,8 @@ for a human reader:
    [docs/CompositionContracts.md](docs/CompositionContracts.md) explains the
    encoding and names the seams that remain.
 3. **Are the meta-theoretic assumptions sound?** Everything deliberately kept
-   outside Lean — the network abstraction's soundness contract, the fairness
-   axioms and the fairness-to-liveness reduction, the cryptographic
+   outside Lean — the network abstraction's soundness contract, the
+   scheduling premises of the liveness theorems, the cryptographic
    primitives, the timing/quantitative module obligations — is a **named,
    complete inventory**: [docs/Architecture.md](docs/Architecture.md) §4.
    That inventory is the audit checklist. It is short on purpose.
@@ -183,6 +183,7 @@ in [Cadence.lean](Cadence.lean).
 | **Fair-progress liveness content** (no livelock of fair actions — strictly stronger than deadlock-freedom) | [Cadence/Chorus.lean](Cadence/Chorus.lean), liveness section | sweep + the named temporal assumptions ([docs/Liveness.md](docs/Liveness.md)) |
 | **Progress dichotomy** — the liveness case split as one theorem: in any reachable state where every honest validator has cast its path vote, either commitQCs exist for every proposer from honest votes alone, or the MVBA stands invoked with decide-enabling evidence for every proposer, for **every** `n = 3f+1` | [Cadence/Chorus/Progress.lean](Cadence/Chorus/Progress.lean) (`progress_dichotomy_of_saturation`); its counting inputs — the evidence pigeonhole and certificate formation — are separately stated and pinned in [Cadence/Chorus/Pigeonhole.lean](Cadence/Chorus/Pigeonhole.lean) and [Cadence/Chorus/Counting.lean](Cadence/Chorus/Counting.lean) | plain Lean over reachable states |
 | **MVBA termination, bound-erased** — every correct validator eventually decides, from five named premises (weak fairness of the honest actions, the timeout discipline, availability, and the caller's two) and three hypothesis classes. The timing premise, (A-viewsync), states the view timer as ordering constraints (timers do fire; the good view's timer waits for a certificate), so the theorem reads *given enough time, the protocol decides*. It is a theorem of the timing model below (`Mvba.aViewSync_of_sync`); [docs/Liveness.md](docs/Liveness.md) §2.1 explains it in short. This is the untimed shadow of `MVBATemporal.termination`, not that field | [Cadence/Mvba/Liveness.lean](Cadence/Mvba/Liveness.lean) (`Mvba.termination`) | plain Lean over runs of the generated transition system; premises are hypotheses, never axioms ([docs/Liveness.md](docs/Liveness.md) §2.1) |
+| **Chorus termination, bound-erased** — every correct validator finalizes the slot, for **every** `n = 3f+1`, at the configuration the composed system runs, from three named premises: correct validators' actions are scheduled fairly (`FJustice`); the MVBA's steps are scheduled as the MVBA's own termination theorem requires (`MvbaAdmissible`); and the MVBA's validity check agrees with Chorus's certificates (`ValidBridge`, the cryptographic seam between the two models, not a fairness assumption). The MVBA's termination is not assumed: the proof applies `Mvba.termination` to the run's MVBA steps. The untimed form of `lemma:chorus-termination`; the `5Δ + ℓ_MVBA` bound is not proven | [Cadence/Chorus/Termination.lean](Cadence/Chorus/Termination.lean) (`Chorus.termination`), premises in [Cadence/Chorus/Liveness.lean](Cadence/Chorus/Liveness.lean) | plain Lean over runs of the generated transition system; premises are hypotheses, never axioms ([docs/Liveness.md](docs/Liveness.md) §2) |
 | **Network-level build totality** — any supermajority of accepted receipts (Byzantine members included) yields a buildable fallback meta-block entry per proposer: the state-level half of "every correct validator can propose", for **every** `n = 3f+1` | [Cadence/Chorus/Counting.lean](Cadence/Chorus/Counting.lean) (`build_totality_of_reachable`) | plain Lean over reachable states |
 | **MCP Safety, positional form** — for the glue over *any* orchestrator and slot consensus satisfying the contracts, and **for the composed system** (the glue running the Conductor's and Chorus's own transition systems, Chorus running the `Mvba` model's as its MVBA; conditional only on the ACS contract `ACSSafety`) | [Cadence/Composition.lean](Cadence/Composition.lean) (`positional_log_safety`), [Cadence/System.lean](Cadence/System.lean) (`system_positional_log_safety`) | sweep (against the contracts as class constraints) + composition |
 | **`Conductor ⊨ OrchestratorSafety`**, **`Chorus ⊨ SlotConsensusSafety`** — the state-level fragments of the paper's module contracts, every field proven (including the two-state fields: monotonicity of the observables, frames, the paper's Monotonicity) | [Cadence/Composition.lean](Cadence/Composition.lean) (`Conductor.orchestratorSafety`), [Cadence/Chorus/Compose.lean](Cadence/Chorus/Compose.lean) (`Chorus.slotConsensusSafety`) | composition, over persisted VC theorems and Veil's transition bodies |
@@ -195,8 +196,8 @@ in [Cadence.lean](Cadence.lean).
 | **The MVBA's lock check is load-bearing** — with the `Pre-Prepare` handler's lock check removed, two correct validators decide different vectors: the mutation test showing the instantiation's invariants are needed, not merely true | [Cadence/Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean) | exhaustive model check of a restriction of the mutant (every run of which is a run of the mutant); the counterexample trace is pinned in the build |
 
 What is *not* proven in Lean — timing bounds other than the MVBA's, the scheduling (fairness)
-assumptions and the fairness-to-liveness reduction (the liveness argument's
-entire *state-level* content **is** machine-checked —
+premises of the two termination theorems (the theorems themselves, and the
+liveness argument's entire state-level content, **are** machine-checked —
 [docs/Liveness.md](docs/Liveness.md)), the cryptographic primitives,
 the monotone-network soundness contract — is the named assumption inventory in
 [docs/Architecture.md](docs/Architecture.md) §4. For the two sub-protocol
@@ -452,7 +453,7 @@ Cadence/
   Chorus/Progress.lean              the fair-progress case split as one theorem  (axiom-pinned)
   Chorus/Liveness.lean              the run-level termination claim for Chorus and every
                                     premise it takes
-  Chorus/Termination.lean           the proof of that claim (in progress; Liveness.md §4)
+  Chorus/Termination.lean           the proof of that claim, Chorus.termination  (axiom-pinned)
   Conductor.lean                   window-based orchestrator MODEL (+ sweep, traces, theorems)
   Cadence.lean                     extreme-pipelining MODEL (+ sweep, traces, theorems)
   Composition.lean                 Cadence + Conductor reachability inductions,

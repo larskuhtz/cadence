@@ -7,6 +7,7 @@ import Cadence.Chorus.Compose
 import Cadence.Chorus.Pigeonhole
 import Cadence.Chorus.Counting
 import Cadence.Chorus.Progress
+import Cadence.Chorus.Termination
 
 -- The orchestration / pipelining leg, and the composed system.
 import Cadence.Composition
@@ -95,6 +96,24 @@ Each entry is the result, the file its statement lives in, and what it says.
   buildable meta-block entry (FallbackQC or EquivCert) for every proposer: the
   state-level half of "every correct validator can propose", for **every** `n
   = 3f+1`
+* **`Chorus.termination`** ([Chorus/Termination.lean](Cadence/Chorus/Termination.lean)) — **Chorus
+  terminates**: every correct validator finalizes the slot, in every run
+  satisfying three premises, for **every** `n = 3f+1`, at the configuration
+  the composed system runs (`Cadence.chorusTheory`, with the `Mvba` model
+  as its MVBA). The untimed form of `lemma:chorus-termination`, with the
+  `5Δ + ℓ_MVBA` bound erased. The premises, each a named definition in
+  [Chorus/Liveness.lean](Cadence/Chorus/Liveness.lean) and none of them an axiom:
+  * `FJustice`: correct validators' actions are scheduled fairly;
+  * `MvbaAdmissible`: the MVBA's steps inside the run are scheduled as
+    `Mvba.termination` requires;
+  * `ValidBridge`: the MVBA's validity check agrees with Chorus's
+    certificates — the cryptographic seam between the two models, not a
+    fairness assumption.
+
+  The MVBA's termination is not assumed: the proof applies
+  `Mvba.termination` to the run's MVBA steps. Hypotheses: at most `f`
+  Byzantine validators among `Fin n`, `ViewOrderEnum`.
+  [Liveness.md](docs/Liveness.md) §2 explains each premise in short
 * **`Conductor.orchestratorSafety`** ([Composition.lean](Cadence/Composition.lean)) — Conductor
   ⊨ `OrchestratorSafety` — the state-level fragment of the paper's
   slot-scheduling module contract (open-prefix agreement, Monotonicity,
@@ -290,6 +309,12 @@ info: 'Chorus.build_totality_of_reachable' depends on axioms: [propext, Classica
 -/
 #guard_msgs in
 #print axioms Chorus.build_totality_of_reachable
+
+/--
+info: 'Chorus.termination' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.termination
 
 /--
 info: 'Conductor.orchestratorSafety' depends on axioms: [propext, Classical.choice, Quot.sound]

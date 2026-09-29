@@ -9,9 +9,9 @@ the remaining *counting* steps of the fair-progress argument
 ([ChorusDesign.md](../../docs/ChorusDesign.md) §7), as Lean theorems over the concrete instance
 family `byzNodeSetFin n f` — **every** `n = 3f+1`, every Byzantine set of
 size `≤ f`. With these, the counting content of all three branches of the
-case split is mechanised, and what remains meta in the liveness argument is
-*purely* the temporal glue ((F-justice)/(F-byz)/(A-mvba);
-[Architecture.md](../../docs/Architecture.md) §4 item 2).
+case split is mechanised, and the temporal glue is proven over runs in
+[Termination.lean](Termination.lean) (`Chorus.termination`) from the named premises of
+[Architecture.md](../../docs/Architecture.md) §4 item 2.
 
 1. `honest_supermajority` — the honest population itself is a
    supermajority-sized node set: `n = 3f+1` minus `≤ f` Byzantine leaves
@@ -34,7 +34,7 @@ case split is mechanised, and what remains meta in the liveness argument is
 4. `build_totality_of_reachable` — the network-level counterpart of the
    receipt layer's build totality
    ([FallbackReceipt/Totality.lean](../FallbackReceipt/Totality.lean)),
-   and the state-level half of "(A-mvba)'s *all correct validators
+   and the state-level half of "the MVBA's *all correct validators
    propose* premise is implementable": from **any** supermajority of
    per-proposer fallback entries — arbitrary honest/Byzantine mix, which
    is what a real validator's `2f+1` accepted receipts are — one of the

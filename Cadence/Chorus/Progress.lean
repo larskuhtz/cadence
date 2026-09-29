@@ -27,7 +27,8 @@ This is what turns the meta-argument's case analysis into a lookup: the
 temporal glue that remains is only *"(F-justice) drives every honest
 validator to the saturation hypothesis"*, *"(F-justice) on `mvba_propose`
 turns the right disjunct into every correct validator's proposal"* and
-*"(A-mvba) — the instance's Termination — decides"* — no reasoning about
+*"the MVBA's own termination theorem decides"* (all three carried out over
+runs in [Termination.lean](Termination.lean)) — no reasoning about
 populations, paths or certificates is left outside Lean. The branch structure inside the proof is exactly the doc's:
 all-fast ⇒ `commitqc_of_honest_fast_dominant` per proposer; some honest
 fast-caster ⇒ its commit signatures back a complete fast meta-block

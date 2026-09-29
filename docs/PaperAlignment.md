@@ -168,8 +168,8 @@ slot numbers.
 `ℓ_MVBA`-Termination, Quiescence). It specifies no algorithm. Chorus therefore
 consumes the class `MVBASafety`, instantiated at the supplement's
 leader-based model (`Mvba.mvbaSafety`, plugged in by [Cadence/System.lean](../Cadence/System.lean)),
-with (A-mvba) being that instance's own Termination
-([Architecture.md](Architecture.md) §4 item 2), and its latency `ℓ_MVBA`
+whose own termination theorem Chorus's termination consumes
+(`Chorus.termination`, [Architecture.md](Architecture.md) §4 item 2), and its latency `ℓ_MVBA`
 is the one paper bound this development proves
 ([Bounds.md](Bounds.md) §6.2).
 

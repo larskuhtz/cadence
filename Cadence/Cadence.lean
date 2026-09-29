@@ -628,7 +628,8 @@ meta-axioms, safety content SMT-discharged. The claim mirrored is
   validator participates in `S[s]`, every honest validator's instance
   eventually finalizes. Discharge: unproven for Chorus
   (`SlotConsensusTemporal`, [Chorus/Compose.lean](Chorus/Compose.lean));
-  Chorus's fair-progress layer + (A-mvba).
+  its untimed form is `Chorus.termination`
+  ([Chorus/Termination.lean](Chorus/Termination.lean)).
 
 ### The induction (paper's proof of `lemma:cadence-liveness`)
 

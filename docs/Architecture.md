@@ -218,7 +218,13 @@ quantitative obligation over explicit runs
   and *network-level build totality*
   (`Chorus.build_totality_of_reachable`): a buildable meta-block entry
   from **any** accepted receipt supermajority, Byzantine members
-  included. [Liveness.md](Liveness.md) is the one-page summary.
+  included. [Liveness.md](Liveness.md) is the one-page summary;
+* **Chorus termination over runs**, for every `n = 3f+1`
+  (`Chorus.termination`,
+  [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)): the temporal argument on
+  top of that content, from the named premises of §4 item 2, consuming
+  `Mvba.termination` for the MVBA arm. Untimed: the `5Δ + ℓ_MVBA` bound
+  of `SlotConsensusTemporal.termination` is not proven.
 
 **Method 4 — documented meta-theory.** What is deliberately *not*
 inside Lean is stated as named assumptions and audited by hand (§4).
@@ -236,7 +242,7 @@ The paper's headline properties and their formal counterparts:
 | Proposal inclusion / censorship resistance (`lemma:chorus-proposal-inclusion`) | `safety [proposal_inclusion]`, `[proposal_inclusion_no_neg]` (premise `all_honest_recorded`); instance field `proposal_inclusion` | sweep + composition |
 | Hiding until the deadline (`lemma:chorus-hiding`) | protocol half: `safety [hiding_until_deadline]`; crypto half axiomatised (`ThresholdIBE`, [Cadence/Primitives.lean](../Cadence/Primitives.lean)) | sweep + axiom |
 | Speculative-finality revertibility claim | `safety [speculative_agreement_pos]`, `[..._pos_neg]` (conditional on `no_equivocation` and `no_invalid_encoding`) | sweep |
-| Chorus termination (`lemma:chorus-termination`) | fair-progress invariant layer + (F-\*)/(A-mvba) meta-axioms; untimed (no `ℓ` bound) | sweep + meta (§4) |
+| Chorus termination (`lemma:chorus-termination`), bound-erased: every correct validator finalizes the slot, at every `n = 3f+1` | `Chorus.termination` ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), from the premises `FJustice`, `MvbaAdmissible`, `ValidBridge` of [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) (§4 item 2); consumes `Mvba.termination`; untimed (no `5Δ + ℓ_MVBA` bound) | sweep + Lean over runs |
 | "Fallback meta-block valid by construction" (`alg:fallback` build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
 | Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of `lemma:chorus-termination`'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
 | Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of `lemma:chorus-termination`'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
@@ -260,7 +266,7 @@ in [Cadence.lean](../Cadence.lean)).
 
 The list is meant to be *checkable for completeness* rather than taken on
 trust. Every assumption below has a **name**, and the named fairness and
-oracle axioms — (F-justice), (F-byz), (A-mvba), (A-sc-termination),
+oracle axioms — (F-justice), (F-byz), (A-sc-termination),
 (A-sc-totality), (A-leader-rotation) — appear verbatim in the Lean sources at the points where
 they are consumed, so `grep -rn '(A-' Cadence/` enumerates the consumers
 and would expose an axiom that had crept in without being listed here. The
@@ -279,42 +285,53 @@ relations, and it takes a human to confirm each use is positive.
    consulting a row of `msg_proposer_signed`/`msg_commit_cast`
    negatively, where the row is indexed by, and writable only by, the
    acting validator itself — enumerated in ChorusDesign.md §3.1).
-2. **Fairness and oracle-termination axioms** ((F-justice), (F-byz),
-   (A-mvba) — stated in the Chorus liveness section, composed in
-   [ChorusDesign.md](ChorusDesign.md) §7, summarised in
-   [Liveness.md](Liveness.md)). The liveness argument's state-level
-   content is kernel-checked — the fair-progress invariants of the
-   sweep, and the theorems of
+2. **Liveness premises** — the premises of `Chorus.termination`
+   ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), each a named `Prop` in
+   [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) and a hypothesis of the theorem,
+   never an axiom; [Liveness.md](Liveness.md) §2 has them in short.
+   The liveness argument's state-level content is kernel-checked — the
+   fair-progress invariants of the sweep, and the theorems of
    [Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean),
    [Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean) and
    [Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean) —
-   so these assumptions contribute *temporal* content only, instances
-   of "a continuously enabled fair action eventually fires":
-   (F-justice) — weak fairness of honest actions (weak suffices:
-   enabledness is monotone in this model); (F-byz) — Byzantine actions
-   are unfair; (A-mvba) — the MVBA instance's own termination once every
-   correct validator has proposed (probability-1, paper-level), whose
-   protocol-side premises are theorem conclusions; the per-validator
-   implementation refinement of the proposal build is the receipt
-   layer (§5). Since Chorus consumes the MVBA as the class constraint
-   `MVBASafety`, instantiated at the verified model
-   ([Cadence/Mvba.lean](../Cadence/Mvba.lean); item 3), (A-mvba) is
-   exactly the field `MVBATemporal.termination` **at `Mvba.mvbaSafety`**
-   ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean), item 4) —
-   an obligation over the model's own transition system, and one that is
-   **proven** (`Mvba.mvbaTemporal`, item 4). What remains is Chorus's
-   side: consuming it through the projection of a composed run onto the
-   MVBA's (the Chorus liveness leg, [Liveness.md](Liveness.md) §4.6),
-   together with (F-justice) on
-   Chorus's `mvba_propose` (premise (i): every correct validator proposes)
-   and on the decision handlers, whose enabledness has one leg the class
-   does not give: the *completeness direction of the bridge* (a decided
-   entry's certificate is on Chorus's network — what "publicly
-   verifiable" means; [ChorusDesign.md](ChorusDesign.md) §7 item 4). Decomposing (A-mvba)
-   into the MVBA instance's own fair-progress theorems is open work
-   ([TODO.md](TODO.md) § Liveness; the design constraints it must respect
-   are [MvbaPlan.md](MvbaPlan.md) §3). That work has begun, and it has put
-   one assumption on this list in an unusual place:
+   and so is the temporal argument over runs. What has to be believed is
+   that the premises describe the executions that matter:
+   * **(F-justice)**, `FJustice`: correct validators' actions are weakly
+     fair (weak suffices: enabledness is monotone in this model). Proposing
+     a value to the MVBA is fair as one action per validator and value,
+     whatever state the MVBA ends in. (The per-validator implementation
+     refinement of building that proposal is the receipt layer, §5.)
+   * **(F-byz)**: Byzantine actions are unfair. This is not a premise but
+     the absence of one: no fairness is asked of the `byz_*` labels, so no
+     progress relies on adversarial help.
+   * **`MvbaAdmissible`**: the run's MVBA steps, read as a run of the MVBA
+     model, satisfy the MVBA's own scheduling premises — weak fairness of
+     its honest actions, (A-viewsync) and (F-avail), stated with
+     [Cadence/Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s definitions. It includes that the
+     run takes infinitely many MVBA steps (`Component.Scheduled`), and it
+     supplies the labels, since the composed run records only the MVBA's
+     states.
+   * **`ValidBridge`**: the MVBA's `Valid` holds exactly for meta-blocks
+     whose entries carry certificates on Chorus's network — certified
+     meta-blocks are `Valid`, and decided ones are certified. It is the
+     **cryptographic seam** between the two models (certificates cannot
+     be forged and are publicly verifiable), the run-level form of the one
+     stated bridge of item 3, and **not a fairness assumption**.
+
+   **(A-mvba) is retired.** It was the assumption that the MVBA,
+   invoked with per-proposer evidence, terminates. `Chorus.termination`
+   applies `Mvba.termination` to the run's MVBA steps instead, and derives
+   that theorem's two caller premises (every correct validator proposes;
+   none is abandoned before deciding). `MvbaAdmissible` and `ValidBridge`
+   are what it leaves. The name survives in the prose of
+   [Cadence/Chorus.lean](../Cadence/Chorus.lean),
+   [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and
+   [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean), which a `grep` for `(A-` still
+   finds; aligning those comments re-solves proof families, so it waits
+   for the next edit there ([TODO.md](TODO.md) § Liveness). Whether the premises
+   can all hold at once is open ([TODO.md](TODO.md) § Liveness). The
+   MVBA's side of the argument puts one assumption on this list in an
+   unusual place:
    **(A-viewsync)**, a premise of the untimed `Mvba.termination`, is the
    view timer stated as ordering constraints: timers do fire, and one
    honest-led view's timer waits for a commit certificate. The theorem
