@@ -63,8 +63,10 @@ is not exhausted, from the first correct entry to the commit certificate;
 at `δ = 0` it is the supplement's `3Δ + max{Δ, Δ_sync}` (`Lcert_paper`),
 with `Δ_R = 0` because `Recover` is the identity in this model.
 `Schedule.ℓ` is the contract's `ℓ_MVBA`: one hop to synchronise, at most
-`1 + |below v_L| + k` burnt views, the good view's chain, one local step to
-decide. Their derivation is `docs/Bounds.md` §6.2.6.
+`|below v_L| + k` burnt views, the good view's chain, one local step to
+decide. Their derivation is `docs/Bounds.md` §6.2.6; the proof that `ℓ`
+bounds termination is `Mvba.bounded_termination`
+(`Cadence/Mvba/BoundedTermination.lean`).
 
 ## What this file does not do
 
@@ -215,12 +217,14 @@ def burn (sch : Schedule view time) : time :=
   sch.τmax + 2 • sch.δ + 2 • sch.Δ
 
 /-- **`ℓ_MVBA`.** One hop to synchronise everyone to the highest view
-entered at `max(t, gst)`, at most `1 + |below vL| + k` burnt views to reach
-a correct-led view past the ramp, that view's chain, and one local step to
-decide on the certificate. `O(kΔ)` when every constant is `O(Δ)` and the
-ramp is empty — the supplement's `O(fΔ)` at `k = f + 1`. -/
+entered at `max(t, gst)`, at most `|below vL| + k` burnt views to reach a
+correct-led view past the ramp — at most `|below vL|` successors clear the
+ramp, and fewer than `k` more reach a correct leader — that view's chain,
+and one local step to decide on the certificate. `O(kΔ)` when every
+constant is `O(Δ)` and the ramp is empty — the supplement's `O(fΔ)` at
+`k = f + 1`. -/
 def ℓ (sch : Schedule view time) (vfin : ViewOrderEnum view vord) : time :=
-  sch.Δ + (1 + (vfin.below sch.vL).length + sch.k) • sch.burn
+  sch.Δ + ((vfin.below sch.vL).length + sch.k) • sch.burn
     + Lcert sch.Δ sch.δ sch.Δsync + sch.δ
 
 end Schedule

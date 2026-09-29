@@ -67,6 +67,36 @@ there is nothing to restate at the implementation's own types.
 one is supplied, and a companion `rfl` lemma pins that the join hands back
 exactly the fragment that was proven.
 
+**How to read a class as a contract.** The paper states each module as an
+assume/guarantee pair — what the caller supplies, what the module returns —
+and the classes carry both halves, in two encodings that are worth telling
+apart because only one of them is visible as a field.
+
+* *The guarantee side is the fields.* In the safety fragment every property
+  is stated at `reachable st`, and `reachable` is closed under `trans` —
+  every transition, the consumer's inputs at any time included — so a safety
+  guarantee holds for **every** caller behaviour. The rely side of a safety
+  fragment is therefore empty, and that is a statement rather than an
+  omission: agreement does not depend on the caller behaving. At the
+  temporal level the rely side is explicit: `termination` takes the caller's
+  behaviour as antecedents (every correct party proposes by `t`, none
+  abandons before `max(t, gst) + ℓ`) and the environment as `Admissible`.
+* *A caller obligation the paper states as a precondition appears as
+  partiality of the input relation.* The module's `propose` is a relation;
+  an implementation's guard makes it empty where the precondition fails, and
+  the caller has to prove the call is enabled before it can take it. The
+  composition is blocking — a consumer `require`s the callee's relation — so
+  this is a legitimate encoding of the rely side, but it lives in
+  enabledness rather than in a named field. `MVBASafety.propose_valid` is
+  the one instance; §7 item 1 records why it is there and when it should
+  move.
+
+The practical difference is where an unmet obligation surfaces at the
+composed instance: a guarantee that failed would break a proof, while a
+caller obligation encoded as partiality makes a call *unenabled* — a
+non-vacuity question, not a proof failure ("Vacuity does not compose",
+§7).
+
 **Conventions** (the header of `Interfaces.lean` is authoritative):
 
 * *Correctness is one object.* Every class takes `byz : validator → Prop` as
@@ -367,6 +397,44 @@ the proven fragments.
    invalid blocks — but it moves the bridge from "documented and inert" to
    "documented and load-bearing for liveness", which is why it is written
    down here and not only at the field.
+
+   **Why `propose_valid` sits in the fragment, and when it should move.**
+   Recorded 2026-09-29 so the question is not re-derived; the decision itself
+   is [`MvbaPlan.md`](./MvbaPlan.md) §3.5 step 4. The field is a caller
+   obligation encoded on the callee's side — the module refuses an invalid
+   input instead of the caller promising a valid one (§2, "How to read a
+   class as a contract") — and its own docstring calls that a wart. It was
+   chosen deliberately, for three reasons. `Mvba.termination` needs input
+   validity, since a correct leader with an invalid input would have its
+   view rejected by every correct validator, and a *checked* precondition
+   keeps that theorem's premise list to fair scheduling and sentences of the
+   supplement instead of adding an input-validity assumption. The supplement
+   gives `propose` the same precondition (`subsec:mvba-protocol`) and
+   `thm:termination` reasons from it. And the field is first-order and about
+   a fragment field, so the placement rule puts it in the fragment. The cost
+   is the one named above — the rely side hides in enabledness, so the
+   validity bridge surfaces as non-vacuity — plus an over-constraint on any
+   implementation that trusts its caller, moot while the only implementation
+   is the supplement's, which checks.
+
+   The alternative is the rely form: drop the field, keep `require valid e`
+   on `Mvba.propose` as the implementation's own choice, and state the
+   caller's obligation as a run predicate at the temporal level — every
+   `propose` input is `Valid` — as an antecedent of `termination` next to
+   the two caller premises already there. It moves nothing of substance: the
+   same bridge becomes a hypothesis of the composed liveness theorem instead
+   of an enabledness condition, which is what the Chorus liveness leg's
+   `Chorus.ValidBridge` premise ([`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean))
+   already does at the liveness level. What it buys is a named rely side,
+   which is what an auditor reads off the class. It is an edit to
+   `Interfaces.lean`, so it re-solves the Chorus family — every verification
+   condition carries the class's axioms as hypotheses — and rebases every
+   open leg. **Make the move when `Interfaces.lean` is next edited for
+   another reason**, the likely occasion being the joint `TimedRun` decision
+   of [`Bounds.md`](./Bounds.md) §6.2.1, and earlier only if a second MVBA
+   implementation that does not check its inputs appears, or the
+   composition-level non-vacuity instrument ([`TODO.md`](./TODO.md)
+   § Liveness) shows the bridge biting.
 2. **Chorus has no participation interface**, so `SlotConsensusTemporal`
    carries the whole of it; and the glue's records of the inputs it does not
    drive (`sc_abandoned`, `proposed`) are its own, as the paper's local

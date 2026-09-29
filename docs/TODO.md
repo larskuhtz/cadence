@@ -31,6 +31,16 @@ order worth taking:
   decided entry's certificate is visible on Chorus's network — is what
   enables the decision handlers, and is what the liveness argument has to
   name ([`CompositionContracts.md`](./CompositionContracts.md) §7 item 1).
+* **`propose_valid`'s placement.** The caller's validity obligation is
+  encoded as a guard on the callee's `propose` — a checked precondition in
+  the safety fragment — rather than as a rely-side antecedent at the temporal
+  level. The reasons it was put there, what it costs, and the rely-form
+  alternative are [`CompositionContracts.md`](./CompositionContracts.md) §7
+  item 1. Move it **when `Interfaces.lean` is next edited for another
+  reason** — one Chorus re-solve instead of two — and not before, unless a
+  second MVBA implementation that trusts its caller appears or the
+  composition-level non-vacuity instrument (§ Liveness below) shows the
+  bridge biting.
 * **The monitor's MVBA leg** is a coverage gap: the monitor instantiates
   Chorus's MVBA constraint with a stub that never decides, so no fallback-path
   trace can be checked ([`Monitor.md`](./Monitor.md) §8).
@@ -204,9 +214,13 @@ come first.
   (2026-09-16): its timing model is workshopped and stated
   ([`Bounds.md`](./Bounds.md) §6.2,
   [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)), and
-  step 2, the good-view lemma, is proven
-  ([`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)); steps 3–4 of
-  §6.2.8 remain.
+  steps 2 and 3 are proven: the good-view lemma
+  ([`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)) and, from it
+  and the burn lemma, the bounded claim itself
+  (`Mvba.bounded_termination`,
+  [`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)).
+  Step 4 of §6.2.8 remains: the `MVBATemporal` instance at the lifted
+  fragment, `admissible_exists`, and (A-viewsync) as a corollary.
 
 ## Model hygiene
 
