@@ -2,10 +2,10 @@
 
 How the container images are built, why they are the size they are, and how CI
 publishes them. This is maintainer material: *using* the published images —
-auditing, developing, the devcontainer — is [Container.md](./Container.md) and
+auditing, developing, the devcontainer — is [Container.md](Container.md) and
 needs nothing from this page. Building locally is needed only when the
-dependency tree (`lakefile.lean`, `lake-manifest.json`, `lean-toolchain`) or
-the `Containerfile` changes — and CI rebuilds and republishes on exactly those
+dependency tree ([lakefile.lean](../lakefile.lean), [lake-manifest.json](../lake-manifest.json), `lean-toolchain`) or
+the [Containerfile](../Containerfile) changes — and CI rebuilds and republishes on exactly those
 changes by itself, so even then a local build is a convenience, not a duty.
 
 ## 1. Building locally
@@ -23,7 +23,7 @@ figures below, are for the previously published image set — a dependency-tree
 change republishes them, and the first rebuild after one also has no usable
 seed cache, so its `verified` stage re-solves from scratch.
 
-The stages, in [`../Containerfile`](../Containerfile): `toolchain` → `deps` →
+The stages, in [Containerfile](../Containerfile): `toolchain` → `deps` →
 (`dev`, `build`) — where `build` runs the staged verification and keeps the
 proof cache it produced — then `verified` (the built workspace *minus* the
 cache) and `verified-cache` (`verified` *plus* exactly that cache).
@@ -39,7 +39,7 @@ condition, ~90 minutes on a workstation. The image is equally trustworthy
 either way — every cache hit is kernel-checked before use — and prints
 `ALL STAGES GREEN` from inside the build in both cases.
 
-**BATCH.** `scripts/revalidate.sh`'s proof-file batch width is a build ARG
+**BATCH.** [scripts/revalidate.sh](../scripts/revalidate.sh)'s proof-file batch width is a build ARG
 (default 6, sized for a workstation). On few cores lower it — near-limit VCs
 time out spuriously under discharger contention, and a cold run at width 6
 peaks ~30 GB. CI passes `BATCH=1` for its 4-vCPU runners.
@@ -55,7 +55,7 @@ memory-hungry thing in this project.
   accumulating layer *as well as* the elaboration, and OOMs in
   `Auto.Embedding.LamPrep` even at 8 CPUs / 24 GB on a 36 GB machine. (With
   its 2 CPU / 2 GB defaults the build stalls with no error at all;
-  `scripts/container.sh` resizes the builder automatically — `BUILDER_CPUS`,
+  [scripts/container.sh](../scripts/container.sh) resizes the builder automatically — `BUILDER_CPUS`,
   `BUILDER_MEMORY`, default 8 / 24G.) Podman builds the same Containerfile in
   11 minutes, because its overlay storage is on the machine's disk.
 * **Lake has no job-limit flag**, so the only lever on peak memory is the CPU
@@ -67,7 +67,7 @@ memory-hungry thing in this project.
 ## 2. Layer sharing, and what crosses the wire
 
 The on-disk and pull sizes are tabulated in
-[Container.md §2](./Container.md#2-the-images). The registry-side view:
+[Container.md §2](Container.md#2-the-images). The registry-side view:
 publishing the whole four-image set costs **5.32 GiB** of storage, not the
 55 GB the on-disk figures suggest, because shared layers are stored once.
 Where `verified`'s 3.96 GiB goes: Ubuntu base 29 MiB · clang/libc++/Node
@@ -115,18 +115,18 @@ prebuilt dependency tree, quietly producing a broken image.
 ## 4. Publishing
 
 Two GitHub Actions workflows do this, in
-[`../.github/workflows`](../.github/workflows):
+[.github/workflows](../.github/workflows):
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `verify.yml` | every push to the default branch, every pull request | pulls the published `verified` image and re-runs the staged verification against the commit's sources — the per-commit gate. It builds no images |
-| `publish-images.yml` | push to the default branch; manual | rebuilds and publishes `verified` + `verified-cache` for both architectures and combines the `:latest` manifest lists. `deps`/`dev` are rebuilt only when `lakefile.lean`, `lake-manifest.json`, `lean-toolchain` or the `Containerfile` changes, or on request |
+| [verify.yml](../.github/workflows/verify.yml) | every push to the default branch, every pull request | pulls the published `verified` image and re-runs the staged verification against the commit's sources — the per-commit gate. It builds no images |
+| [publish-images.yml](../.github/workflows/publish-images.yml) | push to the default branch; manual | rebuilds and publishes `verified` + `verified-cache` for both architectures and combines the `:latest` manifest lists. `deps`/`dev` are rebuilt only when [lakefile.lean](../lakefile.lean), [lake-manifest.json](../lake-manifest.json), `lean-toolchain` or the [Containerfile](../Containerfile) changes, or on request |
 
 The split matters because the two halves cost very different amounts: `deps` is
 the whole dependency tree, `verified` is this project on top of it.
 
 **How the layer-sharing rule is enforced.** Rather than trusting that the tags
-were built in one pass, `publish-images.yml` resolves the published `deps` to
+were built in one pass, [publish-images.yml](../.github/workflows/publish-images.yml) resolves the published `deps` to
 its **digest** and passes it as the `DEPS_IMAGE` build argument, so `verified`
 is layered onto exactly the image already in the registry. A later step then
 asserts that the two share every base layer and fails the run if they do not —
@@ -152,7 +152,7 @@ architectures and runs warm.
 **Architecture.** The published `:latest` tags are manifest lists covering
 `linux/arm64` and `linux/amd64`. An x86 stage cannot be layered onto an arm64
 base — and a cross-build under qemu makes Lean elaboration 10–20× slower — so
-`publish-images.yml` builds each architecture natively on its own runner
+[publish-images.yml](../.github/workflows/publish-images.yml) builds each architecture natively on its own runner
 (`ubuntu-24.04-arm` / `ubuntu-24.04`), pushes arch-suffixed tags
 (`:latest-arm64`, `:latest-amd64`), and combines each pair into the `:latest`
 list with `docker buildx imagetools create` in a final job. Everything
@@ -161,7 +161,7 @@ the attestations — runs inside a matrix leg against that leg's own arch tag;
 nothing ever pins the list. Consumers just pull `:latest` and get their
 platform's entry. The proof cache is architecture-portable (its key is the
 closed goal statement), so the two legs seed from each other's
-`verified-cache` when their own is missing; only `verify.yml` stays
+`verified-cache` when their own is missing; only [verify.yml](../.github/workflows/verify.yml) stays
 single-architecture (arm64, matching a local Apple Silicon build), because the
 proofs are architecture-independent and the amd64 image verifies inside its
 own build.
@@ -222,6 +222,6 @@ That uploads 5.32 GiB in total. Most consumers only ever want `verified`
 
 Tag images by the **commit they were built from** — an image whose provenance is
 unclear is worth nothing for tier 1, since the whole claim is "these oleans came
-from that source". `deps` only changes when `lake-manifest.json` or the toolchain
+from that source". `deps` only changes when [lake-manifest.json](../lake-manifest.json) or the toolchain
 does, so re-publishing after a source change costs just the 251 MiB project
 layer.

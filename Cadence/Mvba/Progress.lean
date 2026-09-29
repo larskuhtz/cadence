@@ -2,21 +2,22 @@ import Cadence.Mvba
 
 /-! # Mvba.Progress — disabling implies progress
 
-The formal content of [`docs/MvbaPlan.md`](../../docs/MvbaPlan.md) §3.1(a).
+The formal content of [MvbaPlan.md](../../docs/MvbaPlan.md) §3.1(a).
 
 Chorus's liveness argument rests on a prose fact recorded in
-[`docs/Liveness.md`](../../docs/Liveness.md): its enabledness is monotone,
-so an action once enabled stays enabled and weak fairness needs no further
+[Liveness.md](../../docs/Liveness.md): its enabledness is monotone, so an
+action once enabled stays enabled and weak fairness needs no further
 justification. **That fact is false for `Mvba`**, whose honest actions are
-guarded by the current view and by the timeout and vote flags: eleven of
-the nineteen carry a guard that can go from true to false.
+guarded by the current view and by the timeout and vote flags: most of them
+carry a guard that can go from true to false.
 
 This file proves the weaker fact that replaces it, and it is a *theorem*,
 not an assumption: whenever one of those guards is falsified, a monotone
 relation has grown at a view that is not below the guard's view — the
 validator entered a higher view, timed out, voted, or adopted a lock. That
 is the "rank strictly increased" side condition the well-founded ranking of
-`MvbaPlan.md` §3.3 will consume, and **no scheduling assumption enters
+[MvbaPlan.md](../../docs/MvbaPlan.md) §3.3 consumes
+([Mvba/Rank.lean](Rank.lean)), and **no scheduling assumption enters
 here**.
 
 Two things are worth noting about how little the arguments need.

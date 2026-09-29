@@ -3,14 +3,14 @@
 Everything *claimed* in this repository is proven and axiom-pinned — these
 are places the development could go further, not gaps in what is asserted.
 The authoritative, numbered list of Chorus-side open items is
-[`ChorusDesign.md`](./ChorusDesign.md) §9 (and §§10.1–10.3 for the bigger
+[ChorusDesign.md](ChorusDesign.md) §9 (and §§10.1–10.3 for the bigger
 lifts); this file collects the cross-cutting ones and the model-hygiene
 wishlist.
 
 ## Contract composition — what the named seams still cost
 
 The composition itself is in place and described in
-[`CompositionContracts.md`](./CompositionContracts.md). What remains, in the
+[CompositionContracts.md](CompositionContracts.md). What remains, in the
 order worth taking:
 
 * **Chorus's participation interface.** `mod:slotconsensus`'s
@@ -24,16 +24,16 @@ order worth taking:
 * **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
   the decided set brackets the first slot from below is the quantitative half
   of ACS validity (`ACS.validity_quantitative`, upper level) through
-  `Windows.lean`'s median lemma; cardinality is outside the first-order
+  [Windows.lean](../Cadence/Windows.lean)'s median lemma; cardinality is outside the first-order
   fragment. A Lean theorem deriving the `require` from the upper-level field
   plus the median lemma would turn that bridge into a proof.
 * **The MVBA certificate bridge.** The completeness direction — that a
   decided entry's certificate is visible on Chorus's network — is what
   enables the decision handlers, and is what the liveness argument has to
-  name ([`CompositionContracts.md`](./CompositionContracts.md) §7 item 1).
+  name ([CompositionContracts.md](CompositionContracts.md) §7 item 1).
 * **The monitor's MVBA leg** is a coverage gap: the monitor instantiates
   Chorus's MVBA constraint with a stub that never decides, so no fallback-path
-  trace can be checked ([`Monitor.md`](./Monitor.md) §8).
+  trace can be checked ([Monitor.md](Monitor.md) §8).
 
 Two smaller items fall out of the same work: **stating `Admissible`** (each
 `…Temporal` class's admissible-execution model) for the Conductor and Chorus
@@ -51,21 +51,21 @@ come first.
 
 * **Instantiate the primitive class stack end-to-end.** The Byzantine-quorum
   interface is already discharged for the concrete `byzNodeSetFin` family
-  (see [`../Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean)), which is why
+  (see [../Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean)), which is why
   it is *not* on the assumption list in
-  [`Architecture.md`](./Architecture.md) §4, and `MVBA` has
+  [Architecture.md](Architecture.md) §4, and `MVBA` has
   `Mvba.mvbaSafety` / `Mvba.mvba_of_temporal`
-  (`Cadence/Mvba/Compose.lean`). `ThresholdIBE` remains an axiomatic class
+  ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)). `ThresholdIBE` remains an axiomatic class
   with no model instance: producing one would demonstrate the axiom set is
   satisfiable rather than accidentally contradictory.
-  `ChorusDesign.md` §9 item 1.
-* **Non-vacuity of the safety claims.** `Cadence.lean` and `Conductor.lean`
+  [ChorusDesign.md](ChorusDesign.md) §9 item 1.
+* **Non-vacuity of the safety claims.** [Cadence/Cadence.lean](../Cadence/Cadence.lean) and [Conductor.lean](../Cadence/Conductor.lean)
   carry in-build `sat trace` reachability witnesses so that the properties
   are not vacuously true (if finalization were unreachable, agreement would
   hold trivially). The receipt layer additionally has an exhaustive
   `#model_check` whose explored graph is checked to contain proposing runs.
   The MVBA instantiation has the strongest instrument of the three: a
-  **mutation test** (`Cadence/Mvba/NoLock.lean` — the lock check removed,
+  **mutation test** ([Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) — the lock check removed,
   agreement refuted by the model checker and the counterexample pinned),
   which shows its invariants are load-bearing and not merely true.
   Extending the same discipline to every new property is a standing rule,
@@ -75,20 +75,20 @@ come first.
   today, for two reasons. (i) The
   trace pipeline needs the model-check scaffolding's label enumeration
   (`ActionTag_EnumClass` — see the Conductor's scaffolding note), which
-  `Chorus.lean` deliberately disables (`veil.gen.modelCheckScaffolding
+  [Chorus.lean](../Cadence/Chorus.lean) deliberately disables (`veil.gen.modelCheckScaffolding
   false`): the derived `FinEncodableInjOnly` instances are O(n^k) in its
-  ~38 actions and blow Lean's whnf heartbeat budget. (ii) Every
+  number of actions and blow Lean's whnf heartbeat budget at Chorus's size. (ii) Every
   finalization trace passes through `vote`, whose bulk update uses
   `decide (∀ M, ¬ local_entry_pos …)` — `Classical.propDecidable`, which
   the trace pipeline cannot translate (the known failure mode behind the
-  "no `decide` in update right-hand sides" rule; `Cadence.lean`'s
-  `record_skip` decomposition is the workaround pattern). Unblocking either
+  "no `decide` in update right-hand sides" rule; the glue's
+  `record_skip` decomposition ([Cadence/Cadence.lean](../Cadence/Cadence.lean)) is the workaround pattern). Unblocking either
   is a model refactor, not a trace addition. The standing witness is
   instead the **monitor fixture run in CI** (`scripts/container.sh
-  monitor`, run by `.github/workflows/verify.yml` after the verification
+  monitor`, run by [verify.yml](../.github/workflows/verify.yml) after the verification
   stage): the fast-path fixture reaches `finalize_commit` against the
   model's extracted actions, so an edit that made finalization unreachable
-  turns CI red — [`Monitor.md`](./Monitor.md) has the mechanism.
+  turns CI red — [Monitor.md](Monitor.md) has the mechanism.
   Reachability-directed trace generation (§ Liveness below) would
   supersede this.
 * **Syntactic audit of the monotone-network contract.** The (M-frame) half of
@@ -97,16 +97,16 @@ come first.
   would not fail the build, it would silently void the asynchrony argument.
   A small Lean meta-program that walks each action's syntax and flags negative
   occurrences of a relation declared "network" would turn the top item of
-  [`Architecture.md`](./Architecture.md) §4 into a machine check. The other
+  [Architecture.md](Architecture.md) §4 into a machine check. The other
   half already exists: Veil's generated step lemmas give the per-action frame
   and monotonicity facts as kernel-checked theorems rather than as a table
-  maintained by hand. `ChorusDesign.md` §9 item 3.
+  maintained by hand. [ChorusDesign.md](ChorusDesign.md) §9 item 3.
 
   Two requirements come from the external audit, which found two relations
   mis-tabled in the hand audit's own record — exactly the failure mode a
   machine check removes. The check must *classify* every occurrence
   (positive / self-row / documented exception — the categories of
-  `ChorusDesign.md` §3.1.1) rather than merely reject, so that sound negative
+  [ChorusDesign.md](ChorusDesign.md) §3.1.1) rather than merely reject, so that sound negative
   reads are reported and acknowledged instead of slipping past a reject-only
   lint.
 
@@ -114,36 +114,38 @@ come first.
 
 * **A non-vacuity instrument at the *composition* level.** The reason one is
   needed at all is that non-vacuity does not compose —
-  [`CompositionContracts.md`](./CompositionContracts.md) §7, "Vacuity does
+  [CompositionContracts.md](CompositionContracts.md) §7, "Vacuity does
   not compose", states why, and why the principled fix is liveness rather
   than a better contract. This item is the cheap standing check, not the
-  answer. Every instrument of this kind in the repository is per-model: eight `sat trace` blocks across
-  `Cadence`, `Conductor` and `Mvba`, plus the two `#model_check`s. There is
-  **none** for the composed system — `System.lean`, `Composition.lean` and
-  the two `Compose.lean` files contain no reachability witness at all. So a
+  answer. Every instrument of this kind in the repository is per-model: the
+  `sat trace` blocks of `Cadence`, `Conductor` and `Mvba` and the
+  `#model_check`s of the receipt layer and the MVBA mutation test. There is
+  **none** for the composed system — [System.lean](../Cadence/System.lean), [Composition.lean](../Cadence/Composition.lean),
+  [Chorus/Compose.lean](../Cadence/Chorus/Compose.lean) and
+  [Mvba/Compose.lean](../Cadence/Mvba/Compose.lean) contain no reachability witness at all. So a
   guard that becomes unsatisfiable only *at the instantiation*, where one
   module's parameter meets another's state, would not fail a build: the
   invariants would hold vacuously and every pin would stay green.
 
-  That is not hypothetical. Making the MVBA check validity on `propose` made
-  Chorus's `mvba_propose` depend, at the composed instance, on a bridge between two
+  That is not hypothetical: because the MVBA checks validity on `propose`,
+  Chorus's `mvba_propose` depends, at the composed instance, on a bridge between two
   notions of validity that nothing identifies
-  ([`CompositionContracts.md`](./CompositionContracts.md) §7 item 1). The
+  ([CompositionContracts.md](CompositionContracts.md) §7 item 1). The
   composed safety theorem is unaffected, being parametric in the MVBA
-  theory, but nothing would have reported it either way.
+  theory, but nothing reports whether that bridge is satisfiable.
 
   The instrument to build: instantiate the composed system at concrete
   finite sorts and either `#model_check` a run that reaches a decision, or
   pin a `sat trace` through `propose` → `mvba_propose` → a decision handler.
   Either turns "the seams admit a real execution" from an argument into a
   build-checked fact, and it is the only one of
-  [`MvbaPlan.md`](./MvbaPlan.md) §4's four instruments that does not already
+  [MvbaPlan.md](MvbaPlan.md) §4's four instruments that does not already
   exist in some form.
 
 * **Try the timer-priority route, which would remove the good view from
   the premises entirely.** (A-viewsync)'s second clause is indexed by the
   good view and has a commit certificate as its consequent; both are forced
-  by the untimed abstraction, and [`MvbaPlan.md`](./MvbaPlan.md) §3.7 gives
+  by the untimed abstraction, and [MvbaPlan.md](MvbaPlan.md) §3.7 gives
   the argument. The one clock-free alternative worth trying is a *priority*:
   the timer for a view fires only when no honest non-input action of that
   view is enabled. It is W-free and certificate-free, it would let the marker
@@ -156,7 +158,7 @@ come first.
 
 * **Exhibit a run satisfying `Mvba.termination`'s five premises.** The
   premise set is checked for consistency by argument, not by machine — the
-  header of [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean)
+  header of [Cadence/Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)
   records that, and it is the one thing standing between the theorem and a
   non-vacuity guarantee. The argument is short (the timer's finiteness
   clause is scoped away from the good view precisely so that it and the
@@ -164,10 +166,9 @@ come first.
   witness the protocol half), but an argument is not a build-checked fact.
   What would make it one: a `TerminationClaim` instance at concrete finite
   sorts, or a trace through the premises. Related to, but smaller than, the
-  composition-level instrument above. The bounds leg did **not** produce it
-  as a by-product, contrary to what was expected here.
+  composition-level instrument above.
   `Mvba.admissible_exists` (the contract's non-vacuity witness,
-  [`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)) is a run in
+  [Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) is a run in
   which nobody proposes, so it satisfies every scheduling premise vacuously
   and `AllPropose` not at all. A `TerminationClaim` witness still needs a run
   in which every correct validator proposes and the protocol runs to a
@@ -178,8 +179,7 @@ come first.
   four validators, clock `ℕ`, `Schedule.fixedNat`, everyone proposing and
   deciding within one view, then idling. This is the MVBA leg's next step.
 
-  **Caveat found by the bounds workshop** ([`Bounds.md`](./Bounds.md)
-  §6.2.4): `FJustice` is stated with `Fairness.lean`'s `Enabled`, which a
+  **Caveat** ([Bounds.md](Bounds.md) §6.2.4): `FJustice` is stated with [Fairness.lean](../Cadence/Fairness.lean)'s `Enabled`, which a
   stuttering transition satisfies, and the assembly actions are idempotent
   in their quorum parameter — so once `msg_prepqc v e` holds, every
   `form_prepqc v e q'` stays enabled forever and weak fairness demands each
@@ -187,41 +187,38 @@ come first.
   and the premise set is unsatisfiable. A witness at finite sorts is
   unaffected; the general fix is TLA+'s `⟨A⟩_v` — fairness of
   *state-changing* steps (`Cadence.EnabledMove` in
-  [`Cadence/Timed.lean`](../Cadence/Timed.lean)) — and belongs to the
-  Chorus leg, which owns `Fairness.lean`.
+  [Cadence/Timed.lean](../Cadence/Timed.lean)) — and belongs to the
+  Chorus leg, which owns [Fairness.lean](../Cadence/Fairness.lean).
 
 * Full liveness-to-safety, so that the (F-justice)/(F-byz)/(A-mvba)
   meta-axioms become premises of a Lean theorem rather than named
   assumptions. This is the single largest reduction of
-  [`Architecture.md`](./Architecture.md) §4 available.
+  [Architecture.md](Architecture.md) §4 available.
 * Actions are annotated with their fairness class in prose only; Veil has no
   surface syntax for it. The fork's liveness design doc sketches what that
-  syntax should be ([`Liveness.md`](./Liveness.md) §3 points to it).
+  syntax should be ([Liveness.md](Liveness.md) §3 points to it).
 * Reachability-directed trace generation, so that non-vacuity witnesses for
   the *progress* invariants can be produced mechanically rather than written
   by hand.
 * The paper's Δ-bounds (`ℓ = 5Δ + ℓ_MVBA`, `d_tot = Δ`, …): the models
   are untimed, and the one latency bound proven is the MVBA's `ℓ_MVBA`
-  ([`Architecture.md`](./Architecture.md) §4 item 4). The routes to
+  ([Architecture.md](Architecture.md) §4 item 4). The routes to
   changing that and the recorded Veil tooling constraints are
-  [`Bounds.md`](./Bounds.md); the preferred route — a plain-Lean
+  [Bounds.md](Bounds.md); the preferred route — a plain-Lean
   schedule theorem over timed runs of the generated transition system,
   no model change — has a **worked, staged plan ready to pick up** in
-  [`Bounds.md`](./Bounds.md) §6 (Chorus leg ≈ 2–4 sessions; ranked
+  [Bounds.md](Bounds.md) §6 (Chorus leg ≈ 2–4 sessions; ranked
   behind primitive instantiation and the (M-frame) checker, ahead of
-  L2S on near-term value-per-effort). **The MVBA leg has started**
-  (2026-09-16): its timing model is workshopped and stated
-  ([`Bounds.md`](./Bounds.md) §6.2,
-  [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)), and
-  **the MVBA leg is complete** (2026-09-28). The good-view lemma
-  ([`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)), the bounded
+  L2S on near-term value-per-effort). **The MVBA leg is complete**: its
+  timing model is [Bounds.md](Bounds.md) §6.2 and
+  [Cadence/Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean), and the good-view lemma
+  ([Cadence/Mvba/Bound.lean](../Cadence/Mvba/Bound.lean)), the bounded
   claim (`Mvba.bounded_termination`,
-  [`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)),
+  [Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)),
   (A-viewsync) as a corollary (`Mvba.aViewSync_of_sync`) and the
   `MVBATemporal` instance (`Mvba.mvbaTemporal`,
-  [`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)) are proven,
-  at the fragment the composed system runs (the 2026-09-29 `TimedRun`
-  revision removed the seam). Still open on this leg: a machine-checked
+  [Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) are proven,
+  at the fragment the composed system runs. Still open on this leg: a machine-checked
   admissible run in which everyone proposes, the non-vacuity witness below.
 
 ## Model hygiene
@@ -233,40 +230,6 @@ come first.
   superseded version reads as current to anyone who does not already know
   the history, which is the most expensive kind of documentation error here.
 * Format the sources consistently against the Lean 4 style guide.
-* **Move the per-declaration commentary into module docstrings.** About
-  1 750 lines of explanation — roughly a fifth of the Lean prose, and
-  concentrated in the per-action and per-relation commentary of the model
-  files — sit in plain `/- … -/` block comments and `--` line comments rather
-  than in docstrings. The reason is the hard rule that a `/-- … -/`
-  *declaration* docstring before a Veil `safety`/`invariant`/`action` breaks
-  the parser (`CLAUDE.md`).
-
-  A `/-! … -/` *module* docstring does not: it is a standalone command, and
-  it has been checked to parse immediately before a Veil `action` and an
-  `invariant` with every verification condition still discharging.
-
-  What this is now worth is smaller than it was, and worth stating plainly.
-  The site renders the sources in order, so those comments are **shown** —
-  as comments, inside the code, which is where the renderer can put text it
-  is not told is prose ([Documentation.md](./Documentation.md)). Converting
-  them would promote the commentary to rendered prose: Markdown, searchable,
-  and set beside the declaration rather than inside the listing. That is a
-  presentation gain, not a visibility one.
-
-  The conversion is mechanical, file by file, and changes no VC statement —
-  it adds commands rather than touching any declaration, so a rebuild is a
-  cache replay rather than a re-solve. **Do it when no other pull request is
-  outstanding:** it touches every model file, so it conflicts with anything
-  else in flight, and that is the only real cost.
-
-  Two things have since moved. The site now renders the inline markup of
-  plain comments in place ([VersoIssues.md](./VersoIssues.md) §6), so an
-  unconverted comment no longer shows raw backticks. And the Veil fork's
-  `port/doc-comments` branch lets a doc comment precede any Veil
-  declaration, as the docstring of the constant it generates — so once the
-  pin includes it, the conversion target is a *declaration* doc comment on
-  each `action`/`invariant`/`relation`, not a module docstring beside it,
-  and the hard rule in `CLAUDE.md` is retired in the same change.
 
 ## Model structure — refactors explored and deferred
 
@@ -277,9 +240,9 @@ analogous candidates were *not* applied:
 
 | Candidate | Status | Reason |
 |---|---|---|
-| `cast_commit` = `commit_sign_pos` + `commit_sign_neg` + `cast_fast_commit` | Deferred | A/B `#check_vc cast_commit agreement_pos` ran in 1420 s wall / 245 s user CPU. Most likely the wall-time blowup was discharger-scheduler contention rather than genuine SMT cost (245 s of CPU against 1 420 s of wall). With the two new `commit_pos_sig_unique` / `commit_pos_sig_neg_excl` lemmas now stated explicitly, a re-test via `#check_action cast_commit` (bundles VCs under one awaiter — less contention surface) is the right next experiment. If that's clean, integrate. |
+| `cast_commit` = `commit_sign_pos` + `commit_sign_neg` + `cast_fast_commit` | Deferred | A/B `#check_vc cast_commit agreement_pos` ran in 1420 s wall / 245 s user CPU. Most likely the wall-time blowup was discharger-scheduler contention rather than genuine SMT cost (245 s of CPU against 1 420 s of wall). With the `commit_pos_sig_unique` / `commit_pos_sig_neg_excl` invariants stated explicitly, a re-test via `#check_action cast_commit` (bundles VCs under one awaiter — less contention surface) is the right next experiment. If that's clean, integrate. |
 | `fb_vote` = `fb_sign_pos` + `fb_sign_neg` + `cast_fallback_vote` | Not attempted | Bulk update body is more complex than vote/cast_commit because each per-proposer fb-sign decision depends on an *existential* quorum witness (`∃ q : nodeset, …`). Plausibly tractable as an atomic action but the quantifier shape is genuinely different. Worth its own A/B. |
-| `commit` = `commit_assign_pos` + `commit_assign_neg` + `finalize_commit` | Not attempted | Same shape as `cast_commit`; touches `agreement_pos` directly. If the `cast_commit` re-test goes well after the lemma additions, this is the natural next candidate. |
+| `commit` = `commit_assign_pos` + `commit_assign_neg` + `finalize_commit` | Not attempted | Same shape as `cast_commit`; touches `agreement_pos` directly. If the `cast_commit` re-test goes well, this is the natural next candidate. |
 | `mvba` = `on_mvba_decide_pos` + `on_mvba_decide_neg` + `mvba_terminate` | Deliberately *not* wanted | The decision handlers transport a correct validator's decision off the abstract MVBA state entry by entry, which keeps every update a monotone `:= true` and lets `#gen_proof_files` map proof files one for one. A bulk transport of the whole vector would be one action with a `∀ J`-quantified update over the two projections: possible, but it trades the monotone-update shape for one fewer action. |
 
 The pattern for each is the same as `vote`/`cast_commit`: replace the
@@ -290,11 +253,11 @@ hypotheses instead of multi-step chains.
 
 ### Measuring a candidate
 
-Read the A/B numbers above with care: they were taken when every `#check_vc`
-build still paid the module's full DSL elaboration, and concurrent check
-commands contended for one discharger scheduler, so fixed cost dominates them.
+Read the A/B numbers above with care: each `#check_vc` in them paid the
+module's full DSL elaboration, and concurrent check commands contended for
+one discharger scheduler, so fixed cost dominates them.
 
-The recipe now is to put `#prove_vc Chorus <action> <property> by …` cells in
+The recipe is to put `#prove_vc Chorus <action> <property> by …` cells in
 a scratch file importing `Cadence.Chorus` — seconds per cell, since the model
 elaborates once and the proof cache makes a statement-unchanged rebuild a
 kernel replay. Prefer bundled measurement (`#check_action <action>`, many
@@ -320,32 +283,32 @@ action behaves in a full build.
 
 * **Multi-slot Chorus.** The model fixes a single slot; cross-slot
   independence is argued, not modelled. The `slot` type is retained as a
-  placeholder. `ChorusDesign.md` §3.4 and §9.
+  placeholder. [ChorusDesign.md](ChorusDesign.md) §3.4 and §9.
 * **Epochs and proposer rotation**, and deriving `is_proposer` from a VRF
-  rather than taking it as immutable configuration. `ChorusDesign.md` §9
+  rather than taking it as immutable configuration. [ChorusDesign.md](ChorusDesign.md) §9
   item 2.
 * **Monitor coverage** — positive-path emission, per-message emission at the
   network boundary, multi-slot (Conductor) traces, Byzantine
-  validate-vs-admit tagging. [`Monitor.md`](./Monitor.md) §8.
+  validate-vs-admit tagging. [Monitor.md](Monitor.md) §8.
 
 ## Paper alignment
 
 The verified surface is unchanged and mechanically re-checkable; the paper's
 *implementation* track has moved a long way from it. Both, with the audit
-that established them, are [`PaperAlignment.md`](./PaperAlignment.md). Three
+that established them, are [PaperAlignment.md](PaperAlignment.md). Three
 items fall out of the 2026-09-03 audit, all documentary except the first:
 
 * **Re-check the `EquivCert` build guard** once the paper side settles
   whether witness chunks are intended to supersede `line:fb-build-equiv`.
-  `FallbackReceipt.lean`'s `equiv_available` mirrors the published guard; if
+  [FallbackReceipt.lean](../Cadence/FallbackReceipt.lean)'s `equiv_available` mirrors the published guard; if
   the supplement's rule wins, the branch reassignment and the totality
   counting argument both need re-reading.
-  [`PaperAlignment.md`](./PaperAlignment.md) §3.
+  [PaperAlignment.md](PaperAlignment.md) §3.
 * Cite `sec:domain-separation` where the network relations rely on
   message-type non-confusability — the paper now names an assumption the
   model has always made structurally (one relation per message type).
-  Candidate homes: [`ChorusDesign.md`](./ChorusDesign.md) §3.5's relation
-  table and [`Architecture.md`](./Architecture.md) §4 item 3.
+  Candidate homes: [ChorusDesign.md](ChorusDesign.md) §3.5's relation
+  table and [Architecture.md](Architecture.md) §4 item 3.
 * Record ChunkSync and `Δ_sync` alongside the (F-justice) justification for
   `redisseminate_chunk`: the implementation dropped
   `line:fb-redisseminate`, so the paper-side discharge of that fairness
@@ -355,11 +318,11 @@ items fall out of the 2026-09-03 audit, all documentary except the first:
 ## Verification-pipeline work
 
 The tooling this project depends on is the public Veil fork (see
-[`Dependencies.md`](./Dependencies.md)); anything to be improved about it
+[Dependencies.md](Dependencies.md)); anything to be improved about it
 belongs in that repository, and the requests this project has made are
 tracked there. The one measurement worth carrying forward here is recorded in
-[`Architecture.md`](./Architecture.md) §7. What landed and when is
-[`History.md`](./History.md).
+[Architecture.md](Architecture.md) §7. What landed and when is
+[History.md](History.md).
 
 Two items remain open on this side:
 
@@ -367,7 +330,7 @@ Two items remain open on this side:
   already supply the positive-position half of the contract as kernel-checked
   facts; what is missing is the classifier over action syntax.
 * **One proof file opts out of the Bool-atom fold.**
-  `Cadence/Chorus/Proofs/Vote.lean` sets `veil.smt.foldBoolAtoms false`
+  [Cadence/Chorus/Proofs/Vote.lean](../Cadence/Chorus/Proofs/Vote.lean) sets `veil.smt.foldBoolAtoms false`
   because its `fastqc_complete_implies_mvba_evidence` cell diverges under the
   folded query shape. That costs about 28 s of every warm re-validation (its
   batch runs 42 s against 13–15 s for the others) and leaves one ~30 MB

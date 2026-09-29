@@ -6,14 +6,14 @@ type. Reflecting on the inductive at elaboration time keeps the published
 alphabet — and the generated Rust emitter stub — in lock-step with the model:
 they cannot drift, because there is no hand-maintained copy.
 
-Produces two string defs consumed by the monitor CLI (`Monitor/ChorusMonitor.lean`):
+Produces two string defs consumed by the monitor CLI ([ChorusMonitor.lean](ChorusMonitor.lean)):
 * `chorusAlphabetJson` — a language-neutral description of the alphabet
   (`--alphabet`);
 * `chorusRustStub`     — a Rust trait skeleton an emitter author implements
   (`--rust-emitter-stub`).
 
 Instance encoded here: n = 3f+1 = 4, f = 1, roots = 2, slots = 1 (matches
-`Monitor/ChorusMonitor.lean`). The argument sorts are `node`, `merkle_root`,
+[ChorusMonitor.lean](ChorusMonitor.lean)). The argument sorts are `node`, `merkle_root`,
 `nodeset` — small bounded non-negative integers / sets of them — and, since
 Chorus consumes the MVBA as a class constraint, the MVBA's
 `mvalue` (the entry vector: four entries, each a root index or null) and
@@ -57,8 +57,8 @@ def reflectActions (labelName : Name) : MetaM (Array (String × Array String)) :
 private def q (s : String) : String := "\"" ++ s ++ "\""
 
 /-- Actions the emitter does NOT emit — the monitor inserts them (Stage B). Kept
-    in step with `internalCandidates` in `Monitor/ChorusMonitor.lean`. The
-    MVBA's oracle step is silent (`docs/Monitor.md` §8). -/
+    in step with `internalCandidates` in [ChorusMonitor.lean](ChorusMonitor.lean). The
+    MVBA's oracle step is silent ([Monitor.md](../../docs/Monitor.md) §8). -/
 def internalActionNames : List String :=
   ["commit_sign_pos", "commit_sign_neg", "commit_assign_pos", "commit_assign_neg", "mvba_step"]
 

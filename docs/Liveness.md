@@ -2,8 +2,8 @@
 
 *The audit summary for the liveness claim. The model-level narrative — how
 the theorems and assumptions compose against Chorus's actions and
-invariants — is [`ChorusDesign.md`](./ChorusDesign.md) §7; the assumption
-inventory is [`Architecture.md`](./Architecture.md) §4 items 2 and 4.*
+invariants — is [ChorusDesign.md](ChorusDesign.md) §7; the assumption
+inventory is [Architecture.md](Architecture.md) §4 items 2 and 4.*
 
 ## 1. The shape of the claim
 
@@ -14,13 +14,13 @@ over reachable states, for every `n = 3f+1`:
 
 | Theorem | Says |
 |---|---|
-| `progress_dichotomy_of_saturation` ([`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean)) | in any reachable state where every honest validator has cast its path vote, commitQCs exist for every proposer from honest votes alone, **or** the MVBA is invoked with per-proposer evidence in exactly the certificate form of the decision handlers' bridge and of `mvba_propose`'s validity guards |
-| `evidence_pigeonhole_of_reachable` ([`Cadence/Chorus/Pigeonhole.lean`](../Cadence/Chorus/Pigeonhole.lean)) | `2f+1` honest per-proposer fallback entries always yield a FallbackQC or an EquivCert |
-| `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([`Cadence/Chorus/Counting.lean`](../Cadence/Chorus/Counting.lean)) | certificate formation: the honest population is itself the quorum; a supermajority of honest fast commit votes is a per-proposer commitQC |
+| `progress_dichotomy_of_saturation` ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)) | in any reachable state where every honest validator has cast its path vote, commitQCs exist for every proposer from honest votes alone, **or** the MVBA is invoked with per-proposer evidence in exactly the certificate form of the decision handlers' bridge and of `mvba_propose`'s validity guards |
+| `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)) | `2f+1` honest per-proposer fallback entries always yield a FallbackQC or an EquivCert |
+| `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)) | certificate formation: the honest population is itself the quorum; a supermajority of honest fast commit votes is a per-proposer commitQC |
 | `build_totality_of_reachable` (same file) | **any** supermajority of accepted receipts, Byzantine members included, yields a buildable fallback meta-block entry per proposer — "every correct validator can propose", at the state level |
 
 plus the fair-progress and enabledness invariants of the sweep (the
-"Liveness" section of [`Cadence/Chorus.lean`](../Cadence/Chorus.lean)).
+"Liveness" section of [Cadence/Chorus.lean](../Cadence/Chorus.lean)).
 
 **Every temporal step is an instance of one rule** — *a continuously
 enabled fair action eventually fires* — applied at named seams:
@@ -42,15 +42,15 @@ outside Lean.
   its honest actions are guarded by the current view and eleven can be
   disabled outright; what replaces the argument there, and why the answer
   is still weak fairness but for a different reason, is
-  [`MvbaPlan.md`](./MvbaPlan.md) §3.1 and §3.2, with the disabling facts
-  proven in [`Cadence/Mvba/Progress.lean`](../Cadence/Mvba/Progress.lean)
+  [MvbaPlan.md](MvbaPlan.md) §3.1 and §3.2, with the disabling facts
+  proven in [Cadence/Mvba/Progress.lean](../Cadence/Mvba/Progress.lean)
   and the measure they are progress in — a lexicographic rank that no
   transition can raise — in
-  [`Cadence/Mvba/Rank.lean`](../Cadence/Mvba/Rank.lean). **`Mvba`'s
-  bound-erased termination is now proven** from named premises:
+  [Cadence/Mvba/Rank.lean](../Cadence/Mvba/Rank.lean). **`Mvba`'s
+  bound-erased termination is proven** from named premises:
   `Mvba.termination` in
-  [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean), over the
-  run vocabulary of [`Cadence/Fairness.lean`](../Cadence/Fairness.lean). It
+  [Cadence/Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean), over the
+  run vocabulary of [Cadence/Fairness.lean](../Cadence/Fairness.lean). It
   is the first liveness result in this development that is a *theorem*
   rather than a state-level fragment with the temporal step left to a named
   axiom — the scheduling assumptions are hypotheses of the statement, which
@@ -70,12 +70,12 @@ outside Lean.
   MVBA's dependence on that layer behind "the scheduler is fair".
   Why (A-viewsync) has the shape it does, why the marker cannot be weakly
   fair, and why a GST marker alone would not change either, are
-  [`MvbaPlan.md`](./MvbaPlan.md) §3.7. Those two clauses are the untimed skeleton of the
+  [MvbaPlan.md](MvbaPlan.md) §3.7. Those two clauses are the untimed skeleton of the
   supplement's timeout discipline, and they are the *whole* of what
   `Mvba.termination` assumes about timing —
-  [`MvbaPlan.md`](./MvbaPlan.md) §3.2's correction, with the classification
+  [MvbaPlan.md](MvbaPlan.md) §3.2's correction, with the classification
   machine-checked in
-  [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean).
+  [Cadence/Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean).
 * **(F-byz)** — Byzantine actions (the `byz_*` family) are unfair:
   progress never relies on adversarial help, which makes the discharged
   content strictly stronger than deadlock freedom.
@@ -88,7 +88,7 @@ outside Lean.
   makes broadcast signatures globally visible, so delivery surfaces only
   as fairness on the observation actions (`record_chunk`,
   `redisseminate_chunk`, `aggregate_fastqc_*`); the network abstraction's
-  own soundness contract is [`Architecture.md`](./Architecture.md) §4
+  own soundness contract is [Architecture.md](Architecture.md) §4
   item 1.
 
 The well-founded ranking that makes the chain terminate is structural:
@@ -97,7 +97,7 @@ firing strictly shrinks the residual of unset tuples. It rests on the same
 monotonicity audit as the network contract. Finiteness is what makes it
 work, so this ranking is also Chorus-specific: `Mvba`'s view type is
 unbounded and needs the different, lexicographic ranking of
-[`MvbaPlan.md`](./MvbaPlan.md) §3.3.
+[MvbaPlan.md](MvbaPlan.md) §3.3.
 
 ### 2.1 Why `Mvba` assumes more than `Chorus`, and where that ends
 
@@ -117,7 +117,7 @@ forever. Without the second, every view can be cut short. With them,
 bound is set aside, not the synchrony. The supplement's own assumptions,
 delivery within `Δ` after GST and a timeout above the chain's latency,
 imply both constraints (`Mvba.aViewSync_of_sync`), and they also give the
-bound itself (`Mvba.mvbaTemporal`, [`Bounds.md`](./Bounds.md) §6.2).
+bound itself (`Mvba.mvbaTemporal`, [Bounds.md](Bounds.md) §6.2).
 
 `Chorus`'s liveness rests on fairness plus the sub-protocol's own
 termination, and nothing that names a view or a deadline. `Mvba`'s rests on
@@ -125,9 +125,9 @@ those plus (A-viewsync). The difference looks like a weakness of the MVBA
 proof and is not: it is the whole stack's one unavoidable assumption becoming
 visible at the layer that has to carry it.
 
-**The two models use the same timing device.** `Chorus.lean` has an abstract
+**The two models use the same timing device.** [Chorus.lean](../Cadence/Chorus.lean) has an abstract
 `Phase` — `pre_deadline → post_deadline → post_fb_arm → post_mvba_arm`,
-advanced by three non-deterministic actions — and `Mvba.lean` has
+advanced by three non-deterministic actions — and [Mvba.lean](../Cadence/Mvba.lean) has
 `timer_expired`, the same device with one tick instead of three. Both replace
 wall-clock time by a monotone marker, and both gate real actions on it
 (`record_chunk` needs `pre_deadline`; the two `timeout_*` need
@@ -164,42 +164,31 @@ run-level premise, and it buys *proposal inclusion* rather than termination,
 which is why it does not appear in a fairness list. The accounting differs;
 the assumption is of the same kind.
 
-**Where it ends.** What this work does to the stack's trust base is replace
-an unconditional consensus-termination assumption by a synchroniser interface
-plus a proof: (A-mvba) says "the MVBA terminates", `Mvba.termination` says
-"it terminates given (A-viewsync), (F-justice), (F-avail) and the callers'
-two premises", and half of (A-viewsync) — the entry — is itself derived.
-The replacement is not yet formal: `Mvba.termination` is the **bound-erased
-shadow** of `MVBATemporal.termination`, not that field, which is stated over
-timed runs with `gst` and `ℓ`. Connecting them is the bounded phase, and the
-untimed theorem is already in the right shape for it — every premise is a
-predicate on a run, so a timed layer discharges them as ordinary Lean
-theorems without touching the model, which is the pattern
-[`Bounds.md`](./Bounds.md) §6 sets out for Chorus. In that phase (A-viewsync)
-stops being an assumption: with a clock, bounded post-GST delivery gives the
-decision chain a finite latency, a view whose budget exceeds it is reached
-within a bounded number of views, and both of its clauses become theorems.
-[`MvbaPlan.md`](./MvbaPlan.md) §3.7 has the detail, including why no
-intermediate step — a GST marker without a clock, say — gets there earlier.
-The phase is under way: its premises are workshopped and stated —
-[`Bounds.md`](./Bounds.md) §6.2, [`Cadence/Mvba/Schedule.lean`](../Cadence/Mvba/Schedule.lean)
-— with the derivation of (A-viewsync) as the named target `AViewSyncClaim`.
-Both protocol lemmas are proven: a correct-led view whose
-budget exceeds the chain's latency decides within it
-(`Mvba.good_view_decides`, [`Cadence/Mvba/Bound.lean`](../Cadence/Mvba/Bound.lean)),
-and any other view is left within a fixed cost (`Mvba.synced_succ`). The
-bounded claim follows from them: `BoundedTerminationClaim` is
-`Mvba.bounded_termination`
-([`Cadence/Mvba/BoundedTermination.lean`](../Cadence/Mvba/BoundedTermination.lean)).
-The phase is complete for the MVBA (2026-09-28). (A-viewsync) is a theorem
-of the timing model for finitely many validators (`Mvba.aViewSync_of_sync`,
-which proves `AViewSyncClaim` from `Mvba.termination`'s own caller
-premises). The `MVBATemporal` instance is `Mvba.mvbaTemporal`
-([`Cadence/Mvba/Temporal.lean`](../Cadence/Mvba/Temporal.lean)), at the
-fragment the composed system runs, and the full contract is
-`Mvba.mvbaFull`. The derivation of (A-viewsync) needs only that *some*
-commit certificate eventually exists ([`Bounds.md`](./Bounds.md) §6.2.8,
-the step-4 reassessment).
+**Where it ends.** The stack's trust base replaces an unconditional
+consensus-termination assumption by a synchroniser interface plus a proof:
+(A-mvba) says "the MVBA terminates", and `Mvba.termination` says "it
+terminates given (A-viewsync), (F-justice), (F-avail) and the callers' two
+premises". With a clock, (A-viewsync) stops being an assumption. Over timed
+runs of the same untimed model — no model change — the timing model of
+[Cadence/Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean)
+([Bounds.md](Bounds.md) §6.2) gives:
+
+* the bound itself: `Mvba.bounded_termination`
+  ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)),
+  from the two protocol lemmas `Mvba.good_view_decides` (a correct-led view
+  whose budget exceeds the chain's latency decides within it,
+  [Cadence/Mvba/Bound.lean](../Cadence/Mvba/Bound.lean)) and
+  `Mvba.synced_succ` (any other view is left within a fixed cost);
+* (A-viewsync) as a theorem, for finitely many validators:
+  `Mvba.aViewSync_of_sync`, from `Mvba.termination`'s own caller premises.
+  Its derivation needs only that *some* commit certificate eventually
+  exists ([Bounds.md](Bounds.md) §6.2.8, the step-4 reassessment);
+* the contract: the `MVBATemporal` instance `Mvba.mvbaTemporal`
+  ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), at the
+  fragment the composed system runs, and the full contract `Mvba.mvbaFull`.
+
+[MvbaPlan.md](MvbaPlan.md) §3.7 explains why no intermediate step — a GST
+marker without a clock, say — gets there without the clock.
 
 ## 3. What would close the rest
 
@@ -208,38 +197,43 @@ rule "continuously enabled ⇒ eventually fires" is not expressible today.
 The designed extension — fairness classes on actions,
 ω-acceptance/response properties, discharged by the POPL'18
 **liveness-to-safety** reduction on the existing safety-VC pipeline — is
-Veil work and lives in the fork: **`docs/Liveness.md` on the
-`lars/liveness` branch of `larskuhtz/veil`**. With it, (F-justice) becomes
+Veil work and lives in the fork:
+**[docs/Liveness.md](https://github.com/larskuhtz/veil/blob/lars/liveness/docs/Liveness.md)
+on the `lars/liveness` branch of `larskuhtz/veil`**. With it, (F-justice) becomes
 the premise of a Lean theorem and the deterministic liveness properties
 ("honest fast-path commit eventually", "slot eventually decides") become
-provable in-system. (A-mvba)'s probability-1 core, and real-time bounds
-(GST, latency — the models are untimed), stay out of scope regardless.
+provable in-system. (A-mvba)'s probability-1 core stays out of scope
+regardless, and so do real-time bounds (GST, latency) other than the MVBA's,
+which is proven over timed runs outside the Veil models (§2.1).
 
 The paper's concrete Δ-bounds are a separate, *incomparable* layer — they
 assume strong partial synchrony, where the model's claims above need only
 eventual delivery. How the two relate, and the routes by which bounds
-could be brought into the model, is [`Bounds.md`](./Bounds.md).
+could be brought into the model, is [Bounds.md](Bounds.md).
 
 ## 4. The next leg: Chorus at run level
 
 `Mvba.termination` is the pattern working at one layer. Applying it to
 Chorus is what retires **(A-mvba)** — and with it the last of the
 `(F-justice)`/`(F-byz)`/`(A-mvba)` meta-axioms — which
-[`TODO.md`](./TODO.md) calls the single largest reduction of
-[`Architecture.md`](./Architecture.md) §4 available. This section is the
-kick-off record so a fresh session does not re-derive the design.
+[TODO.md](TODO.md) calls the single largest reduction of
+[Architecture.md](Architecture.md) §4 available. This section is that
+leg's working record — its design, the record of each finished stage, and
+the kick-off of the current one — so a fresh session does not re-derive the
+design. §1–§3 above state what is proven; nothing here adds to it until the
+assembly (step 5) lands.
 
 **Target.** A run-level theorem in the shape of `Mvba.termination`: every
 correct validator eventually finalizes every slot, from named premises, each
 a predicate on a run, with `Mvba.termination` consumed exactly where
-(A-mvba) sits today. Same discipline as `Mvba/Liveness.lean`: the premises
+(A-mvba) sits today. Same discipline as [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean): the premises
 are written down as named `Prop`s **before** the proof exists, so none can
 become a hypothesis because a proof needed it.
 
-**What is already there.** [`Cadence/Fairness.lean`](../Cadence/Fairness.lean)
+**What is already there.** [Cadence/Fairness.lean](../Cadence/Fairness.lean)
 is generic over any `RelationalTransitionSystem`, so `LRun`, `WeaklyFair`,
 `eventually_forall` and the rest apply to Chorus unchanged. Chorus's
-fair-progress content is proven at state level (`Chorus.lean`'s liveness
+fair-progress content is proven at state level ([Chorus.lean](../Cadence/Chorus.lean)'s liveness
 section), and the two hardest counting steps are already plain-Lean
 theorems: `progress_dichotomy_of_saturation` and
 `build_totality_of_reachable`. Chorus's phase markers are weakly fair, so
@@ -250,7 +244,7 @@ unlike the MVBA there is no timing premise to invent — §2.1 says why.
 which takes any transition the contract allows and is deliberately **outside**
 (F-justice) — its scheduling is the instance's own admissible-execution
 model. So consuming `Mvba.termination` needs a **projection**: from an
-`LRun` of the composed system (`System.lean`, where the abstract state is
+`LRun` of the composed system ([System.lean](../Cadence/System.lean), where the abstract state is
 `Mvba.State`) to an `MvbaRun`, keeping only the steps at which the MVBA
 state moved, and a proof that weak fairness survives the re-indexing — a
 label continuously enabled in the projection was continuously enabled in the
@@ -258,67 +252,69 @@ composed run. The premise that replaces (A-mvba) is then "the composed run's
 MVBA projection satisfies `Mvba.termination`'s premises", which is the
 untimed analogue of `MVBATemporal.Admissible`. It must be built that way and
 **not** by weakening a class field: that rule is in
-[`../CLAUDE.md`](../CLAUDE.md) and it is what makes the absence of a
+[../CLAUDE.md](../CLAUDE.md) and it is what makes the absence of a
 `…Temporal` instance mean something.
 
 **Staging** (reassess after step 1, which is the risky one):
 
-1. ~~The projection and the fairness transfer, generic, in `Fairness.lean`.~~
+1. ~~The projection and the fairness transfer, generic, in [Fairness.lean](../Cadence/Fairness.lean).~~
    **Done, 2026-09-16** — §4.2 is the record and the reassessment.
 2. ~~Chorus's label classes and premises — one named `Prop` each, mirroring
-   `Mvba/Liveness.lean`'s four-class discipline and its `label_classified`;
+   [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s four-class discipline and its `label_classified`;
    and the `Component` instance for Chorus at the `Mvba` instantiation.~~
-   **Done, 2026-09-16** — [`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean);
+   **Done, 2026-09-16** — [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean);
    §4.3 is the record, including the one premise the sketch above did not
    foresee.
 3. ~~The fast-path chain to a commit certificate — §4.4 is the kick-off
    record: what to prove, from which facts, and the traps already known.~~
-   **Done, 2026-09-28** — [`Cadence/Chorus/Termination.lean`](../Cadence/Chorus/Termination.lean);
+   **Done, 2026-09-28** — [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean);
    §4.5 is the record, including four corrections to §4.4.
 4. The fallback and MVBA arms, the second consuming `Mvba.termination`
    through the projection — §4.6 is the kick-off record, including two
    findings that must be settled first.
-5. The assembly, the `Cadence.lean` row and pin, and retiring (A-mvba) from
-   `Architecture.md` §4.
+5. The assembly, the [Cadence.lean](../Cadence.lean) row and pin, and retiring (A-mvba) from
+   [Architecture.md](Architecture.md) §4.
 
 **Cost warning.** If the argument needs new Chorus invariants, that is a
-4 222-cell family re-solve, not the MVBA's 1 325. Budget it before touching
-`Chorus.lean`, even for a comment.
+re-solve of the Chorus family, several times the MVBA's (the
+`#veil_status` pins in [Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)
+and [Mvba/Certify.lean](../Cadence/Mvba/Certify.lean) have the cell counts).
+Budget it before touching [Chorus.lean](../Cadence/Chorus.lean), even for a comment.
 
 ### 4.1 Running this leg and the bounds leg in parallel
 
-This leg and [`Bounds.md`](./Bounds.md) §6.1 are **independent**: neither
+This leg and [Bounds.md](Bounds.md) §6.1 are **independent**: neither
 needs the other's result, and the MVBA bounds leg discharges
 (A-viewsync) while this one consumes `Mvba.termination` as it already
-stands. **The MVBA bounds leg is complete** (2026-09-28, [`Bounds.md`](./Bounds.md)
+stands. **The MVBA bounds leg is complete** (2026-09-28, [Bounds.md](Bounds.md)
 §6.2.8). The rules below held throughout, with one prose exception: step 4
-updated the docstring of `Terminates` in `Mvba/Liveness.lean`, which had said
+updated the docstring of `Terminates` in [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean), which had said
 the timed form had no instance. No statement changed. The seam proposal of
-[`Bounds.md`](./Bounds.md) §6.2.1 was decided and carried out before stage
+[Bounds.md](Bounds.md) §6.2.1 was decided and carried out before stage
 4, together with the finiteness convention (`Mvba.termination` takes
 `[Fintype node]`) and the fixes §4.6 asks for first; §4.6's update says what
 changed for this leg.
 Rules that keep them from colliding:
 
-* **Neither leg edits [`Cadence/Interfaces.lean`](../Cadence/Interfaces.lean).**
+* **Neither leg edits [Cadence/Interfaces.lean](../Cadence/Interfaces.lean).**
   The bounds leg *instantiates* `MVBATemporal`, it does not change it; this
   leg needs no class change. An edit there re-solves the Chorus family and
   forces the other leg to rebase, so it is a decision to take jointly.
-* **[`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean) is
+* **[Cadence/Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) is
   read-only for both.** Both consume `Mvba.termination`; neither should need
   to restate or reshape it.
-* **This leg owns `Fairness.lean` and everything under `Cadence/Chorus`**;
+* **This leg owns [Fairness.lean](../Cadence/Fairness.lean) and everything under `Cadence/Chorus`**;
   the bounds leg owns its own new files and puts *timed* run vocabulary in
-  one of them rather than in `Fairness.lean`.
+  one of them rather than in [Fairness.lean](../Cadence/Fairness.lean).
 * **The projection is shared conceptual territory** — the bounds leg needs
   the same relation between a composed run and an MVBA run, in its timed
   form. This leg owns the definition — it is `Cadence.Component` and
-  `Component.Projection` in [`Cadence/Fairness.lean`](../Cadence/Fairness.lean)
+  `Component.Projection` in [Cadence/Fairness.lean](../Cadence/Fairness.lean)
   since 2026-09-16 (§4.2) — and the bounds leg should refine it rather than
   invent a second one: a timed projection is a `Projection` whose composed
   run carries a clock, and the index map `Component.idx`/`Component.cover`
   is what relates the two clocks.
-* Both will append rows and pins to `Cadence.lean` and paragraphs to these
+* Both will append rows and pins to [Cadence.lean](../Cadence.lean) and paragraphs to these
   docs. Expect small textual conflicts there and nothing worse.
 * **One expensive build at a time.** That constraint does not parallelise:
   the machine runs one family re-solve at a time, and this leg's are the
@@ -328,7 +324,7 @@ Rules that keep them from colliding:
 ### 4.2 Stage 1, done: the projection, and what it settled
 
 *Record of 2026-09-16. The code is the "Components" half of
-[`Cadence/Fairness.lean`](../Cadence/Fairness.lean); every declaration named
+[Cadence/Fairness.lean](../Cadence/Fairness.lean); every declaration named
 below is there, and the file's own docstrings carry the reasoning at the
 point of use.*
 
@@ -369,7 +365,7 @@ each of its steps, indexed through Mathlib's `Nat.nth`. Then:
   of a premise of the form "there is a projection satisfying …" is what is
   asked of the projection, never its existence.
 
-Every pin is at the standard trio; `Fairness.lean`'s trust-base section
+Every pin is at the standard trio; [Fairness.lean](../Cadence/Fairness.lean)'s trust-base section
 lists them.
 
 **Two design decisions the stage forced, and why they went the way they did.**
@@ -384,7 +380,7 @@ lists them.
    "∃ `p : C.Projection r`, `Mvba.FJustice p.run ∧ Mvba.AViewSync p.run ∧
    Mvba.FAvail p.run`" — literally "the composed run's MVBA projection
    satisfies `Mvba.termination`'s scheduling premises", stated with
-   `Mvba/Liveness.lean`'s own definitions and restating none of them. This
+   [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s own definitions and restating none of them. This
    is the honest form: the composed model erased the labels, so an assumption
    about how the MVBA was scheduled has to put them back. The alternative —
    stating the MVBA fairness on the composed run in terms of `mvba.step`
@@ -438,22 +434,22 @@ three sources and one hand proof:
 
 So the shape is right and stage 2 is bounded work: the instance file, the
 label classes, and the premises (§4.3 — done the same day, and the scratch
-instance graduated into it). Nothing in this stage touches `Chorus.lean`,
-`Interfaces.lean` or `Mvba/Liveness.lean`, and the 4 222-cell family is
+instance graduated into it). Nothing in this stage touches [Chorus.lean](../Cadence/Chorus.lean),
+[Interfaces.lean](../Cadence/Interfaces.lean) or [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean), and the Chorus family is
 untouched.
 
 **What to watch in stages 3–5.** The `Scheduled` field makes the final
 theorem silent about runs in which the MVBA is stepped finitely often. That
 is correct (it excludes unfair schedulers, as every fairness premise does),
 but it is a premise the paper does not spell out, so it must appear by name
-in `Architecture.md` §4 when (A-mvba) is retired, not be absorbed into
+in [Architecture.md](Architecture.md) §4 when (A-mvba) is retired, not be absorbed into
 "(F-justice)".
 
 ### 4.3 Stage 2, done: the classification, the premises, the target
 
 *Record of 2026-09-16. The file is
-[`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean), a
-sibling of [`Cadence/Mvba/Liveness.lean`](../Cadence/Mvba/Liveness.lean)
+[Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean), a
+sibling of [Cadence/Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)
 in shape and discipline; `grep -n '^def [A-Z]'` on it prints everything a
 human has to believe. Its header carries the reasoning at the point of
 use; this section is the audit summary and the one correction to §4's
@@ -468,10 +464,10 @@ oracle step `mvba_step` alone), and `JusticeLabel` as their complement —
 not a fairness class: `mvba_propose` is Chorus's own weakly fair action
 that also advances the MVBA, and it appears in the projected run as the
 MVBA's `propose` input, which `Mvba.FJustice` excludes for exactly that
-reason. Against `Chorus.lean`'s prose list of (F-justice) actions the
+reason. Against [Chorus.lean](../Cadence/Chorus.lean)'s prose list of (F-justice) actions the
 complement form also covers `deliver_chunk_assigned` and
-`broadcast_commitqc_*`, which §7 of `ChorusDesign.md` already uses as
-fair; the model's prose should be aligned the next time `Chorus.lean` is
+`broadcast_commitqc_*`, which §7 of [ChorusDesign.md](ChorusDesign.md) already uses as
+fair; the model's prose should be aligned the next time [Chorus.lean](../Cadence/Chorus.lean) is
 edited for another reason (a comment edit is a family re-solve).
 
 **The component instance.** `Chorus.mvbaComponent thS thM : Component
@@ -481,7 +477,7 @@ initializer, and no new cell.
 
 **The premises, one named `Prop` each**, over `ChorusRun thS thM` (a
 labelled run of Chorus with its MVBA constraint filled by `Mvba.mvbaSafety
-thM`, the instantiation `System.lean` uses):
+thM`, the instantiation [System.lean](../Cadence/System.lean) uses):
 
 * **`FJustice`** — (F-justice): weak fairness of every `JusticeLabel`.
 * **`MvbaAdmissible`** — replaces (A-mvba): `∃ p : (mvbaComponent thS
@@ -507,7 +503,7 @@ thM`, the instantiation `System.lean` uses):
   guards verbatim, the first two of which are the handlers' bridge
   `require`: certified ⇒ `Valid`, and decided by a correct validator ⇒
   certified. It is the run-level form of the one stated bridge
-  (`CompositionContracts.md` §3, §7 item 1) and its content is the
+  ([CompositionContracts.md](CompositionContracts.md) §3, §7 item 1) and its content is the
   cryptographic one — a `Valid` meta-block's certificates are genuine and
   genuine certificates are `Valid` — which no class field can carry
   because `Valid` is fixed before Chorus's state exists. The safety proofs
@@ -526,10 +522,10 @@ not part of the claim).
 
 **What to watch in stages 3–5**, in addition to §4.2's note on
 `Scheduled`: the theorem will be at the concrete quorum family and at
-`System.lean`'s `chorusTheory` (the entry-vector projections have to be the
+[System.lean](../Cadence/System.lean)'s `chorusTheory` (the entry-vector projections have to be the
 standard ones to *build* a proposal), so `TerminationClaim` stays generic
 and the theorem instantiates it; and `ValidBridge` must be named in
-`Architecture.md` §4 alongside `MvbaAdmissible` when (A-mvba) is retired —
+[Architecture.md](Architecture.md) §4 alongside `MvbaAdmissible` when (A-mvba) is retired —
 it is not a fairness assumption and must not be filed as one.
 
 ### 4.4 Stage 3, the kick-off record: saturation, and the commit route
@@ -538,25 +534,25 @@ it is not a fairness assumption and must not be filed as one.
 not re-derive the design. Nothing below is done; §4.2 and §4.3 are what is.
 Stage 3 has since landed as planned, with four corrections — §4.5.*
 
-**Where it goes.** A new file, `Cadence/Chorus/Termination.lean`, importing
-[`Cadence/Chorus/Liveness.lean`](../Cadence/Chorus/Liveness.lean) (the
+**Where it goes.** A new file, [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean), importing
+[Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) (the
 claim and its vocabulary) and
-[`Cadence/Chorus/Progress.lean`](../Cadence/Chorus/Progress.lean) (the
+[Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean) (the
 dichotomy; it brings `Counting`, `Pigeonhole` and, through them,
-`Chorus/Certify.lean`'s `reachable_*` projections). Stages 3–5 all live
+[Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)'s `reachable_*` projections). Stages 3–5 all live
 there, one section each, and it is split by arm if it outgrows
-`Mvba/Liveness.lean`. `Chorus/Liveness.lean` stays the statement file and
-keeps its light imports. Add the new module to `scripts/revalidate.sh`'s
+[Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean). [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) stays the statement file and
+keeps its light imports. Add the new module to [scripts/revalidate.sh](../scripts/revalidate.sh)'s
 end-theorem stage as `Chorus.Liveness` was.
 
 **The regime.** Work at the concrete quorum family from the start — `node :=
 Fin n`, `nodeset := ByzNSet n`, `nset := byzNodeSetFin n f hf is_byz hbyz` —
 because the dichotomy is stated there and because "every proposer" needs a
 complete list of nodes, which `List.ofFn (n := n) id` gives and no generic
-class in the development does. The `cpv%`/`pafr%` macros of `Progress.lean`
+class in the development does. The `cpv%`/`pafr%` macros of [Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)
 are the canonical instantiation; copy them verbatim. The quorum classes
 `Mvba.termination` takes exist at that family as `byzNodeSetFinGen_enum` and
-`byzNodeSetFinGen_honest` ([`Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean));
+`byzNodeSetFinGen_honest` ([Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean));
 the honest quorum they hand over is the witness for every assembly guard.
 Stay in the generated instance regime (`open Classical`, no `DecidableEq`
 binders), and put the `MVBASafety` instance in scope with `letI :=
@@ -566,7 +562,7 @@ Mvba.mvbaSafety thM` before applying generated lemmas (§4.3).
 `Cadence.exists_disabled_of_never_fires` — a weakly fair label that never
 fires from `N` on is disabled somewhere from `N` on — and the proof of each
 link shows the label *stays* enabled unless the disabling event is itself the
-progress wanted. `Mvba/Liveness.lean`'s first link (`enabled_decide`,
+progress wanted. [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s first link (`enabled_decide`,
 `decide_effect`, `eventually_decided_of_commitqc`) is the template: an
 enabledness lemma that turns `Enabled` into the action's guards, an effect
 lemma that reads the firing off the post-state, and the fairness step.
@@ -608,7 +604,7 @@ Monotone facts along the run come from M13's `Chorus.<f>.mono` through
    which the flag holds, read the step there off its transition body (the
    `chorus_tr`/`chorus_field_simp` pattern, or the label dispatch of
    `mvba_st_frame_of_not_step`), and carry the signatures forward. Do not
-   add an invariant for them — that is the 4 222-cell re-solve.
+   add an invariant for them — that is a Chorus-family re-solve.
 2. *The commit route finalizes* — from an index at which a commit
    certificate exists for every proposer (the dichotomy's left disjunct,
    `commitqc_pos j m ∨ commitqc_neg j`, each an `∃ q` over broadcast commit
@@ -624,9 +620,9 @@ Monotone facts along the run come from M13's `Chorus.<f>.mono` through
      certificate, and certificates agree;
    * `finalize_commit i` is enabled once every proposer is assigned, and
      `local_committed` is what `Terminates` asks for.
-   Every invariant named here exists in `Chorus.lean` and is available as
+   Every invariant named here exists in [Chorus.lean](../Cadence/Chorus.lean) and is available as
    `Chorus.reachable_<name>` (the `(nset := byzNodeSetFin …) hreach` pattern
-   of `Progress.lean`).
+   of [Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)).
 
 **What stage 3 does not do.** It does not touch the right disjunct of the
 dichotomy — the MVBA arm is stage 4, where `AllPropose` and `NoEarlyAbandon`
@@ -638,7 +634,7 @@ route is the part of the claim that rests on fairness alone.
 **Traps already known.** Those of §4.2 and §4.3 (the `letI`, the `case`
 dispatch, no generated `.init` for theory-seeded fields, docstrings after
 `set_option … in`), plus: a `match` on `Chorus.Label` defined in one module
-may not reduce in another (`Mvba/Liveness.lean`'s `Label.isInput` note), so
+may not reduce in another ([Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s `Label.isInput` note), so
 export characterisations like `mvbaStepLabel_iff` rather than relying on
 `rfl`; the honest quorum's *members* are what `eventually_forall` iterates,
 and `ByzNodeSetEnum.mem_members` is the bridge to `member`; and a run-level
@@ -649,9 +645,9 @@ flag false.
 ### 4.5 Stage 3, done: saturation and the commit route, from (F-justice) alone
 
 *Record of 2026-09-28. The file is
-[`Cadence/Chorus/Termination.lean`](../Cadence/Chorus/Termination.lean);
+[Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean);
 its header carries the structure and its docstrings the reasoning at the
-point of use. `Chorus/Liveness.lean` — the claim and its premises — is
+point of use. [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) — the claim and its premises — is
 unchanged.*
 
 **What was proven**, at the concrete quorum family (`Fin n`,
@@ -675,7 +671,7 @@ trio, with no new cell and one model edit — `vote`'s updates written as
 monotone disjunctions (correction 1 below), which changes no reachable
 behaviour.
 
-**How.** Three layers, the last two in `Mvba/Liveness.lean`'s first-link
+**How.** Three layers, the last two in [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s first-link
 shape: per-action enabledness and effect lemmas plus five two-state step
 facts read off the transition bodies by label dispatch; the two chains over
 any labelled Chorus run; and one-line instantiations at the concrete family.
@@ -687,7 +683,7 @@ stays enabled fires — and every per-member family collapses through
 
 1. *Three network relations had no monotonicity lemma — fixed in the model.*
    `msg_vote_pos_sig`, `msg_vote_neg_sig` and `local_entry_neg` were
-   monotone at every reachable state (`ChorusDesign.md` §3.1's audit
+   monotone at every reachable state ([ChorusDesign.md](ChorusDesign.md) §3.1's audit
    table), but `vote` *wrote* them as a plain overwrite of the voter's row
    (`msg_vote_pos_sig i J M := is_proposer J && local_entry_pos i J M`);
    only the guard `¬ local_voted i` and the invariants
@@ -732,7 +728,7 @@ supply `List.ofFn id` and `honest_supermajority`'s quorum. The reason is the
 instance regime rather than taste. At `Fin n`, a generated ghost relation
 written with named arguments elaborates with `instDecidableEqFin` where the
 generated system has `Classical.propDecidable`, so statements have to go
-through the canonical instantiation (`Progress.lean`'s `cpv%`, copied as
+through the canonical instantiation ([Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)'s `cpv%`, copied as
 `cpvm%` at the `Mvba` types). The generic lemmas take the instances as
 implicit arguments read off the run's type, so they meet that
 instantiation by unification and need no instance search at `byzNodeSetFin`
@@ -743,7 +739,7 @@ the MVBA instance.
 
 * The right disjunct needs `mvba_propose` enabled for every correct
   validator: its validity guards are the disjunct's evidence (that is what
-  `Progress.lean`'s header says), its last guard is the contract's
+  [Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)'s header says), its last guard is the contract's
   `propose`, and that is where `ValidBridge`'s soundness clause enters.
   After that comes `Mvba.termination` through the projection (`AllPropose`
   and `NoEarlyAbandon` derived, §4.3), the decision handlers
@@ -756,11 +752,11 @@ the MVBA instance.
   at which a quorum has. Stage 3 therefore works at the finite family
   (`Fin n`, `ByzNSet n`), and later stages should too; restricting the
   node sorts to finite ones is expected, not a concession. The bounds
-  workshop's caveat ([`Bounds.md`](./Bounds.md) §6.2.4) is a separate,
+  workshop's caveat ([Bounds.md](Bounds.md) §6.2.4) is a separate,
   *non-vacuity* question — whether any run satisfies `FJustice` at all when
   uncountably many stuttering labels are enabled — and does not arise for
   the finite quorum sets used here; it is answered by exhibiting a run
-  ([`TODO.md`](./TODO.md) § Liveness), not by weakening the assumption. The
+  ([TODO.md](TODO.md) § Liveness), not by weakening the assumption. The
   chains are in any case robust to fairness of state-changing steps
   (`Cadence.EnabledMove`): every label they fire is fired at a state where
   its effect is absent — the contradiction hypothesis of each link — so each
@@ -778,13 +774,13 @@ starts on the final shapes and the family re-solved once. What it changed
 for this stage:
 
 * **Finding 1 is fixed as recommended.** `chorusTheory` in
-  [`System.lean`](../Cadence/System.lean) sets `mval_neg v j := v j = none
+  [System.lean](../Cadence/System.lean) sets `mval_neg v j := v j = none
   ∧ is_proposer j`, and `chorusTheory_assumptions` is re-proved. A
   non-proposer now has no entry, so the vector of step 2 below (`none` at
   non-proposers) is `Certified` when its proposer entries are.
 * **Finding 2 is resolved at the premise, not in the model.** The model fix
   (`let mvba_next :| mvba.propose mvba_st i v mvba_next` in the body) was
-  tried and does not build. `Chorus.lean` emits the executable extraction
+  tried and does not build. [Chorus.lean](../Cadence/Chorus.lean) emits the executable extraction
   the trace monitor runs (`veil.gen.executableActions`), and a pick is
   extractable only over a finitely enumerable type, which the abstract MVBA
   state `mstate` is not. The alternative this record names is the right one
@@ -793,7 +789,7 @@ for this stage:
   family `∃ mvba_next` is exactly the fairness of the picked form, TLA+'s
   `WF(∃ n. Propose(i, v, n))`. **Stage 4's first task** is to state it:
   * a generic `WeaklyFairFamily r (S : lbl → Prop)` in
-    [`Fairness.lean`](../Cadence/Fairness.lean): if some label in `S` is
+    [Fairness.lean](../Cadence/Fairness.lean): if some label in `S` is
     enabled at every index from `N` on, some label in `S` fires from `N` on;
   * in `Chorus.FJustice`, `mvba_propose` is taken out of the per-label
     clause and covered per `(i, v)` by `WeaklyFairFamily r (fun l => ∃ n,
@@ -811,7 +807,7 @@ for this stage:
     `honest_supermajority` is still needed.
   * `MVBASafety.propose_valid` is gone: the caller's validity obligation is
     an antecedent of `MVBATemporal.termination` (the rely form,
-    [`CompositionContracts.md`](./CompositionContracts.md) §7 item 1). At
+    [CompositionContracts.md](CompositionContracts.md) §7 item 1). At
     the composed instance nothing changes for step 2: `mvba_propose`'s last
     guard is the contract's `propose`, which at `Mvba.mvbaSafety` is
     `Mvba.propose` and still requires `valid e`, so `ValidBridge`'s
@@ -821,18 +817,18 @@ for this stage:
     the composed system runs is a full `MVBA`. This does not change
     stage 4, which consumes the untimed `Mvba.termination`. It is what the
     later Chorus bounds work (`ℓ = 5Δ + ℓ_MVBA`) will consume.
-* **Unchanged**: `Chorus.lean`, `Chorus/Liveness.lean`'s label classes, the
+* **Unchanged**: [Chorus.lean](../Cadence/Chorus.lean), [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)'s label classes, the
   monitor, and stage 3's theorems. The generic stage-3 lemmas keep their
   `nodes`/`hnodes` arguments: they are internal, and the headline theorems
   are stated at `Fin n`, where finiteness is visible already. Switching them
   to `[Fintype node]` is optional tidying.
 
-**Where it goes.** `Cadence/Chorus/Termination.lean`, a new section after
+**Where it goes.** [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean), a new section after
 stage 3's, in the same three layers: step facts, generic run-level chains,
 concrete-family theorems. Split into `Termination/` files by arm if it
-outgrows `Mvba/Liveness.lean`.
+outgrows [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean).
 
-**Finding 1 — at `System.lean`'s instantiation, `mvba_propose` never fires
+**Finding 1 — at [System.lean](../Cadence/System.lean)'s instantiation, `mvba_propose` never fires
 unless every validator is a proposer.** `chorusTheory` sets `mval_pos v j m
 := v j = some m` and `mval_neg v j := v j = none` for *every* node `j`.
 `mvba_propose`'s first two validity guards (and `Certified`, which is those
@@ -844,13 +840,13 @@ which the fast route does not close fails to terminate. `TerminationClaim`
 is then *false* at `chorusTheory`, and `ValidBridge`'s soundness clause is
 vacuous. Checked in scratch: a twelve-line lemma, `¬ Certified st v` for
 every `st` and `v` given one non-proposer. Safety is unaffected, since the
-guard only removes behaviours. This is exactly the seam [`TODO.md`](./TODO.md)
+guard only removes behaviours. This is exactly the seam [TODO.md](TODO.md)
 § Liveness's composition-level non-vacuity item warned could hide behind a
 green build. **Recommended fix, at the instantiation:** `mval_neg v j :=
 v j = none ∧ is_proposer j`, so that a non-proposer has no entry. The two
 projection assumptions still hold and `chorusTheory_assumptions` needs only
-a re-proof; `Chorus.lean` is untouched. The alternative — restricting the
-guards to proposers in `Chorus.lean` — has the same effect at a family
+a re-proof; [Chorus.lean](../Cadence/Chorus.lean) is untouched. The alternative — restricting the
+guards to proposers in [Chorus.lean](../Cadence/Chorus.lean) — has the same effect at a family
 re-solve's cost and moves the fix away from where the mismatch is.
 
 **Finding 2 — `mvba_propose`'s label carries the MVBA's successor state, so
@@ -872,12 +868,12 @@ validator makes but the MVBA's state after the input, which the contract
 determines (at the `Mvba` instance, uniquely). In the transition relation a
 picked value is an existential, so for safety nothing changes — it is a
 free parameter of the relation, only no longer of the label. That is one
-`Chorus.lean` edit whose statement change reaches only `mvba_propose`'s
-cells; `Chorus/Liveness.lean`'s `MvbaStepLabel`, `mvbaStepLabel_iff`,
+[Chorus.lean](../Cadence/Chorus.lean) edit whose statement change reaches only `mvba_propose`'s
+cells; [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)'s `MvbaStepLabel`, `mvbaStepLabel_iff`,
 `mvba_propose_tr` and `mvbaComponent.step` follow the new arity (a change to
 the statement file, to be recorded here), and so does the monitor's label
-decoder (`Monitor/ChorusMonitor.lean` and the generated
-`Monitor/ChorusMonitorGen.lean` both decode `mvba_propose` with three
+decoder ([Monitor/ChorusMonitor.lean](../Cadence/Monitor/ChorusMonitor.lean) and the generated
+[Monitor/ChorusMonitorGen.lean](../Cadence/Monitor/ChorusMonitorGen.lean) both decode `mvba_propose` with three
 arguments). `mvba_step` stays as it is — it is the oracle step, outside
 (F-justice), and its labels are the projection's business. Strong fairness
 of the old label would not help: it still needs the one successor-specific
@@ -914,7 +910,7 @@ validator eventually has `local_committed`. The chain:
 
 1. *Prerequisites.* `ByzNodeSetEnum` and `ByzNodeSetHonestQuorum` instances
    for `byzNodeSetFin` — they exist only for `byzNodeSetFinGen`
-   ([`ByzQuorum.lean`](../Cadence/ByzQuorum.lean)); members are `s.val`,
+   ([ByzQuorum.lean](../Cadence/ByzQuorum.lean)); members are `s.val`,
    and `honest_supermajority` gives the quorum. `Mvba.termination` also
    takes a `ViewOrderEnum`, which becomes a hypothesis of the theorem.
    The phase reaches `post_mvba_arm` and stays there: stage 3's
@@ -961,8 +957,8 @@ validator eventually has `local_committed`. The chain:
 
 **What stage 4 does not do.** It does not assemble `TerminationClaim` —
 that is stage 5, which case-splits on `eventually_progress_dichotomy`,
-adds the `Cadence.lean` row and pin, and retires (A-mvba) from
-`Architecture.md` §4 with `MvbaAdmissible` (including `Scheduled`) and
+adds the [Cadence.lean](../Cadence.lean) row and pin, and retires (A-mvba) from
+[Architecture.md](Architecture.md) §4 with `MvbaAdmissible` (including `Scheduled`) and
 `ValidBridge` named there.
 
 **Traps already known**, beyond §4.2–§4.5's: every ghost relation stated at

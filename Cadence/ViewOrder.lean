@@ -18,7 +18,7 @@ assumed in passing.
   climbs the view order toward a target view and has to know the climb ends;
   that is a counting argument, and counting needs a finite list. This is the
   view dimension's analogue of
-  [`ByzQuorum.lean`](./ByzQuorum.lean)'s `ByzNodeSetEnum` for the node
+  [ByzQuorum.lean](ByzQuorum.lean)'s `ByzNodeSetEnum` for the node
   dimension, and it is introduced for the same reason and on the same terms:
   as a **hypothesis of the theorems that need it**, never as an axiom of the
   model and never as part of any claim's statement.

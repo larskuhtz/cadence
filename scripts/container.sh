@@ -228,6 +228,10 @@ run_in_container() {
     # Proof-file batch width for scripts/revalidate.sh (see its header);
     # BATCH=1 avoids spurious discharger-contention timeouts on few cores.
     [ -n "${BATCH:-}" ] && printf 'export BATCH=%q\n' "$BATCH"
+    # Where the site links a file it does not render (scripts/site-links.sh):
+    # the sources reach the container without their history, so the commit
+    # is read here, on the host.
+    [ -n "${SITE_SOURCE_URL:-}" ] && printf 'export SITE_SOURCE_URL=%q\n' "$SITE_SOURCE_URL"
     cat <<'PREAMBLE'
 # Docker and podman initialise a fresh named volume from the image's content at
 # the mount point, so the prebuilt dependency tree arrives by itself. If it did
@@ -308,6 +312,9 @@ PAYLOAD
     # through the /out mount into ./site, which is replaced wholesale.
     IMAGE="${IMAGE:-cadence-verified}"
     rm -rf "$REPO/site" && mkdir -p "$REPO/site" || die "cannot create $REPO/site"
+    SITE_SOURCE_URL="${SITE_SOURCE_URL:-$(bash "$REPO/scripts/site-links.sh" base)}" \
+      || die "cannot tell which commit is being rendered (scripts/site-links.sh base)"
+    export SITE_SOURCE_URL
     #
     # Two things the image lacks, supplied here rather than in the Containerfile
     # because any Containerfile edit makes publish-images.yml rebuild `deps` on

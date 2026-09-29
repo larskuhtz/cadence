@@ -536,3 +536,56 @@ a proof term that Lean's kernel re-checks, so a ✅ means "kernel-checked".
 The cost of that switch — roughly 2× the CPU of a trusted sweep, and a
 reconstruction proof term per VC that has to be persisted somewhere — is what
 drove the per-action file layout (Build #18) and the proof cache (#19–#24).
+
+## Notes moved out of the current documentation (2026-09-29)
+
+The 2026-09-29 documentation pass rewrote the Lean comments and `docs/` in the
+present tense. These facts about how things got here were in that text, and
+are kept here instead.
+
+* **Precompiling on the older pins.** Before the 2026-09 re-port,
+  `precompileModules` also failed on Loom's `CaseStudies` library, which
+  globbed `Loom.*` and carried broken `NonDetT.Extract` imports — worked
+  around with a lakefile-only Loom fork, since dropped — and on
+  `Loom/MonadAlgebras/WP/Gen.lean`, whose body was commented out.
+* **`#veil_status` cost.** `#veil_status Chorus` took about 40 s before
+  oleans stored per-declaration axiom sets, and about 2 s after.
+* **The cheap rung and the cache.** A warm suite before the rung reported
+  over 22 000 cache replays; after it, the cache held 2 990 entries, the
+  solver-touched cells only.
+* **Counting facts.** The Veil fork carried the three quorum-counting facts
+  as `ByzNodeSet` fields before they became theorems of
+  `Cadence.ByzNodeSetCounting`.
+* **Contract-instance step facts.** `Chorus/Compose.lean` provided the
+  `Inhabited` state instance by hand, and the contract instances proved each
+  frame and monotonicity fact with a 38-case `cases l` script per field,
+  before Veil generated those lemmas.
+* **Solver configuration.** For a while the solver configuration was
+  mis-measured because `set_option … in #check_invariants` is captured at
+  `#gen_spec`, not at the command (Build #12).
+* **The MVBA referent.** The paper-repository pin in `Cadence/Mvba.lean`
+  was re-checked against `b838e17` on 2026-09-14: the 19 commits in between
+  rewrite the practical Conductor instantiation and its recovery layer and tag
+  Chorus's proposer signatures, none of it in the model's scope, and leave the
+  modelled sections byte-identical.
+* **Mvba traces.** The `sat trace` witnesses gained a step when the view
+  timer became an explicit action (`expire_timer`).
+* **Mvba budgets.** Adding `entered_needs_certificate` pushed the Mvba proof
+  family past the default elaboration budgets, which is why its proof files
+  carry `veil_large_clump_budgets`.
+* **Chorus `fb_sign_neg`.** Its proof file carried three manual
+  theorems (against `inclusion_no_honest_fb_neg`, `fb_neg_qv_no_pos_quorum`
+  and `fb_neg_no_pos_quorum`) until 2026-08-19: under the pre-`well_encoded`
+  guard those queries diverged. After the `well_encoded` refactor (audit
+  Finding 1) cvc5 solves them directly — 6.2–17.0 s on a workstation,
+  52.8–62.5 s on CI's 4-core runner, which is what raised the proof families'
+  budget from 60 s to 180 s on 2026-09-10.
+* **Chorus decision handlers.** The two manual cells of each of
+  `Chorus/Proofs/OnMvbaDecidePos.lean` and `OnMvbaDecideNeg.lean` were ported
+  on 2026-09-10 from the retired oracle actions `mvba_decide_pos` /
+  `mvba_decide_neg` (MvbaPlan §6), with only the `intro` pattern changed.
+* **Doc comments on Veil declarations.** Until the Veil pin gained
+  `port/doc-comments` (merged into this project's pin `73fa6fd4`), a
+  `/-- … -/` before a Veil `safety`, `invariant` or `action` failed to parse,
+  so every model declaration was explained in a plain `/- … -/` comment. This
+  pass converted them to doc comments.

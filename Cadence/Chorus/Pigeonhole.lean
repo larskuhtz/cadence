@@ -5,7 +5,7 @@ import Cadence.ByzQuorum
 /-! # ChorusPigeonhole — the evidence pigeonhole, mechanised
 
 The evidence-formation counting step of Chorus's fair-progress argument
-(`docs/ChorusDesign.md` §7, the `x = 0`
+([ChorusDesign.md](../../docs/ChorusDesign.md) §7, the `x = 0`
 branch): in any reachable Chorus state, if a
 supermajority of *honest* validators each hold a fallback signed entry
 for a proposer `j`, then certified per-proposer evidence exists —
@@ -20,7 +20,7 @@ checks on a decided entry.
 
 The counting content is the same two-class pigeonhole as the receipt
 layer's build totality (`ByzNSet.two_cover`,
-`FallbackReceipt/Totality.lean`):
+[FallbackReceipt/Totality.lean](../FallbackReceipt/Totality.lean)):
 split the supermajority by "holds a *positive* entry for `j`"; an `f+1`
 all-negative class is a negative FallbackQC; an `f+1` all-positive
 class either agrees on one root (a positive FallbackQC) or exhibits two
@@ -34,8 +34,8 @@ distinct roots — and each honest positive fallback entry pins a
 
 so two distinct roots yield `equiv_evidence`. All reachable-state facts
 come from the named projections of
-[`Chorus/Certify.lean`](./Certify.lean) (`#gen_composition`); like
-`FallbackReceipt/Totality.lean`, the
+[Chorus/Certify.lean](Certify.lean) (`#gen_composition`); like
+[FallbackReceipt/Totality.lean](../FallbackReceipt/Totality.lean), the
 theorem is stated over the concrete instance family
 `byzNodeSetFin n f` — **every** `n = 3f+1`, every Byzantine set of size
 `≤ f`, arbitrary `slot`/`merkle_root`/`Phase`/`PathChoice` types —
@@ -43,12 +43,12 @@ because the two-class counting is not expressible over the abstract
 `ByzNodeSet` axioms.
 
 What this discharges: the "Evidence pigeonhole" step of the liveness
-argument — see `docs/ChorusDesign.md` §7 for how it composes with the
+argument — see [ChorusDesign.md](../../docs/ChorusDesign.md) §7 for how it composes with the
 other theorems and where the named temporal assumptions
-((F-justice)/(F-byz)/(A-mvba); `docs/Architecture.md` §4) enter. Trust base:
+((F-justice)/(F-byz)/(A-mvba); [Architecture.md](../../docs/Architecture.md) §4) enter. Trust base:
 `[propext, Classical.choice, Quot.sound]` (pinned below) — the reachability
 projections consume the proof-file family's re-proved VC theorems
-(`Chorus/Proofs/`, via `Chorus/Certify.lean`), and the counting is
+([Chorus/Proofs](Proofs), via [Chorus/Certify.lean](Certify.lean)), and the counting is
 kernel-checked outright. -/
 
 namespace Chorus
@@ -106,7 +106,7 @@ local macro "cpv%" t:ident args:term:max* : term =>
     $args*)
 
 /- The abstract field representation at the canonical instances
-(cf. `Chorus/Compose.lean`'s `afr%`). -/
+(cf. [Chorus/Compose.lean](Compose.lean)'s `afr%`). -/
 local macro "pafr%" fld:ident : term =>
   `(@Chorus.instAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
@@ -134,7 +134,7 @@ private abbrev propSigned (j : Fin n) (m : merkle_root) : Prop :=
     st.msg_proposer_signed j m = true
 
 set_option maxHeartbeats 1000000 in
-/-- **The evidence pigeonhole** (`docs/ChorusDesign.md` §7, `x = 0` branch):
+/-- **The evidence pigeonhole** ([ChorusDesign.md](../../docs/ChorusDesign.md) §7, `x = 0` branch):
 in any reachable state, a supermajority of honest validators holding
 fallback signed entries for `j` yields certified per-proposer evidence
 — a FallbackQC (positive or negative) or an EquivCert. Stated for every
@@ -229,9 +229,9 @@ end Chorus
 
 The standard Lean trio and nothing else — no `sorryAx`: the whole chain
 (the proof-file family's re-proved, kernel-checked VC theorems consumed
-through `Chorus/Certify.lean`'s reachability projections; the `two_cover`
+through [Chorus/Certify.lean](Certify.lean)'s reachability projections; the `two_cover`
 counting, kernel-checked outright) is real proofs end-to-end. See the
-pinned-trust-base note in `Chorus/Compose.lean` for the full reading of
+pinned-trust-base note in [Chorus/Compose.lean](Compose.lean) for the full reading of
 the file-family architecture. A regression anywhere in that chain fails
 this guard. -/
 

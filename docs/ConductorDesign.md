@@ -6,9 +6,9 @@ layer that joins them to Chorus: §1 how the paper describes the Conductor,
 the Conductor versus what stays meta, §4 the Cadence glue module and where
 the top-level properties live, §5 how "Chorus ⊨ SlotConsensus" is discharged.
 Lean sources cite these sections by number. For what is proven read
-[`../README.md`](../README.md) and [`Architecture.md`](./Architecture.md); the
-models' own headers ([`../Cadence/Conductor.lean`](../Cadence/Conductor.lean),
-[`../Cadence/Cadence.lean`](../Cadence/Cadence.lean)) are authoritative where
+[README.md](../README.md) and [Architecture.md](Architecture.md); the
+models' own headers ([Cadence/Conductor.lean](../Cadence/Conductor.lean),
+[Cadence/Cadence.lean](../Cadence/Cadence.lean)) are authoritative where
 they and this document disagree.*
 
 ## 1. Source map (what to read)
@@ -72,7 +72,7 @@ flowchart BT
     GLUE -- "derived from" --> TOP
 ```
 
-The **contract pattern** (`CompositionContracts.md`) is the same at every
+The **contract pattern** ([CompositionContracts.md](CompositionContracts.md)) is the same at every
 level: the consumed module's contract is a type class over an *explicit
 abstract state*, which the consumer holds as state of its own and reads
 through the class's observables. The consumer `instantiate`s the contract's
@@ -93,12 +93,12 @@ Two consumptions leave a stated **bridge** — a guard that interprets a class
 parameter in the consumer's own vocabulary, because the parameter is fixed
 before the consumer's state exists: the Conductor's ACS median range (§3),
 and Chorus's certificate check on a decided MVBA entry
-(`CompositionContracts.md` §7).
+([CompositionContracts.md](CompositionContracts.md) §7).
 
-### The class layer (`Cadence/Interfaces.lean`)
+### The class layer ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean))
 
 The contracts live in their own file rather than in
-`Cadence/Primitives.lean` so that editing a contract does not force the
+[Cadence/Primitives.lean](../Cadence/Primitives.lean) so that editing a contract does not force the
 whole cryptographic-primitive import closure to rebuild. Each paper module
 is **two classes**: a first-order
 `…Safety` fragment (state, transitions, observables, the paper's safety
@@ -130,9 +130,9 @@ fields, not substitutes for them.
 * `MVBA` — agreement, integrity, external validity, the two inputs and
   one-step quiescence in the fragment; ℓ_MVBA-termination in the temporal
   class (`mod:mvba`). Instance: `Mvba.mvbaSafety`
-  (`Cadence/Mvba/Compose.lean`), consumed by Chorus and plugged in by
-  `Cadence/System.lean`; its `MVBATemporal` instance is `Mvba.mvbaTemporal`
-  (`Cadence/Mvba/Temporal.lean`), so the full contract is proven.
+  ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)), consumed by Chorus and plugged in by
+  [Cadence/System.lean](../Cadence/System.lean); its `MVBATemporal` instance is `Mvba.mvbaTemporal`
+  ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), so the full contract is proven.
 
 ## 3. The Conductor Veil module
 
@@ -190,13 +190,14 @@ The split is the same as in Chorus.
    (`TotalOrderWithMinimum` on `slot` and `window`, no `+W` arithmetic in
    the SMT layer), with the intervals themselves as oracle state in the
    Conductor. That split introduces **no new axioms**; the details are in
-   [`../Cadence/Windows.lean`](../Cadence/Windows.lean).
+   [Cadence/Windows.lean](../Cadence/Windows.lean).
 2. **Median / range validity.** The median of the decided ACS set lies
    between two correct proposals (≤ f faulty among ≥ 2f+1) — order-statistics
-   counting, of the same species as the `ByzNodeSet` counting axioms. It
-   enters `acs_decide` as a `require`
-   (`∃ honest r1 r2: proposal r1 ≤ s* ≤ proposal r2`), justified by the
-   Lean-proven median lemma of [`../Cadence/Windows.lean`](../Cadence/Windows.lean)
+   counting, of the same species as the `ByzNodeSet` counting axioms. The
+   model uses the lower half: `acs_decide` requires a correct witness pair
+   `(r1, s1)` from a correct decider's decided set with `s1 ≤ first`,
+   justified by the
+   Lean-proven median lemma of [Cadence/Windows.lean](../Cadence/Windows.lean)
    for the concrete instance. This is one of the two stated bridges (§2).
 3. **Abstract clock.** A monotone global `now` (an ordered type, advanced by
    a nondeterministic tick action) with guards such as
@@ -285,7 +286,7 @@ what keeps the model reviewable against it.
 
 ## 5. Connecting the layers (how "Chorus ⊨ SlotConsensus" becomes real)
 
-Three pieces, all in place (`CompositionContracts.md` is the full record).
+Three pieces, all in place ([CompositionContracts.md](CompositionContracts.md) is the full record).
 
 ### 5.1 Consumption as class constraints
 
@@ -297,9 +298,9 @@ keep in sync, so no correspondence between a class field and a consumer's
 
 ### 5.2 Lean instance theorems
 
-`Conductor.orchestratorSafety` ([`../Cadence/Composition.lean`](../Cadence/Composition.lean))
+`Conductor.orchestratorSafety` ([Cadence/Composition.lean](../Cadence/Composition.lean))
 and `Chorus.slotConsensusSafety`
-([`../Cadence/Chorus/Compose.lean`](../Cadence/Chorus/Compose.lean)) package
+([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)) package
 each implementation's *own transition system* — its `init`, `next`,
 `reachable`, its actions as the contract's input transitions — as an
 instance of the fragment. The state-predicate fields are the persisted
@@ -310,17 +311,18 @@ does *not* prove of the full contract is the field list of the `…Temporal`
 class it supplies no instance of, with a definition (`…_of_temporal`) that
 joins the two levels when one is supplied.
 Trace-level refinement — that the implementation's runs *implement* the
-consumer's oracle steps — remains the `ChorusDesign.md` §10.1 research
+consumer's oracle steps — remains the [ChorusDesign.md](ChorusDesign.md) §10.1 research
 item; here the oracle steps *are* the implementation's transitions, which
 is as close as a state-based composition comes.
 
 ### 5.3 The composed system
 
-`Cadence.system_positional_log_safety` ([`../Cadence/System.lean`](../Cadence/System.lean))
+`Cadence.system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean))
 instantiates the glue's positional MCP Safety at the two instances: the
 statement is about the glue running the Conductor's and Chorus's transition
-systems, with no contract hypothesis left — only the modules'
-configurations and their agreement on the fault pattern.
+systems. Its hypotheses are the modules' configurations, their agreement
+on the fault pattern, and one contract: `ACSSafety`, the ACS the Conductor
+runs per window, which this development does not implement.
 
 ## 6. Stake weighting
 

@@ -2,7 +2,7 @@
 
 *How the Lean sources are published as a browsable site, what is on it, and
 what it is worth as evidence. For what is proven, read
-[`../README.md`](../README.md); this document is about the rendering.*
+[README.md](../README.md); this document is about the rendering.*
 
 ## Why
 
@@ -16,7 +16,7 @@ the boundary between what the kernel checks and what is assumed.
 
 It is documentation, not evidence. Nothing on the site carries weight in any
 theorem's trust base — `verify` and `check` remain the gates
-([Container.md](./Container.md) §4). The single exception is deliberate: the
+([Container.md](Container.md) §4). The single exception is deliberate: the
 build fails if any end result's axiom footprint has drifted, so a broken pin
 cannot be published quietly.
 
@@ -25,12 +25,12 @@ cannot be published quietly.
 | Page | Content |
 |---|---|
 | `index.html` | opens the guide |
-| `guide/` | **the walk-through for auditors**, a Verso document (`docs/guide/`): what is proven, how it is assembled from the modules, what a human has to check against the paper, and what no machine checks — see below |
+| `guide/` | **the walk-through for auditors**, a Verso document ([guide](guide)): what is proven, how it is assembled from the modules, what a human has to check against the paper, and what no machine checks — see below |
 | `trust-boundary.html` | **generated from the compiled environment**: the axiom footprint of every end result, the axioms this development declares, and which module contracts have no instance |
 | `sources/` | every published module rendered in source order — prose, declarations and the code between them — with a name-and-docs search box and a hierarchical navigation bar |
 
 The trust-boundary page is the part worth explaining. It is produced by
-[`../scripts/TrustSurface.lean`](../scripts/TrustSurface.lean), which walks
+[TrustSurface.lean](../scripts/TrustSurface.lean), which walks
 the `.olean`s that `lake build` produced and computes, rather than restates:
 
 * **the axiom footprint of each end result**, via the same mechanism as
@@ -43,7 +43,7 @@ the `.olean`s that `lake build` produced and computes, rather than restates:
   contract that is itself assumed, and *no instance*, which is what
   "unproven" means. The four `…Temporal` classes and `ACSSafety` are in the
   last state, and that is the whole of what this development owes
-  ([CompositionContracts.md](./CompositionContracts.md) §5).
+  ([CompositionContracts.md](CompositionContracts.md) §5).
 
 Because it is derived, a claim that has drifted from the code cannot survive
 a rebuild of the page.
@@ -51,10 +51,10 @@ a rebuild of the page.
 ## The guide
 
 The guide is the site's entry point, and the only authored page on it. It is
-a Verso document under [`guide/`](./guide/) — a Lean program that imports the
+a Verso document under [guide](guide) — a Lean program that imports the
 development — and it is written to one rule: it states no fact of its own.
 Three project-specific elements, in
-[`guide/CadenceGuide/Audit.lean`](./guide/CadenceGuide/Audit.lean), carry the
+[Audit.lean](guide/CadenceGuide/Audit.lean), carry the
 facts instead:
 
 * **`{claim X}`** shows a theorem or instance as an auditor meets it: its
@@ -89,53 +89,80 @@ module-doc section of the command that emits it, and is marked as generated.
 `scripts/guide.sh` rebuilds the guide alone, after one full `scripts/docs.sh`
 run — the fast loop for editing it.
 
+## Links
+
+A reference to a file is written the way GitHub reads it: a Markdown link
+relative to the file it is in — `[Interfaces.lean](Interfaces.lean)` in a
+comment in `Cadence/`, `[ChorusDesign.md](../docs/ChorusDesign.md)` from the
+same place, `[Architecture.md](../Architecture.md)` from the guide. That is
+the only form this repository uses ([CLAUDE.md](../CLAUDE.md), "Documentation
+rules"), in doc comments, plain comments, `docs/` and the guide alike, so a
+link reads the same in an editor, on GitHub and on the site.
+
+The site cannot follow such a link as written: its pages sit at other paths,
+and most targets are not on it. [site-links.sh](../scripts/site-links.sh)
+resolves every one — a Lean module the site renders to its page, anything
+else to the file on GitHub at the commit being rendered — and stops the
+build on a link whose target does not exist, which also makes
+`scripts/site-links.sh check` the dead-link check for the whole repository.
+The resolved links reach the pages two ways. Links in doc comments and
+module headers are rewritten in the renderer's JSON before the HTML stage,
+so the pages carry them as plain `href`s. Links in plain comments, and every
+link on the guide's page, are resolved in the browser from the same table
+(`site-links.js`), because a plain comment is a single text token whose text
+stays exactly as written.
+
+The commit comes from the checkout (`origin` and `HEAD`), or from
+`SITE_SOURCE_URL` where there is no history — `scripts/container.sh docs`
+reads it on the host and passes it in. Nothing in the site depends on where
+it is served from: every link between its pages is relative, and every link
+out of it is absolute.
+
+Every sources page opens its navigation with links back to the guide and to
+the trust boundary, which the renderer's own navigation does not have.
+
 ## The renderer, and why this one
 
 The sources are rendered by **Verso's literate renderer**, configured by
-[`../literate.toml`](../literate.toml) at the repository root. Verso is
-pinned in `lakefile.lean` to the tag matching this project's toolchain and
+[literate.toml](../literate.toml) at the repository root. Verso is
+pinned in [lakefile.lean](../lakefile.lean) to the tag matching this project's toolchain and
 guarded by `meta if get_config? env = some "dev"`, so a normal `lake build`
 neither resolves nor builds it.
 
 The choice is driven by what the models look like. A conventional API
-generator — `doc-gen4`, which this site used first — indexes *declarations*
-and renders their *docstrings*. Neither half of that fits here:
+generator such as `doc-gen4` indexes *declarations* and renders their
+*docstrings*, and neither half of that fits here:
 
-* Veil's declarations are mostly generated. Each records the source
-  location of the command it comes from, but what a model *is* — its state
-  components, actions and properties — lives in those commands, not in the
-  declarations, and a declaration index has no place for the commands.
-* The prose that matters is not attached to declarations. Roughly a fifth of
-  the Lean prose sits in plain `/- … -/` block comments, because the hard
-  rule is that a `/-- … -/` docstring before a Veil `safety`/`invariant`/
-  `action` breaks the parser (`CLAUDE.md`). A docstring-indexed renderer
-  cannot see any of it.
+* Veil's declarations are mostly generated. What a model *is* — its state
+  components, actions and properties — is the commands written in the file,
+  and a declaration index has no place for a command or for the order the
+  commands come in.
+* The reasoning is in the module headers, which an index shows once, at the
+  top of a module's page, rather than beside the declarations they explain.
 
-A literate renderer has no such gap: it shows the file as written, in order,
-so the module headers render as prose and the commentary between
-declarations renders with the code it belongs to — with its inline markup
-rendered too, by a small script of this site's
-([VersoIssues.md](./VersoIssues.md) §6). Nothing in a published
-module is invisible. Declaration docstrings stay in the code beside what
-they document, which is where this development's short field annotations
-belong; the prose that carries the reasoning is in the `/-! … -/` module
-headers and renders as prose either way.
+A literate renderer shows the file as written, in order: the module headers
+render as prose, each doc comment renders in the code with the declaration
+it documents — on a Veil command as on any Lean declaration — and the
+maintainers' plain comments render with the code they annotate, their inline
+markup included, by a small script of this site's
+([VersoIssues.md](VersoIssues.md) §6). Nothing in a published module is
+invisible.
 
 The site is also far smaller, and all of it is this project. `doc-gen4`
 emitted 321 MB here, of which this project's own pages were 6.3 MB; the rest
 was Lean core, Batteries and the imported subset of Mathlib, kept so
-cross-references resolved. The literate site is **11 MB** and publishes only
-this project's modules.
+cross-references resolved. The literate site publishes only this project's
+modules: 25 MB, measured 2026-09-29.
 
 ### What is published
 
 `literate.toml` selects the library and excludes the three per-action proof
-subtrees, the monitor and the tooling, which leaves 24 of the 106 modules.
-The 76 excluded proof files are machine-shaped `#prove_vc` cells whose
+subtrees, the monitor and the tooling; `scripts/docs.sh` prints how many
+modules that leaves. The excluded proof files are machine-shaped `#prove_vc` cells whose
 content is the VC registry's rather than a reader's; what they establish is
 stated by the three `Certify` modules, which are published and which carry the
 `#veil_status` pins. `Cadence.Monitor` is excluded because it is not part of
-any theorem's trust base ([Monitor.md](./Monitor.md)) — and would have to be
+any theorem's trust base ([Monitor.md](Monitor.md)) — and would have to be
 anyway, for a reason worth recording: three of its files declare a
 root-level `main`, Lean names are global, and the renderer's search index is
 keyed by name, so publishing two of them fails the build on the duplicate
@@ -165,8 +192,8 @@ and dropping the `goals` table removes the proof states and nothing else.
 Measured on `Mvba.Compose`: **47 MB → 0.32 MB**, with every declaration,
 statement, docstring and comment still present — `mvbaSafety`,
 `mvba_of_temporal` and all thirteen `theorem`s unchanged, and the only losses
-the 1 870 occurrences of `decided` that were inside hypotheses. Whole site:
-**97 MB → 11 MB**, largest page 0.9 MB.
+the 1 870 occurrences of `decided` that were inside hypotheses. Whole site, at the
+time: **97 MB → 11 MB**.
 
 This is the same intent as excluding the proof families, applied inside a
 module: what an auditor reads is the statement and the reasoning around it,
@@ -181,7 +208,7 @@ for its own markup. Four gaps show on these pages: tables are never parsed,
 list items are emitted without `<li>`, maths is dropped, and a doc comment
 on an anonymous command keeps its opening `/--`. Each is small, each is
 still present upstream, and three of the four are worked around here.
-[VersoIssues.md](./VersoIssues.md) is the record: symptom, cause, the fix,
+[VersoIssues.md](VersoIssues.md) is the record: symptom, cause, the fix,
 and which workaround to delete when it lands.
 
 Two consequences worth stating here rather than there. **A block of raw HTML
@@ -191,14 +218,9 @@ upstream change. And **maths has no rendering path at all**, so formulas
 cannot be written in these docstrings yet; mermaid is not supported by Verso
 either, while fenced code blocks are.
 
-The tables that used to be in these headers are gone, and not because the
-renderer could not draw them. There were eleven; ten had cells of 113 to 550
-characters, which is a paragraph in a column, and only one was genuinely
-tabular. They were lists of labelled explanations wearing table syntax, so
-they are lists now — the label, then what it says — which reads better in
-the source as well as on the page, and needs nothing from upstream. The
-conversion was mechanical, cell by cell, and checked by comparing the word
-counts of every removed row against the bullets that replaced them.
+The headers use lists of labelled explanations — the label, then what it
+says — where a table would hold a paragraph per cell. That reads better in
+the source as well as on the page, and needs nothing from upstream.
 
 
 ## What it costs
@@ -209,9 +231,9 @@ anything here.
 * **The renderer re-elaborates every module it publishes.** Highlighting
   needs the elaborator's info trees, which an `.olean` does not carry, so
   having built the project is a precondition rather than a substitute. The
-  24 published modules take about nine minutes in total, and `Cadence.Chorus`
-  is around 200 s of that on its own, at a peak near 10 GB; most of the rest
-  are under ten seconds each. Rendering is serial for that reason.
+  published modules take about nine minutes in total, and `Cadence.Chorus`
+  is around three minutes of that on its own, at a peak near 10 GB; most of
+  the rest are under twenty seconds each (measured 2026-09-29). Rendering is serial for that reason.
 * **`scripts/docs.sh` refuses to start unless the project is up to date**
   (`lake build --no-build`). That is a hard gate, not a convenience: the
   rendering stage runs with `VEIL_NO_VERIFY=1`, and an out-of-date module
@@ -229,8 +251,7 @@ Verso's — the planner and the HTML renderer are its executables, and
 `literate.toml` governs both, so the configuration surface stays the
 documented one.
 
-That it works at all took a fix in Veil, and the shape of the stage is still
-determined by two properties of this development.
+The shape of the stage is determined by two properties of this development.
 
 * **The renderer has no native plugins.** `verso-literate` re-elaborates a
   module in its own process, without the cvc5, lean-smt, lean-auto and Qq
@@ -238,17 +259,16 @@ determined by two properties of this development.
   reaches a solver call dies with `Could not find native implementation of
   external declaration 'cvc5.TermManager.new'` — `SIGABRT`, no Lean
   diagnostic. This is the same trap `scripts/scratch.sh` exists to avoid
-  (`CLAUDE.md`, Build). `VEIL_NO_VERIFY=1` is the answer, and it is the
+  ([CLAUDE.md](../CLAUDE.md), Build). `VEIL_NO_VERIFY=1` is the answer, and it is the
   right one independently: a documentation pass should not re-run the
   solver, and verification has already happened — stage 0 insists on it.
 
-* **Veil's VC manager used to never terminate.** `#gen_spec` started a
-  manager loop that is infinite by design, and `verso-literate` ends by
-  joining every worker thread, so it hung on every Veil model; `lean` never
-  noticed because it exits the process outright. Fixed at source rather than
-  worked around: the pinned fork does not start that loop under
+* **Veil's VC manager loop does not end by itself.** `#gen_spec` starts it
+  and `verso-literate` ends by joining every worker thread, so a renderer
+  that ran the loop would wait on it forever (`lean` exits the process
+  outright and never notices). The pinned fork does not start the loop under
   `veil.noVerify`, since nothing could ever wake it there
-  ([Dependencies.md](./Dependencies.md) §6). That is what makes stage 2 a
+  ([Dependencies.md](Dependencies.md) §6), which is what makes stage 2 a
   plain foreground run.
 
 

@@ -1,11 +1,11 @@
 /-
 Chorus model-conformance monitor — GENERATED instantiation variant.
 
-Identical in behaviour to `Monitor/ChorusMonitor.lean`, but the error-prone
+Identical in behaviour to [ChorusMonitor.lean](ChorusMonitor.lean), but the error-prone
 instantiation block (Th/St/Lbl, chThy, the specialized Inhabited seed, and the
 `NextAct.extracted`/`initializer.ext.extracted` applications) is produced by
-Veil's `#gen_monitor` command instead of hand-written. `Monitor/ChorusMonitor.lean` is
-the test oracle: `scripts/test-chorus-monitor.sh` runs both on the same trace
+Veil's `#gen_monitor` command instead of hand-written. [ChorusMonitor.lean](ChorusMonitor.lean) is
+the test oracle: [test-chorus-monitor.sh](../../scripts/test-chorus-monitor.sh) runs both on the same trace
 fixtures and they must agree.
 
 `#gen_monitor` lives in the Veil fork this project depends on
@@ -15,7 +15,7 @@ Veil.GenMonitor`.
 
 Chorus's MVBA class constraint is filled by instance
 synthesis: the `instance` below registers the silent stub of
-`Monitor/MvbaStub.lean` at exactly the fault pattern the generated executor
+[MvbaStub.lean](MvbaStub.lean) at exactly the fault pattern the generated executor
 asks for (`#gen_monitor` has an override only for the `ByzNodeSet` instance).
 -/
 import Cadence.Chorus
@@ -35,11 +35,11 @@ set_option linter.deprecated false
 -- generated, so it cannot carry the attribute from here and the fix belongs
 -- in the Veil fork; until then the warning would be printed on stdout by
 -- every monitor run and break the regression suite's output comparison
--- against the hand-written oracle (`scripts/test-chorus-monitor.sh`).
+-- against the hand-written oracle ([test-chorus-monitor.sh](../../scripts/test-chorus-monitor.sh)).
 set_option warn.classDefReducibility false
 
 /-- Empty Byzantine set at n = 3f+1 = 4, f = 1 — the same instance as
-`Monitor/ChorusMonitor.lean`'s (`Cadence.byzNodeSetFinGen`, whose threshold
+[ChorusMonitor.lean](ChorusMonitor.lean)'s (`Cadence.byzNodeSetFinGen`, whose threshold
 `n − f = 3` is `2f+1` here). -/
 @[implicit_reducible]
 def emptyByz4 : ByzNodeSet (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1)) :=
@@ -52,7 +52,7 @@ instance : MVBASafety (Fin (3 * 1 + 1)) ChorusMonitor.MV Unit Unit
   ChorusMonitor.silentMvba _
 
 /-- The quorum counting facts Chorus's `cnt` class constraint asks for, at
-`emptyByz4` (`Cadence/ByzQuorum.lean`). -/
+`emptyByz4` ([ByzQuorum.lean](../ByzQuorum.lean)). -/
 instance : Cadence.ByzNodeSetCounting (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1)) emptyByz4 :=
   Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun _ => False) (by decide)
 
@@ -92,7 +92,7 @@ def step (st : St) (lbl : Lbl) : StepResult :=
 
 def initState : Option St := ChorusGen.initStates.head?
 
-/-- Stage B: internal-action saturation (see `Monitor/ChorusMonitor.lean`). The emitter
+/-- Stage B: internal-action saturation (see [ChorusMonitor.lean](ChorusMonitor.lean)). The emitter
     emits only observable actions; the monitor bridges `commit_sign_*` /
     `commit_assign_*` by applying every enabled internal action to a fixpoint. -/
 def internalCandidates : List Lbl :=
@@ -153,7 +153,7 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "fb_sign_pos", [a,b,c,d,e]       => do pure (.fb_sign_pos (← dNode a) (← dNode b) (← dRoot c) (← dNSet d) (← dNSet e))
   | "fb_sign_neg", [a,b,c]           => do pure (.fb_sign_neg (← dNode a) (← dNode b) (← dNSet c))
   | "cast_fallback_vote", [a]        => do pure (.cast_fallback_vote (← dNode a))
-  -- the MVBA instance (`docs/Monitor.md` §8: the oracle step is silent, the
+  -- the MVBA instance ([Monitor.md](../../docs/Monitor.md) §8: the oracle step is silent, the
   -- decision handlers cannot fire under the silent instance)
   | "mvba_step", [a]                 => do pure (.mvba_step (← dMState a))
   | "mvba_propose", [a,b,c]          => do pure (.mvba_propose (← dNode a) (← dMValue b) (← dMState c))

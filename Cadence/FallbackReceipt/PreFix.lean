@@ -3,15 +3,15 @@ import Cadence.Tooling
 
 /-! # FallbackReceiptPreFix — the pre-fix receipt rules, mechanically refuted
 
-Companion to [`FallbackReceipt.lean`](../FallbackReceipt.lean) (read its
+Companion to [FallbackReceipt.lean](../FallbackReceipt.lean) (read its
 header first): the *pre-fix* fallback receipt/propose layer — the rules
-`alg:fallback` carried **before** the v2 fix — with the §7.2
-finding (`docs/ChorusDesign.md` §7.2) reproduced mechanically. "Pre-fix" now has
-a public referent: these are the receipt rules as published in **`arXiv:2607.02275v1`**
+`alg:fallback` carried **before** the v2 fix — with the finding of
+[ChorusDesign.md](../../docs/ChorusDesign.md) §7.2 reproduced mechanically.
+"Pre-fix" has a public referent: these are the receipt rules as published in **`arXiv:2607.02275v1`**
 (2026-07-02), whose `alg_fallback.tex` harvests `Ev(pid)` only from received
 FastQCs and FallbackQCs — a received EquivCert passes the validity check and is
 dropped. `arXiv:2607.02275v2` (2026-07-07) is the corrected design, and is what
-`Cadence/FallbackReceipt.lean` verifies. The paper's claim
+[FallbackReceipt.lean](../FallbackReceipt.lean) verifies. The paper's claim
 "by the rules above, every `Ev(pid)` is a FastQC, FallbackQC, or
 EquivCert" is stated as the invariant `prefix_valid_by_construction`,
 and the concrete model checker **refutes it** with a reachable
@@ -52,58 +52,72 @@ fact. -/
 
 veil module FallbackReceiptPreFix
 
+/-- Validator identity. -/
 type node
+/-- Validator sets, with the quorum predicates of `ByzNodeSet`. -/
 type nodeset
+/-- Proposers (a separate index type, as in the shipped model). -/
 type proposer
+/-- Merkle roots — the values a proposer's entry can carry. -/
 type merkle_root
 
 instantiate nset : ByzNodeSet node nodeset
 open ByzNodeSet
 
-/-! ## Wire state — as in `FallbackReceipt.lean`, plus `carried_equiv` -/
+/-! ## Wire state — as in [FallbackReceipt.lean](../FallbackReceipt.lean), plus `carried_equiv` -/
 
+/-- `r`'s vote carries a verified FastQC for `(p, m)`. -/
 relation carried_fastqc (r : node) (p : proposer) (m : merkle_root)
+/-- `r`'s vote carries `r`'s own positive signed entry for `(p, m)`. -/
 relation carried_pos (r : node) (p : proposer) (m : merkle_root)
+/-- `r`'s vote carries `r`'s own negative signed entry for `p`. -/
 relation carried_neg (r : node) (p : proposer)
--- Pre-fix only: `r`'s vote carries an EquivCert for `p` (roots elided —
--- the certificate is receiver-verified; its content plays no role
--- because the pre-fix rules never consume it).
+/-- Pre-fix only: `r`'s vote carries an EquivCert for `p` (roots elided —
+the certificate is receiver-verified; its content plays no role
+because the pre-fix rules never consume it). -/
 relation carried_equiv (r : node) (p : proposer)
 
+/-- `r`'s vote has been accepted into `M_i`. -/
 relation accepted (r : node)
 
+/-- The once-only MVBA propose has fired. -/
 individual proposed : Bool
 
 #gen_state
 
 /-! ## Derived state — the pre-fix harvest and formation rules -/
 
--- Harvest (`the two harvest loops`): FastQCs only. NO rule harvests a
--- carried EquivCert — the §7.2 omission.
+/-- Harvest (the two harvest loops): FastQCs only. No rule harvests a
+carried EquivCert — the §7.2 omission. -/
 ghost relation ev_fastqc (p : proposer) (m : merkle_root) :=
   ∃ r, accepted r ∧ carried_fastqc r p m
 
+/-- `|M_i| ≥ 2f+1` — the propose trigger. -/
 ghost relation received_supermajority :=
   ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → accepted r
 
--- Standing local formation: EquivCert from two conflicting positive
--- signed entries in `M_i` …
+/-- Standing local formation: an EquivCert for `p` is available from two
+accepted receipts carrying conflicting positive signed entries for `p`. -/
 ghost relation equiv_available (p : proposer) :=
   ∃ r1 r2 m1 m2, m1 ≠ m2 ∧
     accepted r1 ∧ carried_pos r1 p m1 ∧
     accepted r2 ∧ carried_pos r2 p m2
 
--- … and FallbackQCs from `f+1` matching signed entries in `M_i`.
+/-- A positive FallbackQC for `p` and `m` is available: `f+1` accepted
+receipts carry `p`'s signed entry for `m`. -/
 ghost relation fbqc_pos_available (p : proposer) (m : merkle_root) :=
   ∃ q, nset.greater_than_third q ∧
     ∀ r, nset.member r q → accepted r ∧ carried_pos r p m
 
+/-- A negative FallbackQC for `p` is available: `f+1` accepted receipts
+carry a negative entry for `p`. -/
 ghost relation fbqc_neg_available (p : proposer) :=
   ∃ q, nset.greater_than_third q ∧
     ∀ r, nset.member r q → accepted r ∧ carried_neg r p
 
 /-! ## Initial state -/
 
+/-- Nothing delivered, nothing accepted. -/
 after_init {
   carried_fastqc R P M := false
   carried_pos R P M := false
@@ -115,6 +129,7 @@ after_init {
 
 /-! ## Delivery — one entry kind per proposer per vote -/
 
+/-- A FastQC entry for `(p, m)` arrives in `r`'s vote. -/
 action deliver_entry_fastqc (r : node) (p : proposer) (m : merkle_root) {
   require ¬ accepted r
   require ∀ M, ¬ carried_fastqc r p M
@@ -124,6 +139,7 @@ action deliver_entry_fastqc (r : node) (p : proposer) (m : merkle_root) {
   carried_fastqc r p m := true
 }
 
+/-- `r`'s own positive signed entry for `(p, m)` arrives in its vote. -/
 action deliver_entry_pos (r : node) (p : proposer) (m : merkle_root) {
   require ¬ accepted r
   require ∀ M, ¬ carried_fastqc r p M
@@ -133,6 +149,7 @@ action deliver_entry_pos (r : node) (p : proposer) (m : merkle_root) {
   carried_pos r p m := true
 }
 
+/-- `r`'s own negative signed entry for `p` arrives in its vote. -/
 action deliver_entry_neg (r : node) (p : proposer) {
   require ¬ accepted r
   require ∀ M, ¬ carried_fastqc r p M
@@ -142,8 +159,8 @@ action deliver_entry_neg (r : node) (p : proposer) {
   carried_neg r p := true
 }
 
--- Pre-fix only, Byzantine senders only (see the header): a vote entry
--- that is a (valid, receiver-verified) EquivCert.
+/-- Pre-fix only, Byzantine senders only (see the header): a vote entry
+that is a (valid, receiver-verified) EquivCert. -/
 action deliver_entry_equiv (r : node) (p : proposer) {
   require nset.is_byz r
   require ¬ accepted r
@@ -154,7 +171,7 @@ action deliver_entry_equiv (r : node) (p : proposer) {
   carried_equiv r p := true
 }
 
-/- Pre-fix receipt: any valid evidence is accepted — including a carried
+/-- Pre-fix receipt: any valid evidence is accepted — including a carried
 EquivCert (which the handler validates and then never harvests). -/
 action accept_vote (r : node) {
   require ¬ accepted r
@@ -163,7 +180,7 @@ action accept_vote (r : node) {
   accepted r := true
 }
 
-/- Pre-fix propose: fires unconditionally at `|M_i| ≥ 2f+1`, once-only
+/-- Pre-fix propose: fires unconditionally at `|M_i| ≥ 2f+1`, once-only
 (`mvbaInvoked`) — no certified-entries guard. -/
 action propose (q : nodeset) {
   require ¬ proposed
@@ -172,9 +189,9 @@ action propose (q : nodeset) {
   proposed := true
 }
 
-/-! ## The refuted claim
+/-! ## The refuted claim -/
 
-The paper's pre-fix comment at the propose rule: "by the rules above,
+/-- The paper's pre-fix comment at the propose rule: "by the rules above,
 every `Ev(pid)` is a FastQC, FallbackQC, or EquivCert" — i.e. at
 propose time, for every proposer, the harvest/formation rules have
 produced certified evidence. **This is false**: the model checker below
@@ -197,12 +214,11 @@ sign (e.g. one positive for `ρ₁`, one negative), one Byzantine vote
 carrying an EquivCert, all three accepted (`= 2f+1`), propose fires —
 and no certificate is harvestable or formable for the proposer.
 
-The same state is unreachable in `FallbackReceipt.lean`: its
-`accept_vote` rejects the EquivCert-carrying vote (`line:fb-accept`),
+The same state is unreachable in [FallbackReceipt.lean](../FallbackReceipt.lean):
+its `accept_vote` rejects the EquivCert-carrying vote (`line:fb-accept`),
 so a third *entry-carrying* vote arrives instead and the two-class
 pigeonhole closes every case (`build_totality_of_reachable` in
-`FallbackReceipt/Totality.lean`,
-kernel-checked for every `n = 3f+1`).
+[Totality.lean](Totality.lean), kernel-checked for every `n = 3f+1`).
 
 The `#guard_msgs` below pins the checker's counterexample — exactly
 the §7.2 scenario (node 0 is the Byzantine

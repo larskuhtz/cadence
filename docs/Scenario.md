@@ -4,7 +4,7 @@
 the proofs, and what an auditor is being asked to trust. This describes a target
 workflow. Parts of it are realised today — the model / proof-file split, the
 machine-derived audit pins — and parts are not yet. For what is proven, read
-[`../README.md`](../README.md).*
+[../README.md](../README.md).*
 
 ## Summary
 
@@ -78,7 +78,7 @@ A common workflow is as follows:
 
 3. Audit:
    1. Auditors need to read only
-       - concise top-level documentation (`README.md`, `docs/Architecture.md`,
+       - concise top-level documentation ([README.md](../README.md), [docs/Architecture.md](Architecture.md),
          or anything else that helps understand the model and properties) —
          including the inventory of meta-assumptions that live outside Lean
          (modelling contracts, fairness axioms),

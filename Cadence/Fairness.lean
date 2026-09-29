@@ -11,9 +11,9 @@ enabled, and weak and strong fairness of one action label.
 
 ## Why it lives here, and what it is meant to become
 
-Veil has no surface syntax for fairness. The fork's design proposal
-(`docs/Liveness.md` on its `lars/liveness` branch — a document, not an
-implementation) plans per-action annotations
+Veil has no surface syntax for fairness. The Veil fork's design proposal
+(the fork's own [Liveness.md](../docs/Liveness.md), on its `lars/liveness` branch — a
+document, not an implementation) plans per-action annotations
 
 ```
 fairness justice    send_vote
@@ -37,7 +37,7 @@ buried in a proof.
 ## Two modelling choices
 
 **Runs carry labels.** A `Veil.RelationalTransitionSystem`'s `next` hides the label
-(`next th s s' := ∃ l, tr th s l s'`), and [`Interfaces.lean`](./Interfaces.lean)'s
+(`next th s s' := ∃ l, tr th s l s'`), and [Interfaces.lean](Interfaces.lean)'s
 `Run` is built over such an unlabelled relation, because that is all the
 *contracts* need. Fairness cannot be stated that way — "this action fires"
 is a statement about the label — so `LRun` below carries the label sequence
@@ -88,7 +88,7 @@ theorem reachable (r : LRun sys th) : ∀ n, sys.reachable th (r.at' n)
     RelationalTransitionSystem.reachable.step _ _ (reachable r n) ⟨r.lbl n, r.steps n⟩
 
 /-- Forgetting the labels gives a `Run` in the sense of
-[`Interfaces.lean`](./Interfaces.lean), which is what the module contracts'
+[Interfaces.lean](Interfaces.lean), which is what the module contracts'
 temporal fields quantify over. -/
 def toRun (r : LRun sys th) : Run σ (sys.init th) (sys.next th) where
   at' := r.at'
@@ -117,7 +117,7 @@ them all *at the same state*. Monotonicity makes the conjunction stable and
 finiteness makes it collapse — with an infinite index list only finitely
 many have arrived at any finite point, and the guard never fires. It is why
 liveness needs `ByzNodeSetEnum` and safety does not
-([`ByzQuorum.lean`](./ByzQuorum.lean)). -/
+([ByzQuorum.lean](ByzQuorum.lean)). -/
 theorem eventually_forall (r : LRun sys th) {α : Type v} (P : α → σ → Prop)
     (hmono : ∀ a n, P a (r.at' n) → P a (r.at' (n + 1))) (N : Nat) :
     ∀ (xs : List α), (∀ a ∈ xs, ∃ n, N ≤ n ∧ P a (r.at' n)) →
@@ -181,7 +181,7 @@ def WeaklyFair (r : LRun sys th) (l : lbl) : Prop :=
 /-- **Strong fairness** (the proposal's `fairness compassion`): a label
 enabled at infinitely many points fires at some point from `N` on. Defined
 for completeness and for the network-delivery case the proposal mentions;
-the Cadence models assume only weak fairness, and `docs/MvbaPlan.md` §3.2
+the Cadence models assume only weak fairness, and [MvbaPlan.md](../docs/MvbaPlan.md) §3.2
 records why strengthening would buy nothing there. -/
 def StronglyFair (r : LRun sys th) (l : lbl) : Prop :=
   ∀ N, (∀ n, ∃ m, n ≤ m ∧ Enabled sys th (r.at' m) l) → ∃ n, N ≤ n ∧ r.lbl n = l
@@ -217,9 +217,9 @@ A **component** is one Veil module held inside another: the outer module's
 state contains a state of the inner one, a few of the outer module's actions
 advance it — by transitions the inner module itself allows — and every other
 action leaves it alone. Chorus and the MVBA are the instance this exists for
-(`Chorus.lean`, "The MVBA instance": the abstract state `mvba_st`, advanced
+([Chorus.lean](Chorus.lean), "The MVBA instance": the abstract state `mvba_st`, advanced
 only by `mvba_step` and `mvba_propose`, whose guards are the contract's
-`step` and `propose`; `docs/Liveness.md` §4), but nothing below is about
+`step` and `propose`; [Liveness.md](../docs/Liveness.md) §4), but nothing below is about
 them.
 
 The point of the definition is to consume a liveness theorem proven about
@@ -530,7 +530,7 @@ def WeaklyFairIn (l' : lbl') : Prop :=
 direction a consumer needs is right-to-left: a fairness premise about the
 part, stated over the composed run, gives `WeaklyFair` on the projected run,
 which is what the part's liveness theorem consumes. Its content is exactly
-`docs/Liveness.md` §4's "a label continuously enabled in the projection was
+[Liveness.md](../docs/Liveness.md) §4's "a label continuously enabled in the projection was
 continuously enabled in the composed run": between the part's steps its state
 does not change (`proj_eq_run_cover`), so enabledness from projected index
 `K` on is enabledness from composed index `C.idx r K` on. The other direction

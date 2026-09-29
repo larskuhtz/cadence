@@ -3,25 +3,23 @@ import Cadence.Tooling
 
 /-! # FallbackReceipt — the fallback receipt/propose layer (the paper's v2 design)
 
-*This is a **model file** of the verified-module file family
-(`docs/Architecture.md` §6): it elaborates the transition system and
-persists the VC registry, but runs **no invariant sweep** — the proofs
-live in the per-action files under
-[`FallbackReceipt/Proofs/`](./FallbackReceipt/Proofs), composed into the
+This is a **model file** of the verified-module file family
+([Architecture.md](../docs/Architecture.md) §6): it elaborates the transition
+system and persists the VC registry, but runs **no invariant sweep** — the
+proofs live in the per-action files under
+[FallbackReceipt/Proofs](FallbackReceipt/Proofs), composed into the
 reachability certificate by
-[`FallbackReceipt/Certify.lean`](./FallbackReceipt/Certify.lean). Opening
-this file in an editor costs the model elaboration plus the (cheap)
-background `doesNotThrow` checks and the bounded model check.*
+[FallbackReceipt/Certify.lean](FallbackReceipt/Certify.lean).
 
-Mechanisation of the layer behind the bug record in `docs/ChorusDesign.md`
-§7.2: the per-validator receipt of `FallbackVote`s and the once-only
+Mechanisation of the layer behind the bug record in
+[ChorusDesign.md](../docs/ChorusDesign.md) §7.2: the per-validator receipt of `FallbackVote`s and the once-only
 MVBA propose with the atomic per-proposer build, exactly as the paper's
 **v2** states it (`alg:fallback`) — the receipt restriction at
 `line:fb-accept` (a vote is accepted only if every entry is a valid
 FastQC or the sender's *own* valid fallback signed entry), FastQC
 harvesting at `line:fb-harvest`, and the atomic build at
 `line:fb-build-entry`–`line:fb-formqc`. The companion module
-`FallbackReceipt/PreFix.lean` models the
+[FallbackReceipt/PreFix.lean](FallbackReceipt/PreFix.lean) models the
 **v1** (pre-fix) rules and mechanically refutes them.
 
 This module is deliberately *per-validator*: it models one (correct)
@@ -37,7 +35,7 @@ vote content.
   entries in `M_i`, or a FallbackQC from `f+1` matching signed entries
   in `M_i`. This is the paper's "`B` is valid by construction".
 * **Build totality (the per-validator pigeonhole, proven for all `n` in
-  `FallbackReceipt/Totality.lean`)** —
+  [FallbackReceipt/Totality.lean](FallbackReceipt/Totality.lean))** —
   once `|M_i| ≥ 2f+1`, one of the three build cases applies for *every*
   proposer (`line:fb-build-entry`, "one of the three cases always
   applies, by counting"): if no FastQC was harvested and no two positive
@@ -46,7 +44,7 @@ vote content.
   **The two-class counting step is not SMT-dischargeable at the abstract
   `ByzNodeSet` level** — partitioning a quorum by the value its members
   signed requires set comprehension, which is outside the class's
-  first-order language (`docs/ChorusDesign.md` §7, "Evidence pigeonhole"; the same
+  first-order language ([ChorusDesign.md](../docs/ChorusDesign.md) §7, "Evidence pigeonhole"; the same
   crux as Chorus's meta-level step), a module-level `assumption` cannot
   mention mutable relations, and the statement is not even *true* in
   every model of the axioms — so it is deliberately **not** a declared
@@ -54,25 +52,24 @@ vote content.
   would poison the proof-file family). It is instead proven as a
   plain-Lean theorem over the concrete instance *family*
   `byzNodeSetFin n f` — every `n = 3f+1`, arbitrary proposer and root
-  types — in `FallbackReceipt/Totality.lean`, from a single SMT-proven
-  structural invariant (`accepted_entries_complete`), and lifted to all
-  reachable states there via the `#gen_composition` certificate
-  (`FallbackReceipt/Certify.lean`).
-  That is strictly stronger than the earlier bounded `#model_check`
-  argument at `n = 4`; the model check below remains as a fast
-  exhaustive regression over the structural invariants.
+  types — in the totality file, from a single SMT-proven structural
+  invariant (`accepted_entries_complete`), and lifted to all reachable
+  states there via the `#gen_composition` certificate
+  ([FallbackReceipt/Certify.lean](FallbackReceipt/Certify.lean)). The
+  bounded `#model_check` at `n = 4` below is a fast exhaustive regression
+  over the structural invariants.
 
 Note the counting needs **no honesty split**: any `2f+1` *accepted*
 votes suffice, Byzantine senders included — the receipt restriction
 alone pins each accepted vote to FastQC-or-own-entry, and FallbackQCs
-aggregate any `f+1` matching signatures. (Contrast the paper's §7
-*global* pigeonhole over honest entries; the per-validator argument is
-what the §7.2 fix made work.)
+aggregate any `f+1` matching signatures. (Contrast the *global* pigeonhole
+over honest entries, [ChorusDesign.md](../docs/ChorusDesign.md) §7; the
+per-validator argument is what the §7.2 fix makes work.)
 
 ## Integration seam (the (A-mvba) implementability leg)
 
 This module discharges the per-validator implementability of (A-mvba)'s
-premise (`docs/ChorusDesign.md` §7, `Chorus.lean` liveness section): network-global
+premise ([ChorusDesign.md](../docs/ChorusDesign.md) §7, [Chorus.lean](Chorus.lean) liveness section): network-global
 evidence → every correct validator proposes a *valid* meta-block.
 *Assumed* from Chorus (facts proven there over the shared vocabulary):
 
@@ -90,19 +87,19 @@ Chorus or the paper.
   0`/mixed branches)
 
 *Guaranteed*: `certified_propose` + build totality
-(`FallbackReceipt/Totality.lean`) + (F-justice) on the build/propose
-actions ⇒ every correct validator that receives `2f+1` fallback votes
-proposes a valid meta-block. The seam is meta-level (documented, not a
-Lean composition) pending VC persistence for *Chorus*
-(`docs/Architecture.md` §6) — within *this* module the chain is closed
-in Lean end-to-end (`build_totality_of_reachable` in the totality
-file).
+([FallbackReceipt/Totality.lean](FallbackReceipt/Totality.lean)) +
+(F-justice) on the build/propose actions ⇒ every correct validator that
+receives `2f+1` fallback votes proposes a valid meta-block. The seam to
+Chorus is meta-level (documented, not a Lean composition); within *this*
+module the chain is closed in Lean end-to-end
+(`build_totality_of_reachable` in the totality file).
 
-## Locality regime — deliberately different from `Chorus.lean`
+## Locality regime — deliberately different from [Chorus.lean](Chorus.lean)
 
 All mutable state here is *local to the receiving validator* (its
-`M_i`, its harvest, its build state) — category (L) of `docs/ChorusDesign.md`
-§3.5. The monotone-network contract (`docs/ChorusDesign.md` §3.1.1) is therefore
+`M_i`, its harvest, its build state) — category (L) of
+[ChorusDesign.md](../docs/ChorusDesign.md) §3.5. The monotone-network
+contract ([ChorusDesign.md](../docs/ChorusDesign.md) §3.1.1) is therefore
 **not invoked**: negative guards over this state are sound (a validator
 observes its own receipt state exactly), including the build rule's
 faithful `else if` precedence guards. Asynchrony enters solely through
@@ -114,7 +111,7 @@ arbitrary interleavings of the delivery/acceptance actions.
   layer never uses a proposer's node identity, only its entry slot.
 * The paper's atomic build-and-propose is decomposed into per-proposer
   `build_entry_*` actions plus a `propose` umbrella (the standard Veil
-  idiom, cf. `Chorus.lean` §"Per-proposer signing decomposed"). Entries
+  idiom, as in [Chorus.lean](Chorus.lean)'s per-proposer signing actions). Entries
   may thus be selected against a *growing* `M_i` rather than the exact
   trigger-time snapshot — an over-approximation of schedules that
   affects neither certification (backing is monotone) nor totality.
@@ -128,9 +125,14 @@ arbitrary interleavings of the delivery/acceptance actions.
 
 veil module FallbackReceipt
 
+/-- Validator identity. -/
 type node
+/-- Validator sets, with the quorum predicates of `ByzNodeSet`. -/
 type nodeset
+/-- Proposers, a separate index type: the receipt layer uses only a
+proposer's entry slot, never its node identity. -/
 type proposer
+/-- Merkle roots — the values a proposer's entry can carry. -/
 type merkle_root
 
 instantiate nset : ByzNodeSet node nodeset
@@ -145,64 +147,73 @@ whose `2f+1` signatures verified; a `carried_pos` carries `r`'s own
 signature and a verifying proposer signature `σ_p`. Exactly one entry
 kind per proposer per vote (the delivery guards). -/
 
+/-- `r`'s vote carries a verified FastQC for `(p, m)`. -/
 relation carried_fastqc (r : node) (p : proposer) (m : merkle_root)
+/-- `r`'s vote carries `r`'s own positive signed entry for `(p, m)`, with a
+verifying proposer signature `σ_p`. -/
 relation carried_pos (r : node) (p : proposer) (m : merkle_root)
+/-- `r`'s vote carries `r`'s own negative signed entry `⟨s, p, ⊥⟩`. -/
 relation carried_neg (r : node) (p : proposer)
 
--- `r`'s vote passed the `line:fb-accept` receipt restriction: membership
--- of `M_i`.
+/-- `r`'s vote passed the `line:fb-accept` receipt restriction: membership
+of `M_i`. -/
 relation accepted (r : node)
 
 /-! ## Build state — the assembled meta-block entries -/
 
+/-- The entry for `p` is a harvested FastQC for `m` (`line:fb-build-fast`). -/
 relation built_fastqc (p : proposer) (m : merkle_root)
+/-- The entry for `p` is an EquivCert (`line:fb-build-equiv`). -/
 relation built_equiv (p : proposer)
+/-- The entry for `p` is a positive FallbackQC for `m` (`line:fb-formqc`). -/
 relation built_fbqc_pos (p : proposer) (m : merkle_root)
+/-- The entry for `p` is a negative FallbackQC (`line:fb-formqc`). -/
 relation built_fbqc_neg (p : proposer)
--- `MVBA[s].propose(B)` has fired (`line:fb-mvba-propose`); once-only
--- (`mvbaInvoked`).
+/-- `MVBA[s].propose(B)` has fired (`line:fb-mvba-propose`); once-only
+(`mvbaInvoked`). -/
 individual proposed : Bool
 
 #gen_state
 
 /-! ## Derived state (ghosts) -/
 
--- `Ev(p)` holds a harvested FastQC (`line:fb-harvest`; harvesting is
--- atomic with receipt, so it is derived state).
+/-- `Ev(p)` holds a harvested FastQC (`line:fb-harvest`; harvesting is
+atomic with receipt, so it is derived state). -/
 ghost relation ev_fastqc (p : proposer) (m : merkle_root) :=
   ∃ r, accepted r ∧ carried_fastqc r p m
 
--- `|M_i| ≥ 2f+1` — the propose trigger (`line:fb-build-entry` guard).
+/-- `|M_i| ≥ 2f+1` — the propose trigger (`line:fb-build-entry` guard). -/
 ghost relation received_supermajority :=
   ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → accepted r
 
--- Two conflicting positive signed entries in `M_i`: the EquivCert build
--- case (`line:fb-build-equiv`). The two entries carry verifying `σ_p`s
--- on distinct roots — the certificate's content. (Distinct senders are
--- implied: one sender has at most one entry per proposer.)
+/-- Two conflicting positive signed entries in `M_i`: the EquivCert build
+case (`line:fb-build-equiv`). The two entries carry verifying `σ_p`s
+on distinct roots — the certificate's content. (Distinct senders are
+implied: one sender has at most one entry per proposer.) -/
 ghost relation equiv_available (p : proposer) :=
   ∃ r1 r2 m1 m2, m1 ≠ m2 ∧
     accepted r1 ∧ carried_pos r1 p m1 ∧
     accepted r2 ∧ carried_pos r2 p m2
 
--- `f+1` matching positive signed entries in `M_i`: a positive FallbackQC
--- is formable (`line:fb-formqc`).
+/-- `f+1` matching positive signed entries in `M_i`: a positive FallbackQC
+is formable (`line:fb-formqc`). -/
 ghost relation fbqc_pos_available (p : proposer) (m : merkle_root) :=
   ∃ q, nset.greater_than_third q ∧
     ∀ r, nset.member r q → accepted r ∧ carried_pos r p m
 
--- The negative counterpart (`f+1` matching `⟨s, p, ⊥⟩` entries).
+/-- The negative counterpart (`f+1` matching `⟨s, p, ⊥⟩` entries). -/
 ghost relation fbqc_neg_available (p : proposer) :=
   ∃ q, nset.greater_than_third q ∧
     ∀ r, nset.member r q → accepted r ∧ carried_neg r p
 
--- The build produced an entry for `p` (of whichever kind).
+/-- The build produced an entry for `p` (of whichever kind). -/
 ghost relation entry_built (p : proposer) :=
   (∃ m, built_fastqc p m) ∨ built_equiv p ∨
   (∃ m, built_fbqc_pos p m) ∨ built_fbqc_neg p
 
 /-! ## Initial state -/
 
+/-- Nothing delivered, nothing accepted, nothing built. -/
 after_init {
   carried_fastqc R P M := false
   carried_pos R P M := false
@@ -221,6 +232,7 @@ Sender-nondeterministic (honest or Byzantine — on the shipped wire both
 are confined to the same entry kinds), receiver-verified. One entry kind
 per proposer per vote; entries freeze once the vote is accepted. -/
 
+/-- A FastQC entry for `(p, m)` arrives in `r`'s vote. -/
 action deliver_entry_fastqc (r : node) (p : proposer) (m : merkle_root) {
   require ¬ accepted r
   require ∀ M, ¬ carried_fastqc r p M
@@ -229,6 +241,7 @@ action deliver_entry_fastqc (r : node) (p : proposer) (m : merkle_root) {
   carried_fastqc r p m := true
 }
 
+/-- `r`'s own positive signed entry for `(p, m)` arrives in its vote. -/
 action deliver_entry_pos (r : node) (p : proposer) (m : merkle_root) {
   require ¬ accepted r
   require ∀ M, ¬ carried_fastqc r p M
@@ -237,6 +250,7 @@ action deliver_entry_pos (r : node) (p : proposer) (m : merkle_root) {
   carried_pos r p m := true
 }
 
+/-- `r`'s own negative signed entry for `p` arrives in its vote. -/
 action deliver_entry_neg (r : node) (p : proposer) {
   require ¬ accepted r
   require ∀ M, ¬ carried_fastqc r p M
@@ -245,7 +259,7 @@ action deliver_entry_neg (r : node) (p : proposer) {
   carried_neg r p := true
 }
 
-/- Receipt (`line:fb-accept`, the v2 restriction): the first
+/-- Receipt (`line:fb-accept`, the v2 restriction): the first
 `FallbackVote` from `r` joins `M_i` iff it carries, for every proposer,
 a valid FastQC or `r`'s own valid signed entry. (Votes carrying anything
 else — e.g. an EquivCert, cf. the pre-fix module — are rejected; in this
@@ -264,6 +278,7 @@ Fires at the propose trigger (`|M_i| ≥ 2f+1`, once-only), one case per
 proposer with the paper's `if / else if / else` precedence as explicit
 guards. -/
 
+/-- First case: a FastQC for `p` was harvested (`line:fb-build-fast`). -/
 action build_entry_fastqc (p : proposer) (m : merkle_root) {
   require ¬ proposed
   require received_supermajority
@@ -273,6 +288,8 @@ action build_entry_fastqc (p : proposer) (m : merkle_root) {
   built_fastqc p m := true
 }
 
+/-- Second case: no FastQC, and two conflicting positive entries give an
+EquivCert (`line:fb-build-equiv`). -/
 action build_entry_equiv (p : proposer) {
   require ¬ proposed
   require received_supermajority
@@ -284,6 +301,8 @@ action build_entry_equiv (p : proposer) {
   built_equiv p := true
 }
 
+/-- Third case, positive: neither earlier case applies, and `f+1` matching
+positive signed entries form a FallbackQC (`line:fb-formqc`). -/
 action build_entry_fbqc_pos (p : proposer) (m : merkle_root) (q : nodeset) {
   require ¬ proposed
   require received_supermajority
@@ -297,6 +316,8 @@ action build_entry_fbqc_pos (p : proposer) (m : merkle_root) (q : nodeset) {
   built_fbqc_pos p m := true
 }
 
+/-- Third case, negative: neither earlier case applies, and `f+1` matching
+negative entries form a FallbackQC. -/
 action build_entry_fbqc_neg (p : proposer) (q : nodeset) {
   require ¬ proposed
   require received_supermajority
@@ -308,7 +329,7 @@ action build_entry_fbqc_neg (p : proposer) (q : nodeset) {
   built_fbqc_neg p := true
 }
 
-/- `MVBA[s].propose(B)` (`line:fb-mvba-propose`): once-only, at the
+/-- `MVBA[s].propose(B)` (`line:fb-mvba-propose`): once-only, at the
 trigger, with the meta-block complete. -/
 action propose (q : nodeset) {
   require ¬ proposed
@@ -320,6 +341,9 @@ action propose (q : nodeset) {
 
 /-! ## Safety — "B is valid by construction" -/
 
+/-- Whenever the propose fires, every proposer's built entry is
+certificate-backed: a harvested FastQC, an EquivCert, or a positive or
+negative FallbackQC formable from `M_i`. -/
 safety [certified_propose]
   proposed →
     ∀ (P : proposer),
@@ -328,7 +352,7 @@ safety [certified_propose]
 
 /-! ## Structural invariants (wire discipline, backing, build sanity) -/
 
-/- Lifted `accept_vote` guard: every member of `M_i` carries an entry for
+/-- Lifted `accept_vote` guard: every member of `M_i` carries an entry for
 every proposer. The pigeonhole's "at least one" leg. -/
 invariant [accepted_entries_complete]
   ∀ (R : node) (P : proposer),
@@ -336,91 +360,101 @@ invariant [accepted_entries_complete]
       (∃ M, carried_fastqc R P M) ∨ (∃ M, carried_pos R P M) ∨
       carried_neg R P
 
-/- Lifted delivery guards: exactly-one entry kind per (sender, proposer). -/
+/-- Lifted delivery guards: exactly-one entry kind per (sender, proposer). -/
 invariant [carried_fastqc_unique]
   ∀ (R : node) (P : proposer) (M M2 : merkle_root),
     carried_fastqc R P M ∧ carried_fastqc R P M2 → M = M2
 
+/-- One positive entry per (sender, proposer). -/
 invariant [carried_pos_unique]
   ∀ (R : node) (P : proposer) (M M2 : merkle_root),
     carried_pos R P M ∧ carried_pos R P M2 → M = M2
 
+/-- No FastQC and positive entry for the same (sender, proposer). -/
 invariant [carried_fastqc_pos_excl]
   ∀ (R : node) (P : proposer) (M M2 : merkle_root),
     ¬ (carried_fastqc R P M ∧ carried_pos R P M2)
 
+/-- No FastQC and negative entry for the same (sender, proposer). -/
 invariant [carried_fastqc_neg_excl]
   ∀ (R : node) (P : proposer) (M : merkle_root),
     ¬ (carried_fastqc R P M ∧ carried_neg R P)
 
+/-- No positive and negative entry for the same (sender, proposer). -/
 invariant [carried_pos_neg_excl]
   ∀ (R : node) (P : proposer) (M : merkle_root),
     ¬ (carried_pos R P M ∧ carried_neg R P)
 
-/- Certificate backing of the built entries (`certified_propose`'s
+/-- Certificate backing of the built entries (`certified_propose`'s
 per-kind content; each is the lifted build guard, stable because
 `accepted`/`carried_*` are monotone). -/
 invariant [built_fastqc_backed]
   ∀ (P : proposer) (M : merkle_root), built_fastqc P M → ev_fastqc P M
 
+/-- A built EquivCert is backed by two conflicting entries in `M_i`. -/
 invariant [built_equiv_backed]
   ∀ (P : proposer), built_equiv P → equiv_available P
 
+/-- A built positive FallbackQC is backed by `f+1` matching entries. -/
 invariant [built_fbqc_pos_backed]
   ∀ (P : proposer) (M : merkle_root),
     built_fbqc_pos P M → fbqc_pos_available P M
 
+/-- A built negative FallbackQC is backed by `f+1` matching entries. -/
 invariant [built_fbqc_neg_backed]
   ∀ (P : proposer), built_fbqc_neg P → fbqc_neg_available P
 
-/- One built entry per proposer (lifted `¬ entry_built` guards): the
+/-- One built entry per proposer (lifted `¬ entry_built` guards): the
 meta-block is a per-proposer map. -/
 invariant [built_fastqc_unique]
   ∀ (P : proposer) (M M2 : merkle_root),
     built_fastqc P M ∧ built_fastqc P M2 → M = M2
 
+/-- At most one positive-FallbackQC root per proposer. -/
 invariant [built_fbqc_pos_unique]
   ∀ (P : proposer) (M M2 : merkle_root),
     built_fbqc_pos P M ∧ built_fbqc_pos P M2 → M = M2
 
+/-- No proposer's entry is both a FastQC and an EquivCert. -/
 invariant [built_fastqc_equiv_excl]
   ∀ (P : proposer) (M : merkle_root), ¬ (built_fastqc P M ∧ built_equiv P)
 
+/-- No proposer's entry is both a FastQC and a positive FallbackQC. -/
 invariant [built_fastqc_fbqc_pos_excl]
   ∀ (P : proposer) (M M2 : merkle_root),
     ¬ (built_fastqc P M ∧ built_fbqc_pos P M2)
 
+/-- No proposer's entry is both a FastQC and a negative FallbackQC. -/
 invariant [built_fastqc_fbqc_neg_excl]
   ∀ (P : proposer) (M : merkle_root),
     ¬ (built_fastqc P M ∧ built_fbqc_neg P)
 
+/-- No proposer's entry is both an EquivCert and a positive FallbackQC. -/
 invariant [built_equiv_fbqc_pos_excl]
   ∀ (P : proposer) (M : merkle_root),
     ¬ (built_equiv P ∧ built_fbqc_pos P M)
 
+/-- No proposer's entry is both an EquivCert and a negative FallbackQC. -/
 invariant [built_equiv_fbqc_neg_excl]
   ∀ (P : proposer), ¬ (built_equiv P ∧ built_fbqc_neg P)
 
+/-- No proposer's entry is both a positive and a negative FallbackQC. -/
 invariant [built_fbqc_pos_neg_excl]
   ∀ (P : proposer) (M : merkle_root),
     ¬ (built_fbqc_pos P M ∧ built_fbqc_neg P)
 
-/- Lifted `propose` guards: the propose is trigger-gated and complete. -/
+/-- Lifted `propose` guards: the propose is trigger-gated and complete. -/
 invariant [proposed_supermajority]
   proposed → received_supermajority
 
+/-- The propose fires only with every proposer's entry built. -/
 invariant [proposed_entries_built]
   proposed → ∀ (P : proposer), entry_built P
 
-/- NOTE: the per-validator pigeonhole ("build totality" — at the
-trigger, one build case applies for every proposer) is deliberately
-NOT a declared invariant: its abstract VCs are unprovable (the
-two-class counting is outside the abstract `ByzNodeSet` language and
-fails in non-standard models of the axioms), which would poison both
-`#check_invariants` and `#gen_theorems`. It is stated and proven for
-all `n = 3f+1` over the concrete instance family in
-`FallbackReceipt/Totality.lean`,
-using only `accepted_entries_complete` from the clump above. -/
+/- Build totality is deliberately not a declared invariant: its abstract VCs
+are unprovable (module header, "Verified claims"). It is proven in
+[FallbackReceipt/Totality.lean](FallbackReceipt/Totality.lean) from
+`accepted_entries_complete` alone. -/
 
 /- Proof reconstruction ON (this module only): captured at `#gen_spec`,
 so it governs the background `doesNotThrow` dischargers this file still
@@ -432,7 +466,7 @@ persisted theorem carries **no** `sorryAx`, and the totality file's
 trio). -/
 set_option veil.smt.trust false
 
-/- VC registry (`docs/Dependencies.md` §1): `#gen_spec`
+/- VC registry ([Dependencies.md](../docs/Dependencies.md) §1): `#gen_spec`
 persists every VC's statement (as an `Expr`) plus its action/property/
 style metadata into the olean. This is the model file's entire proof
 interface: the family's `#prove_action`/`#prove_vc` commands re-create
@@ -441,7 +475,7 @@ would check, by construction. Solve-free; costs one statement
 elaboration per VC here and ~2 KB/VC of olean. -/
 set_option veil.gen.vcRegistry true
 
-/- Proof cache (`docs/Dependencies.md` §2): consult the
+/- Proof cache ([Dependencies.md](../docs/Dependencies.md) §2): consult the
 content-addressed cache (`.lake/build/veilcache/`) for the `doesNotThrow`
 dischargers, and store their proofs. The family's proof files enable the
 cache themselves. File-level so the dischargers capture it at `#gen_spec`
@@ -456,9 +490,9 @@ Three legs (see the module header):
 
 1. **Abstract (all `n`), SMT — in the proof-file family, not here**: one
    `#prove_action` per action under
-   [`FallbackReceipt/Proofs/`](./FallbackReceipt/Proofs) proves every
+   [FallbackReceipt/Proofs](FallbackReceipt/Proofs) proves every
    registered VC cross-file and persists it as a kernel-checked theorem;
-   [`FallbackReceipt/Certify.lean`](./FallbackReceipt/Certify.lean)
+   [FallbackReceipt/Certify.lean](FallbackReceipt/Certify.lean)
    composes the per-action preservation lemmas into
    `FallbackReceipt.invariants_of_reachable` (+ named `reachable_*`
    projections) via `#gen_composition`. This file itself only starts the
@@ -467,7 +501,7 @@ Three legs (see the module header):
    `#model_check` over the `insByzNodeSetFinSimple` instance — a fast
    full-reachability regression over the same declarations (and a
    non-vacuity witness: the explored graph contains proposing runs).
-3. **The totality closure**: `FallbackReceipt/Totality.lean` consumes the
+3. **The totality closure**: [FallbackReceipt/Totality.lean](FallbackReceipt/Totality.lean) consumes the
    certificate to lift the pigeonhole theorem to every reachable state. -/
 
 #model_check interpreted

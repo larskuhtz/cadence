@@ -3,8 +3,8 @@ import Cadence.ByzQuorum
 
 /-! # Mvba.Rank — the lexicographic ranking, and its decrease
 
-The formal content of [`docs/MvbaPlan.md`](../../docs/MvbaPlan.md) §3.3.
-[`Progress.lean`](./Progress.lean) proved the *disabling* half — a guard that
+The formal content of [MvbaPlan.md](../../docs/MvbaPlan.md) §3.3.
+[Progress.lean](Progress.lean) proves the *disabling* half — a guard that
 held and then failed means a monotone relation grew. This file supplies the
 measure that growth is progress *in*, and the theorems that say so.
 
@@ -59,10 +59,10 @@ formation, which is the part that needs a quorum; the remaining validators
 each need one weakly-fair firing, a chain of eventualities rather than a
 count.
 
-## Where the finiteness comes from — and a §3.3 correction
+## Where the finiteness comes from
 
-`MvbaPlan.md` §3.3 settled the finiteness question in two dimensions and got
-a third one wrong. All three are visible in the types here.
+Finiteness is needed in three dimensions, and all three are visible in the
+types here.
 
 * **The value dimension needs nothing.** Every count is taken at a fixed
   `(v, e)`, which is sound because the model proves `accepted_unique`: an
@@ -70,13 +70,13 @@ a third one wrong. All three are visible in the types here.
   writes is gated on that acceptance. The value dimension collapses by
   protocol, not by cardinality.
 * **The node dimension is `ByzNodeSetEnum`**
-  ([`ByzQuorum.lean`](../ByzQuorum.lean)): a quorum's members as a list. It
+  ([ByzQuorum.lean](../ByzQuorum.lean)): a quorum's members as a list. It
   is an **explicit parameter** of every definition and theorem that uses it,
   never an instance, so a liveness result carries it as a visible hypothesis
   and nothing on the safety side acquires a cardinality assumption it does
   not need. One `ByzNodeSetEnum` serves both index lists, as above.
-* **The view dimension needs finiteness too, and §3.3 said it came from
-  `leader_honest_cofinal`. It does not.** Cofinality gives a *target* — above
+* **The view dimension needs finiteness too, and `leader_honest_cofinal`
+  does not supply it.** Cofinality gives a *target* — above
   any view there is an honest-led one (`exists_honest_leader_above` below,
   the assumption's one consequence here) — but says nothing about how many
   views lie in between, and `TotalOrderWithMinimum` does not either: its
@@ -85,24 +85,23 @@ a third one wrong. All three are visible in the types here.
   **explicit `List view` parameter** `Vs`, exactly as the quorum's members
   are. Supplying it is the view dimension's sibling of `ByzNodeSetEnum`, and
   keeping it a parameter is what stops it being silent: the run-level theorem
-  of §3.5 step 4 must produce a list covering the interval from the current
-  view to the honest-led target, and cannot pretend the model's abstract
-  order handed it one.
+  ([Liveness.lean](Liveness.lean)) produces a list covering the views up to
+  the honest-led target from `ViewOrderEnum`
+  ([ViewOrder.lean](../ViewOrder.lean)), a hypothesis of that theorem rather
+  than something the model's abstract order supplies.
 
 ## What is not here
 
 No scheduling assumption, and no run. A rank that never increases and
 strictly decreases on progress is a statement about single transitions; that
 fair firings eventually drive it to `0` needs (F-justice), (A-viewsync) and
-(F-avail), which enter at §3.5 step 4 as explicit hypotheses of the run-level
-theorem. The one thing consumed beyond the model's transitions and its quorum
+(F-avail), which are explicit hypotheses of the run-level theorem
+([Liveness.lean](Liveness.lean)). The one thing consumed beyond the model's transitions and its quorum
 interface is `leader_honest_cofinal`, and only in
 `exists_honest_leader_above`.
 
 **Sign convention.** The rank is a residual — *what is left to do* — so
-progress makes it **decrease**. (§3.4's table said "the rank strictly
-increased" of the `Progress.lean` row; that direction was informal, and this
-file fixes it.) -/
+progress makes it **decrease**. -/
 
 namespace Mvba
 
@@ -122,10 +121,9 @@ growth of the predicate cannot raise the count, and a *new* witness inside
 the list strictly lowers it. -/
 
 open Classical in
-/-- How many entries of `xs` do not yet satisfy `p`.
-
-(`Decidable.decide`, spelled out: this namespace has an *action* named
-`decide`, and the unqualified reference resolves to that instead.) -/
+/-- How many entries of `xs` do not yet satisfy `p`. -/
+-- `Decidable.decide` is spelled out: this namespace has an *action* named
+-- `decide`, and the unqualified reference resolves to that instead.
 noncomputable def residual {α : Type u} (xs : List α) (p : α → Prop) : Nat :=
   xs.countP (fun a => ! Decidable.decide (p a))
 
@@ -225,15 +223,15 @@ theorem exists_greatest {α : Type u} (le : α → α → Prop)
 
 /-! ## One order fact
 
-`Progress.lean` needs `¬ le → lt`; the freshness argument below needs the
-other direction. -/
+[Progress.lean](Progress.lean) needs `¬ le → lt`; the freshness argument
+below needs the other direction. -/
 
 section Order
 
 variable {view : Type} [vord : TotalOrderWithMinimum view]
 
 /-- In a total order, `v < W` rules out `W ≤ v`. (The converse of
-`Progress.lean`'s `lt_of_not_le`.) -/
+`lt_of_not_le` in [Progress.lean](Progress.lean).) -/
 theorem not_le_of_lt {v W : view} (h : vord.lt v W) : ¬ vord.le W v := by
   intro hle
   have h' := (vord.le_lt v W).mp h
@@ -272,8 +270,8 @@ variable {node nodeset : Type} [nset : ByzNodeSet node nodeset]
 `f+1` subset all of whose members are honest members of it: at most `f` of
 its members are Byzantine, and `(2f+1) − f = f+1`. This is
 `Cadence.ByzNodeSetCounting.honest_third_in_supermajority`, a field of the
-counting class ([`QuorumCounting.lean`](../QuorumCounting.lean)) that both
-concrete instance families prove ([`ByzQuorum.lean`](../ByzQuorum.lean)), so
+counting class ([QuorumCounting.lean](../QuorumCounting.lean)) that both
+concrete instance families prove ([ByzQuorum.lean](../ByzQuorum.lean)), so
 it costs nothing new. The class is an explicit hypothesis here, so the
 statement names it.
 
@@ -436,7 +434,7 @@ end Zero
 
 /-! ## The rank never increases
 
-Every `Mvba` relation is written only `true`, so M13's generated
+Every `Mvba` relation is written only `true`, so Veil's generated
 `<relation>.mono` lemmas — hypothesis-free, kernel-checked, emitted at
 `#gen_spec` — carry every component across an arbitrary transition. No
 invariant and no guard is involved, which is why this holds of *every*
@@ -511,7 +509,7 @@ theorem rank_noninc
 
 One theorem per way of making progress, each taking the *fresh* witness — the
 tuple unset before the step and set after it — which is exactly what
-[`Progress.lean`](./Progress.lean)'s disabling lemmas produce. They share a
+the disabling lemmas of [Progress.lean](Progress.lean) produce. They share a
 proof: the view gap cannot have grown, so either it shrank (and the first
 component decides) or it is unchanged, and then the one summand that strictly
 dropped decides against the six that cannot have grown. -/
@@ -656,14 +654,14 @@ theorem rank_lt_of_decided
 
 /-! ## Leaving a view is progress
 
-The junction with [`Progress.lean`](./Progress.lean). Its
+The junction with [Progress.lean](Progress.lean). Its
 `entered_higher_of_in_view_disabled` says a validator that leaves view `w`
 has entered a strictly higher one; here that view is seen to be **fresh** as
 well — it cannot have been entered before, because `InView st i w` said `w`
 was the maximum — which is what turns "the guard failed" into "the rank went
 down". -/
 
-/-- The higher view `Progress.lean` produces is fresh. -/
+/-- The higher view `entered_higher_of_in_view_disabled` produces is fresh. -/
 theorem entered_fresh_above_of_in_view_disabled
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
     (i : node) (w : view) (h : InView st i w) (h' : ¬ InView st' i w) :
@@ -678,8 +676,8 @@ theorem entered_fresh_above_of_in_view_disabled
 is one of the views being counted. The proviso is the honest part: a
 validator may sync *past* the target on a timeout certificate of a much
 higher view, and then nothing has been gained. That is precisely the hole
-(A-viewsync) fills at §3.5 step 4, and precisely why it is a hypothesis here
-rather than a silent assumption. -/
+(A-viewsync) fills in the run-level argument, and precisely why it is a
+hypothesis here rather than a silent assumption. -/
 theorem rank_lt_of_leaving_view
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)

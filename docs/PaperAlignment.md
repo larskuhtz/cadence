@@ -15,7 +15,7 @@ that is part of no trust base here.
 ## 1. The verified surface, and how to re-check it
 
 The models cite the paper by stable LaTeX anchor (never by page or line —
-see [`../CLAUDE.md`](../CLAUDE.md)). Every anchor cited by a model or a
+see [../CLAUDE.md](../CLAUDE.md)). Every anchor cited by a model or a
 design document resolves in one of eleven files:
 
 `src/alg_proposer.tex`, `src/alg_voting.tex`, `src/alg_fast.tex`,
@@ -23,7 +23,7 @@ design document resolves in one of eleven files:
 `src/p2_framework.tex`, `src/p2_mvba.tex`, `src/p2_chorus.tex`,
 `src/p2_conductor_proofs.tex`, and — for one anchor only,
 `section:conductor-overview`, cited where
-[`ConductorDesign.md`](./ConductorDesign.md) contrasts the paper's informal
+[ConductorDesign.md](ConductorDesign.md) contrasts the paper's informal
 and formal presentations of the Conductor — `src/p1_informal.tex`.
 
 That set *is* the verified surface: Part 2, the algorithm floats, and a
@@ -31,7 +31,7 @@ single Part 1 overview anchor. No model and no design document cites the
 internal supplement (§2) — with two deliberate exceptions, both introduced
 by this audit and both about the supplement rather than resting on it:
 §§3–4 below, and the `sec:domain-separation` item in
-[`TODO.md`](./TODO.md). A future check should expect supplement anchors in
+[TODO.md](TODO.md). A future check should expect supplement anchors in
 exactly those two places.
 
 So the alignment question reduces to whether those eleven files have
@@ -46,7 +46,7 @@ repository. (`papers/` is gitignored. Note the flat layout: the e-print has
 `alg_da.tex` where the paper repository now has `src/alg_da.tex`.)
 
 The paper repository carries **no release tags**, so which commit is which
-arXiv version is recorded once, in [`../README.md`](../README.md)
+arXiv version is recorded once, in [../README.md](../README.md)
 § "Paper Revisions" — established by exactly this comparison, run over every
 `.tex` file rather than a sample. Tagging that repository would make the
 table redundant.
@@ -72,7 +72,7 @@ which cost time once:
   `alg:da.isDecoded` names a function *inside* `alg:da`, and
   `line:assumption-one..four` is range shorthand for four labels that each
   exist. `line:da-rebroadcast` names a **v1 rule removed in v2**, cited as
-  such in [`ChorusDesign.md`](./ChorusDesign.md).
+  such in [ChorusDesign.md](ChorusDesign.md).
 * Exclude `supplementary-internal-bkp.tex` (§6), and be aware the
   supplement redefines some main-body label names, so "defined somewhere"
   is the wrong test — resolve against `main.tex` and `src/*.tex` only.
@@ -129,7 +129,7 @@ exclusive cascade — a held `FastQC`, else an `EquivCert` when two messages
 carry positive fallback signed entries with distinct roots
 (`line:fb-build-equiv`), else a `FallbackQC` (`line:fb-formqc`) — and
 `line:fb-build-entry` is commented "one of the three cases always applies,
-by counting". `FallbackReceipt.lean`'s `equiv_available` mirrors that middle
+by counting". [FallbackReceipt.lean](../Cadence/FallbackReceipt.lean)'s `equiv_available` mirrors that middle
 guard, and the model's exclusivity invariants mirror the cascade. The
 supplement now admits witness chunks as the source of the two conflicting
 proposer-signed roots, which *reassigns* branches: in a state with two
@@ -143,9 +143,9 @@ this repository's totality result are stated over the published guards, and
 the supplement supplies its own replacement certifiability argument. This is
 the one divergence with no written reconciliation, and it sits in the
 neighbourhood of the one real protocol bug this development has found
-([`ChorusDesign.md`](./ChorusDesign.md) §7.2).
+([ChorusDesign.md](ChorusDesign.md) §7.2).
 
-**Chunk re-dissemination.** `Chorus.lean` justifies (F-justice) on
+**Chunk re-dissemination.** [Chorus.lean](../Cadence/Chorus.lean) justifies (F-justice) on
 `redisseminate_chunk` by the re-encode-and-send being performed by honest
 parties at `line:fb-redisseminate` and `line:fb-commit-wait`. The
 implementation drops the first. The second survives, chunks are
@@ -155,7 +155,7 @@ chain the model's `redisseminate_chunk` encodes. So the assumption holds,
 but its implementation-side discharge now routes through ChunkSync, which
 the supplement flags as required for liveness and has not yet specified.
 
-**The ACS median.** [`Windows.lean`](../Cadence/Windows.lean)'s median
+**The ACS median.** [Windows.lean](../Cadence/Windows.lean)'s median
 lemma is abstract over a total order, so it transfers to deadlines
 unchanged; what does not transfer is the reading, since `win_first` is the
 ACS-decided slot-number median and `prop:acs-nonoverlap` is stated over
@@ -167,12 +167,13 @@ slot numbers.
 `decide` — plus five properties (Agreement, Integrity, External validity,
 `ℓ_MVBA`-Termination, Quiescence). It specifies no algorithm. Chorus therefore
 consumes the class `MVBASafety`, instantiated at the supplement's
-leader-based model (`Mvba.mvbaSafety`, plugged in by `Cadence/System.lean`),
+leader-based model (`Mvba.mvbaSafety`, plugged in by [Cadence/System.lean](../Cadence/System.lean)),
 with (A-mvba) being that instance's own Termination
-([`Architecture.md`](./Architecture.md) §4 item 2); `ℓ_MVBA` remains a
-parametric hole ([`Bounds.md`](./Bounds.md) §1).
+([Architecture.md](Architecture.md) §4 item 2), and its latency `ℓ_MVBA`
+is the one paper bound this development proves
+([Bounds.md](Bounds.md) §6.2).
 
-The supplement now closes that hole on paper. `sec:mvba-instantiation`
+The supplement is where that algorithm comes from. `sec:mvba-instantiation`
 gives a concrete leader-based protocol across `alg:mvba`, `alg:mvba-cont`
 and `alg:mvba-cont2`: views with a leader, Pre-Prepare/Prepare/Commit with
 `PrepQC` and `CommitQC`, timeout certificates, view synchronisation
@@ -183,23 +184,27 @@ latter at `O(fΔ)`.
 
 Three consequences for this repository:
 
-1. `ℓ_MVBA` acquires a concrete candidate value, `O(fΔ)`. It stays a paper
-   quantity — the models are untimed — but
-   [`Bounds.md`](./Bounds.md)'s "parametric hole" now has a referent.
+1. `ℓ_MVBA` has a concrete value, `O(fΔ)`, and a machine-checked
+   counterpart: `Mvba.bounded_termination`
+   ([Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)),
+   a plain-Lean theorem over timed runs of the untimed model, and through it
+   the `MVBATemporal` instance `Mvba.mvbaTemporal`
+   ([Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)).
 2. The open item of instantiating the primitive classes end-to-end
-   ([`ChorusDesign.md`](./ChorusDesign.md) §9) acquired a concrete target,
-   and it has been carried out: [`Cadence/Mvba.lean`](../Cadence/Mvba.lean)
+   ([ChorusDesign.md](ChorusDesign.md) §9) acquired a concrete target,
+   and it has been carried out: [Cadence/Mvba.lean](../Cadence/Mvba.lean)
    is a Veil model of `alg:mvba` (views, timeouts, timeout certificates, the
    lock), read against paper-repository commit `026dc8b` and pinned to it in
-   the model's header, and [`Cadence/Mvba/Compose.lean`](../Cadence/Mvba/Compose.lean)
+   the model's header, and [Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)
    discharges `MVBASafety` (`Mvba.mvbaSafety`, every field) and, given the
-   timed level, the full `MVBA` (`Mvba.mvba_of_temporal`); the class lives in
-   [`Interfaces.lean`](../Cadence/Interfaces.lean). This is the one model in
+   timed level, the full `MVBA` (`Mvba.mvba_of_temporal`, supplied with
+   `Mvba.mvbaTemporal`); the class lives in
+   [Interfaces.lean](../Cadence/Interfaces.lean). This is the one model in
    the development whose referent is the supplement rather than the published
-   paper; [`MvbaPlan.md`](./MvbaPlan.md) §0 says what that does and does not
+   paper; [MvbaPlan.md](MvbaPlan.md) §0 says what that does and does not
    commit to. Chorus consumes the instance as a class constraint.
 3. **An agreement-level observation.** `mod:mvba` states Agreement as
-   metablock equality, and `Interfaces.lean`'s `MVBASafety.agreement` mirrors
+   metablock equality, and [Interfaces.lean](../Cadence/Interfaces.lean)'s `MVBASafety.agreement` mirrors
    it as value equality. The supplement's `thm:agreement` proves the weaker
    entries-level statement, and says so deliberately: agreement is over a
    metablock's entries, the certificates being carried only so validity can
@@ -209,8 +214,8 @@ Three consequences for this repository:
    through the entry-vector projections `mval_pos`/`mval_neg`, with
    `mvba_decided_pos_unique` proven from the class's agreement. So
    the right instantiation of the class's `value` is the entry vector, not
-   the metablock — which is what `Cadence/Mvba.lean` does (`value` is the
-   entry vector, `Recover(e)` the identity; [`MvbaPlan.md`](./MvbaPlan.md)
+   the metablock — which is what [Cadence/Mvba.lean](../Cadence/Mvba.lean) does (`value` is the
+   entry vector, `Recover(e)` the identity; [MvbaPlan.md](MvbaPlan.md)
    §1.2). This is the one place where this development's abstraction
    matches the supplement rather than the published contract, and it is the
    sound direction: assuming the stronger contract while needing only the
@@ -223,7 +228,7 @@ the published algorithms are unchanged, and the divergences above are
 between the paper's two documents.
 
 What is worth doing is documentary, and is tracked in
-[`TODO.md`](./TODO.md): cite `sec:domain-separation` where the network
+[TODO.md](TODO.md): cite `sec:domain-separation` where the network
 relations assume message-type non-confusability; record ChunkSync and
 `Δ_sync` alongside the (F-justice) justification for `redisseminate_chunk`;
 and re-check the `EquivCert` guard once the paper side settles which of the
@@ -244,7 +249,7 @@ Reported so they are not re-discovered; all in the supplement.
 * `supplementary-internal-bkp.tex`, a stale snapshot committed alongside
   the 2026-09-03 sync, duplicates labels and will confuse any grep-based
   anchor audit — including the check in §1, which must exclude it.
-* (2026-09-16, from the bounds workshop.) `subsec:mvba-protocol` allows
+* (Recorded 2026-09-16, after this audit.) `subsec:mvba-protocol` allows
   the view timeout to be set by *backoff* — "the timeout is eventually
   increased beyond this value" — while `thm:termination` counts with a
   fixed `O(Δ)` timeout to reach its `O(fΔ)` bound. The two are compatible
@@ -252,6 +257,6 @@ Reported so they are not re-discovered; all in the supplement.
   at GST, and with it the next timeout to be waited out, is unbounded
   across runs, so no run-independent bound from `max(t, GST)` exists and
   only eventual termination holds. The theorem is a fixed-timeout (or
-  capped-backoff) result and should say so. [`Bounds.md`](./Bounds.md)
+  capped-backoff) result and should say so. [Bounds.md](Bounds.md)
   §6.2.3 has the argument; the model's schedule hypotheses (S-cap) and
   (S-ramp) are its formal shape.

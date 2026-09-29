@@ -4,7 +4,7 @@ This project is a plain Lean 4 package with two direct dependencies:
 
 | Dependency | Pin | Upstream |
 |---|---|---|
-| [Veil](https://github.com/larskuhtz/veil) | branch `port/integration` | [`verse-lab/veil`](https://github.com/verse-lab/veil) |
+| [Veil](https://github.com/larskuhtz/veil) | branch `port/integration` | [verse-lab/veil](https://github.com/verse-lab/veil) |
 | [Mathlib](https://github.com/leanprover-community/mathlib4) | tag `v4.32.0` | — |
 
 Veil pins the verification tree — Loom (the monad-algebra layer Veil's
@@ -12,14 +12,14 @@ action semantics is built on), `lean-smt` (which bundles the cvc5 SMT solver
 and its proof reconstruction) and `lean-auto` — at revisions this project
 does not override. Upstream Veil dropped its Mathlib dependency, so Mathlib
 is required here directly, for the `Finset` counting in
-[`Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean) and
-[`Cadence/Primitives.lean`](../Cadence/Primitives.lean); Mathlib's own pins
+[Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean) and
+[Cadence/Primitives.lean](../Cadence/Primitives.lean); Mathlib's own pins
 of batteries, aesop, Qq and ProofWidgets are the ones Veil requires, so the
 two resolve to one tree and Mathlib's binary cache applies.
-[`lake-manifest.json`](../lake-manifest.json) records the
+[lake-manifest.json](../lake-manifest.json) records the
 exact revision of every package, so a checkout builds the same tree whatever
 the branches those pins name have since moved to. The toolchain is pinned by
-[`lean-toolchain`](../lean-toolchain) and fetched automatically by `elan`.
+[lean-toolchain](../lean-toolchain) and fetched automatically by `elan`.
 
 Nothing in this repository patches Veil. The changes this project needs are
 in the fork, each on its own branch, documented there — this file only says
@@ -48,9 +48,11 @@ consequence of it.
   `#check_action`, `#check_vc`, `#prove_action`, `#prove_vc`. A model file
   elaborates the transition system and records its VC *statements* in its
   `.olean`, running no solver; importing files re-create those statements and
-  prove them. This is what lets the ~3 800 Chorus proofs be produced by 39
-  small, independent files (`Cadence/Chorus/Proofs/`) instead of in one Lean
-  process — the latter needs to hold every reconstructed proof term in one
+  prove them. This is what lets the Chorus proofs — thousands of cells, counted by
+  the `#veil_status` pin in [Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)
+  — be produced by one small, independent file per action
+  ([Cadence/Chorus/Proofs/](../Cadence/Chorus/Proofs)) instead of in one Lean
+  process, which would need to hold every reconstructed proof term in one
   environment at once, which does not fit in 32 GB. Statement identity is by
   construction: the proof files read the statements the model wrote, they do
   not restate them.
@@ -62,27 +64,25 @@ consequence of it.
   against the environment and reports, per VC, whether a real,
   statement-matching, kernel-checked theorem is in scope, together with the
   axiom union over all of them. This project pins its output
-  (`Cadence/Chorus/Certify.lean`, `Cadence/FallbackReceipt/Certify.lean`), so
+  ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean), [Cadence/FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean)), so
   the claim "no verification condition is stubbed" is re-derived on every
-  build rather than asserted in prose. The audit walk is cheap on Lean 4.32
-  and gets no more expensive as the proofs grow: each olean now stores the
-  axiom set of every declaration it exports, computed when the olean is
-  written, so collecting axioms for an imported constant is a lookup rather
-  than a traversal of its proof term. `#veil_status Chorus` resolves 3 861
-  cell theorems across 39 proof-file oleans in about two seconds; before that
-  change it walked all 3 861 reconstructed proof terms and took roughly
-  forty.
+  build rather than asserted in prose. The audit walk is cheap
+  and does not grow with the proofs: each olean stores the axiom set of every
+  declaration it exports, computed when the olean is written, so collecting
+  axioms for an imported constant is a lookup rather than a traversal of its
+  proof term. `#veil_status Chorus` resolves every cell theorem across the
+  proof-file oleans in a few seconds.
 * **A code-generation switch for the model checker's scaffolding**
   (`veil.gen.modelCheckScaffolding`). The label-enumeration instances Veil
   derives for `#model_check` are `O(nᵏ)` in the number of actions; at Chorus's
-  38 actions they exceed Lean's reducer, and `#gen_spec` cannot elaborate at
+  action count they exceed Lean's reducer, and `#gen_spec` cannot elaborate at
   all. Chorus turns the scaffolding off (it does not use `#model_check`); the
   receipt layer leaves it on and does.
 
 ### 2. Keeping the solver out of the trust base, affordably
 
 * **A cheap non-SMT first rung in every invariant-preservation discharger**
-  (`veil.vc.cheapRung`, on by default; taken up 2026-09-10). Most cells in a
+  (`veil.vc.cheapRung`, on by default). Most cells in a
   Veil development are *frame* obligations — the action writes nothing the
   invariant reads — and after the local-WP bridge such a goal is already the
   invariant at the pre-state behind the action's guards, because the WP
@@ -121,23 +121,21 @@ consequence of it.
   One structural consequence, worth knowing before reading a build log: a
   cell the rung closes never reaches the **proof cache**, because nothing was
   searched for. After a cold re-validation the cache therefore holds only the
-  solver-touched cells — measured here 2 990 entries where a pre-rung suite
-  reported over 22 000 replays — and on the next build the rung's cells
-  re-run the rung instead of replaying a stored term. So a warm build's
-  output is mostly ✅ where it used to be mostly ♻, at a comparable per-cell
-  cost (the rung's ~0.1 s against a folded cell's ~79 ms of replay), and the
-  saving this buys is concentrated on the **cold** path — which is the path
-  CI runs, and the one that used to cost hours.
+  solver-touched cells ([CLAUDE.md](../CLAUDE.md), "Build", has the
+  measured sizes), and on the next build the rung's cells re-run the rung
+  instead of replaying a stored term. So a warm build's output reads mostly
+  ✅ rather than ♻, at a comparable per-cell cost (the rung's ~0.1 s against
+  a folded cell's ~79 ms of replay), and the saving is concentrated on the
+  **cold** path — the one CI runs.
   The rung's two halves are also what this project's manual cells are written
-  with, and were this repository's own tactics (`Cadence/ProofPrelude.lean`)
-  until Veil took them over with the rung: **`unveil_local`**, the goal-only
+  with: **`unveil_local`**, the goal-only
   counterpart of `unveil` that leaves the ~100-conjunct invariant clump
   unsimplified (~0.4 s a cell against ~22 s — `unveil`'s closing `veil_simp
   at *` is what dominates at this clump size), and **`veil_inv_have h :=
   <invariant>`**, which projects a clump conjunct *by declaration name*, with
   the index derived from the module's own assembled `Invariants` and a
   conjunct-count check that fails loudly rather than projecting the wrong
-  one. `Cadence/ProofPrelude.lean` now carries only this project's two option
+  one. [Cadence/ProofPrelude.lean](../Cadence/ProofPrelude.lean) carries only this project's two option
   blocks.
 * **Proof caching with kernel replay** (`veil.cache.proofs`,
   `veil.cache.kernelReplay`). Reconstructed proof terms are stored on disk
@@ -150,18 +148,17 @@ consequence of it.
   with perturbed solver seeds before it is called a failure. Some Chorus
   cells sit close enough to the time budget that whether they solve depends
   on luck; the retry ladder is what makes an unattended build reproducible.
-* **Verifier scaling fixes** — the verification-results pretty-printer used
-  to run under the scheduler's lock for every VC on every refresh, which is
-  quadratic in the number of VCs; and completed solver tasks retained their
-  proof witnesses. Both are invisible at textbook scale and both are fatal at
-  Chorus's scale ([`Architecture.md`](./Architecture.md) §2).
+* **Verifier scaling fixes** — the verification-results pretty-printer runs
+  outside the scheduler's lock (under it, every refresh is quadratic in the
+  number of VCs), and completed solver tasks release their proof witnesses.
+  Both matter only at scale, and both are fatal at Chorus's without the fix ([Architecture.md](Architecture.md) §2).
 
 ### 3. Persisting proofs as ordinary Lean theorems
 
 * **`#gen_theorems`** persists each discharged VC as a named theorem in the
   module's `.olean`, with its real reconstructed proof. The two small models
-  (`Cadence/Cadence.lean`, `Cadence/Conductor.lean`) use it directly; their
-  compositions in `Cadence/Composition.lean` are plain Lean over those
+  ([Cadence/Cadence.lean](../Cadence/Cadence.lean), [Cadence/Conductor.lean](../Cadence/Conductor.lean)) use it directly; their
+  compositions in [Cadence/Composition.lean](../Cadence/Composition.lean) are plain Lean over those
   theorems. (The large models use the registry route of group 1 instead.)
 * **Per-action preservation lemmas and `#gen_composition`** — the step from
   per-VC theorems to "every reachable state satisfies the invariants" is
@@ -175,21 +172,21 @@ consequence of it.
   it, which is what makes the composition writable at all: applying those VC
   theorems by hand needs every shared instance argument spelled out, and
   instance synthesis for the field-representation arguments diverges. All
-  five verified modules use it ([`Cadence/Composition.lean`](../Cadence/Composition.lean)
+  five verified modules use it ([Cadence/Composition.lean](../Cadence/Composition.lean)
   and the three `Certify.lean` files). Everything it emits goes through
   `addDecl`, so the kernel checks it; nothing here widens the trust base.
 * **The `trSimp` simp set** — exactly the actions' `derived_eq` theorems and
   `tr` definitions. Two-state facts (frames, monotonicity of an observable)
   are proven from the pre-computed transition bodies, and the `actSimp` /
   `nextSimp` sets unfold the action *bodies* first and defeat that rewrite;
-  before `trSimp` each consumer carried a hand-maintained list of every
-  action's two lemmas. The three `*_tr` macros in the composition files are
-  now one `simp only [trSimp]` each, and adding an action changes nothing.
+  without `trSimp` each consumer would carry a hand-maintained list of every
+  action's two lemmas. With it, each of the composition files' `*_tr` macros
+  is one `simp only [trSimp]`, and adding an action changes nothing.
 * **A derived `Inhabited` instance for the abstract state**
   (`instInhabitedStateFieldAbstractType`), emitted with the state theory
-  rather than with the model-check scaffolding that `Chorus.lean` has to
+  rather than with the model-check scaffolding that [Chorus.lean](../Cadence/Chorus.lean) has to
   disable. The composed system needs it (the glue's `scstate` sort must be
-  inhabited); `Chorus/Compose.lean` used to provide it by hand.
+  inhabited).
 * **Generated step lemmas** (`veil.gen.stepLemmas`, on by default). At
   `#gen_spec`, for every imperative action `a` and mutable component `f`,
   Veil emits and kernel-checks what the update records already determine:
@@ -197,10 +194,11 @@ consequence of it.
   per-field projections `M.a.frame_f`, `M.a.mono_f` (only `true` is
   written), the whole-system `M.f.mono` when every action frames or
   monotonically writes `f`, and `M.f.init` from the initializer's closed
-  literal. These are exactly the facts the contract instances used to prove
-  by hand with a 38-case `cases l` script per field; in
-  `Composition.lean` and `Chorus/Compose.lean` each is now a one-line
-  application. Silent on success (`set_option trace.veil.stepLemmas true`
+  literal. These are the frame and monotonicity facts the contract
+  instances need; in [Composition.lean](../Cadence/Composition.lean) and
+  [Chorus/Compose.lean](../Cadence/Chorus/Compose.lean) each is a one-line
+  application of a generated lemma rather than a case split over every
+  action. Silent on success (`set_option trace.veil.stepLemmas true`
   for the verdicts); about 5 s of Chorus's ~127 s model build.
 * **`step_property [name] { … f' … }`** — a **two-state** property of a
   module, stated in the `transition` priming notation before `#gen_spec`,
@@ -213,16 +211,15 @@ consequence of it.
   `#gen_composition` — `M.reachable_<P>_step`. This is what lets a
   step-level *specification* live in the model and be SMT-checked rather
   than hand-proven downstream: the paper's Monotonicity for the Conductor,
-  and Chorus's frozen-entries fact, are now checked cells. The cost is one
+  and Chorus's frozen-entries fact, are checked cells. The cost is one
   cell per action, so they are stated for the facts the contracts need —
   what follows from the update records alone comes free from the generated
   lemmas above.
 * **Solver-option capture guards** — Veil captures solver options when a
   module elaborates its specification, so a `set_option … in
   #check_invariants` *after* that point is silently inert. The fork warns
-  instead. This project was mis-measuring its own solver configuration for a
-  while because of exactly that; the models now state their configuration
-  explicitly before `#gen_spec`.
+  instead, and the models state their solver configuration explicitly
+  before `#gen_spec`.
 
 ### 4. Proving things about quorums
 
@@ -231,13 +228,11 @@ consequence of it.
   (`n = 3f+1`). The three counting facts beyond intersection that Chorus
   and the MVBA ranking need are this project's own class,
   `Cadence.ByzNodeSetCounting`
-  ([`Cadence/QuorumCounting.lean`](../Cadence/QuorumCounting.lean)), proven
+  ([Cadence/QuorumCounting.lean](../Cadence/QuorumCounting.lean)), proven
   for `byzNodeSetFin` and for `byzNodeSetFinGen` (`n ≥ 3f+1`) in
-  [`Cadence/ByzQuorum.lean`](../Cadence/ByzQuorum.lean). This is why the
+  [Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean). This is why the
   quorum interface is **not** on the assumption list in
-  [Architecture.md](./Architecture.md) §4. (The fork used to carry the three
-  facts as `ByzNodeSet` fields; they moved here ahead of the fork's re-port
-  onto upstream Veil, which does not have them.)
+  [Architecture.md](Architecture.md) §4.
 
 ### 5. The model-conformance monitor
 
@@ -246,7 +241,7 @@ consequence of it.
   `#model_check` needs — which is what makes an executable Chorus monitor
   possible at all (see group 1).
 * **`#gen_monitor`** generates the monitor's instantiation boilerplate. Used
-  in `Cadence/Monitor/ChorusMonitorGen.lean`, which the regression suite
+  in [Cadence/Monitor/ChorusMonitorGen.lean](../Cadence/Monitor/ChorusMonitorGen.lean), which the regression suite
   cross-checks against the hand-written monitor.
 
 ### 6. Working comfortably
@@ -255,17 +250,21 @@ consequence of it.
   in the language server without it running any solving. Every skipped
   command emits a visible `⏭ skipped (veil.noVerify)` warning, so "no errors"
   in this mode can never be mistaken for "verified". See
-  [../CLAUDE.md](../CLAUDE.md).
+  [CLAUDE.md](../CLAUDE.md).
 * **…and under it, no VC-manager loop** (part of the fork's VC-registry
-  branch). The
-  manager loop never terminates by design, and `#gen_spec` used to start it
-  whatever the mode, parking a worker thread in `recv` for the life of the
-  process. Harmless under `lean`, which exits outright; fatal to any program
-  that *embeds* the frontend and returns from `main`, because the runtime
-  then joins every worker thread. The documentation site needs exactly such
-  a program — Verso's literate renderer re-elaborates each module to recover
-  its `InfoTree`s — and hung on every model before this
-  ([Documentation.md](./Documentation.md)).
+  branch). The manager loop never terminates by design, so under
+  `veil.noVerify` — where it can have no work — `#gen_spec` does not start
+  it. That matters to any program that *embeds* the frontend and returns
+  from `main`, because the runtime then joins every worker thread: Verso's
+  literate renderer is such a program (it re-elaborates each module to
+  recover its `InfoTree`s), and it renders the documentation site under
+  `VEIL_NO_VERIFY=1` ([Documentation.md](Documentation.md)).
+* **Doc comments on Veil declarations** (`port/doc-comments`). A `/-- … -/`
+  may precede any Veil command that declares something, and becomes the
+  docstring of the constant the command generates — an action's, a
+  property's, `State.<f>` for a state component. The models document their
+  declarations this way, so the explanation of a relation, an action or a
+  property sits with it on the site and in the editor's hover.
 * **Source locations for generated declarations** (`port/decl-ranges`,
   `port/decl-ranges-generated`). Veil adds what it generates through
   `addDecl`, which records no location; the fork records the command each
@@ -277,25 +276,23 @@ consequence of it.
   boundary link generated declarations to the command that emits them by
   their location.
 * **Hygienic generated binders.** The generated transition relations bind a
-  reader, a pre-state, a label and a post-state; an action parameter of the
-  same name (`st'` above all) used to be captured — the invariant sweep
-  passed and every `sat trace` failed with an application type mismatch
-  naming `<action>.ext.tr … st' rd st st'`. Those binders are now hygienic,
-  which retires a rule this project had to carry.
+  reader, a pre-state, a label and a post-state; those binders are
+  hygienic, so an action parameter may take any name (`st'` included)
+  without being captured by them.
 
 ### 7. Keeping the contract classes honest
 
-The two-level contract design ([CompositionContracts.md](./CompositionContracts.md))
+The two-level contract design ([CompositionContracts.md](CompositionContracts.md))
 rests on one Veil fact: **every `Prop` field of an `instantiate`d class is a
 solver hypothesis**. That is what lets a consumer *use* a contract property
 without restating it — and what makes a badly-shaped field fatal.
 
 * **The first-order check.** A field that quantifies over a function (a run,
-  say) is outside the fragment the SMT translation accepts. It used to abort
-  *every* verification condition of the consuming module with an opaque
-  solver error naming neither the class nor the field; the check commands now
-  report it once, by class and field, before any solver starts.
-  [`spikes/03_nonfirstorder_field_breaks_smt.lean`](../spikes/03_nonfirstorder_field_breaks_smt.lean)
+  say) is outside the fragment the SMT translation accepts. Without the check
+  it aborts *every* verification condition of the consuming module with an
+  opaque solver error naming neither the class nor the field; the check
+  commands report it once, by class and field, before any solver starts.
+  [spikes/03_nonfirstorder_field_breaks_smt.lean](../spikes/03_nonfirstorder_field_breaks_smt.lean)
   is the reproduction.
 * **`attribute [veil_smt_ignore] C.field`** withholds one field from the
   solver: it stays a declared axiom of the class, the consuming module
@@ -305,13 +302,12 @@ without restating it — and what makes a badly-shaped field fatal.
   data field is never a hypothesis. This project does not withhold
   anything today; the attribute is the escape hatch for a field that must
   live in the class but need not reach the solver. **The measurement
-  behind that "nothing"**, taken when Chorus began consuming `MVBASafety`
-  and every one of its axioms became a hypothesis of every
-  Chorus cell: CI's cold solve of the Chorus family
-  on the 4-core runner at `BATCH=1`, before (run 34528363622) and after
-  (run 34551700787) —
+  behind that "nothing"** — every `MVBASafety` axiom is a hypothesis of
+  every Chorus cell — is CI's cold solve of the Chorus family
+  on the 4-core runner at `BATCH=1`, without the MVBA constraint (run
+  34528363622) and with it (run 34551700787):
 
-  | cell / file | before | with the MVBA constraint |
+  | cell / file | without the MVBA constraint | with it |
   |---|---|---|
   | `vote × committed_pos_frozen` | 61.4 s (34% of 180 s) | 119.5 s (66%) |
   | `fb_sign_neg × inclusion_no_honest_fb_neg` | 53.0 s | 51.1 s |
@@ -325,25 +321,24 @@ without restating it — and what makes a badly-shaped field fatal.
   proofs never use (`sent_mono`, `quiescence`, `external_validity`, the
   monotonicity, effects, frames and initial conditions of
   `proposed`/`abandoned`, `abandon_trans`) were tried as a `veil_smt_ignore`
-  set on the worst cell, cold, in a scratch A/B (`scripts/scratch.sh` with
+  set on the worst cell, cold, in a scratch A/B ([scripts/scratch.sh](../scripts/scratch.sh) with
   `veil.cache.proofs false`, two runs each): **10.4 / 9.8 s with every
   axiom, 10.0 / 9.8 s with the twelve withheld** — no effect. The cost is
   the sorts, the class's load-bearing axioms and the larger clump, not the
   unused fields, so nothing is withheld; if the `vote` step cell ever
   approaches the budget the remedy is a manual proof of that cell, not
-  the attribute (`CLAUDE.md` § Build, "slow versus divergent").
+  the attribute ([CLAUDE.md](../CLAUDE.md) § Build, "slow versus divergent").
 * **A readable rejection for an `assumption` over mutable state.** An
   `assumption` is a background axiom and ranges over the immutable part of
-  the state only; naming a mutable component in one used to fail with
-  `Unbound uncapitalized variable: os`. The message now says what an
-  `assumption` may range over and points at `invariant` / `trusted invariant`
+  the state only. Naming a mutable component in one fails with a message that
+  says what an `assumption` may range over and points at `invariant` / `trusted invariant`
   instead — which is the choice the contract design keeps making.
 
 ## Native shared libraries
 
 `lean-smt` is built with `precompileModules`, so its translation and
 preprocessing meta-code runs natively rather than interpreted, which is where
-most of the per-query overhead used to sit. Veil's own library is *not*
+most of the per-query overhead sits. Veil's own library is *not*
 precompiled (upstream ships that flag off), so no `:shared` target is forced
 on Mathlib at all.
 
@@ -378,7 +373,7 @@ Measured by turning it off and on over the same suite:
 | fold off | 402 ms | 654 s | ~30 MB |
 | fold on | **79 ms** | **389 s** | **11–12 MB** |
 
-One file opts out — `Cadence/Chorus/Proofs/Vote.lean`, whose
+One file opts out — [Cadence/Chorus/Proofs/Vote.lean](../Cadence/Chorus/Proofs/Vote.lean), whose
 `fastqc_complete_implies_mvba_evidence` cell diverges under the folded query
 shape at any budget. Its olean stays ~30 MB against its siblings' 11–12 MB,
 and its batch costs 42 s against their 13–15 s, which is a clean measure of
@@ -388,65 +383,33 @@ Enabling or disabling it requires **re-solving cold**: cache entries are keyed
 by VC statement, and the fold changes only the proof term, so existing hits
 keep replaying whichever shape produced them.
 
-**And it did not build on the pins it was measured with** — the tree before
-the fork's 2026-09 re-port onto upstream Veil, which is also when this
-project dropped the Loom fork that had carried the first workaround below.
-Precompiling forces every package underneath to be available as a shared
-library, and three separate things broke:
+**On the current pins it does not build either.** Precompiling forces every
+package underneath to be available as a shared library, and loading
+Mathlib's then crashes Lean on the ProofWidgets version Mathlib v4.32.0 pins.
+`ProofWidgets/Component/RefreshComponent` is imported by Mathlib
+(`Mathlib/Tactic/ClickSuggestions/Util.lean`) but is not reachable from
+ProofWidgets' root module at **v0.0.105**, so it is never compiled into that
+library's shared object; four symbols are then undefined, and on macOS they
+bind lazily to null and Mathlib's generated module initializer jumps to
+address zero. **Fixed upstream in v0.0.106** by adding the import to the root
+module. ProofWidgets is inherited from Mathlib, not chosen here, and the pin
+has to match Mathlib's (below), so this resolves itself with the next Mathlib
+bump. `precompileModules` with Mathlib is a lightly-tested configuration in
+general — Lean has several open issues about it, on Linux as well as macOS.
+The table is the reason not to use it in any case: the interpreted tactic
+layer is the price of a dependency tree that builds anywhere, and the proof
+cache is what keeps that price affordable.
 
-* Loom's `CaseStudies` library globs `Loom.*` *and* `CaseStudies.*`, so every
-  Loom module belongs to two libraries — and Lake loads a precompiled import
-  "as part of their whole library". It therefore fetches `CaseStudies:shared`
-  (never `Loom:shared`) for the Loom modules Veil imports, and that library
-  also contains nine files importing `Loom.MonadAlgebras.NonDetT.Extract`,
-  which does not exist at this revision — the tree has `NonDetT'`. So the
-  build stops at `CaseStudies: some modules have bad imports`. This is a
-  lakefile problem, not a platform one: it fails the same way on Linux, and
-  it is what the project's second fork, a lakefile-only Loom branch, existed
-  to patch. With the flag off, no Loom `:shared` target is requested and the
-  broken library is never visited. Upstream has since split Loom out as a
-  standalone package with no case-study library, so this one is gone at the
-  source.
-* Loom's core library did not build in full either, and the Loom fork did
-  *not* fix that. `Loom/MonadAlgebras/WP/Gen.lean` had its body — lines 32
-  to 285, including `WPGen` — inside a block comment at that revision, and
-  `Loom.Meta` and `Loom.MonadAlgebras.WP.Matcher` still referenced what it no
-  longer defined. Nothing noticed during a normal build because Veil imported
-  neither; precompiling has to build the whole library, and those two failed.
-* Loading Mathlib's shared library then crashes Lean, on the ProofWidgets
-  version this tree currently has. `ProofWidgets/Component/RefreshComponent`
-  is imported by Mathlib (`Mathlib/Tactic/ClickSuggestions/Util.lean`) but is
-  not reachable from ProofWidgets' root module at **v0.0.105**, so it is never
-  compiled into that library's shared object; four symbols are then undefined,
-  and on macOS they bind lazily to null and Mathlib's generated module
-  initializer jumps to address zero. **Fixed upstream in v0.0.106** by adding
-  the import to the root module. This tree is on v0.0.105 only because
-  Mathlib v4.32.0 pins it there — ProofWidgets is inherited, not chosen here,
-  and the pin has to match Mathlib's (below), so it resolves itself with the
-  next Mathlib bump.
-
-That last point is worth remembering in general: a fork of Loom costs nothing,
-because Mathlib does not depend on Loom, while a fork of anything in Mathlib's
-own dependency set costs the Mathlib binary cache — `lake exe cache get` then
+A general rule for changing the pins: a fork of Loom costs nothing, because
+Mathlib does not depend on Loom, while a fork of anything in Mathlib's own
+dependency set costs the Mathlib binary cache — `lake exe cache get` then
 computes wrong hashes and refuses, and the container's `deps` stage runs
 exactly that command.
 
-Mathlib's shared *link* is not one of the reasons any more. It passes 7 649
-object files, which on macOS used to overrun the 1 MiB `execve` limit and fail
-with `could not execute external process '.../clang'`. Lake fixed that in
-**4.30** by writing linker arguments to a response file on every platform
-(`Lake/Build/Actions.lean`, `mkArgs`; 4.28 and 4.29 did so only on Windows),
-so the link no longer depends on where the repository is checked out.
-
-All three were worked around and the configuration made to build — the Loom
-fork, plus a one-line ProofWidgets fix applied as a local Lake package
-override. That is how the numbers above were obtained. None of it is
-shipped, because none of it pays: see the table. On the current pins
-precompilation has not been retried, since the table is the reason not to. `precompileModules` with
-Mathlib is a lightly-tested configuration in general — Lean has several open
-issues about it, on Linux as well as macOS. Until both are fixed upstream, the interpreted tactic layer is the
-price of a dependency tree that builds anywhere, and the proof cache is what
-keeps that price affordable.
+Mathlib's shared *link* does not depend on the checkout path: it passes
+7 649 object files, and since Lake 4.30 linker arguments go through a
+response file on every platform (`Lake/Build/Actions.lean`, `mkArgs`), so the
+1 MiB `execve` limit on macOS is never reached.
 
 Two operational consequences:
 
@@ -456,7 +419,7 @@ Two operational consequences:
   look the build fails with `error loading library, libLake_shared.so`. The
   published images and the devcontainer set `LD_LIBRARY_PATH` once; an
   auditor's own container needs the same
-  ([Container.md](./Container.md) §4).
+  ([Container.md](Container.md) §4).
 * Build the dependency tree at bounded parallelism. `lean-smt` and `lean-auto`
   compile their own plugins, and if the build is OOM-killed mid-link the
   half-written `.so`s are left **trace-complete**, so every later build dies
@@ -471,7 +434,7 @@ For completeness, the things whose correctness the results *do* rest on:
 
 * **Lean's kernel**, and the three standard axioms it is used with
   (`propext`, `Classical.choice`, `Quot.sound`) — pinned per end theorem in
-  [`Cadence.lean`](../Cadence.lean).
+  [Cadence.lean](../Cadence.lean).
 * **Veil's VC generation** — the translation from a model's declared actions
   and invariants into the verification conditions. A bug here would prove the
   wrong thing rather than nothing, so this is a real trust dependency; it is
@@ -480,7 +443,7 @@ For completeness, the things whose correctness the results *do* rest on:
   and by the monitor running the model's own action bodies.
 
   Within that surface, the largest single concentration is how an action
-  *body* becomes a state predicate. Upstream Veil now elaborates bodies
+  *body* becomes a state predicate. Veil elaborates bodies
   through Lean's own extensible `do`-notation extension points rather than by
   rewriting syntax: every statement re-opens the state from a fresh `get`, so
   the stale-binder failure mode is structurally absent rather than patched,
@@ -506,4 +469,4 @@ For completeness, the things whose correctness the results *do* rest on:
   receipt-layer regression.
 
 The full picture, including everything the Lean development deliberately
-does not establish, is [Architecture.md](./Architecture.md) §4 and §6.
+does not establish, is [Architecture.md](Architecture.md) §4 and §6.

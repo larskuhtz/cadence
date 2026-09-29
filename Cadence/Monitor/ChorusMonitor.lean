@@ -21,11 +21,11 @@ observable and is written null.  Blank lines and lines beginning with `//` or
 `#` are ignored.
 
 The MVBA that Chorus consumes as a class constraint is
-instantiated here by the *silent* stub of `Monitor/MvbaStub.lean`: state and
+instantiated here by the *silent* stub of [MvbaStub.lean](MvbaStub.lean): state and
 message `Unit`, a decision relation that never holds. Its consequence — the
 decision handlers and `mvba_terminate` are never enabled, so the MVBA leg of
 the fallback path is outside this monitor's coverage — is recorded in
-`docs/Monitor.md` §8.
+[Monitor.md](../../docs/Monitor.md) §8.
 -/
 import Cadence.Chorus
 import Cadence.Monitor.Alphabet
@@ -51,7 +51,7 @@ abbrev SL := Fin 1
 abbrev ND := Fin (3 * 1 + 1)
 abbrev NS := ByzNSet (3 * 1 + 1)
 abbrev MR := Fin 2
--- The MVBA's abstract sorts at the silent stub (`Monitor/MvbaStub.lean`):
+-- The MVBA's abstract sorts at the silent stub ([MvbaStub.lean](MvbaStub.lean)):
 -- state and message `Unit`, the value the finite entry vector `MV`.
 abbrev MS := Unit
 abbrev MM := Unit
@@ -132,7 +132,7 @@ model's silent transitions). This is bounded — internal actions are monotone a
 range over the small node/root domains — and sound: it only ever applies actions
 the model *enables*, so it cannot manufacture unjustified state (a cast with no
 prior FastQC still fails, because `commit_sign` is not enabled). See
-`docs/Monitor.md` §3–§3.1. -/
+[Monitor.md](../../docs/Monitor.md) §3–§3.1. -/
 
 /-- Internal actions the emitter does not emit; the monitor bridges them.
     The MVBA's oracle step is one of them: under the silent stub it is always
@@ -205,7 +205,7 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "fb_sign_pos", [a,b,c,d,e]       => do pure (.fb_sign_pos (← dNode a) (← dNode b) (← dRoot c) (← dNSet d) (← dNSet e))
   | "fb_sign_neg", [a,b,c]           => do pure (.fb_sign_neg (← dNode a) (← dNode b) (← dNSet c))
   | "cast_fallback_vote", [a]        => do pure (.cast_fallback_vote (← dNode a))
-  -- the MVBA instance (`docs/Monitor.md` §8: the oracle step is silent, the
+  -- the MVBA instance ([Monitor.md](../../docs/Monitor.md) §8: the oracle step is silent, the
   -- decision handlers cannot fire under the silent instance)
   | "mvba_step", [a]                 => do pure (.mvba_step (← dMState a))
   | "mvba_propose", [a,b,c]          => do pure (.mvba_propose (← dNode a) (← dMValue b) (← dMState c))
@@ -303,7 +303,7 @@ the facts accumulate in one threaded state while node `i`'s guards read them und
 the all-honest instance. This makes `n = 3f+1` a pure quorum-threshold parameter,
 decoupled from the number of monitored nodes. Sound because the model reads
 environment facts only in guards (monotone / positive-use — see
-`docs/Monitor.md` §7 and `docs/ChorusDesign.md` §3.1); it is a refinement/safety check, not liveness.
+[Monitor.md](../../docs/Monitor.md) §7 and [ChorusDesign.md](../../docs/ChorusDesign.md) §3.1); it is a refinement/safety check, not liveness.
 
 v1 coverage: the negative fast path with proposer = node 0 (matching the current
 emitter). Positive path / fallback are more admit rules on the same mechanism. -/

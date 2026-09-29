@@ -6,7 +6,7 @@ Chorus consumes the MVBA as the class constraint
 sorts. A concrete monitor instance has to fix them,
 and no implementation event corresponds to any of them: the MVBA's internal
 state and messages are not observable at the Chorus trace boundary, and the
-implementation's decision handler is not emitted yet (`docs/Monitor.md` §8).
+implementation's decision handler is not emitted yet ([Monitor.md](../../docs/Monitor.md) §8).
 So the monitor instantiates
 
 * `mstate := Unit`, `mmsg := Unit` — the oracle step `mvba_step` is a silent
@@ -18,7 +18,7 @@ So the monitor instantiates
   is trivially inhabited (`decided := False` makes agreement, integrity and
   external validity vacuous), so the instance is a *consistent* model of the
   class, and every guard that reads it is decidable (the instances at the
-  end). Its consequence for coverage is documented in `docs/Monitor.md` §8:
+  end). Its consequence for coverage is documented in [Monitor.md](../../docs/Monitor.md) §8:
   the decision handlers and `mvba_terminate` can never fire under it, so the
   MVBA leg of the fallback path is outside what the current monitor can
   accept. The fixtures under `traces/` are fast-path only and never reach it.

@@ -3,15 +3,14 @@ import Mathlib.Tactic.Push
 
 /-! # FallbackReceiptTotality — the build-totality pigeonhole, all `n`
 
-Companion to [`FallbackReceipt.lean`](../FallbackReceipt.lean) (read its
+Companion to [FallbackReceipt.lean](../FallbackReceipt.lean) (read its
 header first). This file proves, in plain Lean, the one claim of the
 receipt/propose layer that is *not* SMT-dischargeable — **build
 totality**, the per-validator two-class pigeonhole behind the paper's
 "one of the three cases always applies, by counting"
 (`line:fb-build-entry`) — for the concrete instance family
 `byzNodeSetFin n f`: **every** `n = 3f+1`, every Byzantine set of size
-`≤ f`, arbitrary `proposer` and `merkle_root` types. It supersedes the
-earlier bounded `#model_check` argument at `n = 4`.
+`≤ f`, arbitrary `proposer` and `merkle_root` types.
 
 Structure (the three layers):
 
@@ -25,14 +24,13 @@ Structure (the three layers):
    quorum arithmetic is where `byzNodeSetFin` enters.
 3. `build_totality_of_reachable` — the closure: the module-generic
    `FallbackReceipt.invariants_of_reachable` certificate
-   (`#gen_composition`, `FallbackReceipt/Certify.lean`) applied at the
+   (`#gen_composition`, [Certify.lean](Certify.lean)) applied at the
    concrete instance family — every reachable state satisfies the full
    invariant clump, hence build totality.
 
 Trust base: **none beyond the Lean kernel.** The proof-file family runs
-with `veil.smt.trust false` (proof reconstruction — the module is small
-enough to afford it), so the persisted VC theorems are real,
-kernel-checked proofs; layers 1–3 are ordinary Lean. The final theorem
+with `veil.smt.trust false` (proof reconstruction), so the persisted VC
+theorems are real, kernel-checked proofs; layers 1–3 are ordinary Lean. The final theorem
 depends on exactly `propext`, `Classical.choice`, `Quot.sound` — pinned
 by the `#guard_msgs` axiom check at the end of this file.
 
@@ -112,9 +110,9 @@ variable {ρ σ : Type} {proposer merkle_root : Type}
   [σ_sub : IsSubStateOf (State χ) σ]
   [ρ_sub : IsSubReaderOf (Theory (Fin n) (ByzNSet n) proposer merkle_root) ρ]
 
-/-- **Build totality** (the statement the demoted invariant carried): at
-the propose trigger, one of the three build cases applies for every
-proposer. -/
+/-- **Build totality**: at the propose trigger, one of the three build cases
+applies for every proposer. Stated here rather than as a model invariant,
+whose abstract VCs would be unprovable (the module header above). -/
 def BuildTotality (th : ρ) (st : σ) : Prop :=
   received_supermajority (nset := byzNodeSetFin n f hf is_byz hbyz) th st →
     ∀ (P : proposer),
@@ -194,9 +192,9 @@ Every reachable state of the generated transition system satisfies the
 assembled `Invariants` clump — this is the module-generic
 `FallbackReceipt.invariants_of_reachable` certificate emitted by
 `#gen_composition` in
-[`FallbackReceipt/Certify.lean`](./Certify.lean) from the
+[Certify.lean](Certify.lean) from the
 per-action preservation lemmas of the proof-file family
-([`FallbackReceipt/Proofs/`](./Proofs)) — applied here at
+([FallbackReceipt/Proofs](Proofs)) — applied here at
 the concrete instance family, and closed under layer 2 into build
 totality. The induction is emitted, and kernel-checked, inside Veil —
 this file writes none of it by hand. -/
@@ -215,8 +213,7 @@ variable {proposer merkle_root : Type}
 
 /-- **Build totality holds in every reachable state** — for every
 `n = 3f+1`, every Byzantine set of size `≤ f`, and arbitrary `proposer`
-and `merkle_root` types. The general-`n` closure of the demoted
-`build_totality` invariant: layer 2 applied to the
+and `merkle_root` types: layer 2 applied to the
 `accepted_entries_complete` conjunct of `invariants_of_reachable`. -/
 theorem build_totality_of_reachable
     {th : Theory (Fin n) (ByzNSet n) proposer merkle_root}
@@ -268,7 +265,8 @@ The whole chain — reconstructed SMT proofs for the structural VCs, the
 reachability induction, the state theorem, the pigeonhole — rests on the
 standard Lean trio and nothing else (in particular: no `sorryAx`, i.e.
 no trusted-SMT step). A regression that reintroduces trusted SMT (e.g.
-dropping `veil.smt.trust false` in a `FallbackReceipt/Proofs/` file)
+dropping `veil.smt.trust false` in a file of
+[FallbackReceipt/Proofs](Proofs))
 fails this guard. -/
 
 /--

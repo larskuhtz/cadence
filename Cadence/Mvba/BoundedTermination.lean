@@ -2,8 +2,8 @@ import Cadence.Mvba.Bound
 
 /-! # Mvba.BoundedTermination — the burn lemma, and the bound
 
-[`docs/Bounds.md`](../../docs/Bounds.md) §6.2, step 3. `Mvba/Schedule.lean`'s
-target `BoundedTerminationClaim`, proven (`bounded_termination`): under the
+[Bounds.md](../../docs/Bounds.md) §6.2. The target `BoundedTerminationClaim`
+of [Schedule.lean](Schedule.lean), proven (`bounded_termination`): under the
 three clauses of `Sync`, (A-leader-rotation-k) and the two quorum classes,
 if every correct validator has proposed by `t` and none is abandoned by
 `max(t, gst) + ℓ`, every correct validator has decided by `max(t, gst) + ℓ`.
@@ -47,24 +47,24 @@ The proof is §6.2.6's, in its order:
 ## The `2δ` of the timeout row
 
 `timeout_qc i v w e` names the validator's highest held certificate, so an
-adoption between the timer's expiry and the timeout moves the label. §6.2.6
-claimed that at most one adoption can intervene, and this is proven as
+adoption between the timer's expiry and the timeout moves the label. At
+most one adoption can intervene (§6.2.6), which is
 `local_prepqc_new_in_view`: a certificate a validator acquires while it
 stays in `v` is a certificate *of* `v`. `adopt_prepqc` requires `in_view`,
 and `sync_view_adopt` leaves the view; `local_prepqc_set` is the case split
-over the model's labels, from M13's frame lemmas. Once a certificate of `v`
+over the model's labels, from Veil's generated frame lemmas. Once a certificate of `v`
 is held, it is the highest one for as long as the validator stays in `v`
 (`local_prepqc_within_entered`), so the label no longer moves. The first
 window has at most one adoption and the second none. That is the whole
 content of `within_timed_out`, and it needs no new invariant.
 
-Everything else is a link of `Mvba/Bound.lean`'s shape, one
+Everything else is a link of the shape [Bound.lean](Bound.lean) uses, one
 `withinFrom_of_boundedFair` each.
 
 ## The time theory
 
-The burn lemma and its iteration are stated over `Schedule.lean`'s theory
-(`IsOrderedAddMonoid`). The assembly takes `[IsOrderedCancelAddMonoid time]`
+The burn lemma and its iteration are stated over the time theory of
+[Schedule.lean](Schedule.lean) (`IsOrderedAddMonoid`). The assembly takes `[IsOrderedCancelAddMonoid time]`
 as a hypothesis of the theorem. It needs it for the good-view lemma (§6.2.8's
 `ℕ∞` counterexample) and, in one other place, for `u < u + Δ`, which is how
 `N₀` is found. The claim itself stays at the weaker theory, so the claim
@@ -76,8 +76,9 @@ namespace Mvba
 open Cadence
 open scoped Cadence.Timed
 
-/-- Expose an action's transition body in `h` — `Mvba/Liveness.lean`'s
-local tactic of the same name, repeated because it is local there. -/
+/-- Expose an action's transition body in `h` — the local tactic of the
+same name in [Liveness.lean](Liveness.lean), repeated because it is local
+there. -/
 local macro "mvba_tr" h:ident : tactic =>
   `(tactic| (simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct] at $h:ident
              simp only [trSimp] at $h:ident))
@@ -112,7 +113,7 @@ variable {node nodeset value view : Type}
 The two actions that grow `local_prepqc` are `adopt_prepqc`, guarded on
 `in_view i W` for the certificate's own view `W`, and `sync_view_adopt`,
 which enters the view after one bounding all of `i`'s entries. Every other
-action leaves the relation untouched (M13's frame lemmas); the case split is
+action leaves the relation untouched (Veil's generated frame lemmas); the case split is
 over the model's own label type. -/
 theorem local_prepqc_set {l : Mvba.Label node nodeset value view} {i : node} {W : view}
     {e : value}
@@ -235,7 +236,7 @@ def enteredView : Mvba.Label node nodeset value view → Option view
 
 /-- **Each step enters at most one view**: a view newly entered by any
 validator is the label's `enteredView`. One case per action, the non-entering
-ones from M13's frame lemmas. -/
+ones from Veil's generated frame lemmas. -/
 theorem entered_set_view {l : Mvba.Label node nodeset value view} {j : node} {V : view}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
     (h0 : ¬ st.entered j V = true) (h1 : st'.entered j V = true) :
@@ -375,14 +376,14 @@ variable (vfin : ViewOrderEnum view vord)
 theorem lt_succ (v : view) : vord.lt v (vfin.succ v) :=
   ((vord.next_def v (vfin.succ v)).mp (vfin.next_succ v)).1
 
-/-- Iterated successors climb weakly … -/
+/-- Iterated successors climb weakly. -/
 theorem le_iterate_succ (v : view) : ∀ j, vord.le v (vfin.succ^[j] v)
   | 0 => vord.le_refl v
   | j + 1 => by
     rw [Function.iterate_succ_apply']
     exact vord.le_trans _ _ _ (le_iterate_succ v j) ((vord.le_lt _ _).mp (lt_succ vfin _)).1
 
-/-- … and strictly, at a positive count. -/
+/-- Iterated successors climb strictly at a positive count. -/
 theorem lt_iterate_succ (v : view) {j : Nat} (hj : 1 ≤ j) : vord.lt v (vfin.succ^[j] v) := by
   obtain ⟨j, rfl⟩ : ∃ j', j = j' + 1 := ⟨j - 1, by omega⟩
   rw [Function.iterate_succ_apply']
@@ -591,12 +592,12 @@ end Timeout
 
 /-! ## The two timed links the good view did not need
 
-`Mvba/Bound.lean`'s eight links are the good view's; the burn lemma needs
-the view change as well. Both are the untimed links'
+The eight links of [Bound.lean](Bound.lean) are the good view's; the burn
+lemma needs the view change as well. Both are the untimed links'
 (`eventually_entered_above_of_tc`, `eventually_tc_of_timed_out_quorum`) with
-one `withinFrom_of_boundedFair` in place of the weak-fairness step, and both
-exercise `hop` rows step 2 did not: `sync_view` and the two `form_tc_*` are
-`Δ` hops, and the timeouts of the previous section are `δ` steps. -/
+one `withinFrom_of_boundedFair` in place of the weak-fairness step:
+`sync_view` and the two `form_tc_*` are `Δ` hops, and the timeouts of the
+previous section are `δ` steps. -/
 
 section Links
 
@@ -689,7 +690,8 @@ theorem Schedule.burn_nonneg (sch : Schedule view time) : 0 ≤ sch.burn :=
   add_nonneg (add_nonneg (le_trans (sch.τ_nonneg vord.zero) (sch.τ_le_max vord.zero))
     (nsmul_nonneg sch.δ_nonneg 2)) (nsmul_nonneg (le_of_lt sch.Δ_pos) 2)
 
-/-- **The burn lemma** (`docs/Bounds.md` §6.2.6, the first table). From
+/-- **The burn lemma** ([Bounds.md](../../docs/Bounds.md) §6.2.6, the first
+table). From
 `Synced v X` with `X` at or after GST, `Synced (succ v) (X + burn)` — whatever
 the leader or the outcome of `v`, provided nobody correct is abandoned by
 then. The four rows:
@@ -884,8 +886,8 @@ structure GoodView (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
   burns_le : burns ≤ (vfin.below sch.vL).length + sch.k
   within : r.clk N ≤ u + sch.Δ + burns • sch.burn
 
-/-- **The assembly's first half** (`docs/Bounds.md` §6.2.6, "The
-assembly", up to the good-view lemma): if every correct validator has
+/-- **The assembly's first half** ([Bounds.md](../../docs/Bounds.md)
+§6.2.6, "The assembly", up to the good-view lemma): if every correct validator has
 proposed by `t` and none is abandoned by `max(t, gst) + ℓ`, a good view is
 reached from `u := max(t, gst)`. `bounded_termination` is this plus
 `good_view_decides`. -/
@@ -1048,7 +1050,8 @@ theorem exists_good_view (enum : ByzNodeSetEnum node nodeset nset)
     burns_le := hK
     within := hT ▸ hcNW }⟩
 
-/-- **Bounded termination** (`docs/Bounds.md` §6.2.6, "The assembly").
+/-- **Bounded termination** ([Bounds.md](../../docs/Bounds.md) §6.2.6, "The
+assembly").
 `BoundedTerminationClaim`, proven, under the two quorum classes and a
 cancellative time theory (§6.2.8 says why cancellation is needed): the good
 view `exists_good_view` reaches, decided by `good_view_decides`. -/
@@ -1081,16 +1084,15 @@ end Assembly
 
 /-! ## (A-viewsync), derived
 
-`AViewSyncClaim`, proven. The argument is shorter than §6.2.7 planned. Its
-second clause only asks that a `W`-timer does not expire before *some*
-commit certificate exists, so any correct-led view above every view entered
+`AViewSyncClaim`, proven. The second clause of (A-viewsync) only asks that a
+`W`-timer does not expire before *some* commit certificate exists, so any correct-led view above every view entered
 when a certificate first exists is a good view: its timers are started
 after the certificate by (T1). What is left is to show that a certificate
 exists. If a correct validator is ever abandoned, it has decided by then
 (`NoEarlyAbandon`), and a decision is certificate-backed (`decided_backed`).
 Otherwise `bounded_termination` applies with its abandonment premise
-vacuous. `docs/Bounds.md` §6.2.8's step-4 reassessment says what this means
-for (A-viewsync) as a premise. -/
+vacuous. [Bounds.md](../../docs/Bounds.md) §6.2.8 says what this means for
+(A-viewsync) as a premise. -/
 
 section ViewSync
 

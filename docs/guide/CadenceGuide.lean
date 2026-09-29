@@ -8,7 +8,7 @@ A Verso document, and so a Lean program. It carries no facts of its own:
   rendered sources (`{model}`) — so a renamed or removed declaration fails
   this build rather than leaving a stale quotation;
 * every status box is computed when the guide is built
-  (`docs/guide/CadenceGuide/Audit.lean`): the kernel's axiom footprint, the
+  ([Audit.lean](CadenceGuide/Audit.lean)): the kernel's axiom footprint, the
   module contracts a result is conditional on, and which declarations
   discharge them.
 
@@ -37,8 +37,8 @@ This guide walks an auditor through one complete result of the Cadence
 verification: what it states, what it is proven from, and which parts a human
 has to check. It assumes you know BFT consensus, and nothing about Lean or
 about Veil, the language the protocol models are written in. The design
-documents in the repository's `docs/` folder go deeper; the
-[rendered sources](../sources/Cadence/) show every module as written.
+documents in the repository's [docs](../) folder go deeper; the
+[rendered sources](../../Cadence.lean) show every module as written.
 
 A theorem in Lean holds once the kernel accepts it, relative to the axioms it
 uses. So an audit reads three things, and none of them is a proof:
@@ -96,7 +96,7 @@ checked.
 
 Cadence is built from modules, as in the paper: an orchestrator (the
 Conductor) that decides which slots are open, a per-slot consensus (Chorus)
-that decides each slot, and a thin layer — the _glue_, `Cadence/Cadence.lean`
+that decides each slot, and a thin layer — the _glue_, [Cadence.lean](../../Cadence/Cadence.lean)
 — that runs one consensus instance per slot and assembles their outputs into
 a log. The claim is proven in three steps, and the boxes show how the steps
 plug together.
@@ -178,7 +178,7 @@ three, each argued in prose rather than checked:
 * *Threat model.* Byzantine validators take no glue actions; they act only
   inside the sub-protocols, whose contracts constrain correct validators only.
 
-Read them in the [header of the glue](../sources/Cadence/Cadence/).
+Read them in the [header of the glue](../../Cadence/Cadence.lean).
 
 The sub-protocols enter the glue as class constraints, written `instantiate`:
 
@@ -193,7 +193,7 @@ and no glue guard or invariant restates a contract property.
 
 # The contracts: what is proven, what is assumed
 
-The contracts are in `Cadence/Interfaces.lean`, which states every property
+The contracts are in [Interfaces.lean](../../Cadence/Interfaces.lean), which states every property
 of every paper module, proven or not. Each paper module is split in two. A
 first-order fragment — {decl}`OrchestratorSafety`, {decl}`SlotConsensusSafety`,
 … — is what the models consume and the implementations prove. A temporal
@@ -211,18 +211,19 @@ system runs.
 
 # What no machine checks
 
-Three kinds of argument sit above the kernel and are believed rather than
+Four kinds of argument sit above the kernel and are believed rather than
 derived. They are the meta-theory an audit has to read.
 
 * *The modelling arguments* recorded in each model's header — for the glue,
   the three listed above; for Chorus, also the monotone-network contract
-  (`docs/ChorusDesign.md` §3.1.1), which Veil does not enforce.
+  ([ChorusDesign.md](../ChorusDesign.md) §3.1.1), which Veil does not enforce.
 * *The assumed contracts* in the table above, read as assumptions: for the
   headline claim, {decl}`ACSSafety`.
 * *The interpretation of each contract's vocabulary* in its consumer, where a
   class parameter has to be read in the consumer's own terms. The glue has
-  none; two exist elsewhere, and `docs/CompositionContracts.md` §7 lists them.
+  none; two exist elsewhere, and [CompositionContracts.md](../CompositionContracts.md)
+  §7 lists them.
 * *The tooling* — Lean's kernel, and Veil's generation of the verification
   conditions from a model.
 
-`docs/Architecture.md` §4 is the complete list, and the auditor's checklist.
+[Architecture.md](../Architecture.md) §4 is the complete list, and the auditor's checklist.

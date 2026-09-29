@@ -3,7 +3,7 @@ import Mathlib.Algebra.Order.Archimedean.Basic
 
 /-! # Mvba.Temporal — the timed `MVBATemporal` instance, and the full `MVBA`
 
-[`docs/Bounds.md`](../../docs/Bounds.md) §6.2, step 4. The contract's
+[Bounds.md](../../docs/Bounds.md) §6.2, step 4. The contract's
 temporal level, instantiated at `mvbaSafety th`, the fragment Chorus
 consumes. Its fields:
 
@@ -16,7 +16,7 @@ consumes. Its fields:
   environment only marks availability (`admissible_exists`).
 
 `mvbaFull` joins it with the fragment into the full `MVBA` class, through
-`Mvba/Compose.lean`'s `mvba_of_temporal`, and `mvbaFull_toSafety` checks
+[Mvba/Compose.lean](Compose.lean)'s `mvba_of_temporal`, and `mvbaFull_toSafety` checks
 that the join hands back `mvbaSafety th` by `rfl`. The run carries the clock
 (`TimedRun.clk`), so neither the model nor the fragment has one.
 
@@ -51,7 +51,8 @@ variable {node nodeset value view : Type}
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
   {th : Theory node nodeset value view}
 
-/-- Expose an action's transition body in `h`, as in `Mvba/Compose.lean`. -/
+/-- Expose an action's transition body in `h`, as in
+[Mvba/Compose.lean](Compose.lean). -/
 local macro "mvba_tr" h:ident : tactic =>
   `(tactic| (simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct] at $h:ident
              simp only [trSimp] at $h:ident))
@@ -60,8 +61,8 @@ local macro "mvba_tr" h:ident : tactic =>
 
 Every state of the run is **quiet**: no input, no entry, no acceptance, and
 none of the four message rows the assemblies count. Quiet holds initially
-(M13's `init` lemmas), and `become_avail_ready` preserves it (M13's frame
-lemmas). At a quiet state no label under the hop table is move-enabled,
+(Veil's generated `<relation>.init` lemmas), and `become_avail_ready`
+preserves it (the generated `<action>.frame_<relation>` lemmas). At a quiet state no label under the hop table is move-enabled,
 because each one's guards read one of those records. -/
 
 /-- The records whose absence disables every fair label. -/
@@ -284,7 +285,7 @@ noncomputable def mvbaTemporal [IsOrderedCancelAddMonoid time] [Archimedean time
 
 /-- **`Mvba ⊨ MVBA`**: the full contract, the fragment and the temporal level
 joined by `mvba_of_temporal`. Its safety fragment is `mvbaSafety th`, the
-instance `Cadence/System.lean` plugs into Chorus, so the MVBA the composed
+instance [System.lean](../System.lean) plugs into Chorus, so the MVBA the composed
 system runs is this one. -/
 @[implicit_reducible]
 noncomputable def mvbaFull [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]

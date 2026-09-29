@@ -3,14 +3,14 @@ import Cadence.Mvba.Liveness
 
 /-! # Chorus/Liveness — the run-level target for Chorus, and the premises it rests on
 
-[`docs/Liveness.md`](../../docs/Liveness.md) §4, stage 2. This file states
+[Liveness.md](../../docs/Liveness.md) §4, stage 2. This file states
 the run-level termination claim for Chorus at the system's instantiation —
 the MVBA constraint filled by the `Mvba` model, as in
-[`System.lean`](../System.lean) — **and every premise it takes**, as named
-`Prop`s, before any of the proof exists. Its sibling is
-[`Mvba/Liveness.lean`](../Mvba/Liveness.lean): same discipline, same shape,
-and its `Mvba.termination` is what the MVBA arm of the argument will
-consume.
+[System.lean](../System.lean) — **and every premise it takes**, as named
+`Prop`s. The proof is [Termination.lean](Termination.lean), which adds no
+premise. Its sibling is [Mvba/Liveness.lean](../Mvba/Liveness.lean): same
+discipline, same shape, and its `Mvba.termination` is what the MVBA arm of
+the argument consumes.
 
 `grep -n '^def [A-Z]' Cadence/Chorus/Liveness.lean` prints the whole list:
 the four label classes, the certificate predicate the bridge premise is
@@ -19,16 +19,16 @@ Everything a human has to believe about scheduling or about the seam
 between Chorus and its MVBA is one of those definitions, with a docstring,
 and appears as an explicit hypothesis of `TerminationClaim`.
 
-## What this replaces
+## What this makes formal
 
-Chorus's liveness claim has rested on three meta-axioms stated in prose —
-(F-justice), (F-byz), (A-mvba) — and the state-level theorems
-(`Chorus/Progress.lean`, `Chorus/Counting.lean`, `Chorus/Pigeonhole.lean`).
-Here (F-justice) and (F-byz) become the label classification below and one
+[Chorus.lean](../Chorus.lean)'s liveness section states three meta-axioms in
+prose — (F-justice), (F-byz), (A-mvba) — over the state-level theorems
+([Chorus/Progress.lean](Progress.lean), [Chorus/Counting.lean](Counting.lean),
+[Chorus/Pigeonhole.lean](Pigeonhole.lean)). Here (F-justice) and (F-byz) become the label classification below and one
 named premise, exactly as in the MVBA file; and (A-mvba) — "the MVBA
 terminates" — is **retired** in favour of what it stood for: the MVBA's own
 liveness theorem, applied to the composed run's MVBA projection
-(`Cadence/Fairness.lean`, "Components"), under the MVBA's own scheduling
+([Fairness.lean](../Fairness.lean), "Components"), under the MVBA's own scheduling
 premises. What is assumed about the MVBA is then not that it terminates
 but that its steps inside the composed run were scheduled the way
 `Mvba.termination` requires (`MvbaAdmissible` below) — the untimed analogue
@@ -38,7 +38,7 @@ of `MVBATemporal.Admissible`.
 
 * **(F-justice)** — `FJustice`: every honest, non-oracle label is weakly
   fair. The classification is the three `match` definitions below; the
-  reasons weak fairness suffices are `docs/Liveness.md` §2.
+  reasons weak fairness suffices are [Liveness.md](../../docs/Liveness.md) §2.
 * **The MVBA's scheduling** — `MvbaAdmissible`: the run *has* a projection
   onto the MVBA (a labelling of its steps plus infinitely many of them —
   `Component.Projection`, whose header says why both are data) whose
@@ -46,8 +46,8 @@ of `MVBATemporal.Admissible`.
   `Mvba.FAvail`. Those are three of `Mvba.termination`'s five premises,
   stated with that file's own definitions and restated nowhere. The other
   two — every correct validator proposes, none is abandoned before deciding
-  — are the *caller's* premises and the caller is Chorus, so they are
-  **derived** here (stage 4), not assumed: the first from (F-justice) on
+  — are the *caller's* premises and the caller is Chorus, so they are to be
+  **derived** (stage 4), not assumed: the first from (F-justice) on
   `mvba_propose` and the progress dichotomy, the second because this
   single-slot model never drives `abandon`.
 * **The bridge** — `ValidBridge`: the MVBA's `Valid` agrees with Chorus's
@@ -55,7 +55,7 @@ of `MVBATemporal.Admissible`.
   `MVBASafety`, whose `Valid` is a predicate on values alone, while the
   paper's `Valid B` inspects the certificates a meta-block *carries* — in
   the model, facts about Chorus's network relations. The two are tied by
-  the **one stated bridge** of `docs/CompositionContracts.md` §3, and a
+  the **one stated bridge** of [CompositionContracts.md](../../docs/CompositionContracts.md) §3, and a
   liveness proof needs it in both directions: *soundness* — a vector every
   one of whose proposer entries is certificate-backed on the network is
   `Valid`, which is what lets `mvba_propose` fire at all, since at the
@@ -65,7 +65,7 @@ of `MVBATemporal.Admissible`.
   what enables the decision handlers, whose bridge `require` is that
   check. The safety proofs need neither direction (the guard only removes
   behaviours, and `external_validity` is proven from `Mvba`'s own check).
-  This is the run-level form of the seam `CompositionContracts.md` §7
+  This is the run-level form of the seam [CompositionContracts.md](../../docs/CompositionContracts.md) §7
   item 1 names, and it is a statement about the MVBA theory's `valid`
   meeting Chorus's network — the cryptographic content that a certificate
   cannot be forged — not about either model alone.
@@ -73,7 +73,7 @@ of `MVBATemporal.Admissible`.
 ## What is deliberately absent
 
 No timing premise: Chorus's phase markers are weakly fair like every other
-honest action, and `docs/Liveness.md` §2.1 says why that is sound here and
+honest action, and [Liveness.md](../../docs/Liveness.md) §2.1 says why that is sound here and
 not in the MVBA. No `all_honest_recorded`-shaped premise: it buys proposal
 inclusion, not termination. No quorum machinery: the concrete quorum family
 (`byzNodeSetFin`, every `n = 3f+1`) that the counting theorems are stated
@@ -81,18 +81,16 @@ over is a hypothesis of the *theorem* to come, not part of the claim.
 
 ## The classification, against the model's prose
 
-`Chorus.lean`'s liveness section lists (F-justice)'s actions by name. The
+[Chorus.lean](../Chorus.lean)'s liveness section lists (F-justice)'s actions by name. The
 definition here is the complement of the other two classes, which is the
 checkable form (adding an action and forgetting it here lands it in
-`JusticeLabel`, visibly), and it agrees with that list except that it also
-covers `deliver_chunk_assigned` and `broadcast_commitqc_*`, which the prose
-does not name but the chain in `docs/ChorusDesign.md` §7 uses as fair
-("certificates become broadcast certificates"). Both are honest network
+`JusticeLabel`, visibly), and it agrees with that list. The list includes
+`deliver_chunk_assigned` and `broadcast_commitqc_*`, which the chain in
+[ChorusDesign.md](../../docs/ChorusDesign.md) §7 uses as fair ("certificates
+become broadcast certificates"). Both are honest network
 capabilities — eventual delivery of a correct proposer's chunk, assembly of
 a certificate whose signatures are all present — and weak fairness on them
-is the eventual-delivery assumption the paper makes. The prose should be
-aligned when `Chorus.lean` is next edited for another reason (an edit to a
-model file, even a comment, re-solves its 4 222-cell family). -/
+is the eventual-delivery assumption the paper makes. -/
 
 namespace Chorus
 
@@ -193,11 +191,11 @@ end Labels
 
 The instance of `Cadence.Component` for Chorus at the system's
 instantiation, from which the projection of a Chorus run onto the MVBA and
-the fairness transfer follow (`Cadence/Fairness.lean`). Its five fields come
+the fairness transfer follow ([Fairness.lean](../Fairness.lean)). Its five fields come
 from the generated artefacts and one hand proof — nothing here needs a new
 cell:
 
-* `frame` — M13's per-action `Chorus.<action>.frame_mvba_st`, one per
+* `frame` — Veil's generated per-action `Chorus.<action>.frame_mvba_st`, one per
   action that is not an MVBA step;
 * `step` — the two oracle actions' guards, read off their transition
   bodies: `mvba_step` requires `mvba.step`, which at the `Mvba` instance is
@@ -223,7 +221,7 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
 /-- **Chorus at the `Mvba` instance**: the module's transition system with its
 MVBA constraint filled by `Mvba.mvbaSafety thM`, the abstract sorts at the
 `Mvba` model's own types — the value is the entry vector, the state the
-model's, the message type the model's (`System.lean`, "Chorus at the `Mvba`
+model's, the message type the model's ([System.lean](../System.lean), "Chorus at the `Mvba`
 instance"). Every run-level statement in this file is about this system. -/
 noncomputable abbrev atMvba (thM : Mvba.Theory node nodeset (node → Option merkle_root) view) :=
   Chorus.relationalTransitionSystem slot node nodeset merkle_root
@@ -243,7 +241,7 @@ variable {thS : Chorus.Theory slot node nodeset merkle_root
       (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
       (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)}
 
-/-- Expose an action's transition body (`Cadence/Composition.lean`'s
+/-- Expose an action's transition body ([Composition.lean](../Composition.lean)'s
 `conductor_tr`, for Chorus). -/
 local macro "chorus_tr" h:ident : tactic =>
   `(tactic| (simp only [Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct] at $h:ident
@@ -416,7 +414,7 @@ projection onto the MVBA — a labelling of its steps that explains them, and
 infinitely many of them (`Component.Projection`) — whose projected run
 satisfies the three scheduling premises of `Mvba.termination`: weak
 fairness of the MVBA's honest actions, the timer discipline of the good
-view, and availability. Stated with `Mvba/Liveness.lean`'s own definitions;
+view, and availability. Stated with [Mvba/Liveness.lean](../Mvba/Liveness.lean)'s own definitions;
 the caller's two premises of that theorem are derived, not assumed (header).
 
 The existential over the projection is the honest form: the composed run
@@ -436,7 +434,7 @@ negative entry is a proposer's, backed by a negative FastQC or, under
 `FBCert`, by a negative FallbackQC or an EquivCert; and every proposer has an
 entry. These are `mvba_propose`'s three validity guards **verbatim**, the
 first two clauses being also the decision handlers' bridge `require`
-(`Chorus.lean`, "The MVBA instance"). -/
+([Chorus.lean](../Chorus.lean), "The MVBA instance"). -/
 def Certified
     (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
       (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
@@ -466,7 +464,7 @@ The header says why this is a premise: `Valid` is a parameter of the class,
 fixed before Chorus's state exists, and the certificates are facts about
 that state. It is the cryptographic content of the seam — a `Valid`
 meta-block's certificates are genuine, and genuine certificates are `Valid`
-— which `docs/CompositionContracts.md` §7 item 1 names and no class field
+— which [CompositionContracts.md](../../docs/CompositionContracts.md) §7 item 1 names and no class field
 can carry. It is *not* a statement about the protocol's outcome: it relates
 the MVBA theory's `valid` to the network, and nothing else. -/
 def ValidBridge (r : ChorusRun thS thM) : Prop :=
@@ -486,7 +484,7 @@ def Terminates (r : ChorusRun thS thM) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).local_committed i = true
 
 /-- **The target, stated.** Not a theorem and not asserted anywhere: this is
-the `Prop` stages 3–5 of `docs/Liveness.md` §4 have to prove, written down
+the `Prop` stages 3–5 of [Liveness.md](../../docs/Liveness.md) §4 have to prove, written down
 so that its premises are fixed, type-checked and citable before the proof
 exists. The three premises are exactly the file's named definitions. What is
 deliberately absent is the quorum machinery — the concrete family the

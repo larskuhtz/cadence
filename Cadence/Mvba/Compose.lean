@@ -3,21 +3,20 @@ import Cadence.Interfaces
 
 /-! # MvbaCompose — `Mvba ⊨ MVBASafety`, and the join toward `MVBA`
 
-The provider step of the MVBA instantiation (`docs/MvbaPlan.md` §5): the
-`Mvba` transition system ([`Mvba.lean`](../Mvba.lean)), packaged as the
-state-level MVBA contract of [`Interfaces.lean`](../Interfaces.lean) —
-the class Chorus consumes as its `mvba` constraint
-([`System.lean`](../System.lean) plugs this instance in) —
-together with the join toward the full `MVBA` class. This is the only file of
-the `Mvba` family that imports
-`Cadence.Interfaces`, on the pattern of
-[`Chorus/Compose.lean`](../Chorus/Compose.lean).
+The provider step of the MVBA instantiation
+([MvbaPlan.md](../../docs/MvbaPlan.md) §5): the `Mvba` transition system
+([Mvba.lean](../Mvba.lean)), packaged as the state-level MVBA contract of
+[Interfaces.lean](../Interfaces.lean) — the class Chorus consumes as its
+`mvba` constraint ([System.lean](../System.lean) plugs this instance in) —
+together with the join toward the full `MVBA` class. This is the only file
+of the `Mvba` family that imports `Cadence.Interfaces`, on the pattern of
+[Chorus/Compose.lean](../Chorus/Compose.lean).
 
 **The instance.** `mod:mvba` is one instance per Chorus slot, and the model
 is one instance, so the contract is instantiated directly: `init`, `step`,
 `trans`, `reachable` are the model's own relations, the state is the
 model's state, `Valid` is the theory's immutable `valid` (the entry vector
-is the value, `docs/MvbaPlan.md` §1.2), `decided` is the relation of that
+is the value, [MvbaPlan.md](../../docs/MvbaPlan.md) §1.2), `decided` is the relation of that
 name read at the canonical field representation, and `byz` is the
 Byzantine predicate of the module's `ByzNodeSet` instance.
 
@@ -25,30 +24,31 @@ Each entry is an `MVBASafety` field and what discharges it.
 
 * **`agreement`, `integrity`, `external_validity`** — `safety [agreement]`,
   `[integrity]`, `[external_validity]`, through the named reachability
-  projections of [`Mvba/Certify.lean`](./Certify.lean)
+  projections of [Mvba/Certify.lean](Certify.lean)
 * **`decided_mono`, `init_decided`** — the transition bodies of every
   action, uniformly (`decided_mono_tr`, `init_not_decided` below): `decided`
   is only ever set, and `after_init` clears it
 * **`step_trans`, `reachable_init`, `reachable_trans`** — the reachability
   constructors
 
-**What is left unproven is smaller than for the other two.** The model has the module's
-two inputs as actions (`propose`, `abandon`) and a per-party message row
-for each of the five signed message kinds, so the upper level's inputs,
-their observables (`proposed := input`, `abandoned`, `sent` by cases on
+**The inputs and Quiescence are in the fragment.** The model has the
+module's two inputs as actions (`propose`, `abandon`) and a per-party
+message row for each of the five signed message kinds, so the inputs, their
+observables (`proposed := input`, `abandoned`, `sent` by cases on
 `Mvba.Msg`), effects, frames, initial conditions **and Quiescence** are
 proven here — Quiescence is the one-step fact `sent_new_tr`: a correct
 party's new message row comes from an honest send, and every honest send
-requires `∃ E, input i E` and `¬ abandoned i`. What remains is the timed
-part alone — the admissible-run model, `ℓ` and `ℓ_MVBA`-Termination, the
-fields of `MVBATemporal` — and that is proven too, in
-`Cadence/Mvba/Temporal.lean` (`Mvba.mvbaTemporal`). `mvba_of_temporal`
-joins the two levels, which gives the full `MVBA` (`Mvba.mvbaFull`).
+requires `∃ E, input i E` and `¬ abandoned i`. The timed part — the
+admissible-run model, `ℓ` and `ℓ_MVBA`-Termination, the fields of
+`MVBATemporal` — is proven in [Mvba/Temporal.lean](Temporal.lean)
+(`Mvba.mvbaTemporal`, from named hypotheses). `mvba_of_temporal` joins the
+two levels, which gives the full `MVBA` (`Mvba.mvbaFull`).
 -/
 
--- NOTE: no `open Veil` here, as in `Chorus/Compose.lean` — Veil names are
--- used fully qualified, which keeps the file in the generated transition
--- system's instance regime (`Composition.lean`'s header).
+-- No `open Veil` here, as in [Chorus/Compose.lean](../Chorus/Compose.lean):
+-- Veil names are used fully qualified, which keeps the file in the generated
+-- transition system's instance regime
+-- ([Composition.lean](../Composition.lean)'s header).
 
 namespace Mvba
 
@@ -76,8 +76,9 @@ variable {node nodeset value view : Type}
   [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
 
-/- The abstract field representation of the Mvba state at the canonical
-`Classical` instances (cf. `Composition.lean`'s `afr%`). -/
+/-- The abstract field representation of the Mvba state at the canonical
+`Classical` instances (cf. [Composition.lean](../Composition.lean)'s
+`afr%`). -/
 local macro "afr%" f:ident : term =>
   `(@Mvba.instAbstractFieldRepresentation node nodeset value view
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
@@ -125,11 +126,11 @@ omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nse
 /-- `Label.isInput` names the two input constructors, in a form that
 survives leaving this module.
 
-The definition itself does not: since the label type reached twenty-five
-constructors Lean compiles its `match` to a bit-testing `Label.rec`, whose
-equation lemmas are available here but do not let `Label.isInput (.decide …)`
-reduce in an importing file. Consumers should case on this lemma rather than
-unfold the definition — `Mvba/Liveness.lean` does. -/
+The definition itself does not: at this many constructors Lean compiles its
+`match` to a bit-testing `Label.rec`, whose equation lemmas are available
+here but do not let `Label.isInput (.decide …)` reduce in an importing file.
+Consumers case on this lemma rather than unfold the definition, as
+[Mvba/Liveness.lean](Liveness.lean) does. -/
 theorem Label.isInput_cases {l : Mvba.Label node nodeset value view}
     (h : Label.isInput l) :
     (∃ i e, l = .propose i e) ∨ (∃ i, l = .abandon i) := by
@@ -145,7 +146,7 @@ Each is proven by exposing every action's pre-computed transition body
 of them),
 substituting the post-state and evaluating the field-representation
 `get`/`set` pair at the canonical representation
-(`docs/CompositionContracts.md` §4). -/
+([CompositionContracts.md](../../docs/CompositionContracts.md) §4). -/
 
 /-- Expose one action's transition body in `h`. -/
 local macro "mvba_tr" h:ident : tactic =>
@@ -220,7 +221,8 @@ theorem propose_effect_tr {i : node} {e : value}
   mvba_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); mvba_field_simp
 
 /-- `propose(e)` carries a valid `e` — the model's own guard, which is the
-supplement's precondition on the call (`Mvba.lean`'s `propose`). -/
+supplement's precondition on the call ([Mvba.lean](../Mvba.lean)'s
+`propose`). -/
 theorem propose_valid_tr {i : node} {e : value}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
       (.propose i e) st') : th.valid e = true := by
@@ -300,7 +302,8 @@ noncomputable def mvbaSafety :
   -- The two inputs are the model's own actions, so the interface, its
   -- observables, their frames and one-step Quiescence are all first-order
   -- facts this model proves — which is why they sit in the fragment rather
-  -- than at the temporal level (`Interfaces.lean`, the placement rule).
+  -- than at the temporal level ([Interfaces.lean](../Interfaces.lean), the
+  -- placement rule).
   propose st p v st' := (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.propose p v) st'
   abandon st p st' := (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.abandon p) st'
   propose_trans _ _ _ _ h := ⟨_, h⟩
@@ -323,20 +326,20 @@ noncomputable def mvbaSafety :
   agreement _ hr i j e e' hi hj hdi hdj := reachable_agreement hr i j e e' hi hj hdi hdj
   integrity _ hr i e e' hi hdi hdi' := reachable_integrity hr i e e' hi hdi hdi'
   external_validity _ hr i e hi hd := reachable_external_validity hr i e hi hd
-  -- **Quiescence**, in the one-step form the contract now states: a new
+  -- **Quiescence**, in the one-step form the contract states: a new
   -- message row of a correct party at a transition comes with the input and
   -- with the party not having abandoned. `sent_new_tr` is exactly that, over
   -- all 5 message kinds × every action.
   quiescence _ _ p m hn hp hnew hold := sent_new_tr th hn.choose_spec p m hp hnew hold
 
-/-! ### What the full `MVBA` still owes
+/-! ### The join toward the full `MVBA`
 
 With the inputs, their observables, the frames and one-step Quiescence all
-proven above, what stands between the fragment and the full `MVBA` is an
-instance of **`MVBATemporal … (S := mvbaSafety th)`**: the admissible-run
-model, `ℓ` and `ℓ_MVBA`-Termination (the supplement's `thm:termination`,
-`O(fΔ)`). It is `Mvba.mvbaTemporal` (`Cadence/Mvba/Temporal.lean`), and
-this join makes it the full `MVBA` of the fragment Chorus consumes. -/
+proven above, what the full `MVBA` adds to the fragment is an instance of
+**`MVBATemporal … (S := mvbaSafety th)`**: the admissible-run model, `ℓ`
+and `ℓ_MVBA`-Termination (the supplement's `thm:termination`, `O(fΔ)`).
+That instance is `Mvba.mvbaTemporal` ([Mvba/Temporal.lean](Temporal.lean)),
+and this join makes it the full `MVBA` of the fragment Chorus consumes. -/
 
 /-- Given a temporal level **at this fragment**, `Mvba` is a full `MVBA`.
 Nothing is restated to join them, and the fragment comes back out by
@@ -363,12 +366,12 @@ end Mvba
 
 The instance rests on the standard Lean trio and nothing else — no
 `sorryAx`, no trusted-SMT step. The composition consumes the proof-file
-family (`Mvba/Proofs/`, via `Mvba/Certify.lean`'s `#gen_composition`):
-every VC statement re-created from the persistent registry, solved as a
-fresh kernel-checked reconstruction, assembled per action into a
-preservation lemma, and composed. The temporal-conditioned full instance
-is pinned too: what is unproven enters as a *hypothesis* — the missing
-`MVBATemporal` instance — never as an axiom. -/
+family ([Mvba/Proofs](Proofs), via [Mvba/Certify.lean](Certify.lean)'s
+`#gen_composition`): every VC statement re-created from the persistent
+registry, solved as a fresh kernel-checked reconstruction, assembled per
+action into a preservation lemma, and composed. The join is pinned too: the
+temporal level enters it as a *hypothesis* — an `MVBATemporal` instance —
+never as an axiom. -/
 
 /--
 info: 'Mvba.mvbaSafety' depends on axioms: [propext, Classical.choice, Quot.sound]

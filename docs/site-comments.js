@@ -17,8 +17,8 @@
 // * Conservative. Whatever could be misread is left as written: a backtick
 //   without a partner, `***`, intraword `*` (as in `a*b`), emphasis across a
 //   line break, `_underscores_` (they are nearly always part of an
-//   identifier here), and every link whose target is not an absolute
-//   http(s) URL (the relative ones point into the repository, not the site).
+//   identifier here), and every link whose target is neither an absolute
+//   http(s) URL nor in the site's link table (below).
 // * Layout-preserving. Hiding delimiters shortens a line, which is harmless
 //   in prose and wrong in a comment laid out in columns; a comment with an
 //   aligned run of spaces or a `|` is left untouched.
@@ -26,9 +26,53 @@
 // A `--` comment is one token per line, so markup cannot span two of them;
 // a `/- … -/` comment is one token, and a code span may cross a line break
 // inside it.
+//
+// Relative links. The sources write a file reference relative to the file it
+// is in; `scripts/docs.sh` resolves every one into `window.cadenceLinks`
+// (`site-links.js`, loaded before this script), keyed by that file. Which
+// file a comment is from: the nearest `data-cadence-source` attribute (the
+// guide marks its quotations and embedded docstrings), else the page's
+// `cadence-source` meta tag (the guide's own prose), else the page's place
+// under `sources/` (`sources/Cadence/Chorus/` is `Cadence/Chorus.lean`). The
+// same table rewrites the `href` of every link on a page that declares its
+// source — the guide, whose Markdown the renderer emits unresolved. The
+// sources pages need no such pass: their doc-comment links are rewritten
+// before rendering.
 
 (function () {
   "use strict";
+
+  // --- where links go ------------------------------------------------------
+
+  // The site root: this script sits one directory below it, in `sources/` on
+  // the rendered sources and in `guide/` on the guide.
+  var siteRoot = (typeof document !== "undefined" && document.currentScript)
+    ? new URL("../", document.currentScript.src) : null;
+
+  function pageSource() {
+    if (!siteRoot) return null;
+    var rel = location.href.split(/[?#]/)[0].replace(/index\.html$/, "");
+    var under = new URL("sources/", siteRoot).href;
+    if (rel.indexOf(under) !== 0) return null;
+    rel = rel.slice(under.length).replace(/\/$/, "");
+    return rel ? rel + ".lean" : null;
+  }
+
+  function sourceOf(el) {
+    var marked = el.closest && el.closest("[data-cadence-source]");
+    if (marked) return marked.getAttribute("data-cadence-source");
+    var meta = document.querySelector('meta[name="cadence-source"]');
+    return meta ? meta.getAttribute("content") : pageSource();
+  }
+
+  // The URL a relative link written in `file` goes to, or null.
+  function resolve(file, href) {
+    var table = (typeof window !== "undefined" && window.cadenceLinks) || {};
+    var target = file && table[file] && table[file][href];
+    if (!target) return null;
+    if (/^sources\//.test(target)) return siteRoot ? new URL(target, siteRoot).href : null;
+    return target;
+  }
 
   // --- parsing: text -> nodes, or null to leave the comment as it is ------
 
@@ -81,9 +125,11 @@
   function isSpace(a) { return a === undefined || (typeof a === "string" && /\s/.test(a)); }
   function isWordChar(a) { return typeof a === "string" && /[\p{L}\p{N}]/u.test(a); }
 
-  // `[text](https://…)` with no line break in the text; the text may hold
-  // code atoms. Anything else stays as characters.
-  function linkAtoms(atoms) {
+  // `[text](target)` with no line break in the text; the text may hold code
+  // atoms. The target is an absolute http(s) URL, or one `resolveHref` maps
+  // (a relative one, through the link table). Anything else stays as
+  // characters.
+  function linkAtoms(atoms, resolveHref) {
     var out = [];
     for (var i = 0; i < atoms.length; i++) {
       if (atoms[i] === "[") {
@@ -94,8 +140,10 @@
           while (k < atoms.length && typeof atoms[k] === "string" && atoms[k] !== ")" && !/\s/.test(atoms[k])) {
             url += atoms[k]; k++;
           }
-          if (atoms[k] === ")" && /^https?:\/\/\S+$/.test(url)) {
-            out.push({ link: url, body: atoms.slice(i + 1, j), close: "](" + url + ")" });
+          var target = /^https?:\/\/\S+$/.test(url) ? url
+            : (url && resolveHref ? resolveHref(url) : null);
+          if (atoms[k] === ")" && target) {
+            out.push({ link: target, body: atoms.slice(i + 1, j), close: "](" + url + ")" });
             i = k;
             continue;
           }
@@ -175,10 +223,10 @@
     return tree.some(function (a) { return typeof a !== "string"; });
   }
 
-  function parse(text, block) {
+  function parse(text, block, resolveHref) {
     var atoms = codeAtoms(text, block);
     if (looksLaidOut(atoms)) return null;
-    var tree = emphasis(linkAtoms(atoms));
+    var tree = emphasis(linkAtoms(atoms, resolveHref));
     return hasMarkup(tree) ? tree : null;
   }
 
@@ -229,20 +277,38 @@
     var spans = doc.querySelectorAll(".hl.lean .comment.line, .hl.lean .comment.block");
     spans.forEach(function (span) {
       if (span.children.length > 0) return;
-      var tree = parse(span.textContent, span.classList.contains("block"));
+      var file = sourceOf(span);
+      var tree = parse(span.textContent, span.classList.contains("block"),
+                       function (href) { return resolve(file, href); });
       if (!tree) return;
       var frag = doc.createDocumentFragment();
       render(doc, tree, frag);
       span.textContent = "";
       span.appendChild(frag);
     });
+    // Links the renderer emitted as written, on a page that says which file
+    // its prose is from.
+    if (!doc.querySelector('meta[name="cadence-source"]')) return;
+    doc.querySelectorAll("a[href]").forEach(function (a) {
+      var href = a.getAttribute("href");
+      if (/^([a-zA-Z][a-zA-Z0-9+.-]*:|#|\/)/.test(href)) return;
+      var url = resolve(sourceOf(a), href);
+      if (url) a.setAttribute("href", url);
+    });
   }
+
+  // After every deferred script has run, so the link table is there whatever
+  // order the page lists the two files in; `load` covers a page on which
+  // this script itself arrives after `DOMContentLoaded`.
+  var started = false;
+  function start() { if (!started) { started = true; renderAll(document); } }
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = { parse: parse, render: render, renderAll: renderAll };
-  } else if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () { renderAll(document); });
+  } else if (document.readyState === "complete") {
+    start();
   } else {
-    renderAll(document);
+    document.addEventListener("DOMContentLoaded", start);
+    window.addEventListener("load", start);
   }
 })();

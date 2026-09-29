@@ -2,7 +2,7 @@
 Emit the trust boundary of the development as a standalone HTML page,
 **derived from the compiled environment** rather than written by hand.
 
-Run by `scripts/docs.sh`, which redirects stdout to `trust-boundary.html`
+Run by [docs.sh](docs.sh), which redirects stdout to `trust-boundary.html`
 next to the generated documentation, so the page inherits its stylesheet and
 can link straight into the rendered source of every declaration it names.
 
@@ -24,7 +24,7 @@ open Lean Meta Elab Command
 /-- Lean's three standard classical axioms — the expected footprint. -/
 def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 
-/-- The end results, in the order `Cadence.lean` pins them. -/
+/-- The end results, in the order [Cadence.lean](../Cadence.lean) pins them. -/
 def endResults : List Name :=
   [``Chorus.invariants_of_reachable,
    ``Chorus.slotConsensusSafety,
@@ -79,13 +79,13 @@ def moduleOf (env : Environment) (n : Name) : Option Name :=
 `String.sluggify`, which keeps letters, digits, `-` and `_` and replaces
 `.` with `___`. That is the whole rule for the plain ASCII names linked from
 this page; this script runs without Verso, so it cannot call the original.
-`scripts/docs.sh` checks the guide's links, which use the original, against
+[docs.sh](docs.sh) checks the guide's links, which use the original, against
 the rendered pages. -/
 def sluggify (s : String) : String :=
   String.join (s.toList.map fun c =>
     if c.isAlphanum || c == '-' || c == '_' then c.toString else "___")
 
-/-- The anchors the rendered pages carry, as `scripts/docs.sh` stage 2 read
+/-- The anchors the rendered pages carry, as [docs.sh](docs.sh) stage 2 read
 them back from the renderer (`.lake/build/literate/anchors.tsv`): the
 declarations with an id of their own, and per module the module-doc blocks
 by starting line. Read back rather than predicted, because whether a

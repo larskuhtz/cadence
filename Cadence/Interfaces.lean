@@ -10,13 +10,13 @@ type classes, lifted from the paper's module specifications
 Each entry is the paper's module, the class that states it here, and what
 implements it in this development.
 
-* `mod:slotconsensus` (per-slot consensus) — `SlotConsensus`; Chorus ([`Chorus.lean`](./Chorus.lean))
-* `mod:orchestrator_2` (slot scheduling) — `Orchestrator`; Conductor ([`Conductor.lean`](./Conductor.lean))
+* `mod:slotconsensus` (per-slot consensus) — `SlotConsensus`; Chorus ([Chorus.lean](Chorus.lean))
+* `mod:orchestrator_2` (slot scheduling) — `Orchestrator`; Conductor ([Conductor.lean](Conductor.lean))
 * `mod:acs` (agreement on a core set) — `ACS`; out of scope (a standard
   primitive)
-* `mod:mvba` (multi-valued Byzantine agreement) — `MVBA`; Mvba ([`Mvba.lean`](./Mvba.lean) — the
+* `mod:mvba` (multi-valued Byzantine agreement) — `MVBA`; Mvba ([Mvba.lean](Mvba.lean) — the
   leader-based protocol of the paper repository's internal supplement;
-  consumed by Chorus as its `mvba` constraint, instantiated in [`System.lean`](./System.lean))
+  consumed by Chorus as its `mvba` constraint, instantiated in [System.lean](System.lean))
 
 Every class states the **whole** of the paper's module: its interface (inputs
 and outputs), and every one of its properties — safety, liveness, and the
@@ -50,9 +50,9 @@ Each module `X` is two classes over a shared skeleton.
   instantiated class to the SMT solver verbatim. That is what lets the
   consumer *use* the contract instead of restating it, and it is also why a
   non-first-order field here is fatal: the check commands reject one by class
-  and field name before any solver starts.
-  `attribute [veil_smt_ignore] C.field` is the escape hatch, unused here;
-  `CLAUDE.md` and `spikes/03_*.lean` have the detail).
+  and field name before any solver starts
+  (`attribute [veil_smt_ignore] C.field` is the escape hatch, unused here;
+  [CLAUDE.md](../CLAUDE.md) and `spikes/03_*.lean` have the detail).
 * **`XTemporal … [S : XSafety …]`** — everything else the paper promises,
   stated **over the safety instance**: every field mentions `S.init`,
   `S.trans`, `S.reachable` or one of `S`'s observables, so a temporal
@@ -89,13 +89,12 @@ Each module `X` is two classes over a shared skeleton.
   reachable set, a consumer only needs the closure. Properties are stated at
   `reachable st` — **including the step-level ones**: the monotonicity fields
   (`opened_mono`, `completed_mono`, `finalized_mono`, `on_time_mono`) take the
-  pre-state's reachability before `trans`, exactly as `monotonicity` always
-  did. The reason is on the provider side: an implementation discharges these
+  pre-state's reachability before `trans`, as `monotonicity` does. The reason is on the provider side: an implementation discharges these
   from checked two-state cells (Veil's `step_property`), whose hypotheses are
   the module's assumptions and invariants at the pre-state, so an all-states
-  field could not consume them. It costs a consumer nothing — the glue and
-  the Conductor already carry `orch_reachable` / `sc_reachable` / `acs_*` as
-  invariants — and it matches what this list has always promised.
+  field could not consume them. It costs a consumer nothing: the glue and
+  the Conductor carry `orch_reachable` / `sc_reachable` / `acs_*` as
+  invariants.
 * **Runs.** `Run state init trans` is an infinite sequence of states along
   `trans`; `TimedRun` adds a clock reading at every index (monotone,
   non-Zeno) and the run's global stabilisation time `gst`. The clock is the
@@ -106,28 +105,25 @@ Each module `X` is two classes over a shared skeleton.
   is not expressible against an abstract state, so each upper class carries
   an **`Admissible : TimedRun → Prop`** field that the implementation
   *defines*, and states every temporal property for admissible runs only.
-  `admissible_exists` forbids the vacuous definition. For the implementations
-  in this repository `Admissible` is residual data; its intended content is
-  the named fairness and network assumptions of
-  [`docs/Architecture.md`](../docs/Architecture.md) §4 items 2 and 4.
+  `admissible_exists` forbids the vacuous definition. Its intended content
+  is the named fairness and network assumptions of
+  [Architecture.md](../docs/Architecture.md) §4 items 2 and 4; the one
+  implementation that defines it is the MVBA's (`Mvba.Admissible`,
+  [Mvba/Schedule.lean](Mvba/Schedule.lean)).
 * **Time.** Timed properties take a `time` type with Veil's `TotalOrder` and
   an `Add`. The paper's `max(t, GST) + d` is written as `TimedRun.byGstBound`
   — "by `u + d` for the least `u` above both `t` and `gst`" — so no
-  decidability of the order is needed.
+  decidability of the order is needed. -/
 
-## Why this file, and not `Primitives.lean`
-
-`Chorus.lean` imports [`Primitives.lean`](./Primitives.lean) (the
-cryptographic primitive classes), so a contract kept there would invalidate
-Chorus's compiled artefact on every contract edit. Keeping the contracts in
-their own file bounds that cost.
-
-`Chorus.lean` does import *this* file, since it consumes `MVBASafety` as a
-class constraint, so an edit here rebuilds the Chorus family too — a warm
-replay from the proof cache when no VC statement changes, a cold re-solve
-otherwise. The contracts change rarely; if that stops being true, the MVBA
-classes can move to a file of their own that `Chorus.lean` imports alone. Do
-not move them back into `Primitives.lean`. -/
+/- Why the contracts live in this file and not in
+[Primitives.lean](Primitives.lean): [Chorus.lean](Chorus.lean) imports
+Primitives.lean, so a contract kept there would invalidate Chorus's compiled
+artefact on every contract edit. Chorus does import this file, since it
+consumes `MVBASafety` as a class constraint, so an edit here rebuilds the
+Chorus family too — a warm replay from the proof cache when no VC statement
+changes, a cold re-solve otherwise. If the contracts start changing often,
+the MVBA classes can move to a file of their own that Chorus.lean imports
+alone; they do not go back into Primitives.lean. -/
 
 /-! ## Shared vocabulary -/
 
@@ -151,7 +147,7 @@ it is closed under `init` and `trans`.
 A Veil module `instantiate`s a fragment, not this class; the fragment's
 parent arrives as a projection field and is destructured into the solver's
 hypotheses like any other, which the fork's `VeilTest/DestructParentClass.lean`
-pins and `spikes/07_sc_state_tag_ok.lean` exercises here. -/
+pins and [spikes/07_sc_state_tag_ok.lean](../spikes/07_sc_state_tag_ok.lean) exercises here. -/
 class TransitionSystemSafety (state : Type) where
   init : state → Prop
   /-- Internal (module-driven) transitions. -/
@@ -216,25 +212,25 @@ end TimedRun
 
 The paper's module is *parameterised by a slot* `s`, one instance per slot,
 and the glue holds one abstract state per slot
-(`function sc_state (s : slot) : scstate` in [`Cadence.lean`](./Cadence.lean)).
+(`function sc_state (s : slot) : scstate` in [Cadence.lean](Cadence.lean)).
 The class carries that parameter **in the state** rather than as an index on
 every field: a state knows which instance it belongs to, through the
 observable `tag : state → slot`, and `tag_frame` says transitions stay inside
-their instance. What was `init s st` is `init st ∧ tag st = s`, and a consumer
+their instance. The indexed form's `init s st` is `init st ∧ tag st = s`, and a consumer
 pins the correspondence once, for its *initial* states, from which
 `tag (sc_state s) = s` follows as an ordinary inductive invariant.
 
 The reason is uniformity: this is the only family-indexed contract, and
 indexing the shared skeleton to accommodate it would make the other three
 read as degenerate families (`init () st`) for the sake of this one.
-[`spikes/07_sc_state_tag_ok.lean`](../spikes/07_sc_state_tag_ok.lean)
+[spikes/07_sc_state_tag_ok.lean](../spikes/07_sc_state_tag_ok.lean)
 establishes that the encoding costs a consumer exactly one assumption and
 still yields everything the indexed form gave;
-[`spikes/08_sc_tag_frame_removed.lean`](../spikes/08_sc_tag_frame_removed.lean)
+[spikes/08_sc_tag_frame_removed.lean](../spikes/08_sc_tag_frame_removed.lean)
 is its negative control.
 
 The implementation instance (`Chorus.slotConsensusSafety`,
-[`Chorus/Compose.lean`](./Chorus/Compose.lean)) runs one independent copy of
+[Chorus/Compose.lean](Chorus/Compose.lean)) runs one independent copy of
 the single-slot Chorus model per slot: its state is a `slot × Chorus.State`
 pair whose first component is the tag, and each finalized vector carries the
 same slot.
@@ -257,7 +253,7 @@ and where it is discharged.
   `[proposal_inclusion_no_neg]`; the synchrony premise's state-level form is
   `on_time` = Chorus's `all_honest_recorded`
 * **`termination`** — Termination; *temporal*. **not proven**: Chorus's
-  fair-progress layer + (F-justice)/(F-byz)/(A-mvba), `docs/Liveness.md`
+  fair-progress layer + (F-justice)/(F-byz)/(A-mvba), [Liveness.md](../docs/Liveness.md)
 * **`hiding_residue`** — Hiding (`def:hiding`, specialised to the instance's
   slot); *safety*. First-order and proven by Chorus (`safety
   [hiding_until_deadline]`), so it sits in the fragment — see the field's
@@ -334,9 +330,9 @@ class SlotConsensusSafety (slot validator proposal pvector state : Type)
       functionality and a simulator) and is not expressible in this language;
       what it reduces to is this residue together with the cryptographic
       hiding of the threshold encryption (`ThresholdIBE.decrypt_secret`,
-      [`Primitives.lean`](./Primitives.lean)) and the paper's simulation
+      [Primitives.lean](Primitives.lean)) and the paper's simulation
       argument (`appendix:encryption`). Those two steps stay meta-theoretic
-      ([`docs/Architecture.md`](../docs/Architecture.md) §4 item 3).
+      ([Architecture.md](../docs/Architecture.md) §4 item 3).
 
       First-order, and proven by Chorus, so it sits in the fragment. -/
   hiding_residue : ∀ st, reachable st → payload_recoverable st → deadline_passed st
@@ -428,7 +424,7 @@ conditioned on *Δ-synchronized participation*
 (`def:delta-synchronized-participation`), which is stated here as a predicate
 on the run. An orchestrator built on a slot consensus without these does not
 achieve the paper's bounds. Neither is proven for Chorus (the models are
-untimed; `docs/Bounds.md`).
+untimed; [Bounds.md](../docs/Bounds.md)).
 
 Like `SlotConsensusTemporal`, this is a class **over** the safety instance:
 one more level of what the implementation still owes, kept separate because
@@ -624,12 +620,12 @@ event marker `has_decided st i`.
 
 No implementation is in scope — ACS is a standard primitive — so no instance
 exists here: every field is an assumption of the composition
-([`docs/Architecture.md`](../docs/Architecture.md) §4 item 3). What is
+([Architecture.md](../docs/Architecture.md) §4 item 3). What is
 machine-checked is that the Conductor consumes exactly this class
-([`Conductor.lean`](./Conductor.lean) `instantiate acs`), with one documented
+([Conductor.lean](Conductor.lean) `instantiate acs`), with one documented
 bridge: the median-range guard of its `acs_decide` action, justified by
 `validity_quantitative` through the median lemma of
-[`Windows.lean`](./Windows.lean) (cardinality is outside the first-order
+[Windows.lean](Windows.lean) (cardinality is outside the first-order
 fragment, so the bridge is a stated `require`, not a derivation).
 
 ### Obligations
@@ -768,27 +764,29 @@ Invoked by Chorus's fallback path, one instance per slot. Interface: inputs
 `abandon()`; output `decide(B)`. `Valid` is the publicly verifiable external
 validity predicate the instance is parameterised by.
 
-The implementation is `Mvba` ([`Mvba.lean`](./Mvba.lean)) — the leader-based
+The implementation is `Mvba` ([Mvba.lean](Mvba.lean)) — the leader-based
 protocol of the paper repository's internal supplement, pinned to a
-paper-repository commit in that file's header; `docs/MvbaPlan.md` §0 says
+paper-repository commit in that file's header; [MvbaPlan.md](../docs/MvbaPlan.md) §0 says
 what that referent is and is not — with `value` the entry vector and
 `Valid` the model's immutable `valid`. The instance is `Mvba.mvbaSafety`
-([`Mvba/Compose.lean`](./Mvba/Compose.lean)), every field of the fragment
+([Mvba/Compose.lean](Mvba/Compose.lean)), every field of the fragment
 proven — the inputs, their observables, the frames and one-step Quiescence
-included, which is why they sit in the fragment. What the full class still
-owes is exactly `MVBATemporal`: the admissible-run model, `ℓ` and
-Termination.
+included, which is why they sit in the fragment. The temporal level — the
+admissible-run model, `ℓ` and Termination — is `Mvba.mvbaTemporal`
+([Mvba/Temporal.lean](Mvba/Temporal.lean)), proven from the instance
+hypotheses its docstring lists, and `Mvba.mvbaFull` joins the two into the
+full class.
 
 **Chorus consumes this class as a constraint**
-(`docs/CompositionContracts.md` §3): `instantiate mvba : MVBASafety node
+([CompositionContracts.md](../docs/CompositionContracts.md) §3): `instantiate mvba : MVBASafety node
 mvalue mmsg mstate (fun i => nset.is_byz i = true)` over an abstract state
 `mvba_st`,
 advanced by the oracle step `mvba_step` and the driven input
 `mvba_propose`, with two per-entry decision handlers reading
-`mvba.decided` off the state ([`Chorus.lean`](./Chorus.lean), "The MVBA
+`mvba.decided` off the state ([Chorus.lean](Chorus.lean), "The MVBA
 instance"). The value is the entry vector, which Chorus reads through two
 immutable projections `mval_pos`/`mval_neg` of an opaque sort;
-[`System.lean`](./System.lean) instantiates all of it at `Mvba.mvbaSafety`.
+[System.lean](System.lean) instantiates all of it at `Mvba.mvbaSafety`.
 One thing is deliberately *not* a field of this class: the paper's `Valid
 B` is a function of the meta-block, which *carries* its certificates, while
 Chorus checks a decided entry's certificate against its own network
@@ -796,7 +794,7 @@ relations (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`) — a
 predicate on Chorus's *state*, which a class parameter declared before the
 module's state exists cannot mention. That check is the handlers' one
 stated bridge, the MVBA counterpart of the Conductor's ACS median bridge
-([`docs/CompositionContracts.md`](../docs/CompositionContracts.md) §7).
+([CompositionContracts.md](../docs/CompositionContracts.md) §7).
 
 ### Obligations
 
@@ -811,7 +809,7 @@ and where it is discharged.
   [external_validity]` — `Mvba.mvbaSafety`
 * **`termination`, `ℓ`** — `ℓ_MVBA`-Termination; *temporal*. The
   supplement's `thm:termination`, `O(fΔ)` — `Mvba.mvbaTemporal`
-  (`Mvba/Temporal.lean`), under the timing model of `Mvba/Schedule.lean`
+  ([Mvba/Temporal.lean](Mvba/Temporal.lean)), under the timing model of [Mvba/Schedule.lean](Mvba/Schedule.lean)
 * **`quiescence`** — Quiescence; *safety (one-step form)*. Mvba, from the
   transition bodies (`sent_new_tr`: every honest send requires the input and
   `¬ abandoned`) — `Mvba.mvbaSafety` -/

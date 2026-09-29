@@ -1,4 +1,6 @@
-/* Site overrides for the rendered sources (`literate.toml`, `extra_css`).
+/* Site overrides for the rendered sources (`literate.toml`, `extra_css`),
+ * also loaded by the guide (`docs/guide/GuideMain.lean`), whose model
+ * quotations are the same highlighted code.
  *
  * The basename must not be `literate.css`: extra files are copied into the
  * output directory under their own name, and that is Verso's own stylesheet,
@@ -6,7 +8,8 @@
  *
  * Sections 1 and 2 work around upstream gaps; 3 and 4 are this site's own
  * presentation choices; 5 sets plain comments back from the code and styles
- * the markup `site-comments.js` renders in them (`VersoIssues.md` §6). The gaps are all in one place: Verso renders a
+ * the markup `site-comments.js` renders in them (`VersoIssues.md` §6); 6 is
+ * the link back to the guide on every sources page. The gaps are all in one place: Verso renders a
  * *Verso* docstring through `Doc/Html.lean`, which is complete, and a
  * *Markdown* docstring — Lean's default, and what this development uses —
  * through a second, thinner emitter in `VersoLiterateCode.lean`. This
@@ -227,4 +230,31 @@
 
 .hl.lean .comment strong {
     font-weight: bold;
+}
+
+/* 6. The way back to the entry point (`scripts/docs.sh` stage 3).
+ *
+ * Every sources page opens its navigation with links to the guide and the
+ * trust boundary — the renderer's own navigation knows only the modules.
+ * Set as the navigation's first entries, above the module tree, and quiet
+ * enough not to compete with it: muted, a notch smaller, separated from the
+ * tree by the navigation's own border colour. */
+.module-tree .site-home {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    padding: 0.25rem 0.5rem 0.5rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--verso-border-color);
+    font-size: 0.9rem;
+}
+
+.module-tree .site-home a {
+    color: var(--verso-muted-color);
+    text-decoration: none;
+}
+
+.module-tree .site-home a:hover {
+    color: var(--verso-link-color);
+    text-decoration: underline;
 }

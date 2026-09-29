@@ -5,8 +5,9 @@ import Mathlib.Data.Nat.Init
 /-! # Composition layer
 
 Plain-Lean theorems connecting the verified Veil modules to the module
-contracts of [`Interfaces.lean`](./Interfaces.lean), per
-`docs/ConductorDesign.md` §5.2 and `docs/CompositionContracts.md`.
+contracts of [Interfaces.lean](Interfaces.lean), per
+[ConductorDesign.md](../docs/ConductorDesign.md) §5.2 and
+[CompositionContracts.md](../docs/CompositionContracts.md).
 Everything here rests on the per-VC theorems persisted by the `#gen_theorems`
 commands in the module files (named `<Module>.<action>_<property>` /
 `<Module>.initializer_<property>`), composed by ordinary induction over the
@@ -17,19 +18,18 @@ generated `RelationalTransitionSystem.reachable` relation into
 
 and one named **`<Module>.reachable_<property>`** projection per conjunct.
 Both are *emitted* here by `#gen_composition <Module>`, from the per-action
-preservation lemmas the same `#gen_theorems` commands emit: the induction is
-no longer written out in this file, and no consumer indexes the `Invariants`
-conjunction positionally — a property that has been renamed or reordered
-fails loudly by name. The contract instances and corollaries below are
-projected from those. The trust
-base is exactly that of the `#check_invariants` sweeps — and since both
-modules run with proof reconstruction, that base is the standard
+preservation lemmas the same `#gen_theorems` commands emit, so no consumer
+indexes the `Invariants` conjunction positionally — a property that is
+renamed or reordered fails loudly by name. The contract instances and
+corollaries below are projected from those. The trust base is exactly that
+of the `#check_invariants` sweeps — and since both modules run with proof
+reconstruction, that base is the standard
 `propext`/`Classical.choice`/`Quot.sound` trio alone: the persisted VC
 theorems are kernel-checked proofs with **no `sorryAx`**, pinned by the
-`#guard_msgs` axiom checks at the end of this file. No *new* axioms or trust
-is introduced here.
+`#guard_msgs` axiom checks at the end of this file. No new axioms or trust
+are introduced here.
 
-## What is (and is not) established
+## What is established
 
 * **`Conductor.orchestratorSafety`** — `Conductor ⊨ OrchestratorSafety`: for
   every Conductor theory, the Conductor's own transition system (its `init`,
@@ -38,13 +38,14 @@ is introduced here.
   contract, with *every* field proven: the closure axioms are the
   reachability constructors; the observables' monotonicity, the frame of
   `completed` under internal steps and the effect of `complete` are proven
-  action by action from Veil's pre-computed transition bodies
-  (`<action>.ext.tr`); the paper's Monotonicity from `[open_local_order]`
-  and the `open_slot` guard; open-prefix agreement from
+  from Veil's generated step lemmas and, for `complete_slot`, from its
+  transition body; the paper's Monotonicity from the checked
+  `step_property [monotonicity]`; open-prefix agreement from
   `safety [open_prefix_agreement]`; and Integrity's timing half, which is
-  first-order, from `safety [opened_after_start]`. This is the object the `Cadence` glue
-  module consumes as its `orch` constraint — nothing is restated between
-  the two.
+  first-order, from `safety [opened_after_start]`. The instance is stated
+  for every ACS satisfying `ACSSafety`, which the Conductor consumes as a
+  class constraint. This is the object the `Cadence` glue module consumes as
+  its `orch` constraint — nothing is restated between the two.
 * **`Conductor.orchestrator_of_temporal`** — that the *only* thing between
   the proven fragment and the full `Orchestrator` contract is an instance of
   `OrchestratorTemporal` at that fragment, of which this development has
@@ -53,56 +54,31 @@ is introduced here.
   own relations, so nothing is restated anywhere to say what is missing.
 * **`Cadence.positional_log_safety`** — the paper's MCP Safety over
   positional logs, for the glue at *any* instances of the two contracts;
-  [`System.lean`](./System.lean) instantiates it at the Conductor and Chorus
+  [System.lean](System.lean) instantiates it at the Conductor and Chorus
   instances.
 * The `Chorus ⊨ SlotConsensusSafety` instance lives in
-  [`Chorus/Compose.lean`](./Chorus/Compose.lean), so that this file does not
+  [Chorus/Compose.lean](Chorus/Compose.lean), so that this file does not
   depend on the Chorus build.
-* **Not** established (out of scope, `docs/ChorusDesign.md` §10.1): that the
-  glue's *records* of the inputs it does not drive into the contracts
-  (`sc_abandoned`, `proposed`) coincide with the instances' inputs — a
-  trace-level refinement seam, named in `Cadence.lean`'s header.
 
-## Verification-engineering note (important for future edits)
+Out of scope ([CompositionContracts.md](../docs/CompositionContracts.md) §7):
+that the glue's *records* of the inputs it does not drive into the contracts
+(`sc_abandoned`, `proposed`) coincide with the instances' inputs — a
+trace-level refinement seam, named in [Cadence.lean](Cadence.lean)'s header. -/
 
-The generated VC theorems and the generated `relationalTransitionSystem`
-are heavily type-class-parameterised (`DecidableEq` per sort, per-field
-`FieldRepresentation` instances, per-action `Decidable` instances). The
-RTS definition is elaborated by Veil under `open Classical in` **without**
-`DecidableEq` binders, so every decidability instance baked into it is
-literally `fun a b => Classical.propDecidable (a = b)`. Two consequences,
-both discovered the hard way:
-
-1. This file must work in the same instance regime — sections bind only
-   `Inhabited`/order/contract instances (no `DecidableEq`), with `open
-   Classical` providing the fallback — otherwise every unification compares
-   terms built from *different* `Decidable` instances and dies in deep
-   structural `whnf`.
-2. Applying a VC theorem *by hand* in that regime does not work: instance
-   synthesis for the `χ_rep : (f : Label) → FieldRepresentation …` arguments
-   diverges (the search reduces `toDomain`/`IteratedProd` per candidate), so
-   every shared instance argument has to be spelled out to mirror the RTS's
-   own instantiation term-for-term. This file used to carry two macros doing
-   exactly that. It does not any more: `#gen_composition` *extracts* the
-   canonical instantiation from the module's own `relationalTransitionSystem`
-   elaboration instead of reconstructing it, which is why the two inductions
-   are now one command each.
-3. The step-level contract fields relate *two* states, which no invariant
-   cell states, but almost none of them is hand-written either.
-   Whatever the update records determine comes from Veil's
-   generated step lemmas (`<relation>.mono`, `<action>.frame_<f>`,
-   `<f>.init`), and what needs the invariants at the pre-state — the paper's
-   Monotonicity — is a `step_property` in `Conductor.lean`, checked per
-   action and applied here as `Conductor.monotonicity_step`. Exactly two
-   facts remain hand-written, both about a *single* action rather than all
-   of them: `complete_effect_tr` and `complete_frame_other`. They unfold
-   that action's pre-computed transition body — Veil's `trSimp` simp set is
-   exactly the `derived_eq` theorems and the `tr` definitions — and simplify
-   the field-representation `get`/`set` pair at the canonical (functional)
-   representation; the `conductor_tr` and `conductor_field_simp` macros
-   package the two halves, and neither names an action, so neither has to be
-   extended when one is added. `docs/CompositionContracts.md` §4 has the
-   three sources and when each applies. -/
+/- Maintainer notes. The generated VC theorems and `relationalTransitionSystem`
+are elaborated under `open Classical` without `DecidableEq` binders, so every
+decidability instance in them is `Classical.propDecidable`. This file works in
+the same instance regime, and never applies a generated VC theorem by hand:
+`#gen_composition` extracts the canonical instantiation from the module's own
+`relationalTransitionSystem` (see [CLAUDE.md](../CLAUDE.md), "Hard rules").
+The two-state contract fields come from Veil's generated step lemmas
+(`<relation>.mono`, `<action>.frame_<f>`, `<f>.init`) and the
+`step_property [monotonicity]` of [Conductor.lean](Conductor.lean); the two
+facts about the single action `complete_slot` (`complete_effect_tr`,
+`complete_frame_other`) unfold its transition body with the `conductor_tr`
+and `conductor_field_simp` macros, neither of which names an action.
+[CompositionContracts.md](../docs/CompositionContracts.md) §4 has the three
+sources and when each applies. -/
 
 open Veil
 
@@ -217,10 +193,10 @@ variable {slot node pvector proposal ostate scstate time : Type}
   [orch : OrchestratorSafety node slot ostate time fm.byz]
   [sc : SlotConsensusSafety slot node proposal pvector scstate fm.byz]
 
-/- Every reachable state of the Cadence glue satisfies the assembled
+/-! Every reachable state of the Cadence glue satisfies the assembled
 invariant clump — the induction over `reachable`, one case per action, each
 discharged by the per-action preservation lemma `#gen_theorems` emitted in
-[`Cadence.lean`](./Cadence.lean) — together with one named
+[Cadence.lean](Cadence.lean) — together with one named
 `reachable_<property>` projection per conjunct, in declaration order.
 Emitted by Veil from the module's own `relationalTransitionSystem`, so the
 composition regime (the canonical instantiation of every VC theorem) is
@@ -334,18 +310,17 @@ variable {slot window time node acsstate : Type}
   [TotalOrderWithMinimum slot] [TotalOrderWithMinimum window] [TotalOrder time]
   [fm : FaultModel node] [acs : ACSSafety node slot acsstate fm.byz]
 
-/- Every reachable state of the Conductor satisfies the assembled invariant
+/-! Every reachable state of the Conductor satisfies the assembled invariant
 clump — for every fault model and every ACS instance satisfying the
 contract's state-level fragment — plus one named `reachable_<property>`
 projection per conjunct. Emitted by Veil from the per-action preservation
-lemmas `#gen_theorems` persisted in [`Conductor.lean`](./Conductor.lean),
+lemmas `#gen_theorems` persisted in [Conductor.lean](Conductor.lean),
 as in the `Cadence` namespace above. -/
 #gen_composition Conductor
 
-
 /-! ### Conductor ⊨ OrchestratorSafety
 
-The instance theorem of `docs/CompositionContracts.md`: the Conductor's own
+The instance theorem of [CompositionContracts.md](../docs/CompositionContracts.md) §4: the Conductor's own
 transition system, packaged as the state-level orchestrator contract that
 the `Cadence` glue module consumes. Every field is proven; the temporal
 fields of the full `Orchestrator` are the `OrchestratorTemporal` class that
@@ -364,8 +339,8 @@ scoped instance _root_.TotalOrderWithMinimum.toTotalOrder {t : Type} [ord : Tota
   le_antisymm := ord.le_antisymm
   le_total := ord.le_total
 
-/- The abstract field representation of the Conductor state, at the
-canonical `Classical` instances (cf. the `ovc%` macro). -/
+/-- The abstract field representation of the Conductor state, at the
+canonical `Classical` instances. -/
 local macro "afr%" f:ident : term =>
   `(@Conductor.instAbstractFieldRepresentation slot window time node acsstate
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
@@ -446,7 +421,7 @@ theorem completed_frame_internal {l : Conductor.Label slot window time node acss
   | open_slot => simp only [Completed, Conductor.open_slot.frame_completed htr]
 
 set_option maxHeartbeats 2000000 in
-/-- `complete(s)` at `i` records exactly `(i, s)`. -/
+/-- `complete(s)` at `i` records nothing but `(i, s)`. -/
 theorem complete_frame_other {i : node} {s : slot}
     (htr : (Conductor.relationalTransitionSystem slot window time node acsstate).tr th st (.complete_slot i s) st')
     (j : node) (s0 : slot) (hne : j ≠ i ∨ s0 ≠ s) : Completed st' j s0 ↔ Completed st j s0 := by
@@ -455,6 +430,7 @@ theorem complete_frame_other {i : node} {s : slot}
   subst hij; subst hs
   rcases hne with h | h <;> exact absurd rfl h
 
+/-- `complete(s)` at `i` records `(i, s)`. -/
 theorem complete_effect_tr {i : node} {s : slot}
     (htr : (Conductor.relationalTransitionSystem slot window time node acsstate).tr th st (.complete_slot i s) st') :
     Completed st' i s := by
@@ -492,8 +468,9 @@ end StepFacts
 set_option maxHeartbeats 1000000 in
 /-- **`Conductor ⊨ OrchestratorSafety`.** For every Conductor theory `th`
 (its immutable configuration: the slots' starting times, window 1, the ACS
-instances' initial states) and fault model `fm`, the Conductor's transition system is an instance of the
-state-level orchestrator contract. `init` is the Conductor's initial-state
+instances' initial states), fault model `fm` and ACS satisfying `ACSSafety`
+— the one contract the Conductor consumes — the Conductor's transition system
+is an instance of the state-level orchestrator contract. `init` is the Conductor's initial-state
 relation together with its theory assumptions, `step` its transitions other
 than `complete_slot`, `complete` the `complete_slot` action, `trans` any
 transition, `reachable` its reachable set; `opened` and `completed` are the
@@ -541,7 +518,7 @@ noncomputable def orchestratorSafety (th : Conductor.Theory slot window time nod
 
 `OrchestratorSafety` above is proven. What remains between it and the full
 `Orchestrator` (the paper's `mod:orchestrator_2`,
-[`Interfaces.lean`](./Interfaces.lean)) is an instance of
+[Interfaces.lean](Interfaces.lean)) is an instance of
 **`OrchestratorTemporal … (S := orchestratorSafety th)`** — and there is
 none. That is the whole statement of the gap: not a structure restating the
 missing obligations at the Conductor's types, but the absence of an instance
@@ -554,19 +531,19 @@ Its fields are the formal counterparts of the paper's Totality
 `prop:first-post-gst-window-time`, `R = 2Wτ`), together with the admissible
 execution model they are stated for — (A-orch-totality),
 (A-orch-boundedness) and (A-orch-recovery) of
-[`docs/Architecture.md`](../docs/Architecture.md) §4 item 4, whose
+[Architecture.md](../docs/Architecture.md) §4 item 4, whose
 `Admissible` is the Conductor's fairness and network assumptions
 ((F-justice), (A-acs-termination), (A-acs-totality), (A-sc-termination) in
-`Conductor.lean`'s liveness section).
+[Conductor.lean](Conductor.lean)'s liveness section).
 
 Why they are not proven: the untimed model does not carry the per-window
-induction the paper's proofs run (`Conductor.lean`, "Liveness"), and the
+induction the paper's proofs run ([Conductor.lean](Conductor.lean),
+"Liveness"), and the
 count `2W − p` needs window widths that the interval encoding keeps meta.
 
-Integrity's timing half, which *is* proven, is no longer discharged on the
-way here: it is a first-order fact about a reachable state, so it sits in
-the fragment above (`integrity_timing`, from `safety [opened_after_start]`)
-and the glue may use it. -/
+Integrity's timing half is proven: it is a first-order fact about a
+reachable state, so it sits in the fragment above (`integrity_timing`, from
+`safety [opened_after_start]`) and the glue may use it. -/
 
 /-- Given a temporal level **at this fragment**, the Conductor is a full
 `Orchestrator`. Nothing is restated to join them: the safety fields come

@@ -34,12 +34,12 @@ namespace CadenceGuide
 
 /-! ## Where things are -/
 
-/-- The rendered sources, relative to the guide's own page. `scripts/docs.sh`
+/-- The rendered sources, relative to the guide's own page. [docs.sh](../../../scripts/docs.sh)
 places the guide at `site/guide/` and the sources at `site/sources/`. -/
 def sourcesRoot : String := "../sources/"
 
 /-- The literate renderer's intermediate JSON, one file per module, written by
-stage 2 of `scripts/docs.sh`. Relative to the project root, which is where
+stage 2 of [docs.sh](../../../scripts/docs.sh). Relative to the project root, which is where
 lake elaborates this library. -/
 def literateJsonDir : System.FilePath := ".lake/build/literate/json"
 
@@ -56,7 +56,7 @@ def moduleOf (env : Environment) (n : Name) : Option Name := do
 def moduleUrl (m : Name) : String :=
   sourcesRoot ++ String.intercalate "/" (m.components.map toString) ++ "/"
 
-/-- The anchors the rendered pages carry, as `scripts/docs.sh` stage 2 read
+/-- The anchors the rendered pages carry, as [docs.sh](../../../scripts/docs.sh) stage 2 read
 them back from the renderer: the declarations that have an id of their own,
 and per module the module-doc blocks, by starting line. -/
 structure Anchors where
@@ -99,7 +99,7 @@ def anchorOf (env : Environment) (a : Anchors) (m n : Name) : Option String :=
 def ownAnchor (a : Anchors) (n : Name) : Bool := a.defs.contains n
 
 /-- The link to `n` in the rendered sources; computed, and checked against
-the pages by `scripts/docs.sh`. -/
+the pages by [docs.sh](../../../scripts/docs.sh). -/
 def declUrl (env : Environment) (a : Anchors) (n : Name) : Option String :=
   (moduleOf env n).map fun m =>
     moduleUrl m ++ ((anchorOf env a m n).map ("#" ++ ·)).getD ""
@@ -215,6 +215,24 @@ block_extension Block.status (html : String) where
 .cg-prose { margin: 0.8rem 0 0.4rem; }
 "#]
 
+-- Content written in another file: a docstring or a model quotation. Its
+-- relative links are relative to that file, which the wrapper records for the
+-- link resolution in [site-comments.js](../../site-comments.js).
+-- (`block_extension` takes no doc comment.)
+block_extension Block.writtenIn (file : String) where
+  data := .str file
+  traverse _ _ _ := pure none
+  toHtml :=
+    open Verso.Output.Html in
+    some <| fun _ goB _ data contents => do
+      let .str file := data | reportError "writtenIn: expected a string" *> pure .empty
+      pure (.tag "div" #[("data-cadence-source", file)] (.seq (← contents.mapM goB)))
+  toTeX := none
+
+/-- The source file of a module, relative to the project root. -/
+def moduleFile (m : Name) : String :=
+  "/".intercalate (m.components.map toString) ++ ".lean"
+
 structure ClaimConfig where
   name : Ident × Name
 
@@ -288,7 +306,9 @@ def claim : BlockCommandOf ClaimConfig
     let sig ← ``(Verso.Doc.Block.other (Verso.Genre.Manual.Block.docstring $(quote name) $(quote declType) $(quote signature) none #[]) #[])
     let (html, _) ← statusHtml name
     Doc.PointOfInterest.save x name.toString (detail? := some "Claim")
-    ``(Verso.Doc.Block.concat #[$prose,
+    let file := ((moduleOf (← getEnv) name).map moduleFile).getD ""
+    ``(Verso.Doc.Block.concat #[
+        Verso.Doc.Block.other (CadenceGuide.Block.writtenIn $(quote file)) #[$prose],
         Verso.Doc.Block.other (CadenceGuide.Block.status $(quote html)) #[],
         Verso.Doc.Block.other (CadenceGuide.Block.details "The formal statement, as the kernel checked it") #[$sig]])
 
@@ -336,7 +356,7 @@ def model : BlockCommandOf ModelConfig
       | some (s, e) => s!"lines {s.line}–{e.line}"
       | none => ""
     let cfg : Verso.Code.External.CodeConfig := { showProofStates := false, defSite := some false }
-    let file := "/".intercalate (mod.components.map toString) ++ ".lean"
+    let file := moduleFile mod
     -- The quoted item's own id when its command left a definition site, else
     -- the module-doc section it sits in.
     let a ← loadAnchors
@@ -354,7 +374,8 @@ def model : BlockCommandOf ModelConfig
         let row := s!"<dt>Proven as</dt><dd>{declLinkHtml (← getEnv) (← loadAnchors) n}</dd>"
         pure (← statusHtml n #[stated, row] (showSource := false)).1
     ``(Verso.Doc.Block.concat #[
-        Verso.Doc.Block.other (Verso.Genre.Manual.Block.lean $(quote hl) $(quote cfg)) #[],
+        Verso.Doc.Block.other (CadenceGuide.Block.writtenIn $(quote file)) #[
+          Verso.Doc.Block.other (Verso.Genre.Manual.Block.lean $(quote hl) $(quote cfg)) #[]],
         Verso.Doc.Block.other (CadenceGuide.Block.status $(quote html)) #[]])
 
 /-! ## `{contracts}` -/

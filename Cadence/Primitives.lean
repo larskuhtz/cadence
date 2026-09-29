@@ -13,7 +13,7 @@ primitives the Chorus sub-protocol depends on. They serve two purposes:
    discharge each class by an actual scheme. For verification we only use the
    algebraic properties stated here.
 
-The Veil protocol model in `Chorus.lean` does **not** instantiate these
+The Veil protocol model in [Chorus.lean](Chorus.lean) does **not** instantiate these
 classes directly. Instead it models the *observable effects* of the
 primitives via first-order relations on signed messages, decryption shares,
 etc. The classes in this file are therefore best read as the specification
@@ -195,8 +195,8 @@ class MerkleTree (leaf : Type) (root : Type) (proof : Type) where
 
 The MVBA is a *module* contract (`mod:mvba`), not a cryptographic primitive,
 so it is stated with the other module contracts in
-[`Interfaces.lean`](./Interfaces.lean) (`MVBASafety` / `MVBA`) rather than
-here. Chorus consumes `MVBASafety` as a class constraint (`Chorus.lean`,
-"The MVBA contract, as a class constraint"), and
-[`System.lean`](./System.lean) fills it with the verified `Mvba` model's
+[Interfaces.lean](Interfaces.lean) (`MVBASafety` / `MVBA`) rather than
+here. Chorus consumes `MVBASafety` as a class constraint
+([Chorus.lean](Chorus.lean), "The MVBA contract, as a class constraint"), and
+[System.lean](System.lean) fills it with the verified `Mvba` model's
 instance. -/

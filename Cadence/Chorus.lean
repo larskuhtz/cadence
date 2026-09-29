@@ -4,19 +4,20 @@ import Cadence.QuorumCounting
 import Cadence.Interfaces
 import Cadence.Tooling
 
+-- Opening this file in an editor costs the model elaboration plus the cheap
+-- background `doesNotThrow` checks, and no SMT sweep; `VEIL_NO_VERIFY=1` in
+-- the editor's environment skips even those. Working on the module:
+-- [CLAUDE.md](../CLAUDE.md) and the `cadence-verification` skill.
+
 /-! # Chorus — per-slot one-shot BFT consensus for Cadence
 
 *This is a **model file** of the verified-module file family
-(`docs/Architecture.md` §6): it elaborates the transition system and
-persists the VC registry, but runs **no invariant sweep** — the
-invariant VCs (the count is pinned by `#veil_status Chorus` in
-`Chorus/Certify.lean`) are proven in the per-action files under
-[`Chorus/Proofs/`](./Chorus/Proofs) and composed into the reachability
-certificate by [`Chorus/Certify.lean`](./Chorus/Certify.lean). Opening
-this file in an editor costs the model elaboration plus the (cheap)
-background `doesNotThrow` checks — no SMT sweep (set `VEIL_NO_VERIFY=1`
-in the editor environment to skip even that). To work on the module,
-read `CLAUDE.md` first.
+([Architecture.md](../docs/Architecture.md) §6): it elaborates the
+transition system and persists the VC registry. Its invariant VCs are
+proven in the per-action files under [Chorus/Proofs](Chorus/Proofs) and
+composed into the reachability certificate by
+[Chorus/Certify.lean](Chorus/Certify.lean), whose `#veil_status Chorus`
+pins their count.*
 
 Chorus is the inner consensus layer of Cadence: for each slot `s` it runs an
 independent one-shot Byzantine-fault-tolerant agreement instance among a set
@@ -25,7 +26,7 @@ slot terminates either via the fast path (two voting rounds) or via the
 fallback path (one extra round of voting, an invocation of MVBA — consumed
 here as the module contract `MVBASafety`, a class constraint over an
 abstract state, instantiated at the verified `Mvba` model by
-`System.lean` — and a final round of commit votes on the decided entries).
+[System.lean](System.lean) — and a final round of commit votes on the decided entries).
 This file specifies the Chorus protocol as a Veil transition system for a
 *single* slot instance: state and messages are not slot-parameterised, since
 the per-slot agreement instances are independent. The `slot` type below is
@@ -34,7 +35,7 @@ retained only as a placeholder for a possible multi-slot extension — see the
 guaranteed in practice.
 
 The reference document is the Cadence paper, `arXiv:2607.02275v2`; the root
-`README.md` gives the citation and how to resolve the LaTeX label names used
+[README.md](../README.md) gives the citation and how to resolve the LaTeX label names used
 throughout (e.g. `line:fb-pathvote-guard`). In the paper source, the Chorus
 chapter is `src/p2_chorus.tex`, with pseudocode in `src/alg_proposer.tex`,
 `src/alg_voting.tex`, `src/alg_fast.tex`, `src/alg_fallback.tex`,
@@ -58,7 +59,7 @@ The paper establishes six slot-consensus properties for Chorus
 * **Hiding** (`lemma:chorus-hiding`, `def:hiding`) — split across two layers.
   The cryptographic layer (TIBE unpredictability, the random-oracle
   simulation of `p2_chorus.tex` §`appendix:encryption`) is axiomatised in
-  [`Primitives.lean`](./Primitives.lean) (`ThresholdIBE.decrypt_secret`).
+  [Primitives.lean](Primitives.lean) (`ThresholdIBE.decrypt_secret`).
   The protocol layer — the slot key cannot be reconstructed before the
   deadline because reconstruction needs `f+1` shares and honest validators
   release shares only with their deadline vote — is `safety [hiding_until_deadline]` here.
@@ -66,7 +67,7 @@ The paper establishes six slot-consensus properties for Chorus
   is single-slot, so every commit is a commit *for this slot* by
   construction.
 * **Termination** (`lemma:chorus-termination`) — the model is untimed, so
-  the `ℓ = 5Δ + ℓ_MVBA` bound is out of scope. Since v2 the paper's
+  the `ℓ = 5Δ + ℓ_MVBA` bound is out of scope. The paper's
   termination is *conditioned* on Δ-synchronized
   participation (`def:delta-synchronized-participation`), discharged
   within Cadence by Conductor totality
@@ -81,7 +82,7 @@ The paper establishes six slot-consensus properties for Chorus
   model; its in-model shadow is phase confinement of the honest message
   relations (`fb_sig_phase`, `mvba_decided_phase`, `fbcommit_sig_phase`,
   `voted_post_deadline`). The full property is Cadence/Conductor-level
-  (see `Interfaces.lean` / the participation convention,
+  (see [Interfaces.lean](Interfaces.lean) / the participation convention,
   §`subsection:chorus-protocol-overview`).
 
 Additionally, `safety [speculative_agreement_pos]` / `[..._pos_neg]` check
@@ -94,7 +95,7 @@ committed to an invalidly encoded root (`no_invalid_encoding`), a
 validator's speculative value (its own FastQC) agrees with every final
 commit.
 
-See `docs/ChorusDesign.md` for a higher-level discussion of the
+See [ChorusDesign.md](../docs/ChorusDesign.md) for a higher-level discussion of the
 modelling choices, the abstractions made over the cryptographic primitives,
 and the limitations of the model with respect to liveness.
 -/
@@ -103,28 +104,34 @@ veil module Chorus
 
 /-! ## Types -/
 
--- A slot identifier (cf. `s ∈ Slot`, §`subsection:mcp-preliminaries`).
--- Currently unused (the model is single-slot — see the module header); kept as
--- a placeholder for a possible multi-slot extension.
+/-- A slot identifier (cf. `s ∈ Slot`, §`subsection:mcp-preliminaries`).
+Unused, since the model is single-slot (see the module header); a
+placeholder for a possible multi-slot extension. -/
 type slot
--- A validator node identity.
+/-- A validator node identity. -/
 type node
--- A set of nodes; the `ByzNodeSet` instance gives supermajority/
--- greater-than-third quorum predicates plus the standard Byzantine
--- intersection axioms.
+/-- A set of nodes; the `ByzNodeSet` instance gives supermajority/
+greater-than-third quorum predicates plus the standard Byzantine
+intersection axioms. -/
 type nodeset
--- A Merkle commitment to an erasure-coded encrypted proposal.
--- Modelled as an opaque token; binding properties are captured by
--- requiring the proposer's signature on `⟨s, j, m⟩` together with
--- the chunks themselves to determine the proposal.
+/-- A Merkle commitment to an erasure-coded encrypted proposal.
+Modelled as an opaque token; binding properties are captured by
+requiring the proposer's signature on `⟨s, j, m⟩` together with
+the chunks themselves to determine the proposal. -/
 type merkle_root
--- The abstract state, value and message sorts of the MVBA instance the
--- fallback path consumes (`mod:mvba`; the "Multi-Value Byzantine Agreement"
--- section below). Opaque here: Chorus reads the state only through the
--- contract's observables, and the value only through the two immutable
--- projections `mval_pos` / `mval_neg`.
+
+/-! The abstract state, value and message sorts of the MVBA instance the
+fallback path consumes (`mod:mvba`; the "Multi-Value Byzantine Agreement"
+section below). Opaque here: Chorus reads the state only through the
+contract's observables, and the value only through the two immutable
+projections `mval_pos` / `mval_neg`. -/
+
+/-- The MVBA instance's abstract state. -/
 type mstate
+/-- The MVBA's value: the decided entry vector, read through `mval_pos` /
+`mval_neg`. -/
 type mvalue
+/-- The MVBA's messages. -/
 type mmsg
 
 /-! ## Byzantine quorum abstraction
@@ -137,8 +144,8 @@ sizes that arise in Chorus:
 
 Besides the standard intersection axioms, the proofs below use three
 counting facts, stated as the class `Cadence.ByzNodeSetCounting`
-([`QuorumCounting.lean`](./QuorumCounting.lean)) and proven for both
-concrete quorum families in [`ByzQuorum.lean`](./ByzQuorum.lean):
+([QuorumCounting.lean](QuorumCounting.lean)) and proven for both
+concrete quorum families in [ByzQuorum.lean](ByzQuorum.lean):
 
 * `honest_third_in_supermajority` — a supermajority contains an all-honest
   `f+1`-subset (`2f+1 − f = f+1`);
@@ -151,12 +158,12 @@ instantiate nset : ByzNodeSet node nodeset
 instantiate cnt : Cadence.ByzNodeSetCounting node nodeset nset
 open ByzNodeSet
 
-/-! ## The MVBA contract, as a class constraint
+/-! ## The MVBA contract, as a class constraint -/
 
-The fallback path's MVBA instance (`mod:mvba`, `p2_mvba.tex`) is consumed
+/-- The fallback path's MVBA instance (`mod:mvba`, `p2_mvba.tex`), consumed
 the way the glue consumes the slot consensus and the Conductor the ACS
-(`docs/CompositionContracts.md` §3): as the state-level fragment
-`MVBASafety` of [`Interfaces.lean`](./Interfaces.lean), instantiated over
+([CompositionContracts.md](../docs/CompositionContracts.md) §3): as the state-level fragment
+`MVBASafety` of [Interfaces.lean](Interfaces.lean), instantiated over
 an abstract state `mstate` this module holds (`mvba_st` below) and advances
 only by the contract's transitions. Veil hands every axiom of the class to
 the solver, so agreement, integrity, external validity, the monotonicity of
@@ -164,15 +171,11 @@ the solver, so agreement, integrity, external validity, the monotonicity of
 restated as guards or invariants. The fault pattern is the module's own
 `nset.is_byz`, so the contract and the quorum interface speak about the
 same correct validators. The instance is `Mvba.mvbaSafety`
-([`Mvba/Compose.lean`](./Mvba/Compose.lean)), plugged in by
-[`System.lean`](./System.lean) with `mvalue := node → Option merkle_root`. -/
+([Mvba/Compose.lean](Mvba/Compose.lean)), plugged in by
+[System.lean](System.lean) with `mvalue := node → Option merkle_root`. -/
 instantiate mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)
 
-/-! ## Immutable configuration
-
-`is_proposer j` says that `j ∈ Ps` for slot `s`. In a faithful implementation
-this would be derived from a VRF; here we abstract it as an immutable
-relation. -/
+/-! ## Immutable configuration -/
 
 -- TODO consider declaring as immutable individual. We need it mostly
 -- for TIBE. It may however become relevant if we wanted to model parallel
@@ -180,9 +183,12 @@ relation. -/
 -- from each other: e.g. network outages for one slot most likely also affect
 -- other slots. The same holds for other byzantine behavior.
 
+/-- `is_proposer j` says that `j ∈ Ps` for slot `s`. In a faithful
+implementation this is derived from a VRF; here it is abstracted as an
+immutable relation. -/
 immutable relation is_proposer (j : node)
 
-/- Whether the chunk set committed under root `m` forms a valid erasure
+/-- Whether the chunk set committed under root `m` forms a valid erasure
 encoding — decoding any `f+1` of its chunks and re-encoding reproduces `m`
 (`alg:da` `line:da-reencode`). Validity is a property of the whole committed
 set the root binds, identical at every validator
@@ -195,15 +201,17 @@ it — the paper's "invalidly encoded root" culprit case
 signing rules below consult. -/
 immutable relation well_encoded (m : merkle_root)
 
-/- The MVBA's value is the paper's meta-block at the entries level — the
-vector `node → Option merkle_root` (`docs/MvbaPlan.md` §1.2) — but a Veil
+/-- The MVBA's value is the paper's meta-block at the entries level — the
+vector `node → Option merkle_root` ([MvbaPlan.md](../docs/MvbaPlan.md) §1.2) — but a Veil
 module needs a first-order sort for it, so `mvalue` is opaque and is read
 through two immutable projections: `mval_pos v j m` says entry `j` of `v` is
 the positive entry `⟨s, j, m⟩`, `mval_neg v j` that it is the negative entry
 `⟨s, j, ⊥⟩`. The two assumptions after `#gen_state` (`[mval_pos_functional]`,
 `[mval_pos_neg_excl]`) are the only facts about them this module uses, and
-`System.lean` discharges both at `v j = some m` / `v j = none`. -/
+[System.lean](System.lean) discharges both at `v j = some m` / `v j = none`. -/
 immutable relation mval_pos (v : mvalue) (j : node) (m : merkle_root)
+/-- Entry `j` of the MVBA value `v` is the negative entry `⟨s, j, ⊥⟩`; see
+`mval_pos`. -/
 immutable relation mval_neg (v : mvalue) (j : node)
 
 /-! ## Abstract phase
@@ -232,77 +240,77 @@ every honest receiver performs — chunk backing for positive vote entries,
 are mirrored as preconditions of the Byzantine actions, because messages
 failing them are discarded on receipt and thus never observable as valid). -/
 
--- Proposer `j` has signed a chunk header `⟨s, j, m⟩` (`alg:proposer-dissemination`).
+/-- Proposer `j` has signed a chunk header `⟨s, j, m⟩` (`alg:proposer-dissemination`). -/
 relation msg_proposer_signed (j : node) (m : merkle_root)
 
--- A chunk from proposer `j` for slot `s` under root `m` has been
--- delivered to validator `i` (the network "in-flight" relation; see
--- `docs/ChorusDesign.md` §3.5.1 for why chunks are the only per-recipient network
--- relation).
+/-- A chunk from proposer `j` for slot `s` under root `m` has been
+delivered to validator `i` (the network "in-flight" relation; see
+[ChorusDesign.md](../docs/ChorusDesign.md) §3.5.1 for why chunks are the only per-recipient network
+relation). -/
 relation msg_chunk_received (i : node) (j : node) (m : merkle_root)
 
--- Validator `r` has signed a positive `vote`-tagged entry `⟨s, j, m⟩`.
+/-- Validator `r` has signed a positive `vote`-tagged entry `⟨s, j, m⟩`. -/
 relation msg_vote_pos_sig (r : node) (j : node) (m : merkle_root)
--- Validator `r` has signed a negative `vote`-tagged entry `⟨s, j, ⊥⟩`.
+/-- Validator `r` has signed a negative `vote`-tagged entry `⟨s, j, ⊥⟩`. -/
 relation msg_vote_neg_sig (r : node) (j : node)
--- Validator `r` has broadcast its proposal vote (`alg:voting`
--- `line:vote-broadcast`). A broadcast vote carries a signed entry for
--- *every* proposer (plus the chunks backing the positive entries and the
--- decryption share); receivers discard incomplete votes, so a cast vote
--- implies per-proposer signatures on the network.
+/-- Validator `r` has broadcast its proposal vote (`alg:voting`
+`line:vote-broadcast`). A broadcast vote carries a signed entry for
+*every* proposer (plus the chunks backing the positive entries and the
+decryption share); receivers discard incomplete votes, so a cast vote
+implies per-proposer signatures on the network. -/
 relation msg_vote_cast (r : node)
 
--- Validator `r` has signed a positive `fb`-tagged entry.
+/-- Validator `r` has signed a positive `fb`-tagged entry. -/
 relation msg_fb_pos_sig (r : node) (j : node) (m : merkle_root)
--- Validator `r` has signed a negative `fb`-tagged entry.
+/-- Validator `r` has signed a negative `fb`-tagged entry. -/
 relation msg_fb_neg_sig (r : node) (j : node)
 
--- Validator `r` has signed `⟨fallback, s⟩` (its fallback vote,
--- `alg:fallback` `line:fb-pathvote-guard` block).
+/-- Validator `r` has signed `⟨fallback, s⟩` (its fallback vote,
+`alg:fallback` `line:fb-pathvote-guard` block). -/
 relation msg_fallback_sig (r : node)
 
--- Validator `r` has signed a fast commit vote whose core has a
--- positive entry `⟨s, j, m⟩` for proposer `j`.
+/-- Validator `r` has signed a fast commit vote whose core has a
+positive entry `⟨s, j, m⟩` for proposer `j`. -/
 relation msg_commit_pos_sig (r : node) (j : node) (m : merkle_root)
--- Validator `r` has signed a fast commit vote whose core has a
--- negative entry for proposer `j`.
+/-- Validator `r` has signed a fast commit vote whose core has a
+negative entry for proposer `j`. -/
 relation msg_commit_neg_sig (r : node) (j : node)
--- Validator `r` has actually broadcast its fast commit vote
--- (`alg:fast-path-certification` `line:fast-commitvote`). Only broadcast
--- commit signatures count toward a commitQC.
+/-- Validator `r` has actually broadcast its fast commit vote
+(`alg:fast-path-certification` `line:fast-commitvote`). Only broadcast
+commit signatures count toward a commitQC. -/
 relation msg_commit_cast (r : node)
 
--- An assembled positive fast commit certificate for `(j, m)` has been
--- broadcast (`alg:fast-path-certification` `line:fast-broadcast-commitqc`):
--- an aggregate of `2f+1` matching *broadcast* commit votes. Anyone holding
--- the underlying signatures — honest or Byzantine — can assemble it, and
--- every receiver can verify it, so its existence is a network fact; the
--- assembly step is the `broadcast_commitqc_*` action, whose precondition
--- is exactly the certificate's validity check.
+/-- An assembled positive fast commit certificate for `(j, m)` has been
+broadcast (`alg:fast-path-certification` `line:fast-broadcast-commitqc`):
+an aggregate of `2f+1` matching *broadcast* commit votes. Anyone holding
+the underlying signatures — honest or Byzantine — can assemble it, and
+every receiver can verify it, so its existence is a network fact; the
+assembly step is the `broadcast_commitqc_*` action, whose precondition
+is exactly the certificate's validity check. -/
 relation msg_commitqc_pos (j : node) (m : merkle_root)
--- The negative counterpart.
+/-- The negative counterpart. -/
 relation msg_commitqc_neg (j : node)
 
--- TIBE extraction (decryption) share released by validator `r` for the slot
--- (`alg:voting`: released together with the proposal vote).
+/-- TIBE extraction (decryption) share released by validator `r` for the slot
+(`alg:voting`: released together with the proposal vote). -/
 relation msg_decrypt_share (r : node)
 
--- Validator `r` has signed and broadcast a fallback commit vote
--- `⟨FallbackCommitVote, s, entries(B'), σ_r⟩` (`alg:fallback`
--- `line:fb-commitvote`) — the extra commit round the fallback path runs
--- after an MVBA decision (paper's v2 revision; an MVBA decision no
--- longer finalizes by itself). The entry vector is left implicit in the
--- relation: an honest validator signs exactly the MVBA-decided entries
--- (`line:fb-mvba-decide` binds `E = entries(B')`), which the oracle's
--- baked-in agreement makes unique, so "2f+1 votes carrying the *same*
--- entries" (`line:fb-collect-commit`) needs no vote-level argument. A
--- Byzantine signer's vote on any *other* vector could never aggregate
--- into an fbCommitQC in the paper (2f+1 matching votes contain an honest
--- co-signer); dropping the vector from the relation lets such votes count
--- toward the model's `fbcommitqc` ghost, which only *over-approximates*
--- adversary power — the sound direction for safety — and `commit_assign_*`
--- requires the MVBA decision itself in conjunction, so a commit's
--- *content* always comes from the decided vector.
+/-- Validator `r` has signed and broadcast a fallback commit vote
+`⟨FallbackCommitVote, s, entries(B'), σ_r⟩` (`alg:fallback`
+`line:fb-commitvote`) — the extra commit round the fallback path runs
+after an MVBA decision (an MVBA decision does not finalize by itself).
+The entry vector is left implicit in the
+relation: an honest validator signs exactly the MVBA-decided entries
+(`line:fb-mvba-decide` binds `E = entries(B')`), which the contract's
+agreement makes unique, so "2f+1 votes carrying the *same*
+entries" (`line:fb-collect-commit`) needs no vote-level argument. A
+Byzantine signer's vote on any *other* vector could never aggregate
+into an fbCommitQC in the paper (2f+1 matching votes contain an honest
+co-signer); dropping the vector from the relation lets such votes count
+toward the model's `fbcommitqc` ghost, which only *over-approximates*
+adversary power — the sound direction for safety — and `commit_assign_*`
+requires the MVBA decision itself in conjunction, so a commit's
+*content* always comes from the decided vector. -/
 relation msg_fbcommit_sig (r : node)
 
 /-! ## Per-validator certificate state
@@ -317,15 +325,15 @@ monotone-network model they are represented as derived predicates over the
 signature relations (the `ghost relation`s below) rather than as
 per-validator state. -/
 
--- `local_fastqc_pos i j m` ≡ validator `i` has aggregated `2f+1`
--- positive-vote signatures into a positive FastQC for proposer `j`
--- under root `m`. Cross-validator agreement (any two honest validators'
--- FastQCs for the same proposer agree on the root) is recovered as an
--- invariant from quorum intersection (`local_fastqc_pos_cross_unique`).
+/-- `local_fastqc_pos i j m` ≡ validator `i` has aggregated `2f+1`
+positive-vote signatures into a positive FastQC for proposer `j`
+under root `m`. Cross-validator agreement (any two honest validators'
+FastQCs for the same proposer agree on the root) is recovered as an
+invariant from quorum intersection (`local_fastqc_pos_cross_unique`). -/
 relation local_fastqc_pos (i : node) (j : node) (m : merkle_root)
 
--- `local_fastqc_neg i j` ≡ validator `i` has aggregated `2f+1`
--- negative-vote signatures for proposer `j`.
+/-- `local_fastqc_neg i j` ≡ validator `i` has aggregated `2f+1`
+negative-vote signatures for proposer `j`. -/
 relation local_fastqc_neg (i : node) (j : node)
 
 /-! ## Multi-Value Byzantine Agreement (MVBA)
@@ -352,41 +360,54 @@ validator's decision. This is how `Mvba.mvbaSafety` enters Chorus's trust
 base.
 
 `mvba_st` is oracle state (category (A) of the state-locality contract,
-`docs/ChorusDesign.md` §3.5): it is consulted only through the contract's
+[ChorusDesign.md](../docs/ChorusDesign.md) §3.5): it is consulted only through the contract's
 observables, and only in positive position. -/
 
--- The instance's initial state: per-execution data, constrained by the
--- assumption `[mvba_init]` (an `assumption` may mention immutable
--- components only, so the mutable `mvba_st` is seeded from this).
+/-- The instance's initial state: per-execution data, constrained by the
+assumption `[mvba_init]` (an `assumption` may mention immutable
+components only, so the mutable `mvba_st` is seeded from this). -/
 immutable individual mvba_init_state : mstate
--- The abstract MVBA state.
+/-- The abstract MVBA state. -/
 individual mvba_st : mstate
--- Chorus's per-proposer records of the decision, written by the handlers.
+/-- Chorus's record that the MVBA decided the positive entry `⟨s, j, m⟩`,
+written by the decision handler `on_mvba_decide_pos`. -/
 relation mvba_decided_pos (j : node) (m : merkle_root)
+/-- Chorus's record that the MVBA decided the negative entry `⟨s, j, ⊥⟩`,
+written by `on_mvba_decide_neg`. -/
 relation mvba_decided_neg (j : node)
--- The full decision vector has been transported (`mvba_terminate`).
+/-- The full decision vector has been transported (`mvba_terminate`). -/
 individual mvba_complete : Bool
 
 /-! ## Validator-local state -/
 
+/-- Validator `i` recorded the positive entry `⟨s, j, m⟩`: a chunk from
+proposer `j` under root `m` arrived before the deadline (`record_chunk`). -/
 relation local_entry_pos (i : node) (j : node) (m : merkle_root)
+/-- Validator `i` recorded the negative entry `⟨s, j, ⊥⟩`: it voted without a
+positive entry for `j` (`vote`). -/
 relation local_entry_neg (i : node) (j : node)
 
+/-- Validator `i` has cast its proposal vote (`vote`). -/
 relation local_voted (i : node)
 
-/- `local_path i` is the path validator `i` has committed to (the paper's
+/-- The two paths a validator can commit to, plus `none` for "not yet". -/
+enum PathChoice = { none, fast, fallback }
+/-- `local_path i` is the path validator `i` has committed to (the paper's
 `pathVote`, `alg:fast-path-certification` local variables). `none` until
 either `cast_fast_commit` (→ `fast`) or `cast_fallback_vote` (→ `fallback`)
 fires; the enum value gives structural mutual exclusion of the two terminal
 vote-cast actions without an explicit invariant. -/
-enum PathChoice = { none, fast, fallback }
 function local_path : node → PathChoice
 
+/-- Validator `i` has finalized the slot: it holds a committed entry for
+every proposer (`finalize_commit`). -/
 relation local_committed (i : node)
+/-- Validator `i` committed the positive entry `⟨s, j, m⟩` (`commit_assign_pos`). -/
 relation local_committed_pos (i : node) (j : node) (m : merkle_root)
+/-- Validator `i` committed the negative entry `⟨s, j, ⊥⟩` (`commit_assign_neg`). -/
 relation local_committed_neg (i : node) (j : node)
 
-/- Auxiliary (proof-only) history variable: the witnessed quorum of
+/-- Auxiliary (proof-only) history variable: the witnessed quorum of
 broadcast votes against which validator `i` cast its negative fallback
 entry for proposer `j` (the `qv` parameter of `fb_sign_neg` at firing
 time). Written by `fb_sign_neg`, read by no action — it exists so that
@@ -395,17 +416,12 @@ without an `∃ qv (… ∧ ∀ …)` invariant, whose quantifier alternation
 sends the SMT matcher into a loop on the bulk-update actions. -/
 relation local_fb_neg_qv (i : node) (j : node) (qv : nodeset)
 
-/- `#gen_state` assembles the ~50-component `State` and its
-FieldRepresentation/SubState instances; at this component count the
-elaboration needs a raised heartbeat budget in one `isDefEq` inside the
-machinery. The raise lives
-*inside the elaborator* (`Module.ensureStateIsDefined`, scoped to state
-generation), so the module default (`veilDefaultOptions`, 500k) applies
-to everything else — in particular the sweep dischargers. A file-level
-`set_option maxHeartbeats` here does NOT reach the failing elaboration,
-and never use `set_option … in
-<veil command>` — the scope pop reverts Veil's module state and the next
-DSL command regenerates the State into "already declared" errors. -/
+/- At this component count `#gen_state` needs a raised heartbeat budget in
+one `isDefEq`. Veil raises it inside the elaborator, scoped to state
+generation (`Module.ensureStateIsDefined`), so the module default applies to
+everything else. A file-level `set_option maxHeartbeats` does not reach that
+elaboration, and a `set_option … in` around a Veil command breaks the module
+state ("already declared" on the next command). -/
 #gen_state
 
 /-! ## Assumptions
@@ -413,7 +429,7 @@ DSL command regenerates the State into "already declared" errors. -/
 The instance starts in one of its initial states; and the two facts about
 the entry-vector projections (`mval_pos` / `mval_neg`) that the agreement
 argument needs: an entry carries at most one root, and is not both positive
-and negative. `System.lean` discharges all three at the concrete
+and negative. [System.lean](System.lean) discharges all three at the concrete
 instantiation (`Mvba.mvbaSafety`; `v j = some m` / `v j = none`). -/
 
 assumption [mvba_init] mvba.init mvba_init_state
@@ -431,116 +447,118 @@ network. Any validator — honest or Byzantine — holding the signatures can
 assemble the certificate, and any receiver can verify it, so existence on
 the network is the faithful notion. -/
 
--- A positive FastQC certificate for `(j, m)`: `2f+1` matching positive
--- vote signatures (`alg:fast-path-certification` `line:fast-formqc`).
+/-- A positive FastQC certificate for `(j, m)`: `2f+1` matching positive
+vote signatures (`alg:fast-path-certification` `line:fast-formqc`). -/
 ghost relation vote_quorum_pos (j : node) (m : merkle_root) :=
   ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_vote_pos_sig r j m
 
--- A negative FastQC certificate for `j`.
+/-- A negative FastQC certificate for `j`. -/
 ghost relation vote_quorum_neg (j : node) :=
   ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_vote_neg_sig r j
 
--- A positive FallbackQC certificate for `(j, m)`: `f+1` matching positive
--- fallback signed entries (`alg:fallback` `line:fb-formqc`).
+/-- A positive FallbackQC certificate for `(j, m)`: `f+1` matching positive
+fallback signed entries (`alg:fallback` `line:fb-formqc`). -/
 ghost relation fb_quorum_pos (j : node) (m : merkle_root) :=
   ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_fb_pos_sig r j m
 
--- A negative FallbackQC certificate for `j`.
+/-- A negative FallbackQC certificate for `j`. -/
 ghost relation fb_quorum_neg (j : node) :=
   ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_fb_neg_sig r j
 
--- An EquivCert for proposer `j`: the proposer's signatures on two distinct
--- roots (`⟨equiv, s, j, ρ₁, σ_{p,1}, ρ₂, σ_{p,2}⟩`, §`subsection:fallback_path`).
--- The fallback votes through which the two signed roots are *observed* are a
--- liveness/visibility matter that the monotone network abstracts away; the
--- certificate itself consists of the two proposer signatures.
+/-- An EquivCert for proposer `j`: the proposer's signatures on two distinct
+roots (`⟨equiv, s, j, ρ₁, σ_{p,1}, ρ₂, σ_{p,2}⟩`, §`subsection:fallback_path`).
+The fallback votes through which the two signed roots are *observed* are a
+liveness/visibility matter that the monotone network abstracts away; the
+certificate itself consists of the two proposer signatures. -/
 ghost relation equiv_evidence (j : node) :=
   ∃ m1 m2, m1 ≠ m2 ∧ msg_proposer_signed j m1 ∧ msg_proposer_signed j m2
 
--- The fallback certificate `FBCert_s`: `2f+1` fallback signatures
--- (§`subsection:fallback_path`). Every fallback meta-block carries it; it
--- certifies that the fast path can no longer commit the slot.
+/-- The fallback certificate `FBCert_s`: `2f+1` fallback signatures
+(§`subsection:fallback_path`). Every fallback meta-block carries it; it
+certifies that the fast path can no longer commit the slot. -/
 ghost relation fbcert :=
   ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_fallback_sig r
 
--- A positive fast commit certificate entry for `(j, m)`: `2f+1` matching
--- *broadcast* fast commit votes (`alg:fast-path-certification`
--- `line:fast-collect-commit`). Signatures that were produced but never
--- broadcast (an honest validator signs per-proposer entries before casting
--- the vote) do not count: in the protocol they never reach the network.
+/-- A positive fast commit certificate entry for `(j, m)`: `2f+1` matching
+*broadcast* fast commit votes (`alg:fast-path-certification`
+`line:fast-collect-commit`). Signatures that were produced but never
+broadcast (an honest validator signs per-proposer entries before casting
+the vote) do not count: in the protocol they never reach the network. -/
 ghost relation commitqc_pos (j : node) (m : merkle_root) :=
   ∃ q, nset.supermajority q ∧
     ∀ r, nset.member r q → msg_commit_pos_sig r j m ∧ msg_commit_cast r
 
--- A negative fast commit certificate entry for `j`.
+/-- A negative fast commit certificate entry for `j`. -/
 ghost relation commitqc_neg (j : node) :=
   ∃ q, nset.supermajority q ∧
     ∀ r, nset.member r q → msg_commit_neg_sig r j ∧ msg_commit_cast r
 
--- The fallback commit certificate `fbCommitQC` (`alg:fallback`
--- `line:fb-collect-commit` / `line:fb-formcommitqc`): `2f+1` fallback
--- commit votes over the same entries. Transferable
--- (`line:fb-commit-broadcast`); finalization fires on its receipt
--- (`line:fb-recv-commit` / `line:fb-finalize`). The entries it carries
--- are the MVBA-decided vector — see `msg_fbcommit_sig` for why the
--- vector is implicit in the signature relation.
+/-- The fallback commit certificate `fbCommitQC` (`alg:fallback`
+`line:fb-collect-commit` / `line:fb-formcommitqc`): `2f+1` fallback
+commit votes over the same entries. Transferable
+(`line:fb-commit-broadcast`); finalization fires on its receipt
+(`line:fb-recv-commit` / `line:fb-finalize`). The entries it carries
+are the MVBA-decided vector — see `msg_fbcommit_sig` for why the
+vector is implicit in the signature relation. -/
 ghost relation fbcommitqc :=
   ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_fbcommit_sig r
 
--- Data availability for `(j, m)`: `f+1` delivered chunks — the erasure-code
--- reconstruction threshold (`alg:da` `isDecoded`).
+/-- Data availability for `(j, m)`: `f+1` delivered chunks — the erasure-code
+reconstruction threshold (`alg:da` `isDecoded`). -/
 ghost relation chunk_quorum (j : node) (m : merkle_root) :=
   ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_chunk_received r j m
 
--- The slot key can be reconstructed: `f+1` extraction shares released
--- (§`appendix:encryption`).
+/-- The slot key can be reconstructed: `f+1` extraction shares released
+(§`appendix:encryption`). -/
 ghost relation slot_key_released :=
   ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_decrypt_share r
 
--- MVBA has been invoked by some honest validator, along one of the paper's
--- two proposal triggers (`alg:fallback`): the fallback trigger (`|M_i| ≥
--- 2f+1` fallback votes, whose monotone-network shadow is `fbcert`), or the
--- case-(a) trigger (a complete fast meta-block — a FastQC for every
--- proposer — held at the MVBA arm time).
+/-- Validator `i` holds a complete fast meta-block: a FastQC for every
+proposer. -/
 ghost relation complete_fast_metablock (i : node) :=
   ∀ j, is_proposer j → ((∃ m, local_fastqc_pos i j m) ∨ local_fastqc_neg i j)
+/-- MVBA has been invoked by some honest validator, along one of the paper's
+two proposal triggers (`alg:fallback`): the fallback trigger (`|M_i| ≥
+2f+1` fallback votes, whose monotone-network shadow is `fbcert`), or the
+case-(a) trigger (a complete fast meta-block — a FastQC for every
+proposer — held at the MVBA arm time). -/
 ghost relation mvba_invoked :=
   fbcert ∨ (∃ i, ¬ is_byz i ∧ complete_fast_metablock i)
 
 /-! ## Hypothesis predicates for conditional properties -/
 
--- No signer has equivocated: no validator carries two different vote
--- entries for the same proposer, and no proposer has signed two different
--- roots. The paper's speculative-finality claim (`p1_informal.tex`:
--- "reverted ... only if some validator equivocated") is stated relative to
--- this predicate. It is anti-monotone (once violated, violated forever), so
--- invariants conditioned on it remain inductive.
+/-- No signer has equivocated: no validator carries two different vote
+entries for the same proposer, and no proposer has signed two different
+roots. The paper's speculative-finality claim (`p1_informal.tex`:
+"reverted ... only if some validator equivocated") is stated relative to
+this predicate. It is anti-monotone (once violated, violated forever), so
+invariants conditioned on it remain inductive. -/
 ghost relation no_equivocation :=
   (∀ r j m1 m2, msg_vote_pos_sig r j m1 ∧ msg_vote_pos_sig r j m2 → m1 = m2) ∧
   (∀ r j m, ¬ (msg_vote_pos_sig r j m ∧ msg_vote_neg_sig r j)) ∧
   (∀ j m1 m2, msg_proposer_signed j m1 ∧ msg_proposer_signed j m2 → m1 = m2)
 
--- No proposer has committed to an invalidly encoded root: every
--- proposer-signed root is well-encoded. Together with `no_equivocation`
--- this is exactly the paper's "proposer is the culprit" set for
--- speculative finality (`subsection:chorus-proof`, closing parenthetical:
--- "committing to an invalidly encoded root or disseminating several
--- distinct proposals"). Anti-monotone like `no_equivocation` (signatures
--- only accrue and `well_encoded` is immutable), so invariants conditioned
--- on it remain inductive.
+/-- No proposer has committed to an invalidly encoded root: every
+proposer-signed root is well-encoded. Together with `no_equivocation`
+this is exactly the paper's "proposer is the culprit" set for
+speculative finality (`subsection:chorus-proof`, closing parenthetical:
+"committing to an invalidly encoded root or disseminating several
+distinct proposals"). Anti-monotone like `no_equivocation` (signatures
+only accrue and `well_encoded` is immutable), so invariants conditioned
+on it remain inductive. -/
 ghost relation no_invalid_encoding :=
   ∀ j m, msg_proposer_signed j m → well_encoded m
 
--- The protocol-level shadow of the paper's proposal-inclusion premise
--- (`prop:honest-positive-entry`): a correct proposer `j` disseminated its
--- proposal `m` on time under synchrony, so *every* honest validator
--- recorded the positive entry `⟨s, j, m⟩` before the deadline. The timing
--- content ("`s.deadline − Δ ≥ GST` and dissemination at the slot's starting
--- time") is exactly what makes this premise true in the real protocol; the
--- model takes the premise itself as the hypothesis. The `well_encoded`
--- conjunct is the premise's encoding half: a correct proposer encodes the
--- ciphertext into a valid erasure encoding (the paper's recovery
--- guarantee (ii)), so its root always passes the re-encode check.
+/-- The protocol-level shadow of the paper's proposal-inclusion premise
+(`prop:honest-positive-entry`): a correct proposer `j` disseminated its
+proposal `m` on time under synchrony, so *every* honest validator
+recorded the positive entry `⟨s, j, m⟩` before the deadline. The timing
+content ("`s.deadline − Δ ≥ GST` and dissemination at the slot's starting
+time") is exactly what makes this premise true in the real protocol; the
+model takes the premise itself as the hypothesis. The `well_encoded`
+conjunct is the premise's encoding half: a correct proposer encodes the
+ciphertext into a valid erasure encoding (the paper's recovery
+guarantee (ii)), so its root always passes the re-encode check. -/
 ghost relation all_honest_recorded (j : node) (m : merkle_root) :=
   ¬ is_byz j ∧ is_proposer j ∧ (∀ i, ¬ is_byz i → local_entry_pos i j m) ∧
   well_encoded m
@@ -618,7 +636,7 @@ An honest proposer `j` commits to a single Merkle root `m` and produces a
 chunk per validator under that root. At the protocol level we only observe
 two effects: the proposer's signature `msg_proposer_signed j m` and the
 per-recipient chunk arrival `msg_chunk_received i j m` (see
-`docs/ChorusDesign.md` §3.5.1).
+[ChorusDesign.md](../docs/ChorusDesign.md) §3.5.1).
 
 We split the paper's atomic "propose" into two actions to surface the
 per-recipient nature of chunk delivery:
@@ -633,7 +651,7 @@ per-recipient nature of chunk delivery:
   cannot fabricate chunks. Byzantine proposer delivery is covered by the
   separate `byz_deliver_chunk` action (which lifts the
   `msg_proposer_signed` requirement, modelling chunk equivocation; see §5
-  of `docs/ChorusDesign.md`).
+  of [ChorusDesign.md](../docs/ChorusDesign.md)).
 
 Note that `deliver_chunk_assigned` is unguarded by `phase`: chunks may
 arrive at any time (the DA module continues to ingest and decode them
@@ -658,7 +676,7 @@ action deliver_chunk_assigned (i : node) (j : node) (m : merkle_root) {
   msg_chunk_received i j m := true
 }
 
-/- A chunk that arrives at honest validator `i` before the deadline is recorded
+/-- A chunk that arrives at honest validator `i` before the deadline is recorded
 as a positive local entry (`alg:da` `tryIngestChunk` → `alg:voting`
 `onChunkValidated`, `line:vote-positive`). An honest validator only records
 the first chunk per proposer; subsequent chunks are ignored. -/
@@ -675,17 +693,17 @@ action record_chunk (i : node) (j : node) (m : merkle_root) {
   local_entry_pos i j m := true
 }
 
-/-! ## Phase II — Voting at the deadline (`alg:voting`)
+/-! ## Phase II — Voting at the deadline (`alg:voting`) -/
 
-At time `Ds`, each honest validator broadcasts a single proposal vote
+/-- At time `Ds`, each honest validator broadcasts a single proposal vote
 (`line:vote-broadcast`). For each proposer `j ∈ Ps`, the validator's
 per-proposer entry is positive `⟨s, j, m⟩` iff it recorded some chunk from
 `j` under `m` before the deadline, and negative otherwise. The vote message
 also carries the chunks backing the positive entries and releases the
 validator's decryption share.
 
-We collapse `alg:voting`'s "for all pj ∈ Ps" loop into a single atomic `vote`
-action whose body uses Veil's auto-quantified capitals (`J`, `M`) to express
+`alg:voting`'s "for all pj ∈ Ps" loop is collapsed into this single atomic
+action, whose body uses Veil's auto-quantified capitals (`J`, `M`) to express
 the per-proposer bulk update on the message-signature relations and the local
 entries. The broadcast itself is `msg_vote_cast`; receivers accept a vote
 only if it carries an entry for every proposer, which is why `msg_vote_cast`
@@ -693,12 +711,11 @@ implies per-proposer signatures (invariant `vote_cast_entries`).
 
 Each bulk update is a disjunction with the relation's old value, so it only
 ever adds tuples, by its syntax alone — the (M-update) half of the network
-contract (`docs/ChorusDesign.md` §3.1) holds per step, not merely at
+contract ([ChorusDesign.md](../docs/ChorusDesign.md) §3.1) holds per step, not merely at
 reachable states. At a reachable state the old value is `false` anyway (the
 voter's row is empty before its vote: `vote_sig_pos_implies_voted`,
 `vote_sig_neg_implies_voted`, `local_entry_neg_implies_voted`), so the
 disjunction changes no reachable behaviour. -/
-
 action vote (i : node) {
   require ¬ is_byz i
   require phase ≠ pre_deadline
@@ -722,7 +739,7 @@ observes a FastQC for every proposer broadcasts a fast commit vote (and may
 broadcast fast commit votes for the same core then form a commitQC, the fast
 path's finalization certificate. -/
 
-/- Per-validator FastQC aggregation: `i` observes a supermajority of
+/-- Per-validator FastQC aggregation: `i` observes a supermajority of
 positive vote signatures for `(j, m)` and records the resulting FastQC
 in its own `local_fastqc_pos i j m` (`line:fast-formqc`). Aggregation is
 unilateral — any validator that has seen the underlying signatures can
@@ -745,7 +762,7 @@ action aggregate_fastqc_neg (i : node) (j : node) (q : nodeset) {
   local_fastqc_neg i j := true
 }
 
-/- Per-proposer fast commit signing: validator `i` signs a positive fast
+/-- Per-proposer fast commit signing: validator `i` signs a positive fast
 commit vote entry for proposer `j` with root `m`, justified by `i`'s own
 FastQC observation. The signature reaches the network only with
 `cast_fast_commit` (the paper's commit vote is a single broadcast); the
@@ -769,7 +786,7 @@ action commit_sign_neg (i : node) (j : node) {
   msg_commit_neg_sig i j := true
 }
 
-/- Cast (broadcast) the fast commit vote once every proposer has been signed.
+/-- Cast (broadcast) the fast commit vote once every proposer has been signed.
 This sets `pathVote = fast` (`line:fast-pathvote`): the commit vote and the
 fallback vote are mutually exclusive. -/
 action cast_fast_commit (i : node) {
@@ -782,7 +799,7 @@ action cast_fast_commit (i : node) {
   local_path i := fast
 }
 
-/- Assemble and broadcast a fast commit certificate entry
+/-- Assemble and broadcast a fast commit certificate entry
 (`line:fast-collect-commit` / `line:fast-broadcast-commitqc`): `2f+1`
 matching broadcast commit votes aggregate into a transferable certificate.
 No honesty requirement — a Byzantine holder of the signatures can assemble
@@ -807,8 +824,7 @@ votes and has not cast a fast commit vote enters the fallback path
 (`line:fb-pathvote-guard`): for each proposer it casts a fallback signed
 entry, then broadcasts its fallback vote. On the wire a fallback vote
 carries, per proposer, only a FastQC or the *sender's own* signed entry —
-the receipt rule rejects anything else (`line:fb-accept`, the v2
-receipt restriction) and harvests carried FastQCs (`line:fb-harvest`).
+the receipt rule rejects anything else (`line:fb-accept`) and harvests carried FastQCs (`line:fb-harvest`).
 EquivCerts and FallbackQCs exist only as objects assembled at propose
 time from the signed entries in `M_i` (the atomic build,
 `line:fb-build-entry`–`line:fb-formqc`), where the per-proposer evidence
@@ -822,7 +838,7 @@ of *broadcast* votes (`msg_vote_cast`). This guard is load-bearing for
 proposal inclusion (`prop:honest-positive-entry`): any 2f+1 broadcast votes
 contain f+1 honest ones, which pin an on-time honest proposer's entry. -/
 
-/- Per-proposer fallback signing, positive case (`line:fb-positive-entry`).
+/-- Per-proposer fallback signing, positive case (`line:fb-positive-entry`).
 Per the paper an honest validator's fallback signed entry for proposer `j`
 is positive `⟨s, j, m⟩` iff *all* of:
 
@@ -830,7 +846,7 @@ is positive `⟨s, j, m⟩` iff *all* of:
   (c) the data is reconstructible — `alg:da.isDecoded(m)` — i.e. `f+1`
       chunks for `(j, m)` are available (delivered somewhere on the
       network, in the monotone chunk-delivery abstraction of
-      `docs/ChorusDesign.md` §3.5.2);
+      [ChorusDesign.md](../docs/ChorusDesign.md) §3.5.2);
   (d) the reconstructed data re-encodes to `m` (`alg:da`
       `line:da-reencode`; the paper's proof sketch: an honest validator
       casts fallback-yes only after reconstructing the proposal and
@@ -870,7 +886,7 @@ action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q qc : nodeset) {
   msg_fb_pos_sig i j m := true
 }
 
-/- Per-proposer fallback signing, negative case. The paper's validator signs
+/-- Per-proposer fallback signing, negative case. The paper's validator signs
 negative for `j` iff, *among the ≥ 2f+1 votes it received*, no root has
 f+1 positive votes with decodable data that re-encodes to the root. The
 witnessed quorum `qv` of broadcast votes stands for the votes the validator
@@ -909,7 +925,7 @@ action fb_sign_neg (i : node) (j : node) (qv : nodeset) {
   local_fb_neg_qv i j qv := true
 }
 
-/- Broadcast the fallback vote once every proposer carries a fallback signed
+/-- Broadcast the fallback vote once every proposer carries a fallback signed
 entry; this signs `⟨fallback, s⟩` and sets `pathVote = fallback`. -/
 action cast_fallback_vote (i : node) {
   require ¬ is_byz i
@@ -933,7 +949,7 @@ proposes a valid meta-block, thereby *starting to participate*),
 *`ℓ_MVBA`-Termination* (conditioned on all correct validators proposing
 and none abandoning before the bound), and *Quiescence* (no protocol
 message outside the propose–abandon window). All five are fields of
-`MVBASafety` / `MVBATemporal` ([`Interfaces.lean`](./Interfaces.lean)),
+`MVBASafety` / `MVBATemporal` ([Interfaces.lean](Interfaces.lean)),
 and the module consumes the state-level fragment as the class constraint
 `mvba` over the abstract state `mvba_st`:
 
@@ -977,7 +993,7 @@ and the module consumes the state-level fragment as the class constraint
   verifies the entry's certificate against the network:
   `vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, resp. the
   negative form. This is a **bridge, not a restatement**
-  (`docs/MvbaPlan.md` §1.1, `docs/CompositionContracts.md` §7): the
+  ([MvbaPlan.md](../docs/MvbaPlan.md) §1.1, [CompositionContracts.md](../docs/CompositionContracts.md) §7): the
   class's `external_validity` says the decided value is `Valid`; the guard
   says what a valid certificate *means* in a model whose signatures are
   network relations — `Valid` is a class parameter fixed before this
@@ -1013,7 +1029,7 @@ common member would have had to vote both paths — structurally
 impossible.
 
 Every read of `mvba.decided` and of the network here is in positive
-position; `mvba_st` is oracle state (`docs/ChorusDesign.md` §3.5,
+position; `mvba_st` is oracle state ([ChorusDesign.md](../docs/ChorusDesign.md) §3.5,
 category (A)). -/
 
 action mvba_step (mvba_next : mstate) {
@@ -1081,7 +1097,7 @@ action mvba_terminate (i : node) (v : mvalue) {
 /-! ## Fallback commit round (`alg:fallback`,
 `line:fb-mvba-decide`–`line:fb-finalize`)
 
-An MVBA decision does not finalize by itself (paper's v2 revision):
+An MVBA decision does not finalize by itself:
 upon `MVBA[s].decide(B')` each decider first waits, for every positive
 FallbackQC entry `⟨s, j, m⟩` in `B'`, until it has received and validated
 its own assigned chunk under `m` — re-broadcasting that chunk, so the
@@ -1124,6 +1140,10 @@ Modelling notes:
   layer: this single-slot model has no `abandon()` input, so
   participation is implicit; the phase guard is the in-model shadow of
   the MVBA-window confinement (cf. `lemma:chorus-quiescence`). -/
+
+/-- Chunk re-dissemination (`line:fb-redisseminate`): once the data for
+`(j, m)` is decodable from the network, validator `i` receives its assigned
+chunk under `m`. -/
 action redisseminate_chunk (i : node) (j : node) (m : merkle_root) {
   -- `alg:da` ingests chunks only for the slot's proposers.
   require is_proposer j
@@ -1137,6 +1157,8 @@ action redisseminate_chunk (i : node) (j : node) (m : merkle_root) {
   msg_chunk_received i j m := true
 }
 
+/-- Validator `i` casts its fallback commit vote over the decided entries
+(`line:fb-commitvote`), after the DA wait. -/
 action cast_fb_commit (i : node) {
   require ¬ is_byz i
   require phase = post_mvba_arm
@@ -1159,8 +1181,8 @@ proof): a fast commit certificate (`line:fast-recv-commitqc` /
 (`line:fb-recv-commit` / `line:fb-finalize`). Both are transferable, and
 finalization on receipt has no active-participation precondition, so the
 precondition is existence of the certificate on the network. An MVBA
-decision alone does *not* finalize (paper's v2 revision — the
-fallback commit round above sits between decision and finalization);
+decision alone does *not* finalize — the
+fallback commit round above sits between decision and finalization;
 since the entries an `fbCommitQC` carries are the MVBA-decided vector
 (see `msg_fbcommit_sig`), the model's fallback finalization route is the
 conjunction `fbcommitqc ∧ mvba_decided_*`.
@@ -1171,10 +1193,13 @@ which the paper allows to be reverted under equivocation; it is
 deliberately *not* a finalization route here. See the speculative-safety
 invariants below for the checked claim about when speculation is safe.
 
-We decompose the per-entries finalization into per-proposer assignment
+The per-entries finalization is decomposed into per-proposer assignment
 actions `commit_assign_pos` / `commit_assign_neg` followed by a
 `finalize_commit` umbrella action (the standard Veil idiom for atomic
 for-loops). -/
+
+/-- Validator `i` commits the positive entry `⟨s, j, m⟩`, on a fast commit
+certificate or on a fallback commit certificate over the decided entries. -/
 action commit_assign_pos (i : node) (j : node) (m : merkle_root) {
   require ¬ is_byz i
   require ¬ local_committed i
@@ -1189,6 +1214,7 @@ action commit_assign_pos (i : node) (j : node) (m : merkle_root) {
   local_committed_pos i j m := true
 }
 
+/-- Validator `i` commits the negative entry `⟨s, j, ⊥⟩`. -/
 action commit_assign_neg (i : node) (j : node) {
   require ¬ is_byz i
   require ¬ local_committed i
@@ -1199,6 +1225,8 @@ action commit_assign_neg (i : node) (j : node) {
   local_committed_neg i j := true
 }
 
+/-- Validator `i` finalizes the slot once it has committed an entry for
+every proposer. -/
 action finalize_commit (i : node) {
   require ¬ is_byz i
   require ¬ local_committed i
@@ -1249,9 +1277,9 @@ that bound the adversary is *fully Byzantine*:
 ### Why per-relation actions rather than a single `transition`
 
 A single monolithic `transition byz_step` listing per-relation "pin honest"
-and "monotone Byzantine" clauses produced an O(#relations)-conjunct
-disjunctive formula whose elaboration exceeded Lean's heartbeat budget.
-Splitting into per-relation actions gives the Veil frame condition for free
+and "monotone Byzantine" clauses is an O(#relations)-conjunct
+disjunctive formula whose elaboration exceeds Lean's heartbeat budget.
+Per-relation actions give the Veil frame condition for free
 — each action only updates one relation — and is conceptually clearer (one
 action per adversarial *capability*). The reachable-state semantics is
 preserved: any combined change decomposes into a sequence of these actions. -/
@@ -1270,13 +1298,11 @@ action byz_sign_vote_pos (r : node) (j : node) (m : merkle_root) {
   require is_byz r
   -- A positive vote entry is network-valid only with the signer's valid
   -- *assigned* chunk attached; votes with unbacked positive entries are
-  -- discarded by every honest receiver. (The receive handler's guard —
-  -- `alg:fast-path-certification`: the carried chunk must have the
-  -- sender's chunk index and match the entry's root — was tightened to
-  -- say exactly this in the paper's v2 revision; this requirement
-  -- anticipated it, and it is what makes `f+1` accepted positive votes
-  -- pin `f+1` *distinct* chunks, i.e. `vote_pos_quorum_implies_decodable`
-  -- honest about `isDecoded`.)
+  -- discarded by every honest receiver (`alg:fast-path-certification`,
+  -- receive handler: the carried chunk must have the sender's chunk index
+  -- and match the entry's root). This is what makes `f+1` accepted
+  -- positive votes pin `f+1` *distinct* chunks, i.e.
+  -- `vote_pos_quorum_implies_decodable` honest about `isDecoded`.
   require msg_chunk_received r j m
   msg_vote_pos_sig r j m := true
 }
@@ -1350,6 +1376,8 @@ action byz_release_msg_decrypt_share (r : node) {
 The principal property is *agreement* (`lemma:chorus-agreement`): any two
 honest validators that commit slot `s` commit the same core. -/
 
+/-- Agreement on positive entries: two honest validators that finalized the
+slot committed the same root for proposer `J`. -/
 safety [agreement_pos]
   ∀ (I1 I2 : node) (J : node) (M1 M2 : merkle_root),
     ¬ is_byz I1 ∧ ¬ is_byz I2 ∧
@@ -1357,6 +1385,9 @@ safety [agreement_pos]
     local_committed_pos I1 J M1 ∧ local_committed_pos I2 J M2 →
     M1 = M2
 
+/-- Agreement across polarities: when one honest validator finalized with a
+positive entry for proposer `J`, no honest validator finalized with the
+negative entry for `J`. -/
 safety [agreement_pos_neg]
   ∀ (I1 I2 : node) (J : node) (M : merkle_root),
     ¬ is_byz I1 ∧ ¬ is_byz I2 ∧
@@ -1364,27 +1395,29 @@ safety [agreement_pos_neg]
     local_committed_pos I1 J M →
     ¬ local_committed_neg I2 J
 
+/-- An honest validator commits at most one root per proposer. -/
 safety [integrity_pos]
   ∀ (I : node) (J : node) (M1 M2 : merkle_root),
     ¬ is_byz I ∧ local_committed_pos I J M1 ∧ local_committed_pos I J M2 →
     M1 = M2
 
+/-- An honest validator never commits both a positive and the negative entry
+for the same proposer. -/
 safety [integrity_pos_neg]
   ∀ (I : node) (J : node) (M : merkle_root),
     ¬ is_byz I → ¬ (local_committed_pos I J M ∧ local_committed_neg I J)
 
-/-! ### Hiding (`lemma:chorus-hiding`, protocol layer)
+/-! ### Hiding (`lemma:chorus-hiding`, protocol layer) -/
 
-The slot key opens every proposal ciphertext of the slot, and reconstructing
+/-- The slot key opens every proposal ciphertext of the slot, and reconstructing
 it takes `f+1` extraction shares (§`appendix:encryption`). At most `f`
 shares can come from Byzantine validators, and an honest validator releases
 its share only with its deadline vote — so the key cannot be reconstructed
 while the slot is still `pre_deadline`. Together with the TIBE secrecy
-axiom (`ThresholdIBE.decrypt_secret` in [`Primitives.lean`](./Primitives.lean),
+axiom (`ThresholdIBE.decrypt_secret` in [Primitives.lean](Primitives.lean),
 which reduces payload secrecy to share-threshold reconstruction) and the
 paper's random-oracle simulation (§`appendix:encryption`), this yields the
 hiding property: proposal contents are hidden until the deadline. -/
-
 safety [hiding_until_deadline]
   slot_key_released → phase ≠ pre_deadline
 
@@ -1396,11 +1429,15 @@ paper's `s.deadline − Δ ≥ GST` premise, see `prop:honest-positive-entry`),
 then no honest validator ever commits a negative entry for `j`, and every
 committed positive entry for `j` carries the proposer's root `m`. -/
 
+/-- Under the inclusion premise for `(J, M)`, every honest positive commit for
+`J` carries the root `M`. -/
 safety [proposal_inclusion]
   ∀ (J I : node) (M M' : merkle_root),
     all_honest_recorded J M ∧ ¬ is_byz I ∧ local_committed_pos I J M' →
     M' = M
 
+/-- Under the inclusion premise for `J`, no honest validator commits the
+negative entry for `J`. -/
 safety [proposal_inclusion_no_neg]
   ∀ (J I : node) (M : merkle_root),
     all_honest_recorded J M ∧ ¬ is_byz I →
@@ -1423,8 +1460,11 @@ invalidly encoded root (`no_invalid_encoding`), a validator's own
 positive FastQC — its speculative value — agrees with every finalized
 commit. Both hypotheses are needed: `no_equivocation` alone would suffice
 only in a model where invalid encodings cannot exist, and `fb_sign_neg`
-admits the re-encode-failure case (`docs/ChorusDesign.md` §3.4). -/
+admits the re-encode-failure case ([ChorusDesign.md](../docs/ChorusDesign.md) §3.4). -/
 
+/-- Speculative agreement, positive: absent equivocation and invalid
+encodings, an honest validator's positive FastQC for `J` agrees with every
+honest positive commit for `J`. -/
 safety [speculative_agreement_pos]
   no_equivocation → no_invalid_encoding →
   ∀ (I1 I2 : node) (J : node) (M1 M2 : merkle_root),
@@ -1432,6 +1472,8 @@ safety [speculative_agreement_pos]
     local_fastqc_pos I1 J M1 ∧ local_committed_pos I2 J M2 →
     M1 = M2
 
+/-- Speculative agreement across polarities: under the same hypotheses, an
+honest positive FastQC for `J` excludes every honest negative commit for `J`. -/
 safety [speculative_agreement_pos_neg]
   no_equivocation → no_invalid_encoding →
   ∀ (I1 I2 : node) (J : node) (M : merkle_root),
@@ -1462,13 +1504,13 @@ invariant [local_entry_pos_neg_excl]
   ∀ (I : node) (J : node) (M : merkle_root),
     ¬ is_byz I → ¬ (local_entry_pos I J M ∧ local_entry_neg I J)
 
--- Every recorded positive entry is backed by the recorded chunk
--- (`record_chunk` requires delivery). Basis of the data-availability chain.
+/-- Every recorded positive entry is backed by the recorded chunk
+(`record_chunk` requires delivery). Basis of the data-availability chain. -/
 invariant [local_entry_pos_chunk]
   ∀ (I : node) (J : node) (M : merkle_root),
     ¬ is_byz I ∧ local_entry_pos I J M → msg_chunk_received I J M
 
-/- The atomic `vote` action sets `local_voted R` together with the per-proposer
+/-! The atomic `vote` action sets `local_voted R` together with the per-proposer
 `msg_vote_*_sig` entries and `local_entry_neg`, so the link "`local_voted ↔
 honest signer has signed`" holds structurally after `vote` fires — and the
 invariants below need only constrain honest signers' signatures (Byzantine
@@ -1481,6 +1523,7 @@ fails: the solver cannot rule out a state in which an honest validator had
 with these invariants in scope, that state is contradictory. They are also
 what makes `vote`'s monotone disjunctions coincide with a plain overwrite at
 reachable states. -/
+
 invariant [vote_sig_pos_implies_voted]
   ∀ (R : node) (J : node) (M : merkle_root),
     ¬ is_byz R ∧ msg_vote_pos_sig R J M → local_voted R
@@ -1501,14 +1544,14 @@ invariant [voted_implies_cast]
   ∀ (R : node),
     ¬ is_byz R ∧ local_voted R → msg_vote_cast R
 
--- An honest validator votes only after the deadline; with monotone phase
--- this timestamps every voting artefact. Basis of `hiding` and of the
--- phase reasoning in the proposal-inclusion invariants.
+/-- An honest validator votes only after the deadline; with monotone phase
+this timestamps every voting artefact. Basis of `hiding` and of the
+phase reasoning in the proposal-inclusion invariants. -/
 invariant [voted_post_deadline]
   ∀ (R : node),
     ¬ is_byz R ∧ local_voted R → phase ≠ pre_deadline
 
--- Decryption shares are released only with the vote (honest signers).
+/-- Decryption shares are released only with the vote (honest signers). -/
 invariant [share_implies_voted]
   ∀ (R : node),
     ¬ is_byz R ∧ msg_decrypt_share R → local_voted R
@@ -1532,39 +1575,40 @@ invariant [vote_unique_pos_neg]
   ∀ (R : node) (J : node) (M : merkle_root),
     ¬ is_byz R → ¬ (msg_vote_pos_sig R J M ∧ msg_vote_neg_sig R J)
 
--- An honest validator that has voted and holds a positive entry has that
--- entry's signature on the network (the vote is atomic over all
--- proposers, and entries are frozen at the deadline while voting happens
--- after it).
+/-- An honest validator that has voted and holds a positive entry has that
+entry's signature on the network (the vote is atomic over all
+proposers, and entries are frozen at the deadline while voting happens
+after it). -/
 invariant [voted_entry_pos_signed]
   ∀ (R : node) (J : node) (M : merkle_root),
     ¬ is_byz R ∧ is_proposer J ∧ local_voted R ∧ local_entry_pos R J M →
     msg_vote_pos_sig R J M
 
--- A broadcast vote carries an entry for every proposer (receivers discard
--- incomplete votes; `byz_cast_vote` mirrors the check).
+/-- A broadcast vote carries an entry for every proposer (receivers discard
+incomplete votes; `byz_cast_vote` mirrors the check). -/
 invariant [vote_cast_entries]
   ∀ (R : node) (J : node),
     msg_vote_cast R ∧ is_proposer J →
     ((∃ M, msg_vote_pos_sig R J M) ∨ msg_vote_neg_sig R J)
 
--- Every network-valid positive vote signature — honest or Byzantine — is
--- backed by the signer's delivered chunk: honest votes by
--- `local_entry_pos_chunk`, Byzantine ones by the validity precondition of
--- `byz_sign_vote_pos`. This is the σ/chunk-carrying discipline of the
--- vote message (`alg:voting`), and it is what makes the erasure-decode
--- threshold (c) a consequence of the vote threshold (b) at the network
--- level.
+/-- Every network-valid positive vote signature — honest or Byzantine — is
+backed by the signer's delivered chunk: honest votes by
+`local_entry_pos_chunk`, Byzantine ones by the validity precondition of
+`byz_sign_vote_pos`. This is the σ/chunk-carrying discipline of the
+vote message (`alg:voting`), and it is what makes the erasure-decode
+threshold (c) a consequence of the vote threshold (b) at the network
+level. -/
 invariant [vote_pos_sig_chunk]
   ∀ (R : node) (J : node) (M : merkle_root),
     msg_vote_pos_sig R J M → msg_chunk_received R J M
 
-/- "Backing-quorum" auxiliaries link each aggregated FastQC to a supermajority
+/-! "Backing-quorum" auxiliaries link each aggregated FastQC to a supermajority
 of underlying signed votes. These are *not* in EPR (they have an `∃ q :
 nodeset` binder), but they are the standard idiom in Veil for recovering
 quorum-intersection arguments on derived certificates; compare
 `voted_requires_echo_quorum_or_vote_quorum` in Veil's own
 `Examples/Ivy/ReliableBroadcast.lean`. -/
+
 invariant [local_fastqc_pos_backed]
   ∀ (I : node) (J : node) (M : merkle_root),
     ¬ is_byz I ∧ local_fastqc_pos I J M → vote_quorum_pos J M
@@ -1573,69 +1617,69 @@ invariant [local_fastqc_neg_backed]
   ∀ (I : node) (J : node),
     ¬ is_byz I ∧ local_fastqc_neg I J → vote_quorum_neg J
 
--- FastQC uniqueness: a single honest validator cannot hold two FastQCs
--- for the same proposer with different roots. Follows from the backing
--- quorum's existence and vote_unique_pos applied to the supermajority.
+/-- FastQC uniqueness: a single honest validator cannot hold two FastQCs
+for the same proposer with different roots. Follows from the backing
+quorum's existence and vote_unique_pos applied to the supermajority. -/
 invariant [local_fastqc_pos_self_unique]
   ∀ (I : node) (J : node) (M1 M2 : merkle_root),
     ¬ is_byz I ∧ local_fastqc_pos I J M1 ∧ local_fastqc_pos I J M2 → M1 = M2
 
--- Cross-validator FastQC agreement: any two honest validators' positive
--- FastQCs for the same proposer agree on the root. Follows from quorum
--- intersection (any two supermajorities share an honest validator) +
--- vote_unique_pos. This is the paper's `prop:agreement-entries`, case 1.
+/-- Cross-validator FastQC agreement: any two honest validators' positive
+FastQCs for the same proposer agree on the root. Follows from quorum
+intersection (any two supermajorities share an honest validator) +
+vote_unique_pos. This is the paper's `prop:agreement-entries`, case 1. -/
 invariant [local_fastqc_pos_cross_unique]
   ∀ (I1 I2 : node) (J : node) (M1 M2 : merkle_root),
     ¬ is_byz I1 ∧ ¬ is_byz I2 ∧
     local_fastqc_pos I1 J M1 ∧ local_fastqc_pos I2 J M2 → M1 = M2
 
--- Positive/negative FastQC exclusion: same proposer cannot have an honest
--- positive FastQC and an honest negative FastQC. Follows from the
--- intersecting-supermajority + vote_unique_pos_neg argument.
+/-- Positive/negative FastQC exclusion: same proposer cannot have an honest
+positive FastQC and an honest negative FastQC. Follows from the
+intersecting-supermajority + vote_unique_pos_neg argument. -/
 invariant [local_fastqc_pos_neg_excl]
   ∀ (I1 I2 : node) (J : node) (M : merkle_root),
     ¬ is_byz I1 ∧ ¬ is_byz I2 →
     ¬ (local_fastqc_pos I1 J M ∧ local_fastqc_neg I2 J)
 
--- An honest FastQC (either polarity) postdates the deadline: its backing
--- quorum contains an honest voter, and honest votes are post-deadline.
+/-- An honest FastQC (either polarity) postdates the deadline: its backing
+quorum contains an honest voter, and honest votes are post-deadline. -/
 invariant [fastqc_post_deadline]
   ∀ (I : node) (J : node) (M : merkle_root),
     ¬ is_byz I ∧ (local_fastqc_pos I J M ∨ local_fastqc_neg I J) →
     phase ≠ pre_deadline
 
--- An honest positive fallback signed entry is backed by an f+1 quorum of
--- positive votes (`fb_sign_pos` (b)); persistent because signatures are.
+/-- An honest positive fallback signed entry is backed by an f+1 quorum of
+positive votes (`fb_sign_pos` (b)); persistent because signatures are. -/
 invariant [msg_fb_pos_sig_backed]
   ∀ (R : node) (J : node) (M : merkle_root),
     ¬ is_byz R ∧ msg_fb_pos_sig R J M →
     ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_vote_pos_sig r J M
 
--- Every network-valid positive fallback entry — honest or Byzantine — pins
--- a proposer-signed root: a positive entry carries the proposer's signature
--- σ_p on ⟨s, j, m⟩ and receivers verify it (§`subsection:fallback_path`).
--- Honest entries via their f+1 vote-quorum backing (the quorum's honest
--- voter's `local_entry_pos_signed`), Byzantine ones by the validity
--- precondition of `byz_sign_fb_pos`. The σ_p-carrying discipline of the
--- entry, mirroring `vote_pos_sig_chunk`'s σ/chunk discipline for votes.
--- Deliberately unrestricted by honesty: it is what makes the network-level
--- build totality (`Chorus/Counting.lean`) hold over an *arbitrary* accepted
--- receipt supermajority, Byzantine members included.
+/-- Every network-valid positive fallback entry — honest or Byzantine — pins
+a proposer-signed root: a positive entry carries the proposer's signature
+σ_p on ⟨s, j, m⟩ and receivers verify it (§`subsection:fallback_path`).
+Honest entries via their f+1 vote-quorum backing (the quorum's honest
+voter's `local_entry_pos_signed`), Byzantine ones by the validity
+precondition of `byz_sign_fb_pos`. The σ_p-carrying discipline of the
+entry, mirroring `vote_pos_sig_chunk`'s σ/chunk discipline for votes.
+Deliberately unrestricted by honesty: it is what makes the network-level
+build totality ([Chorus/Counting.lean](Chorus/Counting.lean)) hold over an *arbitrary* accepted
+receipt supermajority, Byzantine members included. -/
 invariant [fb_pos_sig_proposer_signed]
   ∀ (R : node) (J : node) (M : merkle_root),
     msg_fb_pos_sig R J M → msg_proposer_signed J M
 
--- Honest fallback entries exist only for proposers (`fb_sign_*` require
--- `is_proposer`). Scopes the fallback-witness invariants below to
--- proposers without altering their quantifier shape.
+/-- Honest fallback entries exist only for proposers (`fb_sign_*` require
+`is_proposer`). Scopes the fallback-witness invariants below to
+proposers without altering their quantifier shape. -/
 invariant [fb_sig_is_proposer]
   ∀ (R : node) (J : node) (M : merkle_root),
     ¬ is_byz R ∧ (msg_fb_pos_sig R J M ∨ msg_fb_neg_sig R J) → is_proposer J
 
--- Honest fallback-path signatures postdate the fallback arm. Needed to
--- show that the proposal-inclusion premise (recorded strictly
--- pre-deadline) cannot become true after a conflicting fallback entry
--- already exists.
+/-- Honest fallback-path signatures postdate the fallback arm. Needed to
+show that the proposal-inclusion premise (recorded strictly
+pre-deadline) cannot become true after a conflicting fallback entry
+already exists. -/
 invariant [fb_sig_phase]
   ∀ (R : node) (J : node) (M : merkle_root),
     ¬ is_byz R ∧ (msg_fb_pos_sig R J M ∨ msg_fb_neg_sig R J ∨ msg_fallback_sig R) →
@@ -1786,15 +1830,15 @@ invariant [mvba_decided_neg_backed]
     mvba_decided_neg J →
     vote_quorum_neg J ∨ ((fb_quorum_neg J ∨ equiv_evidence J) ∧ fbcert)
 
--- MVBA decisions exist only for proposers (the meta-block has one entry
--- per proposer; the handlers require `is_proposer`). Excludes
--- unreachable non-proposer decisions from the inductive state space.
+/-- MVBA decisions exist only for proposers (the meta-block has one entry
+per proposer; the handlers require `is_proposer`). Excludes
+unreachable non-proposer decisions from the inductive state space. -/
 invariant [mvba_decided_is_proposer]
   ∀ (J : node) (M : merkle_root),
     (mvba_decided_pos J M ∨ mvba_decided_neg J) → is_proposer J
 
--- MVBA decisions happen only at the MVBA arm (phase timestamping, used by
--- the proposal-inclusion preservation argument).
+/-- MVBA decisions happen only at the MVBA arm (phase timestamping, used by
+the proposal-inclusion preservation argument). -/
 invariant [mvba_decided_phase]
   ∀ (J : node) (M : merkle_root),
     (mvba_decided_pos J M ∨ mvba_decided_neg J) → phase = post_mvba_arm
@@ -1828,8 +1872,8 @@ root — the model-level counterpart of "`recoverProposals` does not block"
 `vote_pos_sig_chunk`: every network-valid positive vote carries its chunk,
 so every vote quorum is itself a chunk quorum. -/
 
--- (b) ⇒ (c) at the network level: an f+1 positive-vote quorum makes the
--- data decodable, because valid positive votes carry chunks.
+/-- (b) ⇒ (c) at the network level: an f+1 positive-vote quorum makes the
+data decodable, because valid positive votes carry chunks. -/
 invariant [vote_pos_quorum_implies_decodable]
   ∀ (J : node) (M : merkle_root),
     (∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_vote_pos_sig r J M) →
@@ -1952,7 +1996,7 @@ invariant [fb_neg_qv_no_pos_quorum]
     ¬ (nset.greater_than_third q ∧
        ∀ r, nset.member r q → (nset.member r QV ∧ msg_vote_pos_sig r J M))
 
-/- The keystone lemma of the speculative argument: an honest negative
+/-- The keystone lemma of the speculative argument: an honest negative
 fallback entry excludes any positive vote supermajority for the same
 proposer, absent equivocation. From `fb_neg_sig_has_witness` +
 `supermajorities_share_third` (intersect `qv` with
@@ -1996,13 +2040,16 @@ on actions. We attach the standard scheduling assumptions externally to the
 model, indexed by the action's category:
 
 * **(F-justice)** — every phase-advancement action (`advance_to_*`), every
-  aggregation/observation action (`aggregate_fastqc_*`, `record_chunk`,
+  delivery, aggregation and observation action (`deliver_chunk_assigned`,
+  `aggregate_fastqc_*`, `broadcast_commitqc_*`, `record_chunk`,
   `redisseminate_chunk`), and every per-validator honest action
   (`propose`, `vote`, `fb_sign_*`, `cast_fallback_vote`, `commit_sign_*`,
   `cast_fast_commit`, `mvba_propose`, the handlers `on_mvba_decide_*`,
   `mvba_terminate`, `cast_fb_commit`, `commit_assign_*`,
-  `finalize_commit`) that is *continuously enabled* is fired eventually.
-  The oracle step `mvba_step` is not on this list: its scheduling is the
+  `finalize_commit`) that is *continuously enabled* is fired eventually —
+  every action that is neither Byzantine nor the oracle step, which is how
+  `Chorus.JusticeLabel` ([Chorus/Liveness.lean](Chorus/Liveness.lean))
+  states it. The oracle step `mvba_step` is not on this list: its scheduling is the
   instance's own admissible-execution model (`MVBATemporal.Admissible`),
   which is what (A-mvba) is about.
   Fairness on `redisseminate_chunk` is the model form of "re-disseminated
@@ -2026,27 +2073,26 @@ model, indexed by the action's category:
   abandons, the abstract instance eventually reaches, along `mvba_step`, a
   state in which every correct validator has decided (`mvba.decided`).
   This stands in for the paper's `ℓ_MVBA`-Termination (`mod:mvba`,
-  `p2_mvba.tex`), and since the MVBA instantiation was modelled it is also
-  *stated formally* over that model's own transition system, as the class
+  `p2_mvba.tex`), and it is also *stated formally* over that model's own transition system, as the class
   field `MVBATemporal.termination` at `Mvba.mvbaSafety`
-  ([`Mvba/Compose.lean`](./Mvba/Compose.lean)) — of which the untimed
+  ([Mvba/Compose.lean](Mvba/Compose.lean)) — of which the untimed
   model provides no instance; decomposing (A-mvba) into that field plus
   the instance's fair-progress theorems is the liveness step
-  (`docs/MvbaPlan.md` §3). The probability-1 termination of the
+  ([MvbaPlan.md](../docs/MvbaPlan.md) §3). The probability-1 termination of the
   underlying randomised primitive is a paper-level argument
-  (`docs/Liveness.md`). The assumption's protocol-side surroundings are
+  ([Liveness.md](../docs/Liveness.md)). The assumption's protocol-side surroundings are
   theorems:
 
   * the *enabledness of `mvba_propose`* — the invocation trigger plus
     per-proposer evidence in the proposal guards' own form — is the
     conclusion of `progress_dichotomy_of_saturation`
-    (`Chorus/Progress.lean`); with it, (F-justice) on `mvba_propose`
+    ([Chorus/Progress.lean](Chorus/Progress.lean)); with it, (F-justice) on `mvba_propose`
     delivers `ℓ_MVBA`-Termination's premise (i), *all correct validators
     propose*. Building the proposal is state-level: a fallback meta-block
     entry from **any** supermajority of accepted receipts, Byzantine
     members included (`build_totality_of_reachable`,
-    `Chorus/Counting.lean`; the per-validator implementation refinement is
-    the receipt layer — `docs/ChorusDesign.md` §7.2, `docs/Architecture.md`
+    [Chorus/Counting.lean](Chorus/Counting.lean); the per-validator implementation refinement is
+    the receipt layer — [ChorusDesign.md](../docs/ChorusDesign.md) §7.2, [Architecture.md](../docs/Architecture.md)
     §5), and a fast meta-block by aggregation, whose guard witness is
     *definitionally* the dichotomy's vote-quorum evidence — compare
     `vote_quorum_pos` with `aggregate_fastqc_pos`'s requires;
@@ -2073,7 +2119,7 @@ model, indexed by the action's category:
 protocol: per slot, `node`, `nodeset`, the proposer set and the set of
 *active* Merkle roots are fixed a priori, so the per-slot state space is
 finite. Every mutable relation is monotone (actions only add tuples — the
-audit is in `docs/ChorusDesign.md` §3.1) and the phase advances in one direction. The
+audit is in [ChorusDesign.md](../docs/ChorusDesign.md) §3.1) and the phase advances in one direction. The
 residual count of unset tuples is therefore a well-founded ranking that
 every *helpful* firing strictly decreases; this is structural in Veil's
 monotone-update semantics and needs no per-action SMT discharge. The (D)
@@ -2094,7 +2140,7 @@ progress.
 
 Let `x` be the number of honest validators that cast a fast commit vote.
 The whole split is a single theorem over reachable states —
-`progress_dichotomy_of_saturation` (`Chorus/Progress.lean`): once every
+`progress_dichotomy_of_saturation` ([Chorus/Progress.lean](Chorus/Progress.lean)): once every
 honest validator has cast its path vote, either commitQCs exist for every
 proposer from honest votes alone, or `mvba_invoked` holds with
 per-proposer evidence in exactly the form of the handlers' bridge and of
@@ -2104,7 +2150,7 @@ bullets below narrate its three branches.
 * **`x ≥ 2f+1` (fast-dominant).** The honest commit votes agree per
   proposer (`local_fastqc_pos_cross_unique`), so a commitQC forms from
   honest votes alone (`commitqc_of_honest_fast_dominant`,
-  `Chorus/Counting.lean`); every honest validator then commits via
+  [Chorus/Counting.lean](Chorus/Counting.lean)); every honest validator then commits via
   `commit_assign_*` (whose precondition is the commitQC certificate) and
   `finalize_commit`. No MVBA needed.
 * **`1 ≤ x ≤ 2f` (mixed).** Neither certificate is guaranteed from honest
@@ -2126,14 +2172,14 @@ bullets below narrate its three branches.
 * **`x = 0` (fallback).** All `≥ 2f+1` honest validators eventually cast
   fallback votes (per-proposer fallback signing is always enabled one way
   or the other — see `progress_fallback_signing`), so `FBCert` forms
-  (`fbcert_of_honest_fallback_votes`, `Chorus/Counting.lean`) and
+  (`fbcert_of_honest_fallback_votes`, [Chorus/Counting.lean](Chorus/Counting.lean)) and
   `mvba_invoked` holds via the fallback trigger. Per-proposer evidence
   formation is the pigeonhole below; decisions then reach finalization
   through the commit round exactly as in the mixed branch.
 
 **Evidence pigeonhole.** In the `x = 0` branch, the per-proposer evidence
 is the theorem `Chorus.evidence_pigeonhole_of_reachable`
-(`Cadence/Chorus/Pigeonhole.lean`): the `2f+1` honest fallback entries for
+([Chorus/Pigeonhole.lean](Chorus/Pigeonhole.lean)): the `2f+1` honest fallback entries for
 a proposer `j` split as `f+1` negative (a negative FallbackQC), `f+1`
 positive on one root (a positive FallbackQC), or positive entries on two
 roots — each pinning a proposer-signed root, i.e. `equiv_evidence`. This
@@ -2147,13 +2193,13 @@ rather than an SMT-discharged invariant.
 The temporal/fairness layer itself — the existential quantification over a
 fair execution, the well-founded recursion on the ranking — is not encoded
 inside the Veil module. That extension would require either an L2S
-desugaring (see `docs/Liveness.md`) or a verification-diagram tactic family;
+desugaring (see [Liveness.md](../docs/Liveness.md)) or a verification-diagram tactic family;
 both are out of scope. The invariants below discharge the *fair-progress*
 safety content. -/
 
-/-! ### MVBA completion implies per-proposer decision
+/-! ### MVBA completion implies per-proposer decision -/
 
-Lifted postcondition of `mvba_terminate` (whose guard is that every
+/-- Lifted postcondition of `mvba_terminate` (whose guard is that every
 proposer's entry of the decided vector is recorded): the link between
 (A-mvba) and the commit route — once `mvba_complete` holds, every honest
 non-committed validator has, for every proposer, a recorded MVBA decision
@@ -2166,9 +2212,9 @@ invariant [mvba_complete_per_proposer]
     ∀ J, is_proposer J →
       ((∃ M, mvba_decided_pos J M) ∨ mvba_decided_neg J)
 
-/-! ### Fair progress — voting
+/-! ### Fair progress — voting -/
 
-Once past the deadline, an honest validator that has not yet voted can
+/-- Once past the deadline, an honest validator that has not yet voted can
 always fire `vote` (its precondition is phase + not-voted only); the
 per-proposer positive/negative split inside the atomic action is the
 excluded middle on `local_entry_pos`. Stated to make that case analysis
@@ -2181,9 +2227,9 @@ invariant [progress_voting]
     (∃ M, local_entry_pos I J M) ∨
     (∀ M, ¬ local_entry_pos I J M)
 
-/-! ### Fair progress — fallback signing
+/-! ### Fair progress — fallback signing -/
 
-Once some 2f+1 validators have broadcast votes, an honest validator on the
+/-- Once some 2f+1 validators have broadcast votes, an honest validator on the
 fallback path can always cast its per-proposer fallback entry: for any
 witnessed quorum `qv`, either some root has an f+1 positive sub-quorum
 within `qv` with decodable (`chunk_quorum`; implied at the network level,
@@ -2203,9 +2249,9 @@ invariant [progress_fallback_signing]
       (∀ r, nset.member r q → nset.member r qv ∧ msg_vote_pos_sig r J M) ∧
       chunk_quorum J M ∧ well_encoded M))
 
-/-! ### Path-fast implies the validator's own FastQCs for every proposer
+/-! ### Path-fast implies the validator's own FastQCs for every proposer -/
 
-Honest `cast_fast_commit i` requires `msg_commit_*_sig i J _` for every
+/-- Honest `cast_fast_commit i` requires `msg_commit_*_sig i J _` for every
 proposer `J`; each such honest signature carries the validator's own
 matching local FastQC. So an honest validator on the fast path is itself a
 witness that FastQC certificates exist for every proposer. -/
@@ -2234,20 +2280,14 @@ invariant [fastqc_complete_implies_mvba_evidence]
     ∀ J, is_proposer J →
       (∃ M, vote_quorum_pos J M) ∨ vote_quorum_neg J
 
-/-! ### Commit completeness (composition support)
+/-! ### Commit completeness (composition support) -/
 
-A committed validator holds a decision for *every* proposer — the
+/-- A committed validator holds a decision for *every* proposer — the
 persisted form of `finalize_commit`'s precondition. Needed by the
-composition layer (`Chorus/Compose.lean`): the `SlotConsensus` instance
+composition layer ([Chorus/Compose.lean](Chorus/Compose.lean)): the `SlotConsensus` instance
 theorem assembles a committed validator's per-proposer decisions into a
 total proposal vector, which requires this completeness fact about
-reachable states.
-
-NOTE: the manual cells in `Chorus/Proofs/` project the assembled
-`Invariants` clump *by declaration name* (Veil's `veil_inv_have`), so
-new `safety`/`invariant` declarations
-may go wherever they read best — the lookup re-derives every index at
-elaboration time and fails loudly if a name disappears. -/
+reachable states. -/
 invariant [local_committed_complete]
   ∀ (I : node),
     ¬ is_byz I ∧ local_committed I →
@@ -2268,23 +2308,23 @@ above) and `mvba_decided_pos_proposer_signed` (below) — plus the phase
 confinement `mvba_complete_phase`. (F-justice) on `redisseminate_chunk`
 and `cast_fb_commit` then yields `2f+1` honest commit votes, i.e.
 `fbcommitqc` (the counting is `fbcommitqc_of_honest_commit_votes`,
-`Chorus/Counting.lean`); `fbcommitqc_implies_mvba_complete` +
+[Chorus/Counting.lean](Chorus/Counting.lean)); `fbcommitqc_implies_mvba_complete` +
 `mvba_complete_per_proposer` hand the per-proposer `commit_assign_*`
 preconditions over, exactly as in the pre-round argument. -/
 
-/- An honest fallback commit vote exists only after its signer decided,
+/-- An honest fallback commit vote exists only after its signer decided,
 i.e. only once the MVBA reached its complete decision vector
 (`line:fb-mvba-decide` precedes `line:fb-commitvote`). -/
 invariant [fbcommit_sig_backed]
   ∀ (R : node), ¬ is_byz R ∧ msg_fbcommit_sig R → mvba_complete
 
-/- Honest fallback commit votes are confined to the MVBA phase — the
+/-- Honest fallback commit votes are confined to the MVBA phase — the
 model shadow of the participation-window confinement
 (`lemma:chorus-quiescence`) for the commit round. -/
 invariant [fbcommit_sig_phase]
   ∀ (R : node), ¬ is_byz R ∧ msg_fbcommit_sig R → phase = post_mvba_arm
 
-/- An `fbCommitQC` certifies the MVBA decision vector: any `2f+1` commit
+/-- An `fbCommitQC` certifies the MVBA decision vector: any `2f+1` commit
 votes contain an honest one (`supermajority_greater_than_third` +
 `greater_than_third_one_honest`), whose vote implies `mvba_complete`
 (`fbcommit_sig_backed`). Bridges the certificate to the per-proposer
@@ -2292,13 +2332,13 @@ votes contain an honest one (`supermajority_greater_than_third` +
 invariant [fbcommitqc_implies_mvba_complete]
   fbcommitqc → mvba_complete
 
-/- MVBA termination is confined to the MVBA phase (the phase is
+/-- MVBA termination is confined to the MVBA phase (the phase is
 terminal, so this pins it exactly). Needed as the phase leg of
 `cast_fb_commit`'s enabledness. -/
 invariant [mvba_complete_phase]
   mvba_complete → phase = post_mvba_arm
 
-/- Every decided-positive root is proposer-signed: the chunk-validation
+/-- Every decided-positive root is proposer-signed: the chunk-validation
 leg of `redisseminate_chunk`'s enabledness (its other leg is
 `mvba_decided_pos_chunks_decodable`). Derivable on the fly — a decision
 is backed by a vote or fallback quorum whose honest member's entry pins
@@ -2308,12 +2348,12 @@ invariant [mvba_decided_pos_proposer_signed]
   ∀ (J : node) (M : merkle_root),
     mvba_decided_pos J M → msg_proposer_signed J M
 
-/- We disable the model-check scaffolding (FinEncodableInjOnly / Enumeration
-deriving on the action Label, EnumerableTransitionSystem assembly) because
-(a) Chorus does not use `#model_check`, and (b) the derived
-FinEncodableInjOnly instances are O(n^k) in number of actions and would blow
-Lean's whnf heartbeat budget for our ~40 actions. VC generation and the
-cross-file check/prove commands are unaffected. -/
+/- The model-check scaffolding (FinEncodableInjOnly / Enumeration deriving on
+the action Label, EnumerableTransitionSystem assembly) is off: Chorus does
+not use `#model_check`, and the derived FinEncodableInjOnly instances are
+O(n^k) in the number of actions, beyond Lean's whnf heartbeat budget at this
+action count. VC generation and the cross-file check/prove commands are
+unaffected. -/
 set_option veil.gen.modelCheckScaffolding false
 -- Emit the per-action executable extraction (`Chorus.NextAct.extracted`, a
 -- `Label → VeilMultiExecM` dispatcher) for the trace-conformance monitor. This
@@ -2321,7 +2361,7 @@ set_option veil.gen.modelCheckScaffolding false
 -- O(n^k) `Enumeration`/`FinEncodableInjOnly` label instances.
 set_option veil.gen.executableActions true
 
-/- The assembled `Invariants` conjunction is large (~100 conjuncts); the
+/- The assembled `Invariants` conjunction is large; the
 `LocalRProp` instance chain over it exceeds Lean's default instance-search
 budgets, and without that instance every VC re-simplifies the full clump
 (a large constant-factor slowdown of the sweep). Raise the budgets so the
@@ -2344,58 +2384,43 @@ family, which sets it itself. File-level so the dischargers capture it at
 `#gen_spec` (solver options are captured there, not at the command). -/
 set_option veil.smt.trust false
 
-/- This file persists NO per-VC theorems, and cannot: real-proof
-persistence here would need the environment to hold ~4 K reconstructed
-witnesses until olean serialization, which does not fit the 32 GB
-reference machine. The per-action proof files under `Chorus/Proofs/` are
-the answer to that. So a VC in this development is either registry data
-(claim-free by construction) or a real, kernel-checked theorem in a
-`Chorus/Proofs/` olean — nothing here is proven-but-isn't. -/
+/- This file persists no per-VC theorems: holding every reconstructed
+witness in one environment until olean serialization does not fit a
+workstation's memory, so the per-action proof files under
+[Chorus/Proofs](Chorus/Proofs) carry them. A VC in this development is
+either registry data (claim-free by construction) or a kernel-checked
+theorem in a [Chorus/Proofs](Chorus/Proofs) olean. -/
 
-/- VC registry (`docs/Dependencies.md` §1): `#gen_spec`
+/- VC registry ([Dependencies.md](../docs/Dependencies.md) §1): `#gen_spec`
 persists every VC's statement (as an `Expr`) plus its action/property/
 style metadata into the olean, enabling the cross-file commands
 (`#check_action Chorus <action>`, `#check_vc Chorus <action> <prop>`,
 `#prove_action Chorus <action>`) in importing files. Solve-free, and the
 eager statement elaboration it does here measures as ≈ free at this
 file's scale. The registry is the proof-file family's entire statement
-source: the `#prove_action`s under `Chorus/Proofs/` re-create every VC
+source: the `#prove_action`s under [Chorus/Proofs](Chorus/Proofs) re-create every VC
 from it. -/
 set_option veil.gen.vcRegistry true
 
-/- Proof cache (`docs/Dependencies.md` §2): consult the
+/- Proof cache ([Dependencies.md](../docs/Dependencies.md) §2): consult the
 content-addressed cache (`.lake/build/veilcache/`) for
 the background `doesNotThrow` dischargers this file still runs, and store
 their proofs. The proof-file family enables the cache itself and is the
 main beneficiary: statement-unchanged rebuilds kernel-replay every cell
-(~0.35 s/hit at this module's witness scale) instead of re-solving.
-File-level so the dischargers capture it at `#gen_spec` (§1.9
-semantics). -/
+instead of re-solving. File-level so the dischargers capture it at
+`#gen_spec`. -/
 set_option veil.cache.proofs true
 
-/- Solver configuration: Veil defaults (60 s per-goal budget,
-finite-model-find ON), deliberately not overridden.
+/- Solver configuration: Veil's defaults. In this file they govern only the
+background `doesNotThrow` checks; the proof files set their own budget
+(`veil_proof_options`, [ProofPrelude.lean](ProofPrelude.lean)). In-file
+dischargers capture solver options at `#gen_spec`, so a `set_option` around
+a later check command does not apply — see [CLAUDE.md](../CLAUDE.md),
+"Build". -/
 
-IMPORTANT: in-file dischargers capture solver options at `#gen_spec` (VC
-generation), NOT at check commands — options set only around a check
-command silently do not apply to solving, and Veil warns about it; on the
-cross-file path the proof files read solver options at tactic runtime, so
-`set_option` there works as written.
+/-! ## Step property -/
 
-Do not "improve" the budget: a sweep at 900 s with fmf off was measured
-strictly worse than the 60 s/fmf-on default — divergent queries e-match
-for the full 900 s while accumulating instantiations in-process, and the
-sweep exceeded 17 CPU-hours and 50 GB (swap thrash) before being killed.
-The defaults are the validated configuration; seed-luck timeouts are
-healed by `veil.smt.retries`
-(retry with a perturbed seed, reported as "(retry k, seed k)"), with the
-TR-form fallback behind that; the cells SMT cannot solve at all are
-manual `#prove_vc … by <tactic>` cells in their actions' proof files
-(`Chorus/Proofs/FbSignNeg.lean` records three the `well_encoded` refactor
-made tractable; the current count is pinned by `#veil_status` and tabled
-in `docs/Architecture.md`). -/
-
-/-! ## Step property — a committed validator's positive entries are frozen
+/-- A committed validator's positive entries are frozen
 (`commit_assign_pos` requires `¬ local_committed i`). -/
 step_property [committed_pos_frozen] {
   local_committed I ∧ local_committed_pos' I J M → local_committed_pos I J M }
@@ -2405,13 +2430,13 @@ step_property [committed_pos_frozen] {
 /-! ## Verification — in the proof-file family, not here
 
 This is a **model file** of the verified-module file family
-(`docs/Architecture.md` §6): `#gen_spec` above elaborated the transition
+([Architecture.md](../docs/Architecture.md) §6): `#gen_spec` above elaborated the transition
 system and persisted the VC registry — the model's entire proof
 interface — and started only the (cheap) background `doesNotThrow`
 checks. The invariant VCs are proven cross-file:
 
 * one `#prove_action Chorus <action>` per action in
-  [`Chorus/Proofs/`](./Chorus/Proofs) — every registered VC re-created
+  [Chorus/Proofs](Chorus/Proofs) — every registered VC re-created
   from the registry statement (identical to what an in-file sweep would
   check, by construction), solved with proof reconstruction, persisted as
   a kernel-checked theorem, and assembled into the per-action
@@ -2419,20 +2444,16 @@ checks. The invariant VCs are proven cross-file:
   cells (SMT's e-matching diverges on them) live in their actions' proof
   files as `#prove_vc … by <tactic>` cells the command consumes as-is
   after a statement check.
-* [`Chorus/Certify.lean`](./Chorus/Certify.lean) composes the
+* [Chorus/Certify.lean](Chorus/Certify.lean) composes the
   preservation lemmas into `Chorus.invariants_of_reachable` + named
   `reachable_<property>` projections (`#gen_composition`), at the
   standard `propext`/`Classical.choice`/`Quot.sound` trust base — pinned
-  there and consumed by `Chorus/Compose.lean`/`Chorus/Pigeonhole.lean`.
+  there and consumed by [Chorus/Compose.lean](Chorus/Compose.lean) and
+  [Chorus/Pigeonhole.lean](Chorus/Pigeonhole.lean).
 
 Interactive spot checks: `#check_vc Chorus <action> <property>` (or
 `#check_action Chorus <action>`) in any importing scratch file — one at a
 time; multiple concurrent check commands contend for the same discharger
-scheduler and slow each other down.
-
-IMPORTANT: Veil's own library must be built with `precompileModules := true`
-(it is, in the Veil fork this project pins — `docs/Dependencies.md` §2).
-Without it, Veil's discharger tactics run in the Lean IR interpreter, which
-serializes tactic interpretation and caps effective parallelism at ~2–3x. -/
+scheduler and slow each other down. -/
 
 end Chorus
