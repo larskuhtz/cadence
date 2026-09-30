@@ -2367,7 +2367,7 @@ would break. So:
 At no point does master carry a premise that is unsatisfiable at some
 quorum sort.
 
-**R4 done: the Mvba half** (2026-09-30, PR #R4PR). What an auditor should
+**R4 done: the Mvba half** (2026-09-30, PR #51). What an auditor should
 know:
 
 * **The model.** The three rules the supplement gives a "not already"
