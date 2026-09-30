@@ -177,6 +177,33 @@ noncomputable def witnessRun [IsOrderedAddMonoid time] [Archimedean time]
   clk_unbounded t := Archimedean.arch t hΔ
   gst := 0
 
+/-- **(Δ-justice) holds vacuously on a run that keeps reaching a quiet
+index.** If every window from every index contains an index at which no
+label the hop table covers is move-enabled, then every clause of
+`BoundedJustice` holds with its window antecedent false: each clause asks
+its label to be move-enabled throughout its window. The window lengths are
+the schedule's three, `δ`, `Δ` and `Δ + ρ`, all non-negative. -/
+theorem boundedJustice_of_quiet [IsOrderedAddMonoid time] {sch : Schedule view time}
+    {th : Theory node nodeset value view} {r : TMvbaRun th time}
+    (hq : ∀ (N : Nat) (D : time), 0 ≤ D → ∃ n, N ≤ n ∧ r.clk n ≤ r.ref N + D ∧
+      ∀ (l : Mvba.Label node nodeset value view) (h : Hop), hop l = some h →
+        ¬ EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l) :
+    BoundedJustice sch r := by
+  have hΔ : (0 : time) ≤ sch.Δ := sch.Δ_pos.le
+  have hΔρ : (0 : time) ≤ sch.Δ + sch.ρ := add_nonneg hΔ sch.ρ_nonneg
+  /- One window antecedent, refuted at the quiet index inside it. -/
+  have hwhile : ∀ (D : time), 0 ≤ D → ∀ (l : Mvba.Label node nodeset value view) (h : Hop),
+      hop l = some h → ∀ C, BoundedFairWhile r D l C := fun D hD l h hh C N hen => by
+    obtain ⟨n, hn, hc, hnm⟩ := hq N D hD
+    exact absurd (hen n hn hc).1 (hnm l h hh)
+  refine ⟨fun l hh N hen => ?_, fun l _ hh _ _ => hwhile _ hΔ l _ hh _,
+    fun i pv v _ => ⟨hwhile _ hΔ _ _ rfl _, fun w e => hwhile _ hΔ _ _ rfl _⟩,
+    fun v q _ => ⟨fun r₀ w e => hwhile _ hΔρ _ _ rfl _, hwhile _ hΔρ _ _ rfl _⟩,
+    fun i pv v => ⟨hwhile _ hΔρ _ _ rfl _, fun w e => hwhile _ hΔρ _ _ rfl _⟩,
+    fun i j v e _ => hwhile _ hΔρ _ _ rfl _⟩
+  obtain ⟨n, hn, hc, hnm⟩ := hq N sch.δ sch.δ_nonneg
+  exact absurd (hen n hn hc) (hnm l _ hh)
+
 /-- **The witness run is admissible.** (Δ-justice) is vacuous because no
 fair label is ever move-enabled (`not_moveEnabled_of_quiet`), at index `N`
 itself, which is inside every window. (T1) is vacuous because the timer never
@@ -191,14 +218,10 @@ theorem witnessRun_sync [IsOrderedAddMonoid time] [Archimedean time] (sch : Sche
     (hst : (Mvba.relationalTransitionSystem node nodeset value view).init th st) :
     Sync sch (witnessRun th hth st hst sch.Δ sch.Δ_pos) := by
   have hq := quiet_iterate (th := th) (quiet_init hst)
-  refine ⟨fun l h hh N hen => ?_, ⟨fun n i v _ hl => ?_, fun m i v _ hent => ?_⟩,
-    fun m i v e _ hacc => ?_⟩
-  · have hD : (0 : time) ≤ sch.bound h := by
-      cases h
-      · exact sch.Δ_pos.le
-      · exact sch.δ_nonneg
-    exact absurd (hen N le_rfl (le_trans (TLRun.clk_le_ref _ N) (le_add_of_nonneg_right hD)))
-      (not_moveEnabled_of_quiet (hq N) hh)
+  refine ⟨boundedJustice_of_quiet fun N D hD => ⟨N, le_rfl,
+      le_trans (TLRun.clk_le_ref _ N) (le_add_of_nonneg_right hD),
+      fun _ _ hh => not_moveEnabled_of_quiet (hq N) hh⟩,
+    ⟨fun n i v _ hl => ?_, fun m i v _ hent => ?_⟩, fun m i v e _ hacc => ?_⟩
   · cases hl
   · exact absurd hent (by simp [witnessRun, (hq m).2.1 i v])
   · exact absurd hacc (by simp [witnessRun, (hq m).2.2.1 i v e])
@@ -311,8 +334,10 @@ end Instance
 /-! ## The schedule hypotheses are satisfiable
 
 The paper's fixed known timeout at `time := ℕ`, the obvious model of the
-clock: `Δ = 1`, instantaneous local steps and availability, and a timeout
-of `5 > Lcert 1 0 0 = 4` in every view, so the ramp is empty. `ℕ` is a
+clock: `Δ = 1`, instantaneous local steps and availability, a
+retransmission interval `ρ = 1` (the supplement's `ρ = O(Δ)`), and a
+timeout of `5 > Lcert 1 0 0 = 4` in every view, so the ramp is empty. The
+timeout is the supplement's `T := Δ_R + 4Δ + max{Δ, Δ_sync}` at `Δ_R = 0`. `ℕ` is a
 cancellative, Archimedean linearly ordered monoid, so `mvbaTemporal`'s
 time theory is met too. -/
 
@@ -321,6 +346,7 @@ def Schedule.fixedNat (view : Type) [vord : TotalOrderWithMinimum view] (k : Nat
     Schedule view ℕ where
   Δ := 1
   δ := 0
+  ρ := 1
   Δsync := 0
   τ _ := 5
   τmax := 5
@@ -328,6 +354,7 @@ def Schedule.fixedNat (view : Type) [vord : TotalOrderWithMinimum view] (k : Nat
   k := k
   Δ_pos := Nat.one_pos
   δ_nonneg := le_rfl
+  ρ_nonneg := Nat.zero_le _
   Δsync_nonneg := le_rfl
   τ_nonneg _ := Nat.zero_le _
   τ_le_max _ := le_rfl
@@ -383,3 +410,9 @@ info: 'Mvba.mvbaFull_toSafety' depends on axioms: [propext, Classical.choice, Qu
 -/
 #guard_msgs in
 #print axioms Mvba.mvbaFull_toSafety
+
+/--
+info: 'Mvba.boundedJustice_of_quiet' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.boundedJustice_of_quiet
