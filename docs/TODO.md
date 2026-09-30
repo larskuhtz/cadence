@@ -269,35 +269,46 @@ come first.
   this clause is the one it must discharge from Chorus's own behaviour,
   not assume; its cost `ρ + Δ` is already inside `ℓ_MVBA`.
 
-  **Status after S2 (2026-09-30): stated, and still assumed, not
-  discharged.** The timed Chorus claim consumes the MVBA through the
-  contract, as `T.Admissible` of the timed projection
-  (`Chorus.TimedMvbaAdmissible`, [Bounds.md](Bounds.md) §6.4.2). At the
-  system's MVBA that includes the `decisions` clause, and the clause cannot
-  be split out without restating the contract's field. It also cannot be
-  derived from Chorus's steps. The Chorus model has no step that carries the
-  MVBA's commit certificate: the MVBA's messages live inside its abstract
-  state, and its `decide` is taken by the oracle step `mvba_step`, whose
-  scheduling is what the premise states. Discharging it needs a model
-  change: a Chorus-side relay of the decided certificate, and the MVBA's
-  `decisions` clause stated against it. **Open: a decision for Lars**,
-  recorded in the §6.4.5 ledger as the one clause assumed rather than
+  **Status after S2 (2026-09-30): stated, and still assumed; open, closed in
+  R8, before the witness and S3.** The delivery of the MVBA's decision
+  certificate is Chorus's protocol step (the supplement's "Decision output
+  and handoff"), which the model does not have yet. R8 models it and derives
+  the `decisions` clause from it. It cannot be done at statement level. The
+  timed Chorus claim consumes the MVBA through the contract, as
+  `T.Admissible` of the timed projection (`Chorus.TimedMvbaAdmissible`,
+  [Bounds.md](Bounds.md) §6.4.2). At the system's MVBA that includes the
+  `decisions` clause, and the clause cannot be split out without restating
+  the contract's field. It cannot be derived from the current Chorus steps
+  either. No step carries the MVBA's commit certificate: the MVBA's messages
+  live inside its abstract state, and its `decide` is taken by the oracle
+  step `mvba_step`, whose scheduling is what the premise states. Until R8
+  the §6.4.5 ledger records it as the one clause assumed rather than
   derived.
 
-* **F5 applies to the untimed `FJustice` too.** The paper promises delivery
-  only between correct validators (`prop:chorus-finalization-time`'s proof).
-  The model's network relations hold from a message's first delivery to
-  anyone, a Byzantine sender's included. The timed rows are therefore owed
-  only for messages from correct senders (`Chorus.Owed`, [Bounds.md](Bounds.md)
-  §6.4.2, F5). The untimed `Chorus.FJustice` has no such condition. Under
-  weak fairness, `aggregate_fastqc_pos i j m q` with a Byzantine member of
-  `q` must eventually fire (unless `i` aggregates through another quorum),
-  even though a Byzantine voter may never send `i` its vote. A paper run in
-  which only such quorums complete is then not a run of the claim. The
-  proof uses correct quorums throughout, so the fix is to restate
-  `FJustice` with the same owed-conditions and re-prove `Chorus.termination`
-  against it. It touches no Veil file. **Open: to schedule** (with S3, whose
-  totality proof exercises the same rows, or on its own).
+* **F5 applies to both untimed `FJustice` definitions.** The paper promises
+  delivery only between correct validators (`prop:chorus-finalization-time`'s
+  proof), and so does the supplement's network (N1, [Bounds.md](Bounds.md)
+  §6.2.4). The models' network relations hold from a message's first
+  delivery to anyone, a Byzantine sender's included. The timed premises are
+  therefore owed only for messages from correct senders: Chorus's rows
+  through `Chorus.Owed` ([Bounds.md](Bounds.md) §6.4.2, F5), and the MVBA's
+  through `Delivers`' `CorrectQuorum` since step 5b. The untimed premises
+  have no such condition:
+  * `Chorus.FJustice`: `aggregate_fastqc_pos i j m q` with a Byzantine
+    member of `q` must eventually fire (unless `i` aggregates through
+    another quorum), even though a Byzantine voter may never send `i` its
+    vote;
+  * `Mvba.FJustice`: every correct validator's step is weakly fair for any
+    quorum it names. So `form_own_commitqc i v e q` (and likewise
+    `adopt_prepqc` and `form_own_tc_*`) must eventually fire for a `q` with
+    Byzantine members whose `Commit`s may never reach `i`.
+
+  A paper (or supplement) run in which only such quorums complete is then
+  not a run of the claim. The proofs use correct quorums throughout, so the
+  fix is to restate both `FJustice`s with the same correct-sender
+  conditions, then re-prove `Chorus.termination` and `Mvba.termination`
+  against them. No Veil file is touched. **Open; closed in R8, before the
+  witness and S3.**
 
 ## Model hygiene
 

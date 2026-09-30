@@ -1844,8 +1844,10 @@ is the MVBA's own `decide` step. Its cost, `Δ + ρ`, is inside `ℓ_MVBA`.
   delivery the paper does not promise, since a Byzantine voter may send to
   some validators only. That is the MVBA's C16 finding, on Chorus's side.
   Each Δ-row is therefore owed only when the messages it consumes came from
-  correct senders (the last column). The untimed `FJustice` has the same
-  shape, and the finding applies to it too: TODO § Liveness.
+  correct senders (the last column). Both untimed `FJustice` definitions,
+  Chorus's and the MVBA's, have the same shape, and the finding applies to
+  both. It is open, and closed in R8, before the witness and S3 (TODO §
+  Liveness).
 * **F6: `cast_fb_commit` reads a shared flag.** Its guard is
   `mvba_complete`, which the first validator to decide sets. The paper's
   rule fires on the voter's own decision (`line:fb-commitvote`). As a δ-row
@@ -2081,11 +2083,15 @@ The timing model, `Sync`:
   (the MVBA witness's availability marks, as oracle steps) without enabling
   any row. **One clause is assumed rather than derived**: the MVBA's
   `decisions` clause asks the composing layer to deliver a decided commit
-  certificate within `Δ + ρ` (C15, TODO § Liveness). In the composed system
-  that is Chorus's job. The Chorus model has no step that carries the
-  certificate, since the MVBA's messages live inside its abstract state and
-  its `decide` is the oracle step's. So the clause stays inside
-  `T.Admissible`, named, with its cost inside `T.ℓ`.
+  certificate within `Δ + ρ` (C15, TODO § Liveness). That delivery is
+  Chorus's protocol step (the supplement's "Decision output and handoff"),
+  which the model does not have yet. It cannot be derived at statement
+  level: the clause is part of the contract's field `T.Admissible`, and no
+  current Chorus step carries the certificate, since the MVBA's messages
+  live inside its abstract state and its `decide` is the oracle step's.
+  Until then it stays inside `T.Admissible`, named, with its cost inside
+  `T.ℓ`. It is open, and closed in R8, before the witness and S3: R8 models
+  the step and derives the `decisions` clause.
 
 The bridge:
 
@@ -2304,6 +2310,16 @@ after its step 2.
      the claim stronger, and it implies the field.
    * **`mvba_propose`'s gate is the MVBA arm** (§6.4.2), and the family is
      owed on a correct trigger only.
+
+   Two findings are open, and closed in R8, before the witness and S3
+   (TODO § Liveness):
+
+   * **F5 on the untimed premises**: both `FJustice`s, Chorus's and the
+     MVBA's, owe steps enabled by Byzantine senders' messages.
+   * **C15**: the MVBA decision certificate's delivery is Chorus's protocol
+     step (the supplement's "Decision output and handoff"). The model does
+     not have that step yet; R8 models it and derives the `decisions`
+     clause.
 3. **S3: totality and the timeline to `M + 3Δ`.** Totality comes first,
    because it is small and validates the scaffolding. Then the links up to
    the MVBA proposals. The reassessment asks two things: did the hop table
