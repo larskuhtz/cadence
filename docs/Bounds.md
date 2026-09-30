@@ -2102,8 +2102,11 @@ after its step 2.
    local "not already" guard the paper gives it. Then the fairness
    premises go back to plain enabledness. It comes **before S2 and before
    the witness (S6)**, since both are written against the final model and
-   the final premises. Probably two sessions, Mvba first, then Chorus. Two
-   cold family re-solves, one at a time.
+   the final premises. **Three sessions:** R4 (the Mvba model) and R5 (the
+   Chorus model), in parallel, with their cold re-solves serialized, then
+   R6 (the flip to plain enabledness, plain Lean only), after both have
+   merged. The flip waits for both because the fairness definitions are
+   shared (§6.4.7, "Staging").
 2. **S2: timed scaffolding, statements only.** In [Timed.lean](../Cadence/Timed.lean):
    * the (Δδ-justice) clause and `BoundedFairFamily`;
    * the timed projection (`Component.Projection` plus a clock), with its
@@ -2187,8 +2190,9 @@ from**.
   `upon` handlers of an event-driven protocol, without "first time" (only
   the fast meta-block rule says it). The plan reads an `upon` handler as
   running once when its condition becomes true. That is the conventional
-  reading, but the paper states no convention, so check it with the
-  authors and record it in [PaperAlignment.md](PaperAlignment.md).
+  reading, but the paper states no convention, so it is a question for the
+  authors, recorded as an open reading in
+  [PaperAlignment.md](PaperAlignment.md) §8.
 
 The inventory may not be complete. The acceptance criterion below is what
 decides that, not this list. Candidates to check first:
@@ -2219,7 +2223,7 @@ parameter.
 * At most 10 action parameters. An invariant only if the cleanest proof
   needs one (backing of the new local records is the likely one).
 
-**The fairness side.**
+**The fairness side (R6).**
 
 * [Fairness.lean](../Cadence/Fairness.lean): `WeaklyFair`,
   `WeaklyFairFamily` and `StronglyFair` over `Enabled` again.
@@ -2230,7 +2234,8 @@ parameter.
   proofs lose their side conditions (`EnabledMove.of_enabled_of_effect`,
   `eventually_of_weaklyFair`), unless keeping `eventually_of_weaklyFair`
   in plain form reads better.
-* **The acceptance criterion, machine-checked, per model:** at every
+* **The acceptance criterion, machine-checked, per model (R4 for Mvba,
+  R5 for Chorus):** at every
   reachable state, every enabled fair label is move-enabled
   (`∀ l, JusticeLabel l → Enabled … st l → EnabledMove … st l`). It says
   the model has no fair action that stays enabled without effect, so the
@@ -2238,17 +2243,31 @@ parameter.
   the statement that, for this model, weak fairness over plain enabledness
   and over state-changing steps are the same premise. A label that fails
   it belongs in the inventory above. Proven per action from the guards and
-  the generated frame lemmas, in plain Lean, not as a Veil cell.
+  the generated frame lemmas, in plain Lean, not as a Veil cell. R6's
+  docstrings cite both lemmas: they are what makes the plain premise the
+  same premise as R3's.
 
 **What it touches, and what it costs.**
 
-* [Mvba.lean](../Cadence/Mvba.lean), with
+* **R4:** [Mvba.lean](../Cadence/Mvba.lean), with
   [Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) mirroring it (the
   witness moves and is re-pinned, with `sequential := true`), and the
   whole Mvba liveness and timed stack: the hop table, `Delivers`, the
-  chains, `Lcert` if a milestone moves, and the witness.
-* [Chorus.lean](../Cadence/Chorus.lean) and the Chorus liveness files.
-  Interfaces.lean should not need to change; if a contract field turns out
+  chains, `Lcert` if a milestone moves, and the witness. Check
+  [Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)'s step facts (the
+  `mvba_tr` proofs) against the new per-validator actions. If the label
+  change reaches Chorus's projection of the MVBA
+  ([Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)'s
+  `MvbaStepLabel` and `mvbaComponent`) or
+  [Chorus/Termination.lean](../Cadence/Chorus/Termination.lean), R4 says so
+  and coordinates with R5; it does not edit those files silently.
+* **R5:** [Chorus.lean](../Cadence/Chorus.lean) and the Chorus liveness
+  files, and the monitor, which R1 needed in full: both label decoders,
+  `Cadence/Monitor/ChorusMonitorGen.lean` and the `traces/*.jsonl`
+  fixtures, with all three monitor suites `ALL PASS` afterwards.
+* **R6:** plain Lean only — Fairness.lean, Timed.lean, both `FJustice`s,
+  `Mvba.BoundedJustice`, the chains' side conditions, and the ledgers.
+* Interfaces.lean should not need to change; if a contract field turns out
   to need it, stop and report.
 * Two cold family re-solves, one at a time. The `#veil_status` pins
   change with every added action: compute them before the build, update
@@ -2256,8 +2275,35 @@ parameter.
   Budget the manual cells: `adopt_prepqc`'s lock-persistence cell is the
   precedent for any per-validator action that creates a prepare
   certificate.
-* Docs: §6.2.4 (the move-enabledness finding becomes history), the §6.3
-  and §6.4.5 ledgers, [Liveness.md](Liveness.md) §2, and a History row.
+* Docs: R4 and R5 record their model changes (the inventory above, pins,
+  History rows). R6 does the premise docs: §6.2.4 (the move-enabledness
+  finding becomes history), the §6.3 and §6.4.5 ledgers,
+  [Liveness.md](Liveness.md) §2, and a History row.
+
+**Staging, and why the flip waits.** `WeaklyFair` and `WeaklyFairFamily`
+in [Fairness.lean](../Cadence/Fairness.lean) are shared by both `FJustice`
+definitions ([Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) and
+[Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)). Flipping them to
+plain enabledness in the Mvba session would put Chorus's premise back on
+plain `Enabled` while `aggregate_fastqc_*` and `broadcast_commitqc_*` still
+stay enabled without effect. Master would then carry a Chorus premise that
+is unsatisfiable at infinite quorum sorts, and `Chorus.termination`'s proof
+would break. So:
+
+1. **R4 — Mvba S1b**: the model, NoLock, the Mvba liveness and timed stack
+   and the witness, and the Mvba acceptance lemma. The premises stay in
+   their current form (state-changing steps); the lemma shows that for
+   this model it is equivalent to the plain one.
+2. **R5 — Chorus S1b**: the model, the Chorus liveness chains, the
+   monitor, and the Chorus acceptance lemma, with the premises again in
+   their current form. It can run **in parallel with R4**: the two touch
+   disjoint files, provided R4 keeps to the rule above about Chorus's
+   projection of the MVBA. Their cold family re-solves run one at a time.
+3. **R6 — the flip**, after R4 and R5 have both merged: plain Lean and
+   docs, as listed above.
+
+At no point does master carry a premise that is unsatisfiable at some
+quorum sort.
 
 **What the Conductor's timed claims need from this leg.** The
 Conductor's Totality, `B`-Boundedness and `R`-Recovery

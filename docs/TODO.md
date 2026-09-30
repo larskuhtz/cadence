@@ -151,7 +151,9 @@ come first.
   guards. The anonymous forming stays as an unfair adversary capability.
   Then state the fairness premises with plain enabledness again, and prove
   per model that every enabled fair label changes the state if it fires.
-  This removes the state-changing qualifier R3 put in the premises.
+  This removes the state-changing qualifier R3 put in the premises. Three
+  sessions: R4 (Mvba model) and R5 (Chorus model), in parallel with their
+  re-solves serialized, then R6 (the flip, plain Lean), after both.
 
 * **Try the timer-priority route, which would remove the good view from
   the premises entirely.** (A-viewsync)'s second clause is indexed by the
