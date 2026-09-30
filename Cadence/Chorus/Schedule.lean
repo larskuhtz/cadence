@@ -569,6 +569,90 @@ def Sync (sch : Schedule view time)
     (r : TChorusRun thS thM time) : Prop :=
   TimedJustice sch r ∧ PhasePunctual sch r ∧ TimedMvbaAdmissible T r
 
+/-! ### The caller's conditions
+
+The antecedents of `SlotConsensusWithTotality.bounded_termination` and
+`totality`, over the model's own observables. Within Cadence the
+composition discharges each: the glue participates at `open`
+(`line:participate`), the Conductor's opening totality synchronizes the
+starts (`lemma:conductor-totality`), its integrity keeps them after `D − Δ`
+(`lemma:conductor-integrity`), and the glue abandons only after finalizing
+(`line:abandon`). C1 is [Liveness.lean](Liveness.lean)'s
+`NoAbandonBeforeFinalizing`, used as it is. -/
+
+/-- **Every correct validator participates by `t`.** -/
+def AllParticipateBy (t : time) (r : TChorusRun thS thM time) : Prop :=
+  ∀ i, ¬ nset.is_byz i = true → ∃ n, r.clk n ≤ t ∧ (r.at' n).participating i = true
+
+/-- **Participation synchronized within `d`** (`def:delta-synchronized-participation`
+at tolerance `d`): once a correct validator participates at clock `c`, every
+correct validator participates by `max(c, GST) + d`. The contract's
+`SyncParticipation` is the case `d = Δ` (`syncParticipation_def`, with
+`byGstBound` read as `max`). -/
+def SyncParticipationWithin (d : time) (r : TChorusRun thS thM time) : Prop :=
+  ∀ n i, ¬ nset.is_byz i = true → (r.at' n).participating i = true →
+    ∀ j, ¬ nset.is_byz j = true →
+      ∃ m, r.clk m ≤ max (r.clk n) r.gst + d ∧ (r.at' m).participating j = true
+
+/-- **C2: nobody starts before `D − Δ`.** Whenever a correct validator
+participates, the clock has reached `D − Δ`: `D ≤ clk + Δ`, the contract's
+form, which needs no subtraction. The Conductor's integrity. -/
+def NoEarlyStart (sch : Schedule view time) (r : TChorusRun thS thM time) : Prop :=
+  ∀ n i, ¬ nset.is_byz i = true → (r.at' n).participating i = true → sch.D ≤ r.clk n + sch.Δ
+
+/-! ## The targets, stated
+
+Two `Prop`-valued definitions, asserted nowhere. Each is the contract field's
+statement in the model's vocabulary: `finalized` is `local_committed`,
+`participating` and `abandoned` the model's own relations, `byGstBound`'s
+least upper bound written as `max`. -/
+
+/-- **ℓ-termination, the target** (`lemma:chorus-termination`). Under the
+timing model at a schedule `sch` and an MVBA contract `T`, the bridge, and
+the caller's conditions — participation synchronized within `Δ`, no
+abandonment before finalizing (C1), no start before `D − Δ` (C2) — if every
+correct validator participates by `t`, every correct validator finalizes at
+some index whose clock is at most `max(t, GST) + ℓ`, with
+`ℓ = 5Δ + T.ℓ + 8δ` (`Lchorus`).
+
+The MVBA enters only through `T`: its `Admissible` and its `ℓ`. At the
+system's MVBA, `T := Mvba.mvbaTemporal thM hqe sch.mvba vfin hrot`. -/
+def TimedTerminationClaim (sch : Schedule view time)
+    (T : MVBATemporal node (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)) time
+      (fun i => nset.is_byz i = true) (S := Mvba.mvbaSafety thM))
+    (thS : Chorus.Theory slot node nodeset merkle_root
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
+      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice) :
+    Prop :=
+  ∀ r : TChorusRun thS thM time, Sync sch T r → ValidBridge r.toLRun →
+    SyncParticipationWithin sch.Δ r → NoAbandonBeforeFinalizing r.toLRun → NoEarlyStart sch r →
+    ∀ t : time, AllParticipateBy t r →
+      ∀ j, ¬ nset.is_byz j = true →
+        ∃ n, r.clk n ≤ max t r.gst + sch.ℓ T.ℓ ∧ (r.at' n).local_committed j = true
+
+/-- **d_tot-totality, the target** (`prop:chorus-totality`), at a
+participation tolerance `d` (F3). Under (Δδ-justice), participation
+synchronized within `d` and no abandonment before finalizing (C1), if a
+correct validator finalizes at an index with clock `c`, every correct
+validator finalizes by `max(c, GST) + max(Δ, d) + 2δ` (`Ltot`). The
+contract's `totality` is the case `d = Δ`, whose latency is `Δ + 2δ`, the
+paper's `d_tot = Δ` at `δ = 0` (`Ltot_paper`).
+
+It takes fewer premises than the contract's field allows: the proof needs
+only the commitment and finalization rows, so neither the phase timers, nor
+the MVBA, nor the bridge is a premise. -/
+def TotalityClaim (sch : Schedule view time) (d : time)
+    (thS : Chorus.Theory slot node nodeset merkle_root
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
+      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view) : Prop :=
+  ∀ r : TChorusRun thS thM time, TimedJustice sch r →
+    SyncParticipationWithin d r → NoAbandonBeforeFinalizing r.toLRun →
+    ∀ n i, ¬ nset.is_byz i = true → (r.at' n).local_committed i = true →
+      ∀ j, ¬ nset.is_byz j = true →
+        ∃ m, r.clk m ≤ max (r.clk n) r.gst + sch.dtot d ∧ (r.at' m).local_committed j = true
+
 end Runs
 
 /-! ## At the system's MVBA
