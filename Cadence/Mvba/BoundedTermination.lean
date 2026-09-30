@@ -39,10 +39,10 @@ The proof is §6.2.6's, in its order:
 * **(A-viewsync), derived.** `aViewSync_of_sync` proves `AViewSyncClaim`
   for finitely many validators, and its core, for any node sort and a
   proposal deadline, is `aViewSync_of_proposedBy`. Any correct-led view above
-  every view entered when a commit certificate first exists is a good view
-  in `AViewSync`'s sense (`aViewSync_of_commitqc`, from the two timer clauses
-  alone). A certificate exists by `bounded_termination`, or because an
-  abandoned correct validator has already decided.
+  every view entered when a correct validator has first decided is a good
+  view in `AViewSync`'s sense (`aViewSync_of_decision`, from the two timer
+  clauses alone). A correct decision exists by `bounded_termination`, or
+  because an abandoned correct validator has already decided.
 
 ## The `2δ` of the timeout row
 
@@ -1505,7 +1505,7 @@ theorem bounded_termination (enum : ByzNodeSetEnum node nodeset nset)
       · rw [Nat.max_eq_right h]; exact hcm
       · rw [Nat.max_eq_left h]; exact hcn
     obtain ⟨k, -, hk, E', hE'⟩ :=
-      within_decided_ref hsync.1 hq hj (B := max t r.gst + sch.ℓ vfin)
+      within_decided_ref hsync.2.2.2 hq hj (B := max t r.gst + sch.ℓ vfin)
         (le_trans (add_le_add href le_rfl) (le_of_eq (by rw [hℓ, add_assoc])))
         (r.mono (P := fun s => s.input q E₀ = true)
           (fun a ha => Mvba.input.mono (r.steps a) q E₀ ha) hin _ (Nat.le_max_right _ _))
@@ -1550,13 +1550,12 @@ end Assembly
 /-! ## (A-viewsync), derived
 
 `AViewSyncClaim`, proven. The second clause of (A-viewsync) only asks that a
-`W`-timer does not expire before *some* commit certificate exists, so any correct-led view above every view entered
-when a certificate first exists is a good view: its timers are started
-after the certificate by (T1). What is left is to show that a certificate
-exists. If a correct validator is ever abandoned, it has decided by then
-(`NoEarlyAbandon`), and a decision is certificate-backed (`decided_backed`).
-Otherwise `bounded_termination` applies with its abandonment premise
-vacuous. [Bounds.md](../../docs/Bounds.md) §6.2.8 says what this means for
+`W`-timer does not expire before *some* correct validator has decided, so
+any correct-led view above every view entered at a correct decision is a
+good view: its timers are started after the decision by (T1). What is left
+is to show that a correct validator decides. If a correct validator is ever
+abandoned, it has decided by then (`NoEarlyAbandon`). Otherwise
+`bounded_termination` applies with its abandonment premise vacuous. [Bounds.md](../../docs/Bounds.md) §6.2.8 says what this means for
 (A-viewsync) as a premise. -/
 
 section ViewSync
@@ -1567,19 +1566,19 @@ variable {node nodeset value view : Type}
   {th : Theory node nodeset value view}
   {time : Type} [LinearOrder time]
 
-/-- **A commit certificate makes a good view.** If a commit certificate
-exists at index `a`, then under (A-leader-rotation-k) and (T-timer) the run
+/-- **A correct decision makes a good view.** If a correct validator has
+decided at index `a`, then under (A-leader-rotation-k) and (T-timer) the run
 satisfies `AViewSync`. The good view is the first correct-led view above
 every view entered at `a`, and no timing enters the argument:
 
 * its first clause is (T2), for every view;
 * its second holds because a correct validator's `W`-timer expires only
-  after it entered `W` (T1), which is after `a`, when the certificate
-  already exists. -/
-theorem aViewSync_of_commitqc [AddCommMonoid time] (vfin : ViewOrderEnum view vord) {sch : Schedule view time}
+  after it entered `W` (T1), which is after `a`, when the decision already
+  stands. -/
+theorem aViewSync_of_decision [AddCommMonoid time] (vfin : ViewOrderEnum view vord) {sch : Schedule view time}
     (hrot : LeaderRotation vfin sch.k th) {r : TMvbaRun th time}
-    (htp : TimerPunctual sch r) {a : Nat} {V₁ : view} {E₁ : value}
-    (hqc : (r.at' a).msg_commitqc V₁ E₁ = true) : AViewSync r.toLRun := by
+    (htp : TimerPunctual sch r) {a : Nat} {p : node} {E₁ : value} (hp : ¬ nset.is_byz p = true)
+    (hdec : (r.at' a).decided p E₁ = true) : AViewSync r.toLRun := by
   /- `M`, above every view entered at `a`. -/
   obtain ⟨Vs, hVs⟩ := entered_covered r.toLRun a
   obtain ⟨M, -, -, hM⟩ :=
@@ -1601,8 +1600,8 @@ theorem aViewSync_of_commitqc [AddCommMonoid time] (vfin : ViewOrderEnum view vo
       have hent' := r.mono (P := fun s => s.entered i (vfin.succ (vfin.succ^[j] M)) = true)
         (fun k hk => Mvba.entered.mono (r.steps k) i _ hk) hent a (Nat.le_of_not_lt hle)
       exact not_le_of_lt hMW (hM _ (List.mem_cons_of_mem _ (hVs i _ hent')) trivial)
-    exact ⟨V₁, E₁, r.mono (P := fun s => s.msg_commitqc V₁ E₁ = true)
-      (fun k hk => Mvba.msg_commitqc.mono (r.steps k) V₁ E₁ hk) hqc n (by omega)⟩
+    exact ⟨p, E₁, hp, r.mono (P := fun s => s.decided p E₁ = true)
+      (fun k hk => Mvba.decided.mono (r.steps k) p E₁ hk) hdec n (by omega)⟩
 
 /-- **(A-viewsync) from a proposal deadline.** The core of the claim, for
 any node sort: if every correct validator has proposed by some time `t` and
@@ -1615,21 +1614,20 @@ theorem aViewSync_of_proposedBy [AddCommMonoid time] [IsOrderedCancelAddMonoid t
       ∃ (n : Nat) (E : value), r.clk n ≤ t ∧ (r.at' n).input p E = true)
     (hnea : NoEarlyAbandon r.toLRun) : AViewSync r.toLRun := by
   classical
-  obtain ⟨a, V₁, E₁, hqc⟩ : ∃ a V E, (r.at' a).msg_commitqc V E = true := by
+  obtain ⟨a, p, E₁, hp, hdec⟩ :
+      ∃ a p E, ¬ nset.is_byz p = true ∧ (r.at' a).decided p E = true := by
     by_cases hab : ∃ p n, ¬ nset.is_byz p = true ∧ (r.at' n).abandoned p = true
     · obtain ⟨p, n, hp, h⟩ := hab
       obtain ⟨E, hE⟩ := hnea p n hp h
-      obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed (r.reachable n) p E hp hE
-      exact ⟨n, V, E, hV⟩
+      exact ⟨n, p, E, hp, hE⟩
     · push Not at hab
       obtain ⟨R₀, hR₀⟩ :=
         nset.greater_than_third_one_honest hqe.honestQuorum
           (nset.supermajority_greater_than_third _ hqe.honestQuorum_supermajority)
       obtain ⟨n, E, -, hE⟩ := bounded_termination enum hqe sch vfin hrot r hsync t hprop
         (fun p hp n h => absurd h (hab p n hp)) R₀ hR₀.2
-      obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed (r.reachable n) R₀ E hR₀.2 hE
-      exact ⟨n, V, E, hV⟩
-  exact aViewSync_of_commitqc vfin hrot hsync.2.1 hqc
+      exact ⟨n, R₀, E, hR₀.2, hE⟩
+  exact aViewSync_of_decision vfin hrot hsync.2.1 hp hdec
 
 /-- `AllPropose` over a list of validators gives one index at which all of
 them have proposed: the latest of their proposals. -/
@@ -1759,10 +1757,10 @@ info: 'Mvba.exists_good_view' depends on axioms: [propext, Classical.choice, Quo
 #print axioms Mvba.exists_good_view
 
 /--
-info: 'Mvba.aViewSync_of_commitqc' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.aViewSync_of_decision' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.aViewSync_of_commitqc
+#print axioms Mvba.aViewSync_of_decision
 
 /--
 info: 'Mvba.aViewSync_of_sync' depends on axioms: [propext, Classical.choice, Quot.sound]

@@ -727,14 +727,14 @@ theorem within_commitqc (hbj : BoundedJustice sch r)
     (fun p hp => r.mono (P := fun s => s.msg_commit p W e = true)
       (fun m hm => Mvba.msg_commit.mono (r.steps m) p W e hm) (hall p hp) n hn), hallA⟩
 
-/-- **Link 8 by transfer, `decide` (a retransmission, `Δ + ρ`): a correct
+/-- **Link 8 by transfer, `decide` (`Δ + ρ`, the caller's): a correct
 validator decides** within `Δ + ρ` of the reference time `ref N`, once some
 correct validator `j` has decided on the certificate's vector — the
-composing layer serves a decided `CommitQC` (`lem:decision-propagation`).
-From any index, before GST included. Needs no view guard, so no prefix
-fact: only `¬ abandoned` on the window, and `∀ E, ¬ decided` lapses only by
-the decision. -/
-theorem within_decided_ref (hbj : BoundedJustice sch r)
+composing layer hands a decided `CommitQC` on (`Relayed`,
+`lem:decision-propagation`). From any index, before GST included. Needs no
+view guard, so no prefix fact: only `¬ abandoned` on the window, and
+`∀ E, ¬ decided` lapses only by the decision. -/
+theorem within_decided_ref (hrel : Relayed sch r)
     {i : node} (hi : ¬ nset.is_byz i = true) {W : view} {e : value}
     {j : node} (hj : ¬ nset.is_byz j = true)
     {N : Nat} {B : time} (hB : r.ref N + (sch.Δ + sch.ρ) ≤ B)
@@ -742,7 +742,7 @@ theorem within_decided_ref (hbj : BoundedJustice sch r)
     (hqc : (r.at' N).msg_commitqc W e = true) (hdec : (r.at' N).decided j e = true)
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true) :
     r.WithinFrom N B (fun s => ∃ E, s.decided i E = true) := by
-  refine withinFrom_of_boundedFairWhile (hbj.decisions i j W e hj)
+  refine withinFrom_of_boundedFairWhile (hrel i j W e hj)
     hB (fun _ _ h => ⟨e, decide_effect h⟩) ?_
   intro n hn hclk hnot
   exact ⟨enabled_decide hi
@@ -753,28 +753,6 @@ theorem within_decided_ref (hbj : BoundedJustice sch r)
     (fun E hE => hnot ⟨E, hE⟩),
     r.mono (P := fun s => s.decided j e = true)
       (fun m hm => Mvba.decided.mono (r.steps m) j e hm) hdec n hn⟩
-
-/-- **Link 8, `decide` (a first delivery, `Δ`): a correct validator
-decides** within `Δ` of a commit certificate first obtained at or after
-GST — its first holder decides and Chorus broadcasts it
-(`lem:decision-propagation`). -/
-theorem within_decided (hbj : BoundedJustice sch r)
-    {i : node} (hi : ¬ nset.is_byz i = true) {W : view} {e : value}
-    {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.Δ ≤ B)
-    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    (hqc : (r.at' N).msg_commitqc W e = true)
-    (hsince : SinceGst r (fun s => s.msg_commitqc W e = true))
-    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true) :
-    r.WithinFrom N B (fun s => ∃ E, s.decided i E = true) := by
-  refine withinFrom_of_boundedFairWhile (hbj.first (.decide i W e) rfl hsince)
-    (ref_add_le hgst hB) (fun _ _ h => ⟨e, decide_effect h⟩) ?_
-  intro n hn hclk hnot
-  exact ⟨enabled_decide hi
-    ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
-      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩ (hwin n hn hclk)
-    (r.mono (P := fun s => s.msg_commitqc W e = true)
-      (fun m hm => Mvba.msg_commitqc.mono (r.steps m) W e hm) hqc n hn)
-    (fun E hE => hnot ⟨E, hE⟩), trivial⟩
 
 end Links
 
@@ -860,7 +838,7 @@ theorem good_view_decides
     · exact ⟨p, hp, N₀, le_rfl, le_add_of_nonneg_right hL0, E,
         r.mono (P := fun s => s.decided p E = true)
           (fun m hm => Mvba.decided.mono (r.steps m) p E hm) hE N₀ h⟩
-  obtain ⟨hbj, htp, hav⟩ := hsync
+  obtain ⟨hbj, htp, hav, -⟩ := hsync
   have hfirst : ∀ (n : Nat) (j : node), ¬ nset.is_byz j = true →
       (r.at' n).entered j W = true → N₀ ≤ n := fun n j hj h =>
     hfirstAbove n j W hj (vord.le_refl W) h
