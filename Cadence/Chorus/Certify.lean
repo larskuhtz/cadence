@@ -2,6 +2,8 @@ import Cadence.Chorus.Proofs.Init
 import Cadence.Chorus.Proofs.AdvanceToDeadline
 import Cadence.Chorus.Proofs.AdvanceToFbArm
 import Cadence.Chorus.Proofs.AdvanceToMvbaArm
+import Cadence.Chorus.Proofs.Participate
+import Cadence.Chorus.Proofs.Abandon
 import Cadence.Chorus.Proofs.Propose
 import Cadence.Chorus.Proofs.DeliverChunkAssigned
 import Cadence.Chorus.Proofs.RecordChunk
@@ -68,6 +70,6 @@ theorem in the import closure, over exactly the standard axioms. Run `#veil_stat
 interactively for the per-cell table (theorem, defining file, per-cell
 axiom set; expect minutes at this scale). -/
 
-/-- info: #veil_status Chorus: 4222/4222 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Chorus: 4428/4428 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Chorus

@@ -36,7 +36,7 @@ namespace Chorus.Proofs
   veil_inv_have h_vote_unique_pos := vote_unique_pos
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_pos_mvba_consistent := commitqc_pos_mvba_consistent
-  intro hsup_q hq J M1 M2 hqc hmv
+  intro _hc hsup_q hq J M1 M2 hqc hmv
   by_cases hnew : j = J ∧ m = M1
   · obtain ⟨rfl, rfl⟩ := hnew
     obtain ⟨a, ha_mem, ha_hon⟩ :=
@@ -59,7 +59,7 @@ namespace Chorus.Proofs
 #prove_vc Chorus broadcast_commitqc_pos progress_fallback_signing by
   unveil_local
   veil_inv_have h_progress_fallback_signing := progress_fallback_signing
-  intro _hsup_q _hq
+  intro _hc _hsup_q _hq
   exact h_progress_fallback_signing
 
 #prove_action Chorus broadcast_commitqc_pos

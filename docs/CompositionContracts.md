@@ -230,7 +230,7 @@ meta-block is certified (what enables the handlers) —
   `proposal_inclusion` are the model's proofs through the named reachability
   projections; `on_time` is `all_honest_recorded`; the step-level fields
   (`finalized_mono`, `on_time_mono`, `init_finalized`) rest on four uniform
-  two-state lemmas over all 40 actions — including that a committed
+  two-state lemmas over all 42 actions — including that a committed
   validator's entries are *frozen*, because `commit_assign_*` require
   `¬ local_committed i`.
 * **`Mvba.mvbaSafety th : MVBASafety node value (Mvba.State …) (fun i =>
@@ -317,12 +317,32 @@ it, so it sits in `OrchestratorSafety` (`integrity_timing`, from `safety
 [opened_after_start]`) — which is why that fragment carries `time`.
 
 **`SlotConsensusTemporal … (S := Chorus.slotConsensusSafety th)`** — the
-largest of the three. Chorus models none of `mod:slotconsensus`'s
-participation interface (`participate`/`abandon`/`propose` and their
-observables), no clock and no message type, so all of that is owed, together
-with Termination and Quiescence. Hiding's protocol half is first-order and
-Chorus proves it, so `deadline_passed`, `payload_recoverable` and
-`hiding_residue` sit in `SlotConsensusSafety`.
+largest of the three. Since the participation edit
+([Bounds.md](Bounds.md) §6.4.6, S1) Chorus models `mod:slotconsensus`'s
+participation interface: `participate` and `abandon` are input actions over
+per-validator `participating`/`abandoned` state, `propose` is the third
+input, and every sending rule is gated on active participation. What is
+owed is that interface *as contract fields* (its observables, effects,
+frames and initial conditions), the clock and the admissible-run model, a
+message type, Termination over timed runs (proven untimed as
+`Chorus.termination`, whose two caller premises are exactly
+`termination`'s antecedents), and Quiescence in one-step form over the
+gates. Hiding's protocol half is first-order and Chorus proves it, so
+`deadline_passed`, `payload_recoverable` and `hiding_residue` sit in
+`SlotConsensusSafety`.
+
+**One consequence for the composed system.** The instance now separates
+internal steps from inputs: its `step` is every transition whose label is
+not an input (`Chorus.Label.isInput`), which is what the upper level's
+frames ("internal steps do not change a correct validator's inputs") need.
+The glue's oracle step `sc_step` requires `sc.step`, so in the composed
+system ([System.lean](../Cadence/System.lean)) the glue can no longer take a Chorus input
+transition, and Chorus stays inert: no correct validator ever participates.
+That lasts until the composition leg gives the glue its own `participate`,
+`propose` and `abandon` actions, driving the contract's inputs the way the
+Conductor's handlers drive the ACS's. The glue's safety theorem is
+unaffected: it is generic in the fragment, and inertness only removes
+behaviours.
 
 **`MVBATemporal … (S := Mvba.mvbaSafety th)` is proven**, as
 `Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)):

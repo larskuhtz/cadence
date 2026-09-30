@@ -54,13 +54,26 @@ all consumed through the named reachability projections of
 [Chorus/Certify.lean](Certify.lean) (emitted by `#gen_composition` from
 the proof-file family's preservation lemmas).
 
-**What stays unproven.** Chorus models neither the participation interface
-of `mod:slotconsensus` (`participate`/`abandon`/`propose` are absent — the
-model is single-slot and its participation window is Cadence-driven) nor
-time, and it has no message type at the interface. So the upper level's
-inputs, their observables, the clock, the admissible-run model, Termination
+**Internal steps and inputs.** Chorus models `mod:slotconsensus`'s three
+inputs as actions (`participate`, `abandon`, and the proposer's `propose`),
+so the instance separates them: `trans` is every transition, and `step`,
+the contract's internal steps, is every transition whose label is not an
+input (`Label.isInput`). That split is what the upper level's frames need
+("internal steps do not change a correct validator's inputs").
+
+It has a consequence for the composed system ([CompositionContracts.md](../../docs/CompositionContracts.md)
+§5). The glue's oracle step `sc_step` requires `sc.step`, so it can no
+longer take an input transition. The composed system's Chorus is therefore
+inert until the glue drives `participate`, `propose` and `abandon` itself,
+which is the composition leg's work. Glue safety is unaffected: the glue's
+theorems are generic in the fragment, and inertness only removes
+behaviours.
+
+**What stays unproven.** Chorus models no time and has no message type at
+the interface. So the upper level's inputs and observables as contract
+fields, the clock, the admissible-run model, Termination over timed runs
 and Quiescence are the fields of `SlotConsensusTemporal`, of which this
-development has no instance —
+development has no instance yet ([Bounds.md](../../docs/Bounds.md) §6.4.6, S5) —
 `slotConsensus_of_temporal` proves that, given one, Chorus is a full
 `SlotConsensus`, discharging on the way the one upper-level field Chorus
 *does* prove: the protocol half of Hiding (`safety [hiding_until_deadline]`,
@@ -82,6 +95,34 @@ inside Veil. -/
 
 namespace Chorus
 open Classical ByzNodeSet
+
+section Inputs
+
+variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+
+/-- The labels of the module's three inputs, `participate()`, `abandon()`
+and `propose(P)` (`mod:slotconsensus`); every other label is an internal
+step of the protocol. The contract's `step` is the internal steps, so that
+its frames ("internal steps do not change a correct validator's inputs")
+are about exactly them. -/
+def Label.isInput :
+    Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
+  | .participate _ => True
+  | .abandon _ _ => True
+  | .propose _ _ => True
+  | _ => False
+
+/-- `Label.isInput` names the three input constructors, in a form that
+survives leaving this module (at this many constructors the definition's
+`match` does not reduce in an importing file; consumers case on this lemma,
+as [Chorus/Liveness.lean](Liveness.lean) does). -/
+theorem Label.isInput_cases
+    {l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice}
+    (h : Label.isInput l) :
+    (∃ i, l = .participate i) ∨ (∃ i n, l = .abandon i n) ∨ (∃ j m, l = .propose j m) := by
+  cases l <;> simp_all [Label.isInput]
+
+end Inputs
 
 section Instance
 
@@ -254,10 +295,11 @@ noncomputable def slotConsensusSafety :
       (fun i => nset.is_byz i = true) where
   init p := (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).assumptions th ∧
     (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).init th p.2
-  step p p' := p.1 = p'.1 ∧ (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).next th p.2 p'.2
+  step p p' := p.1 = p'.1 ∧ ∃ l, ¬ Label.isInput l ∧
+    (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th p.2 l p'.2
   trans p p' := p.1 = p'.1 ∧ (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).next th p.2 p'.2
   reachable p := (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).reachable th p.2
-  step_trans _ _ h := h
+  step_trans _ _ h := ⟨h.1, h.2.choose, h.2.choose_spec.2⟩
   reachable_init p h := Veil.RelationalTransitionSystem.reachable.init p.2 h.1 h.2
   reachable_trans p p' hr hn := Veil.RelationalTransitionSystem.reachable.step p.2 p'.2 hr hn.2
   tag p := p.1
@@ -334,16 +376,17 @@ noncomputable def slotConsensusSafety :
 
 /-! ### What the full `SlotConsensus` still owes
 
-Chorus has no participation interface, no clock and no message type at the
-contract's level of abstraction. What stands between the fragment above and
-the full `SlotConsensus` is therefore an instance of
+Chorus has no clock and no message type at the contract's level of
+abstraction. What stands between the fragment above and the full
+`SlotConsensus` is therefore an instance of
 **`SlotConsensusTemporal … (S := slotConsensusSafety th)`** — and there is
-none. Its fields are exactly that missing interface (`participate`,
-`abandon`, `propose` with their observables and frames) together with the
-clock, the admissible-run model, Termination ((A-sc-termination) of
-[Architecture.md](../../docs/Architecture.md) §4 item 4) and
-Quiescence, whose participation-window statement needs the interface Chorus
-lacks — its in-model shadow being phase confinement.
+none yet. Its fields are the participation interface as contract fields
+(`participate`, `abandon`, `propose` with their observables and frames,
+which the model now has as actions and state), together with the clock,
+the admissible-run model, Termination ((A-sc-termination) of
+[Architecture.md](../../docs/Architecture.md) §4 item 4, proven untimed as
+`Chorus.termination`) and Quiescence, whose one-step statement over the
+model's participation gates is still to be proven.
 
 Because every one of those fields is already stated over
 `(slotConsensusSafety th)`'s own `init`, `trans`, `reachable` and

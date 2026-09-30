@@ -114,6 +114,7 @@ network relations. Auditing Chorus, the property split is:
 | `mvba_decided_*`, `mvba_complete` | ✓ | ✓ for honest actions' network-style reads; `cast_fb_commit`'s post-termination read is a scoped exception (see below). The records are written by the decision handlers, which never read them |
 | `phase : Phase` enum | (forward-only, see below) | ✓ |
 | `local_entry_pos/neg`, `local_voted`, `local_path`, `local_committed*` | ✓ | ✗ |
+| `participating`, `abandoned` | ✓ (written only by the inputs `participate i` / `abandon i`) | ✗ — the participation gate `participating i ∧ ¬ abandoned i` of every sending rule, read at the acting validator (for `broadcast_commitqc_*` and `redisseminate_chunk`, the sender parameter) |
 
 (M-update) is syntactic for every relation in the table: each write is the
 literal `true`, except `vote`'s bulk updates of `msg_vote_pos_sig`,
@@ -331,9 +332,12 @@ establish, and prove the protocol consequence asynchronously:
   preconditions like "fallback entries are signed at or after the
   fallback arm" without committing to a clock model.
 * **The Conductor layer** — Chorus is one slot. Pipelining via the
-  Conductor and the `participate()`/`abandon()` interface through which
-  Cadence drives slot instances are out of scope *of this module*; they
-  are modelled separately in [Cadence/Conductor.lean](../Cadence/Conductor.lean) and
+  Conductor is out of scope *of this module*. The `participate()` /
+  `abandon()` interface through which Cadence drives a slot instance is
+  modelled here as two input actions, with the participation gate on every
+  sending rule (the model's "Participation inputs" section); *who* invokes
+  them, and when, is the glue's business. The Conductor and the glue are
+  modelled separately in [Cadence/Conductor.lean](../Cadence/Conductor.lean) and
   [Cadence/Cadence.lean](../Cadence/Cadence.lean) against the module contracts of
   [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) (see
   [ConductorDesign.md](ConductorDesign.md) and those files' headers).
@@ -443,6 +447,7 @@ row indexed by the acting validator.
 | `local_path i : PathChoice` | `i`'s `pathVote ∈ {none, fast, fallback}`. |
 | `local_fastqc_pos i j m`, `local_fastqc_neg i j` | `i` has aggregated `Ev(j)` as a FastQC (`line:fast-formqc`). Kept per-validator (unlike the transferable certificates) because an honest commit signature is justified by *the signer's own* FastQC observation. |
 | `local_committed i`, `local_committed_pos i j m`, `local_committed_neg i j` | `i`'s finalization decision. |
+| `participating i`, `abandoned i` | `i` has invoked the slot-consensus inputs `participate()` / `abandon()` (`mod:slotconsensus`); written only by the input actions of the same name. Named as the contract's observables rather than `local_*`. Every sending rule reads them at its own sender (the participation gate), which is a local read. |
 | `local_fb_neg_qv i j qv` | *auxiliary (proof-only) history variable*: the witnessed vote quorum against which `i` cast its negative fallback entry (the `qv` parameter of `fb_sign_neg` at firing time). Written by `fb_sign_neg`, read by no action; it lets the speculative-safety invariants refer to the quorum after the fact without a quantifier alternation that breaks the SMT matcher. |
 
 Cross-validator agreement that a "global QC" idiom would give
@@ -965,9 +970,12 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
   are derived, not assumed: (i) *all correct validators propose* is chain
   step 4 (the per-validator implementation refinement of the build step is
   the receipt layer — §7.2, [Architecture.md](Architecture.md) §5); (ii)
-  *no correct validator abandons before deciding* holds because this
-  single-slot model never drives `abandon()` (within Cadence, Conductor
-  totality discharges it, `cor:chorus-correctness-within-cadence`).
+  *no correct validator abandons before deciding* holds on the branch of
+  the proof that needs the MVBA, where no correct validator ever finalizes:
+  by the caller premise `NoAbandonBeforeFinalizing` none abandons Chorus,
+  and the MVBA's `abandon()` is invoked only by Chorus's `abandon`
+  (`line:fb-abandon`). Within Cadence the glue abandons only after
+  finalizing (`line:abandon`).
 * **The validity bridge** (`ValidBridge`) — the MVBA's `Valid` agrees with
   Chorus's certificate check, in both directions: a certified meta-block is
   `Valid`, and a decided one is certified. This is the cryptographic seam

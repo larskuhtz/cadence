@@ -2181,7 +2181,19 @@ Each stage is its own commit, and the work can stop after any of them.
 Stages 1 and 2 are cheap and move the pin. Stages 3 and 4 are the liveness
 work. Stage 5 records the result.
 
-1. **Contract prose: one edit of [Interfaces.lean](../Cadence/Interfaces.lean).**
+1. **Done** (2026-09-29, folded into the Chorus participation edit,
+   [Bounds.md](Bounds.md) §6.4.6 S1, as that plan asked: one Interfaces.lean
+   edit and one Chorus-family re-solve). The `mod:mvba` block and the
+   `agreement` docstring say the three things below. The
+   `mod:slotconsensus` `termination` row names `Chorus.termination` and its
+   five premises, with the timed field still open. The (A-mvba) mentions in
+   Chorus.lean's liveness section and in FallbackReceipt.lean's header are
+   aligned. The check changed with the bundling: the Chorus family re-solved
+   cold, because the same edit moved every Chorus VC statement, and the
+   `#veil_status Chorus` pin moved with the model. The Mvba pins did not
+   move. The original plan follows.
+
+   **Contract prose: one edit of [Interfaces.lean](../Cadence/Interfaces.lean).**
    The `mod:mvba` block and the `agreement` docstring should say three
    things:
    * the paper's module now states Agreement over `entries` (paper commit

@@ -402,7 +402,7 @@ measurements and the audit ladder:
   in the model, for a fact that needs the guards or the invariants at the
   pre-state; it is checked per action like an invariant and exported as
   `<Module>.<name>_step` / `<Module>.reachable_<name>_step`. It costs one
-  cell per action — 40 on Chorus — so state them for what the contracts
+  cell per action — 42 on Chorus — so state them for what the contracts
   need, not for every monotone relation. (3) **By hand from the transition
   bodies**, only for what neither covers (a single-action effect, a pointwise
   frame): dispatch the label, expose the body with `simp only [trSimp]`, and
@@ -436,7 +436,7 @@ is a change to what this project *claims*, not a refactor.
 * **No `sorryAx` anywhere.** Every axiom pin stays at exactly
   `[propext, Classical.choice, Quot.sound]`, in every per-result pin and
   in [`Cadence.lean`](./Cadence.lean).
-* **The audit pins stay complete**: `#veil_status Chorus` at `4222/4222 real`,
+* **The audit pins stay complete**: `#veil_status Chorus` at `4428/4428 real`,
   `#veil_status FallbackReceipt` at `220/220 real` and `#veil_status Mvba`
   at `1325/1325 real`. If an invariant **or a `step_property`** is added, these
   numbers change — a step property costs one cell per action — so update the

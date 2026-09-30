@@ -63,7 +63,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   the object the glue consumes as its `sc` constraint
 * **`Chorus.slotConsensus_of_temporal`** ([Chorus/Compose.lean](Cadence/Chorus/Compose.lean)) —
   given an instance of `SlotConsensusTemporal` **at the proven fragment** —
-  the participation interface, the admissible-run model, Termination and
+  the participation interface as contract fields (the model has it as
+  actions and state), the admissible-run model, Termination and
   Quiescence — Chorus is a full `SlotConsensus`. This development has no such
   instance, and that is the statement of what is *not* proven about Chorus as
   a slot consensus: the class's own fields, over Chorus's own transition
@@ -98,7 +99,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   = 3f+1`
 * **`Chorus.termination`** ([Chorus/Termination.lean](Cadence/Chorus/Termination.lean)) — **Chorus
   terminates**: every correct validator finalizes the slot, in every run
-  satisfying three premises, for **every** `n = 3f+1`, at the configuration
+  satisfying five premises, for **every** `n = 3f+1`, at the configuration
   the composed system runs (`Cadence.chorusTheory`, with the `Mvba` model
   as its MVBA). The untimed form of `lemma:chorus-termination`, with the
   `5Δ + ℓ_MVBA` bound erased. The premises, each a named definition in
@@ -108,9 +109,15 @@ Each entry is the result, the file its statement lives in, and what it says.
     `Mvba.termination` requires;
   * `ValidBridge`: the MVBA's validity check agrees with Chorus's
     certificates — the cryptographic seam between the two models, not a
-    fairness assumption.
+    fairness assumption;
+  * `AllParticipate`: every correct validator eventually invokes
+    `participate()`;
+  * `NoAbandonBeforeFinalizing`: no correct validator invokes `abandon()`
+    before it has finalized.
 
-  The MVBA's termination is not assumed: the proof applies
+  The last two are the caller's conditions, exactly the antecedents of the
+  contract's `SlotConsensusTemporal.termination`; within Cadence the glue
+  meets them. The MVBA's termination is not assumed: the proof applies
   `Mvba.termination` to the run's MVBA steps. Hypotheses: at most `f`
   Byzantine validators among `Fin n`, `ViewOrderEnum`.
   [Liveness.md](docs/Liveness.md) §2 explains each premise in short
