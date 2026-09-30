@@ -219,6 +219,12 @@ theorem timer_set_label {l : Mvba.Label node nodeset value view} {i : node} {v :
   case form_tc_lock => rw [Mvba.form_tc_lock.frame_timer_expired htr] at h1; exact absurd h1 h0
   case form_tc_nolock =>
     rw [Mvba.form_tc_nolock.frame_timer_expired htr] at h1; exact absurd h1 h0
+  case form_own_commitqc =>
+    rw [Mvba.form_own_commitqc.frame_timer_expired htr] at h1; exact absurd h1 h0
+  case form_own_tc_lock =>
+    rw [Mvba.form_own_tc_lock.frame_timer_expired htr] at h1; exact absurd h1 h0
+  case form_own_tc_nolock =>
+    rw [Mvba.form_own_tc_nolock.frame_timer_expired htr] at h1; exact absurd h1 h0
   case sync_view => rw [Mvba.sync_view.frame_timer_expired htr] at h1; exact absurd h1 h0
   case sync_view_adopt =>
     rw [Mvba.sync_view_adopt.frame_timer_expired htr] at h1; exact absurd h1 h0
@@ -374,6 +380,12 @@ theorem preprepare_set_entered {l : Mvba.Label node nodeset value view} {L : nod
     rw [Mvba.form_tc_lock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case form_tc_nolock =>
     rw [Mvba.form_tc_nolock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
+  case form_own_commitqc =>
+    rw [Mvba.form_own_commitqc.frame_msg_preprepare htr] at h1; exact absurd h1 h0
+  case form_own_tc_lock =>
+    rw [Mvba.form_own_tc_lock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
+  case form_own_tc_nolock =>
+    rw [Mvba.form_own_tc_nolock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case sync_view =>
     rw [Mvba.sync_view.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case sync_view_adopt =>
@@ -613,7 +625,7 @@ theorem within_accepted (hbj : BoundedJustice sch r)
       InView (r.at' n) i W ∧ ¬ (r.at' n).timed_out i W = true) :
     r.WithinFrom N B (fun s => s.accepted i W e = true) := by
   refine withinFrom_of_boundedFairWhile
-    (hbj.first (.handle_preprepare i L PV W e) i rfl hi ⟨hL, hsince, hret⟩)
+    (hbj.first (.handle_preprepare i L PV W e) rfl ⟨hL, hsince, hret⟩)
     (ref_add_le hgst hB) (fun _ _ h => (handle_preprepare_effect h).1) ?_
   intro n hn hclk hnot
   obtain ⟨hall, hview, hnto⟩ := hwin n hn hclk
@@ -653,7 +665,7 @@ theorem within_local_prepqc (hbj : BoundedJustice sch r)
       InView (r.at' n) i W ∧ ¬ (r.at' n).timed_out i W = true) :
     r.WithinFrom N B (fun s => s.local_prepqc i W e = true) := by
   refine withinFrom_of_boundedFairWhile
-    (hbj.first (.adopt_prepqc i W e q) i rfl hi ⟨hQ, hsince, hret⟩)
+    (hbj.first (.adopt_prepqc i W e q) rfl ⟨hQ, hsince, hret⟩)
     (ref_add_le hgst hB) (fun _ _ h => adopt_prepqc_effect h) ?_
   intro n hn hclk hnot
   obtain ⟨hallA, hab, hview, hnto⟩ := hwin n hn hclk
@@ -695,24 +707,32 @@ theorem within_msg_commit (hbj : BoundedJustice sch r)
     (r.mono (P := fun s => s.avail_ready i e = true)
       (fun m hm => Mvba.avail_ready.mono (r.steps m) i e hm) hav n hn)
 
-/-- **Link 7, `form_commitqc` (a first delivery, `Δ`): the commit
-certificate forms**, under the conditions of link 4. -/
+/-- **Link 7, `form_own_commitqc` (a first delivery, `Δ`): a correct
+validator forms the commit certificate and decides**, from a correct
+quorum's `Commit`s sent at or after GST that it retained, while it is in
+the view (the supplement's `TryFormCommitQC` and `Decide`). Its guard
+`DecidedQC_i = ⊥` is the window's `AllActive`. -/
 theorem within_commitqc (hbj : BoundedJustice sch r)
     {W : view} {e : value} {q : nodeset} (hsm : nset.supermajority q)
     (hQ : CorrectQuorum (node := node) q) {i : node} (hi : ¬ nset.is_byz i = true)
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.Δ ≤ B)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hall : ∀ p, nset.member p q = true → (r.at' N).msg_commit p W e = true)
     (hsince : SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p W e = true))
     (hret : RetainedBy r i W (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p W e = true))
-    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → AllActive (r.at' n) ∧ NotPast (r.at' n) i W) :
-    r.WithinFrom N B (fun s => s.msg_commitqc W e = true) := by
+    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → AllActive (r.at' n) ∧ InView (r.at' n) i W) :
+    r.WithinFrom N B (fun s => s.decided i e = true ∧ s.msg_commitqc W e = true) := by
   refine withinFrom_of_boundedFairWhile
-    (hbj.first (.form_commitqc W e q) i rfl hi ⟨hQ, hsince, hret⟩)
-    (ref_add_le hgst hB) (fun _ _ h => form_commitqc_effect h) ?_
+    (hbj.first (.form_own_commitqc i W e q) rfl ⟨hQ, hsince, hret⟩)
+    (ref_add_le hgst hB)
+    (fun _ _ h => ⟨(form_own_commitqc_effect h).2, (form_own_commitqc_effect h).1⟩) ?_
   intro n hn hclk _
-  exact ⟨enabled_form_commitqc hsm (fun p hp => r.mono (P := fun s => s.msg_commit p W e = true)
-    (fun m hm => Mvba.msg_commit.mono (r.steps m) p W e hm) (hall p hp) n hn),
-    hwin n hn hclk⟩
+  obtain ⟨hallA, hview⟩ := hwin n hn hclk
+  exact ⟨enabled_form_own_commitqc hi
+    ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩ (hallA i hi) hview hsm
+    (fun p hp => r.mono (P := fun s => s.msg_commit p W e = true)
+      (fun m hm => Mvba.msg_commit.mono (r.steps m) p W e hm) (hall p hp) n hn), hallA⟩
 
 /-- **Link 8 by transfer, `decide` (a retransmission, `Δ + ρ`): a correct
 validator decides** within `Δ + ρ` of the reference time `ref N`, once some
@@ -753,7 +773,7 @@ theorem within_decided (hbj : BoundedJustice sch r)
     (hsince : SinceGst r (fun s => s.msg_commitqc W e = true))
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true) :
     r.WithinFrom N B (fun s => ∃ E, s.decided i E = true) := by
-  refine withinFrom_of_boundedFairWhile (hbj.first (.decide i W e) i rfl hi hsince)
+  refine withinFrom_of_boundedFairWhile (hbj.first (.decide i W e) rfl hsince)
     (ref_add_le hgst hB) (fun _ _ h => ⟨e, decide_effect h⟩) ?_
   intro n hn hclk hnot
   exact ⟨enabled_decide hi
@@ -765,7 +785,7 @@ theorem within_decided (hbj : BoundedJustice sch r)
 
 end Links
 
-/-! ## The good view decides within `Lcert + Δ` -/
+/-! ## The good view decides within `Lcert` -/
 
 section GoodView
 
@@ -782,12 +802,14 @@ Let `W` be a view above the first with a correct leader `L` and a budget
 validator has entered a view at or above `W` — at which every correct
 validator had reached `W − 1` (the one-view retention) — its clock
 `E₀ := clk N₀` at or after GST. If every
-correct validator has proposed by `N₀`, none is abandoned at a clock at
-or before `E₀ + Lcert + Δ` and none has decided at a clock at or before
-`E₀ + Lcert` (a decided validator halts, so it would not take part in the
-chain), then under the three clauses a commit certificate
-of `W` exists by `E₀ + Lcert` and every correct validator has decided by
-`E₀ + Lcert + Δ`.
+correct validator has proposed by `N₀` and none is abandoned at a clock at
+or before `E₀ + Lcert`, then under the three clauses **some correct
+validator has decided by `E₀ + Lcert`**. Either one already has — a decided
+validator halts, so the chain below may use only validators that have
+not — or none has, and the chain runs to its last link, where a correct
+validator in `W` forms the commit certificate and decides in the same
+step (`TryFormCommitQC` and `Decide`). Everyone else learns the decision by
+transfer, which `bounded_termination` adds.
 
 The milestones, each one timed link (the `≤` are clock bounds, `t₃` the
 acceptance deadline):
@@ -801,8 +823,8 @@ acceptance deadline):
   `Prepare`s — `+ Δ`, and has its shares by `t₃ + Δsync` ((Δ-avail)); both
   by `t₃ + max Δ Δsync`;
 * each member's `Commit` — `+ δ`;
-* the commit certificate — `+ Δ`, which is `E₀ + Lcert`;
-* every correct validator decided — `+ Δ`, the certificate's transfer.
+* the commit certificate, formed by `i₀` from the quorum's `Commit`s, and
+  `i₀`'s decision — `+ Δ`, which is `E₀ + Lcert`.
 
 The quorum steps collapse a family of per-member deadlines into one index by
 `TLRun.withinFrom_forall` over the honest quorum's member list. -/
@@ -821,16 +843,30 @@ theorem good_view_decides
     (hgst : r.gst ≤ r.clk N₀)
     (hin : ∀ p, ¬ nset.is_byz p = true → ∃ E, (r.at' N₀).input p E = true)
     (hnab : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true →
-      r.clk n ≤ r.clk N₀ + Lcert sch.Δ sch.δ sch.Δsync + sch.Δ →
-        ¬ (r.at' n).abandoned p = true)
-    (hnodec : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true →
-      r.clk n ≤ r.clk N₀ + Lcert sch.Δ sch.δ sch.Δsync → ∀ E, ¬ (r.at' n).decided p E = true) :
-    ∃ e : value,
+      r.clk n ≤ r.clk N₀ + Lcert sch.Δ sch.δ sch.Δsync →
+        ¬ (r.at' n).abandoned p = true) :
+    ∃ j : node, ¬ nset.is_byz j = true ∧
       r.WithinFrom N₀ (r.clk N₀ + Lcert sch.Δ sch.δ sch.Δsync)
-        (fun s => s.msg_commitqc W e = true) ∧
-      ∀ q, ¬ nset.is_byz q = true →
-        r.WithinFrom N₀ (r.clk N₀ + Lcert sch.Δ sch.δ sch.Δsync + sch.Δ)
-          (fun s => ∃ E, s.decided q E = true) := by
+        (fun s => ∃ E, s.decided j E = true) := by
+  by_cases hdec : ∃ j : node, ¬ nset.is_byz j = true ∧
+      r.WithinFrom N₀ (r.clk N₀ + Lcert sch.Δ sch.δ sch.Δsync)
+        (fun s => ∃ E, s.decided j E = true)
+  · exact hdec
+  /- Nobody correct has decided by `E₀ + Lcert` — before `N₀` either, since a
+  decision stands. So every correct validator takes part in the chain. -/
+  have hL0 : (0 : time) ≤ Lcert sch.Δ sch.δ sch.Δsync :=
+    add_nonneg (add_nonneg (nsmul_nonneg (le_of_lt sch.Δ_pos) 3)
+      (le_trans sch.Δsync_nonneg (le_max_right _ _))) (nsmul_nonneg sch.δ_nonneg 2)
+  have hnodec : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true →
+      r.clk n ≤ r.clk N₀ + Lcert sch.Δ sch.δ sch.Δsync → ∀ E,
+        ¬ (r.at' n).decided p E = true := by
+    intro p n hp hc E hE
+    apply hdec
+    rcases Nat.le_total N₀ n with h | h
+    · exact ⟨p, hp, n, h, hc, E, hE⟩
+    · exact ⟨p, hp, N₀, le_rfl, le_add_of_nonneg_right hL0, E,
+        r.mono (P := fun s => s.decided p E = true)
+          (fun m hm => Mvba.decided.mono (r.steps m) p E hm) hE N₀ h⟩
   obtain ⟨hbj, htp, hav⟩ := hsync
   have hfirst : ∀ (n : Nat) (j : node), ¬ nset.is_byz j = true →
       (r.at' n).entered j W = true → N₀ ≤ n := fun n j hj h =>
@@ -878,7 +914,7 @@ theorem good_view_decides
     fun n h => entered_le_before_budget htp hfirst (lt_of_le_of_lt h hTτ)
   have hnab' : ∀ (p : node) (n : Nat), ¬ nset.is_byz p = true → r.clk n ≤ T →
       Active (r.at' n) p := fun p n hp h =>
-    ⟨hnab p n hp (hTL ▸ le_trans h (le_add_of_nonneg_right hΔ)), hnodec p n hp (hTL ▸ h)⟩
+    ⟨hnab p n hp (hTL ▸ h), hnodec p n hp (hTL ▸ h)⟩
   have hall' : ∀ n, r.clk n ≤ T → AllActive (r.at' n) := fun n h p hp => hnab' p n hp h
   /- The network clauses' conditions. Every message the chain waits for was
   sent from inside `W`, so after `N₀`: at or after GST, and when every
@@ -904,11 +940,6 @@ theorem good_view_decides
       (r.at' n).msg_commit p W e = true → N₀ ≤ n := fun p e n hp hc =>
     hvoted p n hp (Mvba.reachable_accepted_implies_voted (r.reachable n) p W e hp
       (Mvba.reachable_honest_commit_accepted (r.reachable n) p W e hp hc).1)
-  have hcommitqN : ∀ (e : value) n, (r.at' n).msg_commitqc W e = true → N₀ ≤ n := fun e n hqc => by
-    obtain ⟨q, hq, hall⟩ := Mvba.reachable_commitqc_backed (r.reachable n) W e hqc
-    obtain ⟨p, hpq, hp⟩ := nset.greater_than_third_one_honest q
-      (nset.supermajority_greater_than_third _ hq)
-    exact hcommitN p e n hp (hall p hpq)
   /- Settled in `W` on the prefix, once entered. -/
   have hset : ∀ (p : node), ¬ nset.is_byz p = true → ∀ N, (r.at' N).entered p W = true →
       ∀ n, N ≤ n → r.clk n ≤ T → Active (r.at' n) p ∧
@@ -1028,22 +1059,16 @@ theorem good_view_decides
             (fun n hn h => hwin n (Nat.le_trans hNc hn) (le_trans h h₆T))
         exact ⟨c, Nat.le_trans hNc hc', hcc, hcm⟩)
   have hN₆' : N₀ ≤ N₆ := Nat.le_trans hN₃' hN₆
-  /- (7) The commit certificate by `T = E₀ + Lcert`. -/
-  obtain ⟨n₇, hn₇, hc₇, hcqc⟩ :=
-    within_commitqc hbj hQs hQc hi₀ (hgstN N₆ hN₆') (hT ▸ add_le_add hc₆ le_rfl)
+  /- (7) `i₀`, in `W` since `N₀`, forms the commit certificate from the
+  honest quorum's `Commit`s and decides, by `T = E₀ + Lcert`. -/
+  obtain ⟨E₆, hE₆⟩ := hinN i₀ hi₀ N₆ hN₆'
+  obtain ⟨n₇, hn₇, hc₇, hdec₇, -⟩ :=
+    within_commitqc hbj hQs hQc hi₀ (hgstN N₆ hN₆') (hT ▸ add_le_add hc₆ le_rfl) hE₆
       (fun p hp => hall₆ p ((enum.mem_members p _).mp hp))
       (hsinceP _ (fun n ⟨p, hp, hc⟩ => hcommitN p e n (hQc p hp) hc))
       (hretP _ (fun n ⟨p, hp, hc⟩ => hcommitN p e n (hQc p hp) hc) i₀ hi₀)
-      (fun n _ h => ⟨hall' n h, fun V hV => hbound n h i₀ V hi₀ hV⟩)
-  have hN₇ : N₀ ≤ n₇ := Nat.le_trans hN₆' hn₇
-  refine ⟨e, ⟨n₇, hN₇, hTL ▸ hc₇, hcqc⟩, fun q hq => ?_⟩
-  /- (8) Every correct validator decides by `T + Δ`: the certificate is
-  obtained after `N₀`, hence after GST. -/
-  obtain ⟨E, hE⟩ := hinN q hq n₇ hN₇
-  obtain ⟨n₈, hn₈, hc₈, hdec⟩ :=
-    within_decided hbj hq (hgstN n₇ hN₇) (add_le_add hc₇ le_rfl) hE hcqc
-      (hsinceP _ (hcommitqN e)) (fun n _ h => hnab q n hq (hTL ▸ h))
-  exact ⟨n₈, Nat.le_trans hN₇ hn₈, hTL ▸ hc₈, hdec⟩
+      (fun n hn h => ⟨hall' n h, (hset i₀ hi₀ N₀ hent₀ n (Nat.le_trans hN₆' hn) h).2.1⟩)
+  exact ⟨i₀, hi₀, n₇, Nat.le_trans hN₆' hn₇, hTL ▸ hc₇, e, hdec₇⟩
 
 end GoodView
 

@@ -122,7 +122,13 @@ certificate from the `Prepare`s it received itself, since prepare
 certificates do not travel (the supplement's `TryFormPrepQC`; the model's
 guard reads the prepares since R3, [Bounds.md](../../docs/Bounds.md)
 §6.2.4, (N4)). Until then it was a local step that consumed a certificate
-formed anywhere. -/
+formed anywhere.
+
+The commit and timeout certificates are network hops at the validator
+that forms them, `form_own_commitqc` and `form_own_tc_*` (the supplement's
+`TryFormCommitQC` and `HandleTimeout`), since R4. Before, the table timed
+the anonymous assemblies, which are the adversary's and carry no bound
+([Bounds.md](../../docs/Bounds.md) §6.4.7). -/
 
 section Hops
 
@@ -136,7 +142,8 @@ inductive Hop where
 
 /-- **The hop table.** `some .net` for a step that consumes another party's
 message, `some .loc` for a local step, `none` for a label under no bound —
-the adversary's, the timer's, the availability layer's and the caller's.
+the adversary's, the anonymous assemblies (the adversary's capability too,
+`AssemblyLabel`), the timer's, the availability layer's and the caller's.
 
 Written with a wildcard so that an action added to the model lands on
 `none`: under no bound, hence *weakening* the premise set rather than
@@ -145,11 +152,10 @@ exactly `JusticeLabel`, so an omission is caught there. -/
 def hop : Mvba.Label node nodeset value view → Option Hop
   | .handle_preprepare_first .. => some .net
   | .handle_preprepare .. => some .net
-  | .form_prepqc .. => some .net
   | .adopt_prepqc .. => some .net
-  | .form_commitqc .. => some .net
-  | .form_tc_lock .. => some .net
-  | .form_tc_nolock .. => some .net
+  | .form_own_commitqc .. => some .net
+  | .form_own_tc_lock .. => some .net
+  | .form_own_tc_nolock .. => some .net
   | .sync_view .. => some .net
   | .sync_view_adopt .. => some .net
   | .leader_propose_first .. => some .loc
@@ -168,11 +174,12 @@ omission. -/
 theorem hop_isSome_iff (l : Mvba.Label node nodeset value view) :
     (hop l).isSome ↔ JusticeLabel l := by
   cases l <;> first
-    | exact ⟨fun _ => ⟨fun h => h, fun h => h, fun h => h, fun h => h⟩, fun _ => rfl⟩
+    | exact ⟨fun _ => ⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩, fun _ => rfl⟩
     | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.1 trivial).elim⟩
     | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.2.1 trivial).elim⟩
     | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.2.2.1 trivial).elim⟩
-    | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.2.2.2 trivial).elim⟩
+    | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.2.2.2.1 trivial).elim⟩
+    | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.2.2.2.2 trivial).elim⟩
 
 end Hops
 
@@ -358,19 +365,17 @@ def AnyTimeout (q : nodeset) (v : view)
     (s.msg_timeout_noqc p v = true ∨ ∃ w e, s.msg_timeout_qc p v w e = true)
 
 /-- **What a first delivery needs**, per network label: the conditions
-under which the supplement's network delivers the label's messages to
-`i` within `Δ`. For the three assemblies `i` is the validator that forms
-the certificate; for every other label the receiver is the label's own
-validator and `i` is unused.
+under which the supplement's network delivers the label's messages to the
+label's own validator within `Δ`.
 
 * a `Pre-Prepare` — from a correct leader, sent at or after GST, and
   retained by its receiver;
 * the `Prepare`s a validator forms its own certificate from — from a
   correct quorum, the first of them sent at or after GST, and retained by
   that validator;
-* the votes and timeouts of an assembly — from a correct quorum, the
-  first of them sent at or after GST, and retained by the forming
-  validator;
+* the `Commit`s and timeouts a validator forms a certificate from — from
+  a correct quorum, the first of them sent at or after GST, and retained
+  by that validator;
 * a timeout certificate — first obtained at or after GST. Its first
   correct holder processes it on arrival and forwards it
   (`line:mvba:sv-forward`);
@@ -380,45 +385,37 @@ validator and `i` is unused.
 
 A label the table classes local, or no label at all, has no first
 delivery (`False`). -/
-def Delivers (r : TMvbaRun th time) (i : node) : Mvba.Label node nodeset value view → Prop
+def Delivers (r : TMvbaRun th time) : Mvba.Label node nodeset value view → Prop
   | .handle_preprepare_first j l e =>
     ¬ nset.is_byz l = true ∧ SinceGst r (fun s => s.msg_preprepare l vord.zero e = true) ∧
       RetainedBy r j vord.zero (fun s => s.msg_preprepare l vord.zero e = true)
   | .handle_preprepare j l _ v e =>
     ¬ nset.is_byz l = true ∧ SinceGst r (fun s => s.msg_preprepare l v e = true) ∧
       RetainedBy r j v (fun s => s.msg_preprepare l v e = true)
-  | .form_prepqc v e q =>
-    CorrectQuorum (node := node) q ∧
-      SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true) ∧
-      RetainedBy r i v (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true)
   | .adopt_prepqc j v e q =>
     CorrectQuorum (node := node) q ∧
       SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true) ∧
       RetainedBy r j v (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true)
-  | .form_commitqc v e q =>
+  | .form_own_commitqc j v e q =>
     CorrectQuorum (node := node) q ∧
       SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v e = true) ∧
-      RetainedBy r i v (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v e = true)
-  | .form_tc_lock v q _ _ _ =>
-    CorrectQuorum (node := node) q ∧ SinceGst r (AnyTimeout q v) ∧ RetainedBy r i v (AnyTimeout q v)
-  | .form_tc_nolock v q =>
-    CorrectQuorum (node := node) q ∧ SinceGst r (AnyTimeout q v) ∧ RetainedBy r i v (AnyTimeout q v)
+      RetainedBy r j v (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v e = true)
+  | .form_own_tc_lock j v q _ _ _ =>
+    CorrectQuorum (node := node) q ∧ SinceGst r (AnyTimeout q v) ∧ RetainedBy r j v (AnyTimeout q v)
+  | .form_own_tc_nolock j v q =>
+    CorrectQuorum (node := node) q ∧ SinceGst r (AnyTimeout q v) ∧ RetainedBy r j v (AnyTimeout q v)
   | .sync_view _ pv _ => SinceGst r (fun s => s.msg_tc pv = true)
   | .sync_view_adopt _ pv _ w e => SinceGst r (fun s => s.tc_lock pv w e = true)
   | .decide _ v e => SinceGst r (fun s => s.msg_commitqc v e = true)
   | _ => False
 
 /-- **While a first delivery is pending**: every correct validator takes
-part, and for an assembly the forming validator `i` has not moved past
-the view, since it discards lower views' messages. A decision needs
-nothing: the composing layer's delivery does not depend on the receiver's
-view. -/
-def Receiving (i : node) : Mvba.Label node nodeset value view →
+part. That the receiver has not moved past the message's view — it
+discards lower views' messages — is in the guard of every per-validator
+step that reads view-scoped messages (`in_view`). A decision needs nothing:
+the composing layer's delivery does not depend on the receiver's view. -/
+def Receiving : Mvba.Label node nodeset value view →
     Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop
-  | .form_prepqc v _ _ => fun s => AllActive s ∧ NotPast s i v
-  | .form_commitqc v _ _ => fun s => AllActive s ∧ NotPast s i v
-  | .form_tc_lock v _ _ _ _ => fun s => AllActive s ∧ NotPast s i v
-  | .form_tc_nolock v _ => fun s => AllActive s ∧ NotPast s i v
   | .decide .. => fun _ => True
   | _ => AllActive
 
@@ -439,8 +436,8 @@ classes"), with a deadline in place of "eventually".
   first correct validator to enter the view it justifies
   (`line:mvba:sv-forward`), is processed within `Δ`;
 * `timeouts` — a correct quorum's timeouts are re-sent every `ρ` by
-  validators still in the view, so they are assembled within `Δ + ρ`
-  whenever they were first sent (N1);
+  validators still in the view, so a correct validator in the view forms
+  the certificate within `Δ + ρ` whenever they were first sent (N1);
 * `certificates` — every active validator re-sends `ViewTC_i` every `ρ`
   (`line:mvba:viewtc-retx`), so a timeout certificate is processed within
   `Δ + ρ` whenever it was formed (N1);
@@ -452,16 +449,17 @@ Each window is measured from `max(clk N, gst)` (`BoundedFair`). -/
 structure BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Prop where
   local_ : ∀ l : Mvba.Label node nodeset value view, hop l = some .loc →
     BoundedFair r sch.δ l
-  first : ∀ (l : Mvba.Label node nodeset value view) (i : node), hop l = some .net →
-    ¬ nset.is_byz i = true → Delivers r i l → BoundedFairWhile r sch.Δ l (Receiving i l)
+  first : ∀ (l : Mvba.Label node nodeset value view), hop l = some .net →
+    Delivers r l → BoundedFairWhile r sch.Δ l (Receiving l)
   forwarded : ∀ (i : node) (pv v : view), SinceGst r (SomeEntered v) →
     BoundedFairWhile r sch.Δ (.sync_view i pv v) (fun s => AllActive s ∧ SomeEntered v s) ∧
     ∀ w e, BoundedFairWhile r sch.Δ (.sync_view_adopt i pv v w e)
       (fun s => AllActive s ∧ SomeEntered v s)
-  timeouts : ∀ (v : view) (q : nodeset), CorrectQuorum (node := node) q →
-    (∀ r₀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.form_tc_lock v q r₀ w e)
+  timeouts : ∀ (i : node) (v : view) (q : nodeset), ¬ nset.is_byz i = true →
+    CorrectQuorum (node := node) q →
+    (∀ r₀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.form_own_tc_lock i v q r₀ w e)
       (fun s => AllActive s ∧ ∀ p, nset.member p q = true → NotPast s p v)) ∧
-    BoundedFairWhile r (sch.Δ + sch.ρ) (.form_tc_nolock v q)
+    BoundedFairWhile r (sch.Δ + sch.ρ) (.form_own_tc_nolock i v q)
       (fun s => AllActive s ∧ ∀ p, nset.member p q = true → NotPast s p v)
   certificates : ∀ (i : node) (pv v : view),
     BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view i pv v) AllActive ∧
