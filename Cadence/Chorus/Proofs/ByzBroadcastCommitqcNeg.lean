@@ -1,15 +1,15 @@
 import Cadence.Chorus
 import Cadence.ProofPrelude
 
-/-! # `Chorus` proofs — action `broadcast_commitqc_neg`
+/-! # `Chorus` proofs — action `byz_broadcast_commitqc_neg`
 
 Scaffolded by `#gen_proof_files Chorus`; yours to edit. Proves every
-registered VC of `broadcast_commitqc_neg` cross-file from the module's persisted VC registry
+registered VC of `byz_broadcast_commitqc_neg` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 [Certify.lean](../Certify.lean)'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Chorus broadcast_commitqc_neg <property> by <tac>` lines
+Manual cells go on `#prove_vc Chorus byz_broadcast_commitqc_neg <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
@@ -28,7 +28,7 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
-#prove_vc Chorus broadcast_commitqc_neg commitqc_neg_mvba_pos_excl by
+#prove_vc Chorus byz_broadcast_commitqc_neg commitqc_neg_mvba_pos_excl by
   unveil_local
   veil_inv_have h_commit_neg_sig_from_local_fastqc := commit_neg_sig_from_local_fastqc
   veil_inv_have h_local_fastqc_neg_backed := local_fastqc_neg_backed
@@ -36,7 +36,7 @@ namespace Chorus.Proofs
   veil_inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_neg_mvba_pos_excl := commitqc_neg_mvba_pos_excl
-  intro _hbyz _hpart _hab hsup_q hq _hfresh J M hqcneg
+  intro _hbyz hsup_q hq J M hqcneg
   refine Bool.eq_false_iff.mpr fun hb => ?_
   by_cases hnew : j = J
   · subst hnew
@@ -57,6 +57,6 @@ namespace Chorus.Proofs
   · have hz := h_commitqc_neg_mvba_pos_excl J M (hqcneg hnew)
     rw [hz] at hb; simp at hb
 
-#prove_action Chorus broadcast_commitqc_neg
+#prove_action Chorus byz_broadcast_commitqc_neg
 
 end Chorus.Proofs

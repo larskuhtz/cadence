@@ -30,6 +30,7 @@ import Cadence.Chorus.Proofs.CommitAssignNeg
 import Cadence.Chorus.Proofs.FinalizeCommit
 import Cadence.Chorus.Proofs.ByzSignProposer
 import Cadence.Chorus.Proofs.ByzDeliverChunk
+import Cadence.Chorus.Proofs.ByzRedisseminateChunk
 import Cadence.Chorus.Proofs.ByzSignVotePos
 import Cadence.Chorus.Proofs.ByzSignVoteNeg
 import Cadence.Chorus.Proofs.ByzCastVote
@@ -39,6 +40,8 @@ import Cadence.Chorus.Proofs.ByzSignFallback
 import Cadence.Chorus.Proofs.ByzSignCommitPos
 import Cadence.Chorus.Proofs.ByzSignCommitNeg
 import Cadence.Chorus.Proofs.ByzCastCommit
+import Cadence.Chorus.Proofs.ByzBroadcastCommitqcPos
+import Cadence.Chorus.Proofs.ByzBroadcastCommitqcNeg
 import Cadence.Chorus.Proofs.ByzSignFbcommit
 import Cadence.Chorus.Proofs.ByzReleaseMsgDecryptShare
 
@@ -70,6 +73,6 @@ theorem in the import closure, over exactly the standard axioms. Run `#veil_stat
 interactively for the per-cell table (theorem, defining file, per-cell
 axiom set; expect minutes at this scale). -/
 
-/-- info: #veil_status Chorus: 4428/4428 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Chorus: 4737/4737 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Chorus

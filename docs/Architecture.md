@@ -117,7 +117,7 @@ here rather than repeating them.
 
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
-| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 42 | 9 safety + 92 invariants + 1 step property | 4 428 | cvc5, **proof-reconstructed** (kernel-checked), + 12 manual Lean proofs: 11 for e-matching-divergent cells, 1 for solver-budget headroom (`vote × committed_pos_frozen`); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
+| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 45 | 9 safety + 92 invariants + 1 step property | 4 737 | cvc5, **proof-reconstructed** (kernel-checked), + 15 manual Lean proofs: 14 for e-matching-divergent cells (three of them the Byzantine assembly actions' copies of the collector's cells), 1 for solver-budget headroom (`vote × committed_pos_frozen`); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
 | [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 25 | 3 safety + 46 invariants + 1 step property | 1 325 | cvc5, **proof-reconstructed** (kernel-checked), + 3 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate, and cross-view certificate agreement) |
 | [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
 | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 15 invariants + 3 step properties | 189 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
@@ -526,7 +526,7 @@ table can be read off one file:
 |---|---|---|
 | `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_temporal` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | `propext, Classical.choice, Quot.sound` | ✓ |
 | `Cadence.system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | same | ✓ |
-| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 4428/4428 real |
+| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 4737/4737 real |
 | `FallbackReceipt.invariants_of_reachable` ([Cadence/FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean)) | same | ✓ + `#veil_status`: 220/220 real |
 | `FallbackReceipt.build_totality_of_reachable` ([Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean)) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)) | same | ✓ |

@@ -1,15 +1,15 @@
 import Cadence.Chorus
 import Cadence.ProofPrelude
 
-/-! # `Chorus` proofs — action `broadcast_commitqc_pos`
+/-! # `Chorus` proofs — action `byz_broadcast_commitqc_pos`
 
 Scaffolded by `#gen_proof_files Chorus`; yours to edit. Proves every
-registered VC of `broadcast_commitqc_pos` cross-file from the module's persisted VC registry
+registered VC of `byz_broadcast_commitqc_pos` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 [Certify.lean](../Certify.lean)'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Chorus broadcast_commitqc_pos <property> by <tac>` lines
+Manual cells go on `#prove_vc Chorus byz_broadcast_commitqc_pos <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
@@ -28,7 +28,7 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
-#prove_vc Chorus broadcast_commitqc_pos commitqc_pos_mvba_consistent by
+#prove_vc Chorus byz_broadcast_commitqc_pos commitqc_pos_mvba_consistent by
   unveil_local
   veil_inv_have h_commit_pos_sig_from_local_fastqc := commit_pos_sig_from_local_fastqc
   veil_inv_have h_local_fastqc_pos_backed := local_fastqc_pos_backed
@@ -36,7 +36,7 @@ namespace Chorus.Proofs
   veil_inv_have h_vote_unique_pos := vote_unique_pos
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_pos_mvba_consistent := commitqc_pos_mvba_consistent
-  intro _hbyz _hpart _hab hsup_q hq _hfresh J M1 M2 hqc hmv
+  intro _hbyz hsup_q hq J M1 M2 hqc hmv
   by_cases hnew : j = J ∧ m = M1
   · obtain ⟨rfl, rfl⟩ := hnew
     obtain ⟨a, ha_mem, ha_hon⟩ :=
@@ -56,12 +56,12 @@ namespace Chorus.Proofs
     exact h_commitqc_pos_mvba_consistent J M1 M2 hold hmv
 
 
-#prove_vc Chorus broadcast_commitqc_pos progress_fallback_signing by
+#prove_vc Chorus byz_broadcast_commitqc_pos progress_fallback_signing by
   unveil_local
   veil_inv_have h_progress_fallback_signing := progress_fallback_signing
-  intro _hbyz _hpart _hab _hsup_q _hq _hfresh
+  intro _hbyz _hsup_q _hq
   exact h_progress_fallback_signing
 
-#prove_action Chorus broadcast_commitqc_pos
+#prove_action Chorus byz_broadcast_commitqc_pos
 
 end Chorus.Proofs

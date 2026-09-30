@@ -152,23 +152,7 @@ local macro "chorus_field_simp" : tactic =>
       instIsSubReaderOfRefl.readFrom_id] at *)
 
 
-section PhaseOrder
 
-variable {Phase : Type} [Phase_Enum : Chorus.Phase_EnumClass Phase]
-
-/-- The four phases are distinct (the enum's `distinct` field, unpacked). -/
-theorem phase_distinct :
-    (Phase_EnumClass.pre_deadline : Phase) ≠ Phase_EnumClass.post_deadline ∧
-    (Phase_EnumClass.pre_deadline : Phase) ≠ Phase_EnumClass.post_fb_arm ∧
-    (Phase_EnumClass.pre_deadline : Phase) ≠ Phase_EnumClass.post_mvba_arm ∧
-    (Phase_EnumClass.post_deadline : Phase) ≠ Phase_EnumClass.post_fb_arm ∧
-    (Phase_EnumClass.post_deadline : Phase) ≠ Phase_EnumClass.post_mvba_arm ∧
-    (Phase_EnumClass.post_fb_arm : Phase) ≠ Phase_EnumClass.post_mvba_arm := by
-  have hd := Phase_Enum.distinct
-  simp [distinctN, distinctPairs, andN] at hd
-  tauto
-
-end PhaseOrder
 
 /-! ## Step facts
 
@@ -228,7 +212,8 @@ theorem phase_step {l}
      mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_pos,
      byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback,
-     byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit,
+     byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
+     byz_broadcast_commitqc_neg,
      byz_release_msg_decrypt_share] => exact Or.inl hfr
 
 set_option maxHeartbeats 1000000 in
@@ -267,7 +252,8 @@ theorem commit_cast_flip {l} {i : node}
      commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
      byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
      byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg,
-     byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+     byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
+     byz_broadcast_commitqc_neg, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
 
 set_option maxHeartbeats 1000000 in
 /-- **The first fallback vote is the validator's own `cast_fallback_vote`**,
@@ -302,7 +288,8 @@ theorem fallback_sig_flip {l} {i : node}
      cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
      byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
      byz_sign_fb_neg, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
-     byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+     byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
+     byz_broadcast_commitqc_neg, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
 
 set_option maxHeartbeats 1000000 in
 /-- **The fallback path is entered only by casting the fallback vote**:
@@ -339,7 +326,8 @@ theorem path_fallback_flip {l} {i : node}
      mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_pos,
      byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback,
-     byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit,
+     byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
+     byz_broadcast_commitqc_neg,
      byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
 
 set_option maxHeartbeats 1000000 in
@@ -371,7 +359,8 @@ theorem msg_vote_pos_sig_mono {l} (htr : (RTS).tr th s l s') :
      cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
      byz_deliver_chunk, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
      byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
-     byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact hfr ▸ h
+     byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
+     byz_broadcast_commitqc_neg, byz_release_msg_decrypt_share] => exact hfr ▸ h
 
 set_option maxHeartbeats 1000000 in
 /-- **`msg_vote_neg_sig` is monotone** — as `msg_vote_pos_sig_mono`. -/
@@ -398,7 +387,8 @@ theorem msg_vote_neg_sig_mono {l} (htr : (RTS).tr th s l s') :
      cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
      byz_deliver_chunk, byz_sign_vote_pos, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
      byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
-     byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact hfr ▸ h
+     byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
+     byz_broadcast_commitqc_neg, byz_release_msg_decrypt_share] => exact hfr ▸ h
 
 set_option maxHeartbeats 1000000 in
 /-- **`local_entry_neg` is monotone** — `vote` is its only writer, a
@@ -421,7 +411,8 @@ theorem local_entry_neg_mono {l} (htr : (RTS).tr th s l s') :
      cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
      byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
      byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg,
-     byz_cast_commit, byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact hfr ▸ h
+     byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
+     byz_broadcast_commitqc_neg, byz_release_msg_decrypt_share] => exact hfr ▸ h
 
 set_option maxHeartbeats 1000000 in
 /-- **A committed positive entry was assignable when it was committed.** If
@@ -455,7 +446,8 @@ theorem committed_pos_flip {l} {i j : node} {m : merkle_root}
      mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_neg, finalize_commit,
      byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote,
      byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos,
-     byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+     byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
+     byz_broadcast_commitqc_neg, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
 
 set_option maxHeartbeats 1000000 in
 /-- **A committed negative entry was assignable when it was committed**, by
@@ -467,7 +459,7 @@ theorem committed_neg_flip {l} {i j : node}
   cases l
   case commit_assign_neg i' j' =>
     chorus_tr htr
-    obtain ⟨-, -, -, -, -, hqc, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, -, hqc, -, -, rfl⟩ := htr
     chorus_field_simp
     rcases eq_or_ne i' i with rfl | hi
     · rcases eq_or_ne j' j with rfl | hj
@@ -483,7 +475,168 @@ theorem committed_neg_flip {l} {i j : node}
      mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, finalize_commit,
      byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote,
      byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos,
-     byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+     byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
+     byz_broadcast_commitqc_neg, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+
+set_option maxHeartbeats 1000000 in
+/-- **A fallback-entry record comes with the entry.** `local_fb_entry i j`
+is written only by `fb_sign_pos` / `fb_sign_neg` at `i` and `j`, each of which
+sets `i`'s fallback signature for `j` in the same step. -/
+theorem fb_entry_flip {l} {i j : node}
+    (htr : (RTS).tr th s l s')
+    (h0 : ¬ s.local_fb_entry i j = true) (h1 : s'.local_fb_entry i j = true) :
+    (∃ m, s'.msg_fb_pos_sig i j m = true) ∨ s'.msg_fb_neg_sig i j = true := by
+  cases l
+  case fb_sign_pos =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  case fb_sign_neg =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  frame_cases htr local_fb_entry hfr
+    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose,
+     deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
+     commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
+     broadcast_commitqc_neg, cast_fallback_vote, mvba_step, mvba_propose, on_mvba_decide_pos,
+     on_mvba_decide_neg, mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos,
+     commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk,
+     byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
+     byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
+     byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit,
+     byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+
+
+set_option maxHeartbeats 1000000 in
+/-- **A collector's record comes with the certificate it broadcast**
+(`broadcast_commitqc_*` is the only writer of `local_commitqc_sent`). -/
+theorem commitqc_sent_flip {l} {c j : node}
+    (htr : (RTS).tr th s l s')
+    (h0 : ¬ s.local_commitqc_sent c j = true) (h1 : s'.local_commitqc_sent c j = true) :
+    (∃ m, s'.msg_commitqc_pos j m = true) ∨ s'.msg_commitqc_neg j = true := by
+  cases l
+  case broadcast_commitqc_pos =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  case broadcast_commitqc_neg =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  frame_cases htr local_commitqc_sent hfr
+    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose,
+     deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
+     commit_sign_pos, commit_sign_neg, cast_fast_commit, fb_sign_pos, fb_sign_neg,
+     cast_fallback_vote, mvba_step, mvba_propose, on_mvba_decide_pos, on_mvba_decide_neg,
+     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk,
+     byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
+     byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
+     byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit,
+     byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+
+
+set_option maxHeartbeats 1000000 in
+/-- **A sent-chunk record comes with the delivery** (`deliver_chunk_assigned`
+and `redisseminate_chunk` are its only writers). -/
+theorem chunk_sent_flip {l} {k i j : node} {m : merkle_root}
+    (htr : (RTS).tr th s l s')
+    (h0 : ¬ s.local_chunk_sent k i j m = true) (h1 : s'.local_chunk_sent k i j m = true) :
+    s'.msg_chunk_received i j m = true := by
+  cases l
+  case deliver_chunk_assigned =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, -, rfl⟩ := htr
+    chorus_field_simp
+    simp_all; obtain ⟨rfl, rfl, rfl, rfl⟩ := h1; simp
+  case redisseminate_chunk =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  frame_cases htr local_chunk_sent hfr
+    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose,
+     record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos,
+     commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg,
+     fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, on_mvba_decide_pos,
+     on_mvba_decide_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk,
+     byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
+     byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
+     byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit,
+     byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+
+
+set_option maxHeartbeats 1000000 in
+/-- **The fallback-commit record comes with the vote** (`cast_fb_commit`). -/
+theorem fbcommit_voted_flip {l} {i : node}
+    (htr : (RTS).tr th s l s')
+    (h0 : ¬ s.local_fbcommit_voted i = true) (h1 : s'.local_fbcommit_voted i = true) :
+    s'.msg_fbcommit_sig i = true := by
+  cases l
+  case cast_fb_commit =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  frame_cases htr local_fbcommit_voted hfr
+    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose,
+     deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
+     commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
+     broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose,
+     on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, redisseminate_chunk,
+     commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk,
+     byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
+     byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
+     byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit,
+     byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+
+
+set_option maxHeartbeats 1000000 in
+/-- **A decision record comes with the entry it recorded**: the handler that
+writes `local_mvba_recorded i j` read a decision `v` of `i` and recorded
+entry `j` of `v`. -/
+theorem mvba_recorded_flip {l} {i j : node}
+    (htr : (RTS).tr th s l s')
+    (h0 : ¬ s.local_mvba_recorded i j = true) (h1 : s'.local_mvba_recorded i j = true) :
+    ∃ v, mvba.decided s.mvba_st i v ∧ ((∃ M, th.mval_pos v j M = true ∧ s'.mvba_decided_pos j M = true) ∨
+      (th.mval_neg v j = true ∧ s'.mvba_decided_neg j = true)) := by
+  cases l
+  case on_mvba_decide_pos i' j' m' v' =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, hd, hv, -, -, rfl⟩ := htr
+    chorus_field_simp
+    rcases eq_or_ne i' i with rfl | hi
+    · rcases eq_or_ne j' j with rfl | hj
+      · exact ⟨_, hd, Or.inl ⟨_, hv, by simp⟩⟩
+      · simp_all
+    · simp_all
+  case on_mvba_decide_neg i' j' v' =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, hd, hv, -, -, rfl⟩ := htr
+    chorus_field_simp
+    rcases eq_or_ne i' i with rfl | hi
+    · rcases eq_or_ne j' j with rfl | hj
+      · exact ⟨_, hd, Or.inr ⟨hv, by simp⟩⟩
+      · simp_all
+    · simp_all
+  frame_cases htr local_mvba_recorded hfr
+    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose,
+     deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
+     commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
+     broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose,
+     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk,
+     byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
+     byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
+     byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit,
+     byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+
 
 /-- `abandon i` records `abandoned i`. -/
 theorem abandon_effect {i : node} {n : mstate} (htr : (RTS).tr th s (.abandon i n) s') :
@@ -549,16 +702,16 @@ theorem enabled_fb_sign_pos {i j : node} {m : merkle_root} {q qc qv : nodeset}
     (hqv : nset.supermajority qv) (hqvc : ∀ r, nset.member r qv = true → s.msg_vote_cast r = true)
     (hq : nset.greater_than_third q) (hqs : ∀ r, nset.member r q = true → s.msg_vote_pos_sig r j m = true)
     (hqc : nset.greater_than_third qc) (hqcs : ∀ r, nset.member r qc = true → s.msg_chunk_received r j m = true)
-    (hwe : th.well_encoded m = true) :
+    (hwe : th.well_encoded m = true) (hfr : ¬ s.local_fb_entry i j = true) :
     Enabled RTS th s (.fb_sign_pos i j m q qc) := by
   chorus_enabled
-  exact ⟨_, hi, ha.1, ha.2, hph, hv, hnc, hpath, hj, ⟨qv, hqv, hqvc⟩, hq, hqs, hqc, hqcs, hwe, rfl⟩
+  exact ⟨_, hi, ha.1, ha.2, hph, hv, hnc, hpath, hj, ⟨qv, hqv, hqvc⟩, hq, hqs, hqc, hqcs, hwe, hfr, rfl⟩
 
 theorem fb_sign_pos_effect {i j : node} {m : merkle_root} {q qc : nodeset}
     (htr : (RTS).tr th s (.fb_sign_pos i j m q qc) s') :
     s'.msg_fb_pos_sig i j m = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_fb_sign_neg {i j : node} {qv : nodeset}
@@ -571,17 +724,18 @@ theorem enabled_fb_sign_neg {i j : node} {qv : nodeset}
       (∀ r, nset.member r q = true → nset.member r qv = true ∧ s.msg_vote_pos_sig r j M = true) ∧
       nset.greater_than_third qc ∧
       (∀ r, nset.member r qc = true → s.msg_chunk_received r j M = true) ∧
-      th.well_encoded M = true)) :
+      th.well_encoded M = true))
+    (hfr : ¬ s.local_fb_entry i j = true) :
     Enabled RTS th s (.fb_sign_neg i j qv) := by
   chorus_enabled
   exact ⟨_, hi, ha.1, ha.2, hph, hv, hnc, hpath, hj, hqv, hqvc,
-    fun M q qc h1 h2 h3 h4 h5 => hnone M q qc ⟨h1, h2, h3, h4, h5⟩, rfl⟩
+    fun M q qc h1 h2 h3 h4 h5 => hnone M q qc ⟨h1, h2, h3, h4, h5⟩, hfr, rfl⟩
 
 theorem fb_sign_neg_effect {i j : node} {qv : nodeset}
     (htr : (RTS).tr th s (.fb_sign_neg i j qv) s') :
     s'.msg_fb_neg_sig i j = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_cast_fallback_vote {i : node}
@@ -603,38 +757,39 @@ theorem cast_fallback_vote_effect {i : node}
   chorus_field_simp
 
 theorem enabled_broadcast_commitqc_pos {c j : node} {m : merkle_root} {q : nodeset}
-    (hc : nset.is_byz c = true ∨ Active s c) (hq : nset.supermajority q)
+    (hc : ¬ nset.is_byz c = true) (ha : Active s c) (hq : nset.supermajority q)
     (hall : ∀ r, nset.member r q = true →
-      s.msg_commit_pos_sig r j m = true ∧ s.msg_commit_cast r = true) :
+      s.msg_commit_pos_sig r j m = true ∧ s.msg_commit_cast r = true)
+    (hfr : ¬ s.local_commitqc_sent c j = true) :
     Enabled RTS th s (.broadcast_commitqc_pos c j m q) := by
   chorus_enabled
-  exact ⟨_, hc, hq, hall, rfl⟩
+  exact ⟨_, hc, ha.1, ha.2, hq, hall, hfr, rfl⟩
 
 theorem broadcast_commitqc_pos_effect {c j : node} {m : merkle_root} {q : nodeset}
     (htr : (RTS).tr th s (.broadcast_commitqc_pos c j m q) s') :
     s'.msg_commitqc_pos j m = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_broadcast_commitqc_neg {c j : node} {q : nodeset}
-    (hc : nset.is_byz c = true ∨ Active s c) (hq : nset.supermajority q)
+    (hc : ¬ nset.is_byz c = true) (ha : Active s c) (hq : nset.supermajority q)
     (hall : ∀ r, nset.member r q = true →
-      s.msg_commit_neg_sig r j = true ∧ s.msg_commit_cast r = true) :
+      s.msg_commit_neg_sig r j = true ∧ s.msg_commit_cast r = true)
+    (hfr : ¬ s.local_commitqc_sent c j = true) :
     Enabled RTS th s (.broadcast_commitqc_neg c j q) := by
   chorus_enabled
-  exact ⟨_, hc, hq, hall, rfl⟩
+  exact ⟨_, hc, ha.1, ha.2, hq, hall, hfr, rfl⟩
 
 theorem broadcast_commitqc_neg_effect {c j : node} {q : nodeset}
     (htr : (RTS).tr th s (.broadcast_commitqc_neg c j q) s') :
     s'.msg_commitqc_neg j = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 /-- `commit_assign_pos`, enabled for a validator that has assigned nothing
-for `j` yet, from either certificate: its two consistency guards then hold
-vacuously. -/
+for `j` yet, from either certificate. -/
 theorem enabled_commit_assign_pos {i j : node} {m : merkle_root}
     (hi : ¬ nset.is_byz i = true) (ha : Active s i) (hnc : ¬ s.local_committed i = true)
     (hj : th.is_proposer j = true)
@@ -642,7 +797,7 @@ theorem enabled_commit_assign_pos {i j : node} {m : merkle_root}
     (hnp : ∀ m', ¬ s.local_committed_pos i j m' = true) (hnn : ¬ s.local_committed_neg i j = true) :
     Enabled RTS th s (.commit_assign_pos i j m) := by
   chorus_enabled
-  exact ⟨_, hi, ha.1, ha.2, hnc, hj, hqc, fun m' h => absurd h (hnp m'), hnn, rfl⟩
+  exact ⟨_, hi, ha.1, ha.2, hnc, hj, hqc, hnp, hnn, rfl⟩
 
 theorem commit_assign_pos_effect {i j : node} {m : merkle_root}
     (htr : (RTS).tr th s (.commit_assign_pos i j m) s') :
@@ -655,16 +810,16 @@ theorem enabled_commit_assign_neg {i j : node}
     (hi : ¬ nset.is_byz i = true) (ha : Active s i) (hnc : ¬ s.local_committed i = true)
     (hj : th.is_proposer j = true)
     (hqc : s.msg_commitqc_neg j = true ∨ (Chorus.fbcommitqc th s ∧ s.mvba_decided_neg j = true))
-    (hnp : ∀ m', ¬ s.local_committed_pos i j m' = true) :
+    (hnp : ∀ m', ¬ s.local_committed_pos i j m' = true) (hnn : ¬ s.local_committed_neg i j = true) :
     Enabled RTS th s (.commit_assign_neg i j) := by
   chorus_enabled
-  exact ⟨_, hi, ha.1, ha.2, hnc, hj, hqc, hnp, rfl⟩
+  exact ⟨_, hi, ha.1, ha.2, hnc, hj, hqc, hnp, hnn, rfl⟩
 
 theorem commit_assign_neg_effect {i j : node}
     (htr : (RTS).tr th s (.commit_assign_neg i j) s') :
     s'.local_committed_neg i j = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_finalize_commit {i : node}
@@ -697,30 +852,32 @@ theorem advance_to_mvba_arm_effect (htr : (RTS).tr th s .advance_to_mvba_arm s')
 
 theorem enabled_aggregate_fastqc_pos {i j : node} {m : merkle_root} {q : nodeset}
     (hi : ¬ nset.is_byz i = true) (hq : nset.supermajority q)
-    (hall : ∀ r, nset.member r q = true → s.msg_vote_pos_sig r j m = true) :
+    (hall : ∀ r, nset.member r q = true → s.msg_vote_pos_sig r j m = true)
+    (hnf : ¬ s.local_fastqc_pos i j m = true) :
     Enabled RTS th s (.aggregate_fastqc_pos i j m q) := by
   chorus_enabled
-  exact ⟨_, hi, hq, hall, rfl⟩
+  exact ⟨_, hi, hq, hall, hnf, rfl⟩
 
 theorem aggregate_fastqc_pos_effect {i j : node} {m : merkle_root} {q : nodeset}
     (htr : (RTS).tr th s (.aggregate_fastqc_pos i j m q) s') :
     s'.local_fastqc_pos i j m = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_aggregate_fastqc_neg {i j : node} {q : nodeset}
     (hi : ¬ nset.is_byz i = true) (hq : nset.supermajority q)
-    (hall : ∀ r, nset.member r q = true → s.msg_vote_neg_sig r j = true) :
+    (hall : ∀ r, nset.member r q = true → s.msg_vote_neg_sig r j = true)
+    (hnf : ¬ s.local_fastqc_neg i j = true) :
     Enabled RTS th s (.aggregate_fastqc_neg i j q) := by
   chorus_enabled
-  exact ⟨_, hi, hq, hall, rfl⟩
+  exact ⟨_, hi, hq, hall, hnf, rfl⟩
 
 theorem aggregate_fastqc_neg_effect {i j : node} {q : nodeset}
     (htr : (RTS).tr th s (.aggregate_fastqc_neg i j q) s') :
     s'.local_fastqc_neg i j = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_mvba_propose {i : node} {v : mvalue} {n : mstate}
@@ -743,16 +900,17 @@ theorem enabled_on_mvba_decide_pos {i j : node} {m : merkle_root} {v : mvalue}
     (hi : ¬ nset.is_byz i = true) (hph : s.phase = Phase_EnumClass.post_mvba_arm)
     (hj : th.is_proposer j = true) (hinv : Chorus.mvba_invoked th s)
     (hd : mvba.decided s.mvba_st i v) (hv : th.mval_pos v j m = true)
-    (hc : Chorus.vote_quorum_pos j m th s ∨ (Chorus.fb_quorum_pos j m th s ∧ Chorus.fbcert th s)) :
+    (hc : Chorus.vote_quorum_pos j m th s ∨ (Chorus.fb_quorum_pos j m th s ∧ Chorus.fbcert th s))
+    (hfr : ¬ s.local_mvba_recorded i j = true) :
     Enabled RTS th s (.on_mvba_decide_pos i j m v) := by
   chorus_enabled
-  exact ⟨_, hi, hph, hj, hinv, hd, hv, hc, rfl⟩
+  exact ⟨_, hi, hph, hj, hinv, hd, hv, hc, hfr, rfl⟩
 
 theorem on_mvba_decide_pos_effect {i j : node} {m : merkle_root} {v : mvalue}
     (htr : (RTS).tr th s (.on_mvba_decide_pos i j m v) s') :
     s'.mvba_decided_pos j m = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_on_mvba_decide_neg {i j : node} {v : mvalue}
@@ -760,16 +918,17 @@ theorem enabled_on_mvba_decide_neg {i j : node} {v : mvalue}
     (hj : th.is_proposer j = true) (hinv : Chorus.mvba_invoked th s)
     (hd : mvba.decided s.mvba_st i v) (hv : th.mval_neg v j = true)
     (hc : Chorus.vote_quorum_neg j th s ∨
-      ((Chorus.fb_quorum_neg j th s ∨ Chorus.equiv_evidence j th s) ∧ Chorus.fbcert th s)) :
+      ((Chorus.fb_quorum_neg j th s ∨ Chorus.equiv_evidence j th s) ∧ Chorus.fbcert th s))
+    (hfr : ¬ s.local_mvba_recorded i j = true) :
     Enabled RTS th s (.on_mvba_decide_neg i j v) := by
   chorus_enabled
-  exact ⟨_, hi, hph, hj, hinv, hd, hv, hc, rfl⟩
+  exact ⟨_, hi, hph, hj, hinv, hd, hv, hc, hfr, rfl⟩
 
 theorem on_mvba_decide_neg_effect {i j : node} {v : mvalue}
     (htr : (RTS).tr th s (.on_mvba_decide_neg i j v) s') :
     s'.mvba_decided_neg j = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_mvba_terminate {i : node} {v : mvalue}
@@ -791,33 +950,35 @@ theorem mvba_terminate_effect {i : node} {v : mvalue}
   chorus_field_simp
 
 theorem enabled_redisseminate_chunk {k i j : node} {m : merkle_root}
-    (hk : nset.is_byz k = true ∨ Active s k) (hj : th.is_proposer j = true) (hs : s.msg_proposer_signed j m = true)
-    (hq : Chorus.chunk_quorum j m th s) :
+    (hk : ¬ nset.is_byz k = true) (ha : Active s k) (hj : th.is_proposer j = true)
+    (hs : s.msg_proposer_signed j m = true) (hq : Chorus.chunk_quorum j m th s)
+    (hfr : ¬ s.local_chunk_sent k i j m = true) :
     Enabled RTS th s (.redisseminate_chunk k i j m) := by
   chorus_enabled
-  exact ⟨_, hk, hj, hs, hq, rfl⟩
+  exact ⟨_, hk, ha.1, ha.2, hj, hs, hq, hfr, rfl⟩
 
 theorem redisseminate_chunk_effect {k i j : node} {m : merkle_root}
     (htr : (RTS).tr th s (.redisseminate_chunk k i j m) s') :
     s'.msg_chunk_received i j m = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_cast_fb_commit {i : node}
     (hi : ¬ nset.is_byz i = true) (ha : Active s i) (hph : s.phase = Phase_EnumClass.post_mvba_arm)
     (hc : s.mvba_complete = true)
     (hda : ∀ J M, th.is_proposer J = true → s.mvba_decided_pos J M = true →
-      s.msg_chunk_received i J M = true) :
+      s.msg_chunk_received i J M = true)
+    (hfr : ¬ s.local_fbcommit_voted i = true) :
     Enabled RTS th s (.cast_fb_commit i) := by
   chorus_enabled
-  exact ⟨_, hi, ha.1, ha.2, hph, hc, hda, rfl⟩
+  exact ⟨_, hi, ha.1, ha.2, hph, hc, hda, hfr, rfl⟩
 
 theorem cast_fb_commit_effect {i : node}
     (htr : (RTS).tr th s (.cast_fb_commit i) s') :
     s'.msg_fbcommit_sig i = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 /-! ### The certificates are monotone -/
@@ -977,6 +1138,65 @@ proof where no correct validator ever finalizes (`termination`): everybody
 eventually participates, and nobody abandons before finalizing. -/
 def ActiveFrom (r : CRun th) (A : Nat) : Prop :=
   ∀ n, A ≤ n → ∀ i, ¬ nset.is_byz i = true → Active (r.at' n) i
+
+/-- **A fired-once record holds only together with its effect**, at every
+point of every run: the record is initially unset, the step at which it is
+first set establishes `Q` (the first-flip lemmas above), and `Q` persists.
+This is what lets a link read "`Q` has not happened yet" as "the action has
+not fired yet", which is the action's fired-once guard. -/
+theorem record_backed (r : CRun th)
+    {F Q : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) → Prop}
+    (h0 : ¬ F (r.at' 0))
+    (hflip : ∀ n, ¬ F (r.at' n) → F (r.at' (n + 1)) → Q (r.at' (n + 1)))
+    (hQ : ∀ n, Q (r.at' n) → Q (r.at' (n + 1))) :
+    ∀ n, F (r.at' n) → Q (r.at' n)
+  | 0, h => absurd h h0
+  | n + 1, h => by
+    by_cases hn : F (r.at' n)
+    · exact hQ n (record_backed r h0 hflip hQ n hn)
+    · exact hflip n hn h
+
+/-- A correct validator's fallback-entry record comes with its fallback
+signature for that proposer. -/
+theorem fb_entry_sigs (r : CRun th) {i j : node} :
+    ∀ n, (r.at' n).local_fb_entry i j = true →
+      (∃ m, (r.at' n).msg_fb_pos_sig i j m = true) ∨ (r.at' n).msg_fb_neg_sig i j = true :=
+  record_backed r (F := fun st => st.local_fb_entry i j = true)
+    (Q := fun st => (∃ m, st.msg_fb_pos_sig i j m = true) ∨ st.msg_fb_neg_sig i j = true)
+    (by simp [Chorus.local_fb_entry.init r.starts i j])
+    (fun n h0 h1 => fb_entry_flip (r.steps n) h0 h1)
+    (fun n h => h.imp (fun ⟨m, hm⟩ => ⟨m, Chorus.msg_fb_pos_sig.mono (r.steps n) i j m hm⟩)
+      (Chorus.msg_fb_neg_sig.mono (r.steps n) i j))
+
+/-- A collector's record comes with a broadcast certificate for that
+proposer. -/
+theorem commitqc_sent_msg (r : CRun th) {c j : node} :
+    ∀ n, (r.at' n).local_commitqc_sent c j = true →
+      (∃ m, (r.at' n).msg_commitqc_pos j m = true) ∨ (r.at' n).msg_commitqc_neg j = true :=
+  record_backed r (F := fun st => st.local_commitqc_sent c j = true)
+    (Q := fun st => (∃ m, st.msg_commitqc_pos j m = true) ∨ st.msg_commitqc_neg j = true)
+    (by simp [Chorus.local_commitqc_sent.init r.starts c j])
+    (fun n h0 h1 => commitqc_sent_flip (r.steps n) h0 h1)
+    (fun n h => h.imp (fun ⟨m, hm⟩ => ⟨m, Chorus.msg_commitqc_pos.mono (r.steps n) j m hm⟩)
+      (Chorus.msg_commitqc_neg.mono (r.steps n) j))
+
+/-- A sent-chunk record comes with the chunk's delivery. -/
+theorem chunk_sent_received (r : CRun th) {k i j : node} {m : merkle_root} :
+    ∀ n, (r.at' n).local_chunk_sent k i j m = true → (r.at' n).msg_chunk_received i j m = true :=
+  record_backed r (F := fun st => st.local_chunk_sent k i j m = true)
+    (Q := fun st => st.msg_chunk_received i j m = true)
+    (by simp [Chorus.local_chunk_sent.init r.starts k i j m])
+    (fun n h0 h1 => chunk_sent_flip (r.steps n) h0 h1)
+    (fun n h => Chorus.msg_chunk_received.mono (r.steps n) i j m h)
+
+/-- The fallback-commit record comes with the fallback commit vote. -/
+theorem fbcommit_voted_sig (r : CRun th) {i : node} :
+    ∀ n, (r.at' n).local_fbcommit_voted i = true → (r.at' n).msg_fbcommit_sig i = true :=
+  record_backed r (F := fun st => st.local_fbcommit_voted i = true)
+    (Q := fun st => st.msg_fbcommit_sig i = true)
+    (by simp [Chorus.local_fbcommit_voted.init r.starts i])
+    (fun n h0 h1 => fbcommit_voted_flip (r.steps n) h0 h1)
+    (fun n h => Chorus.msg_fbcommit_sig.mono (r.steps n) i h)
 
 /-- **Saturation** of one validator — the `hsat` shape of
 `progress_dichotomy_of_saturation`: it has cast its fast commit vote with a
@@ -1173,7 +1393,9 @@ quorum's votes are on the network; then, unless `i` saturates, each
 proposer gets a fallback signature from `i` — `fb_sign_pos` once positive
 evidence appears (it is monotone, so the label stays enabled), `fb_sign_neg`
 against the honest quorum if it never does (the absence of that evidence
-*is* its guard) — and `cast_fallback_vote i` fires. Every step either fires
+*is* its guard) — and `cast_fallback_vote i` fires. While `i` has no
+signature for a proposer it has not signed an entry for it either
+(`fb_entry_sigs`), so the fired-once guard holds throughout. Every step either fires
 or is disabled by `i` casting a path vote, which saturates it by the
 first-flip facts. -/
 theorem eventually_saturated (r : CRun th) (hfj : ∀ l, JusticeLabel l → ¬ ProposeLabel l → WeaklyFair r l)
@@ -1221,13 +1443,15 @@ theorem eventually_saturated (r : CRun th) (hfj : ∀ l, JusticeLabel l → ¬ P
           (fun m hm => Chorus.msg_chunk_received.mono (r.steps m) a j M hm) (hqc2 a ha) n hn
       obtain ⟨n, hn, hfire⟩ := hfj (.fb_sign_pos i j M q qc) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) n0
         (fun n hn => EnabledMove.of_enabled_of_effect (enabled_fb_sign_pos hi (hact n (by omega) i hi) (harm n (by omega)) (hv n (by omega)) (hnc n) (hnp n) hj
-          hqv (hq n (by omega)) hq1 (hq2' n hn) hqc1 (hqc2' n hn) hwe)
+          hqv (hq n (by omega)) hq1 (hq2' n hn) hqc1 (hqc2' n hn) hwe
+          fun h => hns ⟨n, by omega, fb_entry_sigs r n h⟩)
           (fun _ h => fb_sign_pos_effect h) (fun h => hns ⟨n, by omega, Or.inl ⟨M, h⟩⟩))
       exact hns ⟨n + 1, by omega, Or.inl ⟨M, fb_sign_pos_effect (hfire ▸ r.steps n)⟩⟩
     · -- It never appears: that absence is `fb_sign_neg`'s guard against `qv`.
       obtain ⟨n, hn, hfire⟩ := hfj (.fb_sign_neg i j qv) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max A (max Na (max Nv Nq)))
         (fun n hn => EnabledMove.of_enabled_of_effect (enabled_fb_sign_neg hi (hact n (by omega) i hi) (harm n hn) (hv n hn) (hnc n) (hnp n) hj
-          hqv (hq n hn) (fun M q qc hh => hpos ⟨n, hn, M, q, qc, hh⟩))
+          hqv (hq n hn) (fun M q qc hh => hpos ⟨n, hn, M, q, qc, hh⟩)
+          fun h => hns ⟨n, hn, fb_entry_sigs r n h⟩)
           (fun _ h => fb_sign_neg_effect h) (fun h => hns ⟨n, hn, Or.inr h⟩))
       exact hns ⟨n + 1, by omega, Or.inr (fb_sign_neg_effect (hfire ▸ r.steps n))⟩
   -- All proposers at one index, and ever after.
@@ -1330,18 +1554,18 @@ theorem eventually_complete_fast_metablock (r : CRun th)
             (hfj (.aggregate_fastqc_pos i j m q) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
             (P := fun st => st.local_fastqc_pos i j m = true) (N := N)
             (fun _ _ h => aggregate_fastqc_pos_effect h)
-            (fun n hn _ => enabled_aggregate_fastqc_pos hi hq fun a ha =>
+            (fun n hn hnot => enabled_aggregate_fastqc_pos hi hq (fun a ha =>
               r.mono (P := fun st => st.msg_vote_pos_sig a j m = true)
-                (fun k hk => msg_vote_pos_sig_mono (r.steps k) a j m hk) (hqs a ha) n hn)
+                (fun k hk => msg_vote_pos_sig_mono (r.steps k) a j m hk) (hqs a ha) n hn) hnot)
           exact ⟨k, hk, fun _ => Or.inl ⟨m, h⟩⟩
         · obtain ⟨q, hq, hqs⟩ := Chorus.reachable_local_fastqc_neg_backed (r.reachable N) i0 j ⟨hi0, hm⟩
           obtain ⟨k, hk, h⟩ := eventually_of_weaklyFair
             (hfj (.aggregate_fastqc_neg i j q) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
             (P := fun st => st.local_fastqc_neg i j = true) (N := N)
             (fun _ _ h => aggregate_fastqc_neg_effect h)
-            (fun n hn _ => enabled_aggregate_fastqc_neg hi hq fun a ha =>
+            (fun n hn hnot => enabled_aggregate_fastqc_neg hi hq (fun a ha =>
               r.mono (P := fun st => st.msg_vote_neg_sig a j = true)
-                (fun k hk => msg_vote_neg_sig_mono (r.steps k) a j hk) (hqs a ha) n hn)
+                (fun k hk => msg_vote_neg_sig_mono (r.steps k) a j hk) (hqs a ha) n hn) hnot)
           exact ⟨k, hk, fun _ => Or.inr h⟩
       · exact ⟨N, Nat.le_refl _, fun h => absurd h hj⟩)
   refine ⟨M, hM, ?_⟩
@@ -1370,10 +1594,11 @@ theorem eventually_trigger (r : CRun th)
         (fun k hk => complete_fast_metablock_step (r.steps k) hk) hc n (by omega), hNm n (by omega)⟩⟩
 
 /-- **A commit certificate becomes a broadcast one**: from the certificate's
-own quorum, `broadcast_commitqc_*` stays enabled until it fires (its guards
-are monotone). -/
+own quorum, a correct collector's `broadcast_commitqc_*` stays enabled until
+some certificate for the proposer is broadcast. Its guards are monotone, and
+its fired-once record implies such a broadcast (`commitqc_sent_msg`). -/
 theorem eventually_msg_commitqc (r : CRun th) (hfj : ∀ l, JusticeLabel l → ¬ ProposeLabel l → WeaklyFair r l)
-    {c : node} {A : Nat} (hc : ∀ n, A ≤ n → Active (r.at' n) c) {N : Nat} {j : node}
+    {c : node} (hcb : ¬ nset.is_byz c = true) {A : Nat} (hc : ∀ n, A ≤ n → Active (r.at' n) c) {N : Nat} {j : node}
     (hqc : (∃ m, Chorus.commitqc_pos (nset := nset) (mvba := mvba) j m th (r.at' N)) ∨
       Chorus.commitqc_neg (nset := nset) (mvba := mvba) j th (r.at' N)) :
     ∃ n, N ≤ n ∧
@@ -1390,7 +1615,8 @@ theorem eventually_msg_commitqc (r : CRun th) (hfj : ∀ l, JusticeLabel l → �
          r.mono (P := fun st => st.msg_commit_cast a = true)
           (fun k hk => Chorus.msg_commit_cast.mono (r.steps k) a hk) (hall a ha).2 n hn⟩
     obtain ⟨n, hn, hfire⟩ := hfj (.broadcast_commitqc_pos c j m q) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max N A)
-      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_broadcast_commitqc_pos (Or.inr (hc n (by omega))) hq (hall' n (by omega)))
+      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_broadcast_commitqc_pos hcb (hc n (by omega)) hq (hall' n (by omega))
+          fun h => hcon ⟨n, by omega, commitqc_sent_msg r n h⟩)
         (fun _ h => broadcast_commitqc_pos_effect h) (fun h => hcon ⟨n, by omega, Or.inl ⟨m, h⟩⟩))
     exact hcon ⟨n + 1, by omega, Or.inl ⟨m, broadcast_commitqc_pos_effect (hfire ▸ r.steps n)⟩⟩
   · unfold Chorus.commitqc_neg at hqc
@@ -1403,7 +1629,8 @@ theorem eventually_msg_commitqc (r : CRun th) (hfj : ∀ l, JusticeLabel l → �
          r.mono (P := fun st => st.msg_commit_cast a = true)
           (fun k hk => Chorus.msg_commit_cast.mono (r.steps k) a hk) (hall a ha).2 n hn⟩
     obtain ⟨n, hn, hfire⟩ := hfj (.broadcast_commitqc_neg c j q) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max N A)
-      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_broadcast_commitqc_neg (Or.inr (hc n (by omega))) hq (hall' n (by omega)))
+      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_broadcast_commitqc_neg hcb (hc n (by omega)) hq (hall' n (by omega))
+          fun h => hcon ⟨n, by omega, commitqc_sent_msg r n h⟩)
         (fun _ h => broadcast_commitqc_neg_effect h) (fun h => hcon ⟨n, by omega, Or.inr h⟩))
     exact hcon ⟨n + 1, by omega, Or.inr (broadcast_commitqc_neg_effect (hfire ▸ r.steps n))⟩
 
@@ -1412,8 +1639,8 @@ which every proposer has an assignable entry — a broadcast commit
 certificate, or the fallback commit certificate with the MVBA's decision —
 every correct validator eventually has `local_committed`. The argument of
 `eventually_committed_of_commitqcs`, which is now its corollary: no
-invariant, because `commit_assign_*`'s consistency guards hold vacuously
-for a validator that never assigns.
+invariant, because `commit_assign_*`'s consistency and fired-once guards
+hold for a validator that has assigned nothing for the proposer.
 
 The two premises about `i` are the claim's caller premises, read at `i`:
 it participates at some point (`hpart`), and it has abandoned only once it
@@ -1475,7 +1702,7 @@ theorem eventually_committed_of_assignable (r : CRun th)
         (fun k h => assignable_neg_step (r.steps k) h) hm
       obtain ⟨n, hn, hfire⟩ := hfj (.commit_assign_neg i j) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max N P)
         (fun n hn => EnabledMove.of_enabled_of_effect (enabled_commit_assign_neg hi (hact n (by omega)) (hnc n) hj (hm' n (by omega))
-          (hnp n (by omega)))
+          (hnp n (by omega)) (hnn n (by omega)))
           (fun _ h => commit_assign_neg_effect h) (hnn n (by omega)))
       exact hna ⟨n + 1, by omega, Or.inr (commit_assign_neg_effect (hfire ▸ r.steps n))⟩
   -- Every proposer assigned at one index and ever after, so `finalize_commit` fires.
@@ -1528,7 +1755,7 @@ theorem eventually_committed_of_commitqcs (r : CRun th) (hfj : ∀ l, JusticeLab
     (fun j n h hj => hQ j _ (h hj) (r.steps n)) N nodes
     (fun j _ => by
       by_cases hj : th.is_proposer j = true
-      · obtain ⟨n, hn, h⟩ := eventually_msg_commitqc r hfj (c := i) (fun n hn => hact n hn i hi) (hqc j hj)
+      · obtain ⟨n, hn, h⟩ := eventually_msg_commitqc r hfj (c := i) hi (fun n hn => hact n hn i hi) (hqc j hj)
         exact ⟨n, hn, fun _ => h⟩
       · exact ⟨N, Nat.le_refl _, fun h => absurd h hj⟩)
   obtain ⟨n, hn, h⟩ := eventually_committed_of_assignable r hfj nodes hnodes (N := N1)
@@ -1886,11 +2113,38 @@ theorem decided_persists (r : ChorusRun (nset := nset) thS thM) {i : node}
   r.mono (P := fun st => (Mvba.mvbaSafety (nset := nset) thM).decided st.mvba_st i v)
     (fun n h => mvba_st_step r _ (fun _ _ _ htr h => Mvba.decided_mono_tr thM htr i v h) n h) hd
 
+/-- **A correct validator's decision record comes with its decision's
+entry**, at every point of the composed run: the handler that set
+`local_mvba_recorded i j` read a decision `v` of `i` and recorded entry `j`
+of `v` (`mvba_recorded_flip`), and both persist. -/
+theorem mvba_recorded_entry (r : ChorusRun (nset := nset) thS thM) {i j : node} :
+    ∀ n, (r.at' n).local_mvba_recorded i j = true →
+      ∃ v, (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' n).mvba_st i v ∧
+        ((∃ M, thS.mval_pos v j M = true ∧ (r.at' n).mvba_decided_pos j M = true) ∨
+          (thS.mval_neg v j = true ∧ (r.at' n).mvba_decided_neg j = true)) := by
+  mvba_inst
+  refine record_backed r (F := fun st => st.local_mvba_recorded i j = true)
+    (Q := fun st => ∃ v, (Mvba.mvbaSafety (nset := nset) thM).decided st.mvba_st i v ∧
+      ((∃ M, thS.mval_pos v j M = true ∧ st.mvba_decided_pos j M = true) ∨
+        (thS.mval_neg v j = true ∧ st.mvba_decided_neg j = true)))
+    (by simp [Chorus.local_mvba_recorded.init r.starts i j]) ?_ ?_
+  · intro n h0 h1
+    obtain ⟨v, hd, he⟩ := mvba_recorded_flip (r.steps n) h0 h1
+    exact ⟨v, decided_persists r hd (n + 1) (Nat.le_succ n), he⟩
+  · rintro n ⟨v, hd, he⟩
+    refine ⟨v, decided_persists r hd (n + 1) (Nat.le_succ n), ?_⟩
+    rcases he with ⟨M, hM, h⟩ | ⟨hM, h⟩
+    · exact Or.inl ⟨M, hM, Chorus.mvba_decided_pos.mono (r.steps n) j M h⟩
+    · exact Or.inr ⟨hM, Chorus.mvba_decided_neg.mono (r.steps n) j h⟩
+
 set_option maxHeartbeats 1000000 in
 /-- **The decision is transported.** From a correct validator's MVBA decision
 `v`: every proposer's entry of `v` is recorded (`on_mvba_decide_pos/neg`,
 whose bridge `require` is `ValidBridge`'s completeness clause), and then
-`mvba_terminate` sets `mvba_complete`. From some index on both hold. -/
+`mvba_terminate` sets `mvba_complete`. From some index on both hold. A
+handler's fired-once record can stand in the way only if `i` has already
+recorded that entry of its decision, which by the MVBA's agreement is the
+entry of `v` (`mvba_recorded_entry`). -/
 theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
     (hfj : ∀ l, JusticeLabel l → ¬ ProposeLabel l → WeaklyFair r l) (hbr : ValidBridge r)
     (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {N : Nat}
@@ -1927,23 +2181,35 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
     (fun J _ => by
       by_cases hJ : thS.is_proposer J = true
       · obtain ⟨-, -, hent⟩ := hcert k (Nat.le_refl _)
+        -- While entry `J` of `v` is unrecorded, `i` has recorded nothing for `J`.
+        have hfresh : ∀ n, k ≤ n →
+            ¬ ((∃ M, thS.mval_pos v J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
+              (thS.mval_neg v J = true ∧ (r.at' n).mvba_decided_neg J = true)) →
+            ¬ (r.at' n).local_mvba_recorded i J = true := by
+          intro n hn hnr hf
+          obtain ⟨v', hd', he'⟩ := mvba_recorded_entry r n hf
+          obtain rfl : v' = v := (Mvba.mvbaSafety (nset := nset) thM).agreement _
+            (Chorus.reachable_mvba_reachable (r.reachable n)) i i v' v hi hi hd' (hdec n hn)
+          exact hnr he'
         rcases hent J hJ with ⟨M, hM⟩ | hM
         · obtain ⟨n, hn, h⟩ := eventually_of_weaklyFair
             (hfj (.on_mvba_decide_pos i J M v) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
-            (P := fun st => st.mvba_decided_pos J M = true) (N := max k (max N Nm))
-            (fun _ _ h => on_mvba_decide_pos_effect h) (fun n hn _ => by
+            (P := fun st => (∃ M, thS.mval_pos v J M = true ∧ st.mvba_decided_pos J M = true) ∨
+              (thS.mval_neg v J = true ∧ st.mvba_decided_neg J = true)) (N := max k (max N Nm))
+            (fun _ _ h => Or.inl ⟨M, hM, on_mvba_decide_pos_effect h⟩) (fun n hn hnr => by
               obtain ⟨hp, -, -⟩ := hcert n (by omega)
               exact enabled_on_mvba_decide_pos hi (hNm n (by omega)) hJ (hinv' n (by omega))
-                (hdec n (by omega)) hM (hp J M hM).2)
-          exact ⟨n, hn, fun _ => Or.inl ⟨M, hM, h⟩⟩
+                (hdec n (by omega)) hM (hp J M hM).2 (hfresh n (by omega) hnr))
+          exact ⟨n, hn, fun _ => h⟩
         · obtain ⟨n, hn, h⟩ := eventually_of_weaklyFair
             (hfj (.on_mvba_decide_neg i J v) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
-            (P := fun st => st.mvba_decided_neg J = true) (N := max k (max N Nm))
-            (fun _ _ h => on_mvba_decide_neg_effect h) (fun n hn _ => by
+            (P := fun st => (∃ M, thS.mval_pos v J M = true ∧ st.mvba_decided_pos J M = true) ∨
+              (thS.mval_neg v J = true ∧ st.mvba_decided_neg J = true)) (N := max k (max N Nm))
+            (fun _ _ h => Or.inr ⟨hM, on_mvba_decide_neg_effect h⟩) (fun n hn hnr => by
               obtain ⟨-, hng, -⟩ := hcert n (by omega)
               exact enabled_on_mvba_decide_neg hi (hNm n (by omega)) hJ (hinv' n (by omega))
-                (hdec n (by omega)) hM (hng J hM).2)
-          exact ⟨n, hn, fun _ => Or.inr ⟨hM, h⟩⟩
+                (hdec n (by omega)) hM (hng J hM).2 (hfresh n (by omega) hnr))
+          exact ⟨n, hn, fun _ => h⟩
       · exact ⟨max k (max N Nm), Nat.le_refl _, fun h => absurd h hJ⟩)
   have hrec : ∀ n, Tr ≤ n → ∀ J, thS.is_proposer J = true →
       ((∃ M, thS.mval_pos v J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
@@ -1996,13 +2262,14 @@ theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
             (hfj (.redisseminate_chunk i i J M0) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
             (P := fun st => st.msg_chunk_received i J M0 = true) (N := max T A)
             (fun _ _ h => redisseminate_chunk_effect h)
-            (fun n hn _ => enabled_redisseminate_chunk (Or.inr (hact n (by omega) i hi)) hJ
+            (fun n hn hnr => enabled_redisseminate_chunk hi (hact n (by omega) i hi) hJ
               (r.mono (P := fun st => st.msg_proposer_signed J M0 = true)
                 (fun m h => Chorus.msg_proposer_signed.mono (r.steps m) J M0 h)
                 (proposer_signed_of_decided_pos hreach hM0) n (by omega))
               (r.mono (P := fun st => Chorus.chunk_quorum J M0 thS st)
                 (fun m h => chunk_quorum_step (r.steps m) h)
-                (Chorus.reachable_mvba_decided_pos_chunks_decodable hreach J M0 hM0) n (by omega)))
+                (Chorus.reachable_mvba_decided_pos_chunks_decodable hreach J M0 hM0) n (by omega))
+              fun hf => hnr (chunk_sent_received r n hf))
           refine ⟨n, by omega, fun _ M hM => ?_⟩
           obtain rfl := Chorus.reachable_mvba_decided_pos_unique hreach J M M0 ⟨hM, hM0⟩
           exact h
@@ -2027,8 +2294,8 @@ theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
     (hfj (.cast_fb_commit i) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
     (P := fun st => st.msg_fbcommit_sig i = true) (N := max A (max Nd Nm))
     (fun _ _ h => cast_fb_commit_effect h)
-    (fun n hn _ => enabled_cast_fb_commit hi (hact n (by omega) i hi) (hNm n (by omega)) (hT n (by omega)).1
-      (hda n (by omega)))
+    (fun n hn hnv => enabled_cast_fb_commit hi (hact n (by omega) i hi) (hNm n (by omega)) (hT n (by omega)).1
+      (hda n (by omega)) fun hf => hnv (fbcommit_voted_sig r n hf))
   exact ⟨n, h⟩
 
 /-- **The fallback commit certificate forms**: an honest quorum's fallback
