@@ -115,6 +115,7 @@ network relations. Auditing Chorus, the property split is:
 | `phase : Phase` enum | (forward-only, see below) | ✓ |
 | `local_entry_pos/neg`, `local_voted`, `local_path`, `local_committed*` | ✓ | ✗ |
 | `participating`, `abandoned` | ✓ (written only by the inputs `participate i` / `abandon i`) | ✗ — the participation gate `participating i ∧ ¬ abandoned i` of every sending rule, read at the acting validator (for `broadcast_commitqc_*` and `redisseminate_chunk`, the sender parameter) |
+| `local_chunk_sent`, `local_commit_entry`, `local_fb_entry`, `local_commitqc_sent`, `local_mvba_recorded`, `local_fbcommit_voted` (the fired-once records, S1b) | ✓ (each written only by the action it guards) | ✗ — each action's "not already" guard, read at the acting validator only |
 
 (M-update) is syntactic for every relation in the table: each write is the
 literal `true`, except `vote`'s bulk updates of `msg_vote_pos_sig`,
@@ -448,6 +449,11 @@ row indexed by the acting validator.
 | `local_fastqc_pos i j m`, `local_fastqc_neg i j` | `i` has aggregated `Ev(j)` as a FastQC (`line:fast-formqc`). Kept per-validator (unlike the transferable certificates) because an honest commit signature is justified by *the signer's own* FastQC observation. |
 | `local_committed i`, `local_committed_pos i j m`, `local_committed_neg i j` | `i`'s finalization decision. |
 | `participating i`, `abandoned i` | `i` has invoked the slot-consensus inputs `participate()` / `abandon()` (`mod:slotconsensus`); written only by the input actions of the same name. Named as the contract's observables rather than `local_*`. Every sending rule reads them at its own sender (the participation gate), which is a local read. |
+| `local_chunk_sent k i j m` | sender `k` has sent `i` its assigned chunk under `(j, m)`: the proposer's `deliver_chunk_assigned` (`k = j`) or a correct `redisseminate_chunk` (`line:fb-redisseminate`). |
+| `local_commit_entry i j`, `local_fb_entry i j` | `i` has signed its commit-vote entry, resp. its fallback entry, for proposer `j` (the per-proposer steps of `line:fast-commitvote` and `line:fb-cast-entry`). |
+| `local_commitqc_sent c j` | collector `c` has broadcast its commit certificate's entry for `j` (`line:fast-broadcast-commitqc`). |
+| `local_mvba_recorded i j` | `i` has recorded entry `j` of its MVBA decision (`line:fb-mvba-decide`). |
+| `local_fbcommit_voted i` | `i` has cast its fallback commit vote (`line:fb-commitvote`). |
 | `local_fb_neg_qv i j qv` | *auxiliary (proof-only) history variable*: the witnessed vote quorum against which `i` cast its negative fallback entry (the `qv` parameter of `fb_sign_neg` at firing time). Written by `fb_sign_neg`, read by no action; it lets the speculative-safety invariants refer to the quorum after the fact without a quantifier alternation that breaks the SMT matcher. |
 
 Cross-validator agreement that a "global QC" idiom would give
@@ -687,6 +693,17 @@ Byzantine actions mirror the receivers' checks:
 These preconditions do not weaken the adversary: they exclude only
 messages that could never influence an honest participant.
 
+**The adversary's share of the anonymous capabilities.** Assembling a
+commit certificate from `2f+1` broadcast commit votes, and re-disseminating a
+chunk once `f+1` chunks are on the network, are capabilities any holder of
+the data has. For a correct sender they are the honest rules
+`broadcast_commitqc_*` and `redisseminate_chunk`, gated on participation and
+fired once. In Byzantine hands they are `byz_broadcast_commitqc_*` and
+`byz_redisseminate_chunk`: the same validity checks, no gate, no record, and
+no fairness ((F-byz)). Until S1b both were branches of the honest actions;
+splitting them keeps every fair action fired-once
+([Bounds.md](Bounds.md) §6.4.7) without constraining the adversary.
+
 ### Per-relation actions, not a monolithic transition
 
 The adversary is a family of per-relation actions — one per
@@ -908,9 +925,12 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
    **saturation**: it casts its path vote, fast or fallback, carrying
    the per-proposer entries that cast requires. Each constituent action
    is continuously enabled once its case applies (`progress_voting` /
-   `progress_fallback_signing` state the per-proposer case analyses),
-   and in the monotone model enabledness never reverts, so weak
-   fairness fires it.
+   `progress_fallback_signing` state the per-proposer case analyses)
+   until the step the link waits for has happened: its network guards
+   never revert, and its fired-once guard fails only once it has fired,
+   whose effect is that step (`Chorus.fb_entry_sigs` and its siblings in
+   [Termination.lean](../Cadence/Chorus/Termination.lean)). So weak fairness
+   fires it.
 2. *(theorem.)* `Chorus.progress_dichotomy_of_saturation`: in any
    reachable saturated state, either a commitQC exists for **every**
    proposer from honest votes alone, or `mvba_invoked` holds together
@@ -918,8 +938,10 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
    bridge `require` and `mvba_propose`'s validity guards. Its proof is
    the case split below.
 3. *(temporal, commit route — (F-justice).)* Certificates become
-   broadcast certificates and commits: `broadcast_commitqc_*`'s guard
-   is the commitQC itself, `commit_assign_*`'s the broadcast
+   broadcast certificates and commits: a correct collector's
+   `broadcast_commitqc_*` guard is the commitQC itself (the collector is
+   the validator itself, which is actively participating on this
+   branch), `commit_assign_*`'s the broadcast
    certificate, `finalize_commit`'s the per-proposer completeness
    (`local_committed_complete`).
 4. *(temporal, MVBA route — (F-justice) on `mvba_propose`, then the

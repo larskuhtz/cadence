@@ -437,7 +437,7 @@ is a change to what this project *claims*, not a refactor.
 * **No `sorryAx` anywhere.** Every axiom pin stays at exactly
   `[propext, Classical.choice, Quot.sound]`, in every per-result pin and
   in [`Cadence.lean`](./Cadence.lean).
-* **The audit pins stay complete**: `#veil_status Chorus` at `4428/4428 real`,
+* **The audit pins stay complete**: `#veil_status Chorus` at `4737/4737 real`,
   `#veil_status FallbackReceipt` at `220/220 real` and `#veil_status Mvba`
   at `1325/1325 real`. If an invariant **or a `step_property`** is added, these
   numbers change — a step property costs one cell per action — so update the

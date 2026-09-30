@@ -268,6 +268,24 @@ coverage gap as the decision handlers. In single-node mode another node's
 `participate` is dropped, and another node's commit certificate is admitted
 as that node's message.
 
+**The fired-once guards** (S1b, [Bounds.md](Bounds.md) §6.4.7). Every fair
+action now refuses to fire a second time: a validator aggregates a given
+FastQC once, a collector broadcasts one commit certificate per proposer, a
+proposer or re-disseminator sends a given chunk once, and so on. A trace that
+repeats such a line for the same actor is therefore rejected at the repeat.
+The fixtures repeat none and pass unchanged. An emitter must emit each such
+event once per actor, and must not map the certificate *re-broadcast* on
+receipt (`line:fast-rebroadcast-commitqc`) to `broadcast_commitqc_*`: in the
+model that re-broadcast is part of finalizing. The internal steps the monitor
+inserts (`commit_sign_*`, `commit_assign_*`) carry their guards too, so the
+saturation of Stage B still reaches a fixpoint. Single-node mode admits
+another node's commit certificate through the adversary's assembly
+capability `byz_broadcast_commitqc_neg`, under that node's own
+single-Byzantine instance, since the collector's honest rule now requires a
+correct collector. Both decoders learned the three new Byzantine labels
+(`byz_broadcast_commitqc_pos`, `byz_broadcast_commitqc_neg`,
+`byz_redisseminate_chunk`).
+
 Future scope, in rough order: positive-path emission; finer per-message
 emission (individual votes and casts observed at the network boundary rather
 than derived from the certificates); the MVBA leg above; multi-slot
