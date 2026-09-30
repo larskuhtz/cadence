@@ -1,4 +1,4 @@
-import Cadence.Chorus
+import Cadence.Chorus.Compose
 import Cadence.Mvba.Liveness
 
 /-! # Chorus/Liveness — the run-level target for Chorus, and the premises it rests on
@@ -13,11 +13,11 @@ discipline, same shape, and its `Mvba.termination` is what the MVBA arm of
 the argument consumes.
 
 `grep -n '^def [A-Z]' Cadence/Chorus/Liveness.lean` prints the whole list:
-the five label classes, the certificate predicate the bridge premise is
-stated with, the three premises, the target and the claim, and nothing else.
-Everything a human has to believe about scheduling or about the seam
-between Chorus and its MVBA is one of those definitions, with a docstring,
-and appears as an explicit hypothesis of `TerminationClaim`.
+the six label classes, the certificate predicate the bridge premise is
+stated with, the five premises, the target and the claim, and nothing else.
+Everything a human has to believe about scheduling, about the seam between
+Chorus and its MVBA, or about the caller is one of those definitions, with
+a docstring, and appears as an explicit hypothesis of `TerminationClaim`.
 
 ## What this makes formal
 
@@ -34,13 +34,19 @@ but that its steps inside the composed run were scheduled the way
 `Mvba.termination` requires (`MvbaAdmissible` below) — the untimed analogue
 of `MVBATemporal.Admissible`.
 
-## The three premises, and why each is one
+## The five premises, and why each is one
 
-* **(F-justice)** — `FJustice`: every honest, non-oracle label is weakly
-  fair, the MVBA proposal as one family per validator and value. The
-  classification is the `match` definitions below; the reasons weak
-  fairness suffices are [Liveness.md](../../docs/Liveness.md) §2, and why the
-  proposal is a family is §4.6 (Finding 2).
+Three are about the run's scheduling and the MVBA seam; two are about the
+caller, and they are exactly the antecedents of the contract's own
+`SlotConsensusTemporal.termination`.
+
+
+* **(F-justice)** — `FJustice`: every honest label that is neither the
+  oracle step nor one of the module's three inputs is weakly fair, the MVBA
+  proposal as one family per validator and value. The classification is
+  the `match` definitions below; the reasons weak fairness suffices are
+  [Liveness.md](../../docs/Liveness.md) §2, and why the proposal is a family is §4.6
+  (Finding 2). The inputs are excluded on purpose (`InputLabel` says why).
 * **The MVBA's scheduling** — `MvbaAdmissible`: the run *has* a projection
   onto the MVBA (a labelling of its steps plus infinitely many of them —
   `Component.Projection`, whose header says why both are data) whose
@@ -50,8 +56,11 @@ of `MVBATemporal.Admissible`.
   two — every correct validator proposes, none is abandoned before deciding
   — are the *caller's* premises and the caller is Chorus, so they are
   **derived** in [Termination.lean](Termination.lean), not assumed: the first from (F-justice) on
-  `mvba_propose` and the progress dichotomy, the second because this
-  single-slot model never drives `abandon`.
+  `mvba_propose` and the progress dichotomy, the second from
+  `NoAbandonBeforeFinalizing` on the branch of the proof where no correct
+  validator finalizes (the MVBA's `abandon()` is invoked only by Chorus's
+  `abandon`, `line:fb-abandon`). The premise is unconditional, as before:
+  the proof uses the MVBA only on that branch.
 * **The bridge** — `ValidBridge`: the MVBA's `Valid` agrees with Chorus's
   certificate check. Chorus consumes the MVBA through the class
   `MVBASafety`, whose `Valid` is a predicate on values alone, while the
@@ -71,6 +80,14 @@ of `MVBATemporal.Admissible`.
   item 1 names, and it is a statement about the MVBA theory's `valid`
   meeting Chorus's network — the cryptographic content that a certificate
   cannot be forged — not about either model alone.
+* **Every correct validator participates** — `AllParticipate`: each
+  eventually invokes `participate()`. Within Cadence the glue does so when
+  it opens the slot.
+* **No correct validator abandons before finalizing** —
+  `NoAbandonBeforeFinalizing`. Within Cadence the glue abandons only after
+  finalizing. Every sending rule, finalization included, is gated on
+  active participation, so without this premise a validator that abandons
+  at once never finalizes.
 
 ## What is deliberately absent
 
@@ -84,7 +101,7 @@ over is a hypothesis of the *theorem* to come, not part of the claim.
 ## The classification, against the model's prose
 
 [Chorus.lean](../Chorus.lean)'s liveness section lists (F-justice)'s actions by name. The
-definition here is the complement of the other two classes, which is the
+definition here is the complement of the other three classes, which is the
 checkable form (adding an action and forgetting it here lands it in
 `JusticeLabel`, visibly), and it agrees with that list. The list includes
 `deliver_chunk_assigned` and `broadcast_commitqc_*`, which the chain in
@@ -137,16 +154,34 @@ def OracleLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg 
   | .mvba_step _ => True
   | _ => False
 
+/-- **The module's three inputs**: `participate`, `abandon` and the
+proposer's `propose` (`mod:slotconsensus`). The caller invokes them, so they
+carry no fairness. What the claim needs of the caller is stated as two
+premises instead (`AllParticipate`, `NoAbandonBeforeFinalizing`).
+
+Leaving them out of (F-justice) is not a detail. `JusticeLabel` is the
+complement of the other classes, so an input missing here would silently
+become weakly fair — and weak fairness of `abandon`, which is always
+enabled at the `Mvba` instance, would force every validator to abandon.
+This restates `Chorus.Label.isInput` ([Compose.lean](Compose.lean)) for the
+reason `Mvba.InputLabel` gives; `not_justice_of_input` ties the two. -/
+def InputLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
+  | .participate .. => True
+  | .abandon .. => True
+  | .propose .. => True
+  | _ => False
+
 /-- The labels (F-justice) covers: every honest action of the module —
 phase advancement, dissemination and delivery, voting, aggregation, the two
 paths, the MVBA proposal and the decision handlers, the commit round and
-finalization — which is everything that is neither the adversary's nor the
-oracle step. -/
+finalization — which is everything that is neither the adversary's, nor the
+oracle step, nor one of the caller's inputs. -/
 def JusticeLabel (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) : Prop :=
-  ¬ ByzLabel l ∧ ¬ OracleLabel l
+  ¬ ByzLabel l ∧ ¬ OracleLabel l ∧ ¬ InputLabel l
 
 /-- **The labels at which the MVBA's state moves**: the oracle step and the
-driven input. This is the component's `isSub` (`mvbaComponent` below), a
+two driven inputs, `mvba_propose` and `abandon` (which forwards to the
+MVBA's `abandon()`, `line:fb-abandon`). This is the component's `isSub` (`mvbaComponent` below), a
 different cut from the fairness classes — `mvba_propose` is a justice label
 *and* an MVBA step, and it appears in the projected run as the MVBA's own
 `propose` label, which `Mvba.FJustice` excludes precisely because the
@@ -154,6 +189,7 @@ caller schedules it. -/
 def MvbaStepLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
   | .mvba_step _ => True
   | .mvba_propose .. => True
+  | .abandon .. => True
   | _ => False
 
 /-- **The MVBA proposal** `mvba_propose i v mvba_next`: a justice label whose
@@ -172,28 +208,43 @@ theorem not_justice_of_byz (l : Chorus.Label slot node nodeset merkle_root mstat
 
 /-- The oracle step is not under (F-justice) either. -/
 theorem not_justice_of_oracle (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
-    (h : OracleLabel l) : ¬ JusticeLabel l := fun hj => hj.2 h
+    (h : OracleLabel l) : ¬ JusticeLabel l := fun hj => hj.2.1 h
+
+/-- **No input is under (F-justice)** — stated against `Label.isInput`
+([Compose.lean](Compose.lean)), the module's own notion of an input, which
+is what the contract's `step` excludes. In particular `abandon` is not
+weakly fair. -/
+theorem not_justice_of_input (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
+    (h : Label.isInput l) : ¬ JusticeLabel l := by
+  rcases Label.isInput_cases h with ⟨i, rfl⟩ | ⟨i, n, rfl⟩ | ⟨j, m, rfl⟩
+  · exact fun hj => hj.2.2 trivial
+  · exact fun hj => hj.2.2 trivial
+  · exact fun hj => hj.2.2 trivial
 
 /-- The classification is exhaustive — by construction, since `JusticeLabel`
-is the complement of the other two; so this is a classical case split, and
-what checks the action list is the two `match` definitions above. -/
+is the complement of the other three; so this is a classical case split, and
+what checks the action list is the three `match` definitions above. -/
 theorem label_classified (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) :
-    JusticeLabel l ∨ ByzLabel l ∨ OracleLabel l := by
+    JusticeLabel l ∨ ByzLabel l ∨ OracleLabel l ∨ InputLabel l := by
   classical
   by_cases hb : ByzLabel l
   · exact Or.inr (Or.inl hb)
   by_cases ho : OracleLabel l
-  · exact Or.inr (Or.inr ho)
-  exact Or.inl ⟨hb, ho⟩
+  · exact Or.inr (Or.inr (Or.inl ho))
+  by_cases hi : InputLabel l
+  · exact Or.inr (Or.inr (Or.inr hi))
+  exact Or.inl ⟨hb, ho, hi⟩
 
 /-- The oracle step moves the MVBA's state. -/
 theorem mvbaStepLabel_of_oracle (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
     (h : OracleLabel l) : MvbaStepLabel l := by
   cases l <;> trivial
 
-/-- An MVBA step is the oracle step or the driven input, and nothing else. -/
+/-- An MVBA step is the oracle step or one of the two driven inputs
+(`mvba_propose`, and `abandon`'s forwarding), and nothing else. -/
 theorem mvbaStepLabel_iff (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) :
-    MvbaStepLabel l ↔ (∃ m, l = .mvba_step m) ∨ (∃ i v m, l = .mvba_propose i v m) := by
+    MvbaStepLabel l ↔ (∃ m, l = .mvba_step m) ∨ (∃ i v m, l = .mvba_propose i v m) ∨
+      (∃ i m, l = .abandon i m) := by
   cases l <;> simp [MvbaStepLabel]
 
 end Labels
@@ -285,6 +336,8 @@ theorem mvba_st_frame_of_not_step
   cases l
   case mvba_step => exact absurd trivial hl
   case mvba_propose => exact absurd trivial hl
+  case abandon => exact absurd trivial hl
+  case participate => exact Chorus.participate.frame_mvba_st htr
   case advance_to_deadline => exact Chorus.advance_to_deadline.frame_mvba_st htr
   case advance_to_fb_arm => exact Chorus.advance_to_fb_arm.frame_mvba_st htr
   case advance_to_mvba_arm => exact Chorus.advance_to_mvba_arm.frame_mvba_st htr
@@ -351,10 +404,25 @@ theorem mvba_propose_tr {i v mvba_next}
   obtain ⟨-, htr⟩ := htr
   obtain ⟨-, htr⟩ := htr
   obtain ⟨-, htr⟩ := htr
+  obtain ⟨-, htr⟩ := htr
+  obtain ⟨-, htr⟩ := htr
   obtain ⟨hprop, htr⟩ := htr
   chorus_field_simp
   subst htr
   exact hprop
+
+set_option maxHeartbeats 1000000 in
+/-- `abandon`'s guard is `mvba.abandon`, the MVBA's `abandon` label's
+transition: the forwarding of `line:fb-abandon`. -/
+theorem abandon_tr {i mvba_next}
+    (htr : (atMvba thM).tr thS s (.abandon i mvba_next) s') :
+    (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
+      s.mvba_st (.abandon i) s'.mvba_st := by
+  chorus_tr htr
+  obtain ⟨hab, htr⟩ := htr
+  chorus_field_simp
+  subst htr
+  exact hab
 
 set_option maxHeartbeats 1000000 in
 /-- The initial value of `mvba_st`, read off the initializer's transition. -/
@@ -382,6 +450,7 @@ noncomputable def mvbaComponent
     cases l with
     | mvba_step mvba_next => exact mvba_step_tr htr
     | mvba_propose i v mvba_next => exact ⟨.propose i v, mvba_propose_tr htr⟩
+    | abandon i mvba_next => exact ⟨.abandon i, abandon_tr htr⟩
     | _ => exact absurd hl id
 
 end Component
@@ -490,6 +559,24 @@ def ValidBridge (r : ChorusRun thS thM) : Prop :=
   (∀ (n : Nat) (i : node) (v : node → Option merkle_root), ¬ nset.is_byz i = true →
     (Mvba.mvbaSafety thM).decided (r.at' n).mvba_st i v → Certified (thS := thS) (thM := thM) (r.at' n) v)
 
+/-- **The caller's first premise: every correct validator participates.**
+Each correct validator eventually invokes `participate()`. Within Cadence
+the glue does so when it opens the slot (`line:participate`). This is the
+first antecedent of `SlotConsensusTemporal.termination`. -/
+def AllParticipate (r : ChorusRun thS thM) : Prop :=
+  ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).participating i = true
+
+/-- **The caller's second premise: no correct validator abandons before
+finalizing.** Whenever a correct validator has invoked `abandon()`, it has
+already finalized. Within Cadence the glue abandons a slot only once it has
+finalized it (`line:abandon`). This is the second antecedent of
+`SlotConsensusTemporal.termination`, and the C1 antecedent of the timed
+fields. Without it the claim is false: a validator that abandons at once
+never finalizes, since finalizing is itself a gated rule. -/
+def NoAbandonBeforeFinalizing (r : ChorusRun thS thM) : Prop :=
+  ∀ i, ¬ nset.is_byz i = true → ∀ n,
+    (r.at' n).abandoned i = true → (r.at' n).local_committed i = true
+
 /-! ## The target -/
 
 /-- **Termination**: every correct validator finalizes the slot —
@@ -503,7 +590,9 @@ def Terminates (r : ChorusRun thS thM) : Prop :=
 /-- **The target, stated.** Written down, with its premises fixed and
 type-checked, before the proof existed; the proof is `Chorus.termination`
 in [Termination.lean](Termination.lean), at the concrete quorum family and the system's
-configuration. The three premises are exactly the file's named definitions. What is
+configuration. The five premises are exactly the file's named definitions:
+three about the run's scheduling and the MVBA seam, and two about the
+caller, which are `SlotConsensusTemporal.termination`'s own antecedents. What is
 deliberately absent is the quorum machinery — the concrete family the
 counting theorems are stated over is a hypothesis of the theorem, not part
 of the claim — and `Mvba.termination`'s three class hypotheses, for the same
@@ -513,7 +602,8 @@ def TerminationClaim
       (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
       (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
     (thM : Mvba.Theory node nodeset (node → Option merkle_root) view) : Prop :=
-  ∀ r : ChorusRun thS thM, FJustice r → MvbaAdmissible r → ValidBridge r → Terminates r
+  ∀ r : ChorusRun thS thM, FJustice r → MvbaAdmissible r → ValidBridge r →
+    AllParticipate r → NoAbandonBeforeFinalizing r → Terminates r
 
 end Runs
 
