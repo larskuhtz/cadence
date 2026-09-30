@@ -617,9 +617,12 @@ admissible: the timed claim held that second validator to adopting within
   reach whom the adversary chooses.
 
 `form_prepqc` stays as the anonymous assembly, so the adversary's power is
-unchanged, and firing it opens no obligation for a correct validator, since
-no honest guard reads `msg_prepqc` except through a certificate someone
-holds. The Mvba family was re-solved cold; the one new cell the solver
+unchanged. Its weak fairness assumes nothing of the supplement: a firing
+move-enables no fair label by itself, since no honest guard reads
+`msg_prepqc` and the one assembly that does, `form_tc_lock`, also needs a
+timeout carrying the certificate, which the run has only if its sender
+held it or, for the adversary, could form it from the broadcast prepares
+anyway. The Mvba family was re-solved cold; the one new cell the solver
 would have to search, `adopt_prepqc × prepqc_blocks_lower_commits`, is
 manual, as its `form_prepqc` twin is. `#veil_status Mvba` is unchanged,
 since no action or property was added. The good view is unaffected: there
