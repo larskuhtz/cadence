@@ -2095,6 +2095,15 @@ after its step 2.
    * **Quiescence** is not proven here. The gates make it provable in the
      paper's two-part shape; the one-step statement belongs to S5 with the
      rest of the `SlotConsensusTemporal` instance.
+
+   **Then S1b: fired-once flags, and fairness over plain enabledness**
+   (decided 2026-09-30, after R3; §6.4.7 is the plan). Both models change:
+   every fair action that can stay enabled after it has fired gets the
+   local "not already" guard the paper gives it. Then the fairness
+   premises go back to plain enabledness. It comes **before S2 and before
+   the witness (S6)**, since both are written against the final model and
+   the final premises. Probably two sessions, Mvba first, then Chorus. Two
+   cold family re-solves, one at a time.
 2. **S2: timed scaffolding, statements only.** In [Timed.lean](../Cadence/Timed.lean):
    * the (Δδ-justice) clause and `BoundedFairFamily`;
    * the timed projection (`Component.Projection` plus a clock), with its
@@ -2131,6 +2140,124 @@ after its step 2.
 Total: six to eight sessions. As in the MVBA leg, the dominant risk is
 statement churn: F1–F4 are the churn this record tries to absorb up
 front, before any Lean.
+
+#### 6.4.7 Fired-once flags: fairness over plain enabledness
+
+*The plan for S1b (§6.4.6), decided 2026-09-30 after R3 (PR #48). Nothing
+here is built yet.*
+
+**The decision.** Disabledness is modelled in the protocol, not resolved
+in the proof. Every fair action that can stay enabled after it has fired
+gets a local "not already" guard, as the paper describes the rule. Once
+none is left, the fairness premises use **plain enabledness** again: an
+action enabled from some point on eventually fires. The auditor's premise
+then has no qualifier about state-changing steps. Today it has one, and
+the reason for it takes §6.2.4 to explain. R3 made fairness count only
+state-changing steps (TLA+'s `⟨A⟩_v`). That was sound, and weaker than
+before, but it resolves scheduling non-determinism in the proof that an
+implementation resolves in its protocol logic. The model moves closer to
+the paper; the premises and the proofs get simpler.
+
+**Where the non-determinism is.** Most honest per-validator actions
+already disable themselves after firing: `vote` (`¬ local_voted`),
+`send_commit` (`¬ commit_sent`), the timeouts (`¬ timed_out`), `decide`
+(`∀ E, ¬ decided`), the leader's proposal (`¬ proposed_in`),
+`commit_assign_*` (`¬ local_committed`), and since R3 `adopt_prepqc` (the
+lock-view guard). Two sets do not; they are **the inventory to work
+from**.
+
+* **Mvba: the anonymous assemblies** `form_prepqc`, `form_commitqc`,
+  `form_tc_lock` and `form_tc_nolock`. They have no validator, and a quorum
+  parameter `q`, so once the certificate exists every `q`-variant stays
+  enabled without effect. In the supplement (`eb1bb51`) each is a step of
+  one validator with a local condition:
+  * `TryFormPrepQC`: pᵢ forms `prepareQC` if it "has not already formed a
+    prepare certificate in the current view". This is `adopt_prepqc` since
+    R3, and it is done;
+  * the commit certificate: pᵢ forms `CommitQC` "provided that it has not
+    already learned a decision certificate", and records it as
+    `DecidedQC_i`;
+  * the timeout certificate: "upon first collecting 2f+1 valid timeout
+    messages", pᵢ forms `TC_{s,v}` and processes it through `SyncView`
+    (`line:mvba:ht-advance`).
+* **Chorus:** `aggregate_fastqc_pos/neg i j …` (`line:fast-formqc`) and
+  `broadcast_commitqc_pos/neg c j …` (`line:fast-collect-commit`,
+  `line:fast-broadcast-commitqc`). Each has an actor and no fired-once
+  guard. **An assumption to confirm:** the published paper writes these as
+  `upon` handlers of an event-driven protocol, without "first time" (only
+  the fast meta-block rule says it). The plan reads an `upon` handler as
+  running once when its condition becomes true. That is the conventional
+  reading, but the paper states no convention, so check it with the
+  authors and record it in [PaperAlignment.md](PaperAlignment.md).
+
+The inventory may not be complete. The acceptance criterion below is what
+decides that, not this list. Candidates to check first:
+`redisseminate_chunk` (re-delivery of a chunk already received),
+`record_chunk`, the phase markers, and every assembly with a quorum
+parameter.
+
+**The shape.**
+
+* A **per-validator** action with a quorum parameter (no `∃`-quorum ghost
+  in a guard, as in `adopt_prepqc i v e q`). It sets a **local** record of
+  what it formed, and a guard on that record's absence disables every
+  `q`-variant at once. A negative read of the actor's *own local* state is
+  what every existing honest guard does; no network relation is read
+  negatively, so the monotone-network contract is untouched
+  ([ChorusDesign.md](ChorusDesign.md) §3.1.1). It also sets the network
+  certificate relation, as `adopt_prepqc` sets `msg_prepqc`, where the
+  certificate is carried on (timeouts, broadcasts).
+* The **anonymous forming stays**, but is **not fair**: it is the
+  adversary's capability to aggregate signatures it saw, so safety's
+  adversary is unchanged. It moves into an unfair label class (with the
+  `byz_*` family, or its own class, with a `not_justice_of_*` pin), and
+  the hop tables lose it. Where an honest per-validator action replaces it
+  in a chain, the chain's link changes accordingly.
+* Where the effect record itself is the natural flag (`aggregate_fastqc_*`
+  sets `local_fastqc_*`), the guard is its absence, and no new relation is
+  needed.
+* At most 10 action parameters. An invariant only if the cleanest proof
+  needs one (backing of the new local records is the likely one).
+
+**The fairness side.**
+
+* [Fairness.lean](../Cadence/Fairness.lean): `WeaklyFair`,
+  `WeaklyFairFamily` and `StronglyFair` over `Enabled` again.
+  [Timed.lean](../Cadence/Timed.lean)'s `BoundedFair` over `Enabled` too.
+  `EnabledMove` stays only as the vocabulary of the lemma below.
+* Both `FJustice`s and `Mvba.BoundedJustice` are restated with plain
+  enabledness, and their docstrings drop the state-changing qualifier. The
+  proofs lose their side conditions (`EnabledMove.of_enabled_of_effect`,
+  `eventually_of_weaklyFair`), unless keeping `eventually_of_weaklyFair`
+  in plain form reads better.
+* **The acceptance criterion, machine-checked, per model:** at every
+  reachable state, every enabled fair label is move-enabled
+  (`∀ l, JusticeLabel l → Enabled … st l → EnabledMove … st l`). It says
+  the model has no fair action that stays enabled without effect, so the
+  flag discipline is checked rather than read. For the audit surface it is
+  the statement that, for this model, weak fairness over plain enabledness
+  and over state-changing steps are the same premise. A label that fails
+  it belongs in the inventory above. Proven per action from the guards and
+  the generated frame lemmas, in plain Lean, not as a Veil cell.
+
+**What it touches, and what it costs.**
+
+* [Mvba.lean](../Cadence/Mvba.lean), with
+  [Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) mirroring it (the
+  witness moves and is re-pinned, with `sequential := true`), and the
+  whole Mvba liveness and timed stack: the hop table, `Delivers`, the
+  chains, `Lcert` if a milestone moves, and the witness.
+* [Chorus.lean](../Cadence/Chorus.lean) and the Chorus liveness files.
+  Interfaces.lean should not need to change; if a contract field turns out
+  to need it, stop and report.
+* Two cold family re-solves, one at a time. The `#veil_status` pins
+  change with every added action: compute them before the build, update
+  them where CLAUDE.md and [Architecture.md](Architecture.md) own them.
+  Budget the manual cells: `adopt_prepqc`'s lock-persistence cell is the
+  precedent for any per-validator action that creates a prepare
+  certificate.
+* Docs: §6.2.4 (the move-enabledness finding becomes history), the §6.3
+  and §6.4.5 ledgers, [Liveness.md](Liveness.md) §2, and a History row.
 
 **What the Conductor's timed claims need from this leg.** The
 Conductor's Totality, `B`-Boundedness and `R`-Recovery

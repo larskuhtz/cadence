@@ -142,6 +142,17 @@ come first.
   [MvbaPlan.md](MvbaPlan.md) §4's four instruments that does not already
   exist in some form.
 
+* **Fired-once flags, then fairness over plain enabledness** (decided
+  2026-09-30; the plan is [Bounds.md](Bounds.md) §6.4.7, staged as S1b in
+  §6.4.6, before S2 and the witness). Give every fair action that can
+  stay enabled after firing the local "not already" guard the paper gives
+  it: the MVBA's anonymous assemblies become per-validator steps, and
+  Chorus's `aggregate_fastqc_*` and `broadcast_commitqc_*` get their
+  guards. The anonymous forming stays as an unfair adversary capability.
+  Then state the fairness premises with plain enabledness again, and prove
+  per model that every enabled fair label changes the state if it fires.
+  This removes the state-changing qualifier R3 put in the premises.
+
 * **Try the timer-priority route, which would remove the good view from
   the premises entirely.** (A-viewsync)'s second clause is indexed by the
   good view and has a commit certificate as its consequent; both are forced
