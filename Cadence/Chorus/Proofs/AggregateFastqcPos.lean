@@ -41,7 +41,7 @@ invariant conjuncts it needs are named, not indexed
   veil_inv_have h_mvba_decided_pos_backed := mvba_decided_pos_backed
   veil_inv_have h_msg_fb_pos_sig_backed := msg_fb_pos_sig_backed
   veil_inv_have h_spec_fastqc_pos_mvba_pos_unique := spec_fastqc_pos_mvba_pos_unique
-  intro _hbyz_i hsup_q hq_sigs hne1 hne2 hne3 hnie I J M M' hbyz_I hfq hmv
+  intro _hbyz_i hsup_q hq_sigs _hfresh hne1 hne2 hne3 hnie I J M M' hbyz_I hfq hmv
   by_cases hnew : i = I ∧ j = J ∧ m = M
   · obtain ⟨rfl, rfl, rfl⟩ := hnew
     rcases h_mvba_decided_pos_backed j M' hmv with ⟨Q2, hQ2_sup, hQ2⟩ | ⟨⟨qf, hqf_gtt, hqf⟩, -⟩
