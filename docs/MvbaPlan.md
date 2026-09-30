@@ -2309,6 +2309,20 @@ work. Stage 5 records the result.
    supplement's `TryFormPrepQC`), a network hop with a first-delivery
    clause. It was done together with the fairness clean-up, in one Mvba
    re-solve; see [Bounds.md](Bounds.md) §6.2.4.
+
+   **R4 (2026-09-30), the other two assemblies.** Commit and timeout
+   certificates follow the same pattern since R4: `form_own_commitqc i v e q`
+   (the supplement's `TryFormCommitQC` and `Decide`, guarded on
+   `DecidedQC_i = ⊥`, i.e. `∀ E, ¬ decided i E`) and `form_own_tc_lock` /
+   `form_own_tc_nolock` (`HandleTimeout`, "upon first collecting `2f+1`
+   valid timeout messages", with the local record `tc_formed i v`). Both
+   are network hops with first-delivery clauses; the `timeouts`
+   retransmission clause now names the validator that forms the
+   certificate. The four anonymous assemblies left the hop table and
+   carry no fairness (`AssemblyLabel`). `Lcert` and `Schedule.ℓ` are
+   unchanged: the good view's last hop now forms the certificate and a
+   decision together, and the others' decisions were already charged to
+   the transfer term. [Bounds.md](Bounds.md) §6.4.7 has the record.
 4. **Re-prove the bound and re-check the witness against the refined
    premise.**
    * **The good view.** In

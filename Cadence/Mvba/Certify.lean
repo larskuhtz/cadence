@@ -12,11 +12,14 @@ import Cadence.Mvba.Proofs.BecomeAvailReady
 import Cadence.Mvba.Proofs.ExpireTimer
 import Cadence.Mvba.Proofs.SendCommit
 import Cadence.Mvba.Proofs.FormCommitqc
+import Cadence.Mvba.Proofs.FormOwnCommitqc
 import Cadence.Mvba.Proofs.Decide
 import Cadence.Mvba.Proofs.TimeoutQc
 import Cadence.Mvba.Proofs.TimeoutNoqc
 import Cadence.Mvba.Proofs.FormTcLock
 import Cadence.Mvba.Proofs.FormTcNolock
+import Cadence.Mvba.Proofs.FormOwnTcLock
+import Cadence.Mvba.Proofs.FormOwnTcNolock
 import Cadence.Mvba.Proofs.SyncView
 import Cadence.Mvba.Proofs.SyncViewAdopt
 import Cadence.Mvba.Proofs.ByzPreprepare
@@ -79,6 +82,8 @@ safety proof never has to ask where a guard's failure came from. By guard:
 
 * the three leader actions' `¬ proposed_in l v` — `proposed_in_backed`,
   the leader's counterpart of `commit_sent_backed`.
+* `form_own_tc_*`'s `¬ tc_formed i v` (the supplement's "not already
+  formed") — `tc_formed_backed`.
 
 The others are not about a guard. `accepted_implies_prepare` is about a
 *conclusion* — the acceptance
@@ -103,7 +108,7 @@ invariant.
 `timed_out_implies_timer`, `timed_out_implies_message` and
 `timeout_qc_view_le` are for closing a view: the timeout actions are guarded
 on the view timer, the timer delivers the local flag while the assemblies
-read the messages, and `form_tc_lock` additionally checks that a carried
+read the messages, and the lock rule (`form_own_tc_lock`) additionally checks that a carried
 certificate is not of a view above the `Timeout` carrying it.
 
 `input_implies_entered` and `tc_lock_implies_tc` let the good view's entry
@@ -120,6 +125,6 @@ too: a newly entered view is view 1 or the successor of one that already has
 a timeout certificate. It is a *step* property rather than an invariant
 because it relates the two states. -/
 
-/-- info: #veil_status Mvba: 1325/1325 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Mvba: 1507/1507 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Mvba

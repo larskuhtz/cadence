@@ -22,7 +22,7 @@ been repaired and the test has lost its meaning.
 
 The faithful mutant — [Mvba.lean](../Mvba.lean) with only that guard weakened — is far
 too wide for exhaustive search at the smallest interesting instance
-(`n = 4`, `f = 1`, two values, two views): the violation needs some 26
+(`n = 4`, `f = 1`, two values, two views): the violation needs some 25
 transitions (a commit certificate in view 1, a lock-carrying timeout
 certificate, a second commit certificate on the other value in view 2, two
 decisions), and the Byzantine node's five independent signing actions,
@@ -50,8 +50,15 @@ mutant, hence of [Mvba.lean](../Mvba.lean) with the lock check deleted. The rest
    (validators 0–2 here) gates every honest per-validator action, so the
    fourth validator never acts; `byz_plan v e` (view `k` ↦ value `k`) gates
    the Byzantine signer. Both only *remove* enabled transitions.
-3. **Dropped actions**: `abandon` and `byz_timeout_qc`. Removing actions
-   only shrinks the reachable set. (The three honest leader actions are
+3. **Dropped actions**: `abandon`, `byz_timeout_qc`, and the anonymous
+   assemblies `form_prepqc`, `form_tc_lock` and `form_tc_nolock` — the
+   correct validators form those certificates themselves (`adopt_prepqc`,
+   `form_own_tc_lock`, `form_own_tc_nolock`, the supplement's rules).
+   Removing actions only shrinks the reachable set. The anonymous
+   `form_commitqc` stays: in the scenario below the view-1 commit
+   certificate is aggregated without anyone deciding on it, which is the
+   adversary's move (a correct validator that forms a commit certificate
+   decides on it and halts). (The three honest leader actions are
    kept verbatim; the theory makes the Byzantine node the leader of every
    view, so they are simply never enabled.)
 4. **The dropped assumption `leader_honest_cofinal`**, and this one is
@@ -61,7 +68,7 @@ mutant, hence of [Mvba.lean](../Mvba.lean) with the lock check deleted. The rest
    not cofinal in `Fin 2`. What is refuted here is therefore the mutant
    *without* that assumption. The refutation carries to the mutant with
    it, because the assumption constrains only the immutable leader
-   schedule at views this run never enters: replay the same 26
+   schedule at views this run never enters: replay the same 25
    transitions at `view := Fin 3` with an honest leader at view 2 and
    every step is a step of the assumption-carrying mutant. That larger
    instance is not checked — a third view multiplies the search — so the
@@ -81,14 +88,20 @@ The counterexample is the textbook lock-persistence scenario (`n = 4`,
 `f = 1`; node 0 Byzantine and the leader of both views): view 1 — the
 leader proposes value 0, validators 1 and 2 prepare, each forms its own
 prepare certificate from the three prepares, and their commits plus the
-Byzantine commit form a **commit certificate on value 0**; both time out carrying that certificate, and with the
-Byzantine lock-free timeout a **timeout certificate whose lock is value 0**
-forms; both sync into view 2. View 2 — the Byzantine leader proposes
-**value 1**; without the lock check both validators accept it, prepare,
-form the new certificate and commit, and a **commit certificate on value 1**
-forms. Validator 1 decides value 0 from the first certificate, validator 2
-value 1 from the second. Both decisions come last: a validator that has decided
-halts, so neither could time out after deciding. In [Mvba.lean](../Mvba.lean) the `handle_preprepare` guard
+Byzantine commit are aggregated by the adversary into a **commit
+certificate on value 0** (`form_commitqc`), on which nobody decides yet;
+both time out carrying their prepare certificate, and validator 1, with
+the Byzantine lock-free timeout, forms a **timeout certificate whose lock
+is value 0** (`form_own_tc_lock`); both sync into view 2. View 2 — the
+Byzantine leader proposes **value 1**; without the lock check both
+validators accept it, prepare, form the new prepare certificate and
+commit, and validator 1 forms a **commit certificate on value 1** from
+the three commits and decides value 1 on it (`form_own_commitqc`).
+Validator 2 then decides value 0 from the first certificate (`decide`).
+The decisions come last: a validator that has decided halts, so neither
+could time out after deciding, and so the view-1 certificate has to be the
+adversary's aggregation rather than a correct validator's own (which would
+have decided on it and halted). In [Mvba.lean](../Mvba.lean) the `handle_preprepare` guard
 rejects the view-2 proposal (`lock_available 0 1` is false, `tc_nolock 0` is
 false), and `prepqc_blocks_lower_commits` is exactly the invariant that
 this run breaks at its view-2 prepare certificate.
@@ -139,6 +152,7 @@ relation proposed_in (l : node) (v : view)
 relation decided (i : node) (e : value)
 relation abandoned (i : node)
 relation avail_ready (i : node) (e : value)
+relation tc_formed (i : node) (v : view)
 
 #gen_state
 
@@ -172,6 +186,7 @@ after_init {
   decided I E := false
   abandoned I := false
   avail_ready I E := false
+  tc_formed I V := false
 }
 
 /-- `propose` for every validator at once, on one vector — four `propose`
@@ -260,12 +275,6 @@ action handle_preprepare (i : node) (l : node) (pv : view) (v : view) (e : value
   msg_prepare i v e := true
 }
 
-action form_prepqc (v : view) (e : value) (q : nodeset) {
-  require nset.supermajority q
-  require ∀ r, nset.member r q → msg_prepare r v e
-  msg_prepqc v e := true
-}
-
 action adopt_prepqc (i : node) (v : view) (e : value) (q : nodeset) {
   require ¬ is_byz i
   require participant i
@@ -310,6 +319,19 @@ action form_commitqc (v : view) (e : value) (q : nodeset) {
   msg_commitqc v e := true
 }
 
+action form_own_commitqc (i : node) (v : view) (e : value) (q : nodeset) {
+  require ¬ is_byz i
+  require participant i
+  require ∃ E, input i E
+  require ¬ abandoned i
+  require ∀ E, ¬ decided i E
+  require in_view i v
+  require nset.supermajority q
+  require ∀ r, nset.member r q → msg_commit r v e
+  msg_commitqc v e := true
+  decided i e := true
+}
+
 action decide (i : node) (v : view) (e : value) {
   require ¬ is_byz i
   require participant i
@@ -349,7 +371,14 @@ action timeout_noqc (i : node) (v : view) {
   msg_timeout_noqc i v := true
 }
 
-action form_tc_lock (v : view) (q : nodeset) (r0 : node) (w : view) (e : value) {
+action form_own_tc_lock (i : node) (v : view) (q : nodeset) (r0 : node) (w : view) (e : value) {
+  require ¬ is_byz i
+  require participant i
+  require ∃ E, input i E
+  require ¬ abandoned i
+  require ∀ E, ¬ decided i E
+  require in_view i v
+  require ¬ tc_formed i v
   require nset.supermajority q
   require nset.member r0 q
   require msg_timeout_qc r0 v w e
@@ -357,13 +386,22 @@ action form_tc_lock (v : view) (q : nodeset) (r0 : node) (w : view) (e : value) 
   require vord.le w v
   require ∀ r, nset.member r q →
     msg_timeout_noqc r v ∨ ∃ W E, msg_timeout_qc r v W E ∧ vord.le W w
+  tc_formed i v := true
   msg_tc v := true
   tc_lock v w e := true
 }
 
-action form_tc_nolock (v : view) (q : nodeset) {
+action form_own_tc_nolock (i : node) (v : view) (q : nodeset) {
+  require ¬ is_byz i
+  require participant i
+  require ∃ E, input i E
+  require ¬ abandoned i
+  require ∀ E, ¬ decided i E
+  require in_view i v
+  require ¬ tc_formed i v
   require nset.supermajority q
   require ∀ r, nset.member r q → msg_timeout_noqc r v
+  tc_formed i v := true
   msg_tc v := true
   tc_nolock v := true
 }
@@ -467,6 +505,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = []
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -489,6 +528,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = []
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -511,6 +551,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = []
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -533,6 +574,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = []
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -555,6 +597,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -577,6 +620,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -599,6 +643,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -621,6 +666,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -643,6 +689,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -665,6 +712,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -687,6 +735,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -709,6 +758,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = []
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = []
@@ -731,6 +781,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = [[1, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = [[1, 0]]
@@ -753,11 +804,12 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = []
     tc_lock = []
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [2, 0]]
-  State 14 (via form_tc_lock(e=0, q=[0, 1, 2], r0=1, v=0, w=0)):
+  State 14 (via form_own_tc_lock(e=0, i=1, q=[0, 1, 2], r0=1, v=0, w=0)):
     abandoned = []
     accepted = [[1, [0, 0]], [2, [0, 0]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
@@ -775,6 +827,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
@@ -797,6 +850,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
@@ -819,6 +873,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
@@ -841,6 +896,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0], [0, 1]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
@@ -863,6 +919,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0], [0, 1]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
@@ -885,6 +942,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0], [0, 1]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
@@ -907,6 +965,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0], [0, 1]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
@@ -929,6 +988,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0], [0, 1]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
@@ -951,6 +1011,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0], [0, 1]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
@@ -973,16 +1034,17 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0], [0, 1]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [1, 1], [2, 0], [2, 1]]
-  State 24 (via form_commitqc(e=1, q=[0, 1, 2], v=1)):
+  State 24 (via form_own_commitqc(e=1, i=1, q=[0, 1, 2], v=1)):
     abandoned = []
     accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [1, 1], [2, 0], [2, 1]]
-    decided = []
+    decided = [[1, 1]]
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
@@ -995,16 +1057,17 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0], [0, 1]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]
     voted = [[1, 0], [1, 1], [2, 0], [2, 1]]
-  State 25 (via decide(e=0, i=1, v=0)):
+  State 25 (via decide(e=0, i=2, v=0)):
     abandoned = []
     accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
     avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
     commit_sent = [[1, 0], [1, 1], [2, 0], [2, 1]]
-    decided = [[1, 0]]
+    decided = [[1, 1], [2, 0]]
     entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
     input = [[0, 0], [1, 0], [2, 0], [3, 0]]
     local_prepqc = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
@@ -1017,28 +1080,7 @@ error: ❌ Violation: safety_failure (violates: agreement)
     msg_timeout_noqc = [[0, 0], [0, 1]]
     msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
     proposed_in = []
-    tc_lock = [[0, [0, 0]]]
-    tc_nolock = []
-    timed_out = [[1, 0], [2, 0]]
-    voted = [[1, 0], [1, 1], [2, 0], [2, 1]]
-  State 26 (via decide(e=1, i=2, v=1)):
-    abandoned = []
-    accepted = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
-    avail_ready = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1]]
-    commit_sent = [[1, 0], [1, 1], [2, 0], [2, 1]]
-    decided = [[1, 0], [2, 1]]
-    entered = [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]]
-    input = [[0, 0], [1, 0], [2, 0], [3, 0]]
-    local_prepqc = [[1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
-    msg_commit = [[0, [0, 0]], [0, [1, 1]], [1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
-    msg_commitqc = [[0, 0], [1, 1]]
-    msg_prepare = [[0, [0, 0]], [0, [1, 1]], [1, [0, 0]], [1, [1, 1]], [2, [0, 0]], [2, [1, 1]]]
-    msg_prepqc = [[0, 0], [1, 1]]
-    msg_preprepare = [[0, [0, 0]], [0, [1, 1]]]
-    msg_tc = [0]
-    msg_timeout_noqc = [[0, 0], [0, 1]]
-    msg_timeout_qc = [[1, [0, [0, 0]]], [2, [0, [0, 0]]]]
-    proposed_in = []
+    tc_formed = [[1, 0]]
     tc_lock = [[0, [0, 0]]]
     tc_nolock = []
     timed_out = [[1, 0], [2, 0]]

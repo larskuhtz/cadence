@@ -21,9 +21,9 @@ Two components, ordered lexicographically.
 
   | over | counting | the step it measures |
   |---|---|---|
-  | a quorum `q` | `msg_prepare r v e` | `form_prepqc`'s guard |
-  | | `msg_commit r v e` | `form_commitqc`'s guard |
-  | | `SentTimeout st r v` | what the two `form_tc_*` guards share |
+  | a quorum `q` | `msg_prepare r v e` | `adopt_prepqc`'s quorum guard |
+  | | `msg_commit r v e` | `form_own_commitqc`'s quorum guard |
+  | | `SentTimeout st r v` | what the two `form_own_tc_*` quorum guards share |
   | the honest core of `q` | `accepted r v e` | `handle_preprepare` |
   | | `local_prepqc r v e` | `adopt_prepqc` / `sync_view_adopt` |
   | | `avail_ready r e` | `become_avail_ready` |
@@ -109,7 +109,7 @@ namespace Mvba
 
 All seven counts are the same count, so it is defined and reasoned about
 once. The predicate is a `Prop`, not a `Bool`, because one of them is the
-disjunction the `form_tc_*` guards share — a validator has sent *some*
+disjunction the `form_own_tc_*` guards share — a validator has sent *some*
 `Timeout` for the view — whose existential quantifier over an abstract sort
 has no decision procedure. `Classical.propDecidable` supplies the one
 canonical instance, so every `residual` term is built the same way and the
@@ -296,8 +296,8 @@ variable {node nodeset value view : Type} [nset : ByzNodeSet node nodeset]
 /-- `r` has sent *some* `Timeout` for view `v` — with a certificate or
 without one. This is what the two timeout-certificate assemblies have in
 common and neither can do without, so it is the right thing to *count*; it
-is deliberately weaker than either guard. `form_tc_nolock` additionally
-needs every member's `Timeout` to be the lock-free form, and `form_tc_lock`
+is deliberately weaker than either guard. `form_own_tc_nolock` additionally
+needs every member's `Timeout` to be the lock-free form, and `form_own_tc_lock`
 additionally needs one member's carried certificate to dominate the rest.
 A zero residual here is therefore necessary for a `TC_{s,v}` to form and
 not sufficient. -/
@@ -364,7 +364,7 @@ theorem entered_of_viewGap_zero {Vs : List view} {i : node}
     (h : viewGap Vs st i = 0) {u : view} (hu : u ∈ Vs) : st.entered i u = true :=
   residual_eq_zero_iff.mp h u hu
 
-/-- Assembly residual `0`: the message guard of `form_prepqc` on `q`. (Its
+/-- Assembly residual `0`: the quorum guard of `adopt_prepqc` on `q`. (Its
 other guard, `supermajority q`, is a fact about `q` alone and the caller's to
 supply; the same holds of the lemmas below.) -/
 theorem prepare_quorum_of_assemblyGap_zero (h : assemblyGap enum q v e st = 0)
@@ -373,7 +373,7 @@ theorem prepare_quorum_of_assemblyGap_zero (h : assemblyGap enum q v e st = 0)
     simp only [assemblyGap] at h; omega
   exact residual_eq_zero_iff.mp hz r ((enum.mem_members r q).mp hr)
 
-/-- Assembly residual `0`: the message guard of `form_commitqc` on `q`. -/
+/-- Assembly residual `0`: the quorum guard of `form_own_commitqc` on `q`. -/
 theorem commit_quorum_of_assemblyGap_zero (h : assemblyGap enum q v e st = 0)
     (r : node) (hr : nset.member r q = true) : st.msg_commit r v e = true := by
   have hz : residual (enum.members q) (fun r => st.msg_commit r v e = true) = 0 := by
@@ -381,7 +381,7 @@ theorem commit_quorum_of_assemblyGap_zero (h : assemblyGap enum q v e st = 0)
   exact residual_eq_zero_iff.mp hz r ((enum.mem_members r q).mp hr)
 
 /-- Assembly residual `0`: every member of `q` has sent a `Timeout` for `v` —
-the obligation the two `form_tc_*` assemblies share, so this is necessary for
+the obligation the two `form_own_tc_*` rules share, so this is necessary for
 either and sufficient for neither (`SentTimeout`). -/
 theorem timeout_quorum_of_assemblyGap_zero (h : assemblyGap enum q v e st = 0)
     (r : node) (hr : nset.member r q = true) : SentTimeout st r v := by

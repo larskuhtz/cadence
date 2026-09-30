@@ -553,13 +553,13 @@ from `max(t, gst)`.
 | (T-timer) | `TimerPunctual` | for honest `i`: (T1) `expire_timer i v` fires at `n` only if `clk m + τ v ≤ clk n` for some `m ≤ n` with `entered i v` at `m`; (T2) if `entered i v` at `m`, then `timer_expired i v` at some `n ≥ m` with `clk n ≤ clk m + τ v` | the local view timer, restarted on entry, expiring after exactly `τ v` |
 | (Δ-avail) | `AvailWithin` | for honest `i`: `accepted i v e` at `m` ⇒ `avail_ready i e` within `Δ_sync` of `m` | `lem:avail-progress`'s `Δ_sync` |
 
-`hop`, the per-label kind, is a classification of the sixteen
+`hop`, the per-label kind, is a classification of the fifteen
 `JusticeLabel`s by what the guard consumes:
 
 | network (reads another party's message or certificate) | `δ` (local) |
 |---|---|
 | `handle_preprepare_first`, `handle_preprepare` (the leader's `Pre-Prepare`) | `leader_propose_first`, `leader_repropose`, `leader_propose_fresh` (upon entering the view; `Recover` is the identity here) |
-| `form_prepqc`, `form_commitqc`, `form_tc_lock`, `form_tc_nolock` (a quorum of others' signatures — the model's separation of *delivery* from *assembly* puts the delivery on the assembly) | `send_commit`, `timeout_qc`, `timeout_noqc` (own state and a certificate already counted) |
+| `form_own_commitqc`, `form_own_tc_lock`, `form_own_tc_nolock` (a quorum of `Commit`s or timeouts the validator received itself; since R4, §6.4.7) | `send_commit`, `timeout_qc`, `timeout_noqc` (own state and a certificate already counted) |
 | `adopt_prepqc` (a quorum of `Prepare`s the validator received itself; since R3, (N4) below) | |
 | `sync_view`, `sync_view_adopt` (a timeout certificate) | |
 | `decide` (a commit certificate; since step 5b, (N3) below) | |
@@ -577,9 +577,9 @@ holds.
 
 | clause | owed within | when | the supplement |
 |---|---|---|---|
-| `first` | `Δ` | the messages are from correct senders (a correct leader; a quorum of correct validators), were first sent at or after GST (`SinceGst`, **N1**), and were retained by the receiver, which had reached the message's view or the one before (`RetainedBy`, **N2**); while every correct validator takes part and, for an assembly, the forming validator has not moved past the view (`NotPast`, **N2**) | delivery within `Δ` of messages sent at or after GST between correct validators; one-view retention; lower views discarded |
+| `first` | `Δ` | the messages are from correct senders (a correct leader; a quorum of correct validators), were first sent at or after GST (`SinceGst`, **N1**), and were retained by the receiver, which had reached the message's view or the one before (`RetainedBy`, **N2**); while every correct validator takes part. That the receiver has not moved past the view (**N2**, lower views discarded) is the receiving step's own `in_view` guard: since R4 every network label is one validator's step, so the clause names no separate receiver | delivery within `Δ` of messages sent at or after GST between correct validators; one-view retention; lower views discarded |
 | `forwarded` | `Δ` | a timeout certificate forwarded, at or after GST, by the first correct validator to enter the view it justifies | `line:mvba:sv-forward`, `lem:view-sync`(b) |
-| `timeouts` | `Δ + ρ` | a correct quorum's timeouts, whenever sent, while their senders are still in the view | the `Timeout` retransmission, `lem:convergence` ("Reaching `V`") |
+| `timeouts` | `Δ + ρ` | a correct quorum's timeouts, whenever sent, while their senders are still in the view, formed into a certificate by a correct validator in the view | the `Timeout` retransmission, `lem:convergence` ("Reaching `V`") |
 | `certificates` | `Δ + ρ` | a timeout certificate, whenever formed, while every correct validator takes part | `line:mvba:viewtc-retx` |
 | `decisions` | `Δ + ρ` | a commit certificate some correct validator has decided on (**N3**) | the composing layer's delivery, `lem:decision-propagation` |
 
@@ -617,7 +617,9 @@ admissible: the timed claim held that second validator to adopting within
   reach whom the adversary chooses.
 
 `form_prepqc` stays as the anonymous assembly, so the adversary's power is
-unchanged. Its weak fairness assumes nothing of the supplement: a firing
+unchanged. *(Superseded in R4, §6.4.7: the four anonymous assemblies carry
+no fairness at all, `AssemblyLabel`; the rest of this paragraph is the R3
+record.)* Its weak fairness assumes nothing of the supplement: a firing
 move-enables no fair label by itself, since no honest guard reads
 `msg_prepqc` and the one assembly that does, `form_tc_lock`, also needs a
 timeout carrying the certificate, which the run has only if its sender
@@ -639,7 +641,10 @@ firings for one effect, and if `nodeset` has infinitely many
 supermajorities no run satisfies it. In the *timed* form this is fatal
 outright: infinitely many firings within `Δ`. So (Δ-justice) is stated for
 `EnabledMove` — a transition under `l` to a **different** state, TLA+'s
-`⟨A⟩_v` — under which one firing discharges every `q'` at once. Veil's
+`⟨A⟩_v` — under which one firing discharges every `q'` at once. *(Since R4,
+§6.4.7, no fair label of this model has that property any more: the
+anonymous assemblies are unfair, and each correct validator's step is
+guarded on the record it sets, which `Mvba.enabledMove_of_enabled` checks.)* Veil's
 actions are deterministic in their parameters, so a firing of a
 move-enabled label is a move; the proofs pay one side condition per link
 (the guard's negative flag becomes the effect's positive one, so the
@@ -708,7 +713,7 @@ validator has entered some view `≥ v` by time `X ≥ gst`:
 |---|---|---|
 | every correct validator still in `v` has its timer expired | `X + τ v` | (T2) from its entry, which is `≤ X` |
 | … and has timed out or left `v` | `+ 2δ` | `timeout_*` is move-enabled; at most one `adopt_prepqc` can intervene in `v` and change the highest held certificate, so one restart of the `δ` window |
-| a timeout certificate for some view `≥ v` exists | `+ Δ` | either a correct validator is above `v`, which needs one, or the correct quorum's timeouts are all sent and `form_tc_*` is move-enabled; a first delivery, the timeouts retained by the first member to send one, which was in `v` then |
+| a timeout certificate for some view `≥ v` exists | `+ Δ` | either a correct validator is above `v`, which needs one, or the correct quorum's timeouts are all sent and a correct validator in `v` forms the certificate (`form_own_tc_*`, since R4); a first delivery, the timeouts retained by the first member to send one, which was in `v` then and forms it |
 | `Synced (succ v)` | `+ Δ` | `sync_view` move-enabled for everyone at `≤ v`; a first delivery of a certificate formed after GST |
 
 so `Synced (succ v) (X + C)` with **`C = τ_max + 2δ + 2Δ`** — the
@@ -734,12 +739,16 @@ at `E₀ ≥ gst`:
 | every correct validator holds its own `prepareQC_W` on `e` | `+ Δ` | `adopt_prepqc` on the correct quorum's prepares, all on one `e` (`accepted_unique`); a first delivery, since R3 ((N4) in §6.2.4) |
 | … and has `avail_ready` | acceptance `+ Δ_sync` | (Δ-avail), in parallel |
 | every correct `Commit` sent | `max` of the two `+ δ` | `send_commit` |
-| `msg_commitqc W e` | `+ Δ` | `form_commitqc` |
-| every correct validator decided | `+ Δ` | `decide`, a network hop: the certificate was first obtained after GST, and reaches the others by broadcast — after the certificate, timers no longer matter |
+| `msg_commitqc W e`, and a correct validator decided | `+ Δ` | `form_own_commitqc` at the first correct validator in `W`, which forms the certificate from the correct quorum's `Commit`s and decides on it (`TryFormCommitQC` and `Decide`, since R4) |
 
-so the certificate is at `E₀ + L_cert` with
+so a correct validator has decided by `E₀ + L_cert` with
 **`L_cert = 3Δ + max(Δ, Δ_sync) + 2δ`** — `lem:good-view`'s
-`t*_w − τ_w` at `δ = 0`, `Δ_R = 0` — and the decisions at `E₀ + L_cert + Δ`.
+`t*_w − τ_w` at `δ = 0`, `Δ_R = 0`. (Until R4 the certificate was the
+anonymous assembly's at `E₀ + L_cert` and everyone decided on it by
+`E₀ + L_cert + Δ`, a first delivery; since the validator that forms the
+certificate now also decides, the good-view lemma concludes one decision,
+and the others come by the transfer below, as they already did when a
+decision preceded the chain.)
 Every network row is a first delivery: each message is sent from inside `W`
 after `E₀ ≥ gst`, by correct validators, and retained, because at `E₀`
 every correct validator is already in `W − 1` or `W`. That last fact is the
@@ -773,9 +782,9 @@ of views `V` and `V + 1` as possibly unproductive (`lem:good-view` takes
 predate GST; `Synced (M + 1)` a further `C + 2ρ` on (the first burn);
 `Synced W (u + Δ + ρ + 2ρ + n • C)` with `n ≤ |below v_L| + k` views burnt
 in all; `W`'s first correct entry is after `N₀`, hence `E₀ ≥ u ≥ gst`; and
-the second lemma decides everyone by `E₀ + L_cert + Δ`. If instead some
-correct validator has decided before the chain completes, the composing
-layer delivers its certificate to everyone within `Δ + ρ`
+the second lemma has a correct validator decided by `E₀ + L_cert`. Whether
+that decision is the good view's or came earlier, the composing layer
+delivers its certificate to everyone within `Δ + ρ`
 (`lem:decision-propagation`). Hence
 
   `ℓ = (Δ + ρ) + 2ρ + (|below v_L| + k) • C + L_cert + (Δ + ρ)`,
@@ -1290,7 +1299,8 @@ The timed claim, `Mvba.timed_termination`:
   to meet, and the model below meets it for the same reason as
   before: its clock advances only where no fair label is move-enabled.
   The model sends nothing before GST, discards nothing, and every validator
-  forms the certificates itself. So its run is admissible under either
+  forms its prepare and commit certificates itself (since R4 each correct
+  validator's `form_own_commitqc` is also its decision). So its run is admissible under either
   reading, and the change moves only the value of `ℓ`.
 * **Every correct validator proposes by `t`**, **with a valid value**, and
   **none abandons before `max(t, GST) + ℓ`**: each obvious alone. Together
@@ -1304,8 +1314,10 @@ The untimed claim, `Mvba.termination`:
   step that changes the state from some point on, it takes one: **obvious
   once stated that way.** A run that does all the work there is to do and
   then idles meets it, since at the idle state no honest action can change
-  anything. The model does exactly that. Nothing depends on the quorum sort
-  being finite. (Until R3 the premise was stated with plain enabledness,
+  anything — since R4 none is even enabled, every fair action being one
+  correct validator's step guarded on its own record
+  (`Mvba.enabledMove_of_enabled`, §6.4.7). The model does exactly that.
+  Nothing depends on the quorum sort being finite. (Until R3 the premise was stated with plain enabledness,
   under which a step changing nothing still counted, and at a `nodeset`
   sort with infinitely many supermajorities no run satisfied it once a
   prepare certificate existed; §6.2.4.)
@@ -1333,7 +1345,8 @@ does (§6.3.2).
   timeout 5, retransmission interval `ρ = 1`), and GST and `t` are 0.
   `ℓ` then has the value `Mvba.Witness.ell` pins.
 * **The run.** The three correct validators become available and propose
-  at clock 0. They run the whole chain of view 0 and decide in it. At clock
+  at clock 0. They run the whole chain of view 0 and decide in it, each
+  forming its own commit certificate and deciding on it (since R4). At clock
   5 their view-0 timers expire, which the timing model requires; having
   decided, they have halted, so none times out. From then on the run is
   idle: it repeats one step that changes nothing, and the clock advances
@@ -2197,9 +2210,10 @@ to go through, this leg must hand over the following.
 
 #### 6.4.7 Fired-once flags: fairness over plain enabledness
 
-*The plan for S1b (§6.4.6), decided 2026-09-30 after R3 (PR #48). The
-Chorus half is built (R5, "The Chorus half: done" at the end of this
-section); the Mvba half (R4) and the flip (R6) are not, as of this record.*
+*The plan for S1b (§6.4.6), decided 2026-09-30 after R3 (PR #48). Both
+model halves are built — the Chorus half in R5 ("The Chorus half: done") and
+the Mvba half in R4 ("R4 done: the Mvba half"), the records at the end of
+this section; the flip (R6) is not, as of these records.*
 
 **The decision.** Disabledness is modelled in the protocol, not resolved
 in the proof. Every fair action that can stay enabled after it has fired
@@ -2434,3 +2448,97 @@ collector's cells. `TerminationClaim` did not change, and `Chorus.termination`
 is re-proven at the trio. The premises keep their move form, and the flip is
 R6.
 
+**R4 done: the Mvba half** (2026-09-30, PR #51). What an auditor should
+know:
+
+* **The model.** The three rules the supplement gives a "not already"
+  condition are one correct validator's step each, in its current view,
+  with the quorum as a label parameter, as `adopt_prepqc i v e q` has been
+  since R3:
+  * `form_own_commitqc i v e q` — `TryFormCommitQC` and `Decide` in one
+    handler segment: from `2f+1` `Commit`s of the current view, "provided
+    that it has not already learned a decision certificate", form the
+    `CommitQC`, record it as `DecidedQC_i` and decide. `DecidedQC_i` is set
+    exactly when a validator decides (both decision paths set it), so the
+    guard is `∀ E, ¬ decided i E` and no new relation was needed. The
+    certificate is put on the network, where `decide` reads it.
+  * `form_own_tc_lock i v q r₀ w e` and `form_own_tc_nolock i v q` —
+    `HandleTimeout`, "upon first collecting `2f+1` valid timeout messages":
+    the local record `tc_formed i v` is new, and its absence is the guard.
+    The certificate goes on the network; `SyncView` is the next step
+    (`sync_view`, `sync_view_adopt`), as the model has always split it.
+
+  The four anonymous assemblies stay, as the adversary's capability, in a
+  new unfair class `AssemblyLabel` (`not_justice_of_assembly`), and left
+  the hop table. Only positive reads of `msg_*`; at most 6 parameters. One
+  invariant, `tc_formed_backed` (the record is backed by `msg_tc v`), which
+  the "not already formed" guard's lapse needs; `form_own_commitqc`'s
+  record needs none, since its lapse is the goal.
+* **The acceptance criterion**, `Mvba.enabledMove_of_enabled`:
+
+  ```
+  theorem enabledMove_of_enabled (l : Mvba.Label node nodeset value view)
+      (hj : JusticeLabel l) (hen : Enabled … th st l) : EnabledMove … th st l
+  ```
+
+  It holds at **every** state, not only reachable ones: each fair action's
+  guard, by itself, rules out that its update is a no-op. It is proven per
+  action, in plain Lean, from the guards and the transition bodies, and
+  pinned at the trio. **No label failed it**, so the inventory above was
+  complete for the Mvba: the four assemblies were the only fair labels
+  that could stay enabled after firing.
+* **The pins.** `#veil_status Mvba` **1325 → 1507**: 50 properties (3
+  safety + 47 invariants), 1 step property and 28 actions give
+  50 + 28 × (50 + 1) + 29 = 1507, written down before the build and
+  matched. Manual cells 3 → 5: `form_own_commitqc × commitqc_agree` (the
+  `form_commitqc` cell's argument) and `form_own_commitqc × agreement` (the
+  same argument at the decision the step makes, with `decided_backed`).
+  R4 moves neither the Chorus pin (4737 since R5) nor FallbackReceipt's 220.
+* **The liveness and timed stack**, re-proven with the premises in their
+  current move form ([Fairness.lean](../Cadence/Fairness.lean) and
+  [Timed.lean](../Cadence/Timed.lean) untouched):
+  * the untimed chains go through a settled correct validator, which
+    forms the commit certificate (`eventually_commitqc_of_settled`) and
+    the view's timeout certificate (`eventually_tc_of_timed_out_quorum`);
+    `Mvba.termination`'s statement is unchanged;
+  * the timed premise: the new steps are network hops with first-delivery
+    clauses; `Delivers` and `Receiving` lost their separate receiver,
+    since every network label is now one validator's step and its
+    `in_view` guard is the lower-view discard; the `timeouts` clause names
+    the validator that forms the certificate;
+  * `good_view_decides` now concludes that some correct validator has
+    decided by `E₀ + Lcert`, since the step that forms the certificate
+    decides; `bounded_termination`'s second case is therefore
+    contradictory, and the transfer term already charged the others'
+    decisions. `Lcert`, `Schedule.ℓ` and `Mvba.Witness.ell = 24` are
+    unchanged;
+  * both witness theorems stand: each correct validator forms its own
+    commit certificate, and at the idle state no fair label is enabled at
+    all.
+* **NoLock** ([Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean)) mirrors
+  the three steps. As a restriction, it drops the anonymous `form_prepqc`
+  and `form_tc_*`, whose certificates the correct validators now form
+  themselves. It keeps `form_commitqc`: the counterexample's view-1 commit
+  certificate has to be the adversary's aggregation, since a correct
+  validator that forms one decides on it and halts. The checker, still
+  with `sequential := true`, finds agreement violated. The witness moved
+  and is re-pinned at 25 transitions (was 26): the view-2 certificate is
+  now formed and decided on in one step. The search takes 27 min on one
+  core (was about 3½ min), because the per-validator steps and
+  `tc_formed` multiply the states below that depth.
+* **Chorus** is untouched: `MvbaStepLabel`, `mvbaComponent` and
+  `Chorus.termination` re-elaborate against the new model without an edit.
+  The one change a Chorus reader sees is in meaning, not text:
+  `MvbaAdmissible`'s `Mvba.FJustice` of the projected run now ranges over
+  the per-validator steps instead of the anonymous assemblies.
+
+Deviations from the plan, each small:
+
+* **No `DecidedQC_i` relation**: the decision is the record (above).
+* **`Delivers` lost its receiver parameter**, which had been used only by
+  the anonymous assemblies. With it went `NotPast` from `Receiving`; the
+  guard's `in_view` says the same.
+* **`decide`'s first-delivery clause is no longer used by the bound**: the
+  good view's decision now comes with the certificate, and the others'
+  come by transfer. The clause is kept, as the supplement's network
+  rule; R6 may drop it.

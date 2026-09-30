@@ -91,29 +91,22 @@ theorem quiet_avail {s s' : Mvba.State (Mvba.FieldAbstractType node nodeset valu
     Mvba.become_avail_ready.frame_msg_timeout_noqc htr]
   exact h
 
-/-- **No fair label moves at a quiet state.** One guard per label: twelve
-read an input, and the four assemblies read a message row of some member
-of their quorum, which exists (`greater_than_third_one_honest`). -/
+/-- **No fair label moves at a quiet state.** Every fair label is a correct
+validator's step, and each one's guard reads that validator's input. -/
 theorem not_moveEnabled_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
     (hq : Quiet s) {l : Mvba.Label node nodeset value view} {h : Hop} (hh : hop l = some h) :
     ¬ EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th s l := by
-  obtain ⟨hin, -, -, hpr, hcm, htq, htn⟩ := hq
-  have member : ∀ q : nodeset, nset.supermajority q → ∃ a, nset.member a q = true := fun q hs =>
-    let ⟨a, ha, _⟩ := nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hs)
-    ⟨a, ha⟩
+  obtain ⟨hin, -, -, -, -, -, -⟩ := hq
   rintro ⟨s', htr, -⟩
   cases l
   all_goals first
     | (simp [hop] at hh; done)
     | skip
-  /- The sixteen fair labels: expose the guards and read them at the quiet
-  state. Twelve fail on the input and `form_tc_lock` on its named member's
-  timeout message. Where `simp` does not already close an assembly over a
-  quorum, it is left with a supermajority that has no member. -/
+  /- The fifteen fair labels: expose the guards and read them at the quiet
+  state. Each fails on the input. -/
   all_goals mvba_tr htr
   all_goals simp +unfoldPartialApp [Veil.FieldRepresentation.get, instIsSubStateOfRefl.getFrom_id,
-    hin, hpr, hcm, htq, htn] at htr
-  all_goals obtain ⟨a, ha⟩ := member _ htr.1; simp [htr.2.1 a] at ha
+    hin] at htr
 
 /-- `become_avail_ready` is unguarded, so it has a successor at every
 state. -/
@@ -196,9 +189,9 @@ theorem boundedJustice_of_quiet [IsOrderedAddMonoid time] {sch : Schedule view t
       hop l = some h → ∀ C, BoundedFairWhile r D l C := fun D hD l h hh C N hen => by
     obtain ⟨n, hn, hc, hnm⟩ := hq N D hD
     exact absurd (hen n hn hc).1 (hnm l h hh)
-  refine ⟨fun l hh N hen => ?_, fun l _ hh _ _ => hwhile _ hΔ l _ hh _,
+  refine ⟨fun l hh N hen => ?_, fun l hh _ => hwhile _ hΔ l _ hh _,
     fun i pv v _ => ⟨hwhile _ hΔ _ _ rfl _, fun w e => hwhile _ hΔ _ _ rfl _⟩,
-    fun v q _ => ⟨fun r₀ w e => hwhile _ hΔρ _ _ rfl _, hwhile _ hΔρ _ _ rfl _⟩,
+    fun i v q _ _ => ⟨fun r₀ w e => hwhile _ hΔρ _ _ rfl _, hwhile _ hΔρ _ _ rfl _⟩,
     fun i pv v => ⟨hwhile _ hΔρ _ _ rfl _, fun w e => hwhile _ hΔρ _ _ rfl _⟩,
     fun i j v e _ => hwhile _ hΔρ _ _ rfl _⟩
   obtain ⟨n, hn, hc, hnm⟩ := hq N sch.δ sch.δ_nonneg

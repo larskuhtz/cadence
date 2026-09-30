@@ -40,9 +40,9 @@ timers expire, as the timing model requires; a decided validator has halted
 of them times out. Then the run idles on a step that changes nothing, one
 clock unit per step. Nobody abandons.
 
-At the idle state no fair label can take a step that changes the state:
-the correct validators have halted, the Byzantine one is not honest, and
-every certificate an assembly could form already exists. So weak fairness,
+At the idle state no fair label is enabled at all: the correct validators
+have halted, and the Byzantine one is not honest — every fair label is a
+correct validator's step. So weak fairness,
 which asks only for steps that change the state, asks nothing of the idle
 tail, in the untimed claim as in the timed one.
 
@@ -117,8 +117,9 @@ happens in view 0, and the step that sets each record is:
 * `accepted`/`voted`/`msg_prepare`: `7 + x`; the prepare certificate: `10`,
   by the anonymous assembly; `local_prepqc`: `11 + x`, each validator
   forming its own from the three prepares;
-* `commit_sent`/`msg_commit`: `14 + x`; the commit certificate: `17`;
-  `decided x`: `18 + x`;
+* `commit_sent`/`msg_commit`: `14 + x`; `decided x`: `17 + x`, each
+  validator forming its own commit certificate from the three commits and
+  deciding on it (`form_own_commitqc`), the certificate itself from `17`;
 * `timer_expired x 0`: `22 + x`.
 
 Nothing else is ever set: no timeout, no certificate of a later view, no
@@ -144,15 +145,16 @@ def st (n : Nat) : S where
   timed_out _ _ := false
   commit_sent i V := Decidable.decide (V = 0 ∧ i.val < 3 ∧ 14 + i.val < n)
   proposed_in l V := Decidable.decide (V = 0 ∧ l.val = 0 ∧ 6 < n)
-  decided i _ := Decidable.decide (i.val < 3 ∧ 18 + i.val < n)
+  decided i _ := Decidable.decide (i.val < 3 ∧ 17 + i.val < n)
   abandoned _ := false
   avail_ready i _ := Decidable.decide (i.val < 3 ∧ i.val < n)
   timer_expired i V := Decidable.decide (V = 0 ∧ i.val < 3 ∧ 22 + i.val < n)
+  tc_formed _ _ := false
 
 /-! ## The labels
 
-The 25 steps of the active prefix, then the idle tail. Step 21 changes
-nothing and is where the clock moves from 0 to 5. -/
+The 25 steps of the active prefix, then the idle tail. Steps 20 and 21
+change nothing, and step 21 is where the clock moves from 0 to 5. -/
 
 /-- The label that changes nothing, used where the clock moves:
 availability already marked. -/
@@ -177,10 +179,10 @@ def prefixLabel : Nat → L
   | 14 => .send_commit 0 0 ()
   | 15 => .send_commit 1 0 ()
   | 16 => .send_commit 2 0 ()
-  | 17 => .form_commitqc 0 () Q
-  | 18 => .decide 0 0 ()
-  | 19 => .decide 1 0 ()
-  | 20 => .decide 2 0 ()
+  | 17 => .form_own_commitqc 0 0 () Q
+  | 18 => .form_own_commitqc 1 0 () Q
+  | 19 => .form_own_commitqc 2 0 () Q
+  | 20 => idle
   | 21 => idle
   | 22 => .expire_timer 0 0
   | 23 => .expire_timer 1 0
@@ -325,9 +327,8 @@ theorem steps (n : Nat) : sys.tr thW (st n) (lbl n) (st (n + 1)) := by
 
 The clock advances only out of the last index of each clock reading: index
 21, every correct validator decided and its timer not yet expired, and the
-idle tail. At those states every fair label is either disabled — a correct
-validator has decided and halted, the Byzantine one is not honest — or a
-step that changes nothing. -/
+idle tail. At those states every fair label is disabled: a correct
+validator has decided and halted, and the Byzantine one is not honest. -/
 
 /-- The indices out of which the clock advances. -/
 def PlateauEnd (n : Nat) : Prop := n = 21 ∨ 25 ≤ n
@@ -338,20 +339,6 @@ theorem quiet {n : Nat} (hn : PlateauEnd n) {l : L} {hd : Hop} (hh : hop l = som
   cases l
   all_goals first | (simp [hop] at hh; done) | skip
   all_goals wunfold htr
-  case form_tc_nolock v q =>
-    obtain ⟨hq, hall, -⟩ := htr
-    rcases supermajority_cases q hq with h | h | h | h | h <;> simp [h] at hall <;>
-      exact (hall _).1 rfl
-  case form_prepqc v e q | form_commitqc v e q =>
-    obtain ⟨hq, hall, rfl⟩ := htr
-    rcases supermajority_cases q hq with h | h | h | h | h <;>
-      simp only [h, List.mem_cons, List.mem_nil_iff, forall_eq_or_imp, or_false,
-        forall_eq, Fin.isValue] at hall <;>
-      wnorm_at hall <;>
-      rcases hn with rfl | hn <;>
-      first
-        | omega
-        | (apply hne; simp only [st, Mvba.State.mk.injEq, funext_iff]; wnorm; wclose)
   all_goals (repeat (obtain ⟨_, htr⟩ := htr))
   all_goals (rcases hn with rfl | hn)
   all_goals omega
