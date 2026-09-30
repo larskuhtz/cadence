@@ -1670,8 +1670,11 @@ theorem outside the invariant clump; §2.6 explains why it does not.
 
 ## 11. Step 5a: the supplement at `eb1bb51`, reviewed against the pin
 
-*Review of 2026-09-29, for step 5b to act on. No Lean file has changed and
-the pin is still `026dc8b`. The change list and the plan are here; the
+*Review of 2026-09-29, for step 5b to act on. When it was written no Lean
+file had changed and the pin was still `026dc8b`. **Step 5b has since acted
+on it (stages 2–5, 2026-09-29): the pin is `eb1bb51`, and the timed
+premise states the supplement's network — §11.5 stage 3 has the design
+decision, [Bounds.md](Bounds.md) §6.2.4 the clauses.** The change list and the plan are here; the
 audit trail (what was compared, and how to re-run the comparison) is
 [PaperAlignment.md](PaperAlignment.md) §7.*
 
@@ -2346,3 +2349,9 @@ work. Stage 5 records the result.
    * [History.md](History.md): a ledger row.
 
    The pinned `#veil_status` counts do not move in any stage.
+
+   *Done (2026-09-29).* The result is recorded in the places listed. The
+   Chorus non-vacuity item did not need rewording, since the untimed
+   premise did not change. PaperAlignment §6 needed nothing new: its
+   backoff item already carried the resolution. (N4), the one gap left, is
+   in [Bounds.md](Bounds.md) §6.2.4 and [TODO.md](TODO.md) § Liveness.

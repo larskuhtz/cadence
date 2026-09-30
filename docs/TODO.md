@@ -233,6 +233,30 @@ come first.
   [Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) are proven,
   at the fragment the composed system runs, and its premises are jointly
   satisfiable (`Mvba.timedTermination_premises_satisfiable`, below).
+  Since step 5b its timing premise is the supplement's network at
+  `eb1bb51` ([Bounds.md](Bounds.md) §6.2.4, "The network clauses").
+
+  **For the timed Chorus leg: the decision's transfer is a composing-layer
+  obligation.** `Mvba.BoundedJustice.decisions` assumes what the
+  supplement's termination setting assumes of the composing layer: a
+  decided `CommitQC` reaches every undecided correct validator within
+  `ρ + Δ` (`lem:decision-propagation`, [MvbaPlan.md](MvbaPlan.md) §11.3
+  C15). In the composed system that delivery is Chorus's (its broadcast
+  on `decide`, and serving the certificate afterwards). So when the timed
+  Chorus claim instantiates the MVBA's timing premise on a projected run,
+  this clause is the one it must discharge from Chorus's own behaviour,
+  not assume; its cost `ρ + Δ` is already inside `ℓ_MVBA`.
+* **(N4), the one gap left in the MVBA's timing premise: prepare
+  certificates do not travel.** `adopt_prepqc` is a local step once a
+  prepare certificate exists anywhere. In the supplement a validator holds
+  one only if it received a quorum of prepares itself, so a supplement run
+  in which one correct validator forms a view's prepare certificate and
+  another, which accepted the same proposal, never does is not admissible
+  in the timed claim ([Bounds.md](Bounds.md) §6.2.4). Closing it means
+  adopting from the prepares themselves, a change to
+  [Cadence/Mvba.lean](../Cadence/Mvba.lean) (a guard and a re-solve of
+  the Mvba family) — so it waits for a decision on whether the model
+  should take the step. The good view, and so the bound, is unaffected.
 
 ## Model hygiene
 

@@ -61,6 +61,16 @@ slots and windows are: `vord.zero` is view 1, `vord.next v v'` is
 `v' = v + 1`, and no arithmetic reaches the solver. The leader function is
 the immutable relation `leader v l`, functional by assumption.
 
+The model has no clock. Timing enters only in the timed liveness claim
+([Mvba/Schedule.lean](Mvba/Schedule.lean)), over runs that carry one: the
+view timeout is there a function of the view, and the supplement's fixed
+`T := Δ_R + 4Δ + max{Δ, Δ_sync}` (`subsec:mvba-protocol`, "Views, leaders,
+and timing parameters") is its constant case. The timed claim's view
+arithmetic mirrors the supplement's termination argument: the first view
+after `max(t, GST)` is paid for by retransmission, and the good view is
+chosen at least two views above the highest view entered then, where the
+one-view retention holds (`lem:convergence`, `lem:good-view`).
+
 ## State
 
 **Network relations** (`msg_*`, monotone, consulted in **positive position
@@ -161,6 +171,19 @@ the environment relation `avail_ready i e` (`AvailReady_i`).
   `expire_timer`, the environment's marker, stays unguarded: once `i` has
   halted, no action reads its timer.
 * **Integrity by construction**: `decide` requires `∀ E, ¬ decided i E`.
+* **Delivery is in the premise, not in the model.** A sent message is
+  visible at once, as for Chorus: each network relation holds from the
+  message's first delivery to a correct validator, and the delay is put on
+  the step that consumes it. The supplement's network — delivery within
+  `Δ` for messages sent at or after GST, retransmission of timeouts,
+  `ViewTC_i` and a decided `CommitQC` every `ρ`, one-view retention and
+  lower-view discard (the termination setting before
+  `lem:decision-propagation`; `sec:reliable-delivery`) — is stated in the
+  timed claim's premise over these relations, clause by clause
+  (`Mvba.BoundedJustice`), and changes no guard. One gap is recorded
+  there: a prepare certificate is adopted as a local step, although in the
+  supplement a validator obtains one only from its own quorum of prepares
+  ([Bounds.md](../docs/Bounds.md) §6.2.4, (N4)).
 * **Handler segments are atomic.** Each handler is one action, so the
   model reasons about uninterrupted handler segments, which is what the
   supplement's own `rem:execution-model` justifies: `Recover` is the only

@@ -182,15 +182,15 @@ is the one paper bound this development proves
 ([Bounds.md](Bounds.md) §6.2).
 
 The supplement is where that algorithm comes from. `sec:mvba-instantiation`
-gives a concrete leader-based protocol across `alg:mvba`, `alg:mvba-cont`
-and `alg:mvba-cont2`: views with a leader, Pre-Prepare/Prepare/Commit with
+gives a concrete leader-based protocol across `alg:mvba`, `alg:mvba-cont`,
+`alg:mvba-cont2` and `alg:mvba-cont3` (four blocks since `eb1bb51`): views with a leader, Pre-Prepare/Prepare/Commit with
 `PrepQC` and `CommitQC`, timeout certificates, view synchronisation
 adopting the highest `PrepQC` as a lock, and persist-before-send with
 atomic reload. `subsec:mvba-correctness` discharges the module's properties
 with roughly fifteen lemmas, `thm:agreement` and `thm:termination`, the
 latter at `O(fΔ)`.
 
-Four consequences for this repository:
+Five consequences for this repository:
 
 1. `ℓ_MVBA` has a concrete value, `O(fΔ)`, and a machine-checked
    counterpart: `Mvba.bounded_termination`
@@ -243,6 +243,23 @@ Four consequences for this repository:
    Termination theorem silent about the supplement's own runs. The model
    now halts a decided validator (every honest send requires
    `∀ E, ¬ decided i E`), kept apart from the caller's `abandon`.
+5. **A liveness-level divergence in the timing premise, fixed**
+   (2026-09-29, step 5b; [MvbaPlan.md](MvbaPlan.md) §11.3 C16). At
+   `eb1bb51` the supplement writes its network out: delivery within `Δ` of
+   messages sent at or after GST between correct validators,
+   retransmission of timeouts, `ViewTC_i` and a decided `CommitQC` every
+   `ρ`, and one-view retention (the termination setting;
+   `sec:reliable-delivery`). The timed premise held every network step to
+   `Δ` regardless of its messages' history, so it said nothing about
+   supplement runs that lose a message sent before GST, discard a
+   far-future one, move a decided certificate, or receive a Byzantine
+   leader's proposal selectively. The premise now states that network
+   clause by clause ([Bounds.md](Bounds.md) §6.2.4), the bound is re-proven
+   against it, and `Schedule.ℓ` gained the retransmission terms. The
+   supplement's `lem:good-view` constant is still `Lcert` at `δ = 0`, and
+   its burnt-view cost `2Δ + T` is still `Schedule.burn`. One gap remains
+   and is recorded, (N4): a prepare certificate is adopted as a local step,
+   while in the supplement it never travels.
 
 ## 5. What this implies for the models
 
