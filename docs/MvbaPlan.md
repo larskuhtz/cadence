@@ -2253,6 +2253,40 @@ work. Stage 5 records the result.
    entered after `max(t, gst)`, which is closer to the supplement's "fresh
    view". The per-label form is more faithful; the per-view form is
    simpler to state.
+
+   **Decided (2026-09-29, step 5b): per label.** Both forms were written
+   as Lean definitions and compared. The per-view form ("a view-`w` label
+   is held to `Δ` once `w − 1` is fresh") assumes a *consequence* of the
+   protocol: that nobody is two views behind when a fresh view's messages
+   arrive. The supplement derives that in `lem:convergence` from `T > Δ`,
+   and the model's schedule allows views below the ramp whose budget is
+   not above `Δ`, so there the per-view premise would assume what the
+   paper's network does not give. It also cannot say who sent a message,
+   and it names a protocol quantity (the first entry into a view) where
+   every other clause names only environment events. The per-label form
+   states each rule of the network as the supplement writes it, so an
+   auditor can check it sentence by sentence. The two are not close, so
+   the decision did not wait for a review round.
+
+   Writing the per-label form out showed that C16's three items do not
+   quite cover the paper's network. The form taken also says three things
+   C16 did not:
+
+   * **Correct senders.** The supplement guarantees delivery only between
+     correct validators. The old clause also held the correct validators
+     to handling a Byzantine leader's `Pre-Prepare`, and to assembling
+     certificates from Byzantine votes, within `Δ`. Now a first delivery
+     is owed only for a correct leader's `Pre-Prepare` and for a quorum of
+     correct validators' votes.
+   * **Lower views are discarded** (C10's first half). An assembly is
+     owed only while its forming validator has not moved past the view.
+   * **Retransmission stops.** Timeouts are retransmitted by validators
+     still in the view, `ViewTC_i` by active validators, and a decided
+     `CommitQC` by the composing layer. Each retransmission clause says
+     so.
+
+   One gap is left, and it is recorded rather than closed: see (N4) in
+   §11.5 stage 5 and [Bounds.md](Bounds.md) §6.2.4.
 4. **Re-prove the bound and re-check the witness against the refined
    premise.**
    * **The good view.** In
