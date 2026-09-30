@@ -1989,6 +1989,9 @@ The untimed claim after option A:
 * **`FJustice`**, over state-changing steps since R3, with the proposal
   family: obvious alone, as in §6.3, and at every quorum sort — once the
   run is idle no fair label is move-enabled, so the tail owes nothing.
+  Since R5 no fair label is enabled without being move-enabled
+  (`Chorus.justice_enabledMove`), so for this model the premise reads the
+  same over plain enabledness (§6.4.7).
   Jointly **not obvious** for the same reason as the timed row: the family
   quantifies over every value.
 * **`MvbaAdmissible`, `ValidBridge`**: as above.
@@ -2207,9 +2210,10 @@ to go through, this leg must hand over the following.
 
 #### 6.4.7 Fired-once flags: fairness over plain enabledness
 
-*The plan for S1b (§6.4.6), decided 2026-09-30 after R3 (PR #48). The Mvba
-half is built (R4, the record at the end of this section); the Chorus half
-is R5's, and the flip R6's.*
+*The plan for S1b (§6.4.6), decided 2026-09-30 after R3 (PR #48). Both
+model halves are built — the Chorus half in R5 ("The Chorus half: done") and
+the Mvba half in R4 ("R4 done: the Mvba half"), the records at the end of
+this section; the flip (R6) is not, as of these records.*
 
 **The decision.** Disabledness is modelled in the protocol, not resolved
 in the proof. Every fair action that can stay enabled after it has fired
@@ -2367,6 +2371,83 @@ would break. So:
 At no point does master carry a premise that is unsatisfiable at some
 quorum sort.
 
+**The Chorus half: done** (2026-09-30, session R5). The acceptance lemma is
+**`Chorus.justice_enabledMove`**
+([Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)): for every state,
+reachable or not, and every label `l` with `JusticeLabel l`,
+`Enabled (atMvba thM) thS st l → EnabledMove (atMvba thM) thS st l`. The
+MVBA proposal is a justice label, so `Chorus.mvba_propose_enabledMove` is its
+corollary for each member of the family. Both are pinned at
+`[propext, Classical.choice, Quot.sound]`, the first also in
+[Cadence.lean](../Cadence.lean). No reachability hypothesis is needed: each
+fair action's firing sets a record its guard requires to be unset. The
+proof is one lemma per action, read off the transition body.
+
+*The inventory, as the lemma found it.* It was larger than the list above.
+Every fair action that could stay enabled after firing now has a "not
+already" guard on a record it sets itself. All the reads are negative reads
+of the acting validator's own local state (category (L)). No network
+relation is read negatively, and there is no new exception category
+([ChorusDesign.md](ChorusDesign.md) §3.1.1).
+
+| action | old guard, in words | new guard, in words |
+|---|---|---|
+| `aggregate_fastqc_pos/neg` | a supermajority signed | … and `i` does not hold this FastQC yet |
+| `broadcast_commitqc_pos/neg` | a correct and active collector, or any Byzantine one; `2f+1` cast commit votes | a correct and active collector that has not broadcast a certificate for `j` yet (`local_commitqc_sent c j`); the Byzantine branch is now `byz_broadcast_commitqc_*` |
+| `deliver_chunk_assigned` | an honest, active proposer that signed `m` | … that has not sent `i` this chunk yet (`local_chunk_sent j i j m`) |
+| `redisseminate_chunk` | a correct and active sender, or any Byzantine one; the data is decodable | a correct and active sender that has not sent `i` this chunk yet (`local_chunk_sent k i j m`); the Byzantine branch is now `byz_redisseminate_chunk` |
+| `commit_sign_pos/neg` | `i` holds the FastQC and has not cast | … and has not signed an entry for `j` yet (`local_commit_entry i j`) |
+| `fb_sign_pos/neg` | the fallback-entry conditions | … and `i` has not signed its fallback entry for `j` yet (`local_fb_entry i j`) |
+| `on_mvba_decide_pos/neg` | `i` decided `v`, the entry is certified | … and `i` has not recorded entry `j` of its decision yet (`local_mvba_recorded i j`) |
+| `cast_fb_commit` | the DA wait holds | … and `i` has not cast its fallback commit vote yet (`local_fbcommit_voted i`) |
+| `commit_assign_pos` | no *other* root committed for `j` | no root committed for `j` yet |
+| `commit_assign_neg` | no positive entry committed for `j` | … and not the negative one either |
+
+Where the plan was wrong or short:
+
+* **`commit_assign_*` did not disable itself.** The list above credits it
+  with `¬ local_committed`, but `finalize_commit` sets that, not
+  `commit_assign_*`. The per-entry guards were the missing ones.
+* **Six more families than listed** (the plan named two): the dissemination
+  and re-dissemination of chunks, the commit and fallback entries, the
+  decision handlers and the fallback commit vote. For those whose effect is
+  a network tuple or a shared record (`mvba_decided_*`), the flag is a new
+  local record. The six records are `local_chunk_sent`,
+  `local_commit_entry`, `local_fb_entry`, `local_commitqc_sent`,
+  `local_mvba_recorded` and `local_fbcommit_voted` (Chorus.lean,
+  "Fired-once records"). Where the effect was already local
+  (`aggregate_fastqc_*`, `commit_assign_*`), the guard is its absence.
+* **The Byzantine branches of the two anonymous capabilities became their
+  own unfair actions**, `byz_broadcast_commitqc_*` and
+  `byz_redisseminate_chunk`. With the branch left inside the fair action and
+  unconstrained, a label with a Byzantine sender would stay enabled after
+  firing, which the lemma forbids. Guarding the Byzantine branch would
+  constrain the adversary. This is the shape "The shape" gives the Mvba
+  assemblies: the adversary's forming stays and is not fair. The honest
+  actions now require a correct sender. The termination links already used
+  the validator itself as collector and sender.
+* **Flag granularity.** One record per actor and proposer, not per root or
+  polarity: the paper's commit vote, fallback vote, commit certificate and
+  decision each carry one entry per proposer.
+* **No invariant.** What the links need of a record (that it comes with its
+  effect) is plain Lean: a first-flip lemma per record and one induction
+  (`Chorus.record_backed` in
+  [Termination.lean](../Cadence/Chorus/Termination.lean)). The decision
+  handler's link also uses the MVBA's agreement, to identify the recorded
+  entry with the one it waits for.
+* **The other candidates** needed nothing. `record_chunk` already requires
+  that no positive entry is recorded, the phase markers move the phase, and
+  the MVBA proposal's effect is the `Mvba` model's input record, whose
+  absence its guard requires.
+
+*Costs.* `#veil_status Chorus`: 4428 → **4737** = 101 initializer cells +
+45 actions × (101 + 1 step property) + 46 does-not-throw, written down before
+the build and matched (+309: three new actions × 103). Manual cells 12 → 15,
+the three additions being the Byzantine assembly actions' copies of the
+collector's cells. `TerminationClaim` did not change, and `Chorus.termination`
+is re-proven at the trio. The premises keep their move form, and the flip is
+R6.
+
 **R4 done: the Mvba half** (2026-09-30, PR #51). What an auditor should
 know:
 
@@ -2412,7 +2493,7 @@ know:
   matched. Manual cells 3 → 5: `form_own_commitqc × commitqc_agree` (the
   `form_commitqc` cell's argument) and `form_own_commitqc × agreement` (the
   same argument at the decision the step makes, with `decided_backed`).
-  Chorus 4428 and FallbackReceipt 220 unchanged.
+  R4 moves neither the Chorus pin (4737 since R5) nor FallbackReceipt's 220.
 * **The liveness and timed stack**, re-proven with the premises in their
   current move form ([Fairness.lean](../Cadence/Fairness.lean) and
   [Timed.lean](../Cadence/Timed.lean) untouched):

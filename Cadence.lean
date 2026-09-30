@@ -120,6 +120,10 @@ Each entry is the result, the file its statement lives in, and what it says.
   meets them. The MVBA's termination is not assumed: the proof applies
   `Mvba.termination` to the run's MVBA steps. Hypotheses: at most `f`
   Byzantine validators among `Fin n`, `ViewOrderEnum`.
+  `FJustice` counts steps that change the state. `Chorus.justice_enabledMove`
+  ([Chorus/Liveness.lean](Cadence/Chorus/Liveness.lean)) shows that for
+  this model every enabled fair label can change the state, so the premise
+  asks what weak fairness over plain enabledness would.
   [Liveness.md](docs/Liveness.md) §2 explains each premise in short
 * **`Conductor.orchestratorSafety`** ([Composition.lean](Cadence/Composition.lean)) — Conductor
   ⊨ `OrchestratorSafety` — the state-level fragment of the paper's
@@ -203,7 +207,11 @@ Each entry is the result, the file its statement lives in, and what it says.
   fire; the good view's timer waits for a certificate), so the theorem reads
   *given enough time, the protocol decides*. The timed premises imply
   (A-viewsync) (`Mvba.aViewSync_of_sync`). Hypotheses: finitely many
-  validators, `ByzNodeSetHonestQuorum`, `ViewOrderEnum`. [Liveness.md](docs/Liveness.md)
+  validators, `ByzNodeSetHonestQuorum`, `ViewOrderEnum`. `FJustice` counts
+  steps that change the state. `Mvba.enabledMove_of_enabled`
+  ([Mvba/Liveness.lean](Cadence/Mvba/Liveness.lean)) shows that for this
+  model every enabled fair label can change the state, so the premise asks
+  what weak fairness over plain enabledness would. [Liveness.md](docs/Liveness.md)
   §2.1 explains the premise in short
 * **`Mvba.timedTermination_premises_satisfiable`,
   `Mvba.termination_premises_satisfiable`** ([Mvba/Witness.lean](Cadence/Mvba/Witness.lean)) — **the
@@ -326,6 +334,12 @@ info: 'Chorus.termination' depends on axioms: [propext, Classical.choice, Quot.s
 #print axioms Chorus.termination
 
 /--
+info: 'Chorus.justice_enabledMove' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.justice_enabledMove
+
+/--
 info: 'Conductor.orchestratorSafety' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
@@ -402,6 +416,12 @@ info: 'Mvba.termination' depends on axioms: [propext, Classical.choice, Quot.sou
 -/
 #guard_msgs in
 #print axioms Mvba.termination
+
+/--
+info: 'Mvba.enabledMove_of_enabled' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.enabledMove_of_enabled
 
 /--
 info: 'Mvba.mvbaTemporal' depends on axioms: [propext, Classical.choice, Quot.sound]

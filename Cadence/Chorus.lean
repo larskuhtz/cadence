@@ -422,6 +422,44 @@ without an `∃ qv (… ∧ ∀ …)` invariant, whose quantifier alternation
 sends the SMT matcher into a loop on the bulk-update actions. -/
 relation local_fb_neg_qv (i : node) (j : node) (qv : nodeset)
 
+/-! ## Fired-once records
+
+The paper's handlers run once: a validator sends its commit vote, its
+fallback vote, its re-disseminated chunk or its fallback commit vote once,
+and handles its MVBA decision once. The model splits several of those
+handlers into per-proposer steps (the Veil idiom for a `for each` loop),
+and the effect of such a step is a network tuple or a shared record, which
+the acting validator must not read negatively
+([ChorusDesign.md](../docs/ChorusDesign.md) §3.1.1). So each of them keeps a
+record of its own that it has already fired, and its guard is that record's
+absence. A negative read of one's own local state is sound (category (L)).
+The records remove only steps that would change nothing else, so they
+remove no reachable network state; what they buy is that no fair action
+stays enabled after it has fired ([Bounds.md](../docs/Bounds.md) §6.4.7,
+`Chorus.justice_enabledMove`). -/
+
+/-- Sender `k` has sent validator `i` its assigned chunk under proposer `j`'s
+root `m`: the proposer's own dissemination (`deliver_chunk_assigned`, `k =
+j`) or a re-dissemination (`redisseminate_chunk`, `line:fb-redisseminate`). -/
+relation local_chunk_sent (k : node) (i : node) (j : node) (m : merkle_root)
+/-- Validator `i` has signed its fast commit vote's entry for proposer `j`
+(`commit_sign_pos` / `commit_sign_neg`): the commit vote carries one entry
+per proposer (`line:fast-commitvote`). -/
+relation local_commit_entry (i : node) (j : node)
+/-- Validator `i` has signed its fallback entry for proposer `j`
+(`fb_sign_pos` / `fb_sign_neg`, `line:fb-cast-entry`). -/
+relation local_fb_entry (i : node) (j : node)
+/-- Collector `c` has broadcast its commit certificate's entry for proposer
+`j` (`broadcast_commitqc_pos` / `broadcast_commitqc_neg`,
+`line:fast-broadcast-commitqc`). -/
+relation local_commitqc_sent (c : node) (j : node)
+/-- Validator `i` has recorded entry `j` of its MVBA decision
+(`on_mvba_decide_pos` / `on_mvba_decide_neg`, `line:fb-mvba-decide`). -/
+relation local_mvba_recorded (i : node) (j : node)
+/-- Validator `i` has cast its fallback commit vote (`cast_fb_commit`,
+`line:fb-commitvote`). -/
+relation local_fbcommit_voted (i : node)
+
 /-! ## Participation (`mod:slotconsensus`'s inputs)
 
 The slot-consensus module has three inputs: `participate()`, `abandon()` and
@@ -639,6 +677,13 @@ after_init {
   local_committed_neg I J := false
   local_fb_neg_qv I J QV := false
 
+  local_chunk_sent K I J M := false
+  local_commit_entry I J := false
+  local_fb_entry I J := false
+  local_commitqc_sent C J := false
+  local_mvba_recorded I J := false
+  local_fbcommit_voted I := false
+
   participating I := false
   abandoned I := false
 }
@@ -688,9 +733,10 @@ to be actively participating, `participating i ∧ ¬ abandoned i`. These are:
 The rules that only process a received message are exempt: `record_chunk`,
 `aggregate_fastqc_*`, the decision handlers `on_mvba_decide_*` and
 `mvba_terminate`. So are the phase markers and the MVBA's oracle step,
-which are not a validator's rules. The two anonymous capabilities,
-`broadcast_commitqc_*` and `redisseminate_chunk`, take a sender parameter:
-gated when the sender is correct, unconstrained when it is Byzantine. The
+which are not a validator's rules. `broadcast_commitqc_*` and
+`redisseminate_chunk` take their correct sender as a parameter; the same
+capabilities in Byzantine hands are the unconstrained actions
+`byz_broadcast_commitqc_*` and `byz_redisseminate_chunk`. The
 gates read only the acting validator's own local state, so they add no
 network read in any position (ChorusDesign.md §3.1.1).
 
@@ -762,7 +808,10 @@ action deliver_chunk_assigned (i : node) (j : node) (m : merkle_root) {
   require participating j
   require ¬ abandoned j
   require msg_proposer_signed j m
+  -- Fired once: `j` has not sent `i` this chunk yet.
+  require ¬ local_chunk_sent j i j m
   msg_chunk_received i j m := true
+  local_chunk_sent j i j m := true
 }
 
 /-- A chunk that arrives at honest validator `i` before the deadline is recorded
@@ -843,6 +892,8 @@ action aggregate_fastqc_pos (i : node) (j : node) (m : merkle_root) (q : nodeset
   require ¬ is_byz i
   require nset.supermajority q
   require ∀ r, nset.member r q → msg_vote_pos_sig r j m
+  -- Fired once: `i` does not hold this FastQC yet.
+  require ¬ local_fastqc_pos i j m
   local_fastqc_pos i j m := true
 }
 
@@ -850,6 +901,7 @@ action aggregate_fastqc_neg (i : node) (j : node) (q : nodeset) {
   require ¬ is_byz i
   require nset.supermajority q
   require ∀ r, nset.member r q → msg_vote_neg_sig r j
+  require ¬ local_fastqc_neg i j
   local_fastqc_neg i j := true
 }
 
@@ -867,7 +919,10 @@ action commit_sign_pos (i : node) (j : node) (m : merkle_root) {
   require local_path i ≠ fallback
   require is_proposer j
   require local_fastqc_pos i j m
+  -- Fired once: `i` has not signed an entry for `j` yet.
+  require ¬ local_commit_entry i j
   msg_commit_pos_sig i j m := true
+  local_commit_entry i j := true
 }
 
 action commit_sign_neg (i : node) (j : node) {
@@ -878,7 +933,9 @@ action commit_sign_neg (i : node) (j : node) {
   require local_path i ≠ fallback
   require is_proposer j
   require local_fastqc_neg i j
+  require ¬ local_commit_entry i j
   msg_commit_neg_sig i j := true
+  local_commit_entry i j := true
 }
 
 /-- Cast (broadcast) the fast commit vote once every proposer has been signed.
@@ -899,23 +956,34 @@ action cast_fast_commit (i : node) {
 /-- Assemble and broadcast a fast commit certificate entry
 (`line:fast-collect-commit` / `line:fast-broadcast-commitqc`): `2f+1`
 matching broadcast commit votes aggregate into a transferable certificate.
-The collector `c` is the sender. A correct collector sends only while
-actively participating, like every other sending rule. A Byzantine holder
-of the signatures can assemble the same (valid) certificate at any time,
-and receivers verify it against the signatures. Apart from the gate, the
-action's precondition is therefore the validity check itself. -/
+The collector `c` is a correct sender. It sends only while actively
+participating, like every other sending rule, and once per proposer: the
+`upon` handler runs once (`local_commitqc_sent`). Apart from those, the
+action's precondition is the validity check itself. A Byzantine holder of
+the signatures can assemble the same (valid) certificate at any time, and
+receivers verify it against the signatures: that is the adversary's
+capability `byz_broadcast_commitqc_*` below, which is not fair. -/
 action broadcast_commitqc_pos (c : node) (j : node) (m : merkle_root) (q : nodeset) {
-  require is_byz c ∨ (participating c ∧ ¬ abandoned c)
+  require ¬ is_byz c
+  require participating c
+  require ¬ abandoned c
   require nset.supermajority q
   require ∀ r, nset.member r q → msg_commit_pos_sig r j m ∧ msg_commit_cast r
+  -- Fired once: `c` has not broadcast a certificate entry for `j` yet.
+  require ¬ local_commitqc_sent c j
   msg_commitqc_pos j m := true
+  local_commitqc_sent c j := true
 }
 
 action broadcast_commitqc_neg (c : node) (j : node) (q : nodeset) {
-  require is_byz c ∨ (participating c ∧ ¬ abandoned c)
+  require ¬ is_byz c
+  require participating c
+  require ¬ abandoned c
   require nset.supermajority q
   require ∀ r, nset.member r q → msg_commit_neg_sig r j ∧ msg_commit_cast r
+  require ¬ local_commitqc_sent c j
   msg_commitqc_neg j := true
+  local_commitqc_sent c j := true
 }
 
 /-! ## Phase III — Fallback Path (`alg:fallback`)
@@ -986,7 +1054,10 @@ action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q qc : nodeset) {
   require ∀ r, nset.member r qc → msg_chunk_received r j m
   -- (d) Re-encode consistency: the decoded data reproduces `m`.
   require well_encoded m
+  -- Fired once: `i` has not signed its fallback entry for `j` yet.
+  require ¬ local_fb_entry i j
   msg_fb_pos_sig i j m := true
+  local_fb_entry i j := true
 }
 
 /-- Per-proposer fallback signing, negative case. The paper's validator signs
@@ -1026,8 +1097,10 @@ action fb_sign_neg (i : node) (j : node) (qv : nodeset) {
     nset.greater_than_third qc ∧
     (∀ r, nset.member r qc → msg_chunk_received r j M) ∧
     well_encoded M)
+  require ¬ local_fb_entry i j
   msg_fb_neg_sig i j := true
   local_fb_neg_qv i j qv := true
+  local_fb_entry i j := true
 }
 
 /-- Broadcast the fallback vote once every proposer carries a fallback signed
@@ -1175,7 +1248,10 @@ action on_mvba_decide_pos (i : node) (j : node) (m : merkle_root) (v : mvalue) {
   require mval_pos v j m
   -- The bridge: the entry's certificate verifies against the network.
   require vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)
+  -- Fired once: `i` has not recorded entry `j` of its decision yet.
+  require ¬ local_mvba_recorded i j
   mvba_decided_pos j m := true
+  local_mvba_recorded i j := true
 }
 
 action on_mvba_decide_neg (i : node) (j : node) (v : mvalue) {
@@ -1189,7 +1265,9 @@ action on_mvba_decide_neg (i : node) (j : node) (v : mvalue) {
   -- negative FallbackQC or an EquivCert (equivocation excludes the
   -- proposer, §`subsection:fallback_path`).
   require vote_quorum_neg j ∨ ((fb_quorum_neg j ∨ equiv_evidence j) ∧ fbcert)
+  require ¬ local_mvba_recorded i j
   mvba_decided_neg j := true
+  local_mvba_recorded i j := true
 }
 
 action mvba_terminate (i : node) (v : mvalue) {
@@ -1230,10 +1308,11 @@ Modelling notes:
   *Byzantine* proposer's decided root: honest `deliver_chunk_assigned`
   requires an honest proposer, and `byz_deliver_chunk` is unfair
   ((F-byz)). Like `deliver_chunk_assigned` it is unguarded by `phase`.
-  Its sender `k` is a parameter, as the collector is for
-  `broadcast_commitqc_*`: a correct sender must be actively participating,
-  and a Byzantine one is unconstrained. Beyond that gate, its precondition
-  is the network-level capability itself.
+  Its correct sender `k` is a parameter, as the collector is for
+  `broadcast_commitqc_*`: it must be actively participating, and it sends
+  a given chunk once (`local_chunk_sent`). Beyond that, its precondition
+  is the network-level capability itself. A Byzantine sender has the same
+  capability, unconstrained and unfair, as `byz_redisseminate_chunk`.
 * **The DA wait covers every decided-positive root.** The paper waits
   only under positive *FallbackQC* entries (`line:fb-commit-foreach`;
   FastQC entries already carry chunk-backed vote supermajorities). The
@@ -1254,10 +1333,12 @@ Modelling notes:
 
 /-- Chunk re-dissemination (`line:fb-redisseminate`): once the data for
 `(j, m)` is decodable from the network, the sender `k` re-encodes it and
-sends validator `i` its assigned chunk under `m`. A correct sender does so
-only while actively participating; a Byzantine one at any time. -/
+sends validator `i` its assigned chunk under `m`, once, and only while
+actively participating. -/
 action redisseminate_chunk (k : node) (i : node) (j : node) (m : merkle_root) {
-  require is_byz k ∨ (participating k ∧ ¬ abandoned k)
+  require ¬ is_byz k
+  require participating k
+  require ¬ abandoned k
   -- `alg:da` ingests chunks only for the slot's proposers.
   require is_proposer j
   -- Chunk validation: the chunk header must verify against the
@@ -1266,7 +1347,10 @@ action redisseminate_chunk (k : node) (i : node) (j : node) (m : merkle_root) {
   -- Reconstructability (`alg:da.isDecoded`): f+1 chunks for `(j, m)`
   -- delivered on the network, from which `k` re-encodes `i`'s chunk.
   require chunk_quorum j m
+  -- Fired once: `k` has not sent `i` this chunk yet.
+  require ¬ local_chunk_sent k i j m
   msg_chunk_received i j m := true
+  local_chunk_sent k i j m := true
 }
 
 /-- Validator `i` casts its fallback commit vote over the decided entries
@@ -1284,7 +1368,10 @@ action cast_fb_commit (i : node) {
   -- validated under every decided-positive root (see the section note
   -- on why this covers all positives, not only FallbackQC-backed ones).
   require ∀ J M, is_proposer J → mvba_decided_pos J M → msg_chunk_received i J M
+  -- Fired once: `i` has not cast its fallback commit vote yet.
+  require ¬ local_fbcommit_voted i
   msg_fbcommit_sig i := true
+  local_fbcommit_voted i := true
 }
 
 /-! ## Commit decision (finalization)
@@ -1330,8 +1417,9 @@ action commit_assign_pos (i : node) (j : node) (m : merkle_root) {
   -- A broadcast fast commit certificate for (j, m), or a fallback commit
   -- certificate over the decided entries (`line:fb-recv-commit`).
   require msg_commitqc_pos j m ∨ (fbcommitqc ∧ mvba_decided_pos j m)
-  -- Per-proposer single-choice: cannot overwrite a different root.
-  require ∀ m', local_committed_pos i j m' → m' = m
+  -- Per-proposer single choice, and fired once: `i` has committed no
+  -- positive entry for `j` yet.
+  require ∀ m', ¬ local_committed_pos i j m'
   -- Cannot conflict with an already-decided negative.
   require ¬ local_committed_neg i j
   local_committed_pos i j m := true
@@ -1347,6 +1435,8 @@ action commit_assign_neg (i : node) (j : node) {
   require msg_commitqc_neg j ∨ (fbcommitqc ∧ mvba_decided_neg j)
   -- Cannot conflict with an already-decided positive entry.
   require ∀ m, ¬ local_committed_pos i j m
+  -- Fired once.
+  require ¬ local_committed_neg i j
   local_committed_neg i j := true
 }
 
@@ -1421,6 +1511,16 @@ action byz_deliver_chunk (i : node) (j : node) (m : merkle_root) {
   msg_chunk_received i j m := true
 }
 
+/- A Byzantine sender re-disseminates a decodable chunk (the capability of
+`redisseminate_chunk`, which any holder of `f+1` chunks has). -/
+action byz_redisseminate_chunk (r : node) (i : node) (j : node) (m : merkle_root) {
+  require is_byz r
+  require is_proposer j
+  require msg_proposer_signed j m
+  require chunk_quorum j m
+  msg_chunk_received i j m := true
+}
+
 action byz_sign_vote_pos (r : node) (j : node) (m : merkle_root) {
   require is_byz r
   -- A positive vote entry is network-valid only with the signer's valid
@@ -1482,6 +1582,23 @@ action byz_sign_commit_neg (r : node) (j : node) {
 action byz_cast_commit (r : node) {
   require is_byz r
   msg_commit_cast r := true
+}
+
+/- A Byzantine holder of `2f+1` broadcast commit votes assembles and
+broadcasts the (valid) commit certificate, at any time and any number of
+times (the capability of `broadcast_commitqc_*`). -/
+action byz_broadcast_commitqc_pos (r : node) (j : node) (m : merkle_root) (q : nodeset) {
+  require is_byz r
+  require nset.supermajority q
+  require ∀ a, nset.member a q → msg_commit_pos_sig a j m ∧ msg_commit_cast a
+  msg_commitqc_pos j m := true
+}
+
+action byz_broadcast_commitqc_neg (r : node) (j : node) (q : nodeset) {
+  require is_byz r
+  require nset.supermajority q
+  require ∀ a, nset.member a q → msg_commit_neg_sig a j ∧ msg_commit_cast a
+  msg_commitqc_neg j := true
 }
 
 action byz_sign_fbcommit (r : node) {
@@ -2187,7 +2304,11 @@ model, indexed by the action's category:
   `deliver_chunk_assigned` and `broadcast_commitqc_*` are on the list as
   honest network capabilities: eventual delivery of a correct proposer's
   chunk, and assembly of a certificate whose signatures are all present
-  ([ChorusDesign.md](../docs/ChorusDesign.md) §7). Three kinds of action are
+  by a correct collector ([ChorusDesign.md](../docs/ChorusDesign.md) §7).
+  Every action on the list disables itself once it has fired (its
+  "not already" guard, "Fired-once records"), so "continuously enabled"
+  here means the same as "continuously able to change the state"
+  (`Chorus.justice_enabledMove`). Three kinds of action are
   not on it. The inputs `participate`, `abandon` and `propose` are the
   caller's to invoke, so they carry no fairness; fairness of `abandon` would
   force every validator to abandon. The caller's conditions on them are
@@ -2210,7 +2331,8 @@ model, indexed by the action's category:
   flips false, after which the action is *permanently* disabled — so weak
   (F-justice) suffices.
 * **(F-byz)** — Byzantine actions (`byz_*`) carry no scheduling preference;
-  they are unfair.
+  they are unfair. That includes the adversary's use of the two anonymous
+  capabilities, `byz_broadcast_commitqc_*` and `byz_redisseminate_chunk`.
 * **The MVBA's termination** — formerly the meta-axiom (A-mvba), now
   retired. It is a theorem of the `Mvba` model, `Mvba.termination`
   ([Mvba/Liveness.lean](Mvba/Liveness.lean)), which `Chorus.termination`

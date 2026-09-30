@@ -43,7 +43,7 @@ namespace Chorus.Proofs
   veil_inv_have h_msg_commitqc_pos_backed := msg_commitqc_pos_backed
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_pos_mvba_consistent := commitqc_pos_mvba_consistent
-  intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev J M1 M2 hqc hmv
+  intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev _hfresh J M1 M2 hqc hmv
   by_cases hnew : j = J ∧ m = M2
   · obtain ⟨rfl, rfl⟩ := hnew
     rcases hev with ⟨Q2, hQ2_sup, hQ2⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩
@@ -66,7 +66,7 @@ namespace Chorus.Proofs
   veil_inv_have h_msg_commitqc_neg_backed := msg_commitqc_neg_backed
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_neg_mvba_pos_excl := commitqc_neg_mvba_pos_excl
-  intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev J M hqc
+  intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev _hfresh J M hqc
   refine ⟨?_, h_commitqc_neg_mvba_pos_excl J M hqc⟩
   rintro rfl rfl
   rcases hev with ⟨Q2, hQ2_sup, hQ2⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩

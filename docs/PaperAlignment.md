@@ -407,9 +407,17 @@ choice is recorded here until they answer.
   time". Only the fast meta-block rule does. The paper states no
   convention for `upon`. The conventional reading of an event-driven
   handler is that it runs when its condition becomes true, not
-  continually. [Bounds.md](Bounds.md) §6.4.7 (S1b, session R5) models these
-  rules that way, with a fired-once guard. Until then, the model lets them
-  fire again as steps that change nothing. The MVBA supplement is explicit
+  continually. The model reads these rules that way since S1b
+  ([Bounds.md](Bounds.md) §6.4.7): `aggregate_fastqc_*` requires that the
+  validator does not hold the FastQC yet, and `broadcast_commitqc_*` that
+  the collector has not broadcast a certificate for the proposer yet
+  (`local_commitqc_sent`). The same reading covers the per-proposer steps
+  into which the model splits an atomic handler (the commit and fallback
+  entries, the chunk re-dissemination, the fallback commit vote and the
+  decision handler, "Fired-once records" in
+  [Chorus.lean](../Cadence/Chorus.lean)). There the paper's handler runs once
+  by its own text, and the records only make the model's decomposition
+  agree with it. The MVBA supplement is explicit
   on the corresponding rules ("has not already formed …", "upon first
   collecting …"), so the question concerns the published Chorus
   pseudocode only.
