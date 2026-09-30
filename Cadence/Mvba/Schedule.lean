@@ -55,9 +55,11 @@ leader in every `k` consecutive views (`LeaderRotation`, the supplement's
 `leader_honest_cofinal` is its `k`-free shadow), and the schedule's three
 hypotheses (`Schedule`): the timeout is bounded, eventually exceeds the
 chain's latency, and the constants are non-negative. Why the timeout *must*
-be bounded for a fixed `ℓ` to exist — the supplement's backoff remark is
-incompatible with its `O(fΔ)` theorem — is [Bounds.md](../../docs/Bounds.md)
-§6.2.3.
+be bounded for a fixed `ℓ` to exist — the backoff remark of the supplement at
+`026dc8b` was incompatible with its `O(fΔ)` theorem, and `eb1bb51` replaced
+it by the fixed `T := Δ_R + 4Δ + max{Δ, Δ_sync}` — is
+[Bounds.md](../../docs/Bounds.md) §6.2.3. The paper's fixed `T` is the
+special case `vL = vord.zero`, `τ` constant.
 
 ## The two constants
 

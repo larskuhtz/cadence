@@ -558,8 +558,8 @@ three guards that are **anti-monotone** — `in_view i v`, `¬ timed_out i v`,
 
 /-- `i` is **active**: the caller has not abandoned it, and it has not
 halted after deciding. Every honest send requires both: the supplement's
-decision paths end in `decide(…); abandon()` (`line:mvba:td-decide`,
-`line:mvba:qc-decide`), and the model keeps that halt apart from the
+decision paths end in `decide(…); abandon()` (`Decide` in
+`alg:mvba-cont3`, reached from `line:mvba:qc-decide`), and the model keeps that halt apart from the
 caller's `abandon` ([Mvba.lean](../Mvba.lean), "A decided validator
 halts"). -/
 def Active (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (i : node) : Prop :=

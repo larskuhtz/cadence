@@ -474,12 +474,22 @@ contract's non-Zeno field, not the schedule.
 
 #### 6.2.3 The schedule, and the first finding
 
-The supplement fixes the timer in one sentence (`subsec:mvba-protocol`):
-*"The view timeout is chosen so that, after GST, it exceeds
+At the pin current when this leg was designed, `026dc8b`, the supplement
+fixed the timer in one sentence (`subsec:mvba-protocol`): *"The view
+timeout is chosen so that, after GST, it exceeds
 `Δ_R + 3Δ + max{Δ, Δ_sync}`. If the implementation uses timeout backoff
 rather than fixed known bounds, the timeout is eventually increased beyond
-this value."* `thm:termination`'s proof then counts with a fixed timeout —
+this value."* `thm:termination`'s proof then counted with a fixed timeout —
 *"the view timeout is itself `O(Δ)`"* — to reach `O(fΔ)`.
+
+At the current pin `eb1bb51` the sentence reads (`subsec:mvba-protocol`,
+"Views, leaders, and timing parameters"): *"The view timeout is the fixed,
+known value `T := Δ_R + 4Δ + max{Δ, Δ_sync}`"*, and the termination setting
+says the view timeout is the fixed `T`. The backoff sentence is gone. The
+model's schedule is then the supplement's fixed `T` plus a harmless
+generalisation: `τ` constant and `v_L = zero` is the paper's case, and
+(S-cap)/(S-ramp) below still describe capped backoff should an
+implementation want it.
 
 The model's schedule is `τ : view → time`, with three hypotheses:
 
@@ -508,6 +518,11 @@ only if the backoff is capped at `O(Δ)`. Recorded in
 unbounded relative to a fixed bound" was therefore the wrong requirement:
 the sequence must be *eventually above* `L_cert` and *bounded*, which is
 what (S-ramp) and (S-cap) say.
+
+*Resolved upstream at `eb1bb51`* ([MvbaPlan.md](MvbaPlan.md) §11.3, C13):
+the timeout is now the fixed `T`, and the backoff remark is deleted. One
+residue remains: the `sec:timing-constants` stub still lists "the MVBA view
+timeout and its backoff policy".
 
 #### 6.2.4 The per-seam statements: what an admissible run satisfies
 
@@ -1211,10 +1226,13 @@ claim allows only after `max(t, GST) + ℓ`, and `ℓ` exceeds a view's
 timeout. The first witness therefore passed through five views.
 
 **The supplement does stop.** Both its decision paths end in
-`decide(…); abandon()` (`line:mvba:td-decide`, `line:mvba:qc-decide`),
-`abandon()` "halts all MVBA sending and stops `W`", and the timeout fires
-only "upon `W` reaches the view timeout and no decision in view `v`"
-(`line:mvba:timeout-send`). That is so at the pinned revision `026dc8b`.
+`decide(…); abandon()` (the procedure `Decide` in `alg:mvba-cont3`, reached
+from `line:mvba:qc-decide`, and the restart path), `abandon()` "halts all
+MVBA sending and stops `W`", and the timeout fires only "upon `W` reaches
+the view timeout and no decision in view `v`" (`line:mvba:timeout-send`).
+That was so at the revision pinned then, `026dc8b`, and is so at the
+current pin `eb1bb51`, whose termination proof now relies on it
+([MvbaPlan.md](MvbaPlan.md) §11.3, C11).
 The difference was not harmless for the timed claim: read as a model run, a
 supplement run in which a validator decides and stops early abandons it
 before `max(t, GST) + ℓ`, which the claim's caller condition excludes, so

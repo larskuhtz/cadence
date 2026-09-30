@@ -49,19 +49,20 @@ the model pins the **commit SHA of the paper repository it was read
 against**, and any later change to `alg_mvba.tex` or to
 `subsec:mvba-correctness` is the trigger to re-read the model against the
 new commit and move the pin. For this plan, and for the model's first
-version, the referent is paper-repo commit **`026dc8b`** (2026-09-03).
+version, the referent was paper-repo commit **`026dc8b`** (2026-09-03);
+since step 5b (§11.5 stage 2) it is **`eb1bb51`** (2026-09-28).
 The anchors to cite from it: `sec:mvba-instantiation`,
-`subsec:mvba-datatypes`, `subsec:mvba-protocol`, the three algorithm blocks
-`alg:mvba`, `alg:mvba-cont`, `alg:mvba-cont2` with their `line:mvba:*`
-labels, and the correctness section `subsec:mvba-correctness` with
+`subsec:mvba-datatypes`, `subsec:mvba-protocol`, the four algorithm blocks
+`alg:mvba`, `alg:mvba-cont`, `alg:mvba-cont2`, `alg:mvba-cont3` (the fourth
+new at `eb1bb51`) with their `line:mvba:*` labels, and the correctness section `subsec:mvba-correctness` with
 `rem:signature-separation`, `lem:vote-uniqueness`, `lem:commit-provenance`,
 `rem:lock-monotonicity`, `lem:cert-uniqueness`, `lem:lock-formation`,
 `lem:avail-progress`, `lem:commit-availability`, `lem:timeout-closes-view`,
 `lem:lock-persistence`, `thm:agreement`, `lem:external-validity`,
 `lem:reproposal`, `lem:lock-availability`, `lem:proposability`,
 `thm:termination`, `cor:mvba-recovery-termination`. (All seventeen still
-resolve at `eb1bb51`, the revision reviewed for the next move of the pin;
-§11.1 lists the anchors it removes and the ones it adds.) This is a new
+resolve at `eb1bb51`, the current pin; §11.1 lists the anchors it removes
+and the ones it adds.) This is a new
 convention here — everywhere else the citation discipline rests on stable
 anchors in an immutable document — but it is cheap and it is the only honest
 option while the supplement stays untagged.
@@ -240,8 +241,9 @@ sends `Prepare`); `form_prepqc v e q` (assembly, `2f+1` prepares);
 `adopt_prepqc i v e` (`TryFormPrepQC`'s local half: `line:mvba:tfp-guard`);
 `send_commit i v e` (`TrySendCommit`, `line:mvba:commit-send`, including
 `avail_ready i e`); `form_commitqc v e q`; `decide i v e` (on `msg_commitqc
-v e`, once — `TryDecide` / `TryFormCommitQC` / the transferred-certificate
-handler collapse into one action, since `Recover` is the identity);
+v e`, once — `Decide` (`alg:mvba-cont3`), reached from `TryFormCommitQC`
+and from the transferred-certificate handler (`line:mvba:qc-decide`), is
+one action, since `Recover` is the identity);
 `timeout i v` (the timer, abstracted: enabled once `entered i v` and not
 decided); `echo_timeout i v` (the `f+1` rule, `line:mvba:ht-send`);
 `form_tc v q w e` / `form_tc_nolock v q` (assembly with the lock witness);

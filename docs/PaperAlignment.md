@@ -202,8 +202,9 @@ Four consequences for this repository:
    ([ChorusDesign.md](ChorusDesign.md) §9) acquired a concrete target,
    and it has been carried out: [Cadence/Mvba.lean](../Cadence/Mvba.lean)
    is a Veil model of `alg:mvba` (views, timeouts, timeout certificates, the
-   lock), read against paper-repository commit `026dc8b` and pinned to it in
-   the model's header, and [Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)
+   lock), read against paper-repository commit `026dc8b`, re-read against
+   `eb1bb51` (§7; [MvbaPlan.md](MvbaPlan.md) §11) and pinned to that in
+   the model's header (four algorithm blocks since then), and [Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)
    discharges `MVBASafety` (`Mvba.mvbaSafety`, every field) and, given the
    timed level, the full `MVBA` (`Mvba.mvba_of_temporal`, supplied with
    `Mvba.mvbaTemporal`); the class lives in
@@ -234,10 +235,11 @@ Four consequences for this repository:
 4. **A liveness-level divergence, fixed** (2026-09-29, found while
    building the non-vacuity witness, [Bounds.md](Bounds.md) §6.3.2). The
    supplement stops a validator once it decides: both decision paths end
-   in `decide(…); abandon()` (`line:mvba:td-decide`,
-   `line:mvba:qc-decide`), and the timeout fires only when there is "no
-   decision in view `v`" (`line:mvba:timeout-send`), at the pinned
-   `026dc8b` as now. The model had neither, which left the timed
+   in `decide(…); abandon()` (the procedure `Decide` in `alg:mvba-cont3`,
+   reached from `line:mvba:qc-decide`, and the restart path), and the
+   timeout fires only when there is "no decision in view `v`"
+   (`line:mvba:timeout-send`), at `026dc8b` and at the current pin
+   `eb1bb51` alike. The model had neither, which left the timed
    Termination theorem silent about the supplement's own runs. The model
    now halts a decided validator (every honest send requires
    `∀ E, ¬ decided i E`), kept apart from the caller's `abandon`.
