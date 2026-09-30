@@ -2144,6 +2144,54 @@ Total: six to eight sessions. As in the MVBA leg, the dominant risk is
 statement churn: F1–F4 are the churn this record tries to absorb up
 front, before any Lean.
 
+**What the Conductor's timed claims need from this leg.** The
+Conductor's Totality, `B`-Boundedness and `R`-Recovery
+(`OrchestratorTemporal`) consume Chorus's claims in
+`prop:window-synchronization` (totality), `prop:conductor-open-to-complete`
+(ℓ-termination), and the recovery chain through `Φ_oc = ℓ_chorus + d_tot`
+and the parameter assumptions of `algorithm:conductor`. For those proofs
+to go through, this leg must hand over the following.
+
+* **Premises the composition can discharge.** Each of Chorus's caller
+  conditions has to be one a composed run proves:
+  * participation by `t`: the glue invokes `participate` at `open`
+    (`line:participate`);
+  * Δ-synchronized participation: the Conductor's own opening totality
+    (`lemma:conductor-totality`);
+  * C2: `integrity_timing`, with `deadline s = start_time s + Δ`;
+  * C1: the glue abandons only after finalizing (`line:abandon`).
+
+  C1/C2 are phrased with that in mind, as antecedents over the class's
+  own observables.
+* **`ℓ` and `d_tot` as data, with closed values.** They appear in
+  assumptions (1)–(4) of `algorithm:conductor`. They are fields already;
+  the instance pins them.
+* **Totality in the tolerance-parametric form of §6.4.4.** This is F3.
+  The ratchet needs Chorus's latency not to exceed the tolerance the
+  Conductor grants. At δ = 0 both are Δ, and the paper's induction goes
+  through. At δ > 0 `max(Δ, d) + 2δ > d` for every `d`, so the Conductor
+  leg has to choose. It can work at δ = 0, the paper's instantaneous
+  local computation. It can find a δ-robust statement, for instance by
+  re-synchronizing on the absolute start times, as
+  `line:conductor-wait-for-open` does once the windows are ahead of the
+  clock. Or it can record the degradation as a finding. **Proposal (C3,
+  to the Conductor leg):** leave `syncParticipation_def`'s tolerance at Δ
+  for now. The parametric lemma means this leg's statement does not
+  pre-empt the choice.
+* **One time theory and one Δ across the system.** Chorus, the MVBA, the
+  Conductor and the ACS share the run's clock. So the Conductor leg
+  should take the same schedule record rather than a second Δ.
+* **Two edits outside this leg**, recorded so that neither comes as a
+  surprise:
+  * After S1, `Chorus.slotConsensusSafety`'s `step` excludes the inputs,
+    so the glue's `sc_step` (which requires `sc.step`) can no longer
+    participate. The composed system's Chorus is then inert until the
+    composition leg gives the glue its `participate` / `propose` /
+    `abandon` actions. The glue's safety theorem is unaffected: it is
+    generic, and inertness only removes behaviours.
+  * `cor:chorus-correctness-within-cadence` then closes the loop, which
+    is §6 step 5.
+
 #### 6.4.7 Fired-once flags: fairness over plain enabledness
 
 *The plan for S1b (§6.4.6), decided 2026-09-30 after R3 (PR #48). Nothing
@@ -2304,51 +2352,3 @@ would break. So:
 
 At no point does master carry a premise that is unsatisfiable at some
 quorum sort.
-
-**What the Conductor's timed claims need from this leg.** The
-Conductor's Totality, `B`-Boundedness and `R`-Recovery
-(`OrchestratorTemporal`) consume Chorus's claims in
-`prop:window-synchronization` (totality), `prop:conductor-open-to-complete`
-(ℓ-termination), and the recovery chain through `Φ_oc = ℓ_chorus + d_tot`
-and the parameter assumptions of `algorithm:conductor`. For those proofs
-to go through, this leg must hand over the following.
-
-* **Premises the composition can discharge.** Each of Chorus's caller
-  conditions has to be one a composed run proves:
-  * participation by `t`: the glue invokes `participate` at `open`
-    (`line:participate`);
-  * Δ-synchronized participation: the Conductor's own opening totality
-    (`lemma:conductor-totality`);
-  * C2: `integrity_timing`, with `deadline s = start_time s + Δ`;
-  * C1: the glue abandons only after finalizing (`line:abandon`).
-
-  C1/C2 are phrased with that in mind, as antecedents over the class's
-  own observables.
-* **`ℓ` and `d_tot` as data, with closed values.** They appear in
-  assumptions (1)–(4) of `algorithm:conductor`. They are fields already;
-  the instance pins them.
-* **Totality in the tolerance-parametric form of §6.4.4.** This is F3.
-  The ratchet needs Chorus's latency not to exceed the tolerance the
-  Conductor grants. At δ = 0 both are Δ, and the paper's induction goes
-  through. At δ > 0 `max(Δ, d) + 2δ > d` for every `d`, so the Conductor
-  leg has to choose. It can work at δ = 0, the paper's instantaneous
-  local computation. It can find a δ-robust statement, for instance by
-  re-synchronizing on the absolute start times, as
-  `line:conductor-wait-for-open` does once the windows are ahead of the
-  clock. Or it can record the degradation as a finding. **Proposal (C3,
-  to the Conductor leg):** leave `syncParticipation_def`'s tolerance at Δ
-  for now. The parametric lemma means this leg's statement does not
-  pre-empt the choice.
-* **One time theory and one Δ across the system.** Chorus, the MVBA, the
-  Conductor and the ACS share the run's clock. So the Conductor leg
-  should take the same schedule record rather than a second Δ.
-* **Two edits outside this leg**, recorded so that neither comes as a
-  surprise:
-  * After S1, `Chorus.slotConsensusSafety`'s `step` excludes the inputs,
-    so the glue's `sc_step` (which requires `sc.step`) can no longer
-    participate. The composed system's Chorus is then inert until the
-    composition leg gives the glue its `participate` / `propose` /
-    `abandon` actions. The glue's safety theorem is unaffected: it is
-    generic, and inertness only removes behaviours.
-  * `cor:chorus-correctness-within-cadence` then closes the loop, which
-    is §6 step 5.
