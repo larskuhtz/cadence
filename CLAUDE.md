@@ -164,10 +164,12 @@ History: [docs/History.md](./docs/History.md).
   slower than here. A local green run is therefore **not** evidence that a
   near-limit cell fits its budget: the cache replays the old cells and the
   hardware is faster. When a change adds solver work to a proof file, read
-  CI's "Slowest discharge attempts" list, which prints each cell's
-  percentage of budget. On the *in-file sweep* path (the two small models)
-  the budget is still Veil's default, and a `set_option` there is captured
-  at `#gen_spec`, not at the command.
+  CI's "Slowest discharge attempts" list. It prints seconds, not shares:
+  divide by **180 s**, the budget on both paths. The two small models'
+  *in-file sweeps* set the same `veil.smt.timeout 180` in the model file,
+  before `#gen_spec` — that is where the sweep captures it; a `set_option`
+  at the command is inert. (Checked 2026-09-30: at `timeout 2` there, the
+  Conductor's six slowest cells fail.)
 * Run **one** expensive build at a time and kill stale `lean` processes first.
   Near-timeout VCs are noisy under load: a cell that times out in a full build
   may pass in isolation. Distinguish *slow* from *divergent* — if different
