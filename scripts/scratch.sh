@@ -16,7 +16,9 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 [ $# -ge 1 ] || { echo "usage: scripts/scratch.sh <file.lean> [lean args...]" >&2; exit 2; }
 
-SETUP="$(find .lake/build/ir -name '*.setup.json' -print -quit 2>/dev/null || true)"
+# A setup that loads the solver: not every module's does (the root module's
+# lists no plugins), so the first one found is not good enough.
+SETUP="$(grep -rl --include='*.setup.json' cvc5 .lake/build/ir 2>/dev/null | head -n 1 || true)"
 if [ -z "$SETUP" ]; then
   echo "no build setup under .lake/build/ir — run 'lake build Cadence.Chorus' first" >&2
   exit 2
