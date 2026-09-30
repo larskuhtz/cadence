@@ -1243,3 +1243,722 @@ and a model must produce certificates that satisfy it, not merely an MVBA
 run that decides. Plain-`Enabled` `FJustice` over Chorus's own quorum
 labels is the second, with the same caveat as here and the same remedy at
 finite sorts.
+
+### 6.4 The Chorus leg: the kick-off record
+
+*Written 2026-09-29, after `Chorus.termination` (PR #43) and before any
+Lean. Nothing below is done. It supersedes §6's staging for Chorus
+(steps 1–3), which predates the MVBA leg. §6.2 and §6.3 are the template.
+Decisions are recorded with their reasons. Those marked **open** are for
+Lars to take: item 1 above all, and the two class changes it depends on.*
+
+**In short, for an auditor.** The paper proves two timed properties of
+Chorus:
+
+* **ℓ-termination** (`lemma:chorus-termination`): if every correct
+  validator starts participating in the slot by time `t`, every correct
+  validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA`;
+* **d_tot-totality** (`prop:chorus-totality`): if one correct validator
+  finalizes at time `t`, every correct validator finalizes by
+  `max(t, GST) + Δ`.
+
+Both hold under *Δ-synchronized participation*
+(`def:delta-synchronized-participation`): once one correct validator
+starts, every correct validator starts within Δ. Both also hold "when run
+within Cadence". The contract states the two properties as the fields
+`bounded_termination` and `totality` of `SlotConsensusWithTotality`
+([Interfaces.lean](../Cadence/Interfaces.lean)). Nothing instantiates
+them yet.
+
+The timed claims would assume what the MVBA's did (§6.2): messages arrive
+within Δ after GST, local steps take at most δ (zero in the paper), and
+the slot's three time landmarks (the deadline `D`, then `D + Δ` and
+`D + 2Δ`) happen on time on synchronized clocks. They would further
+assume that the MVBA's own timing premises hold of its steps inside the
+run, and that the certificate bridge `ValidBridge` holds; the bridge is
+unchanged from the untimed claim. The rest are the caller's conditions,
+which the composition later discharges: everyone starts by `t`, starts are
+Δ-synchronized, nobody starts before `D − Δ`, and nobody abandons before
+finalizing.
+
+**The main question is item 1.** The contract's fields speak about
+`participate`, `abandon` and `propose`, and the Chorus model has none of
+them. **Recommendation (open):** model the participation interface in
+[Chorus.lean](../Cadence/Chorus.lean), exactly as the paper's standing
+convention states it (option A, §6.4.1). Bundle it into the same
+re-solve with one small [Interfaces.lean](../Cadence/Interfaces.lean) edit,
+which adds the two "within Cadence" premises the paper's proofs use and
+the class omits (finding F1). This is the only option under which the
+timed claims are the paper's statements and the contract instances exist.
+
+**Four findings, all about statements, none about the protocol.**
+
+* **F1: the class's timed fields omit two premises the paper uses.**
+  `bounded_termination` and `totality` lack "a correct validator abandons
+  only after finalizing" (`algorithm:cadence`, `line:abandon`). The
+  untimed `SlotConsensusTemporal.termination` has that premise.
+  `bounded_termination` also lacks "no correct validator starts before
+  `D − Δ`", which is the Conductor's integrity
+  (`lemma:conductor-integrity`); the proof of
+  `prop:chorus-finalization-time` uses it in its first step. Without the
+  first premise, a validator that abandons at once never finalizes.
+  Without the second, a slot whose deadline lies far after `t` cannot
+  finalize by `max(t, GST) + ℓ`. Either way the field is false for every
+  faithful implementation, unless the implementation's own `Admissible`
+  smuggles in the caller's conditions. The rely form of
+  `MVBATemporal.termination` was adopted precisely to avoid that
+  (§6.4.1, "The class change").
+* **F2: the paper's message buffering needs a split hop.** "A message
+  whose rule is blocked by this convention is not lost"
+  (`subsection:chorus-protocol-overview`). A rule's network input is
+  therefore due Δ after it was sent, and its local gate (a phase landmark,
+  or participation) is due δ after it opened. Measuring a Δ-hop from the
+  later of the two, as §6.2.4's `BoundedFair` does, costs one extra Δ at
+  every step where a landmark opens last. The model's bound would then be
+  `6Δ + ℓ_MVBA` or worse, not the paper's `5Δ`. §6.4.2 states the clause
+  that keeps the paper's arithmetic.
+* **F3: at δ > 0 the totality latency is `Δ + 2δ`, not Δ.** The
+  Conductor's window induction closes *because* Chorus's totality
+  latency equals the synchronization tolerance its condition grants.
+  "Both equal `Δ = d_tot`", in the words of the paragraph before
+  `def:window-synchronized`. With local steps that take time the ratchet
+  loses δ per window. This is the Conductor leg's question. §6.4.6 states
+  what this leg provides so that it is not blocked.
+* **F4: to be confirmed. The 5Δ bound looks loose by one Δ.**
+  `lemma:chorus-termination` splits at `T₀ = M + 4Δ + ℓ_MVBA` and adds Δ
+  for totality (`M = max(t, GST)`). The inner split of
+  `prop:chorus-finalization-time` at `T₀ − Δ` already handles early
+  finalizers, and the only use of that proposition's premise "no correct
+  validator stops before `T`" is covered by "abandon only after
+  finalizing". So a single split at `T₀ − Δ` should give `M + 4Δ + ℓ_MVBA`,
+  which is the bound an earlier, commented-out draft next to the lemma
+  states. §6.4.3 records how to handle it if the proof confirms it.
+
+**Decisions in one place.**
+
+* Participation interface: **option A (open)**. The model gains
+  `participate` and `abandon`, and `propose` becomes the contract's input.
+  Every sending rule is gated on active participation (§6.4.1).
+* Class change C1/C2: **recommended (open)**, bundled with option A into
+  one Chorus-family re-solve. C3 (the tolerance) goes to the Conductor leg.
+* The clock is the run's (`TLRun`, `TimedRun.clk`), as in the MVBA leg.
+  No clock goes into the model (§6.2.1).
+* The time theory is §6.2.2's, including cancellation. The timing
+  constants are the MVBA schedule's `Δ` and `δ`. Chorus adds only the
+  deadline (§6.4.2).
+* Fairness is bounded fairness on state-changing steps with a hop table.
+  The hop is split into a network part and a local gate (F2). The phase
+  markers leave the table and become punctual timers (§6.4.2).
+* The MVBA is consumed **through the contract**: `T.Admissible` of the
+  timed projection, `T.ℓ` and `T.termination`, for
+  `T := Mvba.mvbaTemporal …` (§6.4.3). The upgrade step 5b can therefore
+  refine the MVBA's timed premise without touching this leg.
+* The proof re-runs the untimed chains with deadlines. It case-splits on
+  an early finalization, as the paper does, and not on the progress
+  dichotomy (§6.4.3).
+* Non-vacuity comes from one witness, built after the model edit, that
+  serves both the untimed and the timed claims (§6.4.5).
+
+#### 6.4.1 The participation interface
+
+**What the contract asks.** `SlotConsensusTemporal` has three inputs
+(`participate`, `abandon`, `propose`) with their observables, effects,
+frames and initial conditions. It has the admissible-run model, and
+Termination and Quiescence stated over them. `SlotConsensusWithTotality`
+takes an instance of it as a parameter. So the timed fields cannot even be
+stated at Chorus until the participation interface exists at the
+fragment. There is a second constraint: the class's frames say that
+*internal* steps leave a correct validator's inputs unchanged.
+`Chorus.slotConsensusSafety` currently sets `step := trans`, so any input
+it had would also count as an internal step. Every option that
+instantiates the class must therefore separate the input labels from
+`step` in [Chorus/Compose.lean](../Cadence/Chorus/Compose.lean).
+
+**Option A: model the interface in [Chorus.lean](../Cadence/Chorus.lean).** Add
+per-validator `participating i` and `abandoned i` as local state. Add two
+input actions:
+
+* `participate i`;
+* `abandon i`, which forwards to the MVBA's `abandon` when the validator
+  has invoked it, as `line:fb-abandon` does. Its successor-state parameter
+  is harmless, since inputs carry no fairness.
+
+The existing `propose j m` becomes the contract's `propose(P)`, with
+`P ↦ m`, the class's `proposal := merkle_root` at
+[Chorus/Compose.lean](../Cadence/Chorus/Compose.lean). Then gate every
+rule that sends, with `participating i ∧ ¬ abandoned i`, and exempt the
+rules that only process. That is the standing convention of
+`subsection:chorus-protocol-overview`, rule for rule:
+
+* **Gated, because they send.** `propose` and `deliver_chunk_assigned`
+  (at the proposer), `vote`, `commit_sign_*`, `cast_fast_commit`,
+  `fb_sign_*`, `cast_fallback_vote`, `mvba_propose` (the convention names
+  it explicitly), `cast_fb_commit`, and `commit_assign_*`/`finalize_commit`.
+  The paper's finalization rules re-broadcast the proof
+  (`line:fast-rebroadcast-commitqc`, `line:fb-commit-rebroadcast`), and
+  its totality proof relies on their being gated. The model's comment at
+  "Commit decision" ("finalization on receipt has no active-participation
+  precondition") then changes.
+* **Exempt, because they process.** `record_chunk`, `aggregate_fastqc_*`,
+  the decision handlers and `mvba_terminate`.
+* **Anonymous capabilities.** `broadcast_commitqc_*` and
+  `redisseminate_chunk` have no actor today. In the paper both are sends
+  by a correct validator: the collector (`line:fast-broadcast-commitqc`),
+  and the fallback-entry caster (`line:fb-redisseminate`). The faithful
+  form gives each a sender parameter, gated when the sender is correct and
+  unconstrained when it is Byzantine. Without that, Quiescence cannot
+  attribute those messages. **Recommended**, since the family re-solves
+  anyway.
+
+Quiescence is then provable in the paper's own two-part shape
+(`lemma:chorus-quiescence`):
+
+* Chorus's own sends are gated;
+* the MVBA's sends are the MVBA's `sent`, confined by its `quiescence` to
+  the window between a gated `propose` and a forwarded `abandon`.
+
+The message type is a sum of Chorus's attributed network relations and
+`mmsg`, defined in [Chorus/Compose.lean](../Cadence/Chorus/Compose.lean) and
+not in the model. The proof reads the transition bodies, like the MVBA's
+`sent_new_tr`, so no `step_property` cell is needed.
+
+*Cost.* Every VC statement changes (new state components), so the whole
+Chorus family re-solves cold. The measured cold figures live in
+[CLAUDE.md](../CLAUDE.md) and [Dependencies.md](Dependencies.md). Other
+effects:
+
+* **The audit pin.** The `#veil_status Chorus` pin in
+  [Chorus/Certify.lean](../Cadence/Chorus/Certify.lean) grows by two
+  actions' cells per property. The Chorus.lean edit adds no invariant: the
+  new guards only strengthen hypotheses.
+* **Manual cells.** They keep their statements' shape (`veil_inv_have` is
+  by name), but their tactics must be re-run cold (CLAUDE.md,
+  "The cache hides derivation drift").
+* **The label classification.** [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)
+  gains an `InputLabel` class (`participate`, `abandon`, `propose`). This
+  is **a trap to avoid**: `JusticeLabel` is the complement of the other
+  classes, so a new input would silently become weakly fair, and fairness
+  of `abandon` would force every validator to abandon.
+* **The component.** `MvbaStepLabel` and `mvbaComponent` gain the
+  forwarding `abandon`.
+* **The untimed claim.** `TerminationClaim` gains the caller's premises
+  (every correct validator eventually participates; none abandons before
+  finalizing), which are exactly `SlotConsensusTemporal.termination`'s.
+  Its proof restructures, because a validator that finalizes on the fast
+  path and then abandons also abandons the MVBA. So the MVBA's
+  `NoEarlyAbandon` holds only on the branch where nobody has finalized.
+  The re-proof therefore splits on an early finalization, which is the
+  split the timed proof uses (§6.4.3). Each honest link gains the gate as
+  a hypothesis, as the MVBA's links gained `Active` in PR #42.
+* **The monitor.** Its label decoders learn the new actions.
+* **Unaffected**: the FallbackReceipt and Mvba families, and the glue's
+  safety theorem, which is generic in the fragment.
+
+*Faithfulness.* This is the highest of the three options. The claims are
+the paper's statements over the paper's interface. Both `…Temporal`
+instances become possible, Quiescence stops being "out of scope" in
+Chorus.lean's header, and `TerminationClaim` becomes the class's own
+Termination.
+
+**Option B: state the claims over what Chorus models.** Two variants.
+
+* *B1, implicit participation.* Every validator participates from the
+  run's start. The claim becomes: all correct validators participate from
+  `D − Δ`, and all finalize by `max(D − Δ, GST) + ℓ`. That is a true and
+  honest special case, and it is exactly the Conductor's steady state
+  after recovery. It is not the paper's lemma, which quantifies over late
+  and staggered starts. It cannot instantiate `SlotConsensusTemporal`,
+  because `init_participating` and the input frames have nothing to bind
+  to. Quiescence is false in it: an implicitly participating validator
+  votes before any `open`. And it blocks the next leg:
+  `prop:conductor-open-to-complete` applies ℓ-termination at a start time
+  `max(t, GST) + d_tot` set by the Conductor, not at `D − Δ`.
+* *B2, a gated product in Lean.* Wrap the Chorus transition system with
+  participation ghosts and gate its labels outside Veil. Safety transfers
+  by simulation, and nothing re-solves. The wrapper cannot forward
+  `abandon` to the MVBA (`line:fb-abandon`) without stepping `mvba_st`
+  outside Chorus's transitions. That breaks the simulation to Chorus's
+  reachable states, on which every invariant rests. Without forwarding,
+  Quiescence is false for the MVBA's messages after a fast-path
+  finalization. The wrapper would also be a second semantics of Chorus
+  that an auditor has to read beside the model. Every run-level lemma of
+  stages 3–4 would have to be transported through it.
+
+**Option C: change the class.** For example, drop the inputs from the
+Chorus-facing class, or state Termination over "participates from the
+start". Either is unfaithful to `mod:slotconsensus`, whose interface
+*is* the three inputs, and whose Quiescence is about them. **Not
+recommended as the resolution.**
+
+**The class change needed under every option (C1, C2; open, joint).**
+Separate from the interface question, F1's two premises have to enter the
+class. The proposed form, in the rely style of `MVBATemporal.termination`,
+as antecedents rather than `Admissible` content:
+
+* **C1**, in `bounded_termination` and `totality`:
+  `∀ i, ¬ byz i → ∀ n, abandoned (r.at' n) i → ∃ V, finalized (r.at' n) i V`.
+  This is the same antecedent `SlotConsensusTemporal.termination` already
+  has.
+* **C2**, in `bounded_termination`, with a datum
+  `deadline : slot → time` beside `Δ`:
+  `∀ n i, ¬ byz i → participating (r.at' n) i → deadline (S.tag (r.at' n)) ≤ r.clk n + Δ`.
+  This is "no start before `D − Δ`", stated over the observable
+  `participating`. It is equivalent to the paper's form at the start
+  index, and it is implied at every later one. The composition
+  discharges it from `OrchestratorSafety.integrity_timing` with
+  `deadline s = start_time s + Δ`. The paper keeps this datum out of the
+  module: its commented-out "assumed behaviour" block in
+  `mod:slotconsensus` lists it, and the lemmas carry it as "within
+  Cadence". That is why it is an antecedent here and not a field of
+  `SlotConsensusSafety`.
+
+`ℓ` and `d_tot` stay data. The instance sets them to closed terms,
+pinned by `rfl` lemmas in the style of `Lcert_paper`: at `δ = 0` they are
+the paper's `5Δ + ℓ_MVBA` and `Δ`.
+
+**Recommendation: A with C1/C2, in one edit of
+[Chorus.lean](../Cadence/Chorus.lean) and [Interfaces.lean](../Cadence/Interfaces.lean) and
+one re-solve.** Three things ride along in the same edit:
+
+* the **(A-mvba) prose clean-up** that [TODO.md](TODO.md) § Liveness
+  leaves for these files' next real edit: Chorus.lean's liveness section,
+  and the SlotConsensus obligations row in Interfaces.lean;
+* Chorus.lean's (F-justice) prose list, which should name
+  `deliver_chunk_assigned` and `broadcast_commitqc_*`
+  ([Liveness.md](Liveness.md) §4.3);
+* PR #44's `mod:mvba` Agreement prose edit in Interfaces.lean.
+
+Chorus.lean's header paragraphs on Termination and Quiescence are
+rewritten there too. [FallbackReceipt.lean](../Cadence/FallbackReceipt.lean)'s
+(A-mvba) mention stays for its own next edit.
+
+#### 6.4.2 The clock and the timing model
+
+The clock belongs to the run, as settled for the MVBA (§6.2.1). A timed
+Chorus run is a `TLRun` of the Chorus transition system at the `Mvba`
+instance (`atMvba`, [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)).
+The time theory is §6.2.2's, cancellative on the theorems, and the
+constants are shared. The Chorus schedule is **the MVBA's `Schedule`
+plus the deadline `D`**, so the run has one Δ and one δ, not two. The
+phase landmarks use the same Δ, because the paper's arm times
+`D + Δ` and `D + 2Δ` are stated in the network bound. What each premise
+of `Chorus.termination` becomes:
+
+**`FJustice` becomes buffered bounded fairness, with a hop table.** It
+covers every justice label except the three phase markers (below) and the
+inputs (§6.4.1). It is stated for `EnabledMove`, as in §6.2.4. The
+§6.2.4 caveat about `Enabled` is thereby answered for the timed claim;
+the untimed claim keeps plain enabledness. The proposal family becomes
+its timed twin, `BoundedFairFamily`: if some `mvba_propose i v _` stays
+move-enabled over the window, one of them fires within it. The clause,
+generic in [Timed.lean](../Cadence/Timed.lean), with `gate l` the label's
+local gate and `W = max (ref N + hop l) (ref N' + δ)`:
+
+  **(Δδ-justice)** For `N ≤ N'`: suppose that at every index `n ≥ N` with
+  `clk n ≤ W` at which `gate l` holds, `l` is move-enabled, and that
+  `gate l` holds at every index `n ≥ N'` with `clk n ≤ W`. Then `l`
+  fires with its post-state inside `W`.
+
+With `N = N'` (and `δ ≤ Δ` for a Δ-row) it is §6.2.4's `BoundedFair`.
+The gate is a state predicate
+that may mention only the acting validator's local state and the phase:
+its participation, and the landmark its rule waits for. That checklist
+item keeps the clause from absorbing protocol progress. This is F2, and
+it is what the paper's buffering sentence says: the message part is due
+Δ after it was sent, and the rule fires δ after its gate opens.
+
+The hop table, classified as §6.2.4's is, by what the guard consumes:
+
+| `Δ` (another party's message or certificate) | `δ` (local, or carried by an input already received) |
+|---|---|
+| `deliver_chunk_assigned` (the proposer's chunk) | `record_chunk`, `vote` (gate: phase past the deadline) |
+| `aggregate_fastqc_*` (others' vote signatures) | `commit_sign_*`, `cast_fast_commit` |
+| `fb_sign_*` (others' votes and chunks; gate: the fallback arm) | `cast_fallback_vote` |
+| `broadcast_commitqc_*` (others' commit votes) | `on_mvba_decide_*`, `mvba_terminate` (the certificates travel inside the decided value, whose `Valid` checks them) |
+| `mvba_propose` family (others' fallback votes via `fbcert`; gate: the arm) | `cast_fb_commit` |
+| `redisseminate_chunk` (the caster's chunk) | `finalize_commit` |
+| `commit_assign_*` (a certificate someone else broadcast) | |
+
+The table has three consequences:
+
+* **Participation.** Every row whose rule is gated (§6.4.1) adds
+  participation to its gate.
+* **`mvba_propose` is conservative.** It is a Δ-row, although its
+  case-(a) trigger (`line:fb-mvba-propose-fast`) reads only local
+  FastQCs. With the split hop that costs nothing: the network part holds
+  from `M + 2Δ + δ`, and the landmark gate opens at `D + 2Δ ≤ M + 3Δ`.
+  So one row suffices, and splitting the action into the paper's two
+  rules is optional.
+* **The check.** At δ = 0 the table reproduces the paper's timeline term
+  for term (§6.4.3), as §6.2.4's did for the MVBA. The MVBA leg's own
+  finding C16 (N3, PR #44) questions a δ-row that consumes another
+  party's certificate: the MVBA's `decide`. The two δ-rows above that
+  read certificates, the decision handlers, rest on a different argument:
+  the certificates travel inside the decided value. If step 5b
+  reclassifies `decide`, re-check these two rows against that argument.
+
+**The phase markers become punctual timers**, leaving the hop table as
+the MVBA's `expire_timer` left it. **(P-phase)**, for each landmark
+`L ∈ {D, D + Δ, D + 2Δ}` and its marker:
+
+* **(P1) not early**: the marker fires only at a clock `≥ L`;
+* **(P2) not late**: its post-phase holds at some index with clock `≤ L`.
+
+Local clocks are synchronized throughout, so the clause holds before GST
+too, as (T-timer) does. Termination uses only (P2). (P1) is kept because
+it is part of the timing model, and it is what a timed proposal-inclusion
+corollary would need: `phase = pre_deadline` up to `D`. The untimed claim
+keeps the markers weakly fair (§2.1 of [Liveness.md](Liveness.md)). The
+two classifications are separate functions over labels, so
+[Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) is not reshaped by
+this.
+
+**What `s.deadline − Δ ≥ GST` becomes.** Today it is
+`all_honest_recorded`, the antecedent of proposal inclusion, and the
+`on_time` of the contract. It stays exactly that: `on_time` is a state
+fact in the fragment, and neither timed target needs it. A timed
+corollary would derive it from "a correct proposer proposes at
+`D − Δ ≥ GST`" with the deliver-Δ and record-δ rows, before the marker
+fires at `D`. That meets a boundary. At δ > 0 a chunk that arrives exactly
+at `D` is recorded too late. At δ = 0 it ties with the marker, which
+leaves the chunk and the marker at the same instant. So the paper's
+premise needs strict delivery or a tie-break. This is a finding for
+whoever takes that corollary on, and it is not needed here.
+
+**`MvbaAdmissible` becomes the MVBA's `Admissible`, through a timed
+projection.** The untimed premise is "some projection's run satisfies
+`Mvba.FJustice ∧ AViewSync ∧ FAvail`". The timed premise is "some
+projection `p`, with the clock carried along, has `T.Admissible
+p.timedRun`", where `T := Mvba.mvbaTemporal th hqe sch vfin hrot`. It is
+stated with the contract's own field and restated nowhere, as
+[Liveness.md](Liveness.md) §4.1 asked. The projection is stage 1's
+`Component.Projection` plus a clock. Projected state `k` reads the clock
+of the composed index at which the MVBA entered it. The projected step
+`k → k+1` then carries the post-state clock of the composed step that
+took it, which is exactly `FiresWithin`'s convention. The pieces:
+
+* The clock is unbounded because the projection is `Scheduled`.
+* `gst` is the composed run's.
+* The only transfer the proof needs runs *back*: a decision at projected
+  clock `≤ X` is a composed-run decision at clock `≤ X`, because the MVBA
+  state is constant between its steps.
+* A `boundedFair_iff` in the style of stage 1's `weaklyFair_iff` is
+  optional, but recommended. It would let an auditor read the premise at
+  either level.
+
+At the `Mvba` instance `T.Admissible` unfolds to "a labelling satisfying
+`Sync`". The projection supplies the labelling, so the premise is
+`Sync sch p.run` definitionally.
+
+**`ValidBridge` is not timing, and stays exactly as it is.**
+
+**The caller's conditions** are the contract's antecedents (C1, C2, the
+class's `SyncParticipation` and "every correct validator participates by
+`t`"). Nothing about them goes into `Admissible`.
+
+#### 6.4.3 The route to `ℓ = 5Δ + ℓ_MVBA`
+
+**The case split is the paper's, not `Chorus.termination`'s.** The
+untimed proof splits on the progress dichotomy: a commit route, or the
+MVBA arm. The paper's timed proof splits on an early finalization instead,
+and in the no-finalization branch it sends *every* correct validator
+through the MVBA, fast path or not. That is the route to take, for two
+reasons:
+
+* The dichotomy's left disjunct would need a timed commit route whose
+  bound fits inside the MVBA branch's. That holds only if
+  `ℓ_MVBA ≥ Δ + O(δ)`, a fact about the MVBA's number, which the contract
+  does not promise.
+* The early-finalization split is also what the untimed re-proof needs
+  after option A (§6.4.1). The two proofs then share their skeleton.
+
+The dichotomy theorems stay in use as the source of the certified vector.
+With `M = max(t, GST)`, the same notation as the paper:
+
+| Paper milestone (`prop:chorus-finalization-time`) | Model links, re-run with deadlines | Rows |
+|---|---|---|
+| `D ≤ t + Δ` | C2 at each correct start, with (P2) | — |
+| by `M + Δ`: first-round votes | `eventually_voted`, then `eventually_quorum_cast` (`voted_implies_cast`) | `vote` δ |
+| by `M + 2Δ`: second-round votes | `eventually_saturated` / `eventually_all_saturated` | aggregate Δ, sign/cast δ; `fb_sign_*` Δ, gate `D + Δ ≤ M + 2Δ`; `cast_fallback_vote` δ |
+| by `M + 3Δ`: MVBA proposals, fallback chunks | `eventually_complete_fast_metablock`, `eventually_trigger`, `eventually_input`, `certifiedVector` (`ValidBridge` soundness); `redisseminate_chunk` | the proposal family Δ, gate `D + 2Δ`; aggregate Δ; redisseminate Δ |
+| by `T₀ − Δ = M + 3Δ + ℓ_MVBA`: decision | `T.termination` on the timed projection; `eventually_mvba_complete`, `eventually_fbcommit_sig` | `ℓ_MVBA`; handlers, terminate and cast δ |
+| by `T₀`: certificates, finalization | `eventually_fbcommitqc` (a ghost, no hop), `eventually_committed_of_assignable` | `commit_assign_*` Δ, `finalize_commit` δ |
+
+**What "re-run with deadlines" means here** is what it meant in §6.2.7:
+
+* The existing `enabled_*` and `*_effect` lemmas are kept, with the gate
+  added to the guards.
+* Each `WeaklyFair` step becomes one (Δδ-justice) step, plus a stability
+  argument on the window.
+* `LRun.eventually_forall` becomes `TLRun.withinFrom_forall`.
+* `Chorus.termination` is not consumed, for §6.2.7's reason: an index is
+  not a clock reading.
+* The stage-4 facts that make guards stable carry over unchanged: the DA
+  wait's anti-monotonicity, `mvba_decided_pos_unique` /
+  `mvba_decided_pos_neg_excl`, and `decided_persists`.
+
+**Where `ℓ_MVBA` enters.** Only through `T.termination`, with `T` as in
+§6.4.2, applied to the projected timed run. Its three antecedents come
+from Chorus:
+
+* **Proposals by `t_M = M + 3Δ + O(δ)`**: the proposal row, carried
+  through the projection.
+* **Validity**: `ValidBridge`'s soundness clause, used once for the one
+  certified vector, as in stage 4.
+* **No abandonment before `max(t_M, GST) + ℓ_MVBA`**: in the branch where
+  nobody finalizes by `T₀ − Δ`, C1 means nobody has abandoned, so the
+  forwarding `abandon` has not fired.
+
+The MVBA's bound is then `T.ℓ`, which at the instance is
+`Schedule.ℓ sch vfin` by `rfl`. The Chorus bound is stated with `T.ℓ` and
+never with the MVBA's constants. The MVBA upgrade (5b, which may refine
+`Mvba.BoundedJustice` and `Mvba.hop` after C16) therefore reaches this
+leg only through `T`.
+
+**The assembly, and F4.**
+
+* *Case A*: some correct validator finalizes by `T₀ − Δ`. Totality
+  (§6.4.4) finalizes everyone by `T₀`. Everyone already participates,
+  since all start by `t`.
+* *Case B*: nobody finalizes by `T₀ − Δ`. Then nobody has abandoned (C1),
+  every gate a validator needs is open until it finalizes, and the table
+  above finalizes everyone by `T₀`.
+
+That is `M + 4Δ + ℓ_MVBA + c·δ`, one Δ inside the paper's claim.
+**Decision (open, for S5 below):** state and instantiate the claim at the
+paper's `5Δ + ℓ_MVBA` (plus the δ-terms), which is faithful and follows
+by monotonicity. Prove the sharper bound as the named lemma it follows
+from, and record the looseness in [PaperAlignment.md](PaperAlignment.md)
+§6 as the MVBA leg recorded its `ℓ` correction. If the proof finds a use
+of the outer split that this argument missed, the claim is unchanged and
+F4 is withdrawn. The δ-multiple `c` is whatever the links count. It is
+fixed by the proof, as `Lcert`'s was, and pinned by an `abel`-closed
+equation.
+
+#### 6.4.4 `d_tot`-totality
+
+**The route.** A correct validator finalizes at index `n` with clock `t`.
+From that point, `local_committed_pos_backed` and
+`local_committed_neg_backed` make every proposer's entry `Assignable` at
+`n`, and the certificates are monotone. For another correct validator
+`j`, `commit_assign_*` is a Δ-row whose network part holds from `n`. Its
+gate (participation) opens by `max(t, GST) + Δ`. That comes from
+Δ-synchronized participation, since the finalizer started at or before
+`t`. Alternatively `j` has already abandoned, and then it has finalized
+(C1). So (Δδ-justice) fires each assignment by `max(t, GST) + Δ + δ`, and
+`finalize_commit` adds δ: `d_tot = Δ + 2δ`, which is Δ at δ = 0. The
+per-proposer assignments run in parallel (`withinFrom_forall`). Their
+stability is stage 3's no-invariant argument (§4.5 of
+[Liveness.md](Liveness.md), correction 3).
+
+**What it needs beyond termination.** Nothing new of the model. It uses
+two things termination's case B does not:
+
+* `SyncParticipation`. Termination's case A calls totality when everyone
+  already participates, so the termination proof uses the gate-open form
+  directly.
+* The backing invariants.
+
+It needs *less* than the paper's proof in one respect, and that is worth
+stating plainly. The paper's totality proof spends most of its length on
+recovery: chunks and decryption shares arriving in time for
+`recoverProposals` (`line:da-recover-slot`). The model's `finalized`
+is the committed entry vector (`pvector := slot × (node → Option
+merkle_root)`, [Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)), and
+payload recovery is not part of it. So that half of the paper's argument
+has no model counterpart. That is the existing granularity of the
+fragment, not something this leg introduces. The ledger should say it,
+because an auditor comparing the proofs will notice the difference.
+
+**The form to prove.** A generic lemma with the participation tolerance
+as a parameter: under `d`-synchronized participation, the latency is
+`max(Δ, d) + 2δ`. The class field is its instance at `d = Δ`. §6.4.6 says
+why the parameter matters.
+
+#### 6.4.5 Premises and non-vacuity from the start
+
+**The ledger, in draft.** "Obvious" and "not obvious" mean what they mean
+in §6.3.
+
+The instance, shared with the untimed claim:
+
+* **Finitely many validators, `n = 3f + 1`, at most `f` Byzantine**
+  (`Fin n`, `byzNodeSetFin`): obvious. `Fin 4` with one silent Byzantine
+  validator.
+* **An honest supermajority, `ViewOrderEnum`, `chorusTheory` and its
+  assumptions**: obvious (§6.3).
+* **The MVBA instance's hypotheses** (`LeaderRotation`, `Schedule`, a
+  cancellative Archimedean time): obvious, `Schedule.fixedNat` over `ℕ`.
+* **The deadline `D`**: any value.
+
+The timing model:
+
+* **(Δδ-justice) over Chorus's table, with the proposal family**: each row
+  is obvious alone. Jointly they are **not obvious**, because the family
+  quantifies over every value, including ones that never become
+  proposable.
+* **(P-phase)**: obvious. The markers fire at the clock readings `D`,
+  `D + Δ`, `D + 2Δ`.
+* **The MVBA's `Admissible` on the projection, with `Scheduled`**:
+  obvious alone (`Mvba.admissible_exists`). Jointly **not obvious**,
+  because Chorus's own fairness drives the MVBA's inputs.
+* **`ValidBridge`**: **not obvious**. It fixes the MVBA theory's `valid`
+  against Chorus's network at every index (§6.3.3).
+
+The caller's conditions:
+
+* **Everyone starts by `t`; starts are Δ-synchronized; nobody starts
+  before `D − Δ`; nobody abandons before finalizing**: jointly obvious.
+  Everyone starts at `D − Δ` and abandons (if at all) after finalizing.
+  That is the Conductor's steady state.
+
+The untimed claim after option A:
+
+* **`FJustice` with plain `Enabled`**: not obvious, and false at
+  infinite quorum sorts. It holds at `ByzNSet n`, provided the run's idle
+  tail fires every stutter-enabled quorum label.
+* **`MvbaAdmissible`, `ValidBridge`**: as above.
+* **Eventual participation, and abandonment only after finalizing**:
+  obvious.
+
+**The model.** One model and one run, following §6.3.1, serve both
+claims; the untimed projection forgets the clock. The run:
+
+* `Fin 4` with validator 3 Byzantine and silent, one proposer, `ℕ` time,
+  `Δ = 1`, `δ = 0`, `D = 1`, GST 0, and everyone participating at 0.
+* The fast path. The proposal goes out at 0, votes at `D`, FastQCs and
+  commit votes follow, and everyone finalizes. All of it happens at clock
+  1, before the fallback arm opens at 2. Bounds are upper bounds, so an
+  eager run may deliver at once.
+* Then **everyone abandons**, as C1 permits. That disables the case-(a)
+  proposals, so the MVBA receives no input. Its projection is the quiet
+  run of `Mvba.admissible_exists`, which is trivially `Sync`, and
+  `ValidBridge`'s completeness clause holds vacuously.
+* The soundness clause holds with `valid := (· = v⋆)`. Here `v⋆` maps the
+  proposer to its root and every other validator to `none`, which is the
+  only certifiable vector in this run. With one proposer and no negative
+  evidence, uniqueness is a short argument.
+* The clock advances only at states where no row is move-enabled (the
+  §6.3.1 device), and the untimed idle tail round-robins the
+  stutter-enabled quorum labels.
+
+A witness that runs the MVBA arm would be stronger evidence of the
+proposal family and the completeness clause. It is not needed for joint
+satisfiability, since one model suffices (§6.3). It can be added as a
+second run if review asks for it.
+
+**Order: after the model edit, and one witness for both.** On the current
+model a witness cannot abandon. `advance_to_mvba_arm` is weakly fair, so
+the case-(a) proposals are forced, and with them a full MVBA decision, the
+handlers and the fallback commit round, all inside the run. That witness
+would then be discarded when option A adds state and gates. So the untimed
+non-vacuity item of [TODO.md](TODO.md) § Liveness should wait for S1
+below and be built once, for both claims, as soon as the timed premises
+are stated (S2). The witness depends on definitions only, so it can run
+in parallel with the proofs. If option A is declined, the untimed witness
+can go first on the current model, at the cost just described.
+
+#### 6.4.6 Staging and sizing
+
+One focused session each, give or take. Reassess after S3, as §6 asked
+after its step 2.
+
+1. **S1: the joint edit** (option A, C1/C2, and the ride-alongs of
+   §6.4.1). It touches [Chorus.lean](../Cadence/Chorus.lean) and
+   [Interfaces.lean](../Cadence/Interfaces.lean), and gives
+   [Chorus/Compose.lean](../Cadence/Chorus/Compose.lean) its step/trans
+   split.
+   * It adds `InputLabel` to [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean).
+   * It re-proves `Chorus.termination` against the extended
+     `TerminationClaim`, with the early-finalization split.
+   * It updates the monitor decoders.
+   * It does the cold re-solve, updates the `#veil_status` pin, and
+     re-states the axiom pins.
+   Probably two sessions. **Must not overlap** the untimed non-vacuity
+   work (which waits, §6.4.5), MVBA upgrade step 5b if it edits
+   Interfaces.lean (bundle into S1 or serialize), or any other
+   Interfaces.lean edit. One family re-solve at a time.
+2. **S2: timed scaffolding, statements only.** In [Timed.lean](../Cadence/Timed.lean):
+   * the (Δδ-justice) clause and `BoundedFairFamily`;
+   * the timed projection (`Component.Projection` plus a clock), with its
+     back-transfer lemma and, optionally, `boundedFair_iff`.
+
+   A new `Cadence/Chorus/Schedule.lean`, holding:
+   * the Chorus schedule (the MVBA's, plus `D`) and the hop table with its
+     gates, with a `hop_isSome_iff` coverage pin;
+   * (P-phase) and the timed `MvbaAdmissible`;
+   * the two claims as `Prop` definitions **before any proof**, the
+     discipline of [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean).
+3. **S3: totality and the timeline to `M + 3Δ`.** Totality comes first,
+   because it is small and validates the scaffolding. Then the links up to
+   the MVBA proposals. The reassessment asks two things: did the hop table
+   survive the guards, and does the split hop keep the paper's arithmetic.
+4. **S4: the MVBA tail and the assembly.** `T.termination` through the
+   projection, the fallback commit round, and the case split, giving the
+   bound. F4 is decided here.
+5. **S5: the contract instances.** `SlotConsensusTemporal` at the new
+   fragment, which includes:
+   * Quiescence from the gates and the MVBA's `quiescence`;
+   * `admissible_exists` from an idle run;
+   * Termination, as the unbounded corollary of the bounded one.
+
+   Then `SlotConsensusWithTotality`, and the `…_of_temporal` join with its
+   `rfl` lemma. After that:
+   * the [Cadence.lean](../Cadence.lean) rows and pins, with the verification-status
+     text in [CLAUDE.md](../CLAUDE.md), [Architecture.md](Architecture.md)
+     §4 and [CompositionContracts.md](CompositionContracts.md) §5;
+   * the (A-sc-termination) entry, which moves from assumed to discharged.
+6. **S6: non-vacuity.** The final ledger and the one witness (§6.4.5).
+   It can start after S2 and run beside S3–S4. It touches no model file.
+
+Total: six to eight sessions. As in the MVBA leg, the dominant risk is
+statement churn: F1–F4 are the churn this record tries to absorb up
+front, before any Lean.
+
+**What the Conductor's timed claims need from this leg.** The
+Conductor's Totality, `B`-Boundedness and `R`-Recovery
+(`OrchestratorTemporal`) consume Chorus's claims in
+`prop:window-synchronization` (totality), `prop:conductor-open-to-complete`
+(ℓ-termination), and the recovery chain through `Φ_oc = ℓ_chorus + d_tot`
+and the parameter assumptions of `algorithm:conductor`. For those proofs
+to go through, this leg must hand over the following.
+
+* **Premises the composition can discharge.** Each of Chorus's caller
+  conditions has to be one a composed run proves:
+  * participation by `t`: the glue invokes `participate` at `open`
+    (`line:participate`);
+  * Δ-synchronized participation: the Conductor's own opening totality
+    (`lemma:conductor-totality`);
+  * C2: `integrity_timing`, with `deadline s = start_time s + Δ`;
+  * C1: the glue abandons only after finalizing (`line:abandon`).
+
+  C1/C2 are phrased with that in mind, as antecedents over the class's
+  own observables.
+* **`ℓ` and `d_tot` as data, with closed values.** They appear in
+  assumptions (1)–(4) of `algorithm:conductor`. They are fields already;
+  the instance pins them.
+* **Totality in the tolerance-parametric form of §6.4.4.** This is F3.
+  The ratchet needs Chorus's latency not to exceed the tolerance the
+  Conductor grants. At δ = 0 both are Δ, and the paper's induction goes
+  through. At δ > 0 `max(Δ, d) + 2δ > d` for every `d`, so the Conductor
+  leg has to choose. It can work at δ = 0, the paper's instantaneous
+  local computation. It can find a δ-robust statement, for instance by
+  re-synchronizing on the absolute start times, as
+  `line:conductor-wait-for-open` does once the windows are ahead of the
+  clock. Or it can record the degradation as a finding. **Proposal (C3,
+  to the Conductor leg):** leave `syncParticipation_def`'s tolerance at Δ
+  for now. The parametric lemma means this leg's statement does not
+  pre-empt the choice.
+* **One time theory and one Δ across the system.** Chorus, the MVBA, the
+  Conductor and the ACS share the run's clock. So the Conductor leg
+  should take the same schedule record rather than a second Δ.
+* **Two edits outside this leg**, recorded so that neither comes as a
+  surprise:
+  * After S1, `Chorus.slotConsensusSafety`'s `step` excludes the inputs,
+    so the glue's `sc_step` (which requires `sc.step`) can no longer
+    participate. The composed system's Chorus is then inert until the
+    composition leg gives the glue its `participate` / `propose` /
+    `abandon` actions. The glue's safety theorem is unaffected: it is
+    generic, and inertness only removes behaviours.
+  * `cor:chorus-correctness-within-cadence` then closes the loop, which
+    is §6 step 5.
