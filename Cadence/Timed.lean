@@ -38,7 +38,20 @@ over state-changing steps (`BoundedFairMove`), because every fair label is
 move-enabled wherever it is enabled (`Mvba.enabledMove_of_enabled`); the
 bridge is `Mvba.boundedFair_iff_move`, from `boundedFair_iff_move` below, and
 Fairness.lean's section "Enabledness and the two fairness classes" says why
-the distinction was ever drawn. -/
+the distinction was ever drawn.
+
+## Two more pieces, for the Chorus leg
+
+**The buffered hop** (`BufferedFair`, `BufferedFairFamily`): the paper's
+buffering sentence as a fairness clause, with a step's bound split into a
+message part and a local gate ([Bounds.md](../docs/Bounds.md) §6.4.2, F2).
+When the gate opens with the message part it is `BoundedFair` again
+(`bufferedFair_iff_boundedFair`).
+
+**The timed projection** (`Component.Projection.timed`): a component's run
+inside a composed run, with the clock carried along, so that a part's timing
+model can be stated on the part's own run and its conclusions brought back
+(`timed_back`, `timed_forward`, `boundedFair_iff`). -/
 
 namespace Cadence
 
@@ -235,6 +248,152 @@ theorem boundedFair_iff_move [Add time] {r : TLRun sys th time} {D : time} {l : 
   ⟨fun h N hen => h N fun n hn hc => Enabled.of_move (hen n hn hc),
    fun h N hen => h N fun n hn hc => hacc n (hen n hn hc)⟩
 
+/-! ## Families, and the buffered hop
+
+Two generalisations of `BoundedFair`, both for the Chorus leg
+([Bounds.md](../docs/Bounds.md) §6.4.2). A **family** is fair as a whole,
+the timed twin of `WeaklyFairFamily`: one of an action's parameters is a
+result rather than a choice. A **buffered hop** splits a step's bound in
+two, as the paper's message buffering does: "a message whose rule is
+blocked by this convention is not lost" (`subsection:chorus-protocol-overview`).
+The message part is due `D` after it was sent, and the rule fires `δ` after
+its local gate opened. Measuring one hop from the later of the two, as
+`BoundedFair` would, costs an extra `D` wherever the gate opens last. -/
+
+/-- A label of the family `S` fires at some index at or after `N`, with the
+post-state of that step at clock at most `t`. `FiresWithin N D l` is the
+case `t = ref N + D` and `S = (· = l)` (`firesWithin_iff`). -/
+def TLRun.FiresBy (r : TLRun sys th time) (N : Nat) (t : time) (S : lbl → Prop) : Prop :=
+  ∃ n, N ≤ n ∧ S (r.lbl n) ∧ r.clk (n + 1) ≤ t
+
+theorem TLRun.firesWithin_iff [Add time] (r : TLRun sys th time) (N : Nat) (D : time) (l : lbl) :
+    r.FiresWithin N D l ↔ r.FiresBy N (r.ref N + D) (· = l) :=
+  Iff.rfl
+
+/-- **Bounded weak fairness of a family** `S`: from any index `N`, if at every
+index at or after `N` whose clock is inside `ref N + D` some label of `S`
+is enabled, then some label of `S` fires with its post-state inside that
+window. The label that is enabled may change from index to index. For a
+singleton family it is `BoundedFair` (`boundedFairFamily_eq_iff`). -/
+def BoundedFairFamily [Add time] (r : TLRun sys th time) (D : time) (S : lbl → Prop) : Prop :=
+  ∀ N, (∀ n, N ≤ n → r.clk n ≤ r.ref N + D → ∃ l, S l ∧ Enabled sys th (r.at' n) l) →
+    r.FiresBy N (r.ref N + D) S
+
+/-- A one-label family is bounded-fair exactly when its label is. -/
+theorem boundedFairFamily_eq_iff [Add time] {r : TLRun sys th time} {D : time} {l : lbl} :
+    BoundedFairFamily r D (· = l) ↔ BoundedFair r D l :=
+  ⟨fun h N hen => h N fun n hn hc => ⟨l, rfl, hen n hn hc⟩,
+   fun h N hen => h N fun n hn hc => by
+     obtain ⟨l', rfl, hl'⟩ := hen n hn hc
+     exact hl'⟩
+
+/-- The **window of a buffered hop** from `N` (the message part is due) and
+`N' ≥ N` (the local gate is open): the later of `ref N + D` and
+`ref N' + δ`. -/
+def TLRun.bufWindow [Add time] (r : TLRun sys th time) (N N' : Nat) (D δ : time) : time :=
+  max (r.ref N + D) (r.ref N' + δ)
+
+/-- **(Δδ-justice), for a family**: bounded weak fairness with the hop split
+into a message part `D` and a local part `δ`, [Bounds.md](../docs/Bounds.md)
+§6.4.2. Read with `W := bufWindow N N' D δ`, for `N ≤ N'`:
+
+* **the message part** — at every index `n ≥ N` with `clk n ≤ W`, `C` holds
+  and, wherever the gate is open, some label of `S` is enabled;
+* **the local gate** — `gate` holds at every index `n ≥ N'` with
+  `clk n ≤ W`.
+
+Then some label of `S` fires, with its post-state inside `W`.
+
+`gate` is a state predicate that, at each use, mentions only the acting
+validator's own local state and the phase (Chorus/Schedule.lean states that
+checklist). `C` says what the environment must have supplied for the step
+to be owed at all, for instance that the messages it consumes came from
+correct senders; with `C` and `gate` trivially true and `δ ≤ D` the clause
+is `BoundedFairFamily` (`bufferedFairFamily_iff`). -/
+def BufferedFairFamily [Add time] (r : TLRun sys th time) (D δ : time) (C gate : σ → Prop)
+    (S : lbl → Prop) : Prop :=
+  ∀ N N', N ≤ N' →
+    (∀ n, N ≤ n → r.clk n ≤ r.bufWindow N N' D δ →
+      C (r.at' n) ∧ (gate (r.at' n) → ∃ l, S l ∧ Enabled sys th (r.at' n) l)) →
+    (∀ n, N' ≤ n → r.clk n ≤ r.bufWindow N N' D δ → gate (r.at' n)) →
+    r.FiresBy N (r.bufWindow N N' D δ) S
+
+/-- **(Δδ-justice)** for one label: `BufferedFairFamily` of the family
+`(· = l)`, written out (`bufferedFair_iff_family`). This is the clause a
+row of a hop table asserts. -/
+def BufferedFair [Add time] (r : TLRun sys th time) (D δ : time) (C gate : σ → Prop)
+    (l : lbl) : Prop :=
+  ∀ N N', N ≤ N' →
+    (∀ n, N ≤ n → r.clk n ≤ r.bufWindow N N' D δ →
+      C (r.at' n) ∧ (gate (r.at' n) → Enabled sys th (r.at' n) l)) →
+    (∀ n, N' ≤ n → r.clk n ≤ r.bufWindow N N' D δ → gate (r.at' n)) →
+    ∃ n, N ≤ n ∧ r.lbl n = l ∧ r.clk (n + 1) ≤ r.bufWindow N N' D δ
+
+theorem bufferedFair_iff_family [Add time] {r : TLRun sys th time} {D δ : time}
+    {C gate : σ → Prop} {l : lbl} :
+    BufferedFair r D δ C gate l ↔ BufferedFairFamily r D δ C gate (· = l) := by
+  constructor
+  · intro h N N' hNN' hmsg hgate
+    exact h N N' hNN' (fun n hn hc => ⟨(hmsg n hn hc).1, fun hg => by
+      obtain ⟨l', rfl, hl'⟩ := (hmsg n hn hc).2 hg
+      exact hl'⟩) hgate
+  · intro h N N' hNN' hmsg hgate
+    exact h N N' hNN' (fun n hn hc =>
+      ⟨(hmsg n hn hc).1, fun hg => ⟨l, rfl, (hmsg n hn hc).2 hg⟩⟩) hgate
+
+section Reduction
+
+variable [AddCommMonoid time] [IsOrderedAddMonoid time]
+
+/-- With the gate opening together with the message part (`N = N'`) and
+`δ ≤ D`, the window is `ref N + D`, `BoundedFair`'s. -/
+theorem TLRun.bufWindow_diag (r : TLRun sys th time) (N : Nat) {D δ : time} (hδ : δ ≤ D) :
+    r.bufWindow N N D δ = r.ref N + D :=
+  max_eq_left (add_le_add_right hδ _)
+
+/-- **At `N = N'` the buffered hop is `BoundedFair`'s clause.** A label that is
+owed (`C`), gated open and enabled throughout the window `ref N + D` fires
+within `D` of `N`, when `δ ≤ D`: the diagonal of (Δδ-justice), which is
+§6.2.4's `BoundedFair` with the gate and `C` added to the window's
+antecedent. -/
+theorem BufferedFairFamily.diag {r : TLRun sys th time} {D δ : time} {C gate : σ → Prop}
+    {S : lbl → Prop} (h : BufferedFairFamily r D δ C gate S) (hδ : δ ≤ D) (N : Nat)
+    (hen : ∀ n, N ≤ n → r.clk n ≤ r.ref N + D →
+      C (r.at' n) ∧ gate (r.at' n) ∧ ∃ l, S l ∧ Enabled sys th (r.at' n) l) :
+    r.FiresBy N (r.ref N + D) S := by
+  have hw := r.bufWindow_diag N hδ
+  have := h N N le_rfl (fun n hn hc => by
+      rw [hw] at hc
+      exact ⟨(hen n hn hc).1, fun _ => (hen n hn hc).2.2⟩)
+    (fun n hn hc => by rw [hw] at hc; exact (hen n hn hc).2.1)
+  rwa [hw] at this
+
+/-- **The reduction, for a family.** With nothing owed beyond enabledness
+(`C` and `gate` hold everywhere) and `δ ≤ D`, (Δδ-justice) is
+`BoundedFairFamily`: the diagonal `N = N'` gives one direction, and a
+window that only grows gives the other. -/
+theorem bufferedFairFamily_iff {r : TLRun sys th time} {D δ : time} {C gate : σ → Prop}
+    {S : lbl → Prop} (hC : ∀ s, C s) (hg : ∀ s, gate s) (hδ : δ ≤ D) :
+    BufferedFairFamily r D δ C gate S ↔ BoundedFairFamily r D S := by
+  constructor
+  · intro h N hen
+    exact h.diag hδ N fun n hn hc => ⟨hC _, hg _, hen n hn hc⟩
+  · intro h N N' _ hmsg _
+    have hle : r.ref N + D ≤ r.bufWindow N N' D δ := le_max_left _ _
+    obtain ⟨n, hn, hS, hc⟩ :=
+      h N fun n hn hc => (hmsg n hn (le_trans hc hle)).2 (hg _)
+    exact ⟨n, hn, hS, le_trans hc hle⟩
+
+/-- **The reduction, for one label** — the lemma the Chorus leg's plan asks
+for: with `N = N'`, a trivial gate and nothing further owed, the buffered
+hop *is* §6.2.4's `BoundedFair` (`δ ≤ D`, as for every `Δ`-row). -/
+theorem bufferedFair_iff_boundedFair {r : TLRun sys th time} {D δ : time} {C gate : σ → Prop}
+    {l : lbl} (hC : ∀ s, C s) (hg : ∀ s, gate s) (hδ : δ ≤ D) :
+    BufferedFair r D δ C gate l ↔ BoundedFair r D l := by
+  rw [bufferedFair_iff_family, bufferedFairFamily_iff hC hg hδ, boundedFairFamily_eq_iff]
+
+end Reduction
+
 end
 
 /-! ## Forgetting the labels, and the contracts' least upper bound -/
@@ -290,6 +449,195 @@ theorem _root_.TimedRun.byGstBound_iff [Add time] {state : Type} {init : state �
 
 end Contract
 
+/-! ## The timed projection
+
+[Fairness.lean](Fairness.lean)'s `Component.Projection` turns a run of the
+whole into a run of a part, at the part's steps. Here it is lifted to
+labelled *timed* runs by carrying the clock along ([Bounds.md](../docs/Bounds.md)
+§6.4.2): projected state `k` reads the clock of the composed index at which
+the part **entered** it, `entry k` — index `0` for the initial state, and the
+post-state of the part's `k`-th step otherwise. The projected step `k → k+1`
+then carries the post-state clock of the composed step that took it, which is
+`FiresWithin`'s convention, and the projected run's `gst` is the composed
+run's.
+
+Three facts make the projection a faithful view of time, and each is a
+theorem below:
+
+* **back-transfer** (`timed_back`): a fact of the part at projected clock
+  `≤ X` holds of the composed run at clock `≤ X`, since the part's state is
+  constant between its steps — the direction a proof uses to bring the
+  part's decision back;
+* **forward transfer** (`timed_forward`): a fact of the part at a composed
+  index with clock `≤ X` holds of the projected run at clock `≤ X`;
+* **fairness transfer** (`boundedFair_iff`): bounded weak fairness of a
+  label of the part means the same read on the projected run or on the
+  composed one, as `weaklyFair_iff` does untimed. -/
+
+namespace Component
+
+section Timed
+
+variable {ρ σ lbl : Type} {sys : RelationalTransitionSystem ρ σ lbl} {th : ρ}
+variable {ρ' σ' lbl' : Type} {sub : RelationalTransitionSystem ρ' σ' lbl'} {th' : ρ'}
+variable {time : Type} [LinearOrder time]
+variable {C : Component sys th sub th'} {r : TLRun sys th time}
+
+namespace Projection
+
+variable (p : C.Projection r.toLRun)
+
+/-- The composed index at which the part entered its projected state `k`:
+`0` for the initial state, one past its `k`-th step's index otherwise. -/
+noncomputable def entry (_ : C.Projection r.toLRun) : Nat → Nat
+  | 0 => 0
+  | k + 1 => C.idx r.toLRun k + 1
+
+theorem entry_le_idx : ∀ k, p.entry k ≤ C.idx r.toLRun k
+  | 0 => Nat.zero_le _
+  | k + 1 => p.scheduled.idx_lt_idx_succ k
+
+/-- Between entering a projected state and leaving it, the part's state is
+that projected state. -/
+theorem proj_eq_run_of_between {k m : Nat} (h₁ : p.entry k ≤ m)
+    (h₂ : m ≤ C.idx r.toLRun k) : C.proj (r.at' m) = p.run.at' k := by
+  classical
+  rw [p.proj_eq_run_cover m]
+  congr 1
+  apply le_antisymm
+  · have := Scheduled.cover_mono (C := C) (r := r.toLRun) h₂
+    rwa [p.scheduled.cover_idx] at this
+  · cases k with
+    | zero => exact Nat.zero_le _
+    | succ k =>
+      have hmono := Scheduled.cover_mono (C := C) (r := r.toLRun) h₁
+      refine le_trans ?_ hmono
+      show k + 1 ≤ Nat.count _ (C.idx r.toLRun k + 1)
+      rw [Nat.count_succ, if_pos (p.scheduled.isSub_idx k)]
+      exact Nat.succ_le_succ (le_of_eq (p.scheduled.cover_idx k).symm)
+
+/-- The projected run's `k`-th state is the part's state at its entry index. -/
+theorem run_at'_entry (k : Nat) : p.run.at' k = C.proj (r.at' (p.entry k)) :=
+  (p.proj_eq_run_of_between le_rfl (p.entry_le_idx k)).symm
+
+/-- The projected state covering index `n` was entered at or before `n`. -/
+theorem entry_cover_le (n : Nat) : p.entry (C.cover r.toLRun n) ≤ n := by
+  classical
+  unfold Component.cover
+  cases h : Nat.count (fun m => C.isSub (r.toLRun.lbl m)) n with
+  | zero => exact Nat.zero_le _
+  | succ k =>
+    exact Nat.nth_lt_of_lt_count (p := fun m => C.isSub (r.toLRun.lbl m)) (by omega)
+
+/-- **The timed projection**: the projected run, with the clock of each
+projected state's entry index, and the composed run's `gst`. -/
+noncomputable def timed : TLRun sub th' time where
+  toLRun := p.run
+  clk k := r.clk (p.entry k)
+  clk_mono k := r.clk_le_of_le (by
+    cases k with
+    | zero => exact Nat.zero_le _
+    | succ k => exact Nat.succ_le_succ (p.scheduled.idx_lt_idx_succ k).le)
+  clk_unbounded t := by
+    obtain ⟨n, hn⟩ := r.clk_unbounded t
+    exact ⟨n + 1, le_trans hn (r.clk_le_of_le (Nat.le_succ_of_le (p.scheduled.le_idx n)))⟩
+  gst := r.gst
+
+@[simp] theorem timed_toLRun : p.timed.toLRun = p.run := rfl
+@[simp] theorem timed_clk (k : Nat) : p.timed.clk k = r.clk (p.entry k) := rfl
+@[simp] theorem timed_gst : p.timed.gst = r.gst := rfl
+
+/-- The projected reference time is the composed one at the entry index. -/
+theorem timed_ref (k : Nat) : p.timed.ref k = r.ref (p.entry k) := rfl
+
+/-- **Back-transfer.** A fact of the part that holds at a projected state
+whose clock is at most `X` holds of the composed run at an index whose clock
+is at most `X`: the index at which the part entered that state. So the
+part's decision "by `X`" in the projection is a decision by `X` in the
+composed run. -/
+theorem timed_back {P : σ' → Prop} {k : Nat} {X : time} (hc : p.timed.clk k ≤ X)
+    (hP : P (p.timed.at' k)) : ∃ n, r.clk n ≤ X ∧ P (C.proj (r.at' n)) :=
+  ⟨p.entry k, hc, p.run_at'_entry k ▸ hP⟩
+
+/-- **Forward transfer.** A fact of the part at a composed index whose clock
+is at most `X` holds of the projected run at a projected index whose clock is
+at most `X`: the projected state covering that index was entered no later. -/
+theorem timed_forward {P : σ' → Prop} {n : Nat} {X : time} (hc : r.clk n ≤ X)
+    (hP : P (C.proj (r.at' n))) : ∃ k, p.timed.clk k ≤ X ∧ P (p.timed.at' k) :=
+  ⟨C.cover r.toLRun n, le_trans (r.clk_le_of_le (p.entry_cover_le n)) hc,
+    by rw [p.proj_eq_run_cover n] at hP; exact hP⟩
+
+/-- **Bounded weak fairness of a label of the part, read in the composed
+run**: if the label is enabled — at the part's state — at every composed
+index from `N` on whose clock is inside `ref N + D`, then the whole takes a
+step of the part, labelled with it by the projection, whose post-state is
+inside the window. The composed-run form of `BoundedFair p.timed D l'`;
+`boundedFair_iff` says the two are the same. -/
+def BoundedFairIn [Add time] (D : time) (l' : lbl') : Prop :=
+  ∀ N, (∀ n, N ≤ n → r.clk n ≤ r.ref N + D → Enabled sub th' (C.proj (r.at' n)) l') →
+    ∃ n, N ≤ n ∧ C.isSub (r.lbl n) ∧ p.lbl n = l' ∧ r.clk (n + 1) ≤ r.ref N + D
+
+/-- **Bounded weak fairness survives the timed projection, in both
+directions** (for a non-negative bound). A premise on the projected run —
+the form the part's own timing model states — therefore means the same as
+the premise read at the composed run, so the re-indexing smuggles nothing
+in. The timed twin of `weaklyFair_iff`: between the part's steps its state
+does not change, and the projected clock is the entry clock, which is never
+later than a composed index it covers. -/
+theorem boundedFair_iff [AddCommMonoid time] [IsOrderedAddMonoid time] {D : time}
+    (hD : 0 ≤ D) (l' : lbl') : BoundedFair p.timed D l' ↔ p.BoundedFairIn D l' := by
+  classical
+  have href : ∀ {a b : Nat}, a ≤ b → r.ref a ≤ r.ref b := fun h =>
+    max_le_max (r.clk_le_of_le h) le_rfl
+  constructor
+  · intro h N hen
+    set K := C.cover r.toLRun N
+    have hKN : p.entry K ≤ N := p.entry_cover_le N
+    have hwin : p.timed.ref K + D ≤ r.ref N + D := add_le_add_left (href hKN) _
+    obtain ⟨k, hk, hl, hc⟩ := h K fun k hk hck => by
+      have hNk : N ≤ C.idx r.toLRun k :=
+        le_trans (p.scheduled.le_idx_cover N) (p.scheduled.idx_strictMono.monotone hk)
+      have hstate := p.proj_eq_run_of_between (k := k) (m := max N (p.entry k))
+        (le_max_right _ _) (max_le hNk (p.entry_le_idx k))
+      show Enabled sub th' (p.run.at' k) l'
+      rw [← hstate]
+      refine hen _ (le_max_left _ _) ?_
+      rcases le_total N (p.entry k) with hle | hle
+      · rw [max_eq_right hle]; exact le_trans hck hwin
+      · rw [max_eq_left hle]
+        exact le_trans (r.clk_le_ref N) (le_add_of_nonneg_right hD)
+    refine ⟨C.idx r.toLRun k,
+      le_trans (p.scheduled.le_idx_cover N) (p.scheduled.idx_strictMono.monotone hk),
+      p.scheduled.isSub_idx k, hl, le_trans hc hwin⟩
+  · intro h K hen
+    have hcov : C.cover r.toLRun (p.entry K) = K := by
+      have := p.proj_eq_run_of_between (k := K) le_rfl (p.entry_le_idx K)
+      apply le_antisymm
+      · have hm := Scheduled.cover_mono (C := C) (r := r.toLRun) (p.entry_le_idx K)
+        rwa [p.scheduled.cover_idx] at hm
+      · cases K with
+        | zero => exact Nat.zero_le _
+        | succ k =>
+          show k + 1 ≤ Nat.count _ (C.idx r.toLRun k + 1)
+          rw [Nat.count_succ, if_pos (p.scheduled.isSub_idx k)]
+          exact Nat.succ_le_succ (le_of_eq (p.scheduled.cover_idx k).symm)
+    obtain ⟨n, hn, hsub, hl, hc⟩ := h (p.entry K) fun n hn hcn => by
+      rw [p.proj_eq_run_cover n]
+      have hK : K ≤ C.cover r.toLRun n := hcov ▸ Scheduled.cover_mono (C := C) (r := r.toLRun) hn
+      exact hen _ hK (le_trans (r.clk_le_of_le (p.entry_cover_le n)) hcn)
+    have hidx : C.idx r.toLRun (C.cover r.toLRun n) = n := Scheduled.idx_cover_of_isSub hsub
+    refine ⟨C.cover r.toLRun n, hcov ▸ Scheduled.cover_mono (C := C) (r := r.toLRun) hn, ?_, ?_⟩
+    · show p.lbl (C.idx r.toLRun (C.cover r.toLRun n)) = l'
+      rw [hidx, hl]
+    · show r.clk (C.idx r.toLRun (C.cover r.toLRun n) + 1) ≤ r.ref (p.entry K) + D
+      rw [hidx]; exact hc
+
+end Projection
+
+end Timed
+
+end Component
+
 end Cadence
 
 /-! ## The pinned trust base
@@ -318,3 +666,47 @@ info: 'Cadence.exists_not_enabled_of_not_firesWithin' depends on axioms: [propex
 /-- info: 'TimedRun.byGstBound_iff' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms TimedRun.byGstBound_iff
+
+/-! The buffered hop and its reduction to `BoundedFair`, and the timed
+projection with its three transfers. The projection rests on Mathlib's
+`Nat.nth`/`Nat.count`, as the untimed one does. -/
+
+/-- info: 'Cadence.bufferedFair_iff_boundedFair' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Cadence.bufferedFair_iff_boundedFair
+
+/-- info: 'Cadence.bufferedFairFamily_iff' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Cadence.bufferedFairFamily_iff
+
+/-- info: 'Cadence.BufferedFairFamily.diag' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Cadence.BufferedFairFamily.diag
+
+/-- info: 'Cadence.boundedFairFamily_eq_iff' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Cadence.boundedFairFamily_eq_iff
+
+/--
+info: 'Cadence.Component.Projection.timed' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Cadence.Component.Projection.timed
+
+/--
+info: 'Cadence.Component.Projection.timed_back' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Cadence.Component.Projection.timed_back
+
+/--
+info: 'Cadence.Component.Projection.timed_forward' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Cadence.Component.Projection.timed_forward
+
+/--
+info: 'Cadence.Component.Projection.boundedFair_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Cadence.Component.Projection.boundedFair_iff
