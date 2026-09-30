@@ -50,10 +50,12 @@ mutant, hence of [Mvba.lean](../Mvba.lean) with the lock check deleted. The rest
    (validators 0–2 here) gates every honest per-validator action, so the
    fourth validator never acts; `byz_plan v e` (view `k` ↦ value `k`) gates
    the Byzantine signer. Both only *remove* enabled transitions.
-3. **Dropped actions**: `abandon`, `byz_timeout_qc`, and the anonymous
+3. **Dropped actions**: `abandon`, `byz_timeout_qc`, the anonymous
    assemblies `form_prepqc`, `form_tc_lock` and `form_tc_nolock` — the
    correct validators form those certificates themselves (`adopt_prepqc`,
-   `form_own_tc_lock`, `form_own_tc_nolock`, the supplement's rules).
+   `form_own_tc_lock`, the supplement's rules) — and, since R6, three
+   honest steps the scenario does not take: `timeout_noqc`,
+   `form_own_tc_nolock` and `sync_view_adopt`.
    Removing actions only shrinks the reachable set. The anonymous
    `form_commitqc` stays: in the scenario below the view-1 commit
    certificate is aggregated without anyone deciding on it, which is the
@@ -62,7 +64,7 @@ mutant, hence of [Mvba.lean](../Mvba.lean) with the lock check deleted. The rest
    kept verbatim; the theory makes the Byzantine node the leader of every
    view, so they are simply never enabled.)
 4. **The dropped assumption `leader_honest_cofinal`**, and this one is
-   *not* of the same kind: 1–3 remove behaviours, whereas omitting an
+   *not* of the same kind: 1–3 and 5 remove behaviours, whereas omitting an
    assumption **admits more theories**, and the theory below is one of
    them — node 0 is Byzantine and leads both views, so honest leaders are
    not cofinal in `Fin 2`. What is refuted here is therefore the mutant
@@ -76,11 +78,25 @@ mutant, hence of [Mvba.lean](../Mvba.lean) with the lock check deleted. The rest
    one. It is an argument about the *mutation test*: [Mvba.lean](../Mvba.lean)'s safety
    is proven, never model-checked, and nothing about it rests on this
    file.
+5. **A fixed schedule for the environment and the timeouts** (since R6,
+   for the search's cost): the shares are supplied before any proposal is
+   accepted; the correct validators' common input is the vector the
+   adversary's plan names for the first view; the adversary signs in a view
+   once every correct participant has entered it, and aggregates a commit
+   certificate only while no correct validator has decided; a correct
+   validator times out only after it has sent its commit. Each is one
+   more guard, so like 1–3 it only *removes* enabled transitions. Without
+   them the environment's steps can fall anywhere in the 25-step run, and
+   each position is a separate branch of the search: that is where the
+   check's cost was, and with them it takes about a minute on one core
+   ([History.md](../../docs/History.md) has the measurement). The scenario below satisfies all of them, so the
+   counterexample did not move.
 
 Everything else — the honest protocol steps with their halt after a
 decision, the certificate assemblies with their `2f+1` guards, the view
 change — is verbatim from [Mvba.lean](../Mvba.lean)
-(with the mutation, and the timer folded as item 1 says), and the model
+(with the mutation, the timer folded as item 1 says, and item 5's
+guards), and the model
 checks the same three safety properties,
 of which `agreement` is the one violated.
 
@@ -190,10 +206,12 @@ after_init {
 }
 
 /-- `propose` for every validator at once, on one vector — four `propose`
-steps of the mutant (header, item 1). -/
+steps of the mutant (header, item 1) — and the vector is the one the
+adversary's plan names for the first view (header, item 5). -/
 action propose_all (e : value) {
   require ∀ I E, ¬ input I E
   require ∀ I, ¬ abandoned I
+  require byz_plan vord.zero e
   input I e := true
   entered I vord.zero := true
 }
@@ -292,8 +310,10 @@ action adopt_prepqc (i : node) (v : view) (e : value) (q : nodeset) {
 }
 
 /-- The environment supplies every validator's shares for `e` at once — four
-`become_avail_ready` steps of the mutant (header, item 1). -/
+`become_avail_ready` steps of the mutant (header, item 1) — before any
+proposal is accepted (header, item 5). -/
 action become_avail_ready_all (e : value) {
+  require ∀ I V E, ¬ accepted I V E
   avail_ready I e := true
 }
 
@@ -313,7 +333,10 @@ action send_commit (i : node) (v : view) (e : value) {
   msg_commit i v e := true
 }
 
+/-- The adversary's aggregation of a commit certificate, while no correct
+validator has decided (header, item 5). -/
 action form_commitqc (v : view) (e : value) (q : nodeset) {
+  require ∀ I E, ¬ decided I E
   require nset.supermajority q
   require ∀ r, nset.member r q → msg_commit r v e
   msg_commitqc v e := true
@@ -350,25 +373,13 @@ action timeout_qc (i : node) (v : view) (w : view) (e : value) {
   require ∀ E, ¬ decided i E
   require in_view i v
   require ¬ timed_out i v
+  -- A correct validator times out only after its commit (header, item 5).
+  require commit_sent i v
   require local_prepqc i w e
   require ∀ W E, local_prepqc i W E → vord.le W w
   timed_out i v := true
   voted i v := true
   msg_timeout_qc i v w e := true
-}
-
-action timeout_noqc (i : node) (v : view) {
-  require ¬ is_byz i
-  require participant i
-  require ∃ E, input i E
-  require ¬ abandoned i
-  require ∀ E, ¬ decided i E
-  require in_view i v
-  require ¬ timed_out i v
-  require ∀ W E, ¬ local_prepqc i W E
-  timed_out i v := true
-  voted i v := true
-  msg_timeout_noqc i v := true
 }
 
 action form_own_tc_lock (i : node) (v : view) (q : nodeset) (r0 : node) (w : view) (e : value) {
@@ -391,21 +402,6 @@ action form_own_tc_lock (i : node) (v : view) (q : nodeset) (r0 : node) (w : vie
   tc_lock v w e := true
 }
 
-action form_own_tc_nolock (i : node) (v : view) (q : nodeset) {
-  require ¬ is_byz i
-  require participant i
-  require ∃ E, input i E
-  require ¬ abandoned i
-  require ∀ E, ¬ decided i E
-  require in_view i v
-  require ¬ tc_formed i v
-  require nset.supermajority q
-  require ∀ r, nset.member r q → msg_timeout_noqc r v
-  tc_formed i v := true
-  msg_tc v := true
-  tc_nolock v := true
-}
-
 action sync_view (i : node) (pv : view) (v : view) {
   require ¬ is_byz i
   require participant i
@@ -418,28 +414,16 @@ action sync_view (i : node) (pv : view) (v : view) {
   entered i v := true
 }
 
-action sync_view_adopt (i : node) (pv : view) (v : view) (w : view) (e : value) {
-  require ¬ is_byz i
-  require participant i
-  require ∃ E, input i E
-  require ¬ abandoned i
-  require ∀ E, ¬ decided i E
-  require vord.next pv v
-  require tc_lock pv w e
-  require ∀ V, entered i V → vord.le V pv
-  require ∀ W E, local_prepqc i W E → vord.lt W w
-  local_prepqc i w e := true
-  entered i v := true
-}
-
 /-- The adversary, scripted (header, items 1 and 2): a Byzantine node signs a
 `Pre-Prepare`, a `Prepare` and a `Commit` on `(v, e)` and a lock-free
 `Timeout` for `v` in one step — `byz_preprepare`, `byz_prepare`,
 `byz_commit`, `byz_timeout_noqc` of the mutant — on the vector its plan
-names for the view. -/
+names for the view, once every correct participant has entered it (header,
+item 5). -/
 action byz_sign (r : node) (v : view) (e : value) {
   require is_byz r
   require byz_plan v e
+  require ∀ I, participant I → ¬ is_byz I → entered I v
   msg_preprepare r v e := true
   msg_prepare r v e := true
   msg_commit r v e := true
