@@ -50,6 +50,10 @@ caller, and they are exactly the antecedents of the contract's own
   the `match` definitions below; the reasons weak fairness suffices are
   [Liveness.md](../../docs/Liveness.md) §2, and why the proposal is a family is §4.6
   (Finding 2). The inputs are excluded on purpose (`InputLabel` says why).
+  For this model the state-changing qualifier asks nothing extra: every
+  fair action fires once, so whenever a fair label is enabled it can change
+  the state (`justice_enabledMove`, "Every enabled fair label changes the
+  state" below).
 * **The MVBA's scheduling** — `MvbaAdmissible`: the run *has* a projection
   onto the MVBA (a labelling of its steps plus infinitely many of them —
   `Component.Projection`, whose header says why both are data) whose
@@ -128,12 +132,16 @@ section Labels
 
 variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
 
-/-- **(F-byz).** The labels the adversary controls — the `byz_*` family. No
-premise requires anything of them, which *is* the assumption: progress never
-relies on adversarial help. `not_justice_of_byz` pins the disjointness. -/
+/-- **(F-byz).** The labels the adversary controls — the `byz_*` family,
+including its share of the two anonymous capabilities (assembling a commit
+certificate, re-disseminating a decodable chunk), whose correct-sender forms
+are the fair `broadcast_commitqc_*` and `redisseminate_chunk`. No premise
+requires anything of them, which *is* the assumption: progress never relies
+on adversarial help. `not_justice_of_byz` pins the disjointness. -/
 def ByzLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
   | .byz_sign_proposer .. => True
   | .byz_deliver_chunk .. => True
+  | .byz_redisseminate_chunk .. => True
   | .byz_sign_vote_pos .. => True
   | .byz_sign_vote_neg .. => True
   | .byz_cast_vote .. => True
@@ -143,6 +151,8 @@ def ByzLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Pha
   | .byz_sign_commit_pos .. => True
   | .byz_sign_commit_neg .. => True
   | .byz_cast_commit .. => True
+  | .byz_broadcast_commitqc_pos .. => True
+  | .byz_broadcast_commitqc_neg .. => True
   | .byz_sign_fbcommit .. => True
   | .byz_release_msg_decrypt_share .. => True
   | _ => False
@@ -251,6 +261,24 @@ theorem mvbaStepLabel_iff (l : Chorus.Label slot node nodeset merkle_root mstate
   cases l <;> simp [MvbaStepLabel]
 
 end Labels
+
+section PhaseOrder
+
+variable {Phase : Type} [Phase_Enum : Chorus.Phase_EnumClass Phase]
+
+/-- The four phases are distinct (the enum's `distinct` field, unpacked). -/
+theorem phase_distinct :
+    (Phase_EnumClass.pre_deadline : Phase) ≠ Phase_EnumClass.post_deadline ∧
+    (Phase_EnumClass.pre_deadline : Phase) ≠ Phase_EnumClass.post_fb_arm ∧
+    (Phase_EnumClass.pre_deadline : Phase) ≠ Phase_EnumClass.post_mvba_arm ∧
+    (Phase_EnumClass.post_deadline : Phase) ≠ Phase_EnumClass.post_fb_arm ∧
+    (Phase_EnumClass.post_deadline : Phase) ≠ Phase_EnumClass.post_mvba_arm ∧
+    (Phase_EnumClass.post_fb_arm : Phase) ≠ Phase_EnumClass.post_mvba_arm := by
+  have hd := Phase_Enum.distinct
+  simp [distinctN, distinctPairs, andN] at hd
+  tauto
+
+end PhaseOrder
 
 /-! ## The MVBA is a component of Chorus
 
@@ -378,6 +406,9 @@ theorem mvba_st_frame_of_not_step
   case byz_sign_commit_neg => exact Chorus.byz_sign_commit_neg.frame_mvba_st htr
   case byz_cast_commit => exact Chorus.byz_cast_commit.frame_mvba_st htr
   case byz_sign_fbcommit => exact Chorus.byz_sign_fbcommit.frame_mvba_st htr
+  case byz_redisseminate_chunk => exact Chorus.byz_redisseminate_chunk.frame_mvba_st htr
+  case byz_broadcast_commitqc_pos => exact Chorus.byz_broadcast_commitqc_pos.frame_mvba_st htr
+  case byz_broadcast_commitqc_neg => exact Chorus.byz_broadcast_commitqc_neg.frame_mvba_st htr
   case byz_release_msg_decrypt_share => exact Chorus.byz_release_msg_decrypt_share.frame_mvba_st htr
 
 set_option maxHeartbeats 1000000 in
@@ -455,6 +486,369 @@ noncomputable def mvbaComponent
     | mvba_propose i v mvba_next => exact ⟨.propose i v, mvba_propose_tr htr⟩
     | abandon i mvba_next => exact ⟨.abandon i, abandon_tr htr⟩
     | _ => exact absurd hl id
+
+/-! ## Every enabled fair label changes the state
+
+The acceptance criterion of [Bounds.md](../../docs/Bounds.md) §6.4.7, for
+Chorus: no fair action stays enabled after it has fired. Each honest action
+of (F-justice) has a "not already" guard on a record it sets itself (or the
+phase marker moves the phase), so whenever it can fire, firing it changes
+that record. The consequence for the premises: for this model, weak fairness
+over plain enabledness and weak fairness over state-changing steps
+([Fairness.lean](../Fairness.lean)) are the same premise. `FJustice` is
+stated with the second; `justice_enabledMove` says the first means the same
+here.
+
+One lemma per fair action says that its firing changes the state; each is
+read off the action's transition body. -/
+
+set_option maxHeartbeats 1000000 in
+/-- The MVBA proposal changes the state: the `Mvba` model's `propose` guard
+is that the validator has no input yet, and its effect records one. -/
+theorem mvba_propose_moves {i : node} {v : node → Option merkle_root} {n}
+    (htr : (atMvba thM).tr thS s (.mvba_propose i v n) s') : s' ≠ s := by
+  rintro rfl
+  have hp := mvba_propose_tr htr
+  have heff := Mvba.propose_effect_tr thM hp
+  simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct, trSimp] at hp
+  exact hp.1 v heff
+
+set_option maxHeartbeats 1000000 in
+theorem advance_to_deadline_moves 
+    (htr : (atMvba thM).tr thS s (.advance_to_deadline) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.phase) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem advance_to_fb_arm_moves 
+    (htr : (atMvba thM).tr thS s (.advance_to_fb_arm) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.phase) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem advance_to_mvba_arm_moves 
+    (htr : (atMvba thM).tr thS s (.advance_to_mvba_arm) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.phase) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem deliver_chunk_assigned_moves {i j : node} {m : merkle_root}
+    (htr : (atMvba thM).tr thS s (.deliver_chunk_assigned i j m) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_chunk_sent j i j m) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem record_chunk_moves {i j : node} {m : merkle_root}
+    (htr : (atMvba thM).tr thS s (.record_chunk i j m) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_entry_pos i j m) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem vote_moves {i : node}
+    (htr : (atMvba thM).tr thS s (.vote i) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_voted i) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem aggregate_fastqc_pos_moves {i j : node} {m : merkle_root} {q : nodeset}
+    (htr : (atMvba thM).tr thS s (.aggregate_fastqc_pos i j m q) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_fastqc_pos i j m) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem aggregate_fastqc_neg_moves {i j : node} {q : nodeset}
+    (htr : (atMvba thM).tr thS s (.aggregate_fastqc_neg i j q) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_fastqc_neg i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem commit_sign_pos_moves {i j : node} {m : merkle_root}
+    (htr : (atMvba thM).tr thS s (.commit_sign_pos i j m) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_commit_entry i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem commit_sign_neg_moves {i j : node}
+    (htr : (atMvba thM).tr thS s (.commit_sign_neg i j) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_commit_entry i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem cast_fast_commit_moves {i : node}
+    (htr : (atMvba thM).tr thS s (.cast_fast_commit i) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.msg_commit_cast i) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem broadcast_commitqc_pos_moves {c j : node} {m : merkle_root} {q : nodeset}
+    (htr : (atMvba thM).tr thS s (.broadcast_commitqc_pos c j m q) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_commitqc_sent c j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem broadcast_commitqc_neg_moves {c j : node} {q : nodeset}
+    (htr : (atMvba thM).tr thS s (.broadcast_commitqc_neg c j q) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_commitqc_sent c j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem fb_sign_pos_moves {i j : node} {m : merkle_root} {q qc : nodeset}
+    (htr : (atMvba thM).tr thS s (.fb_sign_pos i j m q qc) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_fb_entry i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem fb_sign_neg_moves {i j : node} {qv : nodeset}
+    (htr : (atMvba thM).tr thS s (.fb_sign_neg i j qv) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_fb_entry i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem cast_fallback_vote_moves {i : node}
+    (htr : (atMvba thM).tr thS s (.cast_fallback_vote i) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_path i) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem on_mvba_decide_pos_moves {i j : node} {m : merkle_root} {v : node → Option merkle_root}
+    (htr : (atMvba thM).tr thS s (.on_mvba_decide_pos i j m v) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_mvba_recorded i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem on_mvba_decide_neg_moves {i j : node} {v : node → Option merkle_root}
+    (htr : (atMvba thM).tr thS s (.on_mvba_decide_neg i j v) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_mvba_recorded i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem mvba_terminate_moves {i : node} {v : node → Option merkle_root}
+    (htr : (atMvba thM).tr thS s (.mvba_terminate i v) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.mvba_complete) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem redisseminate_chunk_moves {k i j : node} {m : merkle_root}
+    (htr : (atMvba thM).tr thS s (.redisseminate_chunk k i j m) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_chunk_sent k i j m) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem cast_fb_commit_moves {i : node}
+    (htr : (atMvba thM).tr thS s (.cast_fb_commit i) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_fbcommit_voted i) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem commit_assign_pos_moves {i j : node} {m : merkle_root}
+    (htr : (atMvba thM).tr thS s (.commit_assign_pos i j m) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_committed_pos i j m) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem commit_assign_neg_moves {i j : node}
+    (htr : (atMvba thM).tr thS s (.commit_assign_neg i j) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_committed_neg i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem finalize_commit_moves {i : node}
+    (htr : (atMvba thM).tr thS s (.finalize_commit i) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_committed i) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+/-- **Every enabled fair label is move-enabled** — at every state, reachable
+or not: whenever a label of (F-justice) can fire, it can fire to a
+different state. This is [Bounds.md](../../docs/Bounds.md) §6.4.7's
+acceptance criterion for Chorus, machine-checked: the model has no fair
+action that stays enabled after it has fired, so for this model a label
+that is enabled from some point on is also able to change the state from
+that point on, and the fairness of `FJustice` (over state-changing steps)
+asks exactly what weak fairness over plain enabledness would. The MVBA
+proposal is a justice label, so each member of its family is covered too
+(`mvba_propose_enabledMove`). A label that failed it would need its fired-once
+guard; none is dropped from `JusticeLabel`. -/
+theorem justice_enabledMove
+    (l : Chorus.Label slot node nodeset merkle_root
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
+      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
+    (hl : JusticeLabel l) (hen : Enabled (atMvba thM) thS s l) : EnabledMove (atMvba thM) thS s l := by
+  obtain ⟨s', htr⟩ := hen
+  refine ⟨s', htr, ?_⟩
+  cases l
+  case advance_to_deadline => exact advance_to_deadline_moves htr
+  case advance_to_fb_arm => exact advance_to_fb_arm_moves htr
+  case advance_to_mvba_arm => exact advance_to_mvba_arm_moves htr
+  case deliver_chunk_assigned => exact deliver_chunk_assigned_moves htr
+  case record_chunk => exact record_chunk_moves htr
+  case vote => exact vote_moves htr
+  case aggregate_fastqc_pos => exact aggregate_fastqc_pos_moves htr
+  case aggregate_fastqc_neg => exact aggregate_fastqc_neg_moves htr
+  case commit_sign_pos => exact commit_sign_pos_moves htr
+  case commit_sign_neg => exact commit_sign_neg_moves htr
+  case cast_fast_commit => exact cast_fast_commit_moves htr
+  case broadcast_commitqc_pos => exact broadcast_commitqc_pos_moves htr
+  case broadcast_commitqc_neg => exact broadcast_commitqc_neg_moves htr
+  case fb_sign_pos => exact fb_sign_pos_moves htr
+  case fb_sign_neg => exact fb_sign_neg_moves htr
+  case cast_fallback_vote => exact cast_fallback_vote_moves htr
+  case on_mvba_decide_pos => exact on_mvba_decide_pos_moves htr
+  case on_mvba_decide_neg => exact on_mvba_decide_neg_moves htr
+  case mvba_terminate => exact mvba_terminate_moves htr
+  case redisseminate_chunk => exact redisseminate_chunk_moves htr
+  case cast_fb_commit => exact cast_fb_commit_moves htr
+  case commit_assign_pos => exact commit_assign_pos_moves htr
+  case commit_assign_neg => exact commit_assign_neg_moves htr
+  case finalize_commit => exact finalize_commit_moves htr
+  case mvba_propose => exact mvba_propose_moves htr
+  case byz_sign_proposer => exact absurd trivial hl.1
+  case byz_deliver_chunk => exact absurd trivial hl.1
+  case byz_redisseminate_chunk => exact absurd trivial hl.1
+  case byz_sign_vote_pos => exact absurd trivial hl.1
+  case byz_sign_vote_neg => exact absurd trivial hl.1
+  case byz_cast_vote => exact absurd trivial hl.1
+  case byz_sign_fb_pos => exact absurd trivial hl.1
+  case byz_sign_fb_neg => exact absurd trivial hl.1
+  case byz_sign_fallback => exact absurd trivial hl.1
+  case byz_sign_commit_pos => exact absurd trivial hl.1
+  case byz_sign_commit_neg => exact absurd trivial hl.1
+  case byz_cast_commit => exact absurd trivial hl.1
+  case byz_broadcast_commitqc_pos => exact absurd trivial hl.1
+  case byz_broadcast_commitqc_neg => exact absurd trivial hl.1
+  case byz_sign_fbcommit => exact absurd trivial hl.1
+  case byz_release_msg_decrypt_share => exact absurd trivial hl.1
+  case mvba_step => exact absurd trivial hl.2.1
+  case participate => exact absurd trivial hl.2.2
+  case abandon => exact absurd trivial hl.2.2
+  case propose => exact absurd trivial hl.2.2
+
+/-- **Every member of the MVBA proposal family is move-enabled when it is
+enabled**: the family clause of `FJustice` asks nothing more than weak
+fairness over plain enabledness would. -/
+theorem mvba_propose_enabledMove {i : node} {v : node → Option merkle_root} {n}
+    (hen : Enabled (atMvba thM) thS s (.mvba_propose i v n)) :
+    EnabledMove (atMvba thM) thS s (.mvba_propose i v n) :=
+  justice_enabledMove _ ⟨fun h => h, fun h => h, fun h => h⟩ hen
 
 end Component
 
@@ -627,9 +1021,10 @@ end Chorus
 
 /-! ## The pinned trust base
 
-Definitions, four facts about the label classification, and the component
-instance; the target itself is a definition, so nothing here asserts
-termination. -/
+Definitions, four facts about the label classification, the component
+instance, and the two acceptance lemmas (every enabled fair label, and every
+enabled MVBA proposal, can change the state); the target itself is a
+definition, so nothing here asserts termination. -/
 
 /--
 info: 'Chorus.label_classified' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -656,3 +1051,15 @@ info: 'Chorus.mvbaComponent' depends on axioms: [propext, Classical.choice, Quot
 -/
 #guard_msgs in
 #print axioms Chorus.mvbaComponent
+
+/--
+info: 'Chorus.justice_enabledMove' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.justice_enabledMove
+
+/--
+info: 'Chorus.mvba_propose_enabledMove' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.mvba_propose_enabledMove
