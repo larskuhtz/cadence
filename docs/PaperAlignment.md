@@ -372,3 +372,24 @@ These update §6.
   * `supplementary-internal-bkp.tex` is still in the tree, so §1's exclusion rule still applies.
   * The equivocation-evidence subsection still says that `EquivCert`s "are assembled only when an MVBA input is built from two conflicting positive fallback entries". That contradicts `sec:fallback-transition`, as before.
 * **New:** the supplement's paragraph "Agreement and Integrity over entries" says that the main-body `mod:mvba` "should be revised to these forms", meaning both Agreement and Integrity. `d598c5a` revised only Agreement. Integrity in the main body still reads "decides at most once", while the supplement permits redelivery of a decision with the same entry vector. The class this development uses is unaffected (MvbaPlan §11.3 C1). The paper, however, is internally inconsistent on this point until the Integrity line follows.
+
+## 8. Open readings of the published pseudocode
+
+Places where the models take one reading of the paper's pseudocode that the
+paper does not state. Each is a question for the authors. The model's
+choice is recorded here until they answer.
+
+* **An `upon` handler runs once, when its condition first becomes true.**
+  The published Chorus rules `line:fast-formqc` (form the FastQC once
+  `2f+1` votes are collected) and `line:fast-collect-commit` (aggregate and
+  broadcast the commit certificate once `2f+1` commit votes are collected)
+  are `upon` handlers of an event-driven protocol, and neither says "first
+  time". Only the fast meta-block rule does. The paper states no
+  convention for `upon`. The conventional reading of an event-driven
+  handler is that it runs when its condition becomes true, not
+  continually. [Bounds.md](Bounds.md) §6.4.7 (S1b, session R5) models these
+  rules that way, with a fired-once guard. Until then, the model lets them
+  fire again as steps that change nothing. The MVBA supplement is explicit
+  on the corresponding rules ("has not already formed …", "upon first
+  collecting …"), so the question concerns the published Chorus
+  pseudocode only.
