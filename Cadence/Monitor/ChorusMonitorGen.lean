@@ -137,6 +137,8 @@ private def dNSet (j : Json) : Except String NS := do
 
 private def dMValue (j : Json) : Except String MV := ChorusMonitor.decodeMV j
 private def dMState (j : Json) : Except String MS := ChorusMonitor.decodeMState j
+/-- The certificate a handoff carries: the stub's message sort `Unit`, written `null`. -/
+private def dMMsg (j : Json) : Except String Unit := ChorusMonitor.decodeMState j
 
 def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   match act, args with
@@ -163,6 +165,7 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   -- decision handlers cannot fire under the silent instance)
   | "mvba_step", [a]                 => do pure (.mvba_step (← dMState a))
   | "mvba_propose", [a,b,c]          => do pure (.mvba_propose (← dNode a) (← dMValue b) (← dMState c))
+  | "accept_mvba_commitqc", [a,b,c]  => do pure (.accept_mvba_commitqc (← dNode a) (← dMMsg b) (← dMState c))
   | "on_mvba_decide_pos", [a,b,c,d]  => do pure (.on_mvba_decide_pos (← dNode a) (← dNode b) (← dRoot c) (← dMValue d))
   | "on_mvba_decide_neg", [a,b,c]    => do pure (.on_mvba_decide_neg (← dNode a) (← dNode b) (← dMValue c))
   | "mvba_terminate", [a,b]          => do pure (.mvba_terminate (← dNode a) (← dMValue b))

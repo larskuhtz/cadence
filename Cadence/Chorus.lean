@@ -456,6 +456,10 @@ relation local_commitqc_sent (c : node) (j : node)
 /-- Validator `i` has recorded entry `j` of its MVBA decision
 (`on_mvba_decide_pos` / `on_mvba_decide_neg`, `line:fb-mvba-decide`). -/
 relation local_mvba_recorded (i : node) (j : node)
+/-- Validator `i` has handed a transferred MVBA commit certificate to its
+MVBA (`accept_mvba_commitqc`, the supplement's "Decision output and
+handoff"). -/
+relation local_mvba_qc_accepted (i : node)
 /-- Validator `i` has cast its fallback commit vote (`cast_fb_commit`,
 `line:fb-commitvote`). -/
 relation local_fbcommit_voted (i : node)
@@ -641,6 +645,13 @@ set_option maxRecDepth 8192
 
 /-! ## Initial state -/
 
+/- `after_init` is one `isDefEq`-heavy command over every component, and at
+this component count it needs more than the module's default heartbeat
+budget. The raise is scoped by hand: it is set here and restored to Veil's
+module default (500000) right after the block, so no later command sees it
+(a `set_option … in` around a Veil command breaks the module state). -/
+set_option maxHeartbeats 1000000
+
 after_init {
   phase := pre_deadline
 
@@ -682,11 +693,14 @@ after_init {
   local_fb_entry I J := false
   local_commitqc_sent C J := false
   local_mvba_recorded I J := false
+  local_mvba_qc_accepted I := false
   local_fbcommit_voted I := false
 
   participating I := false
   abandoned I := false
 }
+
+set_option maxHeartbeats 500000
 
 /-! ## Phase advancement
 
@@ -1123,8 +1137,11 @@ action cast_fallback_vote (i : node) {
 
 The paper's MVBA module (`p2_mvba.tex`) exposes `propose(B)` (a validator
 proposes a valid meta-block, thereby *starting to participate*),
-`abandon()` (it stops participating), and the output `decide(B)`; it has
-**no certificate output** — its guarantees are the five properties
+`abandon()` (it stops participating), and the output `decide(B)`; the
+paper repository's internal supplement strengthens the output to
+`decide(B, CommitQC)`, whose certificate Chorus hands to the other
+validators' MVBAs (`accept_mvba_commitqc` below, and the contract's
+`certifies`/`accept` fields). Its guarantees are the five properties
 *Agreement*, *Integrity*, *External validity*,
 *`ℓ_MVBA`-Termination* (conditioned on all correct validators proposing
 and none abandoning before the bound), and *Quiescence* (no protocol
@@ -1236,6 +1253,29 @@ action mvba_propose (i : node) (v : mvalue) (mvba_next : mstate) {
   -- `MVBA[s].propose(B_i)`.
   require mvba.propose mvba_st i v mvba_next
   mvba_st := mvba_next
+}
+
+/-- **The decision handoff** (the supplement's "Decision output and
+handoff", `line:mvba:qc-decide`). A correct validator's MVBA decision
+outputs the commit certificate that commits it (`mvba.decided_certified`),
+and Chorus broadcasts it. A correct validator that receives a valid one
+hands it to its own MVBA through the contract's transfer input
+`mvba.accept`, which accepts a valid certificate of any view and decides
+its value. The broadcast is the decision output itself: nothing here writes
+a network relation, and the only thing read about the certificate is the
+MVBA's own monotone record that it is valid, inside `mvba.accept`. The
+re-broadcast the supplement asks for needs no step either, since a
+validator that has accepted has decided. The finalization the supplement
+attaches to the certificate is not modelled: the model keeps v2's fallback
+commit round below. Fired once (`local_mvba_qc_accepted`). -/
+action accept_mvba_commitqc (i : node) (c : mmsg) (mvba_next : mstate) {
+  require ¬ is_byz i
+  -- Fired once: `i` has not handed a certificate to its MVBA yet.
+  require ¬ local_mvba_qc_accepted i
+  -- `MVBA[s]` accepts the transferred certificate `c`.
+  require mvba.accept mvba_st i c mvba_next
+  mvba_st := mvba_next
+  local_mvba_qc_accepted i := true
 }
 
 action on_mvba_decide_pos (i : node) (j : node) (m : merkle_root) (v : mvalue) {
@@ -2295,9 +2335,11 @@ model, indexed by the action's category:
   `aggregate_fastqc_*`, `broadcast_commitqc_*`, `record_chunk`,
   `redisseminate_chunk`), and every per-validator honest action (`vote`,
   `fb_sign_*`, `cast_fallback_vote`, `commit_sign_*`, `cast_fast_commit`,
-  `mvba_propose`, the handlers `on_mvba_decide_*`, `mvba_terminate`,
-  `cast_fb_commit`, `commit_assign_*`, `finalize_commit`) that is
-  *continuously enabled* is fired eventually. That is every action that is
+  `mvba_propose`, the handoff `accept_mvba_commitqc`, the handlers
+  `on_mvba_decide_*`, `mvba_terminate`, `cast_fb_commit`,
+  `commit_assign_*`, `finalize_commit`) that is *continuously enabled*,
+  and whose messages came from correct senders (`Chorus.Owed`: the paper's
+  network delivers only between correct validators), is fired eventually. That is every action that is
   neither Byzantine, nor the oracle step, nor one of the module's three
   inputs, which is how `Chorus.JusticeLabel`
   ([Chorus/Liveness.lean](Chorus/Liveness.lean)) states it.
@@ -2339,7 +2381,7 @@ model, indexed by the action's category:
   ([Chorus/Termination.lean](Chorus/Termination.lean)) applies to the run's MVBA
   projection. What `Chorus.termination` assumes about the MVBA is how the
   projection's steps were scheduled (`Chorus.MvbaAdmissible`). It also
-  assumes the certificate bridge (`Chorus.ValidBridge`). The MVBA's two
+  assumes the certificate bridge (`Chorus.ValidBridge`). The MVBA's three
   caller premises are derived, not assumed:
 
   * *every correct validator proposes*. The enabledness of
@@ -2361,7 +2403,11 @@ model, indexed by the action's category:
     caller abandons only after finalizing. So the premise holds on the
     branch of the proof where no correct validator has finalized, which is
     the only branch that needs the MVBA; the other branch finalizes
-    through the commit route.
+    through the commit route;
+  * *every decided certificate is handed on* ((F-relay)). The MVBA's
+    `decide` on a transferred certificate is the contract's `accept`
+    input, which only `accept_mvba_commitqc` invokes; (F-justice) on it,
+    owed once a correct validator has decided, delivers the premise.
 
   The *transport* of a decision into Chorus's records is (F-justice) on the
   handlers and `mvba_terminate`. Their enabledness has one leg the class

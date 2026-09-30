@@ -20,6 +20,7 @@ import Cadence.Chorus.Proofs.FbSignNeg
 import Cadence.Chorus.Proofs.CastFallbackVote
 import Cadence.Chorus.Proofs.MvbaStep
 import Cadence.Chorus.Proofs.MvbaPropose
+import Cadence.Chorus.Proofs.AcceptMvbaCommitqc
 import Cadence.Chorus.Proofs.OnMvbaDecidePos
 import Cadence.Chorus.Proofs.OnMvbaDecideNeg
 import Cadence.Chorus.Proofs.MvbaTerminate
@@ -73,6 +74,6 @@ theorem in the import closure, over exactly the standard axioms. Run `#veil_stat
 interactively for the per-cell table (theorem, defining file, per-cell
 axiom set; expect minutes at this scale). -/
 
-/-- info: #veil_status Chorus: 4737/4737 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Chorus: 4840/4840 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Chorus
