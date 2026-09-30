@@ -252,14 +252,25 @@ and where it is discharged.
   *safety*. Chorus `safety [proposal_inclusion]`,
   `[proposal_inclusion_no_neg]`; the synchrony premise's state-level form is
   `on_time` = Chorus's `all_honest_recorded`
-* **`termination`** — Termination; *temporal*. **not proven**: Chorus's
-  fair-progress layer + (F-justice)/(F-byz)/(A-mvba), [Liveness.md](../docs/Liveness.md)
+* **`termination`** — Termination; *temporal*. Proven untimed as
+  `Chorus.termination` ([Chorus/Termination.lean](Chorus/Termination.lean)).
+  Its premises are named in [Chorus/Liveness.lean](Chorus/Liveness.lean):
+  (F-justice) on Chorus's own honest actions (`FJustice`), the MVBA's
+  scheduling on the run's MVBA projection (`MvbaAdmissible`), the
+  certificate bridge (`ValidBridge`), and this field's two caller
+  antecedents (`AllParticipate`, `NoAbandonBeforeFinalizing`). The field
+  itself, over a `TimedRun` and an implementation-defined `Admissible`, is
+  **not proven**: it needs the `SlotConsensusTemporal` instance, which
+  waits for the timed claims ([Bounds.md](../docs/Bounds.md) §6.4.6)
 * **`hiding_residue`** — Hiding (`def:hiding`, specialised to the instance's
   slot); *safety*. First-order and proven by Chorus (`safety
   [hiding_until_deadline]`), so it sits in the fragment — see the field's
   docstring for what it does and does not say
-* **`quiescence`** — Quiescence; *temporal*. **not proven**: Chorus models no
-  participation window (its in-model shadow is phase confinement)
+* **`quiescence`** — Quiescence; *safety (one-step form)*. **not proven**
+  yet. Chorus models the participation window: every sending rule requires
+  `participating i ∧ ¬ abandoned i`, and `abandon` forwards to the MVBA's
+  `abandon()`. The one-step statement over those gates comes with the
+  `SlotConsensusTemporal` instance ([Bounds.md](../docs/Bounds.md) §6.4.6, S5)
 
 `d_tot`-totality and `ℓ`-termination are *not* properties of `mod:slotconsensus`
 — they are Chorus-specific strengthenings the Conductor's proofs consume —
@@ -439,6 +450,9 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
   ℓ : time
   /-- Chorus's totality latency (`d_tot = Δ` in the paper). -/
   d_tot : time
+  /-- The slot's deadline `D` (`s.deadline`). Within Cadence it is
+      `start_time s + Δ` (`OrchestratorSafety.start_time`). -/
+  deadline : slot → time
   /-- **Δ-synchronized participation**: if a correct validator starts
       participating at time `t`, every correct validator does so by
       `max(t, GST) + Δ`. -/
@@ -449,16 +463,34 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
         ∀ j, ¬ byz j → r.byGstBound (r.clk n) Δ (fun st => T.participating st j)
   /-- **ℓ-Termination** — under Δ-synchronized participation, if all correct
       validators participate by `t`, every correct validator finalizes by
-      `max(t, GST) + ℓ`. -/
+      `max(t, GST) + ℓ`.
+
+      Two further antecedents are the caller's side of the contract, the
+      conditions the paper's proof uses "when run within Cadence". Neither
+      is a condition on the scheduler, so neither is part of `Admissible`.
+      *No abandonment before finalizing* (`line:abandon`) is the same
+      antecedent `SlotConsensusTemporal.termination` has; without it, a
+      validator that abandons at once never finalizes. *No start before
+      `D − Δ`* is the Conductor's integrity (`lemma:conductor-integrity`),
+      stated over the observable `participating`. It holds at the start
+      index exactly when the paper's form does, and it follows at every
+      later one. Without it, a slot whose deadline lies far after `t`
+      cannot finalize by `max(t, GST) + ℓ`. -/
   bounded_termination : ∀ r : TimedRun state time S.init S.trans,
     T.Admissible r → SyncParticipation r →
+    (∀ i, ¬ byz i → ∀ n, T.abandoned (r.at' n) i → ∃ V, S.finalized (r.at' n) i V) →
+    (∀ n i, ¬ byz i → T.participating (r.at' n) i →
+      TotalOrder.le (deadline (S.tag (r.at' n))) (r.clk n + Δ)) →
     ∀ t, (∀ i, ¬ byz i → r.byTime t (fun st => T.participating st i)) →
     ∀ j, ¬ byz j → r.byGstBound t ℓ (fun st => ∃ V, S.finalized st j V)
   /-- **d_tot-Totality** — under Δ-synchronized participation, if a correct
       validator finalizes at time `t`, every correct validator finalizes by
-      `max(t, GST) + d_tot`. -/
+      `max(t, GST) + d_tot`. The one caller antecedent is *no abandonment
+      before finalizing*, as in `bounded_termination`: a correct validator
+      that had abandoned before finalizing would never finalize. -/
   totality : ∀ r : TimedRun state time S.init S.trans,
     T.Admissible r → SyncParticipation r →
+    (∀ i, ¬ byz i → ∀ n, T.abandoned (r.at' n) i → ∃ V, S.finalized (r.at' n) i V) →
     ∀ n i V, ¬ byz i → S.finalized (r.at' n) i V →
     ∀ j, ¬ byz j → r.byGstBound (r.clk n) d_tot (fun st => ∃ V', S.finalized st j V')
 
@@ -764,6 +796,15 @@ Invoked by Chorus's fallback path, one instance per slot. Interface: inputs
 `abandon()`; output `decide(B)`. `Valid` is the publicly verifiable external
 validity predicate the instance is parameterised by.
 
+**Agreement is over entries.** The paper's module states Agreement as
+`entries(B) = entries(B')`: correct validators that decide, decide
+meta-blocks with the same entries. That wording is in the paper
+repository from commit `d598c5a`, which postdates v2 ([MvbaPlan.md](../docs/MvbaPlan.md)
+§11). This class's `agreement` says the decided *values* are equal, and its
+one instance sets `value` to the entry vector (`node → Option merkle_root`,
+[System.lean](System.lean)). So at that instance the field is the published
+sentence.
+
 The implementation is `Mvba` ([Mvba.lean](Mvba.lean)) — the leader-based
 protocol of the paper repository's internal supplement, pinned to a
 paper-repository commit in that file's header; [MvbaPlan.md](../docs/MvbaPlan.md) §0 says
@@ -857,7 +898,10 @@ class MVBASafety (party value message state : Type) (byz : party → Prop)
     sent st' p m → ¬ sent st p m →
       (∃ v, proposed st' p v) ∧ ¬ abandoned st p
 
-  /-- **Agreement** — correct parties that decide, decide the same value. -/
+  /-- **Agreement** — correct parties that decide, decide the same value.
+      The paper's module states it over entries, `entries(B) = entries(B')`
+      (paper commit `d598c5a`, after v2). The one instance sets `value` to
+      the entry vector, so there this field is the published sentence. -/
   agreement : ∀ st, reachable st → ∀ p q v v',
     ¬ byz p → ¬ byz q → decided st p v → decided st q v' → v = v'
   /-- **Integrity** — a correct party decides at most once (at most one

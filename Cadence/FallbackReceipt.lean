@@ -66,10 +66,11 @@ aggregate any `f+1` matching signatures. (Contrast the *global* pigeonhole
 over honest entries, [ChorusDesign.md](../docs/ChorusDesign.md) §7; the
 per-validator argument is what the §7.2 fix makes work.)
 
-## Integration seam (the (A-mvba) implementability leg)
+## Integration seam (the implementability of `Mvba.termination`'s caller premise)
 
-This module discharges the per-validator implementability of (A-mvba)'s
-premise ([ChorusDesign.md](../docs/ChorusDesign.md) §7, [Chorus.lean](Chorus.lean) liveness section): network-global
+This module discharges the per-validator implementability of
+`Mvba.termination`'s caller premise, *every correct validator proposes*
+([ChorusDesign.md](../docs/ChorusDesign.md) §7, [Chorus.lean](Chorus.lean) liveness section): network-global
 evidence → every correct validator proposes a *valid* meta-block.
 *Assumed* from Chorus (facts proven there over the shared vocabulary):
 

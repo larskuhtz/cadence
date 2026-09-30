@@ -256,6 +256,18 @@ so that a decision event can seed a `decided`-true stub state. The fixtures
 under [traces/](../traces) are fast-path only and never reach the MVBA, so they are
 unaffected.
 
+**The participation inputs.** Since the participation edit the model's
+sending rules require `participating i ∧ ¬ abandoned i`, so a trace must
+open with a `participate` event per node (the slot's `open`), and
+`broadcast_commitqc_*` and `redisseminate_chunk` carry their sender as the
+first argument. The fixtures under [traces/](../traces) were edited by hand to
+match, and the emitter has to learn both. `abandon` forwards to the MVBA's
+`abandon()`, which the silent stub never enables (its `Unit` state cannot
+record `abandoned`), so a trace that abandons is rejected there: the same
+coverage gap as the decision handlers. In single-node mode another node's
+`participate` is dropped, and another node's commit certificate is admitted
+as that node's message.
+
 Future scope, in rough order: positive-path emission; finer per-message
 emission (individual votes and casts observed at the network boundary rather
 than derived from the certificates); the MVBA leg above; multi-slot

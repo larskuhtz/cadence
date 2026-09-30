@@ -1,4 +1,7 @@
 // Negative fixture: `finalize_commit` requires every proposer's entry to be
 // locally committed (`∀J is_proposer J → committed_pos ∨ committed_neg`), but
 // from the initial state node 0 has committed nothing. Expected: NOT ACCEPTED.
+// Node 0 participates first, so the rejection is the commit guard's, not the
+// participation gate's.
+{"action": "participate", "args": [0]}
 {"action": "finalize_commit", "args": [0]}

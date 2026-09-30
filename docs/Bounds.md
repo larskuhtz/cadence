@@ -1247,7 +1247,7 @@ finite sorts.
 ### 6.4 The Chorus leg: the kick-off record
 
 *Written 2026-09-29, after `Chorus.termination` (PR #43) and before any
-Lean. Nothing below is done. It supersedes §6's staging for Chorus
+Lean. S1 is done since (§6.4.6, item 1, has its record); the rest is not. It supersedes §6's staging for Chorus
 (steps 1–3), which predates the MVBA leg. §6.2 and §6.3 are the template.
 Decisions are recorded with their reasons. Those marked **open** are for
 Lars to take: item 1 above all, and the two class changes it depends on.*
@@ -1878,6 +1878,62 @@ after its step 2.
    work (which waits, §6.4.5), MVBA upgrade step 5b if it edits
    Interfaces.lean (bundle into S1 or serialize), or any other
    Interfaces.lean edit. One family re-solve at a time.
+
+   **Done** (2026-09-29, one session, the "R1" PR). Option A with C1/C2 and
+   the sender parameters, as decided. What an auditor should know:
+
+   * **The model.** `participating`/`abandoned` per validator, written only
+     by the inputs `participate i` and `abandon i mvba_next`. Every sending
+     rule of §6.4.1's list is gated on `participating i ∧ ¬ abandoned i`,
+     and the processing rules are exempt. `broadcast_commitqc_*` and
+     `redisseminate_chunk` take a sender, gated when it is correct. The
+     gates read only the acting validator's local state: no new network
+     read, no fourth exception category. **No invariant was added.**
+     `#veil_status Chorus` goes from 4222 to 4428: 101 init cells +
+     42 actions × (101 + 1 step property) + 43 does-not-throw, as predicted
+     before the build.
+   * **The contract.** C1 in `bounded_termination` and `totality`; C2, with
+     the datum `deadline : slot → time`, in `bounded_termination`. Both are
+     antecedents in the rely form. The `…Safety` fragment is untouched, and
+     no field was weakened.
+   * **The claim.** `TerminationClaim` gains `AllParticipate` and
+     `NoAbandonBeforeFinalizing`, the antecedents of
+     `SlotConsensusTemporal.termination`. `Chorus.termination` is re-proven
+     at the trio, split on an early finalization
+     ([Liveness.md](Liveness.md) §4.7 has the record). `MvbaAdmissible` did
+     **not** change shape: the MVBA's abandonment premise is derived on the
+     branch that needs it.
+   * **The composition.** `Chorus.slotConsensusSafety`'s `step` now
+     excludes the inputs. The consequence §6.4.6 named holds: the composed
+     system's Chorus is inert until the glue drives the inputs, and glue
+     safety is unaffected ([CompositionContracts.md](CompositionContracts.md) §5).
+
+   Deviations from the plan, each small:
+
+   * **`abandon` forwards every time**, not only "if mvbaInvoked"
+     (`line:fb-abandon`). The difference is unobservable: the MVBA's own
+     `abandon()` has no precondition, a party that has not proposed sends
+     nothing in the MVBA, and after `abandon` Chorus never proposes to it.
+     The conditional form would have needed a negative read of the MVBA's
+     state, or a new local flag.
+   * **`propose` loses its fairness.** It was weakly fair before; as the
+     contract's `propose(P)` input it now carries none. No link of the
+     proof fired it.
+   * **Two run-level first-flip facts** (`committed_pos_assignable`,
+     `committed_neg_assignable`) replace what an invariant would have given:
+     `local_committed_*_backed` keeps the MVBA record but not the fallback
+     commit certificate beside it, and the early-finalization branch needs
+     both.
+   * **FallbackReceipt.lean's header** was aligned too (§6.4.1 had left it
+     for its own next edit). The receipt family replays warm and
+     `PreFix.lean` still finds its counterexample.
+   * **The monitor**: the silent MVBA stub has no `abandon`, so `abandon` is
+     never enabled under the monitor, a coverage gap of the same kind as
+     the decision handlers ([Monitor.md](Monitor.md) §8). The fixtures gained
+     `participate` lines and the collector argument by hand.
+   * **Quiescence** is not proven here. The gates make it provable in the
+     paper's two-part shape; the one-step statement belongs to S5 with the
+     rest of the `SlotConsensusTemporal` instance.
 2. **S2: timed scaffolding, statements only.** In [Timed.lean](../Cadence/Timed.lean):
    * the (Δδ-justice) clause and `BoundedFairFamily`;
    * the timed projection (`Component.Projection` plus a clock), with its

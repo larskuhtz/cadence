@@ -174,8 +174,10 @@ come first.
   still need the satisfiability argument.** Non-vacuity here means what it
   means for the MVBA: every premise of the theorem — its hypotheses (the
   quorum family at `n = 3f+1`, `ViewOrderEnum`), the configuration
-  `Cadence.chorusTheory` and its assumptions, and the three run premises
-  `FJustice`, `MvbaAdmissible`, `ValidBridge` — holds *jointly*, shown by
+  `Cadence.chorusTheory` and its assumptions, the three run premises
+  `FJustice`, `MvbaAdmissible`, `ValidBridge`, and the caller's two
+  premises `AllParticipate` and `NoAbandonBeforeFinalizing` — holds
+  *jointly*, shown by
   (a) a premise-by-premise ledger saying why each is satisfiable, and (b)
   one formal model and one run meeting all of them at once. Traces alone
   are illustrations, not the argument. The pattern is the MVBA leg's
@@ -193,20 +195,17 @@ come first.
     directions, not merely an MVBA run that decides
     ([Bounds.md](Bounds.md) §6.3.3).
 
+  The caller's two premises are jointly obvious (everyone participates at
+  the start and abandons, if at all, after finalizing). The witness waits
+  for the timed premises and is built once for both claims
+  ([Bounds.md](Bounds.md) §6.4.5, S6).
+
 * Full liveness-to-safety, so that liveness properties are stated and
   discharged inside the Veil models, like their safety properties. The
   fairness premises are already hypotheses of Lean theorems
   (`Chorus.termination`, `Mvba.termination`) and (A-mvba) is retired;
   what L2S would add is the models' own statement of those properties,
   checked per action by the existing pipeline.
-* Align the remaining prose mentions of (A-mvba) in
-  [Cadence/Chorus.lean](../Cadence/Chorus.lean)'s liveness section,
-  [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and the header of
-  [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) ("the (A-mvba) implementability leg",
-  now the implementability of `Mvba.termination`'s caller premise) with
-  its retirement ([Architecture.md](Architecture.md) §4 item 2). The
-  first two re-solve the Chorus family and the third rebuilds the receipt
-  family, so do each together with the next change that touches the file.
 * Actions are annotated with their fairness class in prose only; Veil has no
   surface syntax for it. The fork's liveness design doc sketches what that
   syntax should be ([Liveness.md](Liveness.md) §3 points to it).

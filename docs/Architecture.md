@@ -428,8 +428,10 @@ relations, and it takes a human to confirm each use is positive.
    `OrchestratorTemporal` ([Cadence/Composition.lean](../Cadence/Composition.lean);
    Totality, `B`-Boundedness, `R`-Recovery, the execution model) and
    `SlotConsensusTemporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean);
-   the participation interface, the clock, Termination, Quiescence — Chorus
-   models no participation window). The meta-axiom names
+   the participation interface as contract fields, the clock, Termination,
+   Quiescence — the model has the participation window as actions, state
+   and gates, and Termination is proven untimed as `Chorus.termination`).
+   The meta-axiom names
    ((A-orch-totality), (A-orch-boundedness), (A-orch-recovery),
    (A-sc-termination), (A-sc-totality), (A-acs-termination),
    (A-acs-totality)) are those fields' docstrings.
@@ -524,7 +526,7 @@ table can be read off one file:
 |---|---|---|
 | `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_temporal` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | `propext, Classical.choice, Quot.sound` | ✓ |
 | `Cadence.system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | same | ✓ |
-| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 4222/4222 real |
+| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 4428/4428 real |
 | `FallbackReceipt.invariants_of_reachable` ([Cadence/FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean)) | same | ✓ + `#veil_status`: 220/220 real |
 | `FallbackReceipt.build_totality_of_reachable` ([Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean)) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)) | same | ✓ |
