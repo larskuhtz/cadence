@@ -1444,7 +1444,7 @@ is enabled and the tail owes nothing.
 ### 6.4 The Chorus leg: the kick-off record
 
 *Written 2026-09-29, after `Chorus.termination` (PR #43) and before any
-Lean. S1 is done since (§6.4.6, item 1, has its record); the rest is not. It supersedes §6's staging for Chorus
+Lean. S1, S1b and S2 are done since (§6.4.6, items 1 and 2, have their records); the rest is not. It supersedes §6's staging for Chorus
 (steps 1–3), which predates the MVBA leg. §6.2 and §6.3 are the template.
 Decisions are recorded with their reasons. Those marked **open** are for
 Lars to take: item 1 above all, and the two class changes it depends on.*
@@ -1796,6 +1796,62 @@ The table has three consequences:
   the certificates travel inside the decided value. If step 5b
   reclassifies `decide`, re-check these two rows against that argument.
 
+**The table as built** (S2, 2026-09-30; `Chorus.hop`, `Chorus.gate` and
+`Chorus.Owed` in [Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)).
+Each row has a bound, a gate, and a condition under which it is owed at all.
+
+| row | bound | gate | owed when |
+|---|---|---|---|
+| `deliver_chunk_assigned i j m` | `Δ` | `Active j` | always (the proposer is correct by the guard) |
+| `record_chunk` | `δ` | none | always |
+| `vote i` | `δ` | `Active i`, phase past `D` | always |
+| `aggregate_fastqc_* … q` | `Δ` | none | the quorum `q` is correct |
+| `commit_sign_* i …`, `cast_fast_commit i` | `δ` | `Active i` | always |
+| `broadcast_commitqc_* c … q` | `Δ` | `Active c` | the quorum `q` is correct |
+| `fb_sign_pos i j m q qc` | `Δ` | `Active i`, the fallback arm | `q` and `qc` correct, and a correct supermajority has cast its votes |
+| `fb_sign_neg i j qv` | `Δ` | `Active i`, the fallback arm | `qv` correct |
+| `cast_fallback_vote i` | `δ` | `Active i`, the fallback arm | always |
+| `mvba_propose i v _` (one family per `(i, v)`) | `Δ` | `Active i`, the MVBA arm | `FBCert` from a correct supermajority, or `i`'s own complete fast meta-block |
+| `on_mvba_decide_*`, `mvba_terminate` | `δ` | the MVBA arm | always (the guard reads `i`'s own decision) |
+| `redisseminate_chunk k i j m` | `Δ` | `Active k` | `f+1` correct validators hold their chunk under `(j, m)` |
+| `cast_fb_commit i` | `δ` | `Active i`, the MVBA arm | `i` has itself decided |
+| `commit_assign_* i j …` | `Δ` | `Active i` | a correct validator finalized with that entry, or the fallback commit certificate from correct voters over the decided entry |
+| `finalize_commit i` | `δ` | `Active i` | always |
+
+The reconciliation with the labels since R5: the Byzantine splits
+(`byz_broadcast_commitqc_*`, `byz_redisseminate_chunk`) are unfair and have
+no row, and the honest collector and re-disseminator are rows at their
+correct sender. `hop_isSome_iff` pins that the table covers exactly the fair
+labels that are not phase markers. `mvba_propose`'s gate is the MVBA arm,
+not the fallback arm, because the case-(a) trigger waits for it and §6.4.3's
+timeline reaches the proposals only after it.
+
+**The decision-handler re-check.** Step 5b made the MVBA's `decide` a
+network hop ((N3), `Mvba.BoundedJustice.decisions`). The two δ-rows
+**stand**. Each handler fires on the acting validator's *own* MVBA decision,
+which is a local output, and the certificates its bridge check reads hold at
+that decision by `ValidBridge`'s completeness. The transfer (N3) is about is
+the transfer of a decision to a validator that did not decide first, which
+is the MVBA's own `decide` step. Its cost, `Δ + ρ`, is inside `ℓ_MVBA`.
+
+**Two findings against the table above, both built into the statement.**
+
+* **F5: the paper owes delivery only between correct validators**
+  (`prop:chorus-finalization-time`'s proof: "every message between correct
+  validators is delivered within Δ"). The model's network relations hold
+  from a message's first delivery to anyone, a Byzantine sender's included.
+  So a Δ-row that consumes a Byzantine validator's message would owe a
+  delivery the paper does not promise, since a Byzantine voter may send to
+  some validators only. That is the MVBA's C16 finding, on Chorus's side.
+  Each Δ-row is therefore owed only when the messages it consumes came from
+  correct senders (the last column). The untimed `FJustice` has the same
+  shape, and the finding applies to it too: TODO § Liveness.
+* **F6: `cast_fb_commit` reads a shared flag.** Its guard is
+  `mvba_complete`, which the first validator to decide sets. The paper's
+  rule fires on the voter's own decision (`line:fb-commitvote`). As a δ-row
+  with no condition it would owe a vote from a validator whose MVBA has not
+  decided. The row is owed once the voter itself has decided.
+
 **The phase markers become punctual timers**, leaving the hop table as
 the MVBA's `expire_timer` left it. **(P-phase)**, for each landmark
 `L ∈ {D, D + Δ, D + 2Δ}` and its marker:
@@ -1990,26 +2046,71 @@ The instance, shared with the untimed claim:
   cancellative Archimedean time): obvious, `Schedule.fixedNat` over `ℕ`.
 * **The deadline `D`**: any value.
 
-The timing model:
+**The timed claims as stated** (S2, 2026-09-30,
+[Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)). The premises of
+`TimedTerminationClaim`, one by one; `TotalityClaim` takes a subset of them
+(the first and the last two of the caller's), so its ledger is a sub-ledger.
 
-* **(Δδ-justice) over Chorus's table, with the proposal family**: each row
-  is obvious alone. Jointly they are **not obvious**, because the family
-  quantifies over every value, including ones that never become
-  proposable.
-* **(P-phase)**: obvious. The markers fire at the clock readings `D`,
-  `D + Δ`, `D + 2Δ`.
-* **The MVBA's `Admissible` on the projection, with `Scheduled`**:
-  obvious alone (`Mvba.admissible_exists`). Jointly **not obvious**,
-  because Chorus's own fairness drives the MVBA's inputs.
-* **`ValidBridge`**: **not obvious**. It fixes the MVBA theory's `valid`
-  against Chorus's network at every index (§6.3.3).
+The timing model, `Sync`:
 
-The caller's conditions:
+* **(Δδ-justice), `TimedJustice`**: every row of the table in §6.4.2 is
+  `BufferedFair` at its bound, gate and owed-condition, and the proposal is
+  one family per `(i, v)`. **Each row is obvious alone**: a run in which the
+  row's label is never enabled with its gate open, or fires at once. The
+  owed-conditions only remove obligations (F5, F6), so they cannot make the
+  set harder to satisfy. **Jointly not obvious**, for two reasons. The
+  family quantifies over every value, including ones that never become
+  proposable. And the rows share one clock: with `δ = 0` a `δ`-row enabled
+  at `N` is due by `ref N`, so it must fire before the clock moves. The
+  witness answers both with §6.3.1's device: the clock advances only at
+  states where no row is enabled.
+* **(P-phase), `PhasePunctual`**: **obvious alone**: the markers fire at the
+  clock readings `D`, `D + Δ`, `D + 2Δ`. **Jointly with the rows, obvious
+  by construction**: the clock stops at each landmark, where the marker
+  fires first. (P2) forbids the clock from jumping over a landmark, and the
+  device above only lets it advance at quiet states, so the two rules
+  agree.
+* **The MVBA's timing, `TimedMvbaAdmissible T`**: at the system's
+  instance, `Mvba.Admissible` of the timed projection
+  (`Chorus.timedMvbaAdmissible_atMvba_iff`; a witness supplies it with
+  `Chorus.timedMvbaAdmissible_of_sync`). **Obvious alone**
+  (`Mvba.admissible_exists`). **Jointly not obvious**, for two reasons.
+  Chorus's own steps drive the MVBA's inputs (`mvba_propose`, `abandon`).
+  And a projection needs the MVBA to be stepped infinitely often
+  (`Scheduled`), so the composed run's tail has to keep taking MVBA steps
+  (the MVBA witness's availability marks, as oracle steps) without enabling
+  any row. **One clause is assumed rather than derived**: the MVBA's
+  `decisions` clause asks the composing layer to deliver a decided commit
+  certificate within `Δ + ρ` (C15, TODO § Liveness). In the composed system
+  that is Chorus's job. The Chorus model has no step that carries the
+  certificate, since the MVBA's messages live inside its abstract state and
+  its `decide` is the oracle step's. So the clause stays inside
+  `T.Admissible`, named, with its cost inside `T.ℓ`.
 
-* **Everyone starts by `t`; starts are Δ-synchronized; nobody starts
-  before `D − Δ`; nobody abandons before finalizing**: jointly obvious.
-  Everyone starts at `D − Δ` and abandons (if at all) after finalizing.
-  That is the Conductor's steady state.
+The bridge:
+
+* **`ValidBridge`**: **not obvious**, unchanged from the untimed claim. It
+  fixes the MVBA theory's `valid` against Chorus's network at every index
+  (§6.3.3).
+
+The caller's conditions, the contract's antecedents:
+
+* **`AllParticipateBy t`, `SyncParticipationWithin Δ`, `NoEarlyStart` (C2),
+  `NoAbandonBeforeFinalizing` (C1)**: **jointly obvious**. Everyone starts
+  at clock `D − Δ` and abandons, if at all, after finalizing. That is the
+  Conductor's steady state. With the timing model they agree too: an
+  abandonment closes the abandoning validator's gates, which removes
+  obligations, not adds them.
+
+The instance of the claim: a schedule `sch` (any `Mvba.Schedule` plus any
+`D`) and an MVBA contract `T`; at the system's MVBA,
+`T := Mvba.mvbaTemporal`, whose hypotheses are the first three bullets
+above.
+
+What the ledger must say besides, so that an auditor comparing proofs does
+not trip on it: the model's `finalized` is the committed entry vector, so
+the paper's payload recovery (`line:da-recover-slot`) has no counterpart in
+either claim (§6.4.4).
 
 The untimed claim after option A:
 
@@ -2162,6 +2263,47 @@ after its step 2.
    * (P-phase) and the timed `MvbaAdmissible`;
    * the two claims as `Prop` definitions **before any proof**, the
      discipline of [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean).
+
+   **Done** (2026-09-30, the "R7" PR). Plain Lean only; no Veil file, no
+   Interfaces.lean edit, nothing re-solved, and every `#veil_status` pin
+   unchanged. What an auditor should know:
+
+   * **Timed.lean.** (Δδ-justice) is `BufferedFair` (one label) and
+     `BufferedFairFamily`. With `N = N'`, a trivial gate and `δ ≤ D` it is
+     `BoundedFair` (`bufferedFair_iff_boundedFair`). `BoundedFairFamily` is
+     the timed twin of `WeaklyFairFamily`. The timed projection is
+     `Component.Projection.timed`, with the back-transfer (`timed_back`), a
+     forward transfer (`timed_forward`) and `boundedFair_iff`, the timed
+     twin of `weaklyFair_iff`.
+   * **Chorus/Schedule.lean.** The schedule, `hop` (pinned by
+     `hop_isSome_iff`), `gate`, `Owed`, `TimedJustice`, `PhasePunctual`,
+     `TimedMvbaAdmissible`, the caller's conditions, and the two claims
+     `TimedTerminationClaim` and `TotalityClaim`. The header states the
+     gate checklist. §6.4.2 has the table as built and §6.4.5 the ledger
+     draft.
+
+   Changes to the plan, each small:
+
+   * **An owed-condition per row** (F5, F6, §6.4.2). The generic clause
+     takes a condition `C` beside the gate: what the environment must have
+     supplied for the step to be owed. For Chorus that is correct senders,
+     and, for `cast_fb_commit`, the voter's own decision. With `C` trivially
+     true the clause is §6.4.2's verbatim.
+   * **The claims are generic in the MVBA contract `T`.** Both consume only
+     `T.Admissible` and `T.ℓ`, so the statement holds for any
+     `T : MVBATemporal … (S := mvbaSafety thM)`, and the system's MVBA is
+     the instance `T := Mvba.mvbaTemporal …` (`mvbaTemporal_ℓ`,
+     `timedMvbaAdmissible_atMvba_iff`, by `rfl`).
+   * **The `δ`-multiple of `ℓ` is fixed now**, at `8`
+     (`Lchorus Δ δ ℓM = 5Δ + ℓM + 8δ`). The docstring derives it milestone
+     by milestone. S3–S4 confirm it, or restate it before the instance, as
+     `Lcert` was.
+   * **`TotalityClaim` takes fewer premises than the class field allows**:
+     (Δδ-justice), participation synchronized within `d`, and C1. Neither
+     the phase timers, nor the MVBA, nor the bridge is a premise. That makes
+     the claim stronger, and it implies the field.
+   * **`mvba_propose`'s gate is the MVBA arm** (§6.4.2), and the family is
+     owed on a correct trigger only.
 3. **S3: totality and the timeline to `M + 3Δ`.** Totality comes first,
    because it is small and validates the scaffolding. Then the links up to
    the MVBA proposals. The reassessment asks two things: did the hop table
