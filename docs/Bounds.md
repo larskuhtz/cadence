@@ -338,17 +338,18 @@ check the premises against the supplement without reading Lean.
   **eventually above the chain latency** (§6.2.3). The paper's fixed known
   timeout is the special case; *unbounded* backoff is incompatible with the
   contract's fixed `ℓ`, which is the first finding.
-* Fairness is bounded weak fairness after GST on **state-changing** steps,
+* Fairness is bounded weak fairness after GST over plain enabledness,
   with the window measured from `max(now, gst)` so that a clock jump over a
   pending obligation's deadline is inadmissible (§6.2.4). A local step is
   held to `δ`. A step that consumes another party's message is held to what
   the supplement's network guarantees (since step 5b, 2026-09-29): `Δ` for
   messages sent at or after GST by correct validators and retained, `Δ + ρ`
-  for the retransmitted classes. Plain enabledness would make every
-  admissible model unsatisfiable once a proposal exists. That is the second
-  finding. It concerned the untimed leg too, and since R3 the untimed
-  fairness of [Fairness.lean](../Cadence/Fairness.lean) is stated over
-  state-changing steps as well (§6.2.4).
+  for the retransmitted classes. While some fair labels stayed enabled
+  after firing, plain enabledness made every admissible model
+  unsatisfiable once a proposal existed. That was the second finding
+  (§6.2.4), answered first in the premises (R3: fairness over
+  state-changing steps) and since R4–R6 in the model: every fair action
+  fires once, and the premises read plainly again (§6.4.7).
 * (A-viewsync) is not assumed anywhere. Its two clauses are derived as a
   corollary of the timed premises; the bound itself is proven directly by
   a timed re-run of the chain and does **not** consume `Mvba.termination`
@@ -549,7 +550,7 @@ from `max(t, gst)`.
 | Clause | Names | Says | Paper |
 |---|---|---|---|
 | (F-byz) | — | nothing of `ByzLabel` | — |
-| (Δ-justice) | `BoundedJustice` | six clauses, each of the form: if `l` is **move-enabled** at every index `n ≥ N` with `clk n ≤ ref N + D` (and the clause's side condition holds there), then `l` fires within `D` of `N`. A local step at `D = δ`; a network step at `D = Δ` when its messages were sent at or after GST by correct validators and retained, or at `D = Δ + ρ` when they are retransmitted (tables below) | the termination setting before `lem:decision-propagation` (delivery within `Δ` of messages sent at or after GST; retransmission every `ρ`), `sec:reliable-delivery` (one-view retention), `lem:view-sync`, `lem:convergence`, `lem:decision-propagation`; local computation within `δ` (the paper: instantaneous, `δ = 0`) |
+| (Δ-justice) | `BoundedJustice` | six clauses, each of the form: if `l` is **enabled** at every index `n ≥ N` with `clk n ≤ ref N + D` (and the clause's side condition holds there), then `l` fires within `D` of `N`. A local step at `D = δ`; a network step at `D = Δ` when its messages were sent at or after GST by correct validators and retained, or at `D = Δ + ρ` when they are retransmitted (tables below) | the termination setting before `lem:decision-propagation` (delivery within `Δ` of messages sent at or after GST; retransmission every `ρ`), `sec:reliable-delivery` (one-view retention), `lem:view-sync`, `lem:convergence`, `lem:decision-propagation`; local computation within `δ` (the paper: instantaneous, `δ = 0`) |
 | (T-timer) | `TimerPunctual` | for honest `i`: (T1) `expire_timer i v` fires at `n` only if `clk m + τ v ≤ clk n` for some `m ≤ n` with `entered i v` at `m`; (T2) if `entered i v` at `m`, then `timer_expired i v` at some `n ≥ m` with `clk n ≤ clk m + τ v` | the local view timer, restarted on entry, expiring after exactly `τ v` |
 | (Δ-avail) | `AvailWithin` | for honest `i`: `accepted i v e` at `m` ⇒ `avail_ready i e` within `Δ_sync` of `m` | `lem:avail-progress`'s `Δ_sync` |
 
@@ -631,7 +632,11 @@ since no action or property was added. The good view is unaffected: there
 every correct validator receives the whole correct quorum's prepares within
 the same `Δ`, and the chain gets one milestone shorter (§6.2.6).
 
-**Move-enabledness, and the second finding.** [Fairness.lean](../Cadence/Fairness.lean)'s `Enabled`
+**Move-enabledness, and the second finding.** *(History, superseded by R6
+(§6.4.7): the finding is resolved in the model, and every fairness premise
+is stated over plain `Enabled` again. The two paragraphs below are the R3
+record; "Resolved in the model" after them is the current state.)*
+[Fairness.lean](../Cadence/Fairness.lean)'s `Enabled`
 holds whenever *some* transition under the label exists — a stutter
 included. Two of the model's assembly labels differ only in the quorum
 parameter `q`, and the actions are idempotent: once `msg_prepqc v e` is
@@ -665,6 +670,23 @@ witness of §6.3 shows it holding without the finite-sort argument it used
 to need. Each link of the untimed chains pays the side condition once,
 with the effect it waits for (`EnabledMove.of_enabled_of_effect`, or
 `eventually_of_weaklyFair`, which pays it inside).
+
+**Resolved in the model (R4–R6, 2026-09-30).** The finding was about the
+model, not the premise: it had fair labels that stay enabled after firing.
+S1b (§6.4.7) removed them. Every fair action now has a "not already" guard
+on a record its own step sets, as the paper's rules do, and each model
+proves that no fair label is enabled without being able to change the
+state, at every state: `Mvba.enabledMove_of_enabled` and
+`Chorus.justice_enabledMove`. So the premises are stated with plain
+enabledness again — an action enabled from some point on eventually fires
+— with no qualifier: `WeaklyFair`, `WeaklyFairFamily`, `StronglyFair`,
+`BoundedFair` and `BoundedFairWhile` are over `Enabled`, and so both
+`FJustice`s and `BoundedJustice` are. For these models that is the same
+premise as R3's: `Mvba.fJustice_iff_move`, `Chorus.fJustice_iff_move`,
+`Mvba.boundedFair_iff_move` and `Mvba.boundedFairWhile_iff_move` state the
+equivalence, from the acceptance lemmas. `EnabledMove` remains only as the
+vocabulary of those four bridges, and the proofs lost the side condition
+(`EnabledMove.of_enabled_of_effect` is gone).
 
 **What is deliberately absent**, the checklist §6 asked for: no clause
 mentions a good view, the leader rotation, or GST as a model event. Every
@@ -712,9 +734,9 @@ validator has entered some view `≥ v` by time `X ≥ gst`:
 | milestone | by | why |
 |---|---|---|
 | every correct validator still in `v` has its timer expired | `X + τ v` | (T2) from its entry, which is `≤ X` |
-| … and has timed out or left `v` | `+ 2δ` | `timeout_*` is move-enabled; at most one `adopt_prepqc` can intervene in `v` and change the highest held certificate, so one restart of the `δ` window |
+| … and has timed out or left `v` | `+ 2δ` | `timeout_*` is enabled; at most one `adopt_prepqc` can intervene in `v` and change the highest held certificate, so one restart of the `δ` window |
 | a timeout certificate for some view `≥ v` exists | `+ Δ` | either a correct validator is above `v`, which needs one, or the correct quorum's timeouts are all sent and a correct validator in `v` forms the certificate (`form_own_tc_*`, since R4); a first delivery, the timeouts retained by the first member to send one, which was in `v` then and forms it |
-| `Synced (succ v)` | `+ Δ` | `sync_view` move-enabled for everyone at `≤ v`; a first delivery of a certificate formed after GST |
+| `Synced (succ v)` | `+ Δ` | `sync_view` enabled for everyone at `≤ v`; a first delivery of a certificate formed after GST |
 
 so `Synced (succ v) (X + C)` with **`C = τ_max + 2δ + 2Δ`** — the
 supplement's `τ_{w+1} ≤ τ_w + 2Δ + T` (`lem:convergence`) at `δ = 0`.
@@ -1297,7 +1319,7 @@ The timed claim, `Mvba.timed_termination`:
   every label than before — a longer window only weakens a bounded-fairness
   clause, and every side condition does too — so admissibility is easier
   to meet, and the model below meets it for the same reason as
-  before: its clock advances only where no fair label is move-enabled.
+  before: its clock advances only where no fair label is enabled.
   The model sends nothing before GST, discards nothing, and every validator
   forms its prepare and commit certificates itself (since R4 each correct
   validator's `form_own_commitqc` is also its decision). So its run is admissible under either
@@ -1310,17 +1332,19 @@ The timed claim, `Mvba.timed_termination`:
 
 The untimed claim, `Mvba.termination`:
 
-* **(F-justice)**, weak fairness of every honest action — if it can take a
-  step that changes the state from some point on, it takes one: **obvious
-  once stated that way.** A run that does all the work there is to do and
-  then idles meets it, since at the idle state no honest action can change
-  anything — since R4 none is even enabled, every fair action being one
-  correct validator's step guarded on its own record
-  (`Mvba.enabledMove_of_enabled`, §6.4.7). The model does exactly that.
-  Nothing depends on the quorum sort being finite. (Until R3 the premise was stated with plain enabledness,
-  under which a step changing nothing still counted, and at a `nodeset`
-  sort with infinitely many supermajorities no run satisfied it once a
-  prepare certificate existed; §6.2.4.)
+* **(F-justice)**, weak fairness of every honest action — if it is
+  enabled from some point on, it fires: **obvious.** A run that does all
+  the work there is to do and then idles meets it, since at the idle state
+  no honest action is enabled: every fair action is one correct
+  validator's step guarded on its own record, so it disables itself by
+  firing (`Mvba.enabledMove_of_enabled`, §6.4.7). The model does exactly
+  that. Nothing depends on the quorum sort being finite. The plain
+  premise is the same as weak fairness over state-changing steps
+  (`Mvba.fJustice_iff_move`). (History: before R4 some fair labels stayed
+  enabled after firing, one per quorum, and under plain enabledness no run
+  satisfied the premise at a `nodeset` sort with infinitely many
+  supermajorities; from R3 to R6 the premise was therefore stated over
+  state-changing steps, §6.2.4.)
 * **(A-viewsync)**, the view timer as ordering constraints: **not
   obvious** on its face, but it is a corollary of the timed premises
   (`Mvba.aViewSync_of_sync`), so it inherits their satisfiability. The
@@ -1358,12 +1382,12 @@ does (§6.3.2).
   validator `i`. Each transition, and each premise, is then linear
   arithmetic over the index.
 * **Why the timed fairness premise is easy here.** The clock advances only
-  out of states at which no fair label is move-enabled. So from every
+  out of states at which no fair label is enabled. So from every
   index there is a later one on the same clock reading at which a given
-  fair label is not move-enabled, and bounded weak fairness holds with its
+  fair label is disabled, and bounded weak fairness holds with its
   antecedent false. The run is fair because it never leaves an obligation
   pending while time passes. The untimed weak fairness holds for the same
-  reason: at the idle state no fair label is move-enabled (`quiet`), so its
+  reason: at the idle state no fair label is enabled (`quiet`), so its
   antecedent fails from every index on.
 
 #### 6.3.2 The finding: the model did not halt a validator after deciding
@@ -1413,8 +1437,9 @@ the stated bridge between the MVBA's decision and the network's
 certificates at Chorus's decision handlers. It relates two sub-states,
 and a model must produce certificates that satisfy it, not merely an MVBA
 run that decides. `FJustice` over Chorus's own quorum labels needs no
-finite-sort argument since R3: it is stated over state-changing steps, as
-here, so an idle tail owes nothing.
+finite-sort argument: every fair action fires once
+(`Chorus.justice_enabledMove`, §6.4.7), so at an idle tail no fair label
+is enabled and the tail owes nothing.
 
 ### 6.4 The Chorus leg: the kick-off record
 
@@ -1518,7 +1543,7 @@ timed claims are the paper's statements and the contract instances exist.
 * The time theory is §6.2.2's, including cancellation. The timing
   constants are the MVBA schedule's `Δ` and `δ`. Chorus adds only the
   deadline (§6.4.2).
-* Fairness is bounded fairness on state-changing steps with a hop table.
+* Fairness is bounded fairness over plain enabledness with a hop table.
   The hop is split into a network part and a local gate (F2). The phase
   markers leave the table and become punctual timers (§6.4.2).
 * The MVBA is consumed **through the contract**: `T.Admissible` of the
@@ -1718,16 +1743,18 @@ of `Chorus.termination` becomes:
 
 **`FJustice` becomes buffered bounded fairness, with a hop table.** It
 covers every justice label except the three phase markers (below) and the
-inputs (§6.4.1). It is stated for `EnabledMove`, as in §6.2.4, and since
-R3 so is the untimed claim's `FJustice`: the §6.2.4 caveat about `Enabled`
-is answered on both sides. The proposal family becomes
-its timed twin, `BoundedFairFamily`: if some `mvba_propose i v _` stays
-move-enabled over the window, one of them fires within it. The clause,
+inputs (§6.4.1). It is stated over plain enabledness, as §6.2.4's
+`BoundedFair` and the untimed claim's `FJustice` are since R6: every fair
+action of the model fires once (`Chorus.justice_enabledMove`), so the
+§6.2.4 caveat about `Enabled` is answered in the model. The proposal
+family becomes its timed twin, `BoundedFairFamily`: if some
+`mvba_propose i v _` stays enabled over the window, one of them fires
+within it. The clause,
 generic in [Timed.lean](../Cadence/Timed.lean), with `gate l` the label's
 local gate and `W = max (ref N + hop l) (ref N' + δ)`:
 
   **(Δδ-justice)** For `N ≤ N'`: suppose that at every index `n ≥ N` with
-  `clk n ≤ W` at which `gate l` holds, `l` is move-enabled, and that
+  `clk n ≤ W` at which `gate l` holds, `l` is enabled, and that
   `gate l` holds at every index `n ≥ N'` with `clk n ≤ W`. Then `l`
   fires with its post-state inside `W`.
 
@@ -1986,12 +2013,12 @@ The caller's conditions:
 
 The untimed claim after option A:
 
-* **`FJustice`**, over state-changing steps since R3, with the proposal
-  family: obvious alone, as in §6.3, and at every quorum sort — once the
-  run is idle no fair label is move-enabled, so the tail owes nothing.
-  Since R5 no fair label is enabled without being move-enabled
-  (`Chorus.justice_enabledMove`), so for this model the premise reads the
-  same over plain enabledness (§6.4.7).
+* **`FJustice`**, weak fairness over plain enabledness, with the proposal
+  family: obvious alone, as in §6.3, and at every quorum sort — every fair
+  action fires once (`Chorus.justice_enabledMove`, §6.4.7), so once the
+  run is idle no fair label is enabled and the tail owes nothing. The
+  premise is the same as weak fairness over state-changing steps
+  (`Chorus.fJustice_iff_move`), the form it had from R3 to R6.
   Jointly **not obvious** for the same reason as the timed row: the family
   quantifies over every value.
 * **`MvbaAdmissible`, `ValidBridge`**: as above.
@@ -2015,9 +2042,10 @@ claims; the untimed projection forgets the clock. The run:
   proposer to its root and every other validator to `none`, which is the
   only certifiable vector in this run. With one proposer and no negative
   evidence, uniqueness is a short argument.
-* The clock advances only at states where no row is move-enabled (the
+* The clock advances only at states where no row is enabled (the
   §6.3.1 device), and the untimed idle tail is one step that changes
-  nothing, which both fairness premises then ask nothing of.
+  nothing, at a state where no fair label is enabled, so both fairness
+  premises ask nothing of it.
 
 A witness that runs the MVBA arm would be stronger evidence of the
 proposal family and the completeness clause. It is not needed for joint
@@ -2210,10 +2238,10 @@ to go through, this leg must hand over the following.
 
 #### 6.4.7 Fired-once flags: fairness over plain enabledness
 
-*The plan for S1b (§6.4.6), decided 2026-09-30 after R3 (PR #48). Both
-model halves are built — the Chorus half in R5 ("The Chorus half: done") and
-the Mvba half in R4 ("R4 done: the Mvba half"), the records at the end of
-this section; the flip (R6) is not, as of these records.*
+*The plan for S1b (§6.4.6), decided 2026-09-30 after R3 (PR #48). **S1b is
+done**: the Chorus half in R5 ("The Chorus half: done"), the Mvba half in R4
+("R4 done: the Mvba half") and the flip in R6 ("R6 done: the flip"), the
+records at the end of this section.*
 
 **The decision.** Disabledness is modelled in the protocol, not resolved
 in the proof. Every fair action that can stay enabled after it has fired
@@ -2525,7 +2553,9 @@ know:
   and is re-pinned at 25 transitions (was 26): the view-2 certificate is
   now formed and decided on in one step. The search takes 27 min on one
   core (was about 3½ min), because the per-validator steps and
-  `tc_formed` multiply the states below that depth.
+  `tc_formed` multiply the states below that depth. *(Superseded in R6: a fixed
+  environment schedule brings it to about a minute, with the same witness;
+  "R6 done" below.)*
 * **Chorus** is untouched: `MvbaStepLabel`, `mvbaComponent` and
   `Chorus.termination` re-elaborate against the new model without an edit.
   The one change a Chorus reader sees is in meaning, not text:
@@ -2542,3 +2572,56 @@ Deviations from the plan, each small:
   good view's decision now comes with the certificate, and the others'
   come by transfer. The clause is kept, as the supplement's network
   rule; R6 may drop it.
+
+**R6 done: the flip** (2026-09-30). What an auditor should know:
+
+* **The premises read plainly.** [Fairness.lean](../Cadence/Fairness.lean)'s
+  `WeaklyFair`, `WeaklyFairFamily`, `StronglyFair` and the projection's
+  `WeaklyFairIn`, [Timed.lean](../Cadence/Timed.lean)'s `BoundedFair` and
+  [Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean)'s `BoundedFairWhile`
+  are over `Enabled`: an action enabled from some point on eventually fires
+  (within its window, for the timed ones). Both `FJustice`s and
+  `Mvba.BoundedJustice` are stated with these notions. Their definitions'
+  text did not change; their docstrings dropped the state-changing
+  qualifier and cite the acceptance lemma.
+* **The bridge, per model**, from the acceptance lemmas and pinned at the
+  trio (also in [Cadence.lean](../Cadence.lean)):
+
+  ```
+  theorem Mvba.fJustice_iff_move (r : MvbaRun th) :
+      FJustice r ↔ ∀ l, JusticeLabel l → WeaklyFairMove r l
+  theorem Chorus.fJustice_iff_move (r : ChorusRun thS thM) :
+      FJustice r ↔
+        (∀ l, JusticeLabel l → ¬ ProposeLabel l → WeaklyFairMove r l) ∧
+        ∀ i v, WeaklyFairFamilyMove r (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)
+  ```
+
+  and, for every fair label, `Mvba.boundedFair_iff_move` and
+  `Mvba.boundedFairWhile_iff_move` for (Δ-justice)'s clauses. The right-hand
+  sides are R3's premises, TLA+'s `WF_v`. So the plain premise is not a new
+  assumption: for these models it is the same one. `EnabledMove` and the
+  move forms remain only as the vocabulary of those bridges.
+* **The proofs lost their side conditions.** Every
+  `EnabledMove.of_enabled_of_effect` is gone, the lemma with them.
+  `eventually_of_weaklyFair` and `withinFrom_of_boundedFair(While)` kept
+  their statements. The quiet-state lemmas now say what their proofs
+  already showed, that no fair label is *enabled* (`Mvba.not_enabled_of_quiet`,
+  `Mvba.Witness.quiet`), so both MVBA witnesses stand unchanged in
+  statement. `Mvba.termination`, `Mvba.bounded_termination`,
+  `Mvba.mvbaTemporal`, both witness theorems and `Chorus.termination` are
+  re-proven at `[propext, Classical.choice, Quot.sound]`. No end theorem's
+  statement changed.
+* **Deviations from the plan.** The helper lemmas that name the vocabulary
+  changed with it: `exists_disabled_of_never_fires` concludes `¬ Enabled`,
+  `exists_not_moveEnabled_of_not_firesWithin` became
+  `exists_not_enabled_of_not_firesWithin`, `not_moveEnabled_of_quiet`
+  became `not_enabled_of_quiet`, `boundedJustice_of_quiet`'s hypothesis is
+  plain disabledness, and the unused `enabledMove_of_fires_of_ne` is gone.
+  `decide`'s first-delivery clause is kept, as the supplement's network
+  rule.
+* **CI headroom, alongside.** [Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean)'s
+  search fixes the environment's schedule (its header, item 5) and drops
+  three honest steps the scenario does not take (item 3). The check keeps
+  `sequential := true`, and it reports the same pinned witness, in about a
+  minute instead of 24 on one core. The Conductor's in-file sweep already
+  had a 180 s budget; #51 read its two slowest cells against 60 s.

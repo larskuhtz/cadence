@@ -142,18 +142,20 @@ come first.
   [MvbaPlan.md](MvbaPlan.md) §4's four instruments that does not already
   exist in some form.
 
-* **Fired-once flags, then fairness over plain enabledness** (decided
-  2026-09-30; the plan is [Bounds.md](Bounds.md) §6.4.7, staged as S1b in
-  §6.4.6, before S2 and the witness). Give every fair action that can
-  stay enabled after firing the local "not already" guard the paper gives
-  it: the MVBA's anonymous assemblies become per-validator steps, and
-  Chorus's `aggregate_fastqc_*` and `broadcast_commitqc_*` get their
-  guards. The anonymous forming stays as an unfair adversary capability.
-  Then state the fairness premises with plain enabledness again, and prove
-  per model that every enabled fair label changes the state if it fires.
-  This removes the state-changing qualifier R3 put in the premises. Three
-  sessions: R4 (Mvba model) and R5 (Chorus model), in parallel with their
-  re-solves serialized, then R6 (the flip, plain Lean), after both.
+* **Fired-once flags, then fairness over plain enabledness — done**
+  (2026-09-30; the plan and its records are [Bounds.md](Bounds.md)
+  §6.4.7). Every fair action that could stay enabled after firing has the
+  local "not already" guard the paper gives it: the MVBA's anonymous
+  assemblies became per-validator steps (R4, PR #51), and Chorus's
+  certificate, chunk, entry and decision handlers got their fired-once
+  records (R5, PR #50); the anonymous forming stays as an unfair adversary
+  capability. The fairness premises are stated with plain enabledness again
+  (R6): an action enabled from some point on eventually fires. Per model,
+  every enabled fair label can change the state (`Mvba.enabledMove_of_enabled`,
+  `Chorus.justice_enabledMove`), so the plain premise is the same as R3's
+  state-changing one (`Mvba.fJustice_iff_move`, `Chorus.fJustice_iff_move`,
+  and for the timed clauses `Mvba.boundedFair_iff_move` and
+  `Mvba.boundedFairWhile_iff_move`).
 
 * **Try the timer-priority route, which would remove the good view from
   the premises entirely.** (A-viewsync)'s second clause is indexed by the
@@ -178,11 +180,10 @@ come first.
   premise-by-premise ledger in [Bounds.md](Bounds.md) §6.3. The run is the
   one planned here — everyone proposes and decides in one view, then idles —
   after a model fix the witness exposed: the model did not halt a validator
-  after deciding, as the supplement does (§6.3.2). Since R3 both
-  `FJustice`s are stated over state-changing steps
-  ([Fairness.lean](../Cadence/Fairness.lean)), so the premise holds at
-  every quorum sort, not only at finite ones, and the witness's idle tail
-  owes nothing ([Bounds.md](Bounds.md) §6.2.4).
+  after deciding, as the supplement does (§6.3.2). Every fair action of
+  both models fires once, so the premise holds at every quorum sort, not
+  only at finite ones, and the witness's idle tail owes nothing: there no
+  fair label is enabled ([Bounds.md](Bounds.md) §6.2.4 and §6.4.7).
 
   **Open for Chorus: `Chorus.termination` is proven, and its premises
   still need the satisfiability argument.** Non-vacuity here means what it
