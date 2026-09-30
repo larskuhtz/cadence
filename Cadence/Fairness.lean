@@ -312,6 +312,23 @@ theorem weaklyFairWhen_true {r : LRun sys th} {l : lbl} :
     WeaklyFairWhen r (fun _ => True) l ↔ WeaklyFair r l :=
   ⟨fun h N hen => h N fun n hn => ⟨trivial, hen n hn⟩, WeaklyFair.when⟩
 
+/-- A label owed unconditionally (`C` holds everywhere) is weakly fair. -/
+theorem WeaklyFairWhen.of_forall {r : LRun sys th} {C : σ → Prop} {l : lbl}
+    (h : WeaklyFairWhen r C l) (hC : ∀ s, C s) : WeaklyFair r l :=
+  fun N hen => h N fun n hn => ⟨hC _, hen n hn⟩
+
+/-- The form a link uses: owed and enabled from `N` on, the label fires. -/
+theorem WeaklyFairWhen.fires {r : LRun sys th} {C : σ → Prop} {l : lbl}
+    (h : WeaklyFairWhen r C l) (N : Nat) (hC : ∀ n, N ≤ n → C (r.at' n))
+    (hen : ∀ n, N ≤ n → Enabled sys th (r.at' n) l) : ∃ n, N ≤ n ∧ r.lbl n = l :=
+  h N fun n hn => ⟨hC n hn, hen n hn⟩
+
+/-- The same, for a family. -/
+theorem WeaklyFairFamilyWhen.fires {r : LRun sys th} {C : σ → Prop} {S : lbl → Prop}
+    (h : WeaklyFairFamilyWhen r C S) (N : Nat) (hC : ∀ n, N ≤ n → C (r.at' n))
+    (hen : ∀ n, N ≤ n → ∃ l, S l ∧ Enabled sys th (r.at' n) l) : ∃ n, N ≤ n ∧ S (r.lbl n) :=
+  h N fun n hn => ⟨hC n hn, hen n hn⟩
+
 /-- **One fairness link, owed while `C` holds** — `eventually_of_weaklyFair`
 with the condition supplied from `N` on. -/
 theorem eventually_of_weaklyFairWhen {r : LRun sys th} {C : σ → Prop} {l : lbl}

@@ -42,9 +42,13 @@ caller, and they are exactly the antecedents of the contract's own
 
 
 * **(F-justice)** — `FJustice`: every honest label that is neither the
-  oracle step nor one of the module's three inputs is weakly fair, the MVBA
-  proposal as one family per validator and value. Weakly fair means: if it
-  is enabled from some point on, it fires ([Fairness.lean](../Fairness.lean)).
+  oracle step nor one of the module's three inputs is weakly fair for the
+  messages of correct senders, the MVBA proposal as one family per
+  validator and value and the decision handoff as one family per receiver.
+  Weakly fair means: if it is enabled from some point on, and what it
+  consumes came from correct validators (`Owed`), it fires
+  ([Fairness.lean](../Fairness.lean)). The premise asks nothing of a
+  Byzantine validator's messages, which may reach some validators only.
   The classification is
   the `match` definitions below; the reasons weak fairness suffices are
   [Liveness.md](../../docs/Liveness.md) §2, and why the proposal is a family is §4.6
@@ -58,15 +62,17 @@ caller, and they are exactly the antecedents of the contract's own
   onto the MVBA (a labelling of its steps plus infinitely many of them —
   `Component.Projection`, whose header says why both are data) whose
   projected run satisfies `Mvba.FJustice`, `Mvba.AViewSync` and
-  `Mvba.FAvail`. Those are three of `Mvba.termination`'s five premises,
+  `Mvba.FAvail`. Those are three of `Mvba.termination`'s six premises,
   stated with that file's own definitions and restated nowhere. The other
-  two — every correct validator proposes, none is abandoned before deciding
-  — are the *caller's* premises and the caller is Chorus, so they are
-  **derived** in [Termination.lean](Termination.lean), not assumed: the first from (F-justice) on
-  `mvba_propose` and the progress dichotomy, the second from
+  three — every correct validator proposes, none is abandoned before
+  deciding, decided certificates are handed on — are the *caller's*
+  premises and the caller is Chorus, so they are **derived** in
+  [Termination.lean](Termination.lean), not assumed: the first from (F-justice) on
+  `mvba_propose` and the progress analysis, the second from
   `NoAbandonBeforeFinalizing` on the branch of the proof where no correct
   validator finalizes (the MVBA's `abandon()` is invoked only by Chorus's
-  `abandon`, `line:fb-abandon`). The premise is unconditional, as before:
+  `abandon`, `line:fb-abandon`), the third from (F-justice) on the handoff
+  `accept_mvba_commitqc` (`fRelay_of_fJustice`). The premise is unconditional, as before:
   the proof uses the MVBA only on that branch.
 * **The bridge** — `ValidBridge`: the MVBA's `Valid` agrees with Chorus's
   certificate check. Chorus consumes the MVBA through the class
@@ -193,25 +199,30 @@ def JusticeLabel (l : Chorus.Label slot node nodeset merkle_root mstate mvalue m
   ¬ ByzLabel l ∧ ¬ OracleLabel l ∧ ¬ InputLabel l
 
 /-- **The labels at which the MVBA's state moves**: the oracle step and the
-two driven inputs, `mvba_propose` and `abandon` (which forwards to the
-MVBA's `abandon()`, `line:fb-abandon`). This is the component's `isSub` (`mvbaComponent` below), a
-different cut from the fairness classes — `mvba_propose` is a justice label
-*and* an MVBA step, and it appears in the projected run as the MVBA's own
-`propose` label, which `Mvba.FJustice` excludes precisely because the
-caller schedules it. -/
+three driven inputs, `mvba_propose`, the handoff `accept_mvba_commitqc`,
+and `abandon` (which forwards to the MVBA's `abandon()`, `line:fb-abandon`).
+This is the component's `isSub` (`mvbaComponent` below), a different cut
+from the fairness classes — `mvba_propose` and `accept_mvba_commitqc` are
+justice labels *and* MVBA steps, and they appear in the projected run as the
+MVBA's own `propose` and `decide` labels, which `Mvba.FJustice` excludes
+precisely because the caller schedules them. -/
 def MvbaStepLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
   | .mvba_step _ => True
   | .mvba_propose .. => True
+  | .accept_mvba_commitqc .. => True
   | .abandon .. => True
   | _ => False
 
-/-- **The MVBA proposal** `mvba_propose i v mvba_next`: a justice label whose
-last parameter is a *result*, the MVBA's state after the input, not a choice
-the validator makes. `FJustice` therefore makes it fair per validator and
-value over that parameter (`Cadence.WeaklyFairFamily`) rather than per
-label; [Liveness.md](../../docs/Liveness.md) §4.6 (Finding 2) says why. -/
-def ProposeLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
+/-- **The two families**: the MVBA proposal `mvba_propose i v mvba_next` and
+the handoff `accept_mvba_commitqc i c mvba_next`. Each is a justice label
+whose last parameter is a *result*, the MVBA's state after the input, not a
+choice the validator makes. `FJustice` therefore makes the proposal fair per
+validator and value, and the handoff per receiver, over the rest of the
+parameters (`Cadence.WeaklyFairFamilyWhen`) rather than per label;
+[Liveness.md](../../docs/Liveness.md) §4.6 (Finding 2) says why. -/
+def FamilyLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
   | .mvba_propose .. => True
+  | .accept_mvba_commitqc .. => True
   | _ => False
 
 /-- **(F-byz), machine-checked at the only level it can be**: no label the
@@ -253,11 +264,12 @@ theorem mvbaStepLabel_of_oracle (l : Chorus.Label slot node nodeset merkle_root 
     (h : OracleLabel l) : MvbaStepLabel l := by
   cases l <;> trivial
 
-/-- An MVBA step is the oracle step or one of the two driven inputs
-(`mvba_propose`, and `abandon`'s forwarding), and nothing else. -/
+/-- An MVBA step is the oracle step or one of the three driven inputs
+(`mvba_propose`, the handoff, and `abandon`'s forwarding), and nothing
+else. -/
 theorem mvbaStepLabel_iff (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) :
     MvbaStepLabel l ↔ (∃ m, l = .mvba_step m) ∨ (∃ i v m, l = .mvba_propose i v m) ∨
-      (∃ i m, l = .abandon i m) := by
+      (∃ i m, l = .abandon i m) ∨ (∃ i c m, l = .accept_mvba_commitqc i c m) := by
   cases l <;> simp [MvbaStepLabel]
 
 end Labels
@@ -367,6 +379,7 @@ theorem mvba_st_frame_of_not_step
   cases l
   case mvba_step => exact absurd trivial hl
   case mvba_propose => exact absurd trivial hl
+  case accept_mvba_commitqc => exact absurd trivial hl
   case abandon => exact absurd trivial hl
   case participate => exact Chorus.participate.frame_mvba_st htr
   case advance_to_deadline => exact Chorus.advance_to_deadline.frame_mvba_st htr
@@ -459,6 +472,23 @@ theorem abandon_tr {i mvba_next}
   exact hab
 
 set_option maxHeartbeats 1000000 in
+/-- The handoff's guard is `mvba.accept`, which at the `Mvba` instance is the
+model's `decide` on the transferred certificate. -/
+theorem accept_mvba_commitqc_tr {i c mvba_next}
+    (htr : (atMvba thM).tr thS s (.accept_mvba_commitqc i c mvba_next) s') :
+    ∃ w e, c = .commitqc w e ∧
+      (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
+        s.mvba_st (.decide i w e) s'.mvba_st := by
+  chorus_tr htr
+  obtain ⟨-, -, hacc, htr⟩ := htr
+  chorus_field_simp
+  subst htr
+  cases c
+  all_goals first
+    | exact ⟨_, _, rfl, hacc⟩
+    | exact (hacc : False).elim
+
+set_option maxHeartbeats 1000000 in
 /-- The initial value of `mvba_st`, read off the initializer's transition. -/
 theorem mvba_st_init (hi : (atMvba thM).init thS s) : s.mvba_st = thS.mvba_init_state := by
   simp only [Chorus.relationalTransitionSystem, Chorus.Init, Chorus.initializer.ext.tr] at hi
@@ -484,6 +514,9 @@ noncomputable def mvbaComponent
     cases l with
     | mvba_step mvba_next => exact mvba_step_tr htr
     | mvba_propose i v mvba_next => exact ⟨.propose i v, mvba_propose_tr htr⟩
+    | accept_mvba_commitqc i c mvba_next =>
+      obtain ⟨w, e, -, h⟩ := accept_mvba_commitqc_tr htr
+      exact ⟨.decide i w e, h⟩
     | abandon i mvba_next => exact ⟨.abandon i, abandon_tr htr⟩
     | _ => exact absurd hl id
 
@@ -734,6 +767,17 @@ theorem redisseminate_chunk_moves {k i j : node} {m : merkle_root}
   simp_all
 
 set_option maxHeartbeats 1000000 in
+theorem accept_mvba_commitqc_moves {i : node} {c : Mvba.Msg view (node → Option merkle_root)} {n}
+    (htr : (atMvba thM).tr thS s (.accept_mvba_commitqc i c n) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_mvba_qc_accepted i) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
 theorem cast_fb_commit_moves {i : node}
     (htr : (atMvba thM).tr thS s (.cast_fb_commit i) s') : s' ≠ s := by
   rintro rfl
@@ -821,6 +865,7 @@ theorem justice_enabledMove
   case commit_assign_neg => exact commit_assign_neg_moves htr
   case finalize_commit => exact finalize_commit_moves htr
   case mvba_propose => exact mvba_propose_moves htr
+  case accept_mvba_commitqc => exact accept_mvba_commitqc_moves htr
   case byz_sign_proposer => exact absurd trivial hl.1
   case byz_deliver_chunk => exact absurd trivial hl.1
   case byz_redisseminate_chunk => exact absurd trivial hl.1
@@ -850,7 +895,145 @@ theorem mvba_propose_enabledMove {i : node} {v : node → Option merkle_root} {n
     EnabledMove (atMvba thM) thS s (.mvba_propose i v n) :=
   justice_enabledMove _ ⟨fun h => h, fun h => h, fun h => h⟩ hen
 
+/-- **Every member of the handoff family is move-enabled when it is
+enabled**, likewise. -/
+theorem accept_mvba_commitqc_enabledMove {i : node} {c : Mvba.Msg view (node → Option merkle_root)} {n}
+    (hen : Enabled (atMvba thM) thS s (.accept_mvba_commitqc i c n)) :
+    EnabledMove (atMvba thM) thS s (.accept_mvba_commitqc i c n) :=
+  justice_enabledMove _ ⟨fun h => h, fun h => h, fun h => h⟩ hen
+
 end Component
+
+/-! ## What a step is owed for: correct senders
+
+The paper's network delivers "every message between correct validators"
+(`prop:chorus-finalization-time`'s proof). The model's network relations
+hold from a message's first delivery to anyone, a Byzantine sender's
+included, so a step that consumes a Byzantine validator's message would be
+owed a delivery the paper does not promise: a Byzantine voter may send its
+vote to some validators only. `Owed` is the condition under which the
+paper's network owes the step, per label: the messages it consumes came from
+correct validators. Each is a fact about who sent a message, never a
+protocol conclusion. The untimed `FJustice` and the timed `TimedJustice`
+([Schedule.lean](Schedule.lean)) take the same conditions, so the two read
+alike. Stated for any MVBA, as the run-level chains of
+[Termination.lean](Termination.lean) are. -/
+
+section Owed
+
+open Classical
+
+variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+  [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root]
+  [Inhabited mstate] [Inhabited mvalue] [Inhabited mmsg]
+  [Inhabited Phase] [Inhabited PathChoice]
+  [nset : ByzNodeSet node nodeset]
+  [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
+  [mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)]
+  [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
+
+/-- A correct supermajority has broadcast its first-round votes. -/
+def CorrectVotesCast
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    Prop :=
+  ∃ q, nset.supermajority q ∧ Mvba.CorrectQuorum (node := node) q ∧
+    ∀ r, nset.member r q = true → s.msg_vote_cast r = true
+
+/-- A correct supermajority has broadcast its fallback votes: `FBCert` from
+correct senders. -/
+def CorrectFBCert
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    Prop :=
+  ∃ q, nset.supermajority q ∧ Mvba.CorrectQuorum (node := node) q ∧
+    ∀ r, nset.member r q = true → s.msg_fallback_sig r = true
+
+/-- A correct supermajority has broadcast its fallback commit votes:
+`fbCommitQC` from correct senders. -/
+def CorrectFbCommitQC
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    Prop :=
+  ∃ q, nset.supermajority q ∧ Mvba.CorrectQuorum (node := node) q ∧
+    ∀ r, nset.member r q = true → s.msg_fbcommit_sig r = true
+
+/-- `f+1` correct validators hold their chunk under `(j, m)`: the data is
+decodable from correct holders. -/
+def CorrectChunkQuorum (j : node) (m : merkle_root)
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    Prop :=
+  ∃ q, nset.greater_than_third q ∧ Mvba.CorrectQuorum (node := node) q ∧
+    ∀ r, nset.member r q = true → s.msg_chunk_received r j m = true
+
+/-- The MVBA proposal is owed when its trigger came from correct senders:
+`FBCert` from a correct supermajority, or the proposer's own complete fast
+meta-block, which is local. The certificates of a particular value need no
+condition: if `i` proposes any value, every member of the family is disabled
+for `i`. -/
+def proposeOwed
+    (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) (i : node)
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    Prop :=
+  CorrectFBCert s ∨ Chorus.complete_fast_metablock (nset := nset) (mvba := mvba) i th s
+
+/-- The handoff is owed once a correct validator has decided: its decision
+output carries the certificate (`mvba.decided_certified`), and Chorus
+broadcasts it (the supplement's "Decision output and handoff"). -/
+def relayOwed
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    Prop :=
+  ∃ j v, ¬ nset.is_byz j = true ∧ mvba.decided s.mvba_st j v
+
+/-- **What a step is owed for.** Per label, the condition under which the
+environment owes the step at all.
+
+* `aggregate_fastqc_*`: the vote quorum is correct, or a correct validator
+  that cast its fast commit vote holds the FastQC — the same rule broadcasts
+  its `FastBlock` (`line:fast-metablock`), whose FastQCs a receiver adopts;
+* the other rows over a quorum parameter: the quorum is correct;
+* `fb_sign_pos`: also the `2f+1` votes its guard counts, from correct voters;
+* the proposal: its trigger from correct senders (`proposeOwed`);
+* the handoff: a correct validator has decided (`relayOwed`);
+* `redisseminate_chunk k …`: the data decodable from correct holders, or
+  the sender `k` itself signed a positive fallback entry for the root, which
+  it could only do after decoding (`line:fb-redisseminate`);
+* `commit_assign_*`: a commitment proof a correct validator sent — a correct
+  validator's finalization re-broadcasts its proof
+  (`line:fast-rebroadcast-commitqc`, `line:fb-commit-rebroadcast`), and the
+  fallback commit certificate from correct commit voters, over the decided
+  entry;
+* `cast_fb_commit`: the voter has itself decided. The model's guard reads
+  the shared `mvba_complete`, which the first validator to decide sets; the
+  paper's rule fires on the voter's own decision (`line:fb-commitvote`);
+* everything else: nothing (`True`). The chunk's delivery has a correct
+  proposer by its guard, and the decision handlers and `mvba_terminate` fire
+  on the validator's own decision by theirs. -/
+def Owed (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) :
+    Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice →
+    Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) →
+      Prop
+  | .aggregate_fastqc_pos _ j m q => fun s => Mvba.CorrectQuorum (node := node) q ∨
+      ∃ k, ¬ nset.is_byz k = true ∧ s.msg_commit_cast k = true ∧ s.local_fastqc_pos k j m = true
+  | .aggregate_fastqc_neg _ j q => fun s => Mvba.CorrectQuorum (node := node) q ∨
+      ∃ k, ¬ nset.is_byz k = true ∧ s.msg_commit_cast k = true ∧ s.local_fastqc_neg k j = true
+  | .broadcast_commitqc_pos _ _ _ q => fun _ => Mvba.CorrectQuorum (node := node) q
+  | .broadcast_commitqc_neg _ _ q => fun _ => Mvba.CorrectQuorum (node := node) q
+  | .fb_sign_pos _ _ _ q qc => fun s => Mvba.CorrectQuorum (node := node) q ∧
+      Mvba.CorrectQuorum (node := node) qc ∧ CorrectVotesCast s
+  | .fb_sign_neg _ _ qv => fun _ => Mvba.CorrectQuorum (node := node) qv
+  | .mvba_propose i .. => proposeOwed th i
+  | .accept_mvba_commitqc .. => relayOwed
+  | .redisseminate_chunk k _ j m => fun s => CorrectChunkQuorum j m s ∨ s.msg_fb_pos_sig k j m = true
+  | .commit_assign_pos _ j m => fun s =>
+      (∃ k, ¬ nset.is_byz k = true ∧ s.local_committed k = true ∧
+        s.local_committed_pos k j m = true) ∨
+      (CorrectFbCommitQC s ∧ s.mvba_decided_pos j m = true)
+  | .commit_assign_neg _ j => fun s =>
+      (∃ k, ¬ nset.is_byz k = true ∧ s.local_committed k = true ∧
+        s.local_committed_neg k j = true) ∨
+      (CorrectFbCommitQC s ∧ s.mvba_decided_neg j = true)
+  | .cast_fb_commit i => fun s => ∃ v, mvba.decided s.mvba_st i v
+  | _ => fun _ => True
+
+end Owed
 
 /-! ## The premises, one named `Prop` each
 
@@ -883,13 +1066,21 @@ abbrev ChorusRun
   LRun (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM) thS
 
 /-- **(F-justice)** — weak fairness of every honest action that is neither
-the oracle step nor one of the three inputs: if from some point on a correct
-validator's action is enabled at every point, it eventually fires.
+the oracle step nor one of the three inputs, for the messages of correct
+senders: if from some point on a correct validator's action is enabled at
+every point, and the messages it consumes came from correct validators
+(`Owed`), it eventually fires. The premise asks nothing of a step on a
+Byzantine validator's message: such a message may reach some validators
+only, and the paper's network promises delivery only between correct
+validators.
 
-Every such label is weakly fair on its own, except the MVBA proposal: a
+Every such label is weakly fair on its own, except the two families. A
 validator `i` proposing `v` is weakly fair as one family over the MVBA's
-successor state, the label's result parameter — if `i` can propose `v`
-from some point on, it does.
+successor state, the label's result parameter — if `i` can propose `v` from
+some point on, with its trigger from correct senders, it does. And the
+handoff is one family per receiver `i` — once a correct validator has
+decided, if `i` can take a transferred certificate from some point on, it
+takes one.
 
 Every fair action of this model fires once: its guard requires a record its
 own step sets to be unset, so a fair label that is enabled can always
@@ -899,22 +1090,34 @@ firing, one per quorum, would have to fire forever — and why it is the same
 premise as weak fairness over state-changing steps, TLA+'s `WF_v`
 (`fJustice_iff_move`). -/
 def FJustice (r : ChorusRun thS thM) : Prop :=
-  (∀ l, JusticeLabel l → ¬ ProposeLabel l → WeaklyFair r l) ∧
-  ∀ i v, WeaklyFairFamily r (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)
+  (∀ l, JusticeLabel l → ¬ FamilyLabel l →
+    WeaklyFairWhen r (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l) l) ∧
+  (∀ i v, WeaklyFairFamilyWhen r (proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i)
+    (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)) ∧
+  ∀ i, WeaklyFairFamilyWhen r (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
+    (fun l => ∃ c mvba_next, l = .accept_mvba_commitqc i c mvba_next)
 
 /-- **The bridge**: for this model, (F-justice) over plain enabledness is the
 same premise as weak fairness over state-changing steps (TLA+'s `WF_v`, the
-form the premise had from R3 to R6), clause by clause. -/
+form the premise had from R3 to R6), clause by clause, with the same
+owed-conditions. -/
 theorem fJustice_iff_move (r : ChorusRun thS thM) :
     FJustice r ↔
-      (∀ l, JusticeLabel l → ¬ ProposeLabel l → WeaklyFairMove r l) ∧
-      ∀ i v, WeaklyFairFamilyMove r (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next) := by
+      (∀ l, JusticeLabel l → ¬ FamilyLabel l →
+        WeaklyFairWhenMove r (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l) l) ∧
+      (∀ i v, WeaklyFairFamilyWhenMove r (proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i)
+        (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)) ∧
+      ∀ i, WeaklyFairFamilyWhenMove r (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
+        (fun l => ∃ c mvba_next, l = .accept_mvba_commitqc i c mvba_next) := by
   refine and_congr (forall_congr' fun l => imp_congr_right fun hj => imp_congr_right fun _ =>
-      weaklyFair_iff_move fun _ => justice_enabledMove l hj)
-    (forall_congr' fun i => forall_congr' fun v =>
-      weaklyFairFamily_iff_move fun _ l hl hen => ?_)
-  obtain ⟨_, rfl⟩ := hl
-  exact mvba_propose_enabledMove hen
+      weaklyFairWhen_iff_move fun _ => justice_enabledMove l hj)
+    (and_congr (forall_congr' fun i => forall_congr' fun v =>
+      weaklyFairFamilyWhen_iff_move fun _ l hl hen => ?_)
+      (forall_congr' fun i => weaklyFairFamilyWhen_iff_move fun _ l hl hen => ?_))
+  · obtain ⟨_, rfl⟩ := hl
+    exact mvba_propose_enabledMove hen
+  · obtain ⟨_, _, rfl⟩ := hl
+    exact accept_mvba_commitqc_enabledMove hen
 
 /-- **The MVBA's scheduling premise**, replacing (A-mvba): the run has a
 projection onto the MVBA — a labelling of its steps that explains them, and

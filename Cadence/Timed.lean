@@ -516,6 +516,19 @@ theorem proj_eq_run_of_between {k m : Nat} (h₁ : p.entry k ≤ m)
       rw [Nat.count_succ, if_pos (p.scheduled.isSub_idx k)]
       exact Nat.succ_le_succ (le_of_eq (p.scheduled.cover_idx k).symm)
 
+/-- A composed index at or after the entry of projected state `k` is covered
+by `k` or a later projected state. -/
+theorem le_cover_of_entry_le {k n : Nat} (h : p.entry k ≤ n) : k ≤ C.cover r.toLRun n := by
+  classical
+  cases k with
+  | zero => exact Nat.zero_le _
+  | succ k =>
+    have hmono := Scheduled.cover_mono (C := C) (r := r.toLRun) h
+    refine le_trans ?_ hmono
+    show k + 1 ≤ Nat.count _ (C.idx r.toLRun k + 1)
+    rw [Nat.count_succ, if_pos (p.scheduled.isSub_idx k)]
+    exact Nat.succ_le_succ (le_of_eq (p.scheduled.cover_idx k).symm)
+
 /-- The projected run's `k`-th state is the part's state at its entry index. -/
 theorem run_at'_entry (k : Nat) : p.run.at' k = C.proj (r.at' (p.entry k)) :=
   (p.proj_eq_run_of_between le_rfl (p.entry_le_idx k)).symm
