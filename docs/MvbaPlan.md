@@ -2037,6 +2037,16 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
   *Consequence:* C16 (N3). On the Chorus side this is a composing-layer
   obligation, stated in the MVBA's terms, and it is recorded for the timed
   Chorus leg (§11.5 stage 5).
+
+  *Closed in R8 (2026-09-30).* The handoff is modelled: `MVBASafety` carries
+  the supplement's strengthened interface (`decide` exposes its
+  certificate; a transferred valid certificate is accepted), at the
+  instance `decide` is that input, and Chorus's `accept_mvba_commitqc` is
+  the composing layer's step. The obligation left `BoundedJustice` as the
+  caller's clause `Mvba.Relayed` (verbatim), untimed as (F-relay), and both
+  are derived inside Cadence (`Chorus.relayed_of_timedJustice`,
+  `Chorus.fRelay_of_fJustice`). [Bounds.md](Bounds.md) §6.4.2 has the
+  design.
 * **C16. The finding: in three places the timed premise assumes more than
   the paper's network provides.** *Class: argument; a fidelity finding of
   the same class as PR #42's.*
@@ -2060,7 +2070,9 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
     giving up views `V` and `V + 1`: its retention clause
     (`lem:convergence`) holds only from `V + 2`. The model's assembly may
     instead pick `M + 1` as its good view.
-  * **(N3) The transfer of a decision.** The hop table `Mvba.hop` classes
+  * **(N3) The transfer of a decision.** *(Superseded in R8: `decide` is
+    the caller's input and its timing the caller's clause `Relayed`, see
+    C15.)* The hop table `Mvba.hop` classes
     `decide` as a local step (`δ`). By the table's own rule, "a step whose
     guard consumes … a certificate assembled from others' signatures" is
     a network step. A validator that did not form the certificate itself
@@ -2389,3 +2401,11 @@ work. Stage 5 records the result.
    backoff item already carried the resolution. (N4) was left open here
    and is closed in R3 (model change: `adopt_prepqc` from the prepares,
    Mvba re-solve); [Bounds.md](Bounds.md) §6.2.4.
+
+   *R8 (2026-09-30).* The note for the timed Chorus leg is discharged: the
+   decision's transfer is Chorus's handoff step, and the MVBA's clause for
+   it is derived (C15 above). Two consequences for the MVBA's own claims,
+   neither touching the model file: `Mvba.FJustice` is owed only for
+   correct senders (`Mvba.Owed`, [Bounds.md](Bounds.md) §6.4.2, F5), and
+   (A-viewsync)'s second clause names a correct validator's decision. The
+   pinned `#veil_status Mvba` does not move.

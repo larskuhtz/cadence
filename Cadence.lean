@@ -104,7 +104,9 @@ Each entry is the result, the file its statement lives in, and what it says.
   as its MVBA). The untimed form of `lemma:chorus-termination`, with the
   `5Δ + ℓ_MVBA` bound erased. The premises, each a named definition in
   [Chorus/Liveness.lean](Cadence/Chorus/Liveness.lean) and none of them an axiom:
-  * `FJustice`: correct validators' actions are scheduled fairly;
+  * `FJustice`: correct validators' actions are scheduled fairly, for the
+    messages of correct senders (nothing is asked of a Byzantine
+    validator's messages);
   * `MvbaAdmissible`: the MVBA's steps inside the run are scheduled as
     `Mvba.termination` requires;
   * `ValidBridge`: the MVBA's validity check agrees with Chorus's
@@ -121,7 +123,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   `Mvba.termination` to the run's MVBA steps. Hypotheses: at most `f`
   Byzantine validators among `Fin n`, `ViewOrderEnum`.
   `FJustice` is weak fairness over plain enabledness: an action enabled
-  from some point on eventually fires. Every fair action of the model fires
+  from some point on, whose messages came from correct validators,
+  eventually fires. Every fair action of the model fires
   once (`Chorus.justice_enabledMove`,
   [Chorus/Liveness.lean](Cadence/Chorus/Liveness.lean)), so this is the
   same premise as weak fairness over state-changing steps
@@ -203,10 +206,12 @@ Each entry is the result, the file its statement lives in, and what it says.
     monoid.
 * **`Mvba.termination`** ([Mvba/Liveness.lean](Cadence/Mvba/Liveness.lean)) — **the same
   statement, untimed**: every correct validator eventually decides. Its
-  premises are fair scheduling, the supplement's caller conditions (all
-  correct validators propose, none is abandoned before deciding), (F-avail),
-  and (A-viewsync): the view timer stated as ordering constraints (timers do
-  fire; the good view's timer waits for a certificate), so the theorem reads
+  premises are fair scheduling for correct senders, the supplement's caller
+  conditions (all correct validators propose, none is abandoned before
+  deciding, and a correct validator's decided certificate is handed on,
+  (F-relay)), (F-avail), and (A-viewsync): the view timer stated as ordering
+  constraints (timers do fire; the good view's timer waits for a correct
+  validator's decision), so the theorem reads
   *given enough time, the protocol decides*. The timed premises imply
   (A-viewsync) (`Mvba.aViewSync_of_sync`). Hypotheses: finitely many
   validators, `ByzNodeSetHonestQuorum`, `ViewOrderEnum`. `FJustice` is

@@ -823,8 +823,9 @@ full class.
 ([CompositionContracts.md](../docs/CompositionContracts.md) §3): `instantiate mvba : MVBASafety node
 mvalue mmsg mstate (fun i => nset.is_byz i = true)` over an abstract state
 `mvba_st`,
-advanced by the oracle step `mvba_step` and the driven input
-`mvba_propose`, with two per-entry decision handlers reading
+advanced by the oracle step `mvba_step`, the driven input `mvba_propose`
+and the handoff `accept_mvba_commitqc`, with two per-entry decision handlers
+reading
 `mvba.decided` off the state ([Chorus.lean](Chorus.lean), "The MVBA
 instance"). The value is the entry vector, which Chorus reads through two
 immutable projections `mval_pos`/`mval_neg` of an opaque sort;
@@ -854,7 +855,14 @@ and where it is discharged.
   ([Mvba/Temporal.lean](Mvba/Temporal.lean)), under the timing model of [Mvba/Schedule.lean](Mvba/Schedule.lean)
 * **`quiescence`** — Quiescence; *safety (one-step form)*. Mvba, from the
   transition bodies (`sent_new_tr`: every honest send requires the input and
-  `¬ abandoned`) — `Mvba.mvbaSafety` -/
+  `¬ abandoned`) — `Mvba.mvbaSafety`
+* **`certifies`, `decided_certified`, `accept`, `accept_trans`,
+  `accept_effect`, `accept_enabled`** — the decision handoff of the
+  supplement's strengthened interface (`decide(x, CommitQC)`, "Decision
+  output and handoff", `line:mvba:qc-decide`); *safety (first-order, rely
+  form)*. Mvba: a certificate is an existing commit certificate, a decision
+  has one (`decided_backed`), and the handoff is `decide` — `Mvba.mvbaSafety`.
+  Chorus drives `accept` (`accept_mvba_commitqc`) -/
 
 /-- The state-level fragment of `mod:mvba`. -/
 class MVBASafety (party value message state : Type) (byz : party → Prop)

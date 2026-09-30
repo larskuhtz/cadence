@@ -117,7 +117,7 @@ here rather than repeating them.
 
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
-| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 45 | 9 safety + 92 invariants + 1 step property | 4 737 | cvc5, **proof-reconstructed** (kernel-checked), + 15 manual Lean proofs: 14 for e-matching-divergent cells (three of them the Byzantine assembly actions' copies of the collector's cells), 1 for solver-budget headroom (`vote × committed_pos_frozen`); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
+| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 46 | 9 safety + 92 invariants + 1 step property | 4 840 | cvc5, **proof-reconstructed** (kernel-checked), + 15 manual Lean proofs: 14 for e-matching-divergent cells (three of them the Byzantine assembly actions' copies of the collector's cells), 1 for solver-budget headroom (`vote × committed_pos_frozen`); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
 | [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 28 | 3 safety + 47 invariants + 1 step property | 1 507 | cvc5, **proof-reconstructed** (kernel-checked), + 5 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate; cross-view certificate agreement, at both actions that create a commit certificate; and agreement at the decision `form_own_commitqc` makes) |
 | [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
 | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 15 invariants + 3 step properties | 189 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
@@ -297,10 +297,14 @@ relations, and it takes a human to confirm each use is positive.
    and so is the temporal argument over runs. What has to be believed is
    that the premises describe the executions that matter:
    * **(F-justice)**, `FJustice`: correct validators' actions are weakly
-     fair — an action enabled from some point on eventually fires (weak
-     suffices: apart from each action's fired-once guard, which only its
-     own firing sets, enabledness is monotone in this model). Proposing
-     a value to the MVBA is fair as one action per validator and value,
+     fair for the messages of correct senders — an action enabled from some
+     point on, whose messages came from correct validators, eventually
+     fires (weak suffices: apart from each action's fired-once guard, which
+     only its own firing sets, enabledness is monotone in this model). It
+     asks nothing of a Byzantine validator's messages, since the paper's
+     network delivers only between correct validators. Proposing a value to
+     the MVBA is fair as one action per validator and value, and handing a
+     decided MVBA certificate to one's own MVBA as one action per receiver,
      whatever state the MVBA ends in. (The per-validator implementation
      refinement of building that proposal is the receipt layer, §5.)
    * **(F-byz)**: Byzantine actions are unfair. This is not a premise but
@@ -308,7 +312,8 @@ relations, and it takes a human to confirm each use is positive.
      progress relies on adversarial help.
    * **`MvbaAdmissible`**: the run's MVBA steps, read as a run of the MVBA
      model, satisfy the MVBA's own scheduling premises — weak fairness of
-     its honest actions, (A-viewsync) and (F-avail), stated with
+     its honest actions for correct senders, (A-viewsync) and (F-avail),
+     stated with
      [Cadence/Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s definitions. It includes that the
      run takes infinitely many MVBA steps (`Component.Scheduled`), and it
      supplies the labels, since the composed run records only the MVBA's
@@ -323,8 +328,9 @@ relations, and it takes a human to confirm each use is positive.
    **(A-mvba) is retired.** It was the assumption that the MVBA,
    invoked with per-proposer evidence, terminates. `Chorus.termination`
    applies `Mvba.termination` to the run's MVBA steps instead, and derives
-   that theorem's two caller premises (every correct validator proposes;
-   none is abandoned before deciding). `MvbaAdmissible` and `ValidBridge`
+   that theorem's three caller premises (every correct validator proposes;
+   none is abandoned before deciding; decided certificates are handed on,
+   by Chorus's handoff `accept_mvba_commitqc`). `MvbaAdmissible` and `ValidBridge`
    are what it leaves. The name survives in the prose of
    [Cadence/Chorus.lean](../Cadence/Chorus.lean),
    [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and
@@ -336,7 +342,7 @@ relations, and it takes a human to confirm each use is positive.
    unusual place:
    **(A-viewsync)**, a premise of the untimed `Mvba.termination`, is the
    view timer stated as ordering constraints: timers do fire, and one
-   honest-led view's timer waits for a commit certificate. The theorem
+   honest-led view's timer waits for a correct validator's decision. The theorem
    therefore reads *given enough time, the protocol decides*. It is no
    longer an assumption of the stack: the timed premises imply it
    (`Mvba.aViewSync_of_sync`), and they are the supplement's kind, bounded
@@ -528,7 +534,7 @@ table can be read off one file:
 |---|---|---|
 | `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_temporal` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | `propext, Classical.choice, Quot.sound` | ✓ |
 | `Cadence.system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | same | ✓ |
-| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 4737/4737 real |
+| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 4840/4840 real |
 | `FallbackReceipt.invariants_of_reachable` ([Cadence/FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean)) | same | ✓ + `#veil_status`: 220/220 real |
 | `FallbackReceipt.build_totality_of_reachable` ([Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean)) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)) | same | ✓ |
