@@ -180,10 +180,11 @@ the environment relation `avail_ready i e` (`AvailReady_i`).
   lower-view discard (the termination setting before
   `lem:decision-propagation`; `sec:reliable-delivery`) — is stated in the
   timed claim's premise over these relations, clause by clause
-  (`Mvba.BoundedJustice`), and changes no guard. One gap is recorded
-  there: a prepare certificate is adopted as a local step, although in the
+  (`Mvba.BoundedJustice`), and changes no guard. One item is open: a
+  prepare certificate is adopted as a local step, although in the
   supplement a validator obtains one only from its own quorum of prepares
-  ([Bounds.md](../docs/Bounds.md) §6.2.4, (N4)).
+  ([Bounds.md](../docs/Bounds.md) §6.2.4, (N4)); R3 closes it by adopting
+  from the prepares.
 * **Handler segments are atomic.** Each handler is one action, so the
   model reasons about uninterrupted handler segments, which is what the
   supplement's own `rem:execution-model` justifies: `Recover` is the only

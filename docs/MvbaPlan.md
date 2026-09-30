@@ -2288,8 +2288,10 @@ work. Stage 5 records the result.
      `CommitQC` by the composing layer. Each retransmission clause says
      so.
 
-   One gap is left, and it is recorded rather than closed: see (N4) in
-   §11.5 stage 5 and [Bounds.md](Bounds.md) §6.2.4.
+   One item is open: (N4), prepare certificates do not travel. It is
+   closed in R3 by a model change (`adopt_prepqc` from the prepares, with
+   an Mvba re-solve), together with the fairness clean-up; see
+   [Bounds.md](Bounds.md) §6.2.4.
 4. **Re-prove the bound and re-check the witness against the refined
    premise.**
    * **The good view.** In
@@ -2353,5 +2355,7 @@ work. Stage 5 records the result.
    *Done (2026-09-29).* The result is recorded in the places listed. The
    Chorus non-vacuity item did not need rewording, since the untimed
    premise did not change. PaperAlignment §6 needed nothing new: its
-   backoff item already carried the resolution. (N4), the one gap left, is
-   in [Bounds.md](Bounds.md) §6.2.4 and [TODO.md](TODO.md) § Liveness.
+   backoff item already carried the resolution. (N4) is open and
+   closed in R3 (model change: `adopt_prepqc` from the prepares, Mvba
+   re-solve); [Bounds.md](Bounds.md) §6.2.4 and [TODO.md](TODO.md)
+   § Liveness.

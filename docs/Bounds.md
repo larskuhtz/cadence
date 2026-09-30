@@ -591,15 +591,16 @@ supplement run of any of these kinds was not admissible, so the timed
 claim said nothing about it. None was a misreading of the pinned text,
 which did not yet state its network.
 
-**One gap left: (N4), prepare certificates do not travel.** `adopt_prepqc`
+**Open, closed in R3: (N4), prepare certificates do not travel.** `adopt_prepqc`
 is a local step once `msg_prepqc v e` holds. In the supplement a validator
 holds a prepare certificate only if it received a quorum of prepares
 itself; nobody forwards one. So a supplement run in which one correct
 validator forms a view's prepare certificate and another, which accepted
 the same proposal, never does (Byzantine votes sent to some, or prepares
-lost before GST) is still not admissible. Closing it needs adoption from
-the prepares themselves, a model change, so it is recorded here and in
-[TODO.md](TODO.md) § Liveness rather than made. The good view is
+lost before GST) is not yet admissible. R3 closes it with a model change:
+`adopt_prepqc` adopts from the prepares themselves, and the Mvba family is
+re-solved, in one step together with the fairness clean-up
+([TODO.md](TODO.md) § Liveness). The good view is
 unaffected: there every correct validator receives the whole correct
 quorum's prepares within the same `Δ`.
 

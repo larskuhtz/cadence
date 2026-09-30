@@ -246,17 +246,16 @@ come first.
   Chorus claim instantiates the MVBA's timing premise on a projected run,
   this clause is the one it must discharge from Chorus's own behaviour,
   not assume; its cost `ρ + Δ` is already inside `ℓ_MVBA`.
-* **(N4), the one gap left in the MVBA's timing premise: prepare
-  certificates do not travel.** `adopt_prepqc` is a local step once a
+* **(N4), open; closed in R3: prepare certificates do not travel.** `adopt_prepqc` is a local step once a
   prepare certificate exists anywhere. In the supplement a validator holds
   one only if it received a quorum of prepares itself, so a supplement run
   in which one correct validator forms a view's prepare certificate and
   another, which accepted the same proposal, never does is not admissible
-  in the timed claim ([Bounds.md](Bounds.md) §6.2.4). Closing it means
-  adopting from the prepares themselves, a change to
-  [Cadence/Mvba.lean](../Cadence/Mvba.lean) (a guard and a re-solve of
-  the Mvba family) — so it waits for a decision on whether the model
-  should take the step. The good view, and so the bound, is unaffected.
+  in the timed claim yet ([Bounds.md](Bounds.md) §6.2.4). R3 closes it by
+  a model change: `adopt_prepqc` adopts from the prepares themselves (a
+  guard in [Cadence/Mvba.lean](../Cadence/Mvba.lean) and a re-solve of the
+  Mvba family), in one re-solve together with the fairness clean-up. The
+  good view, and so the bound, is unaffected.
 
 ## Model hygiene
 

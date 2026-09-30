@@ -257,9 +257,10 @@ Five consequences for this repository:
    clause by clause ([Bounds.md](Bounds.md) §6.2.4), the bound is re-proven
    against it, and `Schedule.ℓ` gained the retransmission terms. The
    supplement's `lem:good-view` constant is still `Lcert` at `δ = 0`, and
-   its burnt-view cost `2Δ + T` is still `Schedule.burn`. One gap remains
-   and is recorded, (N4): a prepare certificate is adopted as a local step,
-   while in the supplement it never travels.
+   its burnt-view cost `2Δ + T` is still `Schedule.burn`. One item is open,
+   (N4): a prepare certificate is adopted as a local step, while in the
+   supplement it never travels. It is closed in R3 (model change:
+   `adopt_prepqc` from the prepares, Mvba re-solve).
 
 ## 5. What this implies for the models
 
