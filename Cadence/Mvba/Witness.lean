@@ -42,9 +42,9 @@ clock unit per step. Nobody abandons.
 
 At the idle state no fair label is enabled at all: the correct validators
 have halted, and the Byzantine one is not honest — every fair label is a
-correct validator's step. So weak fairness,
-which asks only for steps that change the state, asks nothing of the idle
-tail, in the untimed claim as in the timed one.
+correct validator's step. So weak fairness, which asks only of labels
+that are enabled, asks nothing of the idle tail, in the untimed claim as in
+the timed one.
 
 ## How the proofs are arranged
 
@@ -54,8 +54,8 @@ step is `c + i` for a constant `c` per record and validator `i`. So a
 transition is linear arithmetic over the index, and `omega` closes it.
 
 The clock advances only out of states at which no fair label is
-move-enabled (`quiet`). From every index there is then a later index on the
-same clock reading at which a given fair label is not move-enabled, so
+enabled (`quiet`). From every index there is then a later index on the
+same clock reading at which a given fair label is disabled, so
 bounded weak fairness holds with its antecedent false: the run never leaves
 an obligation pending while time passes. The untimed weak fairness holds
 for the same reason, at the idle state (`fJustice`). -/
@@ -323,7 +323,7 @@ theorem steps (n : Nat) : sys.tr thW (st n) (lbl n) (st (n + 1)) := by
     rw [this]
     exact tail_step
 
-/-! ## No fair label moves at a plateau's end
+/-! ## No fair label is enabled at a plateau's end
 
 The clock advances only out of the last index of each clock reading: index
 21, every correct validator decided and its timer not yet expired, and the
@@ -334,8 +334,8 @@ validator has decided and halted, and the Byzantine one is not honest. -/
 def PlateauEnd (n : Nat) : Prop := n = 21 ∨ 25 ≤ n
 
 theorem quiet {n : Nat} (hn : PlateauEnd n) {l : L} {hd : Hop} (hh : hop l = some hd) :
-    ¬ EnabledMove sys thW (st n) l := by
-  rintro ⟨s', htr, hne⟩
+    ¬ Enabled sys thW (st n) l := by
+  rintro ⟨s', htr⟩
   cases l
   all_goals first | (simp [hop] at hh; done) | skip
   all_goals wunfold htr
@@ -388,7 +388,7 @@ theorem lbl_expire {n : Nat} {i : Fin 4} {v : ℕ} (h : lbl n = .expire_timer i 
 /-! ## (a) The timed premises -/
 
 /-- **(Δ-justice)**, every clause with its antecedent false: every window
-reaches a plateau end, where no fair label is move-enabled
+reaches a plateau end, where no fair label is enabled
 (`boundedJustice_of_quiet`). -/
 theorem boundedJustice : BoundedJustice schW run :=
   boundedJustice_of_quiet fun N D _ =>
@@ -475,8 +475,7 @@ theorem abandons_late (p : Fin 4) (_ : ¬ nsetW.is_byz p = true) (n : Nat)
 /-! ## (b) The untimed premises, on the same run -/
 
 /-- **(F-justice)**, with its antecedent false: from any `N` on, the idle
-state is reached, and there no fair label can take a step that changes the
-state (`quiet`). -/
+state is reached, and there no fair label is enabled (`quiet`). -/
 theorem fJustice : FJustice run.toLRun := by
   intro l hj N hen
   obtain ⟨hd, hh⟩ := Option.isSome_iff_exists.mp ((hop_isSome_iff l).mpr hj)
@@ -589,9 +588,9 @@ order), the model's `assumption`s, and the claim's five premises —
 
 It rules out that the untimed Termination claim is vacuous, and in
 particular that its weak-fairness premise contradicts the rest. Weak
-fairness asks only for steps that change the state, so once the run is
-idle it asks nothing; nothing in that argument depends on the quorum sort
-being finite (Bounds.md §6.2.4). -/
+fairness asks only of enabled labels, and once the run is idle none is;
+nothing in that argument depends on the quorum sort being finite
+(Bounds.md §6.2.4). -/
 theorem termination_premises_satisfiable :
     ∃ (node nodeset value view : Type) (_ : Inhabited node) (_ : Inhabited nodeset)
       (_ : Inhabited value) (_ : Inhabited view)

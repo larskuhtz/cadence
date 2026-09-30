@@ -62,7 +62,7 @@ local macro "mvba_tr" h:ident : tactic =>
 Every state of the run is **quiet**: no input, no entry, no acceptance, and
 none of the four message rows the assemblies count. Quiet holds initially
 (Veil's generated `<relation>.init` lemmas), and `become_avail_ready`
-preserves it (the generated `<action>.frame_<relation>` lemmas). At a quiet state no label under the hop table is move-enabled,
+preserves it (the generated `<action>.frame_<relation>` lemmas). At a quiet state no label under the hop table is enabled,
 because each one's guards read one of those records. -/
 
 /-- The records whose absence disables every fair label. -/
@@ -91,13 +91,14 @@ theorem quiet_avail {s s' : Mvba.State (Mvba.FieldAbstractType node nodeset valu
     Mvba.become_avail_ready.frame_msg_timeout_noqc htr]
   exact h
 
-/-- **No fair label moves at a quiet state.** Every fair label is a correct
-validator's step, and each one's guard reads that validator's input. -/
-theorem not_moveEnabled_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+/-- **No fair label is enabled at a quiet state.** Every fair label is a
+correct validator's step, and each one's guard reads that validator's
+input. -/
+theorem not_enabled_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
     (hq : Quiet s) {l : Mvba.Label node nodeset value view} {h : Hop} (hh : hop l = some h) :
-    ¬ EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th s l := by
+    ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value view) th s l := by
   obtain ⟨hin, -, -, -, -, -, -⟩ := hq
-  rintro ⟨s', htr, -⟩
+  rintro ⟨s', htr⟩
   cases l
   all_goals first
     | (simp [hop] at hh; done)
@@ -172,15 +173,15 @@ noncomputable def witnessRun [IsOrderedAddMonoid time] [Archimedean time]
 
 /-- **(Δ-justice) holds vacuously on a run that keeps reaching a quiet
 index.** If every window from every index contains an index at which no
-label the hop table covers is move-enabled, then every clause of
+label the hop table covers is enabled, then every clause of
 `BoundedJustice` holds with its window antecedent false: each clause asks
-its label to be move-enabled throughout its window. The window lengths are
+its label to be enabled throughout its window. The window lengths are
 the schedule's three, `δ`, `Δ` and `Δ + ρ`, all non-negative. -/
 theorem boundedJustice_of_quiet [IsOrderedAddMonoid time] {sch : Schedule view time}
     {th : Theory node nodeset value view} {r : TMvbaRun th time}
     (hq : ∀ (N : Nat) (D : time), 0 ≤ D → ∃ n, N ≤ n ∧ r.clk n ≤ r.ref N + D ∧
       ∀ (l : Mvba.Label node nodeset value view) (h : Hop), hop l = some h →
-        ¬ EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l) :
+        ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l) :
     BoundedJustice sch r := by
   have hΔ : (0 : time) ≤ sch.Δ := sch.Δ_pos.le
   have hΔρ : (0 : time) ≤ sch.Δ + sch.ρ := add_nonneg hΔ sch.ρ_nonneg
@@ -198,7 +199,7 @@ theorem boundedJustice_of_quiet [IsOrderedAddMonoid time] {sch : Schedule view t
   exact absurd (hen n hn hc) (hnm l _ hh)
 
 /-- **The witness run is admissible.** (Δ-justice) is vacuous because no
-fair label is ever move-enabled (`not_moveEnabled_of_quiet`), at index `N`
+fair label is ever enabled (`not_enabled_of_quiet`), at index `N`
 itself, which is inside every window. (T1) is vacuous because the timer never
 fires, (T2) because nobody enters a view, and (Δ-avail) because nobody
 accepts. This covers the three labels no proof uses (the two view-zero
@@ -213,7 +214,7 @@ theorem witnessRun_sync [IsOrderedAddMonoid time] [Archimedean time] (sch : Sche
   have hq := quiet_iterate (th := th) (quiet_init hst)
   refine ⟨boundedJustice_of_quiet fun N D hD => ⟨N, le_rfl,
       le_trans (TLRun.clk_le_ref _ N) (le_add_of_nonneg_right hD),
-      fun _ _ hh => not_moveEnabled_of_quiet (hq N) hh⟩,
+      fun _ _ hh => not_enabled_of_quiet (hq N) hh⟩,
     ⟨fun n i v _ hl => ?_, fun m i v _ hent => ?_⟩, fun m i v e _ hacc => ?_⟩
   · cases hl
   · exact absurd hent (by simp [witnessRun, (hq m).2.1 i v])

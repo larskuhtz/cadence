@@ -5,9 +5,8 @@ import Mathlib.Order.MinMax
 
 The timed vocabulary of the bounds work ([Bounds.md](../docs/Bounds.md)
 §6.2), one level below the module contracts and one level above
-[Fairness.lean](Fairness.lean): a labelled run **with a clock**, what it
-means for a step to change the state, and weak fairness with a *deadline*
-instead of an *eventually*. Nothing here is Cadence-specific and nothing
+[Fairness.lean](Fairness.lean): a labelled run **with a clock**, and weak
+fairness with a *deadline* instead of an *eventually*. Nothing here is Cadence-specific and nothing
 here is assumed — these are definitions, and the lemmas about them are the
 shapes every bounded-liveness proof uses.
 
@@ -31,15 +30,15 @@ of runs rather than as a guard in the model. `ref N := max (clk N) gst`
 makes the same clause bite across GST: an obligation pending when GST
 arrives is due `D` after GST.
 
-**Fairness is about steps that change the state.** Bounded fairness is
-stated over [Fairness.lean](Fairness.lean)'s `EnabledMove`, a transition to
-a *different* state — TLA+'s `⟨A⟩_v` — as the untimed fairness notions
-there are, and for the same reason ([Bounds.md](../docs/Bounds.md)
-§6.2.4): assembly actions are idempotent, so under plain enabledness every
-one of the (possibly infinitely many) quorum-indexed labels with the same
-effect stays enabled forever and must fire — in the timed form, infinitely
-often within one window — and no run is fair. Under `EnabledMove` one
-firing discharges them all. -/
+**Fairness is about enabled actions.** Bounded fairness is stated over
+[Fairness.lean](Fairness.lean)'s `Enabled`, as the untimed fairness notions
+there are: a label enabled throughout its window fires within it. For the
+MVBA, the one model timed here, that is the same premise as bounded fairness
+over state-changing steps (`BoundedFairMove`), because every fair label is
+move-enabled wherever it is enabled (`Mvba.enabledMove_of_enabled`); the
+bridge is `Mvba.boundedFair_iff_move`, from `boundedFair_iff_move` below, and
+Fairness.lean's section "Enabledness and the two fairness classes" says why
+the distinction was ever drawn. -/
 
 namespace Cadence
 
@@ -191,37 +190,50 @@ end TLRun
 
 /-! ## Bounded weak fairness
 
-Over [Fairness.lean](Fairness.lean)'s `EnabledMove`, as the untimed
-fairness notions are. -/
+Over [Fairness.lean](Fairness.lean)'s `Enabled`, as the untimed fairness
+notions are. -/
 
 /-- **Bounded weak fairness** of `l` with hop bound `D`: from any index `N`,
-if `l` is move-enabled at every index at or after `N` whose clock is inside
+if `l` is enabled at every index at or after `N` whose clock is inside
 the window `ref N + D`, then `l` fires with its post-state inside that
 window. The timed form of `WeaklyFair`; the paper's "after GST, every step a
 correct validator can take is taken within `D`". -/
 def BoundedFair [Add time] (r : TLRun sys th time) (D : time) (l : lbl) : Prop :=
-  ∀ N, (∀ n, N ≤ n → r.clk n ≤ r.ref N + D → EnabledMove sys th (r.at' n) l) →
+  ∀ N, (∀ n, N ≤ n → r.clk n ≤ r.ref N + D → Enabled sys th (r.at' n) l) →
     r.FiresWithin N D l
 
 /-- **The form a proof uses.** If a bounded-fair label does not fire within
-its window from `N`, it is not move-enabled at some index inside that
-window — so a proof that it *stays* move-enabled across the window has
-produced a contradiction, and a proof that it can only be disabled by
-progress has produced progress by the deadline. The contrapositive of
-`BoundedFair`, and the timed twin of `exists_disabled_of_never_fires`. -/
-theorem exists_not_moveEnabled_of_not_firesWithin [Add time]
+its window from `N`, it is disabled at some index inside that window — so a
+proof that it *stays* enabled across the window has produced a
+contradiction, and a proof that it can only be disabled by progress has
+produced progress by the deadline. The contrapositive of `BoundedFair`, and
+the timed twin of `exists_disabled_of_never_fires`. -/
+theorem exists_not_enabled_of_not_firesWithin [Add time]
     {r : TLRun sys th time} {D : time} {l : lbl} (hbf : BoundedFair r D l)
     {N : Nat} (hnever : ¬ r.FiresWithin N D l) :
-    ∃ n, N ≤ n ∧ r.clk n ≤ r.ref N + D ∧ ¬ EnabledMove sys th (r.at' n) l := by
+    ∃ n, N ≤ n ∧ r.clk n ≤ r.ref N + D ∧ ¬ Enabled sys th (r.at' n) l := by
   by_contra hc
   push Not at hc
   exact hnever (hbf N (fun n hn hclk => hc n hn hclk))
 
-/-- If a label fires at `n`, it was enabled at `n` — and if the step changed
-the state, move-enabled. -/
-theorem enabledMove_of_fires_of_ne (r : TLRun sys th time) (n : Nat)
-    (hne : r.at' (n + 1) ≠ r.at' n) : EnabledMove sys th (r.at' n) (r.lbl n) :=
-  ⟨r.at' (n + 1), r.steps n, hne⟩
+/-! ### The state-changing form, and the bridge
+
+As in [Fairness.lean](Fairness.lean): `BoundedFairMove` is only the
+right-hand side of a model's bridge, and no premise is stated with it. -/
+
+/-- `BoundedFair` over state-changing steps (`EnabledMove`). -/
+def BoundedFairMove [Add time] (r : TLRun sys th time) (D : time) (l : lbl) : Prop :=
+  ∀ N, (∀ n, N ≤ n → r.clk n ≤ r.ref N + D → EnabledMove sys th (r.at' n) l) →
+    r.FiresWithin N D l
+
+/-- **The bridge, per label.** For a label that is move-enabled wherever it is
+enabled along the run, bounded fairness over plain enabledness and over
+state-changing steps are the same premise. -/
+theorem boundedFair_iff_move [Add time] {r : TLRun sys th time} {D : time} {l : lbl}
+    (hacc : ∀ n, Enabled sys th (r.at' n) l → EnabledMove sys th (r.at' n) l) :
+    BoundedFair r D l ↔ BoundedFairMove r D l :=
+  ⟨fun h N hen => h N fun n hn hc => Enabled.of_move (hen n hn hc),
+   fun h N hen => h N fun n hn hc => hacc n (hen n hn hc)⟩
 
 end
 
@@ -286,10 +298,14 @@ Definitions and a handful of lemmas about them; the standard trio and
 nothing else, and nothing about any particular protocol. -/
 
 /--
-info: 'Cadence.exists_not_moveEnabled_of_not_firesWithin' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Cadence.exists_not_enabled_of_not_firesWithin' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Cadence.exists_not_moveEnabled_of_not_firesWithin
+#print axioms Cadence.exists_not_enabled_of_not_firesWithin
+
+/-- info: 'Cadence.boundedFair_iff_move' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Cadence.boundedFair_iff_move
 
 /-- info: 'Cadence.TLRun.withinFrom_forall' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in

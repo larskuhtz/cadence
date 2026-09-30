@@ -93,11 +93,9 @@ link:
    instance and the MVBA, with the finiteness they consume made explicit: a
    complete list of validators and an honest supermajority. Each link is
    `Cadence.WeaklyFair` used in the only way [Fairness.lean](../Fairness.lean) allows: a label
-   that stays able to change the state fires, so a proof shows the label
-   stays enabled unless the disabling event is the progress wanted, and pays
-   one side condition, that the firing would change the state — the effect
-   the link waits for has not happened yet (`EnabledMove.of_enabled_of_effect`,
-   or `eventually_of_weaklyFair`, which pays it inside). The MVBA arm's chain
+   that stays enabled fires, so a proof shows the label stays enabled
+   unless the disabling event is the progress wanted (directly, or through
+   `eventually_of_weaklyFair`). The MVBA arm's chain
    (sections `CertifiedVector`, `MvbaArm`) is the same layer at the
    system's MVBA, still generic in the quorum instance, with finiteness as
    `[Fintype node]` and the honest quorum as `ByzNodeSetHonestQuorum` —
@@ -1331,8 +1329,7 @@ theorem eventually_atArm (r : CRun th) (hfj : ∀ l, JusticeLabel l → ¬ Propo
     by_contra hcon
     push Not at hcon
     obtain ⟨n, -, hfire⟩ := hfj .advance_to_deadline ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) 0
-      (fun n _ => EnabledMove.of_enabled_of_effect (enabled_advance_to_deadline (hcon n))
-        (fun _ h => advance_to_deadline_effect h) (fun h => d1 ((hcon n).symm.trans h)))
+      (fun n _ => (enabled_advance_to_deadline (hcon n)))
     exact d1 ((hcon (n + 1)).symm.trans (advance_to_deadline_effect (hfire ▸ r.steps n)))
   obtain ⟨N1, hN1⟩ := hpast
   have hpast' : ∀ n, N1 ≤ n → (r.at' n).phase ≠ Phase_EnumClass.pre_deadline :=
@@ -1348,8 +1345,7 @@ theorem eventually_atArm (r : CRun th) (hfj : ∀ l, JusticeLabel l → ¬ Propo
       · exact absurd ⟨n, Or.inl h⟩ hcon
       · exact absurd ⟨n, Or.inr h⟩ hcon
     obtain ⟨n, hn, hfire⟩ := hfj .advance_to_fb_arm ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) N1
-      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_advance_to_fb_arm (hpd n hn))
-        (fun _ h => advance_to_fb_arm_effect h) (fun h => hcon ⟨n, Or.inl h⟩))
+      (fun n hn => (enabled_advance_to_fb_arm (hpd n hn)))
     exact hcon ⟨n + 1, Or.inl (advance_to_fb_arm_effect (hfire ▸ r.steps n))⟩
   obtain ⟨N2, hN2⟩ := harm
   exact ⟨N2, r.mono (P := AtArm) (fun m hm => AtArm.step (r.steps m) hm) hN2⟩
@@ -1363,8 +1359,7 @@ theorem eventually_voted (r : CRun th) (hfj : ∀ l, JusticeLabel l → ¬ Propo
   by_contra hcon
   push Not at hcon
   obtain ⟨n, -, hfire⟩ := hfj (.vote i) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max N A)
-    (fun n hn => EnabledMove.of_enabled_of_effect (enabled_vote hi (hact n (by omega) i hi) (hN n (by omega)).ne_pre (hcon n))
-      (fun _ h => vote_effect h) (hcon n))
+    (fun n hn => (enabled_vote hi (hact n (by omega) i hi) (hN n (by omega)).ne_pre (hcon n)))
   exact hcon (n + 1) (vote_effect (hfire ▸ r.steps n))
 
 /-- **An honest quorum's votes are all on the network at one index**, and
@@ -1442,17 +1437,15 @@ theorem eventually_saturated (r : CRun th) (hfj : ∀ l, JusticeLabel l → ¬ P
         fun n hn a ha => r.mono (P := fun st => st.msg_chunk_received a j M = true)
           (fun m hm => Chorus.msg_chunk_received.mono (r.steps m) a j M hm) (hqc2 a ha) n hn
       obtain ⟨n, hn, hfire⟩ := hfj (.fb_sign_pos i j M q qc) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) n0
-        (fun n hn => EnabledMove.of_enabled_of_effect (enabled_fb_sign_pos hi (hact n (by omega) i hi) (harm n (by omega)) (hv n (by omega)) (hnc n) (hnp n) hj
+        (fun n hn => (enabled_fb_sign_pos hi (hact n (by omega) i hi) (harm n (by omega)) (hv n (by omega)) (hnc n) (hnp n) hj
           hqv (hq n (by omega)) hq1 (hq2' n hn) hqc1 (hqc2' n hn) hwe
-          fun h => hns ⟨n, by omega, fb_entry_sigs r n h⟩)
-          (fun _ h => fb_sign_pos_effect h) (fun h => hns ⟨n, by omega, Or.inl ⟨M, h⟩⟩))
+          fun h => hns ⟨n, by omega, fb_entry_sigs r n h⟩))
       exact hns ⟨n + 1, by omega, Or.inl ⟨M, fb_sign_pos_effect (hfire ▸ r.steps n)⟩⟩
     · -- It never appears: that absence is `fb_sign_neg`'s guard against `qv`.
       obtain ⟨n, hn, hfire⟩ := hfj (.fb_sign_neg i j qv) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max A (max Na (max Nv Nq)))
-        (fun n hn => EnabledMove.of_enabled_of_effect (enabled_fb_sign_neg hi (hact n (by omega) i hi) (harm n hn) (hv n hn) (hnc n) (hnp n) hj
+        (fun n hn => (enabled_fb_sign_neg hi (hact n (by omega) i hi) (harm n hn) (hv n hn) (hnc n) (hnp n) hj
           hqv (hq n hn) (fun M q qc hh => hpos ⟨n, hn, M, q, qc, hh⟩)
-          fun h => hns ⟨n, hn, fb_entry_sigs r n h⟩)
-          (fun _ h => fb_sign_neg_effect h) (fun h => hns ⟨n, hn, Or.inr h⟩))
+          fun h => hns ⟨n, hn, fb_entry_sigs r n h⟩))
       exact hns ⟨n + 1, by omega, Or.inr (fb_sign_neg_effect (hfire ▸ r.steps n))⟩
   -- All proposers at one index, and ever after.
   obtain ⟨Ns, hNs, hall⟩ := r.eventually_forall
@@ -1479,8 +1472,8 @@ theorem eventually_saturated (r : CRun th) (hfj : ∀ l, JusticeLabel l → ¬ P
       (fun j hj => hall j (hnodes j) hj)
   -- So `cast_fallback_vote i` stays enabled, and fires.
   obtain ⟨n, -, hfire⟩ := hfj (.cast_fallback_vote i) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) Ns
-    (fun n hn => EnabledMove.of_enabled_of_effect (enabled_cast_fallback_vote hi (hact n (by omega) i hi) (harm n (by omega)) (hv n (by omega)) (hnc n) (hnp n)
-      (hall' n hn)) (fun _ h => cast_fallback_vote_effect h) (hnf n))
+    (fun n hn => (enabled_cast_fallback_vote hi (hact n (by omega) i hi) (harm n (by omega)) (hv n (by omega)) (hnc n) (hnp n)
+      (hall' n hn)))
   exact hnf (n + 1) (cast_fallback_vote_effect (hfire ▸ r.steps n))
 
 /-- **Saturation of the whole correct population at one index** — the `hsat`
@@ -1521,8 +1514,7 @@ theorem eventually_mvbaArm (r : CRun th) (hfj : ∀ l, JusticeLabel l → ¬ Pro
     have hfb : ∀ n, Na ≤ n → (r.at' n).phase = Phase_EnumClass.post_fb_arm :=
       fun n hn => (hNa n hn).resolve_right fun h => hcon ⟨n, h⟩
     obtain ⟨n, -, hfire⟩ := hfj .advance_to_mvba_arm ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) Na
-      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_advance_to_mvba_arm (hfb n hn))
-        (fun _ h => advance_to_mvba_arm_effect h) (fun h => hcon ⟨n, h⟩))
+      (fun n hn => (enabled_advance_to_mvba_arm (hfb n hn)))
     exact hcon ⟨n + 1, advance_to_mvba_arm_effect (hfire ▸ r.steps n)⟩
   obtain ⟨N, hN⟩ := hex
   exact ⟨N, r.mono (P := fun st => st.phase = Phase_EnumClass.post_mvba_arm) hstay hN⟩
@@ -1615,9 +1607,8 @@ theorem eventually_msg_commitqc (r : CRun th) (hfj : ∀ l, JusticeLabel l → �
          r.mono (P := fun st => st.msg_commit_cast a = true)
           (fun k hk => Chorus.msg_commit_cast.mono (r.steps k) a hk) (hall a ha).2 n hn⟩
     obtain ⟨n, hn, hfire⟩ := hfj (.broadcast_commitqc_pos c j m q) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max N A)
-      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_broadcast_commitqc_pos hcb (hc n (by omega)) hq (hall' n (by omega))
-          fun h => hcon ⟨n, by omega, commitqc_sent_msg r n h⟩)
-        (fun _ h => broadcast_commitqc_pos_effect h) (fun h => hcon ⟨n, by omega, Or.inl ⟨m, h⟩⟩))
+      (fun n hn => (enabled_broadcast_commitqc_pos hcb (hc n (by omega)) hq (hall' n (by omega))
+          fun h => hcon ⟨n, by omega, commitqc_sent_msg r n h⟩))
     exact hcon ⟨n + 1, by omega, Or.inl ⟨m, broadcast_commitqc_pos_effect (hfire ▸ r.steps n)⟩⟩
   · unfold Chorus.commitqc_neg at hqc
     obtain ⟨q, hq, hall⟩ := hqc
@@ -1629,9 +1620,8 @@ theorem eventually_msg_commitqc (r : CRun th) (hfj : ∀ l, JusticeLabel l → �
          r.mono (P := fun st => st.msg_commit_cast a = true)
           (fun k hk => Chorus.msg_commit_cast.mono (r.steps k) a hk) (hall a ha).2 n hn⟩
     obtain ⟨n, hn, hfire⟩ := hfj (.broadcast_commitqc_neg c j q) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max N A)
-      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_broadcast_commitqc_neg hcb (hc n (by omega)) hq (hall' n (by omega))
-          fun h => hcon ⟨n, by omega, commitqc_sent_msg r n h⟩)
-        (fun _ h => broadcast_commitqc_neg_effect h) (fun h => hcon ⟨n, by omega, Or.inr h⟩))
+      (fun n hn => (enabled_broadcast_commitqc_neg hcb (hc n (by omega)) hq (hall' n (by omega))
+          fun h => hcon ⟨n, by omega, commitqc_sent_msg r n h⟩))
     exact hcon ⟨n + 1, by omega, Or.inr (broadcast_commitqc_neg_effect (hfire ▸ r.steps n))⟩
 
 /-- **The commit route, from assignable certificates.** From an index at
@@ -1693,17 +1683,15 @@ theorem eventually_committed_of_assignable (r : CRun th)
           (Chorus.fbcommitqc (nset := nset) (mvba := mvba) th st ∧ st.mvba_decided_pos j m = true))
         (fun k h => assignable_pos_step (r.steps k) h) hm
       obtain ⟨n, hn, hfire⟩ := hfj (.commit_assign_pos i j m) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max N P)
-        (fun n hn => EnabledMove.of_enabled_of_effect (enabled_commit_assign_pos hi (hact n (by omega)) (hnc n) hj (hm' n (by omega))
-          (hnp n (by omega)) (hnn n (by omega)))
-          (fun _ h => commit_assign_pos_effect h) (hnp n (by omega) m))
+        (fun n hn => (enabled_commit_assign_pos hi (hact n (by omega)) (hnc n) hj (hm' n (by omega))
+          (hnp n (by omega)) (hnn n (by omega))))
       exact hna ⟨n + 1, by omega, Or.inl ⟨m, commit_assign_pos_effect (hfire ▸ r.steps n)⟩⟩
     · have hm' := r.mono (P := fun st => st.msg_commitqc_neg j = true ∨
           (Chorus.fbcommitqc (nset := nset) (mvba := mvba) th st ∧ st.mvba_decided_neg j = true))
         (fun k h => assignable_neg_step (r.steps k) h) hm
       obtain ⟨n, hn, hfire⟩ := hfj (.commit_assign_neg i j) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max N P)
-        (fun n hn => EnabledMove.of_enabled_of_effect (enabled_commit_assign_neg hi (hact n (by omega)) (hnc n) hj (hm' n (by omega))
-          (hnp n (by omega)) (hnn n (by omega)))
-          (fun _ h => commit_assign_neg_effect h) (hnn n (by omega)))
+        (fun n hn => (enabled_commit_assign_neg hi (hact n (by omega)) (hnc n) hj (hm' n (by omega))
+          (hnp n (by omega)) (hnn n (by omega))))
       exact hna ⟨n + 1, by omega, Or.inr (commit_assign_neg_effect (hfire ▸ r.steps n))⟩
   -- Every proposer assigned at one index and ever after, so `finalize_commit` fires.
   obtain ⟨N2, -, hall2⟩ := r.eventually_forall
@@ -1721,8 +1709,7 @@ theorem eventually_committed_of_assignable (r : CRun th)
         (∃ m, st.local_committed_pos i j m = true) ∨ st.local_committed_neg i j = true)
       (fun k h j hj => hE j k (h j hj)) (fun j hj => hall2 j (hnodes j) hj)
   obtain ⟨n, -, hfire⟩ := hfj (.finalize_commit i) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) (max N2 P)
-    (fun n hn => EnabledMove.of_enabled_of_effect (enabled_finalize_commit hi (hact n (by omega)) (hnc n) (hall2' n (by omega)))
-      (fun _ h => finalize_commit_effect h) (hnc n))
+    (fun n hn => (enabled_finalize_commit hi (hact n (by omega)) (hnc n) (hall2' n (by omega))))
   exact hnc (n + 1) (finalize_commit_effect (hfire ▸ r.steps n))
 
 /-- **The commit route finalizes.** From an index at which a commit
@@ -2101,8 +2088,7 @@ theorem eventually_input (r : ChorusRun (nset := nset) thS thM)
     obtain ⟨st', hst'⟩ := enabled_propose_mvba (hno n)
       (fun h => ha.2 (abandoned_of_mvba_abandoned r i n h)) hvalid
     obtain ⟨h1, h2, h3⟩ := hcert n (by omega)
-    exact ⟨_, ⟨st', rfl⟩, EnabledMove.of_enabled_of_effect (enabled_mvba_propose hi ha (htrig n (by omega)) h1 h2 h3 hst')
-      (fun _ h => Mvba.propose_effect_tr thM (mvba_propose_tr h)) (hno n v)⟩
+    exact ⟨_, ⟨st', rfl⟩, (enabled_mvba_propose hi ha (htrig n (by omega)) h1 h2 h3 hst')⟩
   exact hno (k + 1) v (Mvba.propose_effect_tr thM (mvba_propose_tr (hm ▸ r.steps k)))
 
 /-- A decision of the MVBA stands in the composed run. -/
@@ -2222,9 +2208,8 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
   have hc : ∃ n, Tr ≤ n ∧ (r.at' n).mvba_complete = true := by
     by_contra hcon
     obtain ⟨n, hn, hfire⟩ := hfj (.mvba_terminate i v) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h) Tr
-      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_mvba_terminate hi (hNm n (by omega)) (fun h => hcon ⟨n, hn, h⟩)
-        (hinv' n (by omega)) (hdec n (by omega)) (hrec n hn))
-        (fun _ h => mvba_terminate_effect h) (fun h => hcon ⟨n, hn, h⟩))
+      (fun n hn => (enabled_mvba_terminate hi (hNm n (by omega)) (fun h => hcon ⟨n, hn, h⟩)
+        (hinv' n (by omega)) (hdec n (by omega)) (hrec n hn)))
     exact hcon ⟨n + 1, by omega, mvba_terminate_effect (hfire ▸ r.steps n)⟩
   obtain ⟨Tc, hTc, hc⟩ := hc
   exact ⟨Tc, by omega, fun n hn =>
