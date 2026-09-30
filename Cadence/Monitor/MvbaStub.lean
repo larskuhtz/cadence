@@ -125,5 +125,10 @@ instance silentMvba.decStep {α : Type} (byz : α → Prop) (st st' : Unit) :
     Decidable ((silentMvba byz).step st st') := isTrue trivial
 instance silentMvba.decPropose {α : Type} (byz : α → Prop) (st : Unit) (i : α) (v : MV) (st' : Unit) :
     Decidable ((silentMvba byz).propose st i v st') := isFalse id
+/-- The stub has no `abandon` transition (its state `Unit` cannot record
+`abandoned`), so Chorus's `abandon` input, which forwards to it, is never
+enabled under this monitor ([Monitor.md](../../docs/Monitor.md) §8). -/
+instance silentMvba.decAbandon {α : Type} (byz : α → Prop) (st : Unit) (i : α) (st' : Unit) :
+    Decidable ((silentMvba byz).abandon st i st') := isFalse id
 
 end ChorusMonitor

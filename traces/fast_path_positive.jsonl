@@ -8,6 +8,11 @@
 // casting) and `commit_assign_pos` (part of finalizing) are NOT listed — the
 // monitor inserts them (Stage-B saturation). Expected verdict: ACCEPTED.
 //
+// --- Participation: every node opens the slot (the `participate()` input) ---
+{"action": "participate", "args": [0]}
+{"action": "participate", "args": [1]}
+{"action": "participate", "args": [2]}
+{"action": "participate", "args": [3]}
 // --- Phase I: proposer dissemination (pre_deadline) ---
 {"action": "propose", "args": [0, 0]}
 {"action": "deliver_chunk_assigned", "args": [0, 0, 0]}
@@ -29,7 +34,7 @@
 {"action": "cast_fast_commit", "args": [0]}
 {"action": "cast_fast_commit", "args": [1]}
 {"action": "cast_fast_commit", "args": [2]}
-{"action": "broadcast_commitqc_pos", "args": [0, 0, [0, 1, 2]]}
+{"action": "broadcast_commitqc_pos", "args": [0, 0, 0, [0, 1, 2]]}
 // --- Finalization ---
 {"action": "finalize_commit", "args": [0]}
 {"action": "finalize_commit", "args": [1]}

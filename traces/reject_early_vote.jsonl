@@ -1,3 +1,6 @@
 // Negative fixture: voting is guarded by `require phase ≠ pre_deadline`, but the
 // initial phase is pre_deadline and no advance precedes this. Expected: NOT ACCEPTED.
+// Node 1 participates first, so the rejection is the phase guard's, not the
+// participation gate's.
+{"action": "participate", "args": [1]}
 {"action": "vote", "args": [1]}
