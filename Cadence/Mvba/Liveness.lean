@@ -21,7 +21,7 @@ Everything a human has to believe is therefore a named `Prop` in this file,
 each with a docstring and each appearing as an explicit hypothesis of the
 claim — never a side condition discovered by reading a proof.
 `grep -n '^def [A-Z]' Cadence/Mvba/Liveness.lean` prints the whole list: the
-four label classes, the five premises, the target and the claim, and
+five label classes, the five premises, the target and the claim, and
 nothing else.
 
 ## The fairness classification
@@ -46,6 +46,9 @@ Each entry is a scheduling class, the labels in it, and what is assumed of
 them.
 
 * **unfair** — `ByzLabel`; nothing — (F-byz)
+* **unfair** — `AssemblyLabel`, the four anonymous certificate assemblies;
+  nothing — they are the adversary's capability to aggregate signatures,
+  and every correct validator forms its certificates by a step of its own
 * **weakly fair** — `JusticeLabel`, the two `timeout_*` among them;
   (F-justice)
 * **timer** — `TimerLabel`, i.e. `expire_timer`; (A-viewsync), both clauses
@@ -102,10 +105,10 @@ namespace Mvba
 
 open Cadence
 
-/-! ## The four label classes
+/-! ## The five label classes
 
 Each is a `match` listing its actions by name, so the classification is
-checkable by reading twenty-four lines rather than by trusting a sentence.
+checkable by reading thirty lines rather than by trusting a sentence.
 Adding an action to the model and forgetting it here is a non-exhaustive
 match — an error, not a silent misclassification.
 
@@ -170,12 +173,34 @@ def AvailLabel : Mvba.Label node nodeset value view → Prop
   | .become_avail_ready .. => True
   | _ => False
 
-/-- The labels (F-justice) covers: the honest message handlers, the
-certificate assemblies, the view changes and the timeouts — everything that
-is neither the adversary's, nor the timer, nor the availability layer's, nor
-the caller's input. -/
+/-- **The anonymous assemblies**: `form_prepqc`, `form_commitqc`,
+`form_tc_lock`, `form_tc_nolock`. Whoever holds `2f+1` signatures can
+aggregate them, the adversary included, so the model keeps these steps:
+safety is proven against an adversary that may form any certificate the
+signatures allow. They carry **no fairness**, because no correct validator
+takes them. A correct validator forms each certificate by a step of its
+own, the supplement's rule, with the rule's "not already" condition as its
+guard: `adopt_prepqc`, `form_own_commitqc`, `form_own_tc_lock` and
+`form_own_tc_nolock`, which are in `JusticeLabel`.
+
+Under fairness an anonymous assembly would also be the kind of label that
+stays enabled after it has fired — one per supermajority `q`, each changing
+nothing once the certificate exists — which is what a per-validator step's
+own record rules out (`enabledMove_of_enabled`). -/
+def AssemblyLabel : Mvba.Label node nodeset value view → Prop
+  | .form_prepqc .. => True
+  | .form_commitqc .. => True
+  | .form_tc_lock .. => True
+  | .form_tc_nolock .. => True
+  | _ => False
+
+/-- The labels (F-justice) covers: the honest message handlers, each
+correct validator's certificate formation, the view changes and the
+timeouts — everything that is neither the adversary's, nor an anonymous
+assembly, nor the timer, nor the availability layer's, nor the caller's
+input. -/
 def JusticeLabel (l : Mvba.Label node nodeset value view) : Prop :=
-  ¬ ByzLabel l ∧ ¬ TimerLabel l ∧ ¬ InputLabel l ∧ ¬ AvailLabel l
+  ¬ ByzLabel l ∧ ¬ TimerLabel l ∧ ¬ InputLabel l ∧ ¬ AvailLabel l ∧ ¬ AssemblyLabel l
 
 /-- **(F-byz), machine-checked at the only level it can be**: no label the
 adversary controls is subject to a fairness hypothesis. -/
@@ -198,9 +223,14 @@ theorem not_justice_of_input (l : Mvba.Label node nodeset value view)
 /-- And the availability layer's action is the environment's, so
 (F-justice) does not reach it either (`AvailLabel` says why that matters). -/
 theorem not_justice_of_avail (l : Mvba.Label node nodeset value view)
-    (h : AvailLabel l) : ¬ JusticeLabel l := fun hj => hj.2.2.2 h
+    (h : AvailLabel l) : ¬ JusticeLabel l := fun hj => hj.2.2.2.1 h
 
-/-- The classification is exhaustive: every label falls under one of the four
+/-- And no anonymous assembly is under (F-justice): the fairness a
+certificate needs is the forming validator's own (`AssemblyLabel`). -/
+theorem not_justice_of_assembly (l : Mvba.Label node nodeset value view)
+    (h : AssemblyLabel l) : ¬ JusticeLabel l := fun hj => hj.2.2.2.2 h
+
+/-- The classification is exhaustive: every label falls under one of the five
 disciplines.
 
 Exhaustiveness is *by construction* — `JusticeLabel` is defined as the
@@ -210,7 +240,8 @@ definitions above, which are non-exhaustive matches over the model's own
 label type: adding an action and forgetting it lands it in `JusticeLabel`
 silently, and the guard against that is reading them, not this lemma. -/
 theorem label_classified (l : Mvba.Label node nodeset value view) :
-    JusticeLabel l ∨ ByzLabel l ∨ TimerLabel l ∨ InputLabel l ∨ AvailLabel l := by
+    JusticeLabel l ∨ ByzLabel l ∨ TimerLabel l ∨ InputLabel l ∨ AvailLabel l ∨
+      AssemblyLabel l := by
   classical
   by_cases hb : ByzLabel l
   · exact Or.inr (Or.inl hb)
@@ -219,8 +250,10 @@ theorem label_classified (l : Mvba.Label node nodeset value view) :
   by_cases hi : InputLabel l
   · exact Or.inr (Or.inr (Or.inr (Or.inl hi)))
   by_cases ha : AvailLabel l
-  · exact Or.inr (Or.inr (Or.inr (Or.inr ha)))
-  exact Or.inl ⟨hb, ht, hi, ha⟩
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ha))))
+  by_cases hs : AssemblyLabel l
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr hs))))
+  exact Or.inl ⟨hb, ht, hi, ha, hs⟩
 
 end Labels
 
@@ -248,12 +281,12 @@ scheduling assumption of the ordinary kind.
 "Changes the state" is TLA+'s `WF_v` and is what makes the premise
 satisfiable at every quorum sort, not only at finite ones
 ([Fairness.lean](../Fairness.lean), "Enabledness and the two fairness
-classes"). Labels that differ only in which quorum witnesses a certificate —
-`form_prepqc v e q` for each supermajority `q` — are discharged by one
-firing, since after it the others would change nothing. Under a fairness
-that also counted steps changing nothing, each of them would have to fire
-forever, which no run can do when there are infinitely many
-supermajorities. -/
+classes"). For this model the qualifier costs nothing: every fair label
+disables itself once it has fired — each correct validator's certificate
+formation included, for every quorum `q` it could name — so at every state
+a fair label that is enabled is also move-enabled
+(`enabledMove_of_enabled`), and the premise is the same as weak fairness
+over plain enabledness. -/
 def FJustice (r : MvbaRun th) : Prop :=
   ∀ l, JusticeLabel l → WeaklyFair r l
 
@@ -467,7 +500,7 @@ theorem eventually_decided_of_commitqc
       (fun m hm => Mvba.msg_commitqc.mono (r.steps m) v e hm) hqc
   -- So `decide i v e` is enabled from `N` on, and weak fairness fires it.
   obtain ⟨n, hn, hfire⟩ :=
-    hfj (.decide i v e) (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
+    hfj (.decide i v e) (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => EnabledMove.of_enabled_of_effect
         (enabled_decide hi ⟨E₀, hin' n hn⟩ (hab n) (hqc' n hn) (fun E => hcon n E))
         (fun _ h => decide_effect h) (hcon n e))
@@ -475,101 +508,26 @@ theorem eventually_decided_of_commitqc
 
 /-! ## The link before it, and the first use of the rank
 
-`form_commitqc` is the assembly that produces the certificate the last link
-consumes. Its guard is exactly the second summand of `assemblyGap`
-([Rank.lean](Rank.lean)) reaching zero — so the two compose into a statement with no
-mention of certificates at all: **if the commit dimension of the rank ever
-bottoms out on a supermajority, every correct participating validator
-decides.**
+`form_own_commitqc` is the step that produces the certificate the last link
+consumes: a correct validator in view `v` holding `2f+1` `Commit`s on
+`(v, e)` forms the certificate and decides (`TryFormCommitQC` and `Decide`).
+Its guard's message part is exactly the second summand of `assemblyGap`
+([Rank.lean](Rank.lean)) reaching zero, so the two compose into a statement
+with no mention of certificates at all: **if the commit dimension of the rank
+ever bottoms out on a supermajority while some correct validator is settled
+in the view, every correct participating validator decides.**
 
 That is the rank being *used*, not merely defined, and it is the shape every
-later link has: a residual reaches zero, an assembly becomes
-enabled, weak fairness fires it, and the next residual is one step closer.
-Like the last link, neither of these needs an invariant. -/
-
-/-- **`form_commitqc`'s guards are its enabledness.** -/
-theorem enabled_form_commitqc {v : view} {e : value} {q : nodeset}
-    (hsm : nset.supermajority q)
-    (hall : ∀ p, nset.member p q = true → st.msg_commit p v e = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
-      (.form_commitqc v e q) := by
-  mvba_enabled
-  exact ⟨_, hsm, hall, rfl⟩
-
-/-- **`form_commitqc`'s effect**: the certificate is on the network. -/
-theorem form_commitqc_effect {v : view} {e : value} {q : nodeset}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
-      (.form_commitqc v e q) st') : st'.msg_commitqc v e = true := by
-  mvba_tr htr
-  obtain ⟨-, -, rfl⟩ := htr
-  mvba_effect
-
-/-- **The assembly link.** A supermajority all of whose members have sent
-their `Commit` on `(v, e)` yields a commit certificate. The index is
-reported so that the links compose: the certificate appears at or after the
-point the commits were observed, which is what lets the next link's
-premises be transported to it. -/
-theorem eventually_commitqc_of_commit_quorum
-    (r : MvbaRun th) (hfj : FJustice r)
-    {N : Nat} {v : view} {e : value} {q : nodeset} (hsm : nset.supermajority q)
-    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_commit p v e = true) :
-    ∃ n, N ≤ n ∧ (r.at' n).msg_commitqc v e = true := by
-  by_contra hcon
-  push Not at hcon
-  have hall' : ∀ n, N ≤ n → ∀ p, nset.member p q = true →
-      (r.at' n).msg_commit p v e = true := by
-    intro n hn p hp
-    exact r.mono (P := fun s => s.msg_commit p v e = true)
-      (fun m hm => Mvba.msg_commit.mono (r.steps m) p v e hm) (hall p hp) n hn
-  obtain ⟨n, hn, hfire⟩ :=
-    hfj (.form_commitqc v e q)
-      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_form_commitqc hsm (hall' n hn))
-        (fun _ h => form_commitqc_effect h) (hcon n hn))
-  exact hcon (n + 1) (by omega) (form_commitqc_effect (hfire ▸ r.steps n))
-
-/-- **The rank's commit dimension bottoming out entails termination for one
-validator.** The composition of the two links above with
-`commit_quorum_of_assemblyGap_zero` ([Rank.lean](Rank.lean)): no certificate
-is mentioned, only the residual.
-
-`enum` appears because `assemblyGap` is defined over an enumerated quorum —
-the proof-side requirement of [ByzQuorum.lean](../ByzQuorum.lean), carried
-as a visible hypothesis. -/
-theorem eventually_decided_of_assemblyGap_zero
-    (r : MvbaRun th) (hfj : FJustice r) (hna : NoEarlyAbandon r)
-    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    {q : nodeset} (hsm : nset.supermajority q)
-    {N : Nat} {v : view} {e : value}
-    (hz : assemblyGap enum q v e (r.at' N) = 0)
-    {i : node} (hi : ¬ nset.is_byz i = true)
-    {E₀ : value} (hin : (r.at' N).input i E₀ = true) :
-    ∃ (n : Nat) (E : value), (r.at' n).decided i E = true := by
-  obtain ⟨m, hm, hqc⟩ := eventually_commitqc_of_commit_quorum r hfj hsm
-    (fun p hp => commit_quorum_of_assemblyGap_zero hz p hp)
-  exact eventually_decided_of_commitqc r hfj hna hi
-    (r.mono (P := fun s => s.input i E₀ = true)
-      (fun k hk => Mvba.input.mono (r.steps k) i E₀ hk) hin m hm) hqc
-
-/-! ## The link before *that*: a validator sends its `Commit`
-
-Here the shape changes, and the change is the whole content of
-[MvbaPlan.md](../../docs/MvbaPlan.md) §3.1(a). Every guard of the two links above was monotone, so "enabled once" meant
-"enabled ever after" and weak fairness applied directly. `send_commit` has
-three guards that are **anti-monotone** — `in_view i v`, `¬ timed_out i v`,
-`¬ commit_sent i v` — and each has to be handled differently:
-
-* `in_view` and `¬ timed_out` are assumed, as `SettledIn`. They are what
-  (A-viewsync) exists to discharge for the good view, and they cannot be
-  proven here because a validator may legitimately sync past a view.
-* `¬ commit_sent i v` is **not** assumed, because it is the one whose
-  falsification is the goal. Keeping it analysable is what two of the
-  model's invariants are for: if the guard dies, the validator has
-  already sent the `Commit` this link was waiting for, so the conclusion
-  holds anyway. That is `commit_sent_backed`, and
-  `commit_sent_implies_voted` is what makes it inductive — a validator that
-  has sent its `Commit` in `v` cannot accept a different vector in `v`,
-  because both `Pre-Prepare` handlers require `∀ W, voted i W → W < v`. -/
+later link has: a residual reaches zero, a step becomes enabled, weak
+fairness fires it, and the next residual is one step closer. The validator
+is where this differs from the anonymous assembly the model also has
+(`form_commitqc`, the adversary's, under no fairness): the step is one
+correct validator's, and two of its guards are **anti-monotone**:
+`in_view i v` and "active" (not abandoned, not yet decided). Both are
+assumed, as `SettledIn`, defined here and taken by every per-validator link
+below. They are what (A-viewsync) and `NoEarlyAbandon` exist to discharge
+for the good view, and they cannot be proven here because a validator may
+legitimately sync past a view. -/
 
 /-- `i` is **active**: the caller has not abandoned it, and it has not
 halted after deciding. Every honest send requires both: the supplement's
@@ -592,6 +550,112 @@ def SettledIn (r : MvbaRun th) (i : node) (v : view) (N : Nat) : Prop :=
   ∀ n, N ≤ n →
     InView (r.at' n) i v ∧ ¬ (r.at' n).timed_out i v = true ∧
       Active (r.at' n) i
+
+/-- Being settled from `N` on is being settled from any later point on. -/
+theorem SettledIn.later {r : MvbaRun th} {i : node} {v : view} {N M : Nat}
+    (hs : SettledIn r i v N) (h : N ≤ M) : SettledIn r i v M :=
+  fun n hn => hs n (Nat.le_trans h hn)
+
+/-- **`form_own_commitqc`'s guards are its enabledness.** -/
+theorem enabled_form_own_commitqc {i : node} {v : view} {e : value} {q : nodeset}
+    (hi : ¬ nset.is_byz i = true)
+    (hin : ∃ E, st.input i E = true)
+    (hact : Active st i)
+    (hview : InView st i v)
+    (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → st.msg_commit p v e = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.form_own_commitqc i v e q) := by
+  mvba_enabled
+  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hsm, hall, rfl⟩
+
+/-- **`form_own_commitqc`'s effect**: the certificate is on the network, and
+the validator has decided on it. -/
+theorem form_own_commitqc_effect {i : node} {v : view} {e : value} {q : nodeset}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.form_own_commitqc i v e q) st') :
+    st'.msg_commitqc v e = true ∧ st'.decided i e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  constructor <;> mvba_effect
+
+/-- **The commit-certificate link.** A correct validator settled in view `v`,
+with a supermajority's `Commit`s on `(v, e)` on the network, forms the
+commit certificate. The index is reported so that the links compose: the
+certificate appears at or after the point the commits were observed, which
+is what lets the next link's premises be transported to it. -/
+theorem eventually_commitqc_of_settled
+    (r : MvbaRun th) (hfj : FJustice r)
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {N : Nat}
+    (hs : SettledIn r i v N)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
+    {e : value} {q : nodeset} (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_commit p v e = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).msg_commitqc v e = true := by
+  by_contra hcon
+  push Not at hcon
+  have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
+    r.mono (P := fun s => s.input i E₀ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
+  have hall' : ∀ n, N ≤ n → ∀ p, nset.member p q = true →
+      (r.at' n).msg_commit p v e = true := by
+    intro n hn p hp
+    exact r.mono (P := fun s => s.msg_commit p v e = true)
+      (fun m hm => Mvba.msg_commit.mono (r.steps m) p v e hm) (hall p hp) n hn
+  obtain ⟨n, hn, hfire⟩ :=
+    hfj (.form_own_commitqc i v e q)
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
+      (fun n hn => EnabledMove.of_enabled_of_effect
+        (enabled_form_own_commitqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1 hsm
+          (hall' n hn))
+        (fun _ h => (form_own_commitqc_effect h).1) (hcon n hn))
+  exact hcon (n + 1) (by omega) (form_own_commitqc_effect (hfire ▸ r.steps n)).1
+
+/-- **The rank's commit dimension bottoming out entails termination for one
+validator**, given one correct validator settled in the view. The
+composition of the two links above with `commit_quorum_of_assemblyGap_zero`
+([Rank.lean](Rank.lean)): no certificate is mentioned, only the residual.
+
+`enum` appears because `assemblyGap` is defined over an enumerated quorum —
+the proof-side requirement of [ByzQuorum.lean](../ByzQuorum.lean), carried
+as a visible hypothesis. -/
+theorem eventually_decided_of_assemblyGap_zero
+    (r : MvbaRun th) (hfj : FJustice r) (hna : NoEarlyAbandon r)
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset)
+    {q : nodeset} (hsm : nset.supermajority q)
+    {N : Nat} {v : view} {e : value}
+    (hz : assemblyGap enum q v e (r.at' N) = 0)
+    {j : node} (hj : ¬ nset.is_byz j = true) (hsj : SettledIn r j v N)
+    {Ej : value} (hinj : (r.at' N).input j Ej = true)
+    {i : node} (hi : ¬ nset.is_byz i = true)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true) :
+    ∃ (n : Nat) (E : value), (r.at' n).decided i E = true := by
+  obtain ⟨m, hm, hqc⟩ := eventually_commitqc_of_settled r hfj hj hsj hinj hsm
+    (fun p hp => commit_quorum_of_assemblyGap_zero hz p hp)
+  exact eventually_decided_of_commitqc r hfj hna hi
+    (r.mono (P := fun s => s.input i E₀ = true)
+      (fun k hk => Mvba.input.mono (r.steps k) i E₀ hk) hin m hm) hqc
+
+/-! ## The link before *that*: a validator sends its `Commit`
+
+Here the shape changes, and the change is the whole content of
+[MvbaPlan.md](../../docs/MvbaPlan.md) §3.1(a). The last link's guards were
+monotone, so "enabled once" meant "enabled ever after" and weak fairness
+applied directly. `send_commit` has three guards that are
+**anti-monotone** — `in_view i v`, `¬ timed_out i v`, `¬ commit_sent i v` —
+and each has to be handled differently:
+
+* `in_view` and `¬ timed_out` are assumed, as `SettledIn`. They are what
+  (A-viewsync) exists to discharge for the good view, and they cannot be
+  proven here because a validator may legitimately sync past a view.
+* `¬ commit_sent i v` is **not** assumed, because it is the one whose
+  falsification is the goal. Keeping it analysable is what two of the
+  model's invariants are for: if the guard dies, the validator has
+  already sent the `Commit` this link was waiting for, so the conclusion
+  holds anyway. That is `commit_sent_backed`, and
+  `commit_sent_implies_voted` is what makes it inductive — a validator that
+  has sent its `Commit` in `v` cannot accept a different vector in `v`,
+  because both `Pre-Prepare` handlers require `∀ W, voted i W → W < v`. -/
 
 /-- **`send_commit`'s guards are its enabledness.** -/
 theorem enabled_send_commit {i : node} {v : view} {e : value}
@@ -656,7 +720,7 @@ theorem eventually_msg_commit_of_settled
       (Mvba.reachable_commit_sent_backed (r.reachable n) i v e hi hcs (hacc' n hn))
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.send_commit i v e)
-      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => EnabledMove.of_enabled_of_effect
         (enabled_send_commit hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           (hacc' n hn) (hloc' n hn) (hs n hn).2.1 (hncs n hn) (hav' n hn))
@@ -801,70 +865,24 @@ theorem eventually_local_prepqc_of_settled
       (local_prepqc_of_guard_lapsed (r.reachable n) hi (hs n hn).1 hsm (hall' n hn) hlapse)
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.adopt_prepqc i v e q)
-      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => EnabledMove.of_enabled_of_effect
         (enabled_adopt_prepqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           hsm (hall' n hn) (hacc' n hn) (hlow n hn) (hs n hn).2.1)
         (fun _ h => adopt_prepqc_effect h) (hcon n hn))
   exact hcon (n + 1) (by omega) (adopt_prepqc_effect (hfire ▸ r.steps n))
 
-/-! ## The prepare assembly, and the per-validator chain closed
+/-! ## The per-validator chain closed
 
-`form_prepqc` is the commit assembly's twin — both guards monotone, so the
-proof is the one from `eventually_commitqc_of_commit_quorum` with the
-relation changed. It is the *anonymous* assembly — whoever holds the
-signatures can form the certificate — and the per-validator chain below
-does not pass through it, since each validator forms its own. With the
-adoption link the whole **per-validator** half of a view's work composes
-into one statement: from a prepare quorum to that validator's `Commit`,
-through its own certificate and the availability premise.
+With the adoption link the whole **per-validator** half of a view's work
+composes into one statement: from a prepare quorum to that validator's
+`Commit`, through its own certificate and the availability premise. The
+anonymous `form_prepqc` plays no part: it is the adversary's (`AssemblyLabel`),
+and each correct validator forms its own certificate.
 
 What is left after this is the quorum-wide half (every correct validator
 doing the same, so that the *commit* quorum assembles), the acceptance that
 puts `accepted i v e` in place, and discharging `SettledIn`. -/
-
-/-- **`form_prepqc`'s guards are its enabledness.** -/
-theorem enabled_form_prepqc {v : view} {e : value} {q : nodeset}
-    (hsm : nset.supermajority q)
-    (hall : ∀ p, nset.member p q = true → st.msg_prepare p v e = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
-      (.form_prepqc v e q) := by
-  mvba_enabled
-  exact ⟨_, hsm, hall, rfl⟩
-
-/-- **`form_prepqc`'s effect**: the prepare certificate is on the network. -/
-theorem form_prepqc_effect {v : view} {e : value} {q : nodeset}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
-      (.form_prepqc v e q) st') : st'.msg_prepqc v e = true := by
-  mvba_tr htr
-  obtain ⟨-, -, rfl⟩ := htr
-  mvba_effect
-
-/-- **The prepare-assembly link.** A supermajority all of whose members have
-sent their `Prepare` on `(v, e)` yields a prepare certificate. -/
-theorem eventually_prepqc_of_prepare_quorum
-    (r : MvbaRun th) (hfj : FJustice r)
-    {N : Nat} {v : view} {e : value} {q : nodeset} (hsm : nset.supermajority q)
-    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p v e = true) :
-    ∃ n, N ≤ n ∧ (r.at' n).msg_prepqc v e = true := by
-  by_contra hcon
-  push Not at hcon
-  have hall' : ∀ n, N ≤ n → ∀ p, nset.member p q = true →
-      (r.at' n).msg_prepare p v e = true := by
-    intro n hn p hp
-    exact r.mono (P := fun s => s.msg_prepare p v e = true)
-      (fun m hm => Mvba.msg_prepare.mono (r.steps m) p v e hm) (hall p hp) n hn
-  obtain ⟨n, hn, hfire⟩ :=
-    hfj (.form_prepqc v e q)
-      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_form_prepqc hsm (hall' n hn))
-        (fun _ h => form_prepqc_effect h) (hcon n hn))
-  exact hcon (n + 1) (by omega) (form_prepqc_effect (hfire ▸ r.steps n))
-
-/-- Being settled from `N` on is being settled from any later point on. -/
-theorem SettledIn.later {r : MvbaRun th} {i : node} {v : view} {N M : Nat}
-    (hs : SettledIn r i v N) (h : N ≤ M) : SettledIn r i v M :=
-  fun n hn => hs n (Nat.le_trans h hn)
 
 /-- **The per-validator chain, closed.** A correct validator settled in view
 `v` that has accepted `e` there sends its `Commit` on `(v, e)`, given only a
@@ -1019,7 +1037,7 @@ theorem eventually_accepted_of_settled
       (Mvba.reachable_accepted_implies_prepare (r.reachable n) i v e hi hacc)
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.handle_preprepare i l pv v e)
-      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => EnabledMove.of_enabled_of_effect
         (enabled_handle_preprepare hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           hnext hlead (hpp' n hn) hvalid (hjust' n hn) (hvote n hn))
@@ -1061,7 +1079,8 @@ is settled there and the leader has proposed.
 This is the whole of `thm:termination`'s "correct-leader view" paragraph,
 bound erased: every member of the honest quorum accepts the proposal and
 prepares, each of them forms the prepare certificate from those prepares
-and commits, the commit certificate forms, and then *every* correct validator
+and commits, one of them forms the commit certificate from those commits,
+and then *every* correct validator
 that has proposed decides — not only the quorum's members, because `decide`
 accepts a certificate of any view and needs nothing local.
 
@@ -1116,9 +1135,16 @@ theorem terminates_of_settled_honest_view
   obtain ⟨n₃, hn₃, hall₃⟩ :=
     eventually_quorum enum r (fun p s => s.msg_commit p v e = true)
       (fun p m hm => Mvba.msg_commit.mono (r.steps m) p v e hm) hstep3
-  -- (4) The commit certificate forms …
+  -- (4) A member forms the commit certificate from those commits …
+  obtain ⟨R₀, hR₀q, hR₀⟩ :=
+    nset.greater_than_third_one_honest hq.honestQuorum
+      (nset.supermajority_greater_than_third _ hq.honestQuorum_supermajority)
+  obtain ⟨E₀, hE₀⟩ :=
+    Mvba.reachable_entered_implies_input (r.reachable n₃) R₀ v hR₀
+      ((hs R₀ hR₀q n₃ (Nat.le_trans hn₁ hn₃)).1).1
   obtain ⟨n₄, hn₄, hcqc⟩ :=
-    eventually_commitqc_of_commit_quorum r hfj hq.honestQuorum_supermajority hall₃
+    eventually_commitqc_of_settled r hfj hR₀ ((hs R₀ hR₀q).later (Nat.le_trans hn₁ hn₃))
+      hE₀ hq.honestQuorum_supermajority hall₃
   -- … and every correct validator that has proposed decides on it.
   intro i hi
   obtain ⟨m, E, hm⟩ := hap i hi
@@ -1222,7 +1248,7 @@ theorem eventually_preprepare_of_settled_leader
         (fun m hm => Mvba.tc_lock.mono (r.steps m) pv w e hm) hw
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.leader_repropose l pv v w e)
-        (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
+        (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
         (fun n hn => EnabledMove.of_enabled_of_effect
           (enabled_leader_repropose hl ⟨E₀, hin' n hn⟩ (hs n hn).2.2 hnext hlead
             (hs n hn).1 (hw' n hn) (hnp n hn))
@@ -1233,7 +1259,7 @@ theorem eventually_preprepare_of_settled_leader
         (fun m hm => Mvba.tc_nolock.mono (r.steps m) pv hm) hnl
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.leader_propose_fresh l pv v E₀)
-        (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
+        (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
         (fun n hn => EnabledMove.of_enabled_of_effect
           (enabled_leader_propose_fresh hl (hs n hn).2.2 hnext hlead (hs n hn).1
             (hnl' n hn) (hin' n hn) (hnp n hn))
@@ -1249,53 +1275,16 @@ towards the honest-led view (A-leader-rotation) promises.
 Three steps. What makes the *first* one fire — a validator's timer running
 out — is not a link but the assumption (A-viewsync)'s first clause, and
 "Reaching the good view" below is where it is consumed. Given that, the rest
-is the familiar shape: a quorum of timeouts assembles a certificate, and the
-certificate lets a validator advance.
+is the familiar shape: a correct validator holding a quorum of timeouts forms
+a certificate ("Closing a view", below), and the certificate lets a
+validator advance.
 
-Neither step costs a new invariant. `sync_view`'s guard
+The advance costs no invariant. `sync_view`'s guard
 `∀ V, entered i V → V ≤ pv` is anti-monotone, but its failure is the goal
 outright — a validator whose views are no longer all below `pv` has already
 advanced past `pv`, which is what the step was for. That is the cleanest
 instance of the pattern in the file: no invariant is needed because the
 guard's negation *is* the conclusion. -/
-
-/-- **`form_tc_nolock`'s guards are its enabledness.** -/
-theorem enabled_form_tc_nolock {v : view} {q : nodeset}
-    (hsm : nset.supermajority q)
-    (hall : ∀ p, nset.member p q = true → st.msg_timeout_noqc p v = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
-      (.form_tc_nolock v q) := by
-  mvba_enabled
-  exact ⟨_, hsm, hall, rfl⟩
-
-/-- **`form_tc_nolock`'s effect**: the view is closed by a certificate. -/
-theorem form_tc_nolock_effect {v : view} {q : nodeset}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
-      (.form_tc_nolock v q) st') : st'.msg_tc v = true := by
-  mvba_tr htr
-  obtain ⟨-, -, rfl⟩ := htr
-  mvba_effect
-
-/-- **The timeout-certificate link.** A supermajority all of whose members
-have sent their lock-free `Timeout` for `v` closes the view. -/
-theorem eventually_tc_of_timeout_quorum
-    (r : MvbaRun th) (hfj : FJustice r)
-    {N : Nat} {v : view} {q : nodeset} (hsm : nset.supermajority q)
-    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_timeout_noqc p v = true) :
-    ∃ n, N ≤ n ∧ (r.at' n).msg_tc v = true := by
-  by_contra hcon
-  push Not at hcon
-  have hall' : ∀ n, N ≤ n → ∀ p, nset.member p q = true →
-      (r.at' n).msg_timeout_noqc p v = true := by
-    intro n hn p hp
-    exact r.mono (P := fun s => s.msg_timeout_noqc p v = true)
-      (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm) (hall p hp) n hn
-  obtain ⟨n, hn, hfire⟩ :=
-    hfj (.form_tc_nolock v q)
-      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_form_tc_nolock hsm (hall' n hn))
-        (fun _ h => form_tc_nolock_effect h) (hcon n hn))
-  exact hcon (n + 1) (by omega) (form_tc_nolock_effect (hfire ▸ r.steps n))
 
 /-- **`sync_view`'s guards are its enabledness.** -/
 theorem enabled_sync_view {i : node} {pv v : view}
@@ -1351,7 +1340,7 @@ theorem eventually_entered_above_of_tc
     exact hcon n V hn hV (lt_of_not_le hnle)
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.sync_view i pv v)
-      (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
+      (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
       (fun n hn => EnabledMove.of_enabled_of_effect
         (enabled_sync_view hi ⟨E₀, hin' n hn⟩ (hnab n hn) hnext (htc' n hn) (hbelow n hn))
         (fun _ h => sync_view_effect h) (fun h => hcon n v hn h hlt))
@@ -1639,7 +1628,8 @@ which is what `sync_view` is guarded on.
 `exists_justification_below_of_entered` resolves the certificate into its two
 shapes because the leader link needs the lock; here the opposite is wanted,
 and `tc_lock_implies_tc` — a lock is also a timeout certificate, both set by
-the one step of `form_tc_lock` — is what makes the two interchangeable. -/
+the one step that forms a lock-carrying certificate — is what makes the two
+interchangeable. -/
 theorem exists_tc_below_of_entered
     (r : MvbaRun th) {i : node} (hi : ¬ nset.is_byz i = true) {pv W : view}
     (hnext : vord.next pv W) {n : Nat} (hent : (r.at' n).entered i W = true) :
@@ -1795,7 +1785,7 @@ theorem eventually_timed_out_of_timer
         (fun W => ∃ E, (r.at' n₀).local_prepqc i W E = true) Vs W₀
         (hheld n₀ hn₀ W₀ E₀' hW₀) ⟨E₀', hW₀⟩
     obtain ⟨n, hn, hfire⟩ :=
-      hfj (.timeout_qc i v w e) ⟨fun h => h, fun h => h, fun h => h, fun h => h⟩ n₀
+      hfj (.timeout_qc i v w e) ⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩ n₀
         (fun n hn => EnabledMove.of_enabled_of_effect
           (enabled_timeout_qc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
             (hnab n (Nat.le_trans hn₀ hn)) (hview n (Nat.le_trans hn₀ hn))
@@ -1809,7 +1799,7 @@ theorem eventually_timed_out_of_timer
   -- It holds none, and by stability never will.
   · push Not at hany
     obtain ⟨n, hn, hfire⟩ :=
-      hfj (.timeout_noqc i v) ⟨fun h => h, fun h => h, fun h => h, fun h => h⟩ n₀
+      hfj (.timeout_noqc i v) ⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩ n₀
         (fun n hn => EnabledMove.of_enabled_of_effect
           (enabled_timeout_noqc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
             (hnab n (Nat.le_trans hn₀ hn)) (hview n (Nat.le_trans hn₀ hn))
@@ -1826,7 +1816,9 @@ theorem eventually_timed_out_of_timer
 The other half of the climb. `eventually_entered_above_of_tc` advances a
 validator once a certificate exists; this produces one.
 
-The obstacle is `form_tc_lock`, whose guard names the member carrying the
+The step is a correct validator's `form_own_tc_lock` or
+`form_own_tc_nolock` (`HandleTimeout`). The obstacle is the lock rule,
+whose guard names the member carrying the
 **highest** certificate — a maximum, where every other assembly in this file
 needs only a conjunction. `byz_timeout_qc` lets a Byzantine member carry
 unboundedly many certificates and the monotone relations record no bound,
@@ -1880,47 +1872,95 @@ theorem exists_dominating_timeout
             · exact Or.inl hn
             · exact Or.inr ⟨W, E, hW, vord.le_trans W w wa hWle hle⟩
 
-/-- **`form_tc_lock`'s guards are its enabledness.** -/
-theorem enabled_form_tc_lock {v : view} {q : nodeset} {r₀ : node} {w : view} {e : value}
+/-- **`form_own_tc_lock`'s guards are its enabledness.** -/
+theorem enabled_form_own_tc_lock {i : node} {v : view} {q : nodeset} {r₀ : node} {w : view}
+    {e : value}
+    (hi : ¬ nset.is_byz i = true)
+    (hin : ∃ E, st.input i E = true)
+    (hact : Active st i)
+    (hview : InView st i v)
+    (hnf : ¬ st.tc_formed i v = true)
     (hsm : nset.supermajority q) (hmem : nset.member r₀ q = true)
     (hqc : st.msg_timeout_qc r₀ v w e = true)
     (hpq : st.msg_prepqc w e = true) (hle : vord.le w v)
     (hdom : ∀ p, nset.member p q = true → st.msg_timeout_noqc p v = true ∨
       ∃ W E, st.msg_timeout_qc p v W E = true ∧ vord.le W w) :
     Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
-      (.form_tc_lock v q r₀ w e) := by
+      (.form_own_tc_lock i v q r₀ w e) := by
   mvba_enabled
-  exact ⟨_, hsm, hmem, hqc, hpq, hle, hdom, rfl⟩
+  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hnf, hsm, hmem, hqc, hpq, hle, hdom, rfl⟩
 
-theorem form_tc_lock_effect {v : view} {q : nodeset} {r₀ : node} {w : view} {e : value}
+theorem form_own_tc_lock_effect {i : node} {v : view} {q : nodeset} {r₀ : node} {w : view}
+    {e : value}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
-      (.form_tc_lock v q r₀ w e) st') : st'.msg_tc v = true := by
+      (.form_own_tc_lock i v q r₀ w e) st') : st'.msg_tc v = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   mvba_effect
 
-/-- **A view all of whose quorum members have timed out gets closed.** The
-two assemblies together: whichever of them the timeouts allow, weak fairness
-fires it. This is one half of the climb — `eventually_entered_above_of_tc`
-supplies the other. -/
+/-- **`form_own_tc_nolock`'s guards are its enabledness.** -/
+theorem enabled_form_own_tc_nolock {i : node} {v : view} {q : nodeset}
+    (hi : ¬ nset.is_byz i = true)
+    (hin : ∃ E, st.input i E = true)
+    (hact : Active st i)
+    (hview : InView st i v)
+    (hnf : ¬ st.tc_formed i v = true)
+    (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → st.msg_timeout_noqc p v = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+      (.form_own_tc_nolock i v q) := by
+  mvba_enabled
+  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hnf, hsm, hall, rfl⟩
+
+/-- **`form_own_tc_nolock`'s effect**: the view is closed by a certificate. -/
+theorem form_own_tc_nolock_effect {i : node} {v : view} {q : nodeset}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.form_own_tc_nolock i v q) st') : st'.msg_tc v = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  mvba_effect
+
+/-- **A view all of whose quorum members have timed out gets closed**, by a
+correct validator that stays in it. Whichever of its two rules the timeouts
+allow, weak fairness fires it. The rule's "not already formed" guard is not
+assumed: if it lapses, the validator has formed the certificate the link was
+waiting for (`tc_formed_backed`). This is one half of the climb —
+`eventually_entered_above_of_tc` supplies the other. -/
 theorem eventually_tc_of_timed_out_quorum
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
     (r : MvbaRun th) (hfj : FJustice r)
     {N : Nat} {v : view} {q : nodeset} (hsm : nset.supermajority q)
-    (hto : ∀ p, nset.member p q = true → SentTimeout (r.at' N) p v) :
+    (hto : ∀ p, nset.member p q = true → SentTimeout (r.at' N) p v)
+    {i : node} (hi : ¬ nset.is_byz i = true)
+    (hview : ∀ n, N ≤ n → InView (r.at' n) i v)
+    (hact : ∀ n, N ≤ n → Active (r.at' n) i)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true) :
     ∃ n, N ≤ n ∧ (r.at' n).msg_tc v = true := by
+  by_contra hcon
+  push Not at hcon
+  have hmono : ∀ (P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop),
+      (∀ m, P (r.at' m) → P (r.at' (m + 1))) → P (r.at' N) → ∀ n, N ≤ n → P (r.at' n) :=
+    fun P hp hPN n hn => r.mono (P := P) hp hPN n hn
+  have hin' := hmono (fun s => s.input i E₀ = true)
+    (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
+  -- The anti-monotone guard: if it lapses, the certificate exists.
+  have hnf : ∀ n, N ≤ n → ¬ (r.at' n).tc_formed i v = true := fun n hn h =>
+    hcon n hn (Mvba.reachable_tc_formed_backed (r.reachable n) i v h)
   rcases exists_dominating_timeout (enum.members q)
       (fun p hp => hto p ((enum.mem_members p q).mpr hp)) with hall | ⟨r₀, w, e, hr₀, hq₀, hdom⟩
-  -- No lock anywhere: the lock-free assembly applies.
-  · exact eventually_tc_of_timeout_quorum r hfj hsm
-      (fun p hp => hall p ((enum.mem_members p q).mp hp))
-  -- Otherwise the dominating member is `form_tc_lock`'s `r₀`.
-  · by_contra hcon
-    push Not at hcon
-    have hmono : ∀ (P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop),
-        (∀ m, P (r.at' m) → P (r.at' (m + 1))) → P (r.at' N) → ∀ n, N ≤ n → P (r.at' n) :=
-      fun P hp hPN n hn => r.mono (P := P) hp hPN n hn
-    have hq₀' := hmono (fun s => s.msg_timeout_qc r₀ v w e = true)
+  -- No lock anywhere: the lock-free rule applies.
+  · obtain ⟨n, hn, hfire⟩ :=
+      hfj (.form_own_tc_nolock i v q)
+        (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
+        (fun n hn => EnabledMove.of_enabled_of_effect
+          (enabled_form_own_tc_nolock hi ⟨E₀, hin' n hn⟩ (hact n hn) (hview n hn) (hnf n hn)
+            hsm (fun p hp => hmono (fun s => s.msg_timeout_noqc p v = true)
+              (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm)
+              (hall p ((enum.mem_members p q).mp hp)) n hn))
+          (fun _ h => form_own_tc_nolock_effect h) (hcon n hn))
+    exact hcon (n + 1) (by omega) (form_own_tc_nolock_effect (hfire ▸ r.steps n))
+  -- Otherwise the dominating member is the lock rule's `r₀`.
+  · have hq₀' := hmono (fun s => s.msg_timeout_qc r₀ v w e = true)
       (fun m hm => Mvba.msg_timeout_qc.mono (r.steps m) r₀ v w e hm) hq₀
     have hpq : (r.at' N).msg_prepqc w e = true :=
       Mvba.reachable_timeout_qc_backed (r.reachable N) r₀ v w e hq₀
@@ -1929,10 +1969,11 @@ theorem eventually_tc_of_timed_out_quorum
     have hle : vord.le w v :=
       Mvba.reachable_timeout_qc_view_le (r.reachable N) r₀ v w e hq₀
     obtain ⟨n, hn, hfire⟩ :=
-      hfj (.form_tc_lock v q r₀ w e)
-        (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
+      hfj (.form_own_tc_lock i v q r₀ w e)
+        (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
         (fun n hn => EnabledMove.of_enabled_of_effect
-          (enabled_form_tc_lock hsm ((enum.mem_members r₀ q).mpr hr₀) (hq₀' n hn)
+          (enabled_form_own_tc_lock hi ⟨E₀, hin' n hn⟩ (hact n hn) (hview n hn) (hnf n hn)
+            hsm ((enum.mem_members r₀ q).mpr hr₀) (hq₀' n hn)
             (hpq' n hn) hle (fun p hp => by
               rcases hdom p ((enum.mem_members p q).mp hp) with hnq | ⟨W, E, hW, hWle⟩
               · exact Or.inl (hmono (fun s => s.msg_timeout_noqc p v = true)
@@ -1940,8 +1981,8 @@ theorem eventually_tc_of_timed_out_quorum
               · exact Or.inr ⟨W, E, hmono (fun s => s.msg_timeout_qc p v W E = true)
                   (fun m hm => Mvba.msg_timeout_qc.mono (r.steps m) p v W E hm) hW n hn,
                   hWle⟩))
-          (fun _ h => form_tc_lock_effect h) (hcon n hn))
-    exact hcon (n + 1) (by omega) (form_tc_lock_effect (hfire ▸ r.steps n))
+          (fun _ h => form_own_tc_lock_effect h) (hcon n hn))
+    exact hcon (n + 1) (by omega) (form_own_tc_lock_effect (hfire ▸ r.steps n))
 
 /-! ## Reaching the good view
 
@@ -2157,8 +2198,13 @@ theorem eventually_tc_below_good
                 Mvba.reachable_timed_out_implies_message (r.reachable n) p M
                   (hQc p hp) hti⟩)
         -- … the view closes …
+        obtain ⟨E₄, hE₄⟩ :=
+          Mvba.reachable_entered_implies_input (r.reachable N₄) R₀ M hR₀.2
+            (hview R₀ hR₀.1 N₄ (Nat.le_trans hN₃ hN₄)).1
         obtain ⟨N₅, hN₅, htc⟩ :=
-          eventually_tc_of_timed_out_quorum enum r hfj hQs hsent
+          eventually_tc_of_timed_out_quorum enum r hfj hQs hsent hR₀.2
+            (fun n hn => hview R₀ hR₀.1 n (Nat.le_trans (Nat.le_trans hN₃ hN₄) hn))
+            (fun n _ => hnab R₀ n hR₀.2) hE₄
         -- … and somebody leaves it, which the bound forbids.
         obtain ⟨mp, Ep, hmp⟩ := hap R₀ hR₀.2
         obtain ⟨n, V, hn, hV, hlt⟩ :=
@@ -2419,6 +2465,79 @@ theorem terminates_iff_eventually (r : MvbaRun th) :
     obtain ⟨n, E, hE⟩ := h i hi
     exact ⟨n, E, hE⟩
 
+/-! ## Every fair action disables itself
+
+The acceptance criterion of [Bounds.md](../../docs/Bounds.md) §6.4.7,
+machine-checked: **at every state, a fair label that is enabled is
+move-enabled** — firing it changes the state. Equivalently, the model has no
+honest action that stays enabled after it has fired, which is what the
+supplement's "not already" conditions are for: each fair action's guard
+reads the absence of the local record its own step sets (`¬ proposed_in`,
+`¬ voted`-below, the lock-view bound, `¬ commit_sent`, `DecidedQC_i = ⊥`,
+`¬ timed_out`, `¬ tc_formed`, the entered-view bound). So the flag
+discipline is checked rather than read, and for this model weak fairness
+over plain enabledness and over state-changing steps are the same premise.
+
+It needs no invariant and not even reachability: the guard of each fair
+action rules out, by itself, that its update is a no-op. The proof is one
+case per label over the model's own label type — the transition body read
+off `trSimp`, and the record the step sets compared with the guard that
+says it was unset — so an action added to `JusticeLabel` without such a
+guard is a failing case, not a silent gap. -/
+
+section Acceptance
+
+omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset in
+/-- No view is below itself. -/
+theorem vlt_irrefl (a : view) : ¬ vord.lt a a := fun h => ((vord.le_lt a a).mp h).2 rfl
+
+omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset in
+/-- A view's successor is not at or below it. -/
+theorem not_le_of_next {a b : view} (h : vord.next a b) : ¬ vord.le b a := fun hle =>
+  let h' := (vord.le_lt a b).mp ((vord.next_def a b).mp h).1
+  h'.2 (vord.le_antisymm a b h'.1 hle)
+
+/-- **Every enabled fair label is move-enabled**, at every state: the
+acceptance criterion of fired-once flags. -/
+theorem enabledMove_of_enabled (l : Mvba.Label node nodeset value view)
+    (hj : JusticeLabel l)
+    (hen : Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st l) :
+    EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th st l := by
+  obtain ⟨st', htr⟩ := hen
+  refine ⟨st', htr, fun heq => ?_⟩
+  rw [heq] at htr
+  cases l
+  -- The unfair labels are not under the lemma.
+  all_goals first
+    | exact absurd trivial hj.1
+    | exact absurd trivial hj.2.1
+    | exact absurd trivial hj.2.2.1
+    | exact absurd trivial hj.2.2.2.1
+    | exact absurd trivial hj.2.2.2.2
+    | skip
+  -- Every fair one: the step sets a record its own guard says is unset, so
+  -- its post-state is not its pre-state.
+  all_goals mvba_tr htr
+  all_goals (repeat (obtain ⟨_, htr⟩ := htr))
+  all_goals (cases st; simp +unfoldPartialApp [Veil.FieldRepresentation.get,
+      Veil.FieldRepresentation.set, Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate,
+      Veil.FieldUpdatePat.match, Veil.IteratedArrow.curry,
+      Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
+      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id,
+      Mvba.State.mk.injEq] at *)
+  all_goals (try simp_all)
+  all_goals grind [vlt_irrefl, not_le_of_next]
+
+/-- The same along a run, the form a fairness argument reads: at every index,
+an enabled fair label is move-enabled. -/
+theorem enabledMove_of_enabled_run (r : MvbaRun th) (n : Nat)
+    (l : Mvba.Label node nodeset value view) (hj : JusticeLabel l)
+    (hen : Enabled (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l) :
+    EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l :=
+  enabledMove_of_enabled l hj hen
+
+end Acceptance
+
 end Runs
 
 end Mvba
@@ -2441,6 +2560,16 @@ info: 'Mvba.label_classified' depends on axioms: [propext, Classical.choice, Quo
 /-- info: 'Mvba.not_justice_of_byz' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms Mvba.not_justice_of_byz
+
+/-- info: 'Mvba.not_justice_of_assembly' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Mvba.not_justice_of_assembly
+
+/--
+info: 'Mvba.enabledMove_of_enabled' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.enabledMove_of_enabled
 
 /--
 info: 'Mvba.terminates_iff_eventually' depends on axioms: [propext, Classical.choice, Quot.sound]

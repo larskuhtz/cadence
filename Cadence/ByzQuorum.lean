@@ -32,7 +32,7 @@ to enumerate it. That is exactly right for safety, which only ever consumes
 an intersection, and it is why every safety theorem in this development
 holds for an abstract `node` of any cardinality.
 
-Liveness is different. Assembling a certificate takes one firing per member — `Mvba.form_prepqc`
+Liveness is different. Assembling a certificate takes one firing per member — `Mvba.adopt_prepqc`
 requires `∀ r, member r q → msg_prepare r v e` — so weak fairness produces
 it in finite time only if a quorum has finitely many members. This class is
 the minimal statement of that, and it is kept **separate from
@@ -81,7 +81,7 @@ right to omit it.
 
 Liveness cannot. Under (F-byz) the Byzantine actions are unfair, so progress
 may not rely on adversarial sends; every certificate the termination
-argument needs (`Mvba.form_prepqc`, `form_commitqc`, the two `form_tc_*`)
+argument needs (`Mvba.adopt_prepqc`, `form_own_commitqc`, the two `form_own_tc_*`)
 must therefore be assembled out of correct validators alone, and that is
 possible only if the correct validators contain a supermajority. With
 `n ≥ 3f+1` and at most `f` Byzantine there are `n − f ≥ 2f+1` of them, so
