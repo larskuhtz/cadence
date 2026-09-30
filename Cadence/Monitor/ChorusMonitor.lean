@@ -38,6 +38,10 @@ open Lean (Json fromJson? ToJson FromJson)
 -- Modest budgets suffice once the state is seeded via the explicit instance.
 set_option maxHeartbeats 800000
 set_option synthInstance.maxHeartbeats 200000
+-- The state's derived `DecidableEq` (behind `st' == st`) is one instance term
+-- over every state component; at the S1b component count it is ~930 nodes,
+-- past the default `synthInstance.maxSize` of 128.
+set_option synthInstance.maxSize 2048
 set_option maxRecDepth 4096
 -- `String.trim` is deprecated but still returns `String`; silence the linter so
 -- `lean --run` output stays clean (the replacement returns `String.Slice`).
@@ -222,6 +226,7 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   -- byzantine capability actions
   | "byz_sign_proposer", [a,b]       => do pure (.byz_sign_proposer (← dNode a) (← dRoot b))
   | "byz_deliver_chunk", [a,b,c]     => do pure (.byz_deliver_chunk (← dNode a) (← dNode b) (← dRoot c))
+  | "byz_redisseminate_chunk", [a,b,c,d] => do pure (.byz_redisseminate_chunk (← dNode a) (← dNode b) (← dNode c) (← dRoot d))
   | "byz_sign_vote_pos", [a,b,c]     => do pure (.byz_sign_vote_pos (← dNode a) (← dNode b) (← dRoot c))
   | "byz_sign_vote_neg", [a,b]       => do pure (.byz_sign_vote_neg (← dNode a) (← dNode b))
   | "byz_cast_vote", [a]             => do pure (.byz_cast_vote (← dNode a))
@@ -231,6 +236,8 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "byz_sign_commit_pos", [a,b,c]   => do pure (.byz_sign_commit_pos (← dNode a) (← dNode b) (← dRoot c))
   | "byz_sign_commit_neg", [a,b]     => do pure (.byz_sign_commit_neg (← dNode a) (← dNode b))
   | "byz_cast_commit", [a]           => do pure (.byz_cast_commit (← dNode a))
+  | "byz_broadcast_commitqc_pos", [a,b,c,d] => do pure (.byz_broadcast_commitqc_pos (← dNode a) (← dNode b) (← dRoot c) (← dNSet d))
+  | "byz_broadcast_commitqc_neg", [a,b,c]  => do pure (.byz_broadcast_commitqc_neg (← dNode a) (← dNode b) (← dNSet c))
   | "byz_sign_fbcommit", [a]         => do pure (.byz_sign_fbcommit (← dNode a))
   | "byz_release_msg_decrypt_share", [a] => do pure (.byz_release_msg_decrypt_share (← dNode a))
   | _, _ => throw s!"unknown action or wrong arity: '{act}' with {args.length} arg(s)"
@@ -401,10 +408,11 @@ def projectLbl (i : ND) : Lbl → Except String (List NodeStep)
                                            else [.admit r (.byz_sign_commit_neg r 0),
                                                  .admit r (.byz_cast_commit r)])
   -- The certificate's collector is its sender: validated when it is `i`,
-  -- otherwise admitted as the collector's message (its own single-Byzantine
-  -- instance satisfies the sender gate).
+  -- otherwise admitted as the collector's message, through the adversary's
+  -- assembly capability `byz_broadcast_commitqc_neg` under the collector's
+  -- own single-Byzantine instance (it checks the same certificate).
   | .broadcast_commitqc_neg c j q   => .ok (if c = i then [.assemble (.broadcast_commitqc_neg c j q)]
-                                           else [.admit c (.broadcast_commitqc_neg c j q)])
+                                           else [.admit c (.byz_broadcast_commitqc_neg c j q)])
   | .finalize_commit r             => .ok (if r = i then [.validate (.finalize_commit r)] else [])
   | _ => .error "label outside single-node v1 coverage (negative fast path, proposer 0)"
 
