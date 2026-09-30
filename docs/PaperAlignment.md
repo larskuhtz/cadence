@@ -190,7 +190,7 @@ atomic reload. `subsec:mvba-correctness` discharges the module's properties
 with roughly fifteen lemmas, `thm:agreement` and `thm:termination`, the
 latter at `O(fΔ)`.
 
-Five consequences for this repository:
+Six consequences for this repository:
 
 1. `ℓ_MVBA` has a concrete value, `O(fΔ)`, and a machine-checked
    counterpart: `Mvba.bounded_termination`
@@ -263,6 +263,26 @@ Five consequences for this repository:
    (`TryFormPrepQC`, `line:mvba:tfp-guard`, `line:mvba:tfp-store`), and the
    model's `adopt_prepqc` now reads those prepares instead of a certificate
    formed anywhere ([Bounds.md](Bounds.md) §6.2.4).
+6. **Three "not already" rules, mirrored** (2026-09-30, R4;
+   [Bounds.md](Bounds.md) §6.4.7). The model had formed commit and timeout
+   certificates only by anonymous assemblies, which no rule of the
+   supplement takes and which stay enabled after they have fired. Each
+   is now one correct validator's step with the supplement's local
+   condition. `TryFormCommitQC` forms a `CommitQC` from `2f+1` `Commit`s
+   of the current view "provided that it has not already learned a
+   decision certificate" (`DecidedQC_i = ⊥`), and `Decide` follows in the
+   same handler segment: the model's `form_own_commitqc`, guarded on
+   `∀ E, ¬ decided i E`, which is `DecidedQC_i = ⊥` here because both
+   decision paths set it. `HandleTimeout` forms `TC_{s,v}` "upon first
+   collecting `2f+1` valid timeout messages" for its current view
+   (`line:mvba:ht-advance`), with a local record of having formed it, and
+   processes it through `SyncView`: the model's `form_own_tc_lock` and
+   `form_own_tc_nolock`, with the record `tc_formed i v`, followed by
+   `sync_view`/`sync_view_adopt` as a second step. `TryFormPrepQC` has
+   been mirrored since R3 (`adopt_prepqc`, item 5). The anonymous
+   assemblies stay as the adversary's capability and carry no fairness,
+   so safety's adversary is unchanged and every fair action is now one
+   the supplement's validators take.
 
 ## 5. What this implies for the models
 

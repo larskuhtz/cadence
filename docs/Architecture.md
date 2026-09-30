@@ -118,7 +118,7 @@ here rather than repeating them.
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
 | [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 42 | 9 safety + 92 invariants + 1 step property | 4 428 | cvc5, **proof-reconstructed** (kernel-checked), + 12 manual Lean proofs: 11 for e-matching-divergent cells, 1 for solver-budget headroom (`vote × committed_pos_frozen`); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
-| [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 25 | 3 safety + 46 invariants + 1 step property | 1 325 | cvc5, **proof-reconstructed** (kernel-checked), + 3 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate, and cross-view certificate agreement) |
+| [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 28 | 3 safety + 47 invariants + 1 step property | 1 507 | cvc5, **proof-reconstructed** (kernel-checked), + 5 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate; cross-view certificate agreement, at both actions that create a commit certificate; and agreement at the decision `form_own_commitqc` makes) |
 | [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
 | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 15 invariants + 3 step properties | 189 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
 | [Cadence/Cadence.lean](../Cadence/Cadence.lean) | 6 | 4 safety + 21 invariants | 182 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
@@ -531,7 +531,7 @@ table can be read off one file:
 | `FallbackReceipt.build_totality_of_reachable` ([Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean)) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)) | same | ✓ |
 | `Chorus.evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)) | same | ✓ |
-| `Mvba.invariants_of_reachable` + per-property projections ([Cadence/Mvba/Certify.lean](../Cadence/Mvba/Certify.lean)) | same | ✓ + `#veil_status`: 1325/1325 real |
+| `Mvba.invariants_of_reachable` + per-property projections ([Cadence/Mvba/Certify.lean](../Cadence/Mvba/Certify.lean)) | same | ✓ + `#veil_status`: 1507/1507 real |
 | `Mvba.mvbaSafety`, `Mvba.mvba_of_temporal` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) | same | ✓ |
 | `Mvba.bounded_termination`, `Mvba.aViewSync_of_sync` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)) | same | ✓ |
 | `Mvba.mvbaTemporal`, `Mvba.timed_termination`, `Mvba.admissible_exists`, `Mvba.mvbaFull` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) | same | ✓ |
