@@ -17,16 +17,22 @@ five properties with no algorithm. The algorithm modelled here is the
 leader-based protocol of the paper repository's **internal supplement** —
 `supplementary-internal.tex`, `sec:mvba-instantiation`, with the data types
 in `subsec:mvba-datatypes`, the protocol in `subsec:mvba-protocol`
-(algorithm blocks `alg:mvba`, `alg:mvba-cont`, `alg:mvba-cont2`) and its
-correctness argument in `subsec:mvba-correctness`. **The supplement is not
-yet part of the published paper.** It has neither tags nor versions, so this
-model pins the **paper-repository commit it was read against:
-`026dc8b` (2026-09-03)**; a later change to `alg_mvba.tex` or to
-`subsec:mvba-correctness` is the trigger to re-read the model against the
-new commit and move this pin ([MvbaPlan.md](../docs/MvbaPlan.md) §0).
-Paper-repository `b838e17` leaves `alg_mvba.tex` and all of
-`sec:mvba-instantiation` byte-identical to `026dc8b`, so the pin is current
-at that commit. What an auditor can
+(algorithm blocks `alg:mvba`, `alg:mvba-cont`, `alg:mvba-cont2`,
+`alg:mvba-cont3`) and its correctness argument in
+`subsec:mvba-correctness`. **The supplement is not yet part of the
+published paper.** It has neither tags nor versions, so this model pins the
+**paper-repository commit it was read against: `eb1bb51` (2026-09-28)**; a
+later change to `alg_mvba.tex` or to `subsec:mvba-correctness` is the
+trigger to re-read the model against the new commit and move this pin
+([MvbaPlan.md](../docs/MvbaPlan.md) §0). The pin moved from `026dc8b`
+(2026-09-03) to `eb1bb51` after the review of
+[MvbaPlan.md](../docs/MvbaPlan.md) §11: the protocol the model mirrors is
+the same (same messages, certificates, guards, lock and view change), and
+every safety lemma keeps its statement; what changed is the termination
+argument and its network model, which the timed claim follows
+([Mvba/Schedule.lean](Mvba/Schedule.lean)). Paper-repository `b838e17`,
+the revision re-checked before that, was byte-identical to `026dc8b` in
+`alg_mvba.tex` and all of `sec:mvba-instantiation`. What an auditor can
 check without the supplement is the contract the model is proven against —
 `safety [agreement]`, `[integrity]`, `[external_validity]` are the three
 safety properties of `mod:mvba`; what needs the supplement is the model's
@@ -41,7 +47,8 @@ algorithm only checks certificates, it does not interpret them, so the
 external validity predicate is a parameter. Because the value *is* the
 entry vector, the supplement's `Recover(e)` is the identity: the leader
 re-proposes a lock's entries directly (`lem:reproposal`) and `decide`
-decides the certified vector (`line:mvba:qc-decide`, `line:mvba:td-decide`).
+decides the certified vector (`Decide` in `alg:mvba-cont3`, reached from
+`line:mvba:qc-decide`).
 
 ## Views
 
@@ -53,6 +60,16 @@ that certificate carries (`alg:mvba` local state, `line:mvba:ht-advance`,
 slots and windows are: `vord.zero` is view 1, `vord.next v v'` is
 `v' = v + 1`, and no arithmetic reaches the solver. The leader function is
 the immutable relation `leader v l`, functional by assumption.
+
+The model has no clock. Timing enters only in the timed liveness claim
+([Mvba/Schedule.lean](Mvba/Schedule.lean)), over runs that carry one: the
+view timeout is there a function of the view, and the supplement's fixed
+`T := Δ_R + 4Δ + max{Δ, Δ_sync}` (`subsec:mvba-protocol`, "Views, leaders,
+and timing parameters") is its constant case. The timed claim's view
+arithmetic mirrors the supplement's termination argument: the first view
+after `max(t, GST)` is paid for by retransmission, and the good view is
+chosen at least two views above the highest view entered then, where the
+one-view retention holds (`lem:convergence`, `lem:good-view`).
 
 ## State
 
@@ -141,8 +158,9 @@ the environment relation `avail_ready i e` (`AvailReady_i`).
   unset, and `propose` is the `input` record. `abandoned` is the *caller's*
   input only, the contract's `MVBA.abandon`.
 * **A decided validator halts.** Both of the supplement's decision paths
-  end in `decide(…); abandon()` (`line:mvba:td-decide`,
-  `line:mvba:qc-decide`), where `abandon()` "halts all MVBA sending and
+  end in `decide(…); abandon()` (the procedure `Decide` in
+  `alg:mvba-cont3`, reached from `line:mvba:qc-decide`, and the restart
+  path at `line:mvba:restart-guard`), where `abandon()` "halts all MVBA sending and
   stops `W`", and its timeout fires only when there is "no decision in view
   `v`" (`line:mvba:timeout-send`). So every honest send also requires
   `∀ E, ¬ decided i E`: after deciding, `i` sends nothing, and in
@@ -153,9 +171,41 @@ the environment relation `avail_ready i e` (`AvailReady_i`).
   `expire_timer`, the environment's marker, stays unguarded: once `i` has
   halted, no action reads its timer.
 * **Integrity by construction**: `decide` requires `∀ E, ¬ decided i E`.
+* **Delivery is in the premise, not in the model.** A sent message is
+  visible at once, as for Chorus: each network relation holds from the
+  message's first delivery to a correct validator, and the delay is put on
+  the step that consumes it. The supplement's network — delivery within
+  `Δ` for messages sent at or after GST, retransmission of timeouts,
+  `ViewTC_i` and a decided `CommitQC` every `ρ`, one-view retention and
+  lower-view discard (the termination setting before
+  `lem:decision-propagation`; `sec:reliable-delivery`) — is stated in the
+  timed claim's premise over these relations, clause by clause
+  (`Mvba.BoundedJustice`), and changes no guard. One item is open: a
+  prepare certificate is adopted as a local step, although in the
+  supplement a validator obtains one only from its own quorum of prepares
+  ([Bounds.md](../docs/Bounds.md) §6.2.4, (N4)); R3 closes it by adopting
+  from the prepares.
+* **Handler segments are atomic.** Each handler is one action, so the
+  model reasons about uninterrupted handler segments, which is what the
+  supplement's own `rem:execution-model` justifies: `Recover` is the only
+  suspension point, and with `Recover` the identity here each of its three
+  continuation guards (`line:mvba:leader-guard`, `line:mvba:decide-guard`,
+  `line:mvba:restart-guard`) is vacuous.
+* **`propose` enters the first view.** The supplement's `propose` enters
+  the view justified by the highest retained timeout certificate; here
+  `propose` enters `vord.zero` and `sync_view` advances in separate steps.
+  The faithful rule would read "no higher certificate is retained", a
+  negative read of `msg_tc` that the monotone-network contract forbids. So
+  a late view-1 leader may still send its view-1 `Pre-Prepare` before it
+  syncs, which the supplement suppresses: neutral for safety, and no
+  liveness argument uses it.
 * **Not modelled**: persistence and crash recovery (`line:mvba:reload`,
-  `cor:mvba-recovery-termination`), the `Pool` cache, the availability
-  shares. The supplement's `decide(x, CommitQC)` returns the certificate
+  `cor:mvba-recovery-termination`), the recovery layer's durable set
+  `Accepted_i` of accepted meta-blocks (registered at
+  `line:mvba:hp-record`; the model's counterpart of the supplement's
+  invariant that a `Prepare` on `e` has a valid accepted `x` with
+  `entries(x) = e` is `honest_prepare_accepted` with `accepted_valid`), the
+  availability shares. The supplement's `decide(x, CommitQC)` returns the certificate
   too; the public `mod:mvba` has `decide(B)`, so the certificate is not an
   observable here.
 
@@ -521,9 +571,9 @@ action form_commitqc (v : view) (e : value) (q : nodeset) {
   msg_commitqc v e := true
 }
 
-/-- `decide(x, CommitQC)`: `TryFormCommitQC`, the transferred-certificate
-handler (`line:mvba:qc-decide`) and `TryDecide` (`line:mvba:td-decide`)
-collapse into one action — `Recover(e)` is the identity. A certificate of
+/-- `decide(x, CommitQC)`: the procedure `Decide` (`alg:mvba-cont3`),
+reached from `TryFormCommitQC` and from the transferred-certificate handler
+(`line:mvba:qc-decide`), is one action — `Recover(e)` is the identity. A certificate of
 any view is accepted. Once (`DecidedQC_i = ⊥`). -/
 action decide (i : node) (v : view) (e : value) {
   require ¬ is_byz i

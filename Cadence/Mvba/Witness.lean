@@ -29,7 +29,7 @@ the auditor's ledger, premise by premise; this header describes the model.
   view, so both model `assumption`s and `LeaderRotation` with `k = 1` hold.
 * Views are `ℕ` (`natViewOrder`, `natViewOrderEnum`); time is `ℕ`; the
   schedule is `Schedule.fixedNat ℕ 1`, the paper's fixed timeout: `Δ = 1`,
-  `δ = Δ_sync = 0`, a timeout of 5, and `ℓ = 19`. GST and `t` are 0.
+  `δ = Δ_sync = 0`, `ρ = 1`, a timeout of 5, and `ℓ = 24`. GST and `t` are 0.
 
 ## The run
 
@@ -449,16 +449,15 @@ theorem lbl_expire {n : Nat} {i : Fin 4} {v : ℕ} (h : lbl n = .expire_timer i 
 
 /-! ## (a) The timed premises -/
 
-/-- **(Δ-justice)**, with its antecedent false: every window reaches a plateau
-end, where the label is not move-enabled. -/
-theorem boundedJustice : BoundedJustice schW run := by
-  intro l hd hh N hen
-  exfalso
-  obtain ⟨P, hP, hNP, hclk⟩ := plateau_after N
-  refine quiet hP hh (hen P hNP ?_)
-  show clk P ≤ max (clk N) 0 + schW.bound hd
-  rw [hclk]
-  exact le_trans (le_max_left _ _) (Nat.le_add_right _ _)
+/-- **(Δ-justice)**, every clause with its antecedent false: every window
+reaches a plateau end, where no fair label is move-enabled
+(`boundedJustice_of_quiet`). -/
+theorem boundedJustice : BoundedJustice schW run :=
+  boundedJustice_of_quiet fun N D _ =>
+    let ⟨P, hP, hNP, hclk⟩ := plateau_after N
+    ⟨P, hNP, show clk P ≤ max (clk N) 0 + D by
+        rw [hclk]; exact le_trans (le_max_left _ _) (Nat.le_add_right _ _),
+      fun _ _ hh => quiet hP hh⟩
 
 /-- **(T-timer)**: view `v`'s timer expires exactly five units after the
 validator entered `v`. -/
@@ -508,8 +507,8 @@ noncomputable def trW : TimedMvbaRun thW ℕ :=
 theorem admissible : Admissible schW thW trW :=
   ⟨run, fun _ => rfl, fun _ => rfl, rfl, sync⟩
 
-/-- `ℓ` at this schedule: `1 + (1 + 1) • 7 + 4 + 0`. -/
-theorem ell : schW.ℓ natViewOrderEnum = 19 := rfl
+/-- `ℓ` at this schedule: `(1 + 1) + 2 • 1 + (1 + 1) • 7 + 4 + (1 + 1)`. -/
+theorem ell : schW.ℓ natViewOrderEnum = 24 := rfl
 
 /-- Every correct validator has proposed by index 6, at clock 0. -/
 theorem proposes_by (p : Fin 4) (hp : ¬ nsetW.is_byz p = true) :

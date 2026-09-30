@@ -192,7 +192,7 @@ in [Cadence.lean](Cadence.lean).
 | **The v1 receipt rules are broken** — the rules as published in `arXiv:2607.02275v1`, before the fix that v2 carries; the bug, mechanically reproduced | [Cadence/FallbackReceipt/PreFix.lean](Cadence/FallbackReceipt/PreFix.lean) | exhaustive model check; the counterexample trace is pinned in the build |
 | **MVBA agreement, integrity and external validity** — the three safety properties of `mod:mvba`, for the leader-based instantiation of the paper repository's *internal supplement* (views, timeouts, timeout certificates, the lock; the referent is pinned to a paper-repository commit in the model's header and is not yet part of the published paper) | [Cadence/Mvba.lean](Cadence/Mvba.lean) (`agreement`, `integrity`, `external_validity`) → `Mvba.mvbaSafety` | sweep + composition |
 | **`Mvba ⊨ MVBASafety`** — the state-level fragment of the paper's MVBA contract, every field proven, including the two inputs, their observables and **Quiescence**; given an `MVBATemporal` instance (the clock, the admissible-run model, `ℓ_MVBA`-Termination — four fields, nothing safety-shaped) the instantiation is a full `MVBA`. Chorus consumes the class as a constraint and [Cadence/System.lean](Cadence/System.lean) fills it with this instance | [Cadence/Mvba/Compose.lean](Cadence/Mvba/Compose.lean) (`Mvba.mvbaSafety`, `mvba_of_temporal`) | composition, over persisted VC theorems and Veil's transition bodies |
-| **`Mvba ⊨ MVBATemporal`, and so a full `MVBA`**, the one the composed system runs: **`ℓ_MVBA`-Termination with an explicit `ℓ`**, the supplement's `O(fΔ)` at `k = f + 1`. Every correct validator decides by `max(t, GST) + ℓ` once all have proposed valid values by `t` and none abandons early, in every admissible run. Admissible means bounded fairness after GST with a hop bound per label, a punctual view timer, and availability within `Δ_sync`, and such runs exist. The hypotheses are finitely many validators, the honest-quorum and view-order classes, a correct leader in every `k` consecutive views, a capped timeout that eventually exceeds the chain's latency, and a cancellative, Archimedean time monoid. | [Cadence/Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean) (`Mvba.mvbaTemporal`, `Mvba.mvbaFull`), from [Cadence/Mvba/BoundedTermination.lean](Cadence/Mvba/BoundedTermination.lean) (`Mvba.bounded_termination`) | plain Lean over timed runs of the generated transition system; premises are hypotheses, never axioms ([docs/Bounds.md](docs/Bounds.md) §6.2) |
+| **`Mvba ⊨ MVBATemporal`, and so a full `MVBA`**, the one the composed system runs: **`ℓ_MVBA`-Termination with an explicit `ℓ`**, the supplement's `O(fΔ)` at `k = f + 1`. Every correct validator decides by `max(t, GST) + ℓ` once all have proposed valid values by `t` and none abandons early, in every admissible run. Admissible means bounded fairness after GST under the supplement's network (a message sent at or after GST by a correct validator and retained is consumed within `Δ`, a retransmitted one within `Δ + ρ`, a local step within `δ`), a punctual view timer, and availability within `Δ_sync`, and such runs exist. The hypotheses are finitely many validators, the honest-quorum and view-order classes, a correct leader in every `k` consecutive views, a capped timeout that eventually exceeds the chain's latency, and a cancellative, Archimedean time monoid. | [Cadence/Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean) (`Mvba.mvbaTemporal`, `Mvba.mvbaFull`), from [Cadence/Mvba/BoundedTermination.lean](Cadence/Mvba/BoundedTermination.lean) (`Mvba.bounded_termination`) | plain Lean over timed runs of the generated transition system; premises are hypotheses, never axioms ([docs/Bounds.md](docs/Bounds.md) §6.2) |
 | **The MVBA's lock check is load-bearing** — with the `Pre-Prepare` handler's lock check removed, two correct validators decide different vectors: the mutation test showing the instantiation's invariants are needed, not merely true | [Cadence/Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean) | exhaustive model check of a restriction of the mutant (every run of which is a run of the mutant); the counterexample trace is pinned in the build |
 
 What is *not* proven in Lean — timing bounds other than the MVBA's, the scheduling (fairness)
@@ -628,14 +628,17 @@ mechanically refutes the v1 rules.
 |---|---|---|---|
 | v1 | 2026-07-02 | `89322be` | the pre-fix design [PreFix.lean](Cadence/FallbackReceipt/PreFix.lean) refutes |
 | v2 | 2026-07-07 | `3efdbfe` | what this development verifies |
-| — | 2026-09-03 | `026dc8b` | the **internal supplement**'s MVBA instantiation — the referent of [Cadence/Mvba.lean](Cadence/Mvba.lean) (not yet published) |
+| — | 2026-09-03 | `026dc8b` | the **internal supplement**'s MVBA instantiation as first modelled |
+| — | 2026-09-28 | `eb1bb51` | the internal supplement at the current pin — the referent of [Cadence/Mvba.lean](Cadence/Mvba.lean) (not yet published) |
 
 The paper repository also contains a second, **internal** document — an
 implementation supplement that is not yet part of the published paper.
 Exactly one model depends on it:
 [Cadence/Mvba.lean](Cadence/Mvba.lean) is the supplement's leader-based
-MVBA instantiation (`sec:mvba-instantiation`), read against paper-repository
-commit `026dc8b` and pinned to that commit in the model's header. The
+MVBA instantiation (`sec:mvba-instantiation`), first read against
+paper-repository commit `026dc8b`, re-read against `eb1bb51`
+([docs/MvbaPlan.md](docs/MvbaPlan.md) §11) and pinned to that commit in
+the model's header. The
 supplement has neither tags nor versions, so a later change to its
 `alg_mvba.tex` or `subsec:mvba-correctness` is the trigger to re-read the
 model against the new commit and move the pin

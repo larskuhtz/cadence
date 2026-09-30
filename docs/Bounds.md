@@ -339,10 +339,12 @@ check the premises against the supplement without reading Lean.
   timeout is the special case; *unbounded* backoff is incompatible with the
   contract's fixed `ℓ`, which is the first finding.
 * Fairness is bounded weak fairness after GST on **state-changing** steps,
-  with a per-label hop bound — `Δ` for a step that consumes another party's
-  message, `δ` for a local step — and the window measured from
-  `max(now, gst)` so that a clock jump over a pending obligation's deadline
-  is inadmissible (§6.2.4). Plain enabledness, as in [Fairness.lean](../Cadence/Fairness.lean), would
+  with the window measured from `max(now, gst)` so that a clock jump over a
+  pending obligation's deadline is inadmissible (§6.2.4). A local step is
+  held to `δ`. A step that consumes another party's message is held to what
+  the supplement's network guarantees (since step 5b, 2026-09-29): `Δ` for
+  messages sent at or after GST by correct validators and retained, `Δ + ρ`
+  for the retransmitted classes. Plain enabledness, as in [Fairness.lean](../Cadence/Fairness.lean), would
   make every admissible model unsatisfiable once a proposal exists; that is
   the second finding and it concerns the untimed leg too.
 * (A-viewsync) is not assumed anywhere. Its two clauses are derived as a
@@ -474,12 +476,22 @@ contract's non-Zeno field, not the schedule.
 
 #### 6.2.3 The schedule, and the first finding
 
-The supplement fixes the timer in one sentence (`subsec:mvba-protocol`):
-*"The view timeout is chosen so that, after GST, it exceeds
+At the pin current when this leg was designed, `026dc8b`, the supplement
+fixed the timer in one sentence (`subsec:mvba-protocol`): *"The view
+timeout is chosen so that, after GST, it exceeds
 `Δ_R + 3Δ + max{Δ, Δ_sync}`. If the implementation uses timeout backoff
 rather than fixed known bounds, the timeout is eventually increased beyond
-this value."* `thm:termination`'s proof then counts with a fixed timeout —
+this value."* `thm:termination`'s proof then counted with a fixed timeout —
 *"the view timeout is itself `O(Δ)`"* — to reach `O(fΔ)`.
+
+At the current pin `eb1bb51` the sentence reads (`subsec:mvba-protocol`,
+"Views, leaders, and timing parameters"): *"The view timeout is the fixed,
+known value `T := Δ_R + 4Δ + max{Δ, Δ_sync}`"*, and the termination setting
+says the view timeout is the fixed `T`. The backoff sentence is gone. The
+model's schedule is then the supplement's fixed `T` plus a harmless
+generalisation: `τ` constant and `v_L = zero` is the paper's case, and
+(S-cap)/(S-ramp) below still describe capped backoff should an
+implementation want it.
 
 The model's schedule is `τ : view → time`, with three hypotheses:
 
@@ -509,6 +521,11 @@ unbounded relative to a fixed bound" was therefore the wrong requirement:
 the sequence must be *eventually above* `L_cert` and *bounded*, which is
 what (S-ramp) and (S-cap) say.
 
+*Resolved upstream at `eb1bb51`* ([MvbaPlan.md](MvbaPlan.md) §11.3, C13):
+the timeout is now the fixed `T`, and the backoff remark is deleted. One
+residue remains: the `sec:timing-constants` stub still lists "the MVBA view
+timeout and its backoff policy".
+
 #### 6.2.4 The per-seam statements: what an admissible run satisfies
 
 `Admissible r` for a `TimedRun` over the lifted state says: **there is a
@@ -530,21 +547,62 @@ from `max(t, gst)`.
 | Clause | Names | Says | Paper |
 |---|---|---|---|
 | (F-byz) | — | nothing of `ByzLabel` | — |
-| (Δ-justice) | `BoundedJustice` | for every `JusticeLabel l`: if `l` is **move-enabled** at every index `n ≥ N` with `clk n ≤ ref N + hop l`, then `l` fires within `hop l` of `N`. `hop l = Δ` for a step that consumes another party's message, `δ` for a local step (table below) | post-GST delivery within `Δ`; local computation within `δ` (the paper: instantaneous, `δ = 0`) |
+| (Δ-justice) | `BoundedJustice` | six clauses, each of the form: if `l` is **move-enabled** at every index `n ≥ N` with `clk n ≤ ref N + D` (and the clause's side condition holds there), then `l` fires within `D` of `N`. A local step at `D = δ`; a network step at `D = Δ` when its messages were sent at or after GST by correct validators and retained, or at `D = Δ + ρ` when they are retransmitted (tables below) | the termination setting before `lem:decision-propagation` (delivery within `Δ` of messages sent at or after GST; retransmission every `ρ`), `sec:reliable-delivery` (one-view retention), `lem:view-sync`, `lem:convergence`, `lem:decision-propagation`; local computation within `δ` (the paper: instantaneous, `δ = 0`) |
 | (T-timer) | `TimerPunctual` | for honest `i`: (T1) `expire_timer i v` fires at `n` only if `clk m + τ v ≤ clk n` for some `m ≤ n` with `entered i v` at `m`; (T2) if `entered i v` at `m`, then `timer_expired i v` at some `n ≥ m` with `clk n ≤ clk m + τ v` | the local view timer, restarted on entry, expiring after exactly `τ v` |
 | (Δ-avail) | `AvailWithin` | for honest `i`: `accepted i v e` at `m` ⇒ `avail_ready i e` within `Δ_sync` of `m` | `lem:avail-progress`'s `Δ_sync` |
 
-`hop`, the per-label bound, is a classification of the sixteen
+`hop`, the per-label kind, is a classification of the sixteen
 `JusticeLabel`s by what the guard consumes:
 
-| `Δ` (reads another party's message or certificate) | `δ` (local) |
+| network (reads another party's message or certificate) | `δ` (local) |
 |---|---|
 | `handle_preprepare_first`, `handle_preprepare` (the leader's `Pre-Prepare`) | `leader_propose_first`, `leader_repropose`, `leader_propose_fresh` (upon entering the view; `Recover` is the identity here) |
-| `form_prepqc`, `form_commitqc`, `form_tc_lock`, `form_tc_nolock` (a quorum of others' signatures — the model's separation of *delivery* from *assembly* puts the delivery `Δ` on the assembly) | `adopt_prepqc`, `send_commit`, `decide`, `timeout_qc`, `timeout_noqc` (own state and a certificate already counted) |
+| `form_prepqc`, `form_commitqc`, `form_tc_lock`, `form_tc_nolock` (a quorum of others' signatures — the model's separation of *delivery* from *assembly* puts the delivery on the assembly) | `adopt_prepqc`, `send_commit`, `timeout_qc`, `timeout_noqc` (own state and a certificate already counted) |
 | `sync_view`, `sync_view_adopt` (a timeout certificate) | |
+| `decide` (a commit certificate; since step 5b, (N3) below) | |
 
-With `δ = 0` the model's latency is the paper's constant (§6.2.6), which is
-the check that the classification is the paper's and not a convenience.
+With `δ = 0` the good view's latency is the paper's constant (§6.2.6),
+which is the check that the classification is the paper's and not a
+convenience.
+
+**The network clauses** (step 5b, 2026-09-29; [MvbaPlan.md](MvbaPlan.md)
+§11.3 C16 and §11.5 stage 3). A network label's bound depends on its
+messages' history, as the supplement's network at `eb1bb51` does. The
+model's network relations hold from a message's first delivery to a
+correct validator, so "sent at" is the first index at which the relation
+holds.
+
+| clause | owed within | when | the supplement |
+|---|---|---|---|
+| `first` | `Δ` | the messages are from correct senders (a correct leader; a quorum of correct validators), were first sent at or after GST (`SinceGst`, **N1**), and were retained by the receiver, which had reached the message's view or the one before (`RetainedBy`, **N2**); while every correct validator takes part and, for an assembly, the forming validator has not moved past the view (`NotPast`, **N2**) | delivery within `Δ` of messages sent at or after GST between correct validators; one-view retention; lower views discarded |
+| `forwarded` | `Δ` | a timeout certificate forwarded, at or after GST, by the first correct validator to enter the view it justifies | `line:mvba:sv-forward`, `lem:view-sync`(b) |
+| `timeouts` | `Δ + ρ` | a correct quorum's timeouts, whenever sent, while their senders are still in the view | the `Timeout` retransmission, `lem:convergence` ("Reaching `V`") |
+| `certificates` | `Δ + ρ` | a timeout certificate, whenever formed, while every correct validator takes part | `line:mvba:viewtc-retx` |
+| `decisions` | `Δ + ρ` | a commit certificate some correct validator has decided on (**N3**) | the composing layer's delivery, `lem:decision-propagation` |
+
+Against the pin `026dc8b` the clause was one line: every network label
+within `Δ` of `max(clk N, gst)`, regardless of its messages' history. That
+held a correct validator to consuming within `Δ` a message sent before GST
+(which the supplement may lose), a message two views ahead (which it may
+discard), a certificate that has to travel (which costs `ρ` more), a
+Byzantine leader's `Pre-Prepare` and Byzantine votes (which reach whom the
+adversary chooses), and an assembly in a view everyone has left. A
+supplement run of any of these kinds was not admissible, so the timed
+claim said nothing about it. None was a misreading of the pinned text,
+which did not yet state its network.
+
+**Open, closed in R3: (N4), prepare certificates do not travel.** `adopt_prepqc`
+is a local step once `msg_prepqc v e` holds. In the supplement a validator
+holds a prepare certificate only if it received a quorum of prepares
+itself; nobody forwards one. So a supplement run in which one correct
+validator forms a view's prepare certificate and another, which accepted
+the same proposal, never does (Byzantine votes sent to some, or prepares
+lost before GST) is not yet admissible. R3 closes it with a model change:
+`adopt_prepqc` adopts from the prepares themselves, and the Mvba family is
+re-solved, in one step together with the fairness clean-up
+([TODO.md](TODO.md) § Liveness). The good view is
+unaffected: there every correct validator receives the whole correct
+quorum's prepares within the same `Δ`.
 
 **Move-enabledness, and the second finding.** [Fairness.lean](../Cadence/Fairness.lean)'s `Enabled`
 holds whenever *some* transition under the label exists — a stutter
@@ -569,9 +627,16 @@ premise — and the fix is the Chorus leg's to make in [Fairness.lean](../Cadenc
 it is reported there rather than made here.
 
 **What is deliberately absent**, the checklist §6 asked for: no clause
-mentions `decided`, `msg_commitqc`, a good view, a leader, or GST as a
-model event. Every clause relates an environment event — a label firing,
-a clock reading — to a guard or a local record. (A-viewsync)'s shape was
+mentions a good view, the leader rotation, or GST as a model event. Every
+clause relates an environment event — a label firing, a clock reading — to
+a guard or a local record. Since step 5b the network clauses' side
+conditions also read the network's own facts, as the supplement's network
+rules do: who sent a message (a correct validator or not), when it was
+first sent against GST, which view its receiver had reached, and, for the
+composing layer's delivery, whether a correct validator has decided on the
+certificate. None of them is a protocol conclusion the argument needs;
+each is a condition under which the supplement promises delivery.
+(A-viewsync)'s shape was
 forced because an untimed model could relate the timer only to protocol
 *events*; with a clock the timer relates to *durations*, and the
 certificate leaves the premise.
@@ -608,19 +673,27 @@ validator has entered some view `≥ v` by time `X ≥ gst`:
 |---|---|---|
 | every correct validator still in `v` has its timer expired | `X + τ v` | (T2) from its entry, which is `≤ X` |
 | … and has timed out or left `v` | `+ 2δ` | `timeout_*` is move-enabled; at most one `adopt_prepqc` can intervene in `v` and change the highest held certificate, so one restart of the `δ` window |
-| a timeout certificate for some view `≥ v` exists | `+ Δ` | either a correct validator is above `v`, which needs one, or the correct quorum's timeouts are all sent and `form_tc_*` is move-enabled |
-| `Synced (succ v)` | `+ Δ` | `sync_view` move-enabled for everyone at `≤ v` |
+| a timeout certificate for some view `≥ v` exists | `+ Δ` | either a correct validator is above `v`, which needs one, or the correct quorum's timeouts are all sent and `form_tc_*` is move-enabled; a first delivery, the timeouts retained by the first member to send one, which was in `v` then |
+| `Synced (succ v)` | `+ Δ` | `sync_view` move-enabled for everyone at `≤ v`; a first delivery of a certificate formed after GST |
 
-so `Synced (succ v) (X + C)` with **`C = τ_max + 2δ + 2Δ`**. Neither the
-leader nor the outcome of `v` enters: a view that happens to decide is
-burnt like any other, which is what makes the lemma unconditional.
+so `Synced (succ v) (X + C)` with **`C = τ_max + 2δ + 2Δ`** — the
+supplement's `τ_{w+1} ≤ τ_w + 2Δ + T` (`lem:convergence`) at `δ = 0`.
+Neither the leader nor the outcome of `v` enters: a view that happens to
+decide is burnt like any other, which is what makes the lemma
+unconditional. Both network rows are first deliveries only if `v` is
+**fresh** — no correct validator reached a view `≥ v` before GST — so that
+every timeout and certificate of such a view is sent after GST. For the
+first view burnt after `u` that need not hold: its timeouts and its
+certificate may predate GST and arrive by retransmission, at `Δ + ρ` each,
+so that view costs **`C + 2ρ`** (`synced_succ_first`; the supplement's
+"Reaching `V`").
 
 **The good view `W`** — correct leader, `τ W > L_cert`, first correct entry
 at `E₀ ≥ gst`:
 
 | milestone | by | why |
 |---|---|---|
-| every correct validator is in `W` | `E₀ + Δ` | the certificate below `W` exists at `E₀`; `sync_view` is a `Δ` hop; nobody is above `W` (below) |
+| every correct validator is in `W` | `E₀ + Δ` | the first correct validator in `W` forwarded the certificate below it at `E₀ ≥ gst`; nobody is above `W` (below) |
 | the leader's `Pre-Prepare` | `+ δ` | `leader_*` local |
 | every correct validator accepted and sent `Prepare` | `+ Δ` | `handle_preprepare` |
 | `msg_prepqc W e` | `+ Δ` | `form_prepqc` on the correct quorum's prepares, all on one `e` (`accepted_unique`) |
@@ -628,11 +701,20 @@ at `E₀ ≥ gst`:
 | … and has `avail_ready` | acceptance `+ Δ_sync` | (Δ-avail), in parallel |
 | every correct `Commit` sent | `max` of the two `+ δ` | `send_commit` |
 | `msg_commitqc W e` | `+ Δ` | `form_commitqc` |
-| every correct validator decided | `+ δ` | `decide` — after the certificate, timers no longer matter |
+| every correct validator decided | `+ Δ` | `decide`, a network hop: the certificate was first obtained after GST, and reaches the others by broadcast — after the certificate, timers no longer matter |
 
 so the certificate is at `E₀ + L_cert` with
-**`L_cert = 3Δ + max(Δ + δ, Δ_sync) + 2δ`** and the decisions at
-`E₀ + L_cert + δ`. Every step above needs no correct validator to have
+**`L_cert = 3Δ + max(Δ + δ, Δ_sync) + 2δ`** — `lem:good-view`'s
+`t*_w − τ_w` at `δ = 0`, `Δ_R = 0` — and the decisions at `E₀ + L_cert + Δ`.
+Every network row is a first delivery: each message is sent from inside `W`
+after `E₀ ≥ gst`, by correct validators, and retained, because at `E₀`
+every correct validator is already in `W − 1` or `W`. That last fact is the
+**one-view retention** (`retained_before`, the model's twin of
+`lem:convergence`'s retention clause). It holds when `W − 1` is fresh and
+past the ramp: the first correct validator in `W − 1` forwarded its
+certificate after GST, so everyone reaches `W − 1` within `Δ`, and nobody
+can be above `W − 1` before its budget `τ(W − 1) > L_cert ≥ Δ` has run
+out. Every step above needs no correct validator to have
 timed out in `W` or entered a view above `W`: a `W`-timer of a correct
 validator fires at `≥ E₀ + τ W > E₀ + L_cert` by (T1) and clock
 monotonicity, a view above `W` needs a correct timeout in `W`
@@ -648,16 +730,36 @@ each step enters at most one view — and `W` a correct-led view reached from
 `M`: some `a` with `1 ≤ a ≤ |below v_L|` successors of `M` clear the ramp
 (the successors below `v_L` are distinct members of the list `below v_L`),
 and (A-leader-rotation-k) places a correct leader fewer than `k` views
-further on. Then: `Synced M (u + Δ)` by one `sync_view` hop, since the
-certificate below `M` exists at `N₀`; `Synced W (u + Δ + n • C)` by
-`n < |below v_L| + k` applications of the first lemma; `W`'s first correct
-entry is after `N₀`, hence `E₀ ≥ u ≥ gst`, and `E₀ ≤ u + Δ + n • C`; and
-the second lemma decides everyone by `E₀ + L_cert + δ`. Hence
+further on, counted from the view *after* that one. The good view `W` is
+thus at least `M + 2`, and its predecessor `W − 1` is fresh (above `M`) and
+past the ramp, which is what the retention needs — the supplement's charge
+of views `V` and `V + 1` as possibly unproductive (`lem:good-view` takes
+`w ≥ V + 2`). Then: `Synced M (u + Δ + ρ)` by one retransmitted
+`sync_view` hop, since the certificate below `M` exists at `N₀` but may
+predate GST; `Synced (M + 1)` a further `C + 2ρ` on (the first burn);
+`Synced W (u + Δ + ρ + 2ρ + n • C)` with `n ≤ |below v_L| + k` views burnt
+in all; `W`'s first correct entry is after `N₀`, hence `E₀ ≥ u ≥ gst`; and
+the second lemma decides everyone by `E₀ + L_cert + Δ`. If instead some
+correct validator has decided before the chain completes, the composing
+layer delivers its certificate to everyone within `Δ + ρ`
+(`lem:decision-propagation`). Hence
 
-  `ℓ = Δ + (|below v_L| + k) • C + L_cert + δ`,
+  `ℓ = (Δ + ρ) + 2ρ + (|below v_L| + k) • C + L_cert + (Δ + ρ)`,
 
 which is `O(kΔ)` when every constant is `O(Δ)` and the ramp is empty — the
-supplement's `O(fΔ)` at `k = f + 1`. The caller's second premise enters
+supplement's `O(fΔ)` at `k = f + 1`.
+
+**Against the supplement's own bound** (`thm:termination` at `eb1bb51`,
+at `δ = Δ_R = 0`, the fixed `T`, `Δ_sync ≤ Δ`, an empty ramp, so
+`|below v_L| = 1`, and `k = f + 1`): the supplement learns a certificate by
+`t₀ + ρ + 4Δ + max{T, ρ} + T + f(2Δ + T) + T` and decides within a further
+`ρ + Δ`. Both burn `f + 2` views, and at `T = 5Δ` (and `ρ ≤ T`) both bounds
+come to `(7f + 20)Δ` plus retransmission terms: `2ρ` in the supplement's,
+`4ρ` in the model's. The difference is the first view. There the
+supplement pays one retransmission (its view-`V` timeouts, `max{T, ρ}`),
+and each receiver forms the timeout certificate itself. The model forms
+the certificate once and delivers it in a separate hop, and both of that
+view's hops may be retransmissions. The caller's second premise enters
 where `NoEarlyAbandon` did: no correct validator abandons at a clock
 `≤ u + ℓ`, so `¬ abandoned` holds on every prefix the argument uses.
 
@@ -1140,7 +1242,18 @@ The timed claim, `Mvba.timed_termination`:
 * **The run is admissible** (`Sync`: bounded weak fairness after GST, a
   punctual view timer, availability within `Δ_sync`): **not obvious**
   together with the next three. `Mvba.admissible_exists` shows admissible
-  runs exist, but its run has nobody proposing.
+  runs exist, but its run has nobody proposing. Since step 5b the fairness
+  clause is the supplement's network (§6.2.4, "The network clauses"): a
+  network step is owed within `Δ` only for messages sent at or after GST
+  by correct validators and retained, within `Δ + ρ` when they are
+  retransmitted. Whenever `δ ≤ Δ` (the paper's `δ = 0`) that asks less of
+  every label than before — a longer window only weakens a bounded-fairness
+  clause, and every side condition does too — so admissibility is easier
+  to meet, and the model below meets it for the same reason as
+  before: its clock advances only where no fair label is move-enabled.
+  The model sends nothing before GST, discards nothing, and every validator
+  forms the certificates itself. So its run is admissible under either
+  reading, and the change moves only the value of `ℓ`.
 * **Every correct validator proposes by `t`**, **with a valid value**, and
   **none abandons before `max(t, GST) + ℓ`**: each obvious alone. Together
   with admissibility they need a run that stops on its own after deciding,
@@ -1176,7 +1289,8 @@ does (§6.3.2).
   sixteen of them. Values are `Unit`, and every value is valid. Views are
   `ℕ` with `natViewOrder`, and validator 0 leads every view. Time is `ℕ`,
   the schedule is `Schedule.fixedNat ℕ 1` (`Δ = 1`, `δ = Δ_sync = 0`,
-  timeout 5), and GST and `t` are 0. `ℓ` is then 19.
+  timeout 5, retransmission interval `ρ = 1`), and GST and `t` are 0.
+  `ℓ` then has the value `Mvba.Witness.ell` pins.
 * **The run.** The three correct validators become available and propose
   at clock 0. They run the whole chain of view 0 and decide in it. At clock
   5 their view-0 timers expire, which the timing model requires; having
@@ -1211,10 +1325,13 @@ claim allows only after `max(t, GST) + ℓ`, and `ℓ` exceeds a view's
 timeout. The first witness therefore passed through five views.
 
 **The supplement does stop.** Both its decision paths end in
-`decide(…); abandon()` (`line:mvba:td-decide`, `line:mvba:qc-decide`),
-`abandon()` "halts all MVBA sending and stops `W`", and the timeout fires
-only "upon `W` reaches the view timeout and no decision in view `v`"
-(`line:mvba:timeout-send`). That is so at the pinned revision `026dc8b`.
+`decide(…); abandon()` (the procedure `Decide` in `alg:mvba-cont3`, reached
+from `line:mvba:qc-decide`, and the restart path), `abandon()` "halts all
+MVBA sending and stops `W`", and the timeout fires only "upon `W` reaches
+the view timeout and no decision in view `v`" (`line:mvba:timeout-send`).
+That was so at the revision pinned then, `026dc8b`, and is so at the
+current pin `eb1bb51`, whose termination proof now relies on it
+([MvbaPlan.md](MvbaPlan.md) §11.3, C11).
 The difference was not harmless for the timed claim: read as a model run, a
 supplement run in which a validator decides and stops early abandons it
 before `max(t, GST) + ℓ`, which the claim's caller condition excludes, so

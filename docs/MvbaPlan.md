@@ -49,19 +49,20 @@ the model pins the **commit SHA of the paper repository it was read
 against**, and any later change to `alg_mvba.tex` or to
 `subsec:mvba-correctness` is the trigger to re-read the model against the
 new commit and move the pin. For this plan, and for the model's first
-version, the referent is paper-repo commit **`026dc8b`** (2026-09-03).
+version, the referent was paper-repo commit **`026dc8b`** (2026-09-03);
+since step 5b (§11.5 stage 2) it is **`eb1bb51`** (2026-09-28).
 The anchors to cite from it: `sec:mvba-instantiation`,
-`subsec:mvba-datatypes`, `subsec:mvba-protocol`, the three algorithm blocks
-`alg:mvba`, `alg:mvba-cont`, `alg:mvba-cont2` with their `line:mvba:*`
-labels, and the correctness section `subsec:mvba-correctness` with
+`subsec:mvba-datatypes`, `subsec:mvba-protocol`, the four algorithm blocks
+`alg:mvba`, `alg:mvba-cont`, `alg:mvba-cont2`, `alg:mvba-cont3` (the fourth
+new at `eb1bb51`) with their `line:mvba:*` labels, and the correctness section `subsec:mvba-correctness` with
 `rem:signature-separation`, `lem:vote-uniqueness`, `lem:commit-provenance`,
 `rem:lock-monotonicity`, `lem:cert-uniqueness`, `lem:lock-formation`,
 `lem:avail-progress`, `lem:commit-availability`, `lem:timeout-closes-view`,
 `lem:lock-persistence`, `thm:agreement`, `lem:external-validity`,
 `lem:reproposal`, `lem:lock-availability`, `lem:proposability`,
 `thm:termination`, `cor:mvba-recovery-termination`. (All seventeen still
-resolve at `eb1bb51`, the revision reviewed for the next move of the pin;
-§11.1 lists the anchors it removes and the ones it adds.) This is a new
+resolve at `eb1bb51`, the current pin; §11.1 lists the anchors it removes
+and the ones it adds.) This is a new
 convention here — everywhere else the citation discipline rests on stable
 anchors in an immutable document — but it is cheap and it is the only honest
 option while the supplement stays untagged.
@@ -240,8 +241,9 @@ sends `Prepare`); `form_prepqc v e q` (assembly, `2f+1` prepares);
 `adopt_prepqc i v e` (`TryFormPrepQC`'s local half: `line:mvba:tfp-guard`);
 `send_commit i v e` (`TrySendCommit`, `line:mvba:commit-send`, including
 `avail_ready i e`); `form_commitqc v e q`; `decide i v e` (on `msg_commitqc
-v e`, once — `TryDecide` / `TryFormCommitQC` / the transferred-certificate
-handler collapse into one action, since `Recover` is the identity);
+v e`, once — `Decide` (`alg:mvba-cont3`), reached from `TryFormCommitQC`
+and from the transferred-certificate handler (`line:mvba:qc-decide`), is
+one action, since `Recover` is the identity);
 `timeout i v` (the timer, abstracted: enabled once `entered i v` and not
 decided); `echo_timeout i v` (the `f+1` rule, `line:mvba:ht-send`);
 `form_tc v q w e` / `form_tc_nolock v q` (assembly with the lock witness);
@@ -1668,8 +1670,11 @@ theorem outside the invariant clump; §2.6 explains why it does not.
 
 ## 11. Step 5a: the supplement at `eb1bb51`, reviewed against the pin
 
-*Review of 2026-09-29, for step 5b to act on. No Lean file has changed and
-the pin is still `026dc8b`. The change list and the plan are here; the
+*Review of 2026-09-29, for step 5b to act on. When it was written no Lean
+file had changed and the pin was still `026dc8b`. **Step 5b has since acted
+on it (stages 2–5, 2026-09-29): the pin is `eb1bb51`, and the timed
+premise states the supplement's network — §11.5 stage 3 has the design
+decision, [Bounds.md](Bounds.md) §6.2.4 the clauses.** The change list and the plan are here; the
 audit trail (what was compared, and how to re-run the comparison) is
 [PaperAlignment.md](PaperAlignment.md) §7.*
 
@@ -2263,6 +2268,42 @@ work. Stage 5 records the result.
    entered after `max(t, gst)`, which is closer to the supplement's "fresh
    view". The per-label form is more faithful; the per-view form is
    simpler to state.
+
+   **Decided (2026-09-29, step 5b): per label.** Both forms were written
+   as Lean definitions and compared. The per-view form ("a view-`w` label
+   is held to `Δ` once `w − 1` is fresh") assumes a *consequence* of the
+   protocol: that nobody is two views behind when a fresh view's messages
+   arrive. The supplement derives that in `lem:convergence` from `T > Δ`,
+   and the model's schedule allows views below the ramp whose budget is
+   not above `Δ`, so there the per-view premise would assume what the
+   paper's network does not give. It also cannot say who sent a message,
+   and it names a protocol quantity (the first entry into a view) where
+   every other clause names only environment events. The per-label form
+   states each rule of the network as the supplement writes it, so an
+   auditor can check it sentence by sentence. The two are not close, so
+   the decision did not wait for a review round.
+
+   Writing the per-label form out showed that C16's three items do not
+   quite cover the paper's network. The form taken also says three things
+   C16 did not:
+
+   * **Correct senders.** The supplement guarantees delivery only between
+     correct validators. The old clause also held the correct validators
+     to handling a Byzantine leader's `Pre-Prepare`, and to assembling
+     certificates from Byzantine votes, within `Δ`. Now a first delivery
+     is owed only for a correct leader's `Pre-Prepare` and for a quorum of
+     correct validators' votes.
+   * **Lower views are discarded** (C10's first half). An assembly is
+     owed only while its forming validator has not moved past the view.
+   * **Retransmission stops.** Timeouts are retransmitted by validators
+     still in the view, `ViewTC_i` by active validators, and a decided
+     `CommitQC` by the composing layer. Each retransmission clause says
+     so.
+
+   One item is open: (N4), prepare certificates do not travel. It is
+   closed in R3 by a model change (`adopt_prepqc` from the prepares, with
+   an Mvba re-solve), together with the fairness clean-up; see
+   [Bounds.md](Bounds.md) §6.2.4.
 4. **Re-prove the bound and re-check the witness against the refined
    premise.**
    * **The good view.** In
@@ -2322,3 +2363,11 @@ work. Stage 5 records the result.
    * [History.md](History.md): a ledger row.
 
    The pinned `#veil_status` counts do not move in any stage.
+
+   *Done (2026-09-29).* The result is recorded in the places listed. The
+   Chorus non-vacuity item did not need rewording, since the untimed
+   premise did not change. PaperAlignment §6 needed nothing new: its
+   backoff item already carried the resolution. (N4) is open and
+   closed in R3 (model change: `adopt_prepqc` from the prepares, Mvba
+   re-solve); [Bounds.md](Bounds.md) §6.2.4 and [TODO.md](TODO.md)
+   § Liveness.

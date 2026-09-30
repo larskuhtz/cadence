@@ -178,9 +178,11 @@ Each entry is the result, the file its statement lives in, and what it says.
   valid value by `t` and none abandons early, every correct validator
   decides by `max(t, GST) + ℓ`, in every admissible run. The admissible runs
   are those with a labelling satisfying the timing model of
-  [Mvba/Schedule.lean](Cadence/Mvba/Schedule.lean): bounded weak fairness after GST at a hop
-  bound per label, a punctual view timer, and availability within
-  `Δ_sync`. Such runs exist (`Mvba.admissible_exists`). Termination is
+  [Mvba/Schedule.lean](Cadence/Mvba/Schedule.lean): bounded weak fairness after GST under the
+  supplement's network — a local step within `δ`, a message sent at or
+  after GST by a correct validator and retained within `Δ`, a
+  retransmitted one (timeouts, `ViewTC_i`, a decided `CommitQC`) within
+  `Δ + ρ` — a punctual view timer, and availability within `Δ_sync`. Such runs exist (`Mvba.admissible_exists`). Termination is
   `Mvba.timed_termination`, from `Mvba.bounded_termination`
   ([Mvba/BoundedTermination.lean](Cadence/Mvba/BoundedTermination.lean)). No field is weakened. The
   hypotheses, none of them an axiom:

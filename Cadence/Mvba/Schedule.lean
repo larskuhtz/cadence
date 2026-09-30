@@ -16,10 +16,12 @@ discipline and it is kept for the same reason: the premises are fixed,
 type-checked and citable on their own, so none can become a hypothesis
 because a proof needs it.
 
-`grep -n '^def [A-Z]' Cadence/Mvba/Schedule.lean` prints the whole list —
-the hop table, the schedule, the four clauses and their conjunction,
-(A-leader-rotation-k), `Admissible`, the two constants, the two claims —
-and nothing else.
+`grep -nE '^(def|structure) [A-Z]' Cadence/Mvba/Schedule.lean` prints the
+whole list — the latency constant, the schedule, (Δ-justice)'s vocabulary
+and the structure of its six clauses, the other two clauses and their
+conjunction, (A-leader-rotation-k), `Admissible`, the two claims — and
+nothing else; the hop table `hop` and `Schedule.ℓ` are the two lower-case
+definitions.
 
 ## What is assumed of a run, and of nothing else
 
@@ -34,9 +36,13 @@ supplement it is the formal shape of.
 
 * **(F-byz)** — nothing of `ByzLabel`; no counterpart, the adversary is
   under no obligation
-* **(Δ-justice)** — `BoundedJustice`: every `JusticeLabel` fires within its
-  hop bound of becoming move-enabled, after GST; delivery within `Δ` after
-  GST, local steps instantaneous (`δ = 0`)
+* **(Δ-justice)** — `BoundedJustice`: a local step fires within `δ`, and a
+  network step within `Δ` when its messages were sent at or after GST by
+  correct validators and retained, or within `Δ + ρ` when they are
+  retransmitted; the supplement's termination setting (messages sent at or
+  after GST delivered within `Δ`; timeouts, `ViewTC_i` and a decided
+  `CommitQC` re-sent every `ρ`) and `sec:reliable-delivery` (one-view
+  retention), local steps instantaneous (`δ = 0`)
 * **(T-timer)** — `TimerPunctual`: `expire_timer i v` fires no earlier than
   `τ v` after `i` entered `v`, and `timer_expired i v` holds no later; the
   view timer, restarted on entry
@@ -54,10 +60,12 @@ leader in every `k` consecutive views (`LeaderRotation`, the supplement's
 "every `f+1` consecutive views" with `k = f+1`; the model's own
 `leader_honest_cofinal` is its `k`-free shadow), and the schedule's three
 hypotheses (`Schedule`): the timeout is bounded, eventually exceeds the
-chain's latency, and the constants are non-negative. Why the timeout *must*
-be bounded for a fixed `ℓ` to exist — the supplement's backoff remark is
-incompatible with its `O(fΔ)` theorem — is [Bounds.md](../../docs/Bounds.md)
-§6.2.3.
+chain's latency, and the constants are non-negative (`ρ` among them). Why the timeout *must*
+be bounded for a fixed `ℓ` to exist — the backoff remark of the supplement at
+`026dc8b` was incompatible with its `O(fΔ)` theorem, and `eb1bb51` replaced
+it by the fixed `T := Δ_R + 4Δ + max{Δ, Δ_sync}` — is
+[Bounds.md](../../docs/Bounds.md) §6.2.3. The paper's fixed `T` is the
+special case `vL = vord.zero`, `τ` constant.
 
 ## The two constants
 
@@ -65,9 +73,10 @@ incompatible with its `O(fΔ)` theorem — is [Bounds.md](../../docs/Bounds.md)
 is not exhausted, from the first correct entry to the commit certificate;
 at `δ = 0` it is the supplement's `3Δ + max{Δ, Δ_sync}` (`Lcert_paper`),
 with `Δ_R = 0` because `Recover` is the identity in this model.
-`Schedule.ℓ` is the contract's `ℓ_MVBA`: one hop to synchronise, at most
-`|below v_L| + k` burnt views, the good view's chain, one local step to
-decide. Their derivation is [Bounds.md](../../docs/Bounds.md) §6.2.6; the
+`Schedule.ℓ` is the contract's `ℓ_MVBA`: a retransmitted hop to
+synchronise, the first burnt view's two retransmissions, at most
+`|below v_L| + k` burnt views, the good view's chain, and the decision's
+transfer. Their derivation is [Bounds.md](../../docs/Bounds.md) §6.2.6; the
 proof that `ℓ` bounds termination is `Mvba.bounded_termination`
 ([Mvba/BoundedTermination.lean](BoundedTermination.lean)).
 [Mvba/Temporal.lean](Temporal.lean) turns it into the contract's
@@ -91,13 +100,22 @@ open scoped Cadence.Timed
 
 /-! ## The hop table
 
-Which of the two bounds each honest action is held to. A **network hop**
-(`Δ`) is a step whose guard consumes another party's message or a
-certificate assembled from others' signatures — the model puts the delivery
-delay on the observation, since a sent message is visible at once. A
-**local step** (`δ`) reads the validator's own state and certificates it
-already counted. The classification is checked against the paper by its
-consequence: at `δ = 0` the latency is the paper's constant. -/
+Which kind of step each honest action is. A **network hop** is a step whose
+guard consumes another party's message or a certificate assembled from
+others' signatures — the model puts the delivery delay on the observation,
+since a sent message is visible at once. A **local step** (`δ`) reads the
+validator's own state and certificates it already counted. A network hop's
+bound depends on the message's history, `Δ` or `Δ + ρ` (`BoundedJustice`
+below). The classification is checked against the paper by its
+consequence: at `δ = 0` the good view's latency is the paper's constant.
+
+`decide` is a network hop. It consumes a commit certificate, and a
+validator that did not form it gets it only by transfer
+(`lem:decision-propagation`): the supplement's `CommitQC` travels by
+Chorus's broadcast and by the composing layer. At the pin `026dc8b` the
+table classed it as local, which the good view could not catch, since
+there every correct validator forms the certificate itself
+([MvbaPlan.md](../../docs/MvbaPlan.md) §11.3, C16 (N3)). -/
 
 section Hops
 
@@ -131,7 +149,7 @@ def hop : Mvba.Label node nodeset value view → Option Hop
   | .leader_propose_fresh .. => some .loc
   | .adopt_prepqc .. => some .loc
   | .send_commit .. => some .loc
-  | .decide .. => some .loc
+  | .decide .. => some .net
   | .timeout_qc .. => some .loc
   | .timeout_noqc .. => some .loc
   | _ => none
@@ -177,7 +195,8 @@ theorem Lcert_paper (Δ Δsync : time) : Lcert Δ 0 Δsync = 3 • Δ + max Δ �
 end Constants
 
 /-- **The timing model's data and its three hypotheses.** The hop bounds,
-the availability bound, the view timeout as a function of the view, and
+the retransmission interval, the availability bound, the view timeout as a
+function of the view, and
 what is assumed of them: non-negativity, the cap (S-cap), and the ramp
 (S-ramp) — from `vL` on, every view's budget exceeds the chain's latency.
 `k` is the leader-rotation window (`LeaderRotation`). -/
@@ -187,6 +206,10 @@ structure Schedule (view time : Type) [vord : TotalOrderWithMinimum view]
   Δ : time
   /-- The local-step bound; the paper's is `0`. -/
   δ : time
+  /-- The retransmission interval `ρ` of `sec:reliable-delivery`, the
+  supplement's `O(Δ)`: timeouts, `ViewTC_i` and a decided `CommitQC` are
+  re-sent every `ρ`. -/
+  ρ : time
   /-- The availability layer's bound (`Δ_sync`). -/
   Δsync : time
   /-- The view timeout: view `v`'s timer expires `τ v` after entry. -/
@@ -201,6 +224,7 @@ structure Schedule (view time : Type) [vord : TotalOrderWithMinimum view]
   k : Nat
   Δ_pos : 0 < Δ
   δ_nonneg : 0 ≤ δ
+  ρ_nonneg : 0 ≤ ρ
   Δsync_nonneg : 0 ≤ Δsync
   τ_nonneg : ∀ v, 0 ≤ τ v
   τ_le_max : ∀ v, τ v ≤ τmax
@@ -211,27 +235,34 @@ namespace Schedule
 variable {view time : Type} [vord : TotalOrderWithMinimum view]
   [LinearOrder time] [AddCommMonoid time]
 
-/-- The bound a hop kind is held to. -/
-def bound (sch : Schedule view time) : Hop → time
-  | .net => sch.Δ
-  | .loc => sch.δ
-
 /-- **What one view costs at most** when it does not decide: its budget,
 at most one adoption and the timeout (two local steps), the certificate
 (one hop), the advance (one hop). [Bounds.md](../../docs/Bounds.md) §6.2.6. -/
 def burn (sch : Schedule view time) : time :=
   sch.τmax + 2 • sch.δ + 2 • sch.Δ
 
-/-- **`ℓ_MVBA`.** One hop to synchronise everyone to the highest view
-entered at `max(t, gst)`, at most `|below vL| + k` burnt views to reach a
-correct-led view past the ramp — at most `|below vL|` successors clear the
-ramp, and fewer than `k` more reach a correct leader — that view's chain,
-and one local step to decide on the certificate. `O(kΔ)` when every
-constant is `O(Δ)` and the ramp is empty — the supplement's `O(fΔ)` at
-`k = f + 1`. -/
+/-- **`ℓ_MVBA`**, milestone by milestone from `u := max(t, gst)`:
+
+* `Δ + ρ` — everyone reaches `M`, the highest view a correct validator is
+  in at `u`, on the certificate below it, which may predate GST and so
+  arrives by retransmission;
+* `2 • ρ` — view `M`'s timeouts and its certificate may predate GST too,
+  so the first burnt view pays a retransmission on each of its two network
+  hops;
+* `(|below vL| + k) • burn` — the burnt views `M, …, W − 1`: at most
+  `|below vL|` successors of `M` clear the ramp, one more puts the good
+  view's predecessor past it (the one-view retention needs `W − 1` fresh
+  and above `Δ` — the supplement's charge of views `V` and `V + 1`), and
+  fewer than `k` more reach a correct leader;
+* `Lcert` — the good view's chain, to its commit certificate;
+* `Δ + ρ` — the decision, which reaches a validator that did not form the
+  certificate by transfer (`lem:decision-propagation`).
+
+`O(kΔ)` when every constant is `O(Δ)` and the ramp is empty — the
+supplement's `O(fΔ)` at `k = f + 1`. -/
 def ℓ (sch : Schedule view time) (vfin : ViewOrderEnum view vord) : time :=
-  sch.Δ + ((vfin.below sch.vL).length + sch.k) • sch.burn
-    + Lcert sch.Δ sch.δ sch.Δsync + sch.δ
+  (sch.Δ + sch.ρ) + 2 • sch.ρ + ((vfin.below sch.vL).length + sch.k) • sch.burn
+    + Lcert sch.Δ sch.δ sch.Δsync + (sch.Δ + sch.ρ)
 
 end Schedule
 
@@ -250,12 +281,178 @@ about. Its `toLRun` is [Mvba/Liveness.lean](Liveness.lean)'s `MvbaRun`. -/
 abbrev TMvbaRun (th : Theory node nodeset value view) (time : Type) [LinearOrder time] :=
   TLRun (Mvba.relationalTransitionSystem node nodeset value view) th time
 
-/-- **(Δ-justice)** — bounded weak fairness after GST of every label the hop
-table covers, at its hop bound. The timed form of `FJustice`, with
-`EnabledMove` for `Enabled` ([Timed.lean](../Timed.lean), the header). -/
-def BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
-  ∀ (l : Mvba.Label node nodeset value view) (h : Hop), hop l = some h →
-    BoundedFair r (sch.bound h) l
+/-! ### (Δ-justice): the supplement's network, clause by clause
+
+The termination setting of `eb1bb51` (`subsec:mvba-correctness`, before
+`lem:decision-propagation`) and `sec:reliable-delivery` say what the network
+guarantees. Messages between correct validators **sent at or after GST**
+are delivered within `Δ`. **Timeouts, `ViewTC_i` and a decided `CommitQC`
+are retransmitted** every `ρ`. A validator **retains** view-scoped
+messages for the next view and **discards** those of lower views; it may
+discard farther ones. (Δ-justice) is those rules, one clause each, over
+the model's labels. The model's network relations hold from a message's
+first delivery to a correct validator — a sent message is visible at
+once — so "the message" of a label is the relation its guard reads, and
+"when it was sent" is the first index at which that relation holds.
+
+The words the clauses use, each a predicate on the run or a state. -/
+
+/-- **Bounded weak fairness while `C` holds**: `BoundedFair` with the window
+antecedent also asking `C` at every index inside it. The form every
+network clause takes: `C` is what the supplement needs to hold while the
+delivery is pending — the receiver still takes part, and has not moved on
+from the message's view. -/
+def BoundedFairWhile (r : TMvbaRun th time) (D : time) (l : Mvba.Label node nodeset value view)
+    (C : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop) : Prop :=
+  ∀ N, (∀ n, N ≤ n → r.clk n ≤ r.ref N + D →
+      EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l ∧
+        C (r.at' n)) →
+    r.FiresWithin N D l
+
+/-- **(N1) Sent at or after GST**: wherever `P` holds, the clock has
+reached GST — so `P` first held at or after it. -/
+def SinceGst (r : TMvbaRun th time)
+    (P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop) : Prop :=
+  ∀ n, P (r.at' n) → r.gst ≤ r.clk n
+
+/-- `i` has entered view `w` or the one before it, or a higher one. -/
+def ReachedPrev (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+    (i : node) (w : view) : Prop :=
+  ∃ V, s.entered i V = true ∧ (vord.le w V ∨ vord.next V w)
+
+/-- **(N2) One-view retention**: wherever `P` holds, `i` has reached
+`w − 1`. A view-`w` message sent then reaches `i` in view `w − 1` or
+later, so `i` retains it (`sec:reliable-delivery`, "Future-view message
+retention"). -/
+def RetainedBy (r : TMvbaRun th time) (i : node) (w : view)
+    (P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop) : Prop :=
+  ∀ n, P (r.at' n) → ReachedPrev (r.at' n) i w
+
+/-- Every correct validator takes part: none is abandoned or has halted
+after deciding. The supplement's scope for its synchronisation lemmas,
+"no correct validator has decided or abandoned, so all participate". -/
+def AllActive (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Prop :=
+  ∀ j, ¬ nset.is_byz j = true → Active s j
+
+/-- **(N2) Lower views are discarded**: `i` has not moved past `v`, so it
+still processes view-`v` messages. -/
+def NotPast (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+    (i : node) (v : view) : Prop :=
+  ∀ V, s.entered i V = true → vord.le V v
+
+/-- Every member of `q` is correct. -/
+def CorrectQuorum (q : nodeset) : Prop :=
+  ∀ p, nset.member p q = true → ¬ nset.is_byz p = true
+
+/-- Some member of `q` has sent a `Timeout` for `v`. -/
+def AnyTimeout (q : nodeset) (v : view)
+    (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Prop :=
+  ∃ p, nset.member p q = true ∧
+    (s.msg_timeout_noqc p v = true ∨ ∃ w e, s.msg_timeout_qc p v w e = true)
+
+/-- **What a first delivery needs**, per network label: the conditions
+under which the supplement's network delivers the label's messages to
+`i` within `Δ`. For the three assemblies `i` is the validator that forms
+the certificate; for every other label the receiver is the label's own
+validator and `i` is unused.
+
+* a `Pre-Prepare` — from a correct leader, sent at or after GST, and
+  retained by its receiver;
+* the votes and timeouts of an assembly — from a correct quorum, the
+  first of them sent at or after GST, and retained by the forming
+  validator;
+* a timeout certificate — first obtained at or after GST. Its first
+  correct holder processes it on arrival and forwards it
+  (`line:mvba:sv-forward`);
+* a commit certificate — first obtained at or after GST. Its first
+  correct holder decides, and Chorus broadcasts it
+  (`lem:decision-propagation`).
+
+A label the table classes local, or no label at all, has no first
+delivery (`False`). -/
+def Delivers (r : TMvbaRun th time) (i : node) : Mvba.Label node nodeset value view → Prop
+  | .handle_preprepare_first j l e =>
+    ¬ nset.is_byz l = true ∧ SinceGst r (fun s => s.msg_preprepare l vord.zero e = true) ∧
+      RetainedBy r j vord.zero (fun s => s.msg_preprepare l vord.zero e = true)
+  | .handle_preprepare j l _ v e =>
+    ¬ nset.is_byz l = true ∧ SinceGst r (fun s => s.msg_preprepare l v e = true) ∧
+      RetainedBy r j v (fun s => s.msg_preprepare l v e = true)
+  | .form_prepqc v e q =>
+    CorrectQuorum (node := node) q ∧
+      SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true) ∧
+      RetainedBy r i v (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true)
+  | .form_commitqc v e q =>
+    CorrectQuorum (node := node) q ∧
+      SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v e = true) ∧
+      RetainedBy r i v (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v e = true)
+  | .form_tc_lock v q _ _ _ =>
+    CorrectQuorum (node := node) q ∧ SinceGst r (AnyTimeout q v) ∧ RetainedBy r i v (AnyTimeout q v)
+  | .form_tc_nolock v q =>
+    CorrectQuorum (node := node) q ∧ SinceGst r (AnyTimeout q v) ∧ RetainedBy r i v (AnyTimeout q v)
+  | .sync_view _ pv _ => SinceGst r (fun s => s.msg_tc pv = true)
+  | .sync_view_adopt _ pv _ w e => SinceGst r (fun s => s.tc_lock pv w e = true)
+  | .decide _ v e => SinceGst r (fun s => s.msg_commitqc v e = true)
+  | _ => False
+
+/-- **While a first delivery is pending**: every correct validator takes
+part, and for an assembly the forming validator `i` has not moved past
+the view, since it discards lower views' messages. A decision needs
+nothing: the composing layer's delivery does not depend on the receiver's
+view. -/
+def Receiving (i : node) : Mvba.Label node nodeset value view →
+    Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop
+  | .form_prepqc v _ _ => fun s => AllActive s ∧ NotPast s i v
+  | .form_commitqc v _ _ => fun s => AllActive s ∧ NotPast s i v
+  | .form_tc_lock v _ _ _ _ => fun s => AllActive s ∧ NotPast s i v
+  | .form_tc_nolock v _ => fun s => AllActive s ∧ NotPast s i v
+  | .decide .. => fun _ => True
+  | _ => AllActive
+
+/-- Some correct validator has entered `v`. -/
+def SomeEntered (v : view) (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) :
+    Prop :=
+  ∃ j, ¬ nset.is_byz j = true ∧ s.entered j v = true
+
+/-- **(Δ-justice)** — the supplement's network, as six clauses. The timed
+form of `FJustice`, with `EnabledMove` for `Enabled`
+([Timed.lean](../Timed.lean), the header).
+
+* `local_` — a local step fires within `δ`, as before;
+* `first` — a network step whose messages were sent at or after GST by
+  correct validators, and retained, fires within `Δ` (N1, N2);
+* `forwarded` — a timeout certificate forwarded at or after GST, by the
+  first correct validator to enter the view it justifies
+  (`line:mvba:sv-forward`), is processed within `Δ`;
+* `timeouts` — a correct quorum's timeouts are re-sent every `ρ` by
+  validators still in the view, so they are assembled within `Δ + ρ`
+  whenever they were first sent (N1);
+* `certificates` — every active validator re-sends `ViewTC_i` every `ρ`
+  (`line:mvba:viewtc-retx`), so a timeout certificate is processed within
+  `Δ + ρ` whenever it was formed (N1);
+* `decisions` — the composing layer serves a decided `CommitQC` to every
+  undecided correct validator within `ρ + Δ`
+  (`lem:decision-propagation`'s termination setting) (N3).
+
+Each window is measured from `max(clk N, gst)` (`BoundedFair`). -/
+structure BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Prop where
+  local_ : ∀ l : Mvba.Label node nodeset value view, hop l = some .loc →
+    BoundedFair r sch.δ l
+  first : ∀ (l : Mvba.Label node nodeset value view) (i : node), hop l = some .net →
+    ¬ nset.is_byz i = true → Delivers r i l → BoundedFairWhile r sch.Δ l (Receiving i l)
+  forwarded : ∀ (i : node) (pv v : view), SinceGst r (SomeEntered v) →
+    BoundedFairWhile r sch.Δ (.sync_view i pv v) (fun s => AllActive s ∧ SomeEntered v s) ∧
+    ∀ w e, BoundedFairWhile r sch.Δ (.sync_view_adopt i pv v w e)
+      (fun s => AllActive s ∧ SomeEntered v s)
+  timeouts : ∀ (v : view) (q : nodeset), CorrectQuorum (node := node) q →
+    (∀ r₀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.form_tc_lock v q r₀ w e)
+      (fun s => AllActive s ∧ ∀ p, nset.member p q = true → NotPast s p v)) ∧
+    BoundedFairWhile r (sch.Δ + sch.ρ) (.form_tc_nolock v q)
+      (fun s => AllActive s ∧ ∀ p, nset.member p q = true → NotPast s p v)
+  certificates : ∀ (i : node) (pv v : view),
+    BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view i pv v) AllActive ∧
+    ∀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view_adopt i pv v w e) AllActive
+  decisions : ∀ (i j : node) (v : view) (e : value), ¬ nset.is_byz j = true →
+    BoundedFairWhile r (sch.Δ + sch.ρ) (.decide i v e) (fun s => s.decided j e = true)
 
 /-- **(T-timer)** — the view timer is punctual. For a correct validator `i`
 and a view `v`:
