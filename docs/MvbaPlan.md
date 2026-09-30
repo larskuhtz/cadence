@@ -238,7 +238,10 @@ else own input); `handle_preprepare i v e` (`line:mvba:pp-guard`: current
 view, leader, `valid e`, `msg_tc (prev v)` for `v > 1`, `e` equals the lock
 when there is one, no vote at or above `v`; records `accepted`, `voted`,
 sends `Prepare`); `form_prepqc v e q` (assembly, `2f+1` prepares);
-`adopt_prepqc i v e` (`TryFormPrepQC`'s local half: `line:mvba:tfp-guard`);
+`adopt_prepqc i v e q` (`TryFormPrepQC`: `line:mvba:tfp-guard`,
+`line:mvba:tfp-store`; since R3 from a supermajority `q` of `Prepare`s the
+validator received, before that its local half on a certificate formed
+anywhere);
 `send_commit i v e` (`TrySendCommit`, `line:mvba:commit-send`, including
 `avail_ready i e`); `form_commitqc v e q`; `decide i v e` (on `msg_commitqc
 v e`, once — `Decide` (`alg:mvba-cont3`), reached from `TryFormCommitQC`
@@ -2300,10 +2303,12 @@ work. Stage 5 records the result.
      `CommitQC` by the composing layer. Each retransmission clause says
      so.
 
-   One item is open: (N4), prepare certificates do not travel. It is
-   closed in R3 by a model change (`adopt_prepqc` from the prepares, with
-   an Mvba re-solve), together with the fairness clean-up; see
-   [Bounds.md](Bounds.md) §6.2.4.
+   (N4), prepare certificates do not travel, was open here and is
+   **closed in R3**: `adopt_prepqc i v e q` forms the validator's own
+   certificate from a supermajority `q` of `Prepare`s it received (the
+   supplement's `TryFormPrepQC`), a network hop with a first-delivery
+   clause. It was done together with the fairness clean-up, in one Mvba
+   re-solve; see [Bounds.md](Bounds.md) §6.2.4.
 4. **Re-prove the bound and re-check the witness against the refined
    premise.**
    * **The good view.** In
@@ -2367,7 +2372,6 @@ work. Stage 5 records the result.
    *Done (2026-09-29).* The result is recorded in the places listed. The
    Chorus non-vacuity item did not need rewording, since the untimed
    premise did not change. PaperAlignment §6 needed nothing new: its
-   backoff item already carried the resolution. (N4) is open and
-   closed in R3 (model change: `adopt_prepqc` from the prepares, Mvba
-   re-solve); [Bounds.md](Bounds.md) §6.2.4 and [TODO.md](TODO.md)
-   § Liveness.
+   backoff item already carried the resolution. (N4) was left open here
+   and is closed in R3 (model change: `adopt_prepqc` from the prepares,
+   Mvba re-solve); [Bounds.md](Bounds.md) §6.2.4.

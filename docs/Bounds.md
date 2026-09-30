@@ -344,9 +344,11 @@ check the premises against the supplement without reading Lean.
   held to `δ`. A step that consumes another party's message is held to what
   the supplement's network guarantees (since step 5b, 2026-09-29): `Δ` for
   messages sent at or after GST by correct validators and retained, `Δ + ρ`
-  for the retransmitted classes. Plain enabledness, as in [Fairness.lean](../Cadence/Fairness.lean), would
-  make every admissible model unsatisfiable once a proposal exists; that is
-  the second finding and it concerns the untimed leg too.
+  for the retransmitted classes. Plain enabledness would make every
+  admissible model unsatisfiable once a proposal exists. That is the second
+  finding. It concerned the untimed leg too, and since R3 the untimed
+  fairness of [Fairness.lean](../Cadence/Fairness.lean) is stated over
+  state-changing steps as well (§6.2.4).
 * (A-viewsync) is not assumed anywhere. Its two clauses are derived as a
   corollary of the timed premises; the bound itself is proven directly by
   a timed re-run of the chain and does **not** consume `Mvba.termination`
@@ -557,7 +559,8 @@ from `max(t, gst)`.
 | network (reads another party's message or certificate) | `δ` (local) |
 |---|---|
 | `handle_preprepare_first`, `handle_preprepare` (the leader's `Pre-Prepare`) | `leader_propose_first`, `leader_repropose`, `leader_propose_fresh` (upon entering the view; `Recover` is the identity here) |
-| `form_prepqc`, `form_commitqc`, `form_tc_lock`, `form_tc_nolock` (a quorum of others' signatures — the model's separation of *delivery* from *assembly* puts the delivery on the assembly) | `adopt_prepqc`, `send_commit`, `timeout_qc`, `timeout_noqc` (own state and a certificate already counted) |
+| `form_prepqc`, `form_commitqc`, `form_tc_lock`, `form_tc_nolock` (a quorum of others' signatures — the model's separation of *delivery* from *assembly* puts the delivery on the assembly) | `send_commit`, `timeout_qc`, `timeout_noqc` (own state and a certificate already counted) |
+| `adopt_prepqc` (a quorum of `Prepare`s the validator received itself; since R3, (N4) below) | |
 | `sync_view`, `sync_view_adopt` (a timeout certificate) | |
 | `decide` (a commit certificate; since step 5b, (N3) below) | |
 
@@ -591,18 +594,37 @@ supplement run of any of these kinds was not admissible, so the timed
 claim said nothing about it. None was a misreading of the pinned text,
 which did not yet state its network.
 
-**Open, closed in R3: (N4), prepare certificates do not travel.** `adopt_prepqc`
-is a local step once `msg_prepqc v e` holds. In the supplement a validator
-holds a prepare certificate only if it received a quorum of prepares
-itself; nobody forwards one. So a supplement run in which one correct
-validator forms a view's prepare certificate and another, which accepted
-the same proposal, never does (Byzantine votes sent to some, or prepares
-lost before GST) is not yet admissible. R3 closes it with a model change:
-`adopt_prepqc` adopts from the prepares themselves, and the Mvba family is
-re-solved, in one step together with the fairness clean-up
-([TODO.md](TODO.md) § Liveness). The good view is
-unaffected: there every correct validator receives the whole correct
-quorum's prepares within the same `Δ`.
+**Closed in R3: (N4), prepare certificates do not travel.** Until R3
+`adopt_prepqc` was a local step once `msg_prepqc v e` held, a certificate
+formed anywhere. In the supplement a validator holds a prepare certificate
+only if it received a quorum of prepares itself; nobody forwards one. So a
+supplement run in which one correct validator forms a view's prepare
+certificate and another, which accepted the same proposal, never does
+(Byzantine votes sent to some, or prepares lost before GST) was not
+admissible: the timed claim held that second validator to adopting within
+`δ`. Since R3 the model does what the supplement does
+([Mvba.lean](../Cadence/Mvba.lean), `adopt_prepqc`, the supplement's
+`TryFormPrepQC` at `eb1bb51`):
+
+* the step takes the supermajority `q` of `Prepare`s as a parameter, as
+  `form_prepqc v e q` does, and requires each member's `Prepare` on
+  `(v, e)`, in place of `msg_prepqc v e`;
+* it records the certificate it formed (`msg_prepqc v e`), since from then
+  on the certificate exists and the validator's timeouts carry it;
+* it is a network hop with a first-delivery clause — a correct quorum's
+  `Prepare`s sent at or after GST and retained by the forming validator —
+  and nothing is owed for a quorum with Byzantine members, whose votes
+  reach whom the adversary chooses.
+
+`form_prepqc` stays as the anonymous assembly, so the adversary's power is
+unchanged, and firing it opens no obligation for a correct validator, since
+no honest guard reads `msg_prepqc` except through a certificate someone
+holds. The Mvba family was re-solved cold; the one new cell the solver
+would have to search, `adopt_prepqc × prepqc_blocks_lower_commits`, is
+manual, as its `form_prepqc` twin is. `#veil_status Mvba` is unchanged,
+since no action or property was added. The good view is unaffected: there
+every correct validator receives the whole correct quorum's prepares within
+the same `Δ`, and the chain gets one milestone shorter (§6.2.6).
 
 **Move-enabledness, and the second finding.** [Fairness.lean](../Cadence/Fairness.lean)'s `Enabled`
 holds whenever *some* transition under the label exists — a stutter
@@ -618,13 +640,23 @@ outright: infinitely many firings within `Δ`. So (Δ-justice) is stated for
 actions are deterministic in their parameters, so a firing of a
 move-enabled label is a move; the proofs pay one side condition per link
 (the guard's negative flag becomes the effect's positive one, so the
-states differ). **This finding applies to the untimed leg**: `FJustice`
-is stated with `Enabled`, so `TerminationClaim`'s premise set is
-unsatisfiable at any instance with infinitely many supermajorities, and
-[TODO.md](TODO.md) § Liveness's non-vacuity item should be read with
-that in mind. It does not affect `Mvba.termination`'s truth — a stronger
-premise — and the fix is the Chorus leg's to make in [Fairness.lean](../Cadence/Fairness.lean), so
-it is reported there rather than made here.
+states differ).
+
+**Resolved in R3 for the untimed leg too.** The finding applied to the
+untimed claims as well: `FJustice` was stated with `Enabled`, so the premise
+sets of `Mvba.termination` and `Chorus.termination` were unsatisfiable at
+any instance with infinitely many supermajorities. Since R3 every fairness
+notion in [Fairness.lean](../Cadence/Fairness.lean) — `WeaklyFair`,
+`WeaklyFairFamily`, `StronglyFair` — is stated over `EnabledMove`, which
+moved there from [Timed.lean](../Cadence/Timed.lean) so that both sides use
+one notion, and both `FJustice`s, Chorus's proposal family included, are
+restated over it. In plain words: a correct validator's action is owed a
+step only while it can take one that changes the state. The premise can
+therefore hold at every quorum sort, not only at finite ones, and the
+witness of §6.3 shows it holding without the finite-sort argument it used
+to need. Each link of the untimed chains pays the side condition once,
+with the effect it waits for (`EnabledMove.of_enabled_of_effect`, or
+`eventually_of_weaklyFair`, which pays it inside).
 
 **What is deliberately absent**, the checklist §6 asked for: no clause
 mentions a good view, the leader rotation, or GST as a model event. Every
@@ -696,15 +728,14 @@ at `E₀ ≥ gst`:
 | every correct validator is in `W` | `E₀ + Δ` | the first correct validator in `W` forwarded the certificate below it at `E₀ ≥ gst`; nobody is above `W` (below) |
 | the leader's `Pre-Prepare` | `+ δ` | `leader_*` local |
 | every correct validator accepted and sent `Prepare` | `+ Δ` | `handle_preprepare` |
-| `msg_prepqc W e` | `+ Δ` | `form_prepqc` on the correct quorum's prepares, all on one `e` (`accepted_unique`) |
-| every correct validator holds it | `+ δ` | `adopt_prepqc` |
+| every correct validator holds its own `prepareQC_W` on `e` | `+ Δ` | `adopt_prepqc` on the correct quorum's prepares, all on one `e` (`accepted_unique`); a first delivery, since R3 ((N4) in §6.2.4) |
 | … and has `avail_ready` | acceptance `+ Δ_sync` | (Δ-avail), in parallel |
 | every correct `Commit` sent | `max` of the two `+ δ` | `send_commit` |
 | `msg_commitqc W e` | `+ Δ` | `form_commitqc` |
 | every correct validator decided | `+ Δ` | `decide`, a network hop: the certificate was first obtained after GST, and reaches the others by broadcast — after the certificate, timers no longer matter |
 
 so the certificate is at `E₀ + L_cert` with
-**`L_cert = 3Δ + max(Δ + δ, Δ_sync) + 2δ`** — `lem:good-view`'s
+**`L_cert = 3Δ + max(Δ, Δ_sync) + 2δ`** — `lem:good-view`'s
 `t*_w − τ_w` at `δ = 0`, `Δ_R = 0` — and the decisions at `E₀ + L_cert + Δ`.
 Every network row is a first delivery: each message is sent from inside `W`
 after `E₀ ≥ gst`, by correct validators, and retained, because at `E₀`
@@ -851,7 +882,9 @@ rules. The three questions the plan left open:
   branch, exactly as in the untimed link. The quorum steps are one
   application per member plus `TLRun.withinFrom_forall`; availability is
   (Δ-avail) directly, joined to the adoption by taking the later of two
-  indices (`TLRun.clk_max_le`). The cost the plan did not foresee was on the
+  indices (`TLRun.clk_max_le`). (Since R3 there are seven: each validator
+  forms its own prepare certificate, so `form_prepqc` left the chain and
+  `adopt_prepqc` is a network hop; §6.2.4, (N4).) The cost the plan did not foresee was on the
   *stability* side, not the fairness side. Three state facts
   [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) does not export had to be proven locally:
   `timer_set_label` (only `expire_timer i v` sets `timer_expired i v`, one
@@ -1123,7 +1156,8 @@ proposal in §6.2.1. The questions the task set:
   consumes it is local and already existed. It also does not touch the two
   other finiteness questions of the leg: the abstract `nodeset` sort may
   still have infinitely many supermajorities (§6.2.4's caveat on
-  `FJustice`), and the view order is infinite by nature (`below vL`). It
+  `FJustice`, resolved in R3 by stating fairness over state-changing
+  steps), and the view order is infinite by nature (`below vL`). It
   stays out of the Veil models and the safety theorems, which hold at any
   cardinality and whose solver could not use it anyway. **Proposal to the
   Chorus leg:** adopt the same convention. That means `[Fintype node]` in
@@ -1150,10 +1184,12 @@ decisions now come last). The questions the task set:
 
 * **Whether any premise was harder to satisfy than the ledger expected.**
   One, and not the one flagged. The expected hard premise was `FJustice`
-  with plain `Enabled` (§6.2.4). At the concrete family it costs one lemma:
+  with plain `Enabled` (§6.2.4). At the concrete family it cost one lemma:
   once the run is idle only two assembly labels are enabled, because a
   certificate has one quorum that can assemble it at `ByzNSet 4`
-  (`Mvba.Witness.enabled_idle`), and the tail fires both forever. The
+  (`Mvba.Witness.enabled_idle`), and the tail fired both forever. (Since
+  R3 `FJustice` is stated over state-changing steps, the idle tail owes
+  nothing, and that lemma is gone; §6.3.) The
   premise that mattered was the caller's `NoEarlyAbandon` together with the
   view timer. In the model as it was, a decision did not stop a validator,
   so a witness had either to change views forever or to have the caller
@@ -1206,8 +1242,7 @@ theorems that say it satisfies them are:
   a run that is admissible.
 * `Mvba.termination_premises_satisfiable`: some instance and run meet every
   premise of `Mvba.termination`. The untimed claim is not vacuous. In
-  particular, weak fairness with plain enabledness does not contradict the
-  rest at this instance.
+  particular, its weak fairness does not contradict the rest.
 
 **The ledger.** "Obvious" means an auditor can see by inspection that the
 premise can hold. "Not obvious" means it needs the model.
@@ -1262,12 +1297,15 @@ The timed claim, `Mvba.timed_termination`:
 
 The untimed claim, `Mvba.termination`:
 
-* **(F-justice)**, weak fairness of every honest action with *plain*
-  enabledness: **not obvious, and false at some instances.** At a
-  `nodeset` sort with infinitely many supermajorities no run satisfies it
-  once a prepare certificate exists (§6.2.4). At the finite quorum sorts of
-  the concrete family it holds; the model shows that, since each quorum
-  label that stays enabled forever also fires forever.
+* **(F-justice)**, weak fairness of every honest action — if it can take a
+  step that changes the state from some point on, it takes one: **obvious
+  once stated that way.** A run that does all the work there is to do and
+  then idles meets it, since at the idle state no honest action can change
+  anything. The model does exactly that. Nothing depends on the quorum sort
+  being finite. (Until R3 the premise was stated with plain enabledness,
+  under which a step changing nothing still counted, and at a `nodeset`
+  sort with infinitely many supermajorities no run satisfied it once a
+  prepare certificate existed; §6.2.4.)
 * **(A-viewsync)**, the view timer as ordering constraints: **not
   obvious** on its face, but it is a corollary of the timed premises
   (`Mvba.aViewSync_of_sync`), so it inherits their satisfiability. The
@@ -1295,10 +1333,9 @@ does (§6.3.2).
   at clock 0. They run the whole chain of view 0 and decide in it. At clock
   5 their view-0 timers expire, which the timing model requires; having
   decided, they have halted, so none times out. From then on the run is
-  idle: it alternates the two quorum labels that are still enabled, the
-  prepare and commit certificates of view 0, each a step that changes
-  nothing, and the clock advances by one per step. Nobody abandons, so both
-  forms of the caller's abandonment premise hold vacuously.
+  idle: it repeats one step that changes nothing, and the clock advances
+  by one per step. Nobody abandons, so both forms of the caller's
+  abandonment premise hold vacuously.
 * **Why the proofs are short.** Every state of the run is a closed formula
   in its index: a record is present at index `n` iff the step that sets it
   is before `n`, and that step is `c + i` for a constant `c` per record and
@@ -1309,7 +1346,9 @@ does (§6.3.2).
   index there is a later one on the same clock reading at which a given
   fair label is not move-enabled, and bounded weak fairness holds with its
   antecedent false. The run is fair because it never leaves an obligation
-  pending while time passes.
+  pending while time passes. The untimed weak fairness holds for the same
+  reason: at the idle state no fair label is move-enabled (`quiet`), so its
+  antecedent fails from every index on.
 
 #### 6.3.2 The finding: the model did not halt a validator after deciding
 
@@ -1357,9 +1396,9 @@ no abandonment for it. The premise that needs thought is **`ValidBridge`**,
 the stated bridge between the MVBA's decision and the network's
 certificates at Chorus's decision handlers. It relates two sub-states,
 and a model must produce certificates that satisfy it, not merely an MVBA
-run that decides. Plain-`Enabled` `FJustice` over Chorus's own quorum
-labels is the second, with the same caveat as here and the same remedy at
-finite sorts.
+run that decides. `FJustice` over Chorus's own quorum labels needs no
+finite-sort argument since R3: it is stated over state-changing steps, as
+here, so an idle tail owes nothing.
 
 ### 6.4 The Chorus leg: the kick-off record
 
@@ -1663,9 +1702,9 @@ of `Chorus.termination` becomes:
 
 **`FJustice` becomes buffered bounded fairness, with a hop table.** It
 covers every justice label except the three phase markers (below) and the
-inputs (§6.4.1). It is stated for `EnabledMove`, as in §6.2.4. The
-§6.2.4 caveat about `Enabled` is thereby answered for the timed claim;
-the untimed claim keeps plain enabledness. The proposal family becomes
+inputs (§6.4.1). It is stated for `EnabledMove`, as in §6.2.4, and since
+R3 so is the untimed claim's `FJustice`: the §6.2.4 caveat about `Enabled`
+is answered on both sides. The proposal family becomes
 its timed twin, `BoundedFairFamily`: if some `mvba_propose i v _` stays
 move-enabled over the window, one of them fires within it. The clause,
 generic in [Timed.lean](../Cadence/Timed.lean), with `gate l` the label's
@@ -1931,9 +1970,11 @@ The caller's conditions:
 
 The untimed claim after option A:
 
-* **`FJustice` with plain `Enabled`**: not obvious, and false at
-  infinite quorum sorts. It holds at `ByzNSet n`, provided the run's idle
-  tail fires every stutter-enabled quorum label.
+* **`FJustice`**, over state-changing steps since R3, with the proposal
+  family: obvious alone, as in §6.3, and at every quorum sort — once the
+  run is idle no fair label is move-enabled, so the tail owes nothing.
+  Jointly **not obvious** for the same reason as the timed row: the family
+  quantifies over every value.
 * **`MvbaAdmissible`, `ValidBridge`**: as above.
 * **Eventual participation, and abandonment only after finalizing**:
   obvious.
@@ -1956,8 +1997,8 @@ claims; the untimed projection forgets the clock. The run:
   only certifiable vector in this run. With one proposer and no negative
   evidence, uniqueness is a short argument.
 * The clock advances only at states where no row is move-enabled (the
-  §6.3.1 device), and the untimed idle tail round-robins the
-  stutter-enabled quorum labels.
+  §6.3.1 device), and the untimed idle tail is one step that changes
+  nothing, which both fairness premises then ask nothing of.
 
 A witness that runs the MVBA arm would be stronger evidence of the
 proposal family and the completeness clause. It is not needed for joint

@@ -257,15 +257,19 @@ Five consequences for this repository:
    clause by clause ([Bounds.md](Bounds.md) §6.2.4), the bound is re-proven
    against it, and `Schedule.ℓ` gained the retransmission terms. The
    supplement's `lem:good-view` constant is still `Lcert` at `δ = 0`, and
-   its burnt-view cost `2Δ + T` is still `Schedule.burn`. One item is open,
-   (N4): a prepare certificate is adopted as a local step, while in the
-   supplement it never travels. It is closed in R3 (model change:
-   `adopt_prepqc` from the prepares, Mvba re-solve).
+   its burnt-view cost `2Δ + T` is still `Schedule.burn`. The one item
+   left open there, (N4), is closed in R3: a prepare certificate does not
+   travel, so a validator forms its own from the `Prepare`s it received
+   (`TryFormPrepQC`, `line:mvba:tfp-guard`, `line:mvba:tfp-store`), and the
+   model's `adopt_prepqc` now reads those prepares instead of a certificate
+   formed anywhere ([Bounds.md](Bounds.md) §6.2.4).
 
 ## 5. What this implies for the models
 
-One model change, §4 item 4: the MVBA now halts a validator after it
-decides, as the supplement does. Otherwise nothing: the published
+Two model changes, both in §4: the MVBA now halts a validator after it
+decides, as the supplement does (item 4), and a validator forms its own
+prepare certificate from the prepares it received, since prepare
+certificates do not travel ((N4), R3). Otherwise nothing: the published
 algorithms are unchanged, and the divergences in §3 are between the
 paper's two documents.
 

@@ -50,8 +50,9 @@ Four Veil models plus support files, mirroring the paper's architecture:
   repository's **internal supplement** (the referent is pinned to a
   paper-repository commit in the header; `docs/MvbaPlan.md` §0), in the
   Chorus family shape at mid scale: a model file with views, timeouts,
-  timeout certificates and the lock, one proof file per action (exactly
-  two manual cells), the certificate with its `#veil_status` pin, and
+  timeout certificates and the lock, one proof file per action (a few
+  manual cells, counted in `docs/Architecture.md`), the certificate with
+  its `#veil_status` pin, and
   `Mvba.mvbaSafety : MVBASafety …` plus `Mvba.mvba_of_temporal` in
   `Compose.lean` — the only Mvba file importing `Interfaces.lean`.
   Chorus consumes the class, and `System.lean` fills its constraint with

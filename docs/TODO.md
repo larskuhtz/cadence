@@ -165,10 +165,11 @@ come first.
   premise-by-premise ledger in [Bounds.md](Bounds.md) §6.3. The run is the
   one planned here — everyone proposes and decides in one view, then idles —
   after a model fix the witness exposed: the model did not halt a validator
-  after deciding, as the supplement does (§6.3.2). `FJustice` with plain
-  `Enabled` is satisfied there because the quorum sort is finite. Its caveat ([Bounds.md](Bounds.md) §6.2.4) still
-  stands at infinite quorum sorts, and the general fix is still the Chorus
-  leg's in [Fairness.lean](../Cadence/Fairness.lean).
+  after deciding, as the supplement does (§6.3.2). Since R3 both
+  `FJustice`s are stated over state-changing steps
+  ([Fairness.lean](../Cadence/Fairness.lean)), so the premise holds at
+  every quorum sort, not only at finite ones, and the witness's idle tail
+  owes nothing ([Bounds.md](Bounds.md) §6.2.4).
 
   **Open for Chorus: `Chorus.termination` is proven, and its premises
   still need the satisfiability argument.** Non-vacuity here means what it
@@ -245,16 +246,6 @@ come first.
   Chorus claim instantiates the MVBA's timing premise on a projected run,
   this clause is the one it must discharge from Chorus's own behaviour,
   not assume; its cost `ρ + Δ` is already inside `ℓ_MVBA`.
-* **(N4), open; closed in R3: prepare certificates do not travel.** `adopt_prepqc` is a local step once a
-  prepare certificate exists anywhere. In the supplement a validator holds
-  one only if it received a quorum of prepares itself, so a supplement run
-  in which one correct validator forms a view's prepare certificate and
-  another, which accepted the same proposal, never does is not admissible
-  in the timed claim yet ([Bounds.md](Bounds.md) §6.2.4). R3 closes it by
-  a model change: `adopt_prepqc` adopts from the prepares themselves (a
-  guard in [Cadence/Mvba.lean](../Cadence/Mvba.lean) and a re-solve of the
-  Mvba family), in one re-solve together with the fairness clean-up. The
-  good view, and so the bound, is unaffected.
 
 ## Model hygiene
 
