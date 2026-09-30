@@ -43,7 +43,10 @@ caller, and they are exactly the antecedents of the contract's own
 
 * **(F-justice)** — `FJustice`: every honest label that is neither the
   oracle step nor one of the module's three inputs is weakly fair, the MVBA
-  proposal as one family per validator and value. The classification is
+  proposal as one family per validator and value. Weakly fair means: if it
+  can take a step that changes the state from some point on, it takes one
+  ([Fairness.lean](../Fairness.lean)), which is what keeps the premise
+  satisfiable at every quorum sort. The classification is
   the `match` definitions below; the reasons weak fairness suffices are
   [Liveness.md](../../docs/Liveness.md) §2, and why the proposal is a family is §4.6
   (Finding 2). The inputs are excluded on purpose (`InputLabel` says why).
@@ -485,12 +488,25 @@ abbrev ChorusRun
     (thM : Mvba.Theory node nodeset (node → Option merkle_root) view) :=
   LRun (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM) thS
 
-/-- **(F-justice)** — weak fairness of every honest, non-oracle action.
+/-- **(F-justice)** — weak fairness of every honest action that is neither
+the oracle step nor one of the three inputs: if from some point on a correct
+validator's action can always take a step **that changes the state**, it
+eventually takes one.
 
 Every such label is weakly fair on its own, except the MVBA proposal: a
 validator `i` proposing `v` is weakly fair as one family over the MVBA's
 successor state, the label's result parameter — if `i` can propose `v`
-from some point on, it does. -/
+from some point on, it does.
+
+"Changes the state" is TLA+'s `WF_v` ([Fairness.lean](../Fairness.lean),
+"Enabledness and the two fairness classes"). It makes the premise
+satisfiable at every quorum sort, not only at finite ones: labels that
+differ only in which quorum witnesses a certificate
+(`aggregate_fastqc_pos i j m q` for each quorum `q`, the commit-certificate
+broadcasts) are discharged by one firing, after which the others would
+change nothing. A fairness that also counted steps changing nothing would
+require each of them to fire forever, which no run can do when there are
+infinitely many quorums. -/
 def FJustice (r : ChorusRun thS thM) : Prop :=
   (∀ l, JusticeLabel l → ¬ ProposeLabel l → WeaklyFair r l) ∧
   ∀ i v, WeaklyFairFamily r (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)

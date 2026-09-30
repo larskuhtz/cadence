@@ -241,7 +241,19 @@ abbrev MvbaRun (th : Theory node nodeset value view) :=
   LRun (Mvba.relationalTransitionSystem node nodeset value view) th
 
 /-- **(F-justice)** — weak fairness of every honest, non-timer, non-input
-action. The one scheduling assumption of the ordinary kind. -/
+action: if from some point on a correct validator's action can always take
+a step **that changes the state**, it eventually takes one. The one
+scheduling assumption of the ordinary kind.
+
+"Changes the state" is TLA+'s `WF_v` and is what makes the premise
+satisfiable at every quorum sort, not only at finite ones
+([Fairness.lean](../Fairness.lean), "Enabledness and the two fairness
+classes"). Labels that differ only in which quorum witnesses a certificate —
+`form_prepqc v e q` for each supermajority `q` — are discharged by one
+firing, since after it the others would change nothing. Under a fairness
+that also counted steps changing nothing, each of them would have to fire
+forever, which no run can do when there are infinitely many
+supermajorities. -/
 def FJustice (r : MvbaRun th) : Prop :=
   ∀ l, JusticeLabel l → WeaklyFair r l
 
@@ -456,7 +468,9 @@ theorem eventually_decided_of_commitqc
   -- So `decide i v e` is enabled from `N` on, and weak fairness fires it.
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.decide i v e) (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => enabled_decide hi ⟨E₀, hin' n hn⟩ (hab n) (hqc' n hn) (fun E => hcon n E))
+      (fun n hn => EnabledMove.of_enabled_of_effect
+        (enabled_decide hi ⟨E₀, hin' n hn⟩ (hab n) (hqc' n hn) (fun E => hcon n E))
+        (fun _ h => decide_effect h) (hcon n e))
   exact hcon (n + 1) e (decide_effect (hfire ▸ r.steps n))
 
 /-! ## The link before it, and the first use of the rank
@@ -510,7 +524,8 @@ theorem eventually_commitqc_of_commit_quorum
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_commitqc v e q)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => enabled_form_commitqc hsm (hall' n hn))
+      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_form_commitqc hsm (hall' n hn))
+        (fun _ h => form_commitqc_effect h) (hcon n hn))
   exact hcon (n + 1) (by omega) (form_commitqc_effect (hfire ▸ r.steps n))
 
 /-- **The rank's commit dimension bottoming out entails termination for one
@@ -642,60 +657,94 @@ theorem eventually_msg_commit_of_settled
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.send_commit i v e)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn =>
-        enabled_send_commit hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
+      (fun n hn => EnabledMove.of_enabled_of_effect
+        (enabled_send_commit hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           (hacc' n hn) (hloc' n hn) (hs n hn).2.1 (hncs n hn) (hav' n hn))
+        (fun _ h => (send_commit_effect h).2) (hcon n hn))
   exact hcon (n + 1) (by omega) (send_commit_effect (hfire ▸ r.steps n)).2
 
-/-! ## And the link before that: a validator adopts the view's certificate
+/-! ## And the link before that: a validator forms the view's certificate
 
-`adopt_prepqc` has the same three anti-monotone guards as `send_commit`, two
-of them again covered by `SettledIn`. The third is the lock-view bound
-`∀ W E, local_prepqc i W E → W < v`, and it is handled the same way — not
-assumed, because its failure is the goal — but the argument that its failure
-*is* the goal takes three of the model's invariants rather than one:
+`adopt_prepqc` — the supplement's `TryFormPrepQC` — reads a quorum of
+`Prepare`s the validator received itself, never another validator's
+certificate ([Mvba.lean](../Mvba.lean), at the action). Its guards are the
+prepares, which are monotone, and the same three anti-monotone guards as
+`send_commit`, two of them again covered by `SettledIn`. The third is the
+lock-view bound `∀ W E, local_prepqc i W E → W < v`, and it is handled the
+same way — not assumed, because its failure is the goal — but the argument
+that its failure *is* the goal takes four of the model's invariants rather
+than one:
 
 * `local_prepqc_within_entered` pins the offending certificate's view to at
   most `v`;
 * the guard's failure gives "not below `v`", so the view is `v` exactly;
-* `local_prepqc_backed` sends it to `msg_prepqc v E`, and `prepqc_unique`
-  — all prepare certificates of a view are on one vector — identifies `E`
-  with the `e` the link is about.
+* `local_prepqc_backed` and `prepqc_backed` put a supermajority of
+  `Prepare`s behind it, on some `E`;
+* that supermajority meets the link's own in a correct validator, which
+  accepted only one vector in `v` (`honest_prepare_accepted`,
+  `accepted_unique`), so `E` is the `e` the link is about.
 
 So a validator in view `v` whose lock-view guard has lapsed is holding the
 very certificate the argument was waiting for. -/
 
 /-- **`adopt_prepqc`'s guards are its enabledness.** -/
-theorem enabled_adopt_prepqc {i : node} {v : view} {e : value}
+theorem enabled_adopt_prepqc {i : node} {v : view} {e : value} {q : nodeset}
     (hi : ¬ nset.is_byz i = true)
     (hin : ∃ E, st.input i E = true)
     (hact : Active st i)
     (hview : InView st i v)
-    (hqc : st.msg_prepqc v e = true)
+    (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → st.msg_prepare p v e = true)
     (hacc : st.accepted i v e = true)
     (hlow : ∀ W E, st.local_prepqc i W E = true → vord.lt W v)
     (hnto : ¬ st.timed_out i v = true) :
     Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
-      (.adopt_prepqc i v e) := by
+      (.adopt_prepqc i v e q) := by
   mvba_enabled
-  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hqc, hacc, hlow, hnto, rfl⟩
+  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hsm, hall, hacc, hlow, hnto, rfl⟩
+
+/-- **`adopt_prepqc`'s effect, in full**: the certificate is held, and it
+exists on the network. -/
+theorem adopt_prepqc_effect' {i : node} {v : view} {e : value} {q : nodeset}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+      (.adopt_prepqc i v e q) st') :
+    st'.local_prepqc i v e = true ∧ st'.msg_prepqc v e = true := by
+  mvba_tr htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  constructor <;> mvba_effect
 
 /-- **`adopt_prepqc`'s effect**: the certificate is held. -/
-theorem adopt_prepqc_effect {i : node} {v : view} {e : value}
+theorem adopt_prepqc_effect {i : node} {v : view} {e : value} {q : nodeset}
     (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
-      (.adopt_prepqc i v e) st') : st'.local_prepqc i v e = true := by
-  mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
-  mvba_effect
+      (.adopt_prepqc i v e q) st') : st'.local_prepqc i v e = true :=
+  (adopt_prepqc_effect' htr).1
+
+/-- **A prepare certificate and a prepare quorum of one view are on one
+vector.** The supermajority behind a certificate on `E` and a supermajority
+of `Prepare`s on `e` in the same view meet in a correct validator, which
+accepted only one vector there. -/
+theorem prepqc_eq_of_prepare_quorum
+    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
+    {v : view} {e E : value} {q : nodeset} (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → st.msg_prepare p v e = true)
+    (hqc : st.msg_prepqc v E = true) : E = e := by
+  obtain ⟨q', hsm', hall'⟩ := Mvba.reachable_prepqc_backed hr v E hqc
+  obtain ⟨n, hnq, hnq', hn⟩ := nset.supermajorities_intersect_in_honest q q' hsm hsm'
+  have hn' : ¬ nset.is_byz n = true := hn
+  exact Mvba.reachable_accepted_unique hr n v E e hn'
+    (Mvba.reachable_honest_prepare_accepted hr n v E hn' (hall' n hnq'))
+    (Mvba.reachable_honest_prepare_accepted hr n v e hn' (hall n hnq))
 
 /-- **A lapsed lock-view guard is the adoption itself.** At a reachable state
-where `i` is in view `v` and a prepare certificate of `v` on `e` exists, the
-guard `∀ W E, local_prepqc i W E → W < v` can fail only by `i` holding that
-very certificate. This is where the three invariants are used. -/
+where `i` is in view `v` and a supermajority has sent its `Prepare` on `e`
+in `v`, the guard `∀ W E, local_prepqc i W E → W < v` can fail only by `i`
+holding the view-`v` certificate on `e`. This is where the four invariants
+are used. -/
 theorem local_prepqc_of_guard_lapsed
     (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
-    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value}
-    (hview : InView st i v) (hqc : st.msg_prepqc v e = true)
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value} {q : nodeset}
+    (hview : InView st i v) (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → st.msg_prepare p v e = true)
     (hlapse : ¬ ∀ W E, st.local_prepqc i W E = true → vord.lt W v) :
     st.local_prepqc i v e = true := by
   -- Some held certificate is not below `v` …
@@ -712,21 +761,22 @@ theorem local_prepqc_of_guard_lapsed
     by_contra hne
     exact hnlt (hmk ⟨hle, hne⟩)
   subst hWv
-  -- All prepare certificates of a view are on one vector.
+  -- Its certificate and the link's prepares are on one vector.
   have hbacked := Mvba.reachable_local_prepqc_backed hr i W E hi hWE
-  have := Mvba.reachable_prepqc_unique hr W E e hbacked hqc
+  have := prepqc_eq_of_prepare_quorum hr hsm hall hbacked
   subst this
   exact hWE
 
 /-- **The `adopt_prepqc` link.** A correct validator settled in view `v` that
-has accepted `e` there, with a prepare certificate of `v` on `e` on the
-network, holds that certificate. -/
+has accepted `e` there, with a supermajority's `Prepare`s on `(v, e)` on the
+network, forms and holds the view's certificate. -/
 theorem eventually_local_prepqc_of_settled
     (r : MvbaRun th) (hfj : FJustice r)
     {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value} {N : Nat}
     (hs : SettledIn r i v N)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    (hqc : (r.at' N).msg_prepqc v e = true)
+    {q : nodeset} (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p v e = true)
     (hacc : (r.at' N).accepted i v e = true) :
     ∃ n, N ≤ n ∧ (r.at' n).local_prepqc i v e = true := by
   by_contra hcon
@@ -734,9 +784,11 @@ theorem eventually_local_prepqc_of_settled
   have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
     r.mono (P := fun s => s.input i E₀ = true)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
-  have hqc' : ∀ n, N ≤ n → (r.at' n).msg_prepqc v e = true :=
-    r.mono (P := fun s => s.msg_prepqc v e = true)
-      (fun m hm => Mvba.msg_prepqc.mono (r.steps m) v e hm) hqc
+  have hall' : ∀ n, N ≤ n → ∀ p, nset.member p q = true →
+      (r.at' n).msg_prepare p v e = true := by
+    intro n hn p hp
+    exact r.mono (P := fun s => s.msg_prepare p v e = true)
+      (fun m hm => Mvba.msg_prepare.mono (r.steps m) p v e hm) (hall p hp) n hn
   have hacc' : ∀ n, N ≤ n → (r.at' n).accepted i v e = true :=
     r.mono (P := fun s => s.accepted i v e = true)
       (fun m hm => Mvba.accepted.mono (r.steps m) i v e hm) hacc
@@ -746,22 +798,26 @@ theorem eventually_local_prepqc_of_settled
     intro n hn
     by_contra hlapse
     exact hcon n hn
-      (local_prepqc_of_guard_lapsed (r.reachable n) hi (hs n hn).1 (hqc' n hn) hlapse)
+      (local_prepqc_of_guard_lapsed (r.reachable n) hi (hs n hn).1 hsm (hall' n hn) hlapse)
   obtain ⟨n, hn, hfire⟩ :=
-    hfj (.adopt_prepqc i v e)
+    hfj (.adopt_prepqc i v e q)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn =>
-        enabled_adopt_prepqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
-          (hqc' n hn) (hacc' n hn) (hlow n hn) (hs n hn).2.1)
+      (fun n hn => EnabledMove.of_enabled_of_effect
+        (enabled_adopt_prepqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
+          hsm (hall' n hn) (hacc' n hn) (hlow n hn) (hs n hn).2.1)
+        (fun _ h => adopt_prepqc_effect h) (hcon n hn))
   exact hcon (n + 1) (by omega) (adopt_prepqc_effect (hfire ▸ r.steps n))
 
 /-! ## The prepare assembly, and the per-validator chain closed
 
 `form_prepqc` is the commit assembly's twin — both guards monotone, so the
 proof is the one from `eventually_commitqc_of_commit_quorum` with the
-relation changed. With it the whole **per-validator** half of a view's work
-composes into one statement: from a prepare quorum to that validator's
-`Commit`, through adoption and the availability premise.
+relation changed. It is the *anonymous* assembly — whoever holds the
+signatures can form the certificate — and the per-validator chain below
+does not pass through it, since each validator forms its own. With the
+adoption link the whole **per-validator** half of a view's work composes
+into one statement: from a prepare quorum to that validator's `Commit`,
+through its own certificate and the availability premise.
 
 What is left after this is the quorum-wide half (every correct validator
 doing the same, so that the *commit* quorum assembles), the acceptance that
@@ -801,7 +857,8 @@ theorem eventually_prepqc_of_prepare_quorum
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_prepqc v e q)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => enabled_form_prepqc hsm (hall' n hn))
+      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_form_prepqc hsm (hall' n hn))
+        (fun _ h => form_prepqc_effect h) (hcon n hn))
   exact hcon (n + 1) (by omega) (form_prepqc_effect (hfire ▸ r.steps n))
 
 /-- Being settled from `N` on is being settled from any later point on. -/
@@ -811,23 +868,24 @@ theorem SettledIn.later {r : MvbaRun th} {i : node} {v : view} {N M : Nat}
 
 /-- **The per-validator chain, closed.** A correct validator settled in view
 `v` that has accepted `e` there sends its `Commit` on `(v, e)`, given only a
-prepare certificate of that view — which a prepare quorum produces.
+supermajority's `Prepare`s on `(v, e)`.
 
-This composes three links and the availability premise: adopt the
+This composes three links and the availability premise: form the
 certificate, wait for the shares, send. The index juggling is the only
 fiddly part, and it is only that `FAvail` reports no ordering: availability
 may arrive before or after the adoption, so the two are brought to a common
 index by monotonicity. -/
-theorem eventually_msg_commit_of_prepqc
+theorem eventually_msg_commit_of_prepare_quorum
     (r : MvbaRun th) (hfj : FJustice r) (hav : FAvail r)
     {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value} {N : Nat}
     (hs : SettledIn r i v N)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    (hqc : (r.at' N).msg_prepqc v e = true)
+    {q : nodeset} (hsm : nset.supermajority q)
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p v e = true)
     (hacc : (r.at' N).accepted i v e = true) :
     ∃ n, N ≤ n ∧ (r.at' n).msg_commit i v e = true := by
-  -- Adopt the certificate.
-  obtain ⟨n₁, hn₁, hloc⟩ := eventually_local_prepqc_of_settled r hfj hi hs hin hqc hacc
+  -- Form the certificate.
+  obtain ⟨n₁, hn₁, hloc⟩ := eventually_local_prepqc_of_settled r hfj hi hs hin hsm hall hacc
   -- The availability shares arrive, at an index `FAvail` does not order.
   obtain ⟨m, hm⟩ := hav i N v e hi hacc
   -- Bring both to a common point, monotonically.
@@ -962,9 +1020,10 @@ theorem eventually_accepted_of_settled
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.handle_preprepare i l pv v e)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn =>
-        enabled_handle_preprepare hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
+      (fun n hn => EnabledMove.of_enabled_of_effect
+        (enabled_handle_preprepare hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
           hnext hlead (hpp' n hn) hvalid (hjust' n hn) (hvote n hn))
+        (fun _ h => handle_preprepare_effect h) (fun ⟨ha, hp⟩ => hcon n hn ha hp))
   obtain ⟨ha, hp⟩ := handle_preprepare_effect (hfire ▸ r.steps n)
   exact hcon (n + 1) (by omega) ha hp
 
@@ -1001,8 +1060,8 @@ is settled there and the leader has proposed.
 
 This is the whole of `thm:termination`'s "correct-leader view" paragraph,
 bound erased: every member of the honest quorum accepts the proposal and
-prepares, the prepare certificate forms, each of them adopts it and
-commits, the commit certificate forms, and then *every* correct validator
+prepares, each of them forms the prepare certificate from those prepares
+and commits, the commit certificate forms, and then *every* correct validator
 that has proposed decides — not only the quorum's members, because `decide`
 accepts a certificate of any view and needs nothing local.
 
@@ -1043,21 +1102,17 @@ theorem terminates_of_settled_honest_view
       (fun p m hm => ⟨Mvba.accepted.mono (r.steps m) p v e hm.1,
         Mvba.msg_prepare.mono (r.steps m) p v e hm.2⟩)
       hstep1
-  -- (2) The prepare certificate forms.
-  obtain ⟨n₂, hn₂, hqc⟩ :=
-    eventually_prepqc_of_prepare_quorum r hfj hq.honestQuorum_supermajority
-      (fun p hp => (hall₁ p hp).2)
-  -- (3) Every member commits — again at its own index, then at one.
+  -- (2)–(3) Every member forms its own prepare certificate from those
+  -- prepares and commits — again at its own index, then at one.
   have hstep3 : ∀ p, nset.member p hq.honestQuorum = true →
-      ∃ n, n₂ ≤ n ∧ (r.at' n).msg_commit p v e = true := by
+      ∃ n, n₁ ≤ n ∧ (r.at' n).msg_commit p v e = true := by
     intro p hp
     obtain ⟨E₀, hE₀⟩ :=
-      Mvba.reachable_entered_implies_input (r.reachable n₂) p v (hcorrect p hp)
-        ((hs p hp n₂ (Nat.le_trans hn₁ hn₂)).1).1
-    exact eventually_msg_commit_of_prepqc r hfj hav (hcorrect p hp)
-      ((hs p hp).later (Nat.le_trans hn₁ hn₂)) hE₀ hqc
-      (r.mono (P := fun s => s.accepted p v e = true)
-        (fun m hm => Mvba.accepted.mono (r.steps m) p v e hm) (hall₁ p hp).1 _ hn₂)
+      Mvba.reachable_entered_implies_input (r.reachable n₁) p v (hcorrect p hp)
+        ((hs p hp n₁ hn₁).1).1
+    exact eventually_msg_commit_of_prepare_quorum r hfj hav (hcorrect p hp)
+      ((hs p hp).later hn₁) hE₀ hq.honestQuorum_supermajority
+      (fun p' hp' => (hall₁ p' hp').2) (hall₁ p hp).1
   obtain ⟨n₃, hn₃, hall₃⟩ :=
     eventually_quorum enum r (fun p s => s.msg_commit p v e = true)
       (fun p m hm => Mvba.msg_commit.mono (r.steps m) p v e hm) hstep3
@@ -1168,9 +1223,10 @@ theorem eventually_preprepare_of_settled_leader
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.leader_repropose l pv v w e)
         (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-        (fun n hn =>
-          enabled_leader_repropose hl ⟨E₀, hin' n hn⟩ (hs n hn).2.2 hnext hlead
+        (fun n hn => EnabledMove.of_enabled_of_effect
+          (enabled_leader_repropose hl ⟨E₀, hin' n hn⟩ (hs n hn).2.2 hnext hlead
             (hs n hn).1 (hw' n hn) (hnp n hn))
+          (fun _ h => leader_repropose_effect h) (hcon n e hn))
     exact hcon (n + 1) e (by omega) (leader_repropose_effect (hfire ▸ r.steps n))
   · have hnl' : ∀ n, N ≤ n → (r.at' n).tc_nolock pv = true :=
       r.mono (P := fun s => s.tc_nolock pv = true)
@@ -1178,9 +1234,10 @@ theorem eventually_preprepare_of_settled_leader
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.leader_propose_fresh l pv v E₀)
         (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-        (fun n hn =>
-          enabled_leader_propose_fresh hl (hs n hn).2.2 hnext hlead (hs n hn).1
+        (fun n hn => EnabledMove.of_enabled_of_effect
+          (enabled_leader_propose_fresh hl (hs n hn).2.2 hnext hlead (hs n hn).1
             (hnl' n hn) (hin' n hn) (hnp n hn))
+          (fun _ h => leader_propose_fresh_effect h) (hcon n E₀ hn))
     exact hcon (n + 1) E₀ (by omega) (leader_propose_fresh_effect (hfire ▸ r.steps n))
 
 /-! ## The view change
@@ -1236,7 +1293,8 @@ theorem eventually_tc_of_timeout_quorum
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_tc_nolock v q)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => enabled_form_tc_nolock hsm (hall' n hn))
+      (fun n hn => EnabledMove.of_enabled_of_effect (enabled_form_tc_nolock hsm (hall' n hn))
+        (fun _ h => form_tc_nolock_effect h) (hcon n hn))
   exact hcon (n + 1) (by omega) (form_tc_nolock_effect (hfire ▸ r.steps n))
 
 /-- **`sync_view`'s guards are its enabledness.** -/
@@ -1294,8 +1352,9 @@ theorem eventually_entered_above_of_tc
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.sync_view i pv v)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn =>
-        enabled_sync_view hi ⟨E₀, hin' n hn⟩ (hnab n hn) hnext (htc' n hn) (hbelow n hn))
+      (fun n hn => EnabledMove.of_enabled_of_effect
+        (enabled_sync_view hi ⟨E₀, hin' n hn⟩ (hnab n hn) hnext (htc' n hn) (hbelow n hn))
+        (fun _ h => sync_view_effect h) (fun h => hcon n v hn h hlt))
   exact hcon (n + 1) v (by omega) (sync_view_effect (hfire ▸ r.steps n)) hlt
 
 /-! ## A view is closed only by a correct validator
@@ -1737,27 +1796,29 @@ theorem eventually_timed_out_of_timer
         (hheld n₀ hn₀ W₀ E₀' hW₀) ⟨E₀', hW₀⟩
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.timeout_qc i v w e) ⟨fun h => h, fun h => h, fun h => h, fun h => h⟩ n₀
-        (fun n hn =>
-          enabled_timeout_qc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
+        (fun n hn => EnabledMove.of_enabled_of_effect
+          (enabled_timeout_qc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
             (hnab n (Nat.le_trans hn₀ hn)) (hview n (Nat.le_trans hn₀ hn))
             (htimer' n (Nat.le_trans hn₀ hn)) (hcon n (Nat.le_trans hn₀ hn))
             (r.mono (P := fun s => s.local_prepqc i w e = true)
               (fun j hj => Mvba.local_prepqc.mono (r.steps j) i w e hj) he n hn)
             (fun W E hWE => hmax W (hheld n (Nat.le_trans hn₀ hn) W E hWE)
               (hstab n hn W (hheld n (Nat.le_trans hn₀ hn) W E hWE) ⟨E, hWE⟩)))
+          (fun _ h => timeout_qc_effect h) (hcon n (Nat.le_trans hn₀ hn)))
     exact hcon (n + 1) (by omega) (timeout_qc_effect (hfire ▸ r.steps n))
   -- It holds none, and by stability never will.
   · push Not at hany
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.timeout_noqc i v) ⟨fun h => h, fun h => h, fun h => h, fun h => h⟩ n₀
-        (fun n hn =>
-          enabled_timeout_noqc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
+        (fun n hn => EnabledMove.of_enabled_of_effect
+          (enabled_timeout_noqc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
             (hnab n (Nat.le_trans hn₀ hn)) (hview n (Nat.le_trans hn₀ hn))
             (htimer' n (Nat.le_trans hn₀ hn)) (hcon n (Nat.le_trans hn₀ hn))
             (fun W E hWE => by
               obtain ⟨E', hE'⟩ :=
                 hstab n hn W (hheld n (Nat.le_trans hn₀ hn) W E hWE) ⟨E, hWE⟩
               exact hany W E' hE'))
+          (fun _ h => timeout_noqc_effect h) (hcon n (Nat.le_trans hn₀ hn)))
     exact hcon (n + 1) (by omega) (timeout_noqc_effect (hfire ▸ r.steps n))
 
 /-! ## Closing a view
@@ -1870,8 +1931,8 @@ theorem eventually_tc_of_timed_out_quorum
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.form_tc_lock v q r₀ w e)
         (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-        (fun n hn =>
-          enabled_form_tc_lock hsm ((enum.mem_members r₀ q).mpr hr₀) (hq₀' n hn)
+        (fun n hn => EnabledMove.of_enabled_of_effect
+          (enabled_form_tc_lock hsm ((enum.mem_members r₀ q).mpr hr₀) (hq₀' n hn)
             (hpq' n hn) hle (fun p hp => by
               rcases hdom p ((enum.mem_members p q).mp hp) with hnq | ⟨W, E, hW, hWle⟩
               · exact Or.inl (hmono (fun s => s.msg_timeout_noqc p v = true)
@@ -1879,6 +1940,7 @@ theorem eventually_tc_of_timed_out_quorum
               · exact Or.inr ⟨W, E, hmono (fun s => s.msg_timeout_qc p v W E = true)
                   (fun m hm => Mvba.msg_timeout_qc.mono (r.steps m) p v W E hm) hW n hn,
                   hWle⟩))
+          (fun _ h => form_tc_lock_effect h) (hcon n hn))
     exact hcon (n + 1) (by omega) (form_tc_lock_effect (hfire ▸ r.steps n))
 
 /-! ## Reaching the good view
@@ -2411,10 +2473,10 @@ info: 'Mvba.eventually_local_prepqc_of_settled' depends on axioms: [propext, Cla
 #print axioms Mvba.eventually_local_prepqc_of_settled
 
 /--
-info: 'Mvba.eventually_msg_commit_of_prepqc' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Mvba.eventually_msg_commit_of_prepare_quorum' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Mvba.eventually_msg_commit_of_prepqc
+#print axioms Mvba.eventually_msg_commit_of_prepare_quorum
 
 /--
 info: 'Mvba.eventually_accepted_of_settled' depends on axioms: [propext, Classical.choice, Quot.sound]
