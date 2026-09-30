@@ -25,7 +25,7 @@ plus the fair-progress and enabledness invariants of the sweep (the
 **The temporal steps are a theorem too.** `Chorus.termination`
 ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)) is the claim itself, as a
 Lean theorem over runs: at every `n = 3f+1`, in the configuration the
-composed system runs, every run satisfying the three premises of §2
+composed system runs, every run satisfying the five premises of §2
 terminates — every correct validator finalizes the slot. Each temporal step
 in its proof is an instance of one rule, *a continuously enabled fair action
 eventually fires*. (F-justice) drives every correct validator to the
@@ -39,7 +39,7 @@ once (§2, last item).
 
 ## 2. The assumptions, exactly
 
-`Chorus.termination` takes three premises, each a named `Prop` in
+`Chorus.termination` takes five premises, each a named `Prop` in
 [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean):
 
 * **`FJustice`**: correct validators' actions are scheduled fairly.
@@ -47,6 +47,16 @@ once (§2, last item).
   the MVBA's own termination theorem requires.
 * **`ValidBridge`**: the MVBA's validity check agrees with Chorus's
   certificates. This is the cryptographic seam, not a fairness assumption.
+* **`AllParticipate`**: every correct validator eventually invokes
+  `participate()`.
+* **`NoAbandonBeforeFinalizing`**: no correct validator invokes `abandon()`
+  before it has finalized.
+
+The first three are about the run; the last two are about the caller, and
+they are exactly the antecedents of the contract's own
+`SlotConsensusTemporal.termination`. Within Cadence the glue meets them: it
+participates when it opens a slot and abandons only once it has finalized
+(`line:participate`, `line:abandon`).
 
 Its other hypotheses fix the setting: validators `Fin n` with `n = 3f+1`
 and at most `f` Byzantine, the system's Chorus configuration
@@ -54,7 +64,11 @@ and at most `f` Byzantine, the system's Chorus configuration
 `Mvba.termination` takes. The bullets below give the detail, one premise
 each.
 
-* **(F-justice)** (`FJustice`) — honest actions are weakly fair. Weak (not strong)
+* **(F-justice)** (`FJustice`) — honest actions are weakly fair, except the
+  module's three inputs (`participate`, `abandon`, `propose`), which the
+  caller invokes. They are classified apart (`Chorus.InputLabel`), and
+  that is load-bearing: fairness of `abandon` would force every validator
+  to abandon. Weak (not strong)
   fairness suffices because the model is monotone: enabledness is itself
   monotone, so the enable/disable toggle that strong fairness exists for
   cannot occur. ((F-compassion) is reserved vocabulary for the
@@ -114,7 +128,13 @@ each.
   [Cadence/Fairness.lean](../Cadence/Fairness.lean)). The other two premises of
   `Mvba.termination` belong to its caller, Chorus: every correct validator
   proposes, and none is abandoned before deciding. They are **derived**,
-  not assumed.
+  not assumed. The second holds on the branch of the proof that needs the
+  MVBA: there no correct validator ever finalizes, so by
+  `NoAbandonBeforeFinalizing` none abandons, and the MVBA's `abandon()` is
+  invoked only by Chorus's `abandon` (`line:fb-abandon`). On the other
+  branch some correct validator has finalized, and the others finalize
+  from its certificates without the MVBA. `MvbaAdmissible` itself did not
+  change shape.
 * **The bridge** (`ValidBridge`) — the MVBA's `Valid` holds exactly for
   the meta-blocks whose entries carry certificates on Chorus's network, in
   both directions the proof uses: a certified meta-block is `Valid` (so a
@@ -133,12 +153,8 @@ each.
   primitive of the published paper terminates with probability 1, which no
   deductive framework expresses, so that argument stays on paper, as for
   any cryptographic primitive; it is not part of this development's claim.
-  The name still appears in the prose of
-  [Cadence/Chorus.lean](../Cadence/Chorus.lean),
-  [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and
-  [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean), whose comments are aligned the next
-  time those files change, since an edit there re-solves a proof family
-  ([TODO.md](TODO.md) § Liveness).
+  The Lean prose names it only as retired (aligned in the participation
+  edit, [Bounds.md](Bounds.md) §6.4.6 S1).
 * Scheduling is distinct from **network delivery**. The monotone network
   makes broadcast signatures globally visible, so delivery surfaces only
   as fairness on the observation actions (`record_chunk`,
@@ -1178,5 +1194,42 @@ internal steps, and the family's instance discharges it at every use.
   leg took ([Bounds.md](Bounds.md) §6): a timing model over timed runs of
   the same untimed model, consuming `Mvba.bounded_termination` for the
   `ℓ_MVBA` part.
-* **Prose alignment.** The model files that still name (A-mvba) in their
-  comments (§2, [TODO.md](TODO.md) § Liveness).
+* ~~**Prose alignment.** The model files that still name (A-mvba) in their
+  comments.~~ Done by the participation edit below.
+
+**Revised by the participation edit** (2026-09-29, [Bounds.md](Bounds.md)
+§6.4.6 S1). Chorus now models the module's participation interface:
+`participate` and `abandon` are input actions over per-validator
+`participating`/`abandoned` state, `abandon` forwards to the MVBA's
+`abandon()`, and every sending rule is gated on active participation.
+The claim changed with it, in three ways an auditor should know.
+
+* **Two premises more, and they are the caller's.** `TerminationClaim` now
+  also takes `AllParticipate` (every correct validator eventually invokes
+  `participate()`) and `NoAbandonBeforeFinalizing` (none invokes
+  `abandon()` before it has finalized). They are the antecedents of
+  `SlotConsensusTemporal.termination`, so the untimed claim is now the
+  contract's Termination over the contract's own interface. Without the
+  second the claim would be false, since finalizing is itself a gated rule.
+* **The inputs carry no fairness.** `FJustice` excludes the three inputs
+  (`Chorus.InputLabel`, pinned against the contract's `step` split by
+  `not_justice_of_input`). `propose`, the proposer's root commitment, was
+  weakly fair before and is an input now. No link of the proof fired it.
+* **The proof splits on an early finalization**, as the paper's does. If a
+  correct validator finalizes, the others finalize from its certificates
+  (`eventually_committed_of_finalized`, the untimed totality). The MVBA's
+  premises are not needed there. If none ever does, none ever abandons, every
+  correct validator is active from some index on
+  (`activeFrom_of_never_finalized`), and the old dichotomy argument runs
+  unchanged except that each honest link takes that gate as a hypothesis.
+  The split is needed because a validator that finalizes on the fast path
+  and then abandons also abandons the MVBA. `MvbaAdmissible` keeps its
+  shape; the MVBA's abandonment premise is derived on the second branch
+  (`abandoned_of_mvba_abandoned`: the MVBA's `abandoned` row moves only
+  with Chorus's `abandon`).
+
+No invariant was added. Two run-level first-flip facts replace one:
+`committed_pos_assignable` / `committed_neg_assignable` recover, for a
+committed entry, the certificate its `commit_assign_*` guard saw. The
+invariant `local_committed_*_backed` keeps only the MVBA record, not the
+fallback commit certificate beside it.

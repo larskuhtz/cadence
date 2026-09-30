@@ -20,7 +20,7 @@ Cadence/Chorus.lean            MODEL — state, actions, invariants.
    │                           Elaborating it persists every VC *statement*
    │                           in the module's registry. No sweep, no proofs.
    ▼ imported by
-Cadence/Chorus/Proofs/*.lean   ONE FILE PER ACTION (41, incl. Init.lean).
+Cadence/Chorus/Proofs/*.lean   ONE FILE PER ACTION (43, incl. Init.lean).
    │                           `#prove_action Chorus <action>` re-creates that
    │                           action's registered VCs, discharges them with
    │                           reconstruction, persists real kernel-checked
