@@ -180,11 +180,10 @@ the environment relation `avail_ready i e` (`AvailReady_i`).
   lower-view discard (the termination setting before
   `lem:decision-propagation`; `sec:reliable-delivery`) — is stated in the
   timed claim's premise over these relations, clause by clause
-  (`Mvba.BoundedJustice`), and changes no guard. One item is open: a
-  prepare certificate is adopted as a local step, although in the
-  supplement a validator obtains one only from its own quorum of prepares
-  ([Bounds.md](../docs/Bounds.md) §6.2.4, (N4)); R3 closes it by adopting
-  from the prepares.
+  (`Mvba.BoundedJustice`). The one guard it shaped is `adopt_prepqc`'s:
+  a prepare certificate does not travel, so a validator forms its own
+  from the prepares it received ([Bounds.md](../docs/Bounds.md) §6.2.4,
+  (N4)).
 * **Handler segments are atomic.** Each handler is one action, so the
   model reasons about uninterrupted handler segments, which is what the
   supplement's own `rem:execution-model` justifies: `Recover` is the only
@@ -507,20 +506,32 @@ action form_prepqc (v : view) (e : value) (q : nodeset) {
   msg_prepqc v e := true
 }
 
-/-- `TryFormPrepQC`'s local half (`line:mvba:tfp-guard`,
-`line:mvba:tfp-store`): in the current view, on the vector it prepared,
-if the held certificate is of a lower view, and not after timing out. -/
-action adopt_prepqc (i : node) (v : view) (e : value) {
+/-- `TryFormPrepQC` (`line:mvba:tfp-guard`, `line:mvba:tfp-store`): `i`
+holds `2f+1` `Prepare` signatures on the vector it prepared in its current
+view — the quorum `q` is the label's parameter — has not yet formed a
+certificate in this view (its held one is of a lower view), and has not
+timed out. It forms `prepareQC_{s,v}` itself and stores it as `PrepQC_i`.
+
+Prepare certificates do not travel: a validator holds one only from the
+prepares it received itself, never from another validator's certificate
+(the supplement at `eb1bb51`). So the guard reads the prepares, not
+`msg_prepqc`, and the step also records the certificate it formed on the
+network, since from then on it exists and `i`'s timeouts carry it.
+`form_prepqc` above stays as the anonymous assembly: whoever holds the
+signatures, the adversary included, can form the certificate. -/
+action adopt_prepqc (i : node) (v : view) (e : value) (q : nodeset) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
   require ∀ E, ¬ decided i E
   require in_view i v
-  require msg_prepqc v e
+  require nset.supermajority q
+  require ∀ r, nset.member r q → msg_prepare r v e
   require accepted i v e
   require ∀ W E, local_prepqc i W E → vord.lt W v
   require ¬ timed_out i v
   local_prepqc i v e := true
+  msg_prepqc v e := true
 }
 
 /-- **The view timer runs out.** The environment marks `i`'s timer for a view
@@ -950,9 +961,9 @@ An invariant for **liveness** ([MvbaPlan.md](../docs/MvbaPlan.md) §3.5
 step 3): `adopt_prepqc`'s guard `∀ W E, local_prepqc i W E → W < v` is anti-monotone,
 so a fairness argument has to know what its failure means: with this, a
 failure at a validator in view `v` pins the offending certificate to view
-`v` exactly, and `local_prepqc_backed` with `prepqc_unique` then pins its
-value — so the guard can only die by the adoption the argument was waiting
-for ([Mvba/Liveness.lean](Mvba/Liveness.lean),
+`v` exactly, and `local_prepqc_backed` and `prepqc_backed` with the
+quorum intersection then pin its value — so the guard can only die by the
+adoption the argument was waiting for ([Mvba/Liveness.lean](Mvba/Liveness.lean),
 `eventually_local_prepqc_of_settled`). -/
 invariant [local_prepqc_within_entered]
   ∀ (R : node) (W : view) (E : value) (U : view),
@@ -1211,7 +1222,6 @@ sat trace {
   propose
   leader_propose_first
   handle_preprepare_first
-  form_prepqc
   adopt_prepqc
   become_avail_ready
   send_commit
@@ -1230,7 +1240,6 @@ sat trace {
   sync_view
   leader_propose_fresh
   handle_preprepare
-  form_prepqc
   adopt_prepqc
   become_avail_ready
   send_commit
@@ -1241,8 +1250,8 @@ sat trace {
     leader vord.zero l0 ∧ is_byz l0 ∧ leader v l1 ∧ ¬ is_byz l1)
 }
 
--- A held lock forces re-proposal: view 1's leader proposes `e`, a prepare
--- certificate on `e` forms, the view times out with that certificate as
+-- A held lock forces re-proposal: view 1's leader proposes `e`, a
+-- validator forms a prepare certificate on `e`, the view times out with that certificate as
 -- its lock, and view 2's correct leader re-proposes `e` although its own
 -- input is a different `e'`.
 sat trace {
@@ -1250,7 +1259,6 @@ sat trace {
   propose
   leader_propose_first
   handle_preprepare_first
-  form_prepqc
   adopt_prepqc
   expire_timer
   timeout_qc

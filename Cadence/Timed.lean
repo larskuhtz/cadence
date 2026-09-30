@@ -31,14 +31,15 @@ of runs rather than as a guard in the model. `ref N := max (clk N) gst`
 makes the same clause bite across GST: an obligation pending when GST
 arrives is due `D` after GST.
 
-**Fairness is about steps that change the state.** [Fairness.lean](Fairness.lean)'s
-`Enabled` holds when *some* transition exists under the label, a stutter
-included; `EnabledMove` asks for a transition to a *different* state — TLA+'s
-`⟨A⟩_v`. The reason is recorded in [Bounds.md](../docs/Bounds.md) §6.2.4: assembly actions are
-idempotent, so under plain enabledness every one of the (possibly
-infinitely many) quorum-indexed labels with the same effect stays enabled
-forever and must fire, and no run is fair. Under `EnabledMove` one firing
-discharges them all. -/
+**Fairness is about steps that change the state.** Bounded fairness is
+stated over [Fairness.lean](Fairness.lean)'s `EnabledMove`, a transition to
+a *different* state — TLA+'s `⟨A⟩_v` — as the untimed fairness notions
+there are, and for the same reason ([Bounds.md](../docs/Bounds.md)
+§6.2.4): assembly actions are idempotent, so under plain enabledness every
+one of the (possibly infinitely many) quorum-indexed labels with the same
+effect stays enabled forever and must fire — in the timed form, infinitely
+often within one window — and no run is fair. Under `EnabledMove` one
+firing discharges them all. -/
 
 namespace Cadence
 
@@ -188,20 +189,10 @@ theorem withinFrom_forall {α : Type v} (P : α → σ → Prop)
 
 end TLRun
 
-/-! ## Move-enabledness, and bounded weak fairness -/
+/-! ## Bounded weak fairness
 
-/-- A label is **move-enabled** at a state when the system has a transition
-out of that state under it **to a different state** — TLA+'s `⟨A⟩_v`. For a
-Veil action this is its `require` clauses satisfiable *and* its update not a
-no-op, which for the monotone models means some relation it sets is still
-unset. -/
-def EnabledMove (sys : RelationalTransitionSystem ρ σ lbl) (th : ρ) (st : σ) (l : lbl) : Prop :=
-  ∃ st', sys.tr th st l st' ∧ st' ≠ st
-
-theorem Enabled.of_move {st : σ} {l : lbl} (h : EnabledMove sys th st l) :
-    Enabled sys th st l :=
-  let ⟨st', htr, _⟩ := h
-  ⟨st', htr⟩
+Over [Fairness.lean](Fairness.lean)'s `EnabledMove`, as the untimed
+fairness notions are. -/
 
 /-- **Bounded weak fairness** of `l` with hop bound `D`: from any index `N`,
 if `l` is move-enabled at every index at or after `N` whose clock is inside

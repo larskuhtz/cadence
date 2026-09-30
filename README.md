@@ -471,7 +471,7 @@ Cadence/
   Mvba.lean                        leader-based MVBA MODEL — the internal supplement's
                                     instantiation, referent pinned in the header; no sweep,
                                     VC registry, three sat trace witnesses
-  Mvba/Proofs/, Mvba/Certify.lean  the MVBA family's proof files (26; two manual cells) and
+  Mvba/Proofs/, Mvba/Certify.lean  the MVBA family's proof files (26; manual cells counted in docs/Architecture.md) and
                                     certificate (axiom- and audit-pinned)
   Mvba/Compose.lean                Mvba ⊨ MVBASafety + the join toward the full MVBA
                                     (axiom-pinned)

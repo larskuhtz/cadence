@@ -42,7 +42,9 @@ once (§2, last item).
 `Chorus.termination` takes five premises, each a named `Prop` in
 [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean):
 
-* **`FJustice`**: correct validators' actions are scheduled fairly.
+* **`FJustice`**: correct validators' actions are scheduled fairly: an
+  action that can take a step changing the state, from some point on,
+  takes one.
 * **`MvbaAdmissible`**: the MVBA's steps inside the run are scheduled the way
   the MVBA's own termination theorem requires.
 * **`ValidBridge`**: the MVBA's validity check agrees with Chorus's
@@ -66,7 +68,14 @@ each.
 
 * **(F-justice)** (`FJustice`) — honest actions are weakly fair, except the
   module's three inputs (`participate`, `abandon`, `propose`), which the
-  caller invokes. They are classified apart (`Chorus.InputLabel`), and
+  caller invokes. *Weakly fair* is TLA+'s `WF_v`: an action that can take a
+  step **changing the state** at every point from some index on takes one
+  ([Cadence/Fairness.lean](../Cadence/Fairness.lean)). A step that would change nothing is owed
+  nothing, and that is what lets the premise hold at every quorum sort:
+  labels that differ only in which quorum witnesses a certificate are all
+  discharged by the first firing ([Bounds.md](Bounds.md) §6.2.4; until R3
+  the premise also counted steps that change nothing, and was unsatisfiable
+  at a quorum sort with infinitely many supermajorities). They are classified apart (`Chorus.InputLabel`), and
   that is load-bearing: fairness of `abandon` would force every validator
   to abandon. Weak (not strong)
   fairness suffices because the model is monotone: enabledness is itself
@@ -837,7 +846,9 @@ the MVBA instance.
   chains are in any case robust to fairness of state-changing steps
   (`Cadence.EnabledMove`): every label they fire is fired at a state where
   its effect is absent — the contradiction hypothesis of each link — so each
-  such step is a move (by inspection, not yet checked).
+  such step is a move (by inspection, not yet checked). *Checked since R3*:
+  `FJustice` is stated over state-changing steps, and every link pays that
+  side condition in Lean.
 
 ### 4.6 Stage 4, the kick-off record: the MVBA arm
 
@@ -978,7 +989,9 @@ witness-parameterised assembly labels (`broadcast_commitqc_* … q`,
 stay enabled as stutters — the bounds workshop's caveat (§4.5) — and
 picking `q` in the body would settle that in the model; it is not needed for
 stage 4, whose uses of them are sound as they stand, but it is the uniform
-fix if the caveat is taken up.
+fix if the caveat is taken up. *R3 took the caveat up without a model
+change*: fairness is stated over state-changing steps, so the stutters owe
+nothing ([Bounds.md](Bounds.md) §6.2.4).
 
 **What stage 4 proves**, given both fixes, at the concrete family and
 `chorusTheory`, from `FJustice`, `MvbaAdmissible` and `ValidBridge`: from
@@ -1160,8 +1173,9 @@ relies only on `Mvba.propose`'s guards, the abandoned frames and
 
 **The premises.** Each is a named `Prop`, and §2 has them in short:
 
-* `FJustice` — correct validators' actions are weakly fair; the MVBA
-  proposal is fair as one family per validator and value;
+* `FJustice` — correct validators' actions are weakly fair over steps
+  that change the state; the MVBA proposal is fair as one family per
+  validator and value;
 * `MvbaAdmissible` — the run's MVBA steps have a labelling, with infinitely
   many of them (`Component.Scheduled`), that satisfies `Mvba.termination`'s
   three scheduling premises;

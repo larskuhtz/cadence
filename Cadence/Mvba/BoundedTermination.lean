@@ -122,9 +122,9 @@ theorem local_prepqc_set {l : Mvba.Label node nodeset value view} {i : node} {W 
     InView st i W ∨ ∃ pv v, vord.next pv v ∧ (∀ V, st.entered i V = true → vord.le V pv) ∧
       st'.entered i v = true := by
   cases l
-  case adopt_prepqc i' v' e' =>
+  case adopt_prepqc i' v' e' q' =>
     mvba_tr htr
-    obtain ⟨-, -, -, -, hent, hle, -, -, -, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, hent, hle, -, -, -, -, -, rfl⟩ := htr
     mvba_effect_at h1
     rcases h1 with ⟨rfl, rfl, rfl⟩ | h1
     · exact Or.inl ⟨hent, hle⟩
@@ -1132,7 +1132,7 @@ theorem retained_before
   /- `Δ < τ PV`: the budget clears `Lcert`, and `Lcert ≥ Δ`. -/
   have hΔL : sch.Δ ≤ Lcert sch.Δ sch.δ sch.Δsync := by
     simp only [Lcert]
-    exact le_trans (le_trans (le_add_of_nonneg_right sch.δ_nonneg) (le_max_left _ _))
+    exact le_trans (le_max_left _ _)
       (le_trans (le_add_of_nonneg_left (nsmul_nonneg hΔ 3))
         (le_add_of_nonneg_right (nsmul_nonneg sch.δ_nonneg 2)))
   have hΔτ : sch.Δ < sch.τ PV := lt_of_le_of_lt hΔL hramp

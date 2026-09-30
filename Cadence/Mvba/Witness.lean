@@ -37,9 +37,14 @@ The three correct validators become available and propose, run the whole
 chain of view 0 and decide in it, all at clock 0. At clock 5 their view-0
 timers expire, as the timing model requires; a decided validator has halted
 (the supplement's `decide(…); abandon()`, [Mvba.lean](../Mvba.lean)), so none
-of them times out. Then the run idles: it alternates the two quorum labels
-still enabled, the prepare and commit certificates of view 0, each a step
-that changes nothing, one clock unit per step. Nobody abandons.
+of them times out. Then the run idles on a step that changes nothing, one
+clock unit per step. Nobody abandons.
+
+At the idle state no fair label can take a step that changes the state:
+the correct validators have halted, the Byzantine one is not honest, and
+every certificate an assembly could form already exists. So weak fairness,
+which asks only for steps that change the state, asks nothing of the idle
+tail, in the untimed claim as in the timed one.
 
 ## How the proofs are arranged
 
@@ -52,7 +57,8 @@ The clock advances only out of states at which no fair label is
 move-enabled (`quiet`). From every index there is then a later index on the
 same clock reading at which a given fair label is not move-enabled, so
 bounded weak fairness holds with its antecedent false: the run never leaves
-an obligation pending while time passes. -/
+an obligation pending while time passes. The untimed weak fairness holds
+for the same reason, at the idle state (`fJustice`). -/
 
 namespace Mvba
 
@@ -108,8 +114,9 @@ happens in view 0, and the step that sets each record is:
 
 * `avail_ready x`: `x`, and `input x` with `entered x 0`: `3 + x`;
 * the leader's proposal and `Pre-Prepare`: `6`;
-* `accepted`/`voted`/`msg_prepare`: `7 + x`; the prepare certificate: `10`;
-  `local_prepqc`: `11 + x`;
+* `accepted`/`voted`/`msg_prepare`: `7 + x`; the prepare certificate: `10`,
+  by the anonymous assembly; `local_prepqc`: `11 + x`, each validator
+  forming its own from the three prepares;
 * `commit_sent`/`msg_commit`: `14 + x`; the commit certificate: `17`;
   `decided x`: `18 + x`;
 * `timer_expired x 0`: `22 + x`.
@@ -164,9 +171,9 @@ def prefixLabel : Nat → L
   | 8 => .handle_preprepare_first 1 0 ()
   | 9 => .handle_preprepare_first 2 0 ()
   | 10 => .form_prepqc 0 () Q
-  | 11 => .adopt_prepqc 0 0 ()
-  | 12 => .adopt_prepqc 1 0 ()
-  | 13 => .adopt_prepqc 2 0 ()
+  | 11 => .adopt_prepqc 0 0 () Q
+  | 12 => .adopt_prepqc 1 0 () Q
+  | 13 => .adopt_prepqc 2 0 () Q
   | 14 => .send_commit 0 0 ()
   | 15 => .send_commit 1 0 ()
   | 16 => .send_commit 2 0 ()
@@ -179,14 +186,9 @@ def prefixLabel : Nat → L
   | 23 => .expire_timer 1 0
   | _ => .expire_timer 2 0
 
-/-- **The idle tail**, two labels in rotation: the prepare and the commit
-certificate of view 0. They are exactly the fair labels still enabled once
-the run is idle (`enabled_idle`), and each is a step that changes nothing. -/
-def tailLabel (j : Nat) : L :=
-  if j = 0 then .form_prepqc 0 () Q else .form_commitqc 0 () Q
-
-/-- The label of the step out of index `n`. -/
-def lbl (n : Nat) : L := if n < 25 then prefixLabel n else tailLabel ((n - 25) % 2)
+/-- The label of the step out of index `n`: the active prefix, then the
+idle step for ever. -/
+def lbl (n : Nat) : L := if n < 25 then prefixLabel n else idle
 
 /-- The clock: 0 through the decisions, 5 from the view-0 timers on, and one
 unit per step once the run is idle. -/
@@ -260,7 +262,7 @@ local macro "wunfold" h:ident : tactic =>
 
 /-- Evaluate `lbl` at a literal index to the label it names. -/
 local macro "wlabel" : tactic =>
-  `(tactic| simp only [lbl, prefixLabel, tailLabel, idle, Nat.reduceLT, Nat.reduceSub,
+  `(tactic| simp only [lbl, prefixLabel, idle, Nat.reduceLT, Nat.reduceSub,
     Nat.reduceDiv, Nat.reduceMod, ↓reduceIte, Nat.reduceAdd, Nat.reduceMul, Nat.reduceEqDiff,
     OfNat.ofNat_ne_zero, one_ne_zero, reduceCtorEq])
 
@@ -306,18 +308,18 @@ theorem st_stable {n : Nat} (h : 25 ≤ n) : st n = st 25 := by
   wnorm
   wclose
 
-/-- Each idle label is a transition from the idle state to itself. -/
-theorem tail_step (j : Nat) (hj : j < 2) : sys.tr thW (st 25) (tailLabel j) (st 25) := by
-  interval_cases j <;> wlabel <;> wstep
+/-- The idle step is a transition from the idle state to itself. -/
+theorem tail_step : sys.tr thW (st 25) idle (st 25) := by
+  wlabel; wstep
 
 theorem steps (n : Nat) : sys.tr thW (st n) (lbl n) (st (n + 1)) := by
   by_cases h : n < 25
   · exact steps_prefix n h
   · rw [st_stable (by omega), st_stable (n := n + 1) (by omega)]
-    have : lbl n = tailLabel ((n - 25) % 2) := by
+    have : lbl n = idle := by
       simp only [lbl, if_neg h]
     rw [this]
-    exact tail_step _ (Nat.mod_lt _ (by omega))
+    exact tail_step
 
 /-! ## No fair label moves at a plateau's end
 
@@ -352,56 +354,6 @@ theorem quiet {n : Nat} (hn : PlateauEnd n) {l : L} {hd : Hop} (hh : hop l = som
         | (apply hne; simp only [st, Mvba.State.mk.injEq, funext_iff]; wnorm; wclose)
   all_goals (repeat (obtain ⟨_, htr⟩ := htr))
   all_goals (rcases hn with rfl | hn)
-  all_goals omega
-
-/-! ## The idle tail is weakly fair
-
-Once idle, the fair labels that are still *enabled* — plain `Enabled`, the
-premise of `FJustice` — are exactly the two of `tailLabel`: every validator
-label is disabled (the correct validators have decided and halted, the
-Byzantine one is not honest), and an assembly is enabled only over the
-correct quorum and only for a certificate that already exists. The tail
-fires each of them every other step. This is where the finite quorum sort
-matters (Bounds.md §6.2.4): at `ByzNSet 4` a certificate has one quorum that
-can assemble it, so each such label is one label. -/
-
-theorem enabled_idle {l : L} {hd : Hop} (hh : hop l = some hd)
-    (hen : Enabled sys thW (st 25) l) : ∃ j, j < 2 ∧ tailLabel j = l := by
-  obtain ⟨s', htr⟩ := hen
-  cases l
-  all_goals first | (simp [hop] at hh; done) | skip
-  all_goals wunfold htr
-  case form_prepqc v e q =>
-    obtain ⟨hq, hall, -⟩ := htr
-    rcases supermajority_cases q hq with h | h | h | h | h <;>
-      simp only [h, List.mem_cons, List.mem_nil_iff, forall_eq_or_imp, or_false,
-        forall_eq, Fin.isValue] at hall <;>
-      wnorm_at hall
-    all_goals first
-      | omega
-      | (refine ⟨0, by omega, ?_⟩
-         obtain rfl : v = 0 := by omega
-         simp only [tailLabel, ↓reduceIte]
-         congr
-         exact Subtype.ext h.symm)
-  case form_commitqc v e q =>
-    obtain ⟨hq, hall, -⟩ := htr
-    rcases supermajority_cases q hq with h | h | h | h | h <;>
-      simp only [h, List.mem_cons, List.mem_nil_iff, forall_eq_or_imp, or_false,
-        forall_eq, Fin.isValue] at hall <;>
-      wnorm_at hall
-    all_goals first
-      | omega
-      | (refine ⟨1, by omega, ?_⟩
-         obtain rfl : v = 0 := by omega
-         simp only [tailLabel, one_ne_zero, ↓reduceIte]
-         congr
-         exact Subtype.ext h.symm)
-  case form_tc_nolock v q =>
-    obtain ⟨hq, hall, -⟩ := htr
-    rcases supermajority_cases q hq with h | h | h | h | h <;> simp [h] at hall <;>
-      exact ((hall _).1 rfl).elim
-  all_goals (repeat (obtain ⟨_, htr⟩ := htr))
   all_goals omega
 
 /-! ## The run and its schedule -/
@@ -444,8 +396,7 @@ theorem lbl_expire {n : Nat} {i : Fin 4} {v : ℕ} (h : lbl n = .expire_timer i 
     interval_cases n <;> wlabel <;>
       simp only [Label.expire_timer.injEq, reduceCtorEq, false_implies, and_imp] <;>
       (rintro rfl rfl; decide)
-  · simp only [lbl, if_neg hn, tailLabel] at h
-    split_ifs at h
+  · simp only [lbl, if_neg hn, idle, reduceCtorEq] at h
 
 /-! ## (a) The timed premises -/
 
@@ -536,17 +487,14 @@ theorem abandons_late (p : Fin 4) (_ : ¬ nsetW.is_byz p = true) (n : Nat)
 
 /-! ## (b) The untimed premises, on the same run -/
 
+/-- **(F-justice)**, with its antecedent false: from any `N` on, the idle
+state is reached, and there no fair label can take a step that changes the
+state (`quiet`). -/
 theorem fJustice : FJustice run.toLRun := by
   intro l hj N hen
   obtain ⟨hd, hh⟩ := Option.isSome_iff_exists.mp ((hop_isSome_iff l).mpr hj)
-  have h25 := hen (max N 25) (le_max_left _ _)
-  change Enabled sys thW (st (max N 25)) l at h25
-  rw [st_stable (le_max_right _ _)] at h25
-  obtain ⟨j, hj2, rfl⟩ := enabled_idle hh h25
-  refine ⟨25 + 2 * N + j, by omega, ?_⟩
-  show lbl _ = _
-  simp only [lbl, if_neg (show ¬ 25 + 2 * N + j < 25 by omega),
-    show (25 + 2 * N + j - 25) % 2 = j by omega]
+  exact absurd (hen (max N 25) (le_max_left _ _))
+    (quiet (Or.inr (le_max_right _ _)) hh)
 
 /-- **(A-viewsync)** with `W = 1`: the view-0 timers do expire, and no view-1
 timer ever does, since nobody enters view 1. -/
@@ -650,13 +598,13 @@ open Witness in
 instance and run meet all of them at once: the theorem's hypotheses
 (finitely many validators, a supermajority of correct validators, the view
 order), the model's `assumption`s, and the claim's five premises —
-(F-justice) with plain enabledness, (A-viewsync), (F-avail), `AllPropose`
-and `NoEarlyAbandon`.
+(F-justice), (A-viewsync), (F-avail), `AllPropose` and `NoEarlyAbandon`.
 
 It rules out that the untimed Termination claim is vacuous, and in
-particular that its weak-fairness premise contradicts the rest: at the
-concrete quorum family the enabled-forever assembly labels are finitely
-many, and the run fires each of them forever (Bounds.md §6.2.4). -/
+particular that its weak-fairness premise contradicts the rest. Weak
+fairness asks only for steps that change the state, so once the run is
+idle it asks nothing; nothing in that argument depends on the quorum sort
+being finite (Bounds.md §6.2.4). -/
 theorem termination_premises_satisfiable :
     ∃ (node nodeset value view : Type) (_ : Inhabited node) (_ : Inhabited nodeset)
       (_ : Inhabited value) (_ : Inhabited view)

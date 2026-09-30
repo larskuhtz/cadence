@@ -115,7 +115,14 @@ validator that did not form it gets it only by transfer
 Chorus's broadcast and by the composing layer. At the pin `026dc8b` the
 table classed it as local, which the good view could not catch, since
 there every correct validator forms the certificate itself
-([MvbaPlan.md](../../docs/MvbaPlan.md) §11.3, C16 (N3)). -/
+([MvbaPlan.md](../../docs/MvbaPlan.md) §11.3, C16 (N3)).
+
+`adopt_prepqc` is a network hop too: a validator forms its prepare
+certificate from the `Prepare`s it received itself, since prepare
+certificates do not travel (the supplement's `TryFormPrepQC`; the model's
+guard reads the prepares since R3, [Bounds.md](../../docs/Bounds.md)
+§6.2.4, (N4)). Until then it was a local step that consumed a certificate
+formed anywhere. -/
 
 section Hops
 
@@ -139,6 +146,7 @@ def hop : Mvba.Label node nodeset value view → Option Hop
   | .handle_preprepare_first .. => some .net
   | .handle_preprepare .. => some .net
   | .form_prepqc .. => some .net
+  | .adopt_prepqc .. => some .net
   | .form_commitqc .. => some .net
   | .form_tc_lock .. => some .net
   | .form_tc_nolock .. => some .net
@@ -147,7 +155,6 @@ def hop : Mvba.Label node nodeset value view → Option Hop
   | .leader_propose_first .. => some .loc
   | .leader_repropose .. => some .loc
   | .leader_propose_fresh .. => some .loc
-  | .adopt_prepqc .. => some .loc
   | .send_commit .. => some .loc
   | .decide .. => some .net
   | .timeout_qc .. => some .loc
@@ -178,12 +185,12 @@ variable {time : Type} [LinearOrder time] [AddCommMonoid time]
 /-- **The chain's latency**, from the first correct entry into a correct-led
 view to its commit certificate, when no correct validator times out: one
 network hop to synchronise the entries, a local step for the leader's
-`Pre-Prepare`, a hop to accept it, a hop to the prepare certificate and a
-local step to adopt it — in parallel with availability — a local step to
-send `Commit`, and a hop to the commit certificate. [Bounds.md](../../docs/Bounds.md) §6.2.6
+`Pre-Prepare`, a hop to accept it, a hop to each validator's own prepare
+certificate — in parallel with availability — a local step to send
+`Commit`, and a hop to the commit certificate. [Bounds.md](../../docs/Bounds.md) §6.2.6
 is the table. -/
 def Lcert (Δ δ Δsync : time) : time :=
-  3 • Δ + max (Δ + δ) Δsync + 2 • δ
+  3 • Δ + max Δ Δsync + 2 • δ
 
 /-- At `δ = 0` — the supplement's instantaneous local computation — the
 latency is the supplement's `Δ_R + 3Δ + max{Δ, Δ_sync}` with `Δ_R = 0`
@@ -358,6 +365,9 @@ validator and `i` is unused.
 
 * a `Pre-Prepare` — from a correct leader, sent at or after GST, and
   retained by its receiver;
+* the `Prepare`s a validator forms its own certificate from — from a
+  correct quorum, the first of them sent at or after GST, and retained by
+  that validator;
 * the votes and timeouts of an assembly — from a correct quorum, the
   first of them sent at or after GST, and retained by the forming
   validator;
@@ -381,6 +391,10 @@ def Delivers (r : TMvbaRun th time) (i : node) : Mvba.Label node nodeset value v
     CorrectQuorum (node := node) q ∧
       SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true) ∧
       RetainedBy r i v (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true)
+  | .adopt_prepqc j v e q =>
+    CorrectQuorum (node := node) q ∧
+      SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true) ∧
+      RetainedBy r j v (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true)
   | .form_commitqc v e q =>
     CorrectQuorum (node := node) q ∧
       SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v e = true) ∧
@@ -414,8 +428,9 @@ def SomeEntered (v : view) (s : Mvba.State (Mvba.FieldAbstractType node nodeset 
   ∃ j, ¬ nset.is_byz j = true ∧ s.entered j v = true
 
 /-- **(Δ-justice)** — the supplement's network, as six clauses. The timed
-form of `FJustice`, with `EnabledMove` for `Enabled`
-([Timed.lean](../Timed.lean), the header).
+form of `FJustice`: the same move-enabledness
+([Fairness.lean](../Fairness.lean), "Enabledness and the two fairness
+classes"), with a deadline in place of "eventually".
 
 * `local_` — a local step fires within `δ`, as before;
 * `first` — a network step whose messages were sent at or after GST by

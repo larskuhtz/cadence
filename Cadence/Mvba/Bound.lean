@@ -34,7 +34,8 @@ keeps the first and the third and replaces the second by one application of
 also pays the one side condition move-enabledness costs: a label whose effect
 sets a flag the goal is about is *move*-enabled wherever it is enabled and the
 goal does not yet hold, because its post-state has the flag and the
-pre-state does not (`EnabledMove.of_enabled_of_effect`).
+pre-state does not (`EnabledMove.of_enabled_of_effect`, in
+[Fairness.lean](../Fairness.lean)).
 
 The anti-monotone guards are handled exactly as the untimed links handle
 them — a lapse of `¬ proposed_in`, `∀ W, voted i W → W < v`, the lock-view
@@ -92,16 +93,6 @@ section
 
 variable {ρ σ lbl : Type} {sys : RelationalTransitionSystem ρ σ lbl} {th : ρ}
 variable {time : Type} [LinearOrder time]
-
-/-- **The side condition, paid once.** If every step under `l` from `st`
-lands in a state satisfying `P`, and `st` does not satisfy `P`, then an
-enabled `l` is move-enabled: the post-state differs from `st` because one
-satisfies `P` and the other does not. -/
-theorem EnabledMove.of_enabled_of_effect {st : σ} {l : lbl} {P : σ → Prop}
-    (hen : Enabled sys th st l) (heff : ∀ st', sys.tr th st l st' → P st')
-    (hnot : ¬ P st) : EnabledMove sys th st l := by
-  obtain ⟨st', htr⟩ := hen
-  exact ⟨st', htr, fun h => hnot (h ▸ heff st' htr)⟩
 
 namespace TLRun
 
@@ -641,53 +632,43 @@ theorem within_accepted (hbj : BoundedJustice sch r)
     exact hnot (accepted_of_vote_guard_lapsed (r.reachable n) hi hview hnto hlead hL hpp'
       hlapse)
 
-/-- **Link 4, `form_prepqc` (a first delivery, `Δ`): the prepare
-certificate forms**, from a correct quorum's prepares sent at or after GST,
-at a correct validator `i` that retained them and is still in the view.
-Both guards monotone; the untimed twin is `eventually_prepqc_of_prepare_quorum`. -/
-theorem within_prepqc (hbj : BoundedJustice sch r)
+/-- **Link 4, `adopt_prepqc` (a first delivery, `Δ`): a correct validator
+forms and holds the prepare certificate**, from a correct quorum's
+`Prepare`s sent at or after GST that it retained, while it is in the view.
+Prepare certificates do not travel, so this is a network hop at every
+validator, not an assembly somewhere followed by a local step. The
+lock-view guard lapses only by the adoption (`local_prepqc_of_guard_lapsed`);
+the untimed twin is `eventually_local_prepqc_of_settled`. -/
+theorem within_local_prepqc (hbj : BoundedJustice sch r)
     {W : view} {e : value} {q : nodeset} (hsm : nset.supermajority q)
-    (hQ : CorrectQuorum (node := node) q) {i : node} (hi : ¬ nset.is_byz i = true)
+    (hQ : CorrectQuorum (node := node) q)
+    {i : node} (hi : ¬ nset.is_byz i = true)
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.Δ ≤ B)
+    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p W e = true)
+    (hacc : (r.at' N).accepted i W e = true)
     (hsince : SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p W e = true))
     (hret : RetainedBy r i W (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p W e = true))
-    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → AllActive (r.at' n) ∧ NotPast (r.at' n) i W) :
-    r.WithinFrom N B (fun s => s.msg_prepqc W e = true) := by
-  refine withinFrom_of_boundedFairWhile
-    (hbj.first (.form_prepqc W e q) i rfl hi ⟨hQ, hsince, hret⟩)
-    (ref_add_le hgst hB) (fun _ _ h => form_prepqc_effect h) ?_
-  intro n hn hclk _
-  exact ⟨enabled_form_prepqc hsm (fun p hp => r.mono (P := fun s => s.msg_prepare p W e = true)
-    (fun m hm => Mvba.msg_prepare.mono (r.steps m) p W e hm) (hall p hp) n hn),
-    hwin n hn hclk⟩
-
-/-- **Link 5, `adopt_prepqc` (a `δ` step): a correct validator holds the
-certificate.** The lock-view guard lapses only by the adoption
-(`local_prepqc_of_guard_lapsed`). -/
-theorem within_local_prepqc (hbj : BoundedJustice sch r)
-    {i : node} (hi : ¬ nset.is_byz i = true) {W : view} {e : value}
-    {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.δ ≤ B)
-    {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    (hqc : (r.at' N).msg_prepqc W e = true) (hacc : (r.at' N).accepted i W e = true)
-    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → Active (r.at' n) i ∧
+    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → AllActive (r.at' n) ∧ Active (r.at' n) i ∧
       InView (r.at' n) i W ∧ ¬ (r.at' n).timed_out i W = true) :
     r.WithinFrom N B (fun s => s.local_prepqc i W e = true) := by
-  refine r.withinFrom_of_boundedFair (hbj.local_ (.adopt_prepqc i W e) rfl)
+  refine withinFrom_of_boundedFairWhile
+    (hbj.first (.adopt_prepqc i W e q) i rfl hi ⟨hQ, hsince, hret⟩)
     (ref_add_le hgst hB) (fun _ _ h => adopt_prepqc_effect h) ?_
   intro n hn hclk hnot
-  obtain ⟨hab, hview, hnto⟩ := hwin n hn hclk
-  have hqc' := r.mono (P := fun s => s.msg_prepqc W e = true)
-    (fun m hm => Mvba.msg_prepqc.mono (r.steps m) W e hm) hqc n hn
-  refine enabled_adopt_prepqc hi
+  obtain ⟨hallA, hab, hview, hnto⟩ := hwin n hn hclk
+  have hall' : ∀ p, nset.member p q = true → (r.at' n).msg_prepare p W e = true :=
+    fun p hp => r.mono (P := fun s => s.msg_prepare p W e = true)
+      (fun m hm => Mvba.msg_prepare.mono (r.steps m) p W e hm) (hall p hp) n hn
+  refine ⟨enabled_adopt_prepqc hi
     ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
-      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩ hab hview hqc'
+      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩ hab hview hsm hall'
     (r.mono (P := fun s => s.accepted i W e = true)
-      (fun m hm => Mvba.accepted.mono (r.steps m) i W e hm) hacc n hn) ?_ hnto
+      (fun m hm => Mvba.accepted.mono (r.steps m) i W e hm) hacc n hn) ?_ hnto, hallA⟩
   by_contra hlapse
-  exact hnot (local_prepqc_of_guard_lapsed (r.reachable n) hi hview hqc' hlapse)
+  exact hnot (local_prepqc_of_guard_lapsed (r.reachable n) hi hview hsm hall' hlapse)
 
-/-- **Link 6, `send_commit` (a `δ` step): a correct validator sends its
+/-- **Link 5, `send_commit` (a `δ` step): a correct validator sends its
 `Commit`.** `¬ commit_sent` lapses only by the `Commit` being on the network
 (`commit_sent_backed`). -/
 theorem within_msg_commit (hbj : BoundedJustice sch r)
@@ -816,9 +797,9 @@ acceptance deadline):
   after GST, and nobody is above `W`;
 * the leader's `Pre-Prepare` — `+ δ`;
 * the honest quorum has accepted and prepared — `+ Δ` (`t₃`);
-* the prepare certificate — `+ Δ`;
-* each member holds it — `+ δ`, and has its shares by `t₃ + Δsync`
-  ((Δ-avail)); both by `t₃ + max (Δ + δ) Δsync`;
+* each member holds its own prepare certificate, formed from the quorum's
+  `Prepare`s — `+ Δ`, and has its shares by `t₃ + Δsync` ((Δ-avail)); both
+  by `t₃ + max Δ Δsync`;
 * each member's `Commit` — `+ δ`;
 * the commit certificate — `+ Δ`, which is `E₀ + Lcert`;
 * every correct validator decided — `+ Δ`, the certificate's transfer.
@@ -865,7 +846,7 @@ theorem good_view_decides
   obtain ⟨t₂, ht₂⟩ : ∃ t, t = t₁ + sch.δ := ⟨_, rfl⟩
   obtain ⟨t₃, ht₃⟩ : ∃ t, t = t₂ + sch.Δ := ⟨_, rfl⟩
   obtain ⟨t₄, ht₄⟩ : ∃ t, t = t₃ + sch.Δ := ⟨_, rfl⟩
-  obtain ⟨t₅, ht₅⟩ : ∃ t, t = t₃ + max (sch.Δ + sch.δ) sch.Δsync := ⟨_, rfl⟩
+  obtain ⟨t₅, ht₅⟩ : ∃ t, t = t₃ + max sch.Δ sch.Δsync := ⟨_, rfl⟩
   obtain ⟨t₆, ht₆⟩ : ∃ t, t = t₅ + sch.δ := ⟨_, rfl⟩
   obtain ⟨T, hT⟩ : ∃ t, t = t₆ + sch.Δ := ⟨_, rfl⟩
   /- `T` is `E₀ + Lcert`: the milestone table sums to the constant. -/
@@ -875,11 +856,10 @@ theorem good_view_decides
     abel
   have h₁₂ : t₁ ≤ t₂ := ht₂ ▸ le_add_of_nonneg_right hδ
   have h₂₃ : t₂ ≤ t₃ := ht₃ ▸ le_add_of_nonneg_right hΔ
-  have h₄₅ : t₄ + sch.δ ≤ t₅ := by
-    rw [ht₄, ht₅, add_assoc]; exact add_le_add le_rfl (le_max_left _ _)
+  have h₄₅' : t₄ ≤ t₅ := by
+    rw [ht₄, ht₅]; exact add_le_add le_rfl (le_max_left _ _)
   have h₃₅' : t₃ + sch.Δsync ≤ t₅ := by
     rw [ht₅]; exact add_le_add le_rfl (le_max_right _ _)
-  have h₄₅' : t₄ ≤ t₅ := le_trans (le_add_of_nonneg_right hδ) h₄₅
   have h₃₄ : t₃ ≤ t₄ := ht₄ ▸ le_add_of_nonneg_right hΔ
   have h₅₆ : t₅ ≤ t₆ := ht₆ ▸ le_add_of_nonneg_right hδ
   have h₆T : t₆ ≤ T := hT ▸ le_add_of_nonneg_right hΔ
@@ -1001,59 +981,53 @@ theorem good_view_decides
   have hN₃' : N₀ ≤ N₃ := Nat.le_trans hN₂ hN₃
   have hacc₃ : ∀ p, nset.member p hqe.honestQuorum = true → (r.at' N₃).accepted p W e = true :=
     fun p hp => hall₃ p ((enum.mem_members p _).mp hp)
-  /- (4) The prepare certificate by `t₄`. -/
-  obtain ⟨n₄, hn₄, hc₄, hqc⟩ :=
-    within_prepqc hbj hQs hQc hi₀ (hgstN N₃ hN₃') (ht₄ ▸ add_le_add hc₃ le_rfl)
-      (fun p hp => Mvba.reachable_accepted_implies_prepare (r.reachable N₃) p W e (hQc p hp)
-        (hacc₃ p hp))
-      (hsinceP _ (hprepN e)) (hretP _ (hprepN e) i₀ hi₀)
-      (fun n _ h => ⟨hall' n (le_trans h (le_trans h₄₅' h₅T)),
-        fun V hV => hbound n (le_trans h (le_trans h₄₅' h₅T)) i₀ V hi₀ hV⟩)
-  have hN₄ : N₀ ≤ n₄ := Nat.le_trans hN₃' hn₄
-  /- (5)–(6) Each member adopts, has its shares, and commits by `t₆`. -/
+  /- (4)–(6) Each member forms its own prepare certificate from the honest
+  quorum's `Prepare`s by `t₄`, has its shares, and commits by `t₆`. -/
   obtain ⟨N₆, hN₆, hc₆, hall₆⟩ :=
     r.withinFrom_forall (fun p s => s.msg_commit p W e = true)
-      (fun p m hm => Mvba.msg_commit.mono (r.steps m) p W e hm) n₄ t₆
-      (le_trans hc₄ (le_trans h₄₅' h₅₆))
+      (fun p m hm => Mvba.msg_commit.mono (r.steps m) p W e hm) N₃ t₆
+      (le_trans hc₃ (le_trans h₃₄ (le_trans h₄₅' h₅₆)))
       (enum.members hqe.honestQuorum) (fun p hp => by
         have hpq := hmemQ p hp
         have hpc := hQc p hpq
         have hwin : ∀ n, N₃ ≤ n → r.clk n ≤ T → Active (r.at' n) p ∧
             InView (r.at' n) p W ∧ ¬ (r.at' n).timed_out p W = true :=
           fun n hn h => hset p hpc N₁ (hQent p hpq) n (Nat.le_trans (Nat.le_trans hn₂ hN₃) hn) h
-        obtain ⟨E, hE⟩ := hinN p hpc n₄ hN₄
-        -- Adoption, from the certificate.
+        obtain ⟨E, hE⟩ := hinN p hpc N₃ hN₃'
+        -- Its own certificate, from the quorum's prepares.
         obtain ⟨a, ha, hca, hloc⟩ :=
-          within_local_prepqc hbj hpc (hgstN n₄ hN₄) (le_trans (add_le_add hc₄ le_rfl) h₄₅)
-            hE hqc
-            (r.mono (P := fun s => s.accepted p W e = true)
-              (fun m hm => Mvba.accepted.mono (r.steps m) p W e hm) (hacc₃ p hpq) n₄ hn₄)
-            (fun n hn h => hwin n (Nat.le_trans hn₄ hn) (le_trans h h₅T))
+          within_local_prepqc hbj hQs hQc hpc (hgstN N₃ hN₃') (ht₄ ▸ add_le_add hc₃ le_rfl)
+            hE
+            (fun p' hp' => Mvba.reachable_accepted_implies_prepare (r.reachable N₃) p' W e
+              (hQc p' hp') (hacc₃ p' hp'))
+            (hacc₃ p hpq) (hsinceP _ (hprepN e)) (hretP _ (hprepN e) p hpc)
+            (fun n hn h => ⟨hall' n (le_trans h (le_trans h₄₅' h₅T)),
+              hwin n hn (le_trans h (le_trans h₄₅' h₅T))⟩)
+        have hca' : r.clk a ≤ t₅ := le_trans hca h₄₅'
         -- The shares, from the acceptance.
         obtain ⟨b, hb, hsh, hcb⟩ := hav N₃ p W e hpc (hacc₃ p hpq)
         have hcb' : r.clk b ≤ t₅ := by
           rw [r.ref_eq_of_gst_le (hgstN N₃ hN₃')] at hcb
           exact le_trans hcb (le_trans (add_le_add hc₃ le_rfl) h₃₅')
         -- Both, at the later of the two.
-        have hc : r.clk (max a b) ≤ t₅ := r.clk_max_le hca hcb'
-        have hNc : n₄ ≤ max a b := Nat.le_trans ha (Nat.le_max_left _ _)
+        have hc : r.clk (max a b) ≤ t₅ := r.clk_max_le hca' hcb'
+        have hNc : N₃ ≤ max a b := Nat.le_trans ha (Nat.le_max_left _ _)
         obtain ⟨c, hc', hcc, hcm⟩ :=
-          within_msg_commit hbj hpc (hgstN _ (Nat.le_trans hN₄ hNc))
+          within_msg_commit hbj hpc (hgstN _ (Nat.le_trans hN₃' hNc))
             (ht₆ ▸ add_le_add hc le_rfl)
             (r.mono (P := fun s => s.input p E = true)
               (fun m hm => Mvba.input.mono (r.steps m) p E hm) hE _ hNc)
             (r.mono (P := fun s => s.accepted p W e = true)
-              (fun m hm => Mvba.accepted.mono (r.steps m) p W e hm) (hacc₃ p hpq) _
-              (Nat.le_trans hn₄ hNc))
+              (fun m hm => Mvba.accepted.mono (r.steps m) p W e hm) (hacc₃ p hpq) _ hNc)
             (r.mono (P := fun s => s.local_prepqc p W e = true)
               (fun m hm => Mvba.local_prepqc.mono (r.steps m) p W e hm) hloc _
               (Nat.le_max_left _ _))
             (r.mono (P := fun s => s.avail_ready p e = true)
               (fun m hm => Mvba.avail_ready.mono (r.steps m) p e hm) hsh _
               (Nat.le_max_right _ _))
-            (fun n hn h => hwin n (Nat.le_trans (Nat.le_trans hn₄ hNc) hn) (le_trans h h₆T))
+            (fun n hn h => hwin n (Nat.le_trans hNc hn) (le_trans h h₆T))
         exact ⟨c, Nat.le_trans hNc hc', hcc, hcm⟩)
-  have hN₆' : N₀ ≤ N₆ := Nat.le_trans hN₄ hN₆
+  have hN₆' : N₀ ≤ N₆ := Nat.le_trans hN₃' hN₆
   /- (7) The commit certificate by `T = E₀ + Lcert`. -/
   obtain ⟨n₇, hn₇, hc₇, hcqc⟩ :=
     within_commitqc hbj hQs hQc hi₀ (hgstN N₆ hN₆') (hT ▸ add_le_add hc₆ le_rfl)

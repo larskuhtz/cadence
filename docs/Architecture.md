@@ -117,8 +117,8 @@ here rather than repeating them.
 
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
-| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 40 | 9 safety + 92 invariants + 1 step property | 4 222 | cvc5, **proof-reconstructed** (kernel-checked), + 11 manual Lean proofs for e-matching-divergent cells; the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
-| [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 25 | 3 safety + 46 invariants + 1 step property | 1 325 | cvc5, **proof-reconstructed** (kernel-checked), + 2 manual Lean proofs for the two argument-carrying cells (the lock-persistence step and cross-view certificate agreement) |
+| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 42 | 9 safety + 92 invariants + 1 step property | 4 428 | cvc5, **proof-reconstructed** (kernel-checked), + 12 manual Lean proofs: 11 for e-matching-divergent cells, 1 for solver-budget headroom (`vote × committed_pos_frozen`); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
+| [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 25 | 3 safety + 46 invariants + 1 step property | 1 325 | cvc5, **proof-reconstructed** (kernel-checked), + 3 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate, and cross-view certificate agreement) |
 | [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
 | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 15 invariants + 3 step properties | 189 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
 | [Cadence/Cadence.lean](../Cadence/Cadence.lean) | 6 | 4 safety + 21 invariants | 182 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
