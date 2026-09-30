@@ -319,6 +319,15 @@ from the message's view. -/
 def BoundedFairWhile (r : TMvbaRun th time) (D : time) (l : Mvba.Label node nodeset value view)
     (C : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop) : Prop :=
   ∀ N, (∀ n, N ≤ n → r.clk n ≤ r.ref N + D →
+      Enabled (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l ∧
+        C (r.at' n)) →
+    r.FiresWithin N D l
+
+/-- `BoundedFairWhile` over state-changing steps: only the right-hand side
+of `Mvba.boundedFairWhile_iff_move`; no premise is stated with it. -/
+def BoundedFairWhileMove (r : TMvbaRun th time) (D : time) (l : Mvba.Label node nodeset value view)
+    (C : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop) : Prop :=
+  ∀ N, (∀ n, N ≤ n → r.clk n ≤ r.ref N + D →
       EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l ∧
         C (r.at' n)) →
     r.FiresWithin N D l
@@ -425,9 +434,12 @@ def SomeEntered (v : view) (s : Mvba.State (Mvba.FieldAbstractType node nodeset 
   ∃ j, ¬ nset.is_byz j = true ∧ s.entered j v = true
 
 /-- **(Δ-justice)** — the supplement's network, as six clauses. The timed
-form of `FJustice`: the same move-enabledness
-([Fairness.lean](../Fairness.lean), "Enabledness and the two fairness
-classes"), with a deadline in place of "eventually".
+form of `FJustice`: a fair label that is enabled throughout its window
+fires within it — the same plain enabledness, with a deadline in place of
+"eventually". Every clause is a `BoundedFair` or `BoundedFairWhile` of a
+fair label, and for a fair label either one over plain enabledness is the
+same premise as over state-changing steps (`boundedFair_iff_move`,
+`boundedFairWhile_iff_move`, from `enabledMove_of_enabled`).
 
 * `local_` — a local step fires within `δ`, as before;
 * `first` — a network step whose messages were sent at or after GST by
@@ -466,6 +478,28 @@ structure BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Pro
     ∀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view_adopt i pv v w e) AllActive
   decisions : ∀ (i j : node) (v : view) (e : value), ¬ nset.is_byz j = true →
     BoundedFairWhile r (sch.Δ + sch.ρ) (.decide i v e) (fun s => s.decided j e = true)
+
+omit [IsOrderedAddMonoid time] in
+/-- **The bridge, for (Δ-justice)'s local clauses.** For a fair label of this
+model, bounded fairness over plain enabledness and over state-changing steps
+are the same premise: every fair label is move-enabled wherever it is
+enabled (`enabledMove_of_enabled`, at every state). -/
+theorem boundedFair_iff_move {r : TMvbaRun th time} {D : time}
+    {l : Mvba.Label node nodeset value view} (hj : JusticeLabel l) :
+    BoundedFair r D l ↔ BoundedFairMove r D l :=
+  Cadence.boundedFair_iff_move fun _ => enabledMove_of_enabled l hj
+
+omit [IsOrderedAddMonoid time] in
+/-- **The bridge, for (Δ-justice)'s network clauses**: the same, with the
+clause's window condition `C` alongside. -/
+theorem boundedFairWhile_iff_move {r : TMvbaRun th time} {D : time}
+    {l : Mvba.Label node nodeset value view}
+    {C : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop}
+    (hj : JusticeLabel l) :
+    BoundedFairWhile r D l C ↔ BoundedFairWhileMove r D l C :=
+  ⟨fun h N hen => h N fun n hn hc => ⟨Enabled.of_move (hen n hn hc).1, (hen n hn hc).2⟩,
+   fun h N hen => h N fun n hn hc =>
+     ⟨enabledMove_of_enabled l hj (hen n hn hc).1, (hen n hn hc).2⟩⟩
 
 /-- **(T-timer)** — the view timer is punctual. For a correct validator `i`
 and a view `v`:
@@ -581,6 +615,18 @@ end Mvba
 
 Definitions, the hop table's coverage and the constant check; the targets
 are definitions, so nothing here asserts a bound. -/
+
+/--
+info: 'Mvba.boundedFair_iff_move' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.boundedFair_iff_move
+
+/--
+info: 'Mvba.boundedFairWhile_iff_move' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.boundedFairWhile_iff_move
 
 /-- info: 'Mvba.hop_isSome_iff' depends on axioms: [propext] -/
 #guard_msgs in

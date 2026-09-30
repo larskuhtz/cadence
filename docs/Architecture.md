@@ -297,7 +297,9 @@ relations, and it takes a human to confirm each use is positive.
    and so is the temporal argument over runs. What has to be believed is
    that the premises describe the executions that matter:
    * **(F-justice)**, `FJustice`: correct validators' actions are weakly
-     fair (weak suffices: enabledness is monotone in this model). Proposing
+     fair — an action enabled from some point on eventually fires (weak
+     suffices: apart from each action's fired-once guard, which only its
+     own firing sets, enabledness is monotone in this model). Proposing
      a value to the MVBA is fair as one action per validator and value,
      whatever state the MVBA ends in. (The per-validator implementation
      refinement of building that proposal is the receipt layer, §5.)

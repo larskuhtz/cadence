@@ -13,7 +13,7 @@
 # JOBS (the default): a single `lake build` under LEAN_NUM_THREADS=$JOBS.
 # Lake runs each module build on a thread of that pool, so the variable caps
 # how many `lean` processes run at once (unset, it is the core count). Lake
-# then schedules by dependency, with no barriers: `Mvba/NoLock.lean` (a ~2 min
+# then schedules by dependency, with no barriers: `Mvba/NoLock.lean` (a ~1 min
 # single-core model check) runs alongside the Chorus model instead of last,
 # the three family models build side by side, and a slow proof file holds up
 # no batch. The default JOBS comes from the memory actually available (the

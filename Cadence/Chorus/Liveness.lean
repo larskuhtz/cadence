@@ -44,16 +44,16 @@ caller, and they are exactly the antecedents of the contract's own
 * **(F-justice)** — `FJustice`: every honest label that is neither the
   oracle step nor one of the module's three inputs is weakly fair, the MVBA
   proposal as one family per validator and value. Weakly fair means: if it
-  can take a step that changes the state from some point on, it takes one
-  ([Fairness.lean](../Fairness.lean)), which is what keeps the premise
-  satisfiable at every quorum sort. The classification is
+  is enabled from some point on, it fires ([Fairness.lean](../Fairness.lean)).
+  The classification is
   the `match` definitions below; the reasons weak fairness suffices are
   [Liveness.md](../../docs/Liveness.md) §2, and why the proposal is a family is §4.6
   (Finding 2). The inputs are excluded on purpose (`InputLabel` says why).
-  For this model the state-changing qualifier asks nothing extra: every
-  fair action fires once, so whenever a fair label is enabled it can change
-  the state (`justice_enabledMove`, "Every enabled fair label changes the
-  state" below).
+  Every fair action fires once, so whenever a fair label is enabled it can
+  change the state (`justice_enabledMove`, "Every enabled fair label changes
+  the state" below); that is what keeps the premise satisfiable at every
+  quorum sort, and it makes it the same premise as weak fairness over
+  state-changing steps (`fJustice_iff_move`).
 * **The MVBA's scheduling** — `MvbaAdmissible`: the run *has* a projection
   onto the MVBA (a labelling of its steps plus infinitely many of them —
   `Component.Projection`, whose header says why both are data) whose
@@ -496,8 +496,8 @@ phase marker moves the phase), so whenever it can fire, firing it changes
 that record. The consequence for the premises: for this model, weak fairness
 over plain enabledness and weak fairness over state-changing steps
 ([Fairness.lean](../Fairness.lean)) are the same premise. `FJustice` is
-stated with the second; `justice_enabledMove` says the first means the same
-here.
+stated with the first; `fJustice_iff_move`, from `justice_enabledMove`,
+says it means the same as the second here.
 
 One lemma per fair action says that its firing changes the state; each is
 read off the action's transition body. -/
@@ -783,8 +783,8 @@ different state. This is [Bounds.md](../../docs/Bounds.md) §6.4.7's
 acceptance criterion for Chorus, machine-checked: the model has no fair
 action that stays enabled after it has fired, so for this model a label
 that is enabled from some point on is also able to change the state from
-that point on, and the fairness of `FJustice` (over state-changing steps)
-asks exactly what weak fairness over plain enabledness would. The MVBA
+that point on, and `FJustice` (over plain enabledness) asks exactly what
+weak fairness over state-changing steps would (`fJustice_iff_move`). The MVBA
 proposal is a justice label, so each member of its family is covered too
 (`mvba_propose_enabledMove`). A label that failed it would need its fired-once
 guard; none is dropped from `JusticeLabel`. -/
@@ -844,7 +844,7 @@ theorem justice_enabledMove
 
 /-- **Every member of the MVBA proposal family is move-enabled when it is
 enabled**: the family clause of `FJustice` asks nothing more than weak
-fairness over plain enabledness would. -/
+fairness over state-changing steps would. -/
 theorem mvba_propose_enabledMove {i : node} {v : node → Option merkle_root} {n}
     (hen : Enabled (atMvba thM) thS s (.mvba_propose i v n)) :
     EnabledMove (atMvba thM) thS s (.mvba_propose i v n) :=
@@ -884,26 +884,37 @@ abbrev ChorusRun
 
 /-- **(F-justice)** — weak fairness of every honest action that is neither
 the oracle step nor one of the three inputs: if from some point on a correct
-validator's action can always take a step **that changes the state**, it
-eventually takes one.
+validator's action is enabled at every point, it eventually fires.
 
 Every such label is weakly fair on its own, except the MVBA proposal: a
 validator `i` proposing `v` is weakly fair as one family over the MVBA's
 successor state, the label's result parameter — if `i` can propose `v`
 from some point on, it does.
 
-"Changes the state" is TLA+'s `WF_v` ([Fairness.lean](../Fairness.lean),
-"Enabledness and the two fairness classes"). It makes the premise
-satisfiable at every quorum sort, not only at finite ones: labels that
-differ only in which quorum witnesses a certificate
-(`aggregate_fastqc_pos i j m q` for each quorum `q`, the commit-certificate
-broadcasts) are discharged by one firing, after which the others would
-change nothing. A fairness that also counted steps changing nothing would
-require each of them to fire forever, which no run can do when there are
-infinitely many quorums. -/
+Every fair action of this model fires once: its guard requires a record its
+own step sets to be unset, so a fair label that is enabled can always
+change the state (`justice_enabledMove`, at every state). That is why the
+premise can hold at every quorum sort — a label that stayed enabled after
+firing, one per quorum, would have to fire forever — and why it is the same
+premise as weak fairness over state-changing steps, TLA+'s `WF_v`
+(`fJustice_iff_move`). -/
 def FJustice (r : ChorusRun thS thM) : Prop :=
   (∀ l, JusticeLabel l → ¬ ProposeLabel l → WeaklyFair r l) ∧
   ∀ i v, WeaklyFairFamily r (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)
+
+/-- **The bridge**: for this model, (F-justice) over plain enabledness is the
+same premise as weak fairness over state-changing steps (TLA+'s `WF_v`, the
+form the premise had from R3 to R6), clause by clause. -/
+theorem fJustice_iff_move (r : ChorusRun thS thM) :
+    FJustice r ↔
+      (∀ l, JusticeLabel l → ¬ ProposeLabel l → WeaklyFairMove r l) ∧
+      ∀ i v, WeaklyFairFamilyMove r (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next) := by
+  refine and_congr (forall_congr' fun l => imp_congr_right fun hj => imp_congr_right fun _ =>
+      weaklyFair_iff_move fun _ => justice_enabledMove l hj)
+    (forall_congr' fun i => forall_congr' fun v =>
+      weaklyFairFamily_iff_move fun _ l hl hen => ?_)
+  obtain ⟨_, rfl⟩ := hl
+  exact mvba_propose_enabledMove hen
 
 /-- **The MVBA's scheduling premise**, replacing (A-mvba): the run has a
 projection onto the MVBA — a labelling of its steps that explains them, and
@@ -1063,3 +1074,9 @@ info: 'Chorus.mvba_propose_enabledMove' depends on axioms: [propext, Classical.c
 -/
 #guard_msgs in
 #print axioms Chorus.mvba_propose_enabledMove
+
+/--
+info: 'Chorus.fJustice_iff_move' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.fJustice_iff_move

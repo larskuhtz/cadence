@@ -162,29 +162,32 @@ end LRun
 
 /-! ## Enabledness and the two fairness classes
 
-**Fairness is about steps that change the state.** A label is *enabled* at
-a state when some transition under it exists (`Enabled`), and
-*move-enabled* when some transition under it leads to a **different**
-state (`EnabledMove`), TLA+'s `⟨A⟩_v`. Every fairness notion below is
-stated over move-enabledness, as TLA+'s `WF_v(A)` is: weak fairness asks a
-label to fire only when firing it would change something.
+**Fairness is about enabled actions.** A label is *enabled* at a state when
+some transition under it exists (`Enabled`). Weak fairness says that a label
+enabled at every point from some index on fires at some point from that
+index on; strong fairness asks the same of a label enabled infinitely often.
+That is the premise an auditor reads, with no qualifier.
 
-The reason is a property of assembly actions, and it decides whether a
-fairness premise can hold at all ([Bounds.md](../docs/Bounds.md) §6.2.4).
-Several labels can differ only in which quorum witnesses a certificate —
-`form_prepqc v e q` for every supermajority `q` — and once the certificate
-exists every one of them is still enabled, as a step that changes nothing.
-Under plain enabledness each such label would have to fire again and again,
-and at a quorum sort with infinitely many supermajorities no run could fire
-them all: the premise would be unsatisfiable, and a theorem assuming it
-vacuous. Under move-enabledness the first firing discharges every one of
-them at once. So a fairness premise stated with the definitions below can
-hold at every quorum sort, finite or not.
-
-A consumer pays for this once per use: to fire a label by fairness it must
-show the label *move*-enabled, which for Veil's deterministic actions is
-enabledness plus one fact the step changes — `EnabledMove.of_enabled_of_effect`, the
-effect not holding yet. -/
+**Why that is the right premise here, and not TLA+'s `WF_v`.** A label is
+*move-enabled* when some transition under it leads to a **different** state
+(`EnabledMove`, TLA+'s `⟨A⟩_v`). The two differ exactly for a label that stays
+enabled after it has fired, as a step that changes nothing — an assembly
+action `form_qc q`, say, one label per quorum `q`, still enabled for every
+other quorum once the certificate exists. Weak fairness over plain
+enabledness would make each of those fire again and again, which no run can
+do at a quorum sort with infinitely many quorums
+([Bounds.md](../docs/Bounds.md) §6.2.4 has the history: the premises were
+stated over `EnabledMove` for a while because of it). The Cadence models
+have no such fair label: each fair action has a "not already" guard on a
+record its own step sets, as the paper's rules do, and each model proves it
+per label — `Mvba.enabledMove_of_enabled` and `Chorus.justice_enabledMove`,
+at every state, reachable or not. So for these models the two readings are
+the same premise, and each model states that equivalence for its own
+fairness premise (`Mvba.fJustice_iff_move`, `Chorus.fJustice_iff_move`),
+from the lemmas `weaklyFair_iff_move` and `weaklyFairFamily_iff_move` below.
+`EnabledMove` and the move forms `WeaklyFairMove` and `WeaklyFairFamilyMove`
+are here only as the vocabulary of those bridges; no premise is stated with
+them. -/
 
 /-- A label is **enabled** at a state when the system has a transition out of
 that state under it. For a Veil action this is exactly its `require`
@@ -196,8 +199,7 @@ def Enabled (sys : RelationalTransitionSystem ρ σ lbl) (th : ρ) (st : σ) (l 
 /-- A label is **move-enabled** at a state when the system has a transition
 out of that state under it **to a different state** — TLA+'s `⟨A⟩_v`. For a
 Veil action this is its `require` clauses satisfiable *and* its update not a
-no-op, which for the monotone models means some relation it sets is still
-unset. -/
+no-op. The vocabulary of the bridges (section header); no premise uses it. -/
 def EnabledMove (sys : RelationalTransitionSystem ρ σ lbl) (th : ρ) (st : σ) (l : lbl) : Prop :=
   ∃ st', sys.tr th st l st' ∧ st' ≠ st
 
@@ -206,49 +208,37 @@ theorem Enabled.of_move {st : σ} {l : lbl} (h : EnabledMove sys th st l) :
   let ⟨st', htr, _⟩ := h
   ⟨st', htr⟩
 
-/-- **How move-enabledness is shown.** An enabled label whose every firing
-makes `P` true, at a state where `P` is false, is move-enabled: the step
-changes at least `P`. Every fairness link pays its side condition with
-this — `P` is the effect the link waits for, and "not yet" is what the
-argument is assuming while it waits. -/
-theorem EnabledMove.of_enabled_of_effect {st : σ} {l : lbl} {P : σ → Prop}
-    (hen : Enabled sys th st l) (heff : ∀ st', sys.tr th st l st' → P st')
-    (hnot : ¬ P st) : EnabledMove sys th st l :=
-  let ⟨st', htr⟩ := hen
-  ⟨st', htr, fun h => hnot (h ▸ heff st' htr)⟩
-
-/-- **Weak fairness** (the proposal's `fairness justice`, TLA+'s `WF_v`): a
-label that is move-enabled at every point from `N` on fires at some point
-from `N` on.
+/-- **Weak fairness** (the proposal's `fairness justice`, TLA+'s `WF`): a
+label that is enabled at every point from `N` on fires at some point from
+`N` on.
 
 Stated as an implication per starting index rather than with nested temporal
 operators, which is the form a proof actually uses and which needs no
 `◇□` machinery. -/
 def WeaklyFair (r : LRun sys th) (l : lbl) : Prop :=
-  ∀ N, (∀ n, N ≤ n → EnabledMove sys th (r.at' n) l) → ∃ n, N ≤ n ∧ r.lbl n = l
+  ∀ N, (∀ n, N ≤ n → Enabled sys th (r.at' n) l) → ∃ n, N ≤ n ∧ r.lbl n = l
 
 /-- **Strong fairness** (the proposal's `fairness compassion`, TLA+'s
-`SF_v`): a label move-enabled at infinitely many points fires at some point
-from `N` on. Defined for completeness and for the network-delivery case the
+`SF`): a label enabled at infinitely many points fires at some point from
+`N` on. Defined for completeness and for the network-delivery case the
 proposal mentions; the Cadence models assume only weak fairness, and
 [MvbaPlan.md](../docs/MvbaPlan.md) §3.2 records why strengthening would buy
 nothing there. -/
 def StronglyFair (r : LRun sys th) (l : lbl) : Prop :=
-  ∀ N, (∀ n, ∃ m, n ≤ m ∧ EnabledMove sys th (r.at' m) l) → ∃ n, N ≤ n ∧ r.lbl n = l
+  ∀ N, (∀ n, ∃ m, n ≤ m ∧ Enabled sys th (r.at' m) l) → ∃ n, N ≤ n ∧ r.lbl n = l
 
 theorem WeaklyFair.of_stronglyFair {r : LRun sys th} {l : lbl}
     (h : StronglyFair r l) : WeaklyFair r l :=
   fun N hen => h N (fun n => ⟨max N n, Nat.le_max_right _ _, hen _ (Nat.le_max_left _ _)⟩)
 
 /-- **The form a proof uses.** If a weakly-fair label never fires from `N`
-on, it must be not move-enabled somewhere from `N` on — so a proof that the
-label *stays* move-enabled has produced a contradiction, and a proof that it
-can only stop being so by progress has produced progress. This is the
-contrapositive of `WeaklyFair` and the only way this file's fairness is
-consumed. -/
+on, it must be disabled somewhere from `N` on — so a proof that the label
+*stays* enabled has produced a contradiction, and a proof that it can only
+be disabled by progress has produced progress. This is the contrapositive
+of `WeaklyFair` and the only way this file's fairness is consumed. -/
 theorem exists_disabled_of_never_fires {r : LRun sys th} {l : lbl}
     (hwf : WeaklyFair r l) {N : Nat} (hnever : ∀ n, N ≤ n → r.lbl n ≠ l) :
-    ∃ n, N ≤ n ∧ ¬ EnabledMove sys th (r.at' n) l := by
+    ∃ n, N ≤ n ∧ ¬ Enabled sys th (r.at' n) l := by
   by_contra hc
   obtain ⟨n, hn, hfire⟩ := hwf N (fun n hn => by
     by_contra hen
@@ -257,9 +247,7 @@ theorem exists_disabled_of_never_fires {r : LRun sys th} {l : lbl}
 
 /-- **One fairness link.** If every firing of `l` makes `P` true, and `l` is
 enabled wherever `P` does not yet hold from `N` on, then `P` holds at some
-point from `N` on. The move-enabledness side condition is paid inside, by
-`EnabledMove.of_enabled_of_effect`: where `P` does not yet hold, a firing
-changes the state. This is the untimed twin of `withinFrom_of_boundedFair`
+point from `N` on. This is the untimed twin of `withinFrom_of_boundedFair`
 ([Mvba/Bound.lean](Mvba/Bound.lean)). -/
 theorem eventually_of_weaklyFair {r : LRun sys th} {l : lbl} (hwf : WeaklyFair r l)
     {N : Nat} {P : σ → Prop} (heff : ∀ st st', sys.tr th st l st' → P st')
@@ -267,21 +255,20 @@ theorem eventually_of_weaklyFair {r : LRun sys th} {l : lbl} (hwf : WeaklyFair r
     ∃ n, N ≤ n ∧ P (r.at' n) := by
   by_contra hc
   push Not at hc
-  obtain ⟨n, hn, hfire⟩ := hwf N (fun n hn =>
-    EnabledMove.of_enabled_of_effect (hen n hn (hc n hn)) (heff _) (hc n hn))
+  obtain ⟨n, hn, hfire⟩ := hwf N (fun n hn => hen n hn (hc n hn))
   exact hc (n + 1) (Nat.le_succ_of_le hn) (heff _ _ (hfire ▸ r.steps n))
 
 /-- **Weak fairness of a family of labels**: if some label of the family `S`
-is move-enabled at every point from `N` on, some label of `S` fires at some
-point from `N` on.
+is enabled at every point from `N` on, some label of `S` fires at some point
+from `N` on.
 
 This is the weak fairness of an action one of whose parameters is a
-*result* rather than a choice — TLA+'s `WF_v(∃ x. A(x))`. The label that is
-move-enabled may change from state to state (the parameter tracks state
-that other actions move), and the family is fair as a whole. For a
-singleton family it is `WeaklyFair` (`weaklyFairFamily_eq_iff`). -/
+*result* rather than a choice — TLA+'s `WF(∃ x. A(x))`. The label that is
+enabled may change from state to state (the parameter tracks state that
+other actions move), and the family is fair as a whole. For a singleton
+family it is `WeaklyFair` (`weaklyFairFamily_eq_iff`). -/
 def WeaklyFairFamily (r : LRun sys th) (S : lbl → Prop) : Prop :=
-  ∀ N, (∀ n, N ≤ n → ∃ l, S l ∧ EnabledMove sys th (r.at' n) l) → ∃ n, N ≤ n ∧ S (r.lbl n)
+  ∀ N, (∀ n, N ≤ n → ∃ l, S l ∧ Enabled sys th (r.at' n) l) → ∃ n, N ≤ n ∧ S (r.lbl n)
 
 /-- A one-label family is weakly fair exactly when its label is. -/
 theorem weaklyFairFamily_eq_iff {r : LRun sys th} {l : lbl} :
@@ -293,6 +280,49 @@ theorem weaklyFairFamily_eq_iff {r : LRun sys th} {l : lbl} :
     exact h N fun n hn => by
       obtain ⟨l', rfl, hl'⟩ := hen n hn
       exact hl'
+
+/-! ### The state-changing forms, and when they are the same premise
+
+TLA+'s `WF_v`, over `EnabledMove`. Weak fairness over plain enabledness
+always implies it (`WeaklyFair.toMove`); the converse holds for a label that
+is move-enabled wherever it is enabled along the run, which is what each
+model's acceptance lemma supplies for every fair label. -/
+
+/-- **Weak fairness over state-changing steps** (TLA+'s `WF_v`): a label that
+is move-enabled at every point from `N` on fires at some point from `N` on.
+Only the right-hand side of the bridges; no premise is stated with it. -/
+def WeaklyFairMove (r : LRun sys th) (l : lbl) : Prop :=
+  ∀ N, (∀ n, N ≤ n → EnabledMove sys th (r.at' n) l) → ∃ n, N ≤ n ∧ r.lbl n = l
+
+/-- `WeaklyFairFamily` over state-changing steps. -/
+def WeaklyFairFamilyMove (r : LRun sys th) (S : lbl → Prop) : Prop :=
+  ∀ N, (∀ n, N ≤ n → ∃ l, S l ∧ EnabledMove sys th (r.at' n) l) → ∃ n, N ≤ n ∧ S (r.lbl n)
+
+theorem WeaklyFair.toMove {r : LRun sys th} {l : lbl} (h : WeaklyFair r l) :
+    WeaklyFairMove r l :=
+  fun N hen => h N fun n hn => Enabled.of_move (hen n hn)
+
+theorem WeaklyFairFamily.toMove {r : LRun sys th} {S : lbl → Prop}
+    (h : WeaklyFairFamily r S) : WeaklyFairFamilyMove r S :=
+  fun N hen => h N fun n hn =>
+    let ⟨l, hl, hm⟩ := hen n hn
+    ⟨l, hl, Enabled.of_move hm⟩
+
+/-- **The bridge, per label.** For a label that is move-enabled wherever it is
+enabled along the run, weak fairness over plain enabledness and over
+state-changing steps are the same premise. -/
+theorem weaklyFair_iff_move {r : LRun sys th} {l : lbl}
+    (hacc : ∀ n, Enabled sys th (r.at' n) l → EnabledMove sys th (r.at' n) l) :
+    WeaklyFair r l ↔ WeaklyFairMove r l :=
+  ⟨WeaklyFair.toMove, fun h N hen => h N fun n hn => hacc n (hen n hn)⟩
+
+/-- **The bridge, per family.** -/
+theorem weaklyFairFamily_iff_move {r : LRun sys th} {S : lbl → Prop}
+    (hacc : ∀ n l, S l → Enabled sys th (r.at' n) l → EnabledMove sys th (r.at' n) l) :
+    WeaklyFairFamily r S ↔ WeaklyFairFamilyMove r S :=
+  ⟨WeaklyFairFamily.toMove, fun h N hen => h N fun n hn =>
+    let ⟨l, hl, he⟩ := hen n hn
+    ⟨l, hl, hacc n l hl he⟩⟩
 
 /-- If a label fires at `n`, it was enabled at `n`. -/
 theorem enabled_of_fires (r : LRun sys th) (n : Nat) :
@@ -608,22 +638,22 @@ theorem leadsTo_iff (P Q : σ' → Prop) :
 /-! #### The fairness transfer -/
 
 /-- **Weak fairness of a label of the part, read in the composed run**: if
-the label is move-enabled — at the part's state — at every index of `r` from
+the label is enabled — at the part's state — at every index of `r` from
 `N` on, then at some index from `N` on the whole takes a step of the part that
 the projection labels with it. The composed-run form of `WeaklyFair p.run l'`;
 `weaklyFair_iff` says the two are the same. -/
 def WeaklyFairIn (l' : lbl') : Prop :=
-  ∀ N, (∀ n, N ≤ n → EnabledMove sub th' (C.proj (r.at' n)) l') →
+  ∀ N, (∀ n, N ≤ n → Enabled sub th' (C.proj (r.at' n)) l') →
     ∃ n, N ≤ n ∧ C.isSub (r.lbl n) ∧ p.lbl n = l'
 
 /-- **Weak fairness survives the projection, in both directions.** The
 direction a consumer needs is right-to-left: a fairness premise about the
 part, stated over the composed run, gives `WeaklyFair` on the projected run,
 which is what the part's liveness theorem consumes. Its content is exactly
-[Liveness.md](../docs/Liveness.md) §4's "a label continuously move-enabled in the projection was
-continuously move-enabled in the composed run": between the part's steps its
-state does not change (`proj_eq_run_cover`), so move-enabledness from
-projected index `K` on is move-enabledness from composed index `C.idx r K`
+[Liveness.md](../docs/Liveness.md) §4's "a label continuously enabled in the projection was
+continuously enabled in the composed run": between the part's steps its
+state does not change (`proj_eq_run_cover`), so enabledness from
+projected index `K` on is enabledness from composed index `C.idx r K`
 on. The other direction
 needs only that the part's `k`-th step comes no earlier than index `k`. -/
 theorem weaklyFair_iff (l' : lbl') : WeaklyFair p.run l' ↔ p.WeaklyFairIn l' := by
@@ -685,3 +715,11 @@ info: 'Cadence.Component.reachable_proj' depends on axioms: [propext, Classical.
 -/
 #guard_msgs in
 #print axioms Cadence.Component.reachable_proj
+
+/-- info: 'Cadence.weaklyFair_iff_move' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Cadence.weaklyFair_iff_move
+
+/-- info: 'Cadence.weaklyFairFamily_iff_move' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Cadence.weaklyFairFamily_iff_move

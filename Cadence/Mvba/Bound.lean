@@ -30,12 +30,7 @@ The untimed chain of [Liveness.lean](Liveness.lean) is re-run with "within
 `D`" in place of "eventually". Each of its links was `enabled_<action>` (guards ⇒
 enabledness) + one weak-fairness step + `<action>_effect`; each link here
 keeps the first and the third and replaces the second by one application of
-`BoundedFair` through `TLRun.withinFrom_of_boundedFair` below. That lemma
-also pays the one side condition move-enabledness costs: a label whose effect
-sets a flag the goal is about is *move*-enabled wherever it is enabled and the
-goal does not yet hold, because its post-state has the flag and the
-pre-state does not (`EnabledMove.of_enabled_of_effect`, in
-[Fairness.lean](../Fairness.lean)).
+`BoundedFair` through `TLRun.withinFrom_of_boundedFair` below.
 
 The anti-monotone guards are handled exactly as the untimed links handle
 them — a lapse of `¬ proposed_in`, `∀ W, voted i W → W < v`, the lock-view
@@ -107,8 +102,7 @@ theorem WithinFrom.mono_time {N : Nat} {t t' : time} {P : σ → Prop}
 /-- **One timed link.** The shape every link of the good-view chain has:
 if every firing of `l` establishes `P`, and wherever `P` does not yet hold
 inside the window `l` is enabled, then `P` holds within the window — by one
-application of bounded fairness, whose move-enabledness side condition is
-discharged by `EnabledMove.of_enabled_of_effect`.
+application of bounded fairness.
 
 The window is the fairness window `ref N + D` widened to any `B` above it,
 so that a caller states its stable facts once, up to its own deadline. -/
@@ -121,11 +115,10 @@ theorem withinFrom_of_boundedFair [Add time] {D : time} {l : lbl}
   by_cases hf : r.FiresWithin N D l
   · obtain ⟨n, hn, hl, hclk⟩ := hf
     exact ⟨n + 1, Nat.le_succ_of_le hn, le_trans hclk hB, heff _ _ (hl ▸ r.steps n)⟩
-  · obtain ⟨n, hn, hclk, hne⟩ := exists_not_moveEnabled_of_not_firesWithin hbf hf
+  · obtain ⟨n, hn, hclk, hne⟩ := exists_not_enabled_of_not_firesWithin hbf hf
     by_cases hP : P (r.at' n)
     · exact ⟨n, hn, le_trans hclk hB, hP⟩
-    · exact absurd (EnabledMove.of_enabled_of_effect
-        (hen n hn (le_trans hclk hB) hP) (heff _) hP) hne
+    · exact absurd (hen n hn (le_trans hclk hB) hP) hne
 
 /-- The clock at the later of two indices is the clock at one of them. -/
 theorem clk_max_le {m n : Nat} {t : time} (hm : r.clk m ≤ t) (hn : r.clk n ≤ t) :
@@ -522,7 +515,7 @@ theorem withinFrom_of_boundedFairWhile {D : time} {l : Mvba.Label node nodeset v
   · obtain ⟨n, hn, hl, hclk⟩ := hf
     exact ⟨n + 1, Nat.le_succ_of_le hn, le_trans hclk hB, heff _ _ (hl ▸ r.steps n)⟩
   · have hex : ∃ n, N ≤ n ∧ r.clk n ≤ r.ref N + D ∧
-        ¬ (EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th
+        ¬ (Enabled (Mvba.relationalTransitionSystem node nodeset value view) th
           (r.at' n) l ∧ C (r.at' n)) := by
       by_contra hc
       push Not at hc
@@ -531,7 +524,7 @@ theorem withinFrom_of_boundedFairWhile {D : time} {l : Mvba.Label node nodeset v
     by_cases hP : P (r.at' n)
     · exact ⟨n, hn, le_trans hclk hB, hP⟩
     · obtain ⟨hen', hC⟩ := hen n hn (le_trans hclk hB) hP
-      exact absurd ⟨EnabledMove.of_enabled_of_effect hen' (heff _) hP, hC⟩ hne
+      exact absurd ⟨hen', hC⟩ hne
 
 /-- The fairness window of a link starting at or after GST is `clk N + D`. -/
 theorem ref_add_le {N : Nat} (hgst : r.gst ≤ r.clk N) {D B : time}

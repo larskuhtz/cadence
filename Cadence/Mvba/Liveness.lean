@@ -274,19 +274,16 @@ abbrev MvbaRun (th : Theory node nodeset value view) :=
   LRun (Mvba.relationalTransitionSystem node nodeset value view) th
 
 /-- **(F-justice)** — weak fairness of every honest, non-timer, non-input
-action: if from some point on a correct validator's action can always take
-a step **that changes the state**, it eventually takes one. The one
-scheduling assumption of the ordinary kind.
+action: if from some point on a correct validator's action is enabled at
+every point, it eventually fires. The one scheduling assumption of the
+ordinary kind.
 
-"Changes the state" is TLA+'s `WF_v` and is what makes the premise
-satisfiable at every quorum sort, not only at finite ones
-([Fairness.lean](../Fairness.lean), "Enabledness and the two fairness
-classes"). For this model the qualifier costs nothing: every fair label
-disables itself once it has fired — each correct validator's certificate
-formation included, for every quorum `q` it could name — so at every state
-a fair label that is enabled is also move-enabled
-(`enabledMove_of_enabled`), and the premise is the same as weak fairness
-over plain enabledness. -/
+Every such action disables itself once it has fired — each correct
+validator's certificate formation included, for every quorum `q` it could
+name — so a fair label that is enabled can always change the state
+(`enabledMove_of_enabled`, at every state). That is why the premise can hold
+at every quorum sort, and why it is the same premise as weak fairness over
+state-changing steps, TLA+'s `WF_v` (`fJustice_iff_move`). -/
 def FJustice (r : MvbaRun th) : Prop :=
   ∀ l, JusticeLabel l → WeaklyFair r l
 
@@ -501,9 +498,7 @@ theorem eventually_decided_of_commitqc
   -- So `decide i v e` is enabled from `N` on, and weak fairness fires it.
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.decide i v e) (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => EnabledMove.of_enabled_of_effect
-        (enabled_decide hi ⟨E₀, hin' n hn⟩ (hab n) (hqc' n hn) (fun E => hcon n E))
-        (fun _ h => decide_effect h) (hcon n e))
+      (fun n hn => (enabled_decide hi ⟨E₀, hin' n hn⟩ (hab n) (hqc' n hn) (fun E => hcon n E)))
   exact hcon (n + 1) e (decide_effect (hfire ▸ r.steps n))
 
 /-! ## The link before it, and the first use of the rank
@@ -605,10 +600,8 @@ theorem eventually_commitqc_of_settled
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_own_commitqc i v e q)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => EnabledMove.of_enabled_of_effect
-        (enabled_form_own_commitqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1 hsm
-          (hall' n hn))
-        (fun _ h => (form_own_commitqc_effect h).1) (hcon n hn))
+      (fun n hn => (enabled_form_own_commitqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1 hsm
+          (hall' n hn)))
   exact hcon (n + 1) (by omega) (form_own_commitqc_effect (hfire ▸ r.steps n)).1
 
 /-- **The rank's commit dimension bottoming out entails termination for one
@@ -721,10 +714,8 @@ theorem eventually_msg_commit_of_settled
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.send_commit i v e)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => EnabledMove.of_enabled_of_effect
-        (enabled_send_commit hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
-          (hacc' n hn) (hloc' n hn) (hs n hn).2.1 (hncs n hn) (hav' n hn))
-        (fun _ h => (send_commit_effect h).2) (hcon n hn))
+      (fun n hn => (enabled_send_commit hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
+          (hacc' n hn) (hloc' n hn) (hs n hn).2.1 (hncs n hn) (hav' n hn)))
   exact hcon (n + 1) (by omega) (send_commit_effect (hfire ▸ r.steps n)).2
 
 /-! ## And the link before that: a validator forms the view's certificate
@@ -866,10 +857,8 @@ theorem eventually_local_prepqc_of_settled
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.adopt_prepqc i v e q)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => EnabledMove.of_enabled_of_effect
-        (enabled_adopt_prepqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
-          hsm (hall' n hn) (hacc' n hn) (hlow n hn) (hs n hn).2.1)
-        (fun _ h => adopt_prepqc_effect h) (hcon n hn))
+      (fun n hn => (enabled_adopt_prepqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
+          hsm (hall' n hn) (hacc' n hn) (hlow n hn) (hs n hn).2.1))
   exact hcon (n + 1) (by omega) (adopt_prepqc_effect (hfire ▸ r.steps n))
 
 /-! ## The per-validator chain closed
@@ -1038,10 +1027,8 @@ theorem eventually_accepted_of_settled
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.handle_preprepare i l pv v e)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => EnabledMove.of_enabled_of_effect
-        (enabled_handle_preprepare hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
-          hnext hlead (hpp' n hn) hvalid (hjust' n hn) (hvote n hn))
-        (fun _ h => handle_preprepare_effect h) (fun ⟨ha, hp⟩ => hcon n hn ha hp))
+      (fun n hn => (enabled_handle_preprepare hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1
+          hnext hlead (hpp' n hn) hvalid (hjust' n hn) (hvote n hn)))
   obtain ⟨ha, hp⟩ := handle_preprepare_effect (hfire ▸ r.steps n)
   exact hcon (n + 1) (by omega) ha hp
 
@@ -1249,10 +1236,8 @@ theorem eventually_preprepare_of_settled_leader
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.leader_repropose l pv v w e)
         (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-        (fun n hn => EnabledMove.of_enabled_of_effect
-          (enabled_leader_repropose hl ⟨E₀, hin' n hn⟩ (hs n hn).2.2 hnext hlead
-            (hs n hn).1 (hw' n hn) (hnp n hn))
-          (fun _ h => leader_repropose_effect h) (hcon n e hn))
+        (fun n hn => (enabled_leader_repropose hl ⟨E₀, hin' n hn⟩ (hs n hn).2.2 hnext hlead
+            (hs n hn).1 (hw' n hn) (hnp n hn)))
     exact hcon (n + 1) e (by omega) (leader_repropose_effect (hfire ▸ r.steps n))
   · have hnl' : ∀ n, N ≤ n → (r.at' n).tc_nolock pv = true :=
       r.mono (P := fun s => s.tc_nolock pv = true)
@@ -1260,10 +1245,8 @@ theorem eventually_preprepare_of_settled_leader
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.leader_propose_fresh l pv v E₀)
         (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-        (fun n hn => EnabledMove.of_enabled_of_effect
-          (enabled_leader_propose_fresh hl (hs n hn).2.2 hnext hlead (hs n hn).1
-            (hnl' n hn) (hin' n hn) (hnp n hn))
-          (fun _ h => leader_propose_fresh_effect h) (hcon n E₀ hn))
+        (fun n hn => (enabled_leader_propose_fresh hl (hs n hn).2.2 hnext hlead (hs n hn).1
+            (hnl' n hn) (hin' n hn) (hnp n hn)))
     exact hcon (n + 1) E₀ (by omega) (leader_propose_fresh_effect (hfire ▸ r.steps n))
 
 /-! ## The view change
@@ -1341,9 +1324,7 @@ theorem eventually_entered_above_of_tc
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.sync_view i pv v)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-      (fun n hn => EnabledMove.of_enabled_of_effect
-        (enabled_sync_view hi ⟨E₀, hin' n hn⟩ (hnab n hn) hnext (htc' n hn) (hbelow n hn))
-        (fun _ h => sync_view_effect h) (fun h => hcon n v hn h hlt))
+      (fun n hn => (enabled_sync_view hi ⟨E₀, hin' n hn⟩ (hnab n hn) hnext (htc' n hn) (hbelow n hn)))
   exact hcon (n + 1) v (by omega) (sync_view_effect (hfire ▸ r.steps n)) hlt
 
 /-! ## A view is closed only by a correct validator
@@ -1786,29 +1767,25 @@ theorem eventually_timed_out_of_timer
         (hheld n₀ hn₀ W₀ E₀' hW₀) ⟨E₀', hW₀⟩
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.timeout_qc i v w e) ⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩ n₀
-        (fun n hn => EnabledMove.of_enabled_of_effect
-          (enabled_timeout_qc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
+        (fun n hn => (enabled_timeout_qc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
             (hnab n (Nat.le_trans hn₀ hn)) (hview n (Nat.le_trans hn₀ hn))
             (htimer' n (Nat.le_trans hn₀ hn)) (hcon n (Nat.le_trans hn₀ hn))
             (r.mono (P := fun s => s.local_prepqc i w e = true)
               (fun j hj => Mvba.local_prepqc.mono (r.steps j) i w e hj) he n hn)
             (fun W E hWE => hmax W (hheld n (Nat.le_trans hn₀ hn) W E hWE)
-              (hstab n hn W (hheld n (Nat.le_trans hn₀ hn) W E hWE) ⟨E, hWE⟩)))
-          (fun _ h => timeout_qc_effect h) (hcon n (Nat.le_trans hn₀ hn)))
+              (hstab n hn W (hheld n (Nat.le_trans hn₀ hn) W E hWE) ⟨E, hWE⟩))))
     exact hcon (n + 1) (by omega) (timeout_qc_effect (hfire ▸ r.steps n))
   -- It holds none, and by stability never will.
   · push Not at hany
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.timeout_noqc i v) ⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩ n₀
-        (fun n hn => EnabledMove.of_enabled_of_effect
-          (enabled_timeout_noqc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
+        (fun n hn => (enabled_timeout_noqc hi ⟨E₀, hin' n (Nat.le_trans hn₀ hn)⟩
             (hnab n (Nat.le_trans hn₀ hn)) (hview n (Nat.le_trans hn₀ hn))
             (htimer' n (Nat.le_trans hn₀ hn)) (hcon n (Nat.le_trans hn₀ hn))
             (fun W E hWE => by
               obtain ⟨E', hE'⟩ :=
                 hstab n hn W (hheld n (Nat.le_trans hn₀ hn) W E hWE) ⟨E, hWE⟩
-              exact hany W E' hE'))
-          (fun _ h => timeout_noqc_effect h) (hcon n (Nat.le_trans hn₀ hn)))
+              exact hany W E' hE')))
     exact hcon (n + 1) (by omega) (timeout_noqc_effect (hfire ▸ r.steps n))
 
 /-! ## Closing a view
@@ -1952,12 +1929,10 @@ theorem eventually_tc_of_timed_out_quorum
   · obtain ⟨n, hn, hfire⟩ :=
       hfj (.form_own_tc_nolock i v q)
         (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-        (fun n hn => EnabledMove.of_enabled_of_effect
-          (enabled_form_own_tc_nolock hi ⟨E₀, hin' n hn⟩ (hact n hn) (hview n hn) (hnf n hn)
+        (fun n hn => (enabled_form_own_tc_nolock hi ⟨E₀, hin' n hn⟩ (hact n hn) (hview n hn) (hnf n hn)
             hsm (fun p hp => hmono (fun s => s.msg_timeout_noqc p v = true)
               (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm)
-              (hall p ((enum.mem_members p q).mp hp)) n hn))
-          (fun _ h => form_own_tc_nolock_effect h) (hcon n hn))
+              (hall p ((enum.mem_members p q).mp hp)) n hn)))
     exact hcon (n + 1) (by omega) (form_own_tc_nolock_effect (hfire ▸ r.steps n))
   -- Otherwise the dominating member is the lock rule's `r₀`.
   · have hq₀' := hmono (fun s => s.msg_timeout_qc r₀ v w e = true)
@@ -1971,8 +1946,7 @@ theorem eventually_tc_of_timed_out_quorum
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.form_own_tc_lock i v q r₀ w e)
         (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) N
-        (fun n hn => EnabledMove.of_enabled_of_effect
-          (enabled_form_own_tc_lock hi ⟨E₀, hin' n hn⟩ (hact n hn) (hview n hn) (hnf n hn)
+        (fun n hn => (enabled_form_own_tc_lock hi ⟨E₀, hin' n hn⟩ (hact n hn) (hview n hn) (hnf n hn)
             hsm ((enum.mem_members r₀ q).mpr hr₀) (hq₀' n hn)
             (hpq' n hn) hle (fun p hp => by
               rcases hdom p ((enum.mem_members p q).mp hp) with hnq | ⟨W, E, hW, hWle⟩
@@ -1980,8 +1954,7 @@ theorem eventually_tc_of_timed_out_quorum
                   (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm) hnq n hn)
               · exact Or.inr ⟨W, E, hmono (fun s => s.msg_timeout_qc p v W E = true)
                   (fun m hm => Mvba.msg_timeout_qc.mono (r.steps m) p v W E hm) hW n hn,
-                  hWle⟩))
-          (fun _ h => form_own_tc_lock_effect h) (hcon n hn))
+                  hWle⟩)))
     exact hcon (n + 1) (by omega) (form_own_tc_lock_effect (hfire ▸ r.steps n))
 
 /-! ## Reaching the good view
@@ -2536,6 +2509,14 @@ theorem enabledMove_of_enabled_run (r : MvbaRun th) (n : Nat)
     EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l :=
   enabledMove_of_enabled l hj hen
 
+/-- **The bridge**: for this model, (F-justice) over plain enabledness is the
+same premise as weak fairness over state-changing steps (TLA+'s `WF_v`, the
+form the premise had from R3 to R6). -/
+theorem fJustice_iff_move (r : MvbaRun th) :
+    FJustice r ↔ ∀ l, JusticeLabel l → WeaklyFairMove r l :=
+  forall_congr' fun l => imp_congr_right fun hj =>
+    weaklyFair_iff_move fun _ => enabledMove_of_enabled l hj
+
 end Acceptance
 
 end Runs
@@ -2570,6 +2551,12 @@ info: 'Mvba.enabledMove_of_enabled' depends on axioms: [propext, Classical.choic
 -/
 #guard_msgs in
 #print axioms Mvba.enabledMove_of_enabled
+
+/--
+info: 'Mvba.fJustice_iff_move' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.fJustice_iff_move
 
 /--
 info: 'Mvba.terminates_iff_eventually' depends on axioms: [propext, Classical.choice, Quot.sound]

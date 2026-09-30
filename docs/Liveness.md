@@ -43,8 +43,7 @@ once (§2, last item).
 [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean):
 
 * **`FJustice`**: correct validators' actions are scheduled fairly: an
-  action that can take a step changing the state, from some point on,
-  takes one.
+  action enabled from some point on eventually fires.
 * **`MvbaAdmissible`**: the MVBA's steps inside the run are scheduled the way
   the MVBA's own termination theorem requires.
 * **`ValidBridge`**: the MVBA's validity check agrees with Chorus's
@@ -68,19 +67,25 @@ each.
 
 * **(F-justice)** (`FJustice`) — honest actions are weakly fair, except the
   module's three inputs (`participate`, `abandon`, `propose`), which the
-  caller invokes. *Weakly fair* is TLA+'s `WF_v`: an action that can take a
-  step **changing the state** at every point from some index on takes one
-  ([Cadence/Fairness.lean](../Cadence/Fairness.lean)). A step that would change nothing is owed
-  nothing, and that is what lets the premise hold at every quorum sort:
-  labels that differ only in which quorum witnesses a certificate are all
-  discharged by the first firing ([Bounds.md](Bounds.md) §6.2.4; until R3
-  the premise also counted steps that change nothing, and was unsatisfiable
-  at a quorum sort with infinitely many supermajorities). They are classified apart (`Chorus.InputLabel`), and
+  caller invokes. *Weakly fair* means: an action enabled at every point
+  from some index on fires at some point from that index on
+  ([Cadence/Fairness.lean](../Cadence/Fairness.lean)). Every fair action
+  of the model fires once: its guard requires a record its own step sets
+  to be unset, as the paper's "not already" rules do. So an enabled fair
+  action can always change the state, which the model checks for every
+  fair label at every state (`Chorus.justice_enabledMove`), and the premise
+  can hold at every quorum sort. It is therefore the same premise as TLA+'s
+  `WF_v`, weak fairness over state-changing steps
+  (`Chorus.fJustice_iff_move`; [Bounds.md](Bounds.md) §6.2.4 and §6.4.7
+  have the history: from R3 to R6 the premise was stated in that form,
+  because until the fired-once guards some fair labels stayed enabled
+  after firing, one per quorum). The inputs are classified apart (`Chorus.InputLabel`), and
   that is load-bearing: fairness of `abandon` would force every validator
   to abandon. Weak (not strong)
-  fairness suffices because the model is monotone: enabledness is itself
-  monotone, so the enable/disable toggle that strong fairness exists for
-  cannot occur. ((F-compassion) is reserved vocabulary for the
+  fairness suffices because the model is monotone: apart from each
+  action's fired-once guard, which only its own firing sets, enabledness is
+  itself monotone, so the enable/disable toggle that strong fairness exists
+  for cannot occur. ((F-compassion) is reserved vocabulary for the
   non-monotone implementation and never invoked.) One action is fair as a
   family rather than label by label: a correct validator proposing a value
   to the MVBA — if it can from some point on, it does, whatever the MVBA's
