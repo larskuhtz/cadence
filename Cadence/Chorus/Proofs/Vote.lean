@@ -46,7 +46,7 @@ single instantiation. The `#prove_action` below consumes this cell as-is
 after a statement check. -/
 #prove_vc Chorus vote fb_neg_no_pos_quorum by
   unveil_local
-  intro hbyz_i _hphase hvoted hne1 hne2 hne3 hnie R J M hbyz_R hfbneg x hsup
+  intro hbyz_i _hpart _hnab _hphase hvoted hne1 hne2 hne3 hnie R J M hbyz_R hfbneg x hsup
   veil_inv_have hsig_voted := vote_sig_pos_implies_voted
   veil_inv_have hcast_voted := vote_cast_implies_voted
   veil_inv_have hwitness := fb_neg_sig_has_witness

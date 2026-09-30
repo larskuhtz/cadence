@@ -36,7 +36,7 @@ namespace Chorus.Proofs
   veil_inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_neg_mvba_pos_excl := commitqc_neg_mvba_pos_excl
-  intro hsup_q hq J M hqcneg
+  intro _hc hsup_q hq J M hqcneg
   refine Bool.eq_false_iff.mpr fun hb => ?_
   by_cases hnew : j = J
   · subst hnew
