@@ -39,12 +39,11 @@ Four Veil models plus support files, mirroring the paper's architecture:
 * **`Cadence/Conductor.lean`** — the window-based orchestrator: `ACSSafety` as
   a class constraint (one abstract ACS state per window), abstract clock,
   window structure. Fast (~1 min cold).
-* **`Cadence/FallbackReceipt.lean`** (+ `Totality.lean`, `PreFix.lean`) — the
-  per-validator fallback receipt/propose layer, where a real protocol bug was
-  found and fixed. Same family shape as Chorus at 1/17 the scale, so it is the
-  architecture's **cheap validation leg**: try any pipeline change here first.
-  `PreFix.lean` pins the model checker's counterexample to the *pre-fix*
-  rules — a green build **requires** the violation; do not "fix" it.
+* **`Cadence/FallbackReceipt.lean`** (+ `Totality.lean`) — the
+  per-validator fallback receipt/propose layer (`docs/ChorusDesign.md`
+  §7.2 explains its rules). Same family shape as Chorus at 1/17 the scale,
+  so it is the architecture's **cheap validation leg**: try any pipeline
+  change here first.
 * **`Cadence/Mvba.lean`** (+ `Mvba/Proofs/`, `Mvba/Certify.lean`,
   `Mvba/Compose.lean`) — the leader-based MVBA instantiation of the paper
   repository's **internal supplement** (the referent is pinned to a
@@ -62,7 +61,8 @@ Four Veil models plus support files, mirroring the paper's architecture:
   Paxos-EPR-style `prepqc_blocks_lower_commits` (the header explains).
   `Mvba/NoLock.lean` is the mutation test: the model checker's
   counterexample to the instantiation *without* its lock check, pinned
-  like `PreFix.lean` — a green build **requires** the violation.
+  with `#guard_msgs` — a green build **requires** the violation; do not
+  "fix" it.
   The liveness files are plain Lean over runs and touch no VC:
   `Mvba/Liveness.lean` (untimed termination), then the bounds leg
   (`docs/Bounds.md` §6.2). That leg is `Timed.lean` (timed runs, generic),
@@ -110,7 +110,7 @@ Reading order for context: [README.md](./README.md) →
 [docs/Architecture.md](./docs/Architecture.md) (methods, trust bases, and §4,
 the meta-assumption inventory) → [docs/ChorusDesign.md](./docs/ChorusDesign.md)
 (Chorus modelling choices, the network abstraction and its soundness contract,
-the bug record §7.2, open items §9) →
+the receipt rules §7.2, open items §9) →
 [docs/ConductorDesign.md](./docs/ConductorDesign.md) (the module decomposition
 behind Cadence/Conductor; those two models' own headers carry the detail) →
 [docs/CompositionContracts.md](./docs/CompositionContracts.md) (how the
@@ -226,9 +226,9 @@ History: [docs/History.md](./docs/History.md).
   still verify. Skipped commands emit `⏭ skipped (veil.noVerify)`, so "no
   errors" in that mode never means "verified". The same mode is the quick
   check that a comment-only edit still parses (`VEIL_NO_VERIFY=1
-  scripts/scratch.sh <file>`) — except in `FallbackReceipt/PreFix.lean` and
-  `Mvba/NoLock.lean`, whose `#guard_msgs` pins expect a `#model_check`
-  counterexample and so always fail when the check is skipped.
+  scripts/scratch.sh <file>`) — except in `Mvba/NoLock.lean`, whose
+  `#guard_msgs` pin expects a `#model_check` counterexample and so always
+  fails when the check is skipped.
 
 ### Expected warnings
 
@@ -469,18 +469,15 @@ is a change to what this project *claims*, not a refactor.
   premises as above. Never add an axiom, and never weaken a class field to
   make an instance possible. Each join is paired with a `…_toSafety` `rfl`
   lemma: it must hand back exactly the fragment that was proven.
-* **The pre-fix refutation keeps failing.** `FallbackReceipt/PreFix.lean`
-  builds only while the model checker still finds the documented
-  counterexample. Its `#model_check` **must** keep `(sequential := true)`:
-  the parallel search splits the frontier into `numSubTasks` chunks and that
-  defaults to the machine's *core count*, so which of the many violating
-  states is reported first is hardware-dependent — 4, 8, 12 and 14 cores each
-  produce a different, equally valid witness, and the pin would then only hold
-  on the machine that recorded it. The reasoning is in the file. The same
-  holds for **`Mvba/NoLock.lean`**, the MVBA's lock-check mutation test: it
-  builds only while the checker still finds agreement violated on the
-  restricted mutant, and its `#model_check` keeps `(sequential := true)`
-  for the same reason.
+* **The lock-check mutation test keeps failing.** `Mvba/NoLock.lean`
+  builds only while the model checker still finds agreement violated on the
+  restricted mutant, with the pinned counterexample. Its `#model_check`
+  **must** keep `(sequential := true)`: the parallel search splits the
+  frontier into `numSubTasks` chunks and that defaults to the machine's
+  *core count*, so which of the many violating states is reported first is
+  hardware-dependent — different core counts produce different, equally
+  valid witnesses, and the pin would then only hold on the machine that
+  recorded it. The reasoning is in the file, at the command.
 * Headline results stay readable by non-FV reviewers: named `safety`
   declarations in the models, corollaries and contract instances in the
   composition files, and one index page in `Cadence.lean`.
@@ -494,8 +491,9 @@ is a change to what this project *claims*, not a refactor.
   measurements into `docs/` — a pointer plus the reason is the right amount.
 * Cite the paper by **stable LaTeX anchors** (`lemma:chorus-agreement`,
   `line:fb-pathvote-guard`), never by page or line number. The paper is public —
-  `arXiv:2607.02275`, **v2 is what this development verifies**, v1 is the
-  pre-fix version `FallbackReceipt/PreFix.lean` refutes — and so is its LaTeX
+  `arXiv:2607.02275`, **v2 is what this development verifies** (v1 had the
+  receipt bug; the README's paper section points to its counterexample, kept
+  at a tag) — and so is its LaTeX
   source, whose `src/*.tex` layout is exactly what the citations name. Before
   adding an anchor, check it exists:
   `mkdir -p papers/cadence && curl -sL https://arxiv.org/e-print/2607.02275v2 | tar -xz -C papers/cadence`

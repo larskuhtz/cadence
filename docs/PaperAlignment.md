@@ -149,9 +149,9 @@ roots — so agreement and honest-proposer inclusion are unaffected, and only
 a Byzantine proposer's fate differs. But the paper's counting comment and
 this repository's totality result are stated over the published guards, and
 the supplement supplies its own replacement certifiability argument. This is
-the one divergence with no written reconciliation, and it sits in the
-neighbourhood of the one real protocol bug this development has found
-([ChorusDesign.md](ChorusDesign.md) §7.2).
+the one divergence with no written reconciliation, and it sits beside the
+receipt rules of [ChorusDesign.md](ChorusDesign.md) §7.2, the step where
+the paper's v1 had its liveness bug.
 
 **Chunk re-dissemination.** [Chorus.lean](../Cadence/Chorus.lean) justifies (F-justice) on
 `redisseminate_chunk` by the re-encode-and-send being performed by honest

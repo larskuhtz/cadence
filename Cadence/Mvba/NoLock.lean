@@ -1074,9 +1074,9 @@ error: ❌ Violation: safety_failure (violates: agreement)
 /- `sequential := true` is load-bearing for the pin above, not a performance
 choice. By default `#model_check` splits the BFS frontier into `numSubTasks`
 parallel sub-tasks and that count defaults to the machine's **core count**, so
-*which* of the violating states is reported first depends on the hardware
-([FallbackReceipt/PreFix.lean](../FallbackReceipt/PreFix.lean) records the
-measurement). The claim being
+*which* of the violating states is reported first depends on the hardware:
+machines with different core counts report different, equally valid
+witnesses. The claim being
 pinned is "a reachable state violates `agreement`" — the witness is
 evidence, not the claim — but `#guard_msgs` compares the whole message, so
 the search must be deterministic. -/
