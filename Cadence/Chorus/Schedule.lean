@@ -113,12 +113,21 @@ the three phase markers ((P-phase) times them).
 * `Δ`: the proposer's chunk (`deliver_chunk_assigned`), others' votes
   (`aggregate_fastqc_*`, `fb_sign_*`), others' commit votes
   (`broadcast_commitqc_*`), others' fallback votes (the `mvba_propose`
-  family, through `FBCert`), the caster's chunk (`redisseminate_chunk`), a
+  family on its `FBCert` trigger, `line:fb-mvba-propose`), the caster's chunk (`redisseminate_chunk`), a
   certificate someone else sent (`commit_assign_*`), a decided MVBA
   certificate (the handoff `accept_mvba_commitqc`);
 * `δ`: `record_chunk`, `vote`, `commit_sign_*`, `cast_fast_commit`,
-  `cast_fallback_vote`, the decision handlers `on_mvba_decide_*` and
+  `cast_fallback_vote`, the `mvba_propose` family on its case-(a) trigger
+  (`line:fb-mvba-propose-fast`: the proposer's own complete fast meta-block,
+  local state), the decision handlers `on_mvba_decide_*` and
   `mvba_terminate`, `cast_fb_commit`, `finalize_commit`.
+
+**The proposal is two families, the paper's two rules** (F9). `mvba_propose`
+is one label with both triggers, so `hop` gives it its `Δ` row and
+`TimedJustice` adds the case-(a) rule as a `δ`-family (`proposeFast`). As one
+`Δ`-row the case-(a) proposal would cost a second `Δ`: its trigger exists
+only once the FastQCs have *arrived* (the `aggregate_fastqc_*` hop), so its
+window cannot open before then.
 
 **The decision handlers stay `δ`-rows.** Each fires on the acting validator's
 *own* MVBA decision, a local output, and the certificates its bridge check
@@ -184,6 +193,14 @@ structure Schedule (view time : Type) [vord : TotalOrderWithMinimum view]
   mvba : Mvba.Schedule view time
   /-- The slot's deadline. -/
   D : time
+  /-- **A local step is no slower than a network hop**: `δ ≤ Δ`, true at the
+  paper's `δ = 0`. A property of the timing model, like `0 < Δ`. It is what
+  makes a `Δ`-row cost `Δ`: with its gate already open, a row's window is
+  `ref N + max(Δ, δ)` (`BufferedFair` at `N = N'`), so without it every
+  network hop whose gate opened first would cost `δ` (F10,
+  [Bounds.md](../../docs/Bounds.md) §6.4.2). It implies the `δ ≤ Δ + ρ` that
+  `relayed_of_timedJustice` takes. -/
+  δ_le_Δ : mvba.δ ≤ mvba.Δ
 
 section Constants
 
@@ -193,30 +210,33 @@ variable {time : Type} [LinearOrder time] [AddCommMonoid time]
 bound `δ` and the MVBA's `ℓ_MVBA`: the paper's `5Δ + ℓ_MVBA`
 (`lemma:chorus-termination`) plus the local steps the timeline counts.
 
-The `δ`-count is `8`, along [Bounds.md](../../docs/Bounds.md) §6.4.3's
+The `δ`-count is `9`, along [Bounds.md](../../docs/Bounds.md) §6.4.3's
 timeline from `M := max(t, GST)`, with the paper's outer case split at
-`T₀`:
+`T₀`. Every `Δ`-row costs `Δ` because `δ ≤ Δ` (`Schedule.δ_le_Δ`).
 
-* **to the MVBA proposals, `2δ`**: the first-round vote (`δ`) by `M + Δ + δ`,
-  the fallback vote (`δ`) by `M + 2Δ + 2δ` — the fallback entry before it
-  is a `Δ`-row whose message part is the votes, so it adds no `δ` of its
-  own — and the proposal, a `Δ`-row on the fallback votes, by
-  `t_M = M + 3Δ + 2δ`;
+* **to the MVBA proposals, `3δ`** (proven, [Timeline.lean](Timeline.lean)):
+  the first-round vote (`δ`) by `M + Δ + δ`; the second-round vote, fast or
+  fallback (`δ`), by `M + 2Δ + 2δ` — the fallback entry before it is a
+  `Δ`-row whose message part is the votes, so it adds no `δ` of its own;
+  then the proposal on a correct `FBCert`, a `Δ`-row, by `M + 3Δ + 2δ`, or,
+  in case (a), a correct fast voter's FastQCs, a `Δ`-row, by `M + 3Δ + 2δ`
+  and the proposal on them, a `δ`-row (F9): `t_M = M + 3Δ + 3δ`;
 * **the decision** by `t_M + ℓ_MVBA` (`T.termination`);
 * **to the fallback commit vote, `3δ`**: the decision handlers, the
   termination record, the vote;
 * **to finalization, `δ`**: the commitment is a `Δ`-row on the commit votes,
-  and the finalization one `δ`, so `T₀ = M + 4Δ + ℓ_MVBA + 6δ`;
+  and the finalization one `δ`, so `T₀ = M + 4Δ + ℓ_MVBA + 7δ`;
 * **the outer split, `2δ`**: if a correct validator finalizes by `T₀`,
-  totality (`Ltot` at `d = Δ`: `Δ + 2δ`) finalizes everyone by
-  `M + 5Δ + ℓ_MVBA + 8δ`; otherwise nobody has abandoned by `T₀` (C1) and
+  totality (`Ltot` at `d = Δ`: `Δ + 2δ`, proven as `totality`) finalizes
+  everyone by `M + 5Δ + ℓ_MVBA + 9δ`; otherwise nobody has abandoned by `T₀` (C1) and
   the chain above finalizes everyone by `T₀`.
 
-A bound fixed here before the proof; S3–S4 confirm it or restate it before
-the instance, as `Mvba.Lcert` was. F4 (the bound looks loose by one `Δ`) is
+R7 fixed the count at `8` before any proof; S3's milestones put the case-(a)
+proposals one `δ` later (F9), so it is `9`. S4 confirms the rest or restates
+it before the instance, as `Mvba.Lcert` was. F4 (the bound looks loose by one `Δ`) is
 open and does not change this statement: a sharper lemma would imply it. -/
 def Lchorus (Δ δ ℓM : time) : time :=
-  5 • Δ + ℓM + 8 • δ
+  5 • Δ + ℓM + 9 • δ
 
 omit [LinearOrder time] in
 /-- At `δ = 0`, the paper's instantaneous local computation, the latency is
@@ -418,7 +438,11 @@ row of the hop table other than the two families is `BufferedFair` at its
 bound, gate and `Owed`; the proposal is one family per validator and value,
 as in `FJustice`: if `i` can propose `v` throughout the window, with its
 trigger owed and its gate open, `i` proposes `v` (for some MVBA successor
-state) within it. The handoff is one family per receiver, a `Δ`-row with no
+state) within it. The paper has two proposal rules, and so does the premise
+(F9): on the fallback votes of a correct supermajority
+(`line:fb-mvba-propose`, a `Δ`-family, `propose`), and on the proposer's own
+complete fast meta-block (`line:fb-mvba-propose-fast`, a `δ`-family,
+`proposeFast`: the FastQCs it reads are local once adopted). The handoff is one family per receiver, a `Δ`-row with no
 gate (it processes a message): once a correct validator has decided, whose
 decision output is the certificate's broadcast, `i` takes a transferred
 certificate within `Δ` if it can throughout the window. This row is what
@@ -435,7 +459,11 @@ structure TimedJustice (sch : Schedule view time)
       BufferedFair r (sch.bound h) sch.δ (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l)
         (gate l) l
   propose : ∀ (i : node) (v : node → Option merkle_root),
-    BufferedFairFamily r sch.Δ sch.δ (proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i)
+    BufferedFairFamily r sch.Δ sch.δ (CorrectFBCert (nset := nset))
+      (proposeGate i) (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)
+  proposeFast : ∀ (i : node) (v : node → Option merkle_root),
+    BufferedFairFamily r sch.δ sch.δ
+      (fun s => Chorus.complete_fast_metablock (nset := nset) (mvba := Mvba.mvbaSafety thM) i thS s)
       (proposeGate i) (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)
   relay : ∀ i : node,
     BufferedFairFamily r sch.Δ sch.δ (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
@@ -548,7 +576,7 @@ the caller's conditions — participation synchronized within `Δ`, no
 abandonment before finalizing (C1), no start before `D − Δ` (C2) — if every
 correct validator participates by `t`, every correct validator finalizes at
 some index whose clock is at most `max(t, GST) + ℓ`, with
-`ℓ = 5Δ + T.ℓ + 8δ` (`Lchorus`).
+`ℓ = 5Δ + T.ℓ + 9δ` (`Lchorus`).
 
 The MVBA enters only through `T`: its `Admissible` and its `ℓ`. At the
 system's MVBA, `T := Mvba.mvbaTemporal thM hqe sch.mvba vfin hrot`. -/

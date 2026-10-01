@@ -2382,9 +2382,10 @@ unique per proposer), so `cast_fb_commit` stays enabled, and it is owed.
 The chunk comes from a correct re-disseminator, whose send is owed: the root
 is certificate-backed (`mvba_decided_pos_backed`). Under a FastQC its `2f+1`
 voters include `f+1` correct ones, each holding its chunk
-(`vote_pos_sig_chunk`), so `i` itself decodes from correct holders; under a
-FallbackQC one of its `f+1` signers is correct and decoded the proposal to
-sign (`line:fb-redisseminate`), so it re-disseminates. -/
+(`vote_pos_sig_chunk`), so `i` itself decodes from correct holders once it
+has decided (`line:fb-commit-wait`, the only fast-path-free source, F11);
+under a FallbackQC one of its `f+1` signers is correct and decoded the
+proposal to sign (`line:fb-redisseminate`), so it re-disseminates. -/
 theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
     (hfj : PerLabel r)
     {A : Nat} (hact : ActiveFrom r A)
@@ -2398,6 +2399,7 @@ theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
   mvba_inst
   obtain ⟨Nm, hNm⟩ := eventually_mvbaArm r hfj
   have hreach := r.reachable T
+  obtain ⟨kd, w, hdw⟩ := hdi
   -- `i`'s chunk under every root decided positive at `T`.
   obtain ⟨Nd, hNd, hall⟩ := r.eventually_forall
     (fun J st => thS.is_proposer J = true →
@@ -2407,21 +2409,26 @@ theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
       by_cases hJ : thS.is_proposer J = true
       · rcases (hT T (Nat.le_refl _)).2 J hJ with ⟨M0, -, hM0⟩ | ⟨-, hneg⟩
         · -- The chunk's correct source.
-          obtain ⟨k, hk, hown⟩ : ∃ k, ¬ nset.is_byz k = true ∧ ∀ n, T ≤ n →
-              (CorrectChunkQuorum J M0 (r.at' n) ∨ (r.at' n).msg_fb_pos_sig k J M0 = true) := by
+          obtain ⟨k, hk, hown⟩ : ∃ k, ¬ nset.is_byz k = true ∧ ∀ n, max T kd ≤ n →
+              ((CorrectChunkQuorum J M0 (r.at' n) ∧
+                  ∃ v, (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' n).mvba_st k v) ∨
+                (r.at' n).msg_fb_pos_sig k J M0 = true) := by
             rcases Chorus.reachable_mvba_decided_pos_backed hreach J M0 hM0 with
               ⟨q, hq, hall⟩ | ⟨⟨q, hq, hall⟩, -⟩
-            · obtain ⟨t, ht, htq⟩ := cnt.honest_third_in_supermajority q hq
-              exact ⟨i, hi, fun n hn => Or.inl ⟨t, ht, fun a ha => (htq a ha).2, fun a ha =>
+            · -- `i` decodes from the correct holders itself, once it has decided
+              -- (`line:fb-commit-wait`, F11).
+              obtain ⟨t, ht, htq⟩ := cnt.honest_third_in_supermajority q hq
+              exact ⟨i, hi, fun n hn => Or.inl ⟨⟨t, ht, fun a ha => (htq a ha).2, fun a ha =>
                 r.mono (P := fun st => st.msg_chunk_received a J M0 = true)
                   (fun m h => Chorus.msg_chunk_received.mono (r.steps m) a J M0 h)
-                  (Chorus.reachable_vote_pos_sig_chunk hreach a J M0 (hall a (htq a ha).1)) n hn⟩⟩
+                  (Chorus.reachable_vote_pos_sig_chunk hreach a J M0 (hall a (htq a ha).1)) n (by omega)⟩,
+                w, decided_persists r hdw n (by omega)⟩⟩
             · obtain ⟨k, hkq, hk⟩ := ByzNodeSet.greater_than_third_one_honest q hq
               exact ⟨k, hk, fun n hn => Or.inr (r.mono (P := fun st => st.msg_fb_pos_sig k J M0 = true)
-                (fun m h => Chorus.msg_fb_pos_sig.mono (r.steps m) k J M0 h) (hall k hkq) n hn)⟩
+                (fun m h => Chorus.msg_fb_pos_sig.mono (r.steps m) k J M0 h) (hall k hkq) n (by omega))⟩
           obtain ⟨n, hn, h⟩ := eventually_of_weaklyFairWhen
             (hfj (.redisseminate_chunk k i J M0) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
-            (P := fun st => st.msg_chunk_received i J M0 = true) (N := max T A)
+            (P := fun st => st.msg_chunk_received i J M0 = true) (N := max (max T kd) A)
             (fun n hn => hown n (by omega))
             (fun _ _ h => redisseminate_chunk_effect h)
             (fun n hn hnr => enabled_redisseminate_chunk hk (hact n (by omega) k hk) hJ
@@ -2452,7 +2459,6 @@ theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
     · have hnegn := r.mono (P := fun st => st.mvba_decided_neg J = true)
         (fun m h => Chorus.mvba_decided_neg.mono (r.steps m) J h) hneg n (by omega)
       exact absurd ⟨hM, hnegn⟩ (Chorus.reachable_mvba_decided_pos_neg_excl (r.reachable n) J M)
-  obtain ⟨kd, w, hdw⟩ := hdi
   obtain ⟨n, -, h⟩ := eventually_of_weaklyFairWhen
     (hfj (.cast_fb_commit i) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
     (P := fun st => st.msg_fbcommit_sig i = true) (N := max (max A kd) (max Nd Nm))
