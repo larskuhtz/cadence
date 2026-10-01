@@ -293,6 +293,15 @@ certificates do not travel ((N4), R3). Otherwise nothing: the published
 algorithms are unchanged, and the divergences in §3 are between the
 paper's two documents.
 
+A third model change follows v2 more closely (R12, F12, [Bounds.md](Bounds.md)
+§6.4.2): the fallback commit vote now waits for the validator's own chunk
+only under FallbackQC entries of the decision, as `line:fb-commit-foreach`
+says, where it used to wait under every positive root. The model's decided
+vector is the entry vector without its certificates, so "held by a
+FallbackQC" reads as "no positive FastQC for it exists". The two differ
+only for a root that has both certificates while B′ carries the FallbackQC,
+where the model votes without waiting. That adds runs (F13).
+
 What is worth doing is documentary, and is tracked in
 [TODO.md](TODO.md): cite `sec:domain-separation` where the network
 relations assume message-type non-confusability; record ChunkSync and

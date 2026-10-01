@@ -245,20 +245,15 @@ come first.
   `M + 3Δ + 3δ` (`Chorus.within_all_input`,
   [Cadence/Chorus/Timeline.lean](../Cadence/Chorus/Timeline.lean)). S3's
   findings F9–F11 are fixed in the statements ([Bounds.md](Bounds.md)
-  §6.4.2). Next: R12 (F12, below), then S4, the MVBA tail and the assembly
+  §6.4.2), and R12 fixed F12 in the model. Next: S4, the MVBA tail and the assembly
   ([Bounds.md](Bounds.md) §6.4.6, the reassessment after S3).
 
-  **Open: F12, the fallback commit vote's DA wait** (found by R10). The
-  paper waits only under FallbackQC entries ("for each FallbackQC in B′ with
-  a positive entry ⟨s, j, root⟩: wait until p_i has received and validated
-  its assigned chunk for root", `line:fb-commit-foreach`,
-  `line:fb-commit-wait`); the model's `cast_fb_commit` waits under every
-  decided positive root
-  (`∀ J M, is_proposer J → mvba_decided_pos J M → msg_chunk_received i J M`),
-  FastQC-backed ones included. The model has fewer runs than the paper, and
-  the timed bound would pay a Δ the paper does not. Open; closed in a
-  dedicated model session (R12: guard change + cold Chorus re-solve), after
-  R10 and R11 merge, and before S4.
+  **Open from R12** ([Bounds.md](Bounds.md) §6.4.2, "F12 closed"): F13, a
+  root with both a FastQC and a FallbackQC leaves the model's fallback commit
+  vote without the paper's wait, a timed-premise residual that needs the
+  certificate kind in the MVBA's entry vector (composition leg); F14,
+  re-dissemination's "decided" owed-disjunct is used by no proof and owes
+  more than the paper sends (drop it in the next statement session).
 
 ## Model hygiene
 

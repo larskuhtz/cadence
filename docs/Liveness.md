@@ -1136,8 +1136,9 @@ them a new assumption:
    an honest member, and that member's signature pins the proposer's
    (`vote_pos_from_local` with `local_entry_pos_signed`, resp.
    `fb_pos_sig_proposer_signed`).
-3. *The DA wait is anti-monotone.* `cast_fb_commit`'s guard ("my chunk
-   under every decided-positive root") could in principle be disabled by a
+3. *The DA wait is anti-monotone.* `cast_fb_commit`'s guard ("a FastQC or
+   my chunk under every decided-positive root", since F12; "my chunk" before
+   it) could in principle be disabled by a
    new decision record. It is not: once every proposer's entry is recorded,
    `mvba_decided_pos_unique` and `mvba_decided_pos_neg_excl` rule out any
    other record, so the guard is stable from then on.
