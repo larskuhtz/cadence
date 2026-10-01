@@ -334,55 +334,109 @@ without restating it — and what makes a badly-shaped field fatal.
   says what an `assumption` may range over and points at `invariant` / `trusted invariant`
   instead — which is the choice the contract design keeps making.
 
-## The VC registry's memory
+## The Chorus model's memory
 
-**Fixed in the fork** (2026-10-01, PR #54): `port/registry-memory`, stacked
-on `port/vc-registry` and merged into `port/integration`, pinned here at
-`d0532f70`. The fork's
-[`docs/VCRegistry.md`](https://github.com/larskuhtz/veil/blob/port/integration/docs/VCRegistry.md)
-is the record of the Veil side; this section is what it means here.
+Two fixes in the fork (2026-10-01, PR #54), both merged into
+`port/integration` and pinned here at `023fd53a`:
+
+- **`port/registry-memory`**, stacked on `port/vc-registry`. The VC registry
+  elaborates each statement in its own run and hash-conses the stored types.
+  The fork's record is
+  [`docs/VCRegistry.md`](https://github.com/larskuhtz/veil/blob/port/integration/docs/VCRegistry.md).
+- **`port/info-trees`**, stacked on `port/decl-ranges-generated`. Veil's
+  declaration commands keep only slim info trees, and `#gen_spec` keeps none.
+  The fork's record is
+  [`docs/InfoTrees.md`](https://github.com/larskuhtz/veil/blob/port/integration/docs/InfoTrees.md).
+
+The first fix was smaller than expected. The second removed the actual cause.
+This section is what they mean here, and the starting point for any further
+work on build memory.
 
 **What happened.** CI's `verify` job killed the `Cadence.Chorus` stage, the
-model build alone, with exit 137 after 1 069 s: out of memory in the 13 GB
-container on the 4-core runner. The stage had been growing for weeks (660 s
-in #46, 824 s in #50, 873 s in #51); R8's one action and one relation tipped
-it over. An interim `LEAN_NUM_THREADS=2` for the stage failed instead with a
-registry heartbeat timeout, locally and on CI (run 36794438116), and was
-reverted.
+model build alone, with exit 137 after 1 069 s. That is out of memory in the
+13 GB container on the 4-vCPU runner. The stage had been growing for weeks:
+660 s in #46, 824 s in #50, 873 s in #51. R8's one action and one relation
+tipped it over.
 
-**The mechanism.** `Module.persistVCRegistry` elaborates the closed
-statement of every VC (9 587 for Chorus) in `getNumCores − 1` chunks, all
-started at once. Each chunk was one `liftTermElabM` run over all its
-statements, so its elaboration state grew over the whole chunk, and the
-chunk had one heartbeat budget, which also absorbed what the worker thread
-ran while the chunk waited. On a workstation that is 13 chunks of ~740; on
-the 4-vCPU runner it was 3 chunks of ~3 200, all alive together. Since the
-fix every statement is its own elaboration run (fresh state, its own budget),
-and the stored types are hash-consed before the extension write. No VC
-statement changes, so the proof cache hits and every `#veil_status` pin
-holds.
+An interim `LEAN_NUM_THREADS=2` for the stage failed instead, with a registry
+heartbeat timeout, both locally and on CI (run 36794438116). It was reverted.
 
-**Measured** (this machine: 14 cores, 36 GB; macOS peak resident set of
-`lake build Cadence.Chorus`, model olean deleted; run-to-run noise about
-±1 GB):
+### The instrument
 
-| model | Veil | `LEAN_NUM_THREADS` | result | peak | wall |
-|---|---|---|---|---|---|
-| master `8b13627` | before | 4 | ok | 17.7 GB | 302 s |
-| master `8b13627` | after | 4 | ok | 15.6 GB | 312 s |
-| R8 | before | 4 | ok | 18.3 GB | 306 s |
-| R8 | before | 2 | registry heartbeat timeout | 15.8 GB | 294 s |
-| R8 | after | 2 | ok | 15.6 GB | 355 s |
-| R8 | after | 4 | ok | 16.7 GB | 339 s |
-| R8 | after | 8 | ok | 16.1 GB | 324 s |
+macOS peak RSS does not predict the runner's cgroup. Master's model measured
+17.7 GB locally and passes on CI, while R8's measured 16.7 GB locally and was
+killed. So the measurement was taken on CI itself, with a temporary probe
+commit that was later reverted.
 
-The model elaborated as a scratch file (no olean written), before the fix:
-16.4 GB in full, 12.7 GB with `veil.gen.vcRegistry false`, 15.7 GB with
-`veil.gen.executableActions false` (the monitor needs that extraction),
-17.6 GB with `veil.noVerify true`, 10.9 GB truncated before `#gen_spec`. So
-the registry was the one large separable cost here, about 3.7 GB, and on the
-4-core runner, where the old code held all of it at once, more. The CI run
-on the re-pinned head is the check under the runner's conditions.
+The probe ran the model through `scripts/scratch.sh` inside the `verify`
+container (4 CPUs, 13 GB), before the normal stages. Every 10 s it sampled
+cgroup `memory.current`, the `anon` and `file` lines of `memory.stat`, and
+the lean RSS. Lean's output carried timestamps alongside, and at the end it
+printed `memory.peak` and `memory.events`. Run 36806058255 gave these
+figures:
+
+| model | Veil | elaboration | anon peak | lean RSS peak | `memory.peak` | `max` events | OOM kills |
+|---|---|---|---|---|---|---|---|
+| master (image oleans) | `73fa6fd4` | 794 s | 10.69 GB | 11.91 GB | 13.00 GB (the cap) | 3 034 | 0 |
+| R8 | `d0532f70` (registry fix) | 859 s | 11.47 GB | 12.13 GB | 13.00 GB (the cap) | 6 335 | 0 |
+
+Both runs filled the container and survived only by evicting cached olean
+pages: R8's file pages fell from 2.1 GB to 0.6 GB. That is why R8's stage
+passed on some runs and was killed on others. Master was already at the cap.
+
+Anonymous memory rose about 1 GB a minute through the whole file, with a
+further jump in the last minute. The olean the module writes is 136 MB, so
+almost all of that memory was transient.
+
+### What was tried, and what it showed
+
+Every row below is a local measurement on a scratch copy of the model or a
+`lake build Cadence.Chorus`: 4 threads, peak RSS of the model's `lean`
+process, about ±1 GB of noise.
+
+| variant | peak | memory over time |
+|---|---|---|
+| as is (registry fix in) | 12.3 GB | climbs to the end |
+| `veil.gen.vcRegistry false` | 12.5 GB | the same climb: the registry is no longer a factor |
+| info trees switched off for the whole file | 6.2 GB | flat at about 5.3 GB after the first minute |
+| … off for the declarations only | 10.4 GB | flat until `#gen_spec`, which then adds about 5 GB |
+| … off for `#gen_spec` only | 13.0 GB | the full climb |
+| `lake build`, Veil `d0532f70` | 10.3 GB | climbs to the end |
+| `lake build`, Veil `023fd53a` (the fix) | 8.6 GB | flat at 4.8–5.3 GB, then the registry and olean write |
+
+The registry's per-statement runs (the first fix) took about 1–2 GB off the
+local peak, and its `ShareCommon` costs 135 ms. It did not move the CI
+failure.
+
+Lean's `profiler` reports time, not memory. With `trace.profiler` on, the
+model's `#gen_spec` fails (`unable to synthesize LocalRProp instance`), so
+neither helped here.
+
+### The cause
+
+Lean's frontend keeps every command's info tree alive until the end of the
+file, for the `.ilean`. The language server does the same for an open file.
+Veil's declarations recorded the info trees of all the code they generate,
+together with the metavariable contexts behind them.
+
+The fix keeps one bare reference per constant the user wrote. The `.ilean` of
+`Chorus` is identical before and after: 242 names, 207 definitions, 432 usage
+ranges, the same enclosing declarations. Hovers on bound variables and on
+subterm types go.
+
+### What to look at next
+
+The remaining peak is the end of the file: the VC registry and the olean
+write, about 3–4 GB on top of a flat 5 GB. Two leads:
+
+- the registry still holds all 9 587 types until the extension write;
+- the olean write compacts the whole module.
+
+The proof files keep their info trees as before, which is untouched by this
+fix and a candidate for the same treatment if they ever matter. They peak at
+2–4 GB cold, and `Chorus/Proofs/Vote.lean` at 9.2 GB.
+
+The CI run on the re-pinned head, with its stage times, is recorded in PR #54.
 
 ## Native shared libraries
 
