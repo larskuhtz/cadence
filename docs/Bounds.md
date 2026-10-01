@@ -2173,145 +2173,190 @@ as a parameter: under `d`-synchronized participation, the latency is
 `max(Δ, d) + 2δ`. The class field is its instance at `d = Δ`. §6.4.6 says
 why the parameter matters.
 
-#### 6.4.5 Premises and non-vacuity from the start
+#### 6.4.5 The premises are jointly satisfiable
 
-**The ledger, in draft.** "Obvious" and "not obvious" mean what they mean
-in §6.3.
+*Auditor-first, in §6.3's form. The list says what each premise of the
+three Chorus liveness claims is and why it can hold. The model below the
+list shows that they hold **together**.*
 
-The instance, shared with the untimed claim:
+The claims are `Chorus.termination` (untimed, proven), `TotalityClaim`
+(proven as `Chorus.totality`) and `TimedTerminationClaim` (stated, its proof
+is S4). One model satisfies every premise of all three. It is
+[Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean), and the three
+theorems that say so, each pinned at the standard three axioms, are:
+
+* `Chorus.termination_premises_satisfiable`: some instance and run meet
+  every premise of `Chorus.termination`. That is its hypotheses, the
+  assumptions of the system's configuration `chorusTheory`, `FJustice`
+  with its owed-conditions and its two families, `MvbaAdmissible`,
+  `ValidBridge`, and the caller's two.
+* `Chorus.timedTermination_premises_satisfiable`: the same for
+  `TimedTerminationClaim` at the system's MVBA, `T := Mvba.mvbaTemporal`.
+  That is `Mvba.mvbaTemporal`'s instance hypotheses, `Sync`, the
+  `δ ≤ Δ + ρ` that the handoff's derivation takes, `ValidBridge`, and the
+  caller's four.
+* `Chorus.totality_premises_satisfiable`: the same for `TotalityClaim`, at
+  the contract's tolerance `d = Δ`, together with the claim's antecedent: a
+  correct validator finalizes.
+
+Each states the premises only, never a conclusion. All three are stated at
+the family `Chorus.termination` is proven at (`byzNodeSetFin n f`, every
+`n = 3f + 1`) and at `chorusTheory`, so they speak about the instance the
+proofs use.
+
+**The ledger.** "Obvious" means an auditor can see by inspection that the
+premise can hold. "Not obvious" means it needs the model, and the line
+names the witness theorem that discharges it.
+
+The instance, shared by the three claims:
 
 * **Finitely many validators, `n = 3f + 1`, at most `f` Byzantine**
-  (`Fin n`, `byzNodeSetFin`): obvious. `Fin 4` with one silent Byzantine
-  validator.
-* **An honest supermajority, `ViewOrderEnum`, `chorusTheory` and its
-  assumptions**: obvious (§6.3).
-* **The MVBA instance's hypotheses** (`LeaderRotation`, `Schedule`, a
-  cancellative Archimedean time): obvious, `Schedule.fixedNat` over `ℕ`.
-* **The deadline `D`**: any value.
+  (`Fin n`, `byzNodeSetFin`): obvious. Model: `Fin 4`, validator 3
+  Byzantine and silent.
+* **The system's configuration** (`chorusTheory`: its assumption is that the
+  MVBA starts in an initial state): obvious. Model: one proposer,
+  validator 0; every root well-encoded; the MVBA's initial state.
+* **`ViewOrderEnum`, a correct supermajority (`ByzNodeSetHonestQuorum`)**:
+  obvious (§6.3). Model: `ℕ`, and `{0, 1, 2}`.
+* **The MVBA instance's hypotheses** (`LeaderRotation`, the MVBA's
+  `Schedule`, a cancellative Archimedean time): obvious (§6.3). Model:
+  validator 0 leads every view, `Schedule.fixedNat` over `ℕ`.
+* **The Chorus schedule** (the MVBA's plus the deadline `D`, with
+  `δ ≤ Δ`, F10): obvious. Model: `Δ = 1`, `δ = 0`, `D = 1`.
+* **`δ ≤ Δ + ρ`**, a hypothesis of the handoff's derivation
+  (`Chorus.relayed_of_timedJustice`): obvious, it follows from `δ ≤ Δ`.
 
-**The timed claims as stated** (S2, 2026-09-30,
-[Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)). The premises of
-`TimedTerminationClaim`, one by one; `TotalityClaim` takes a subset of them
-(the first and the last two of the caller's), so its ledger is a sub-ledger.
+The timing model, `Sync`, premises of the timed termination claim
+(`TotalityClaim` takes `TimedJustice` only):
 
-The timing model, `Sync`:
+* **(Δδ-justice), `TimedJustice`**: every row of the hop table is
+  `BufferedFair` at its bound, gate and owed-condition; the proposal is two
+  families per `(i, v)`, one per trigger (F9), and the handoff one per
+  receiver. **Each row is obvious alone**: a run in which its label is never
+  enabled with its gate open, or fires at once. The owed-conditions only
+  remove obligations. **Jointly not obvious**: the families quantify over
+  every value, and the rows share one clock, so with `δ = 0` a `δ`-row
+  enabled at `N` must fire before the clock moves. Discharged by
+  `Chorus.timedTermination_premises_satisfiable` and
+  `Chorus.totality_premises_satisfiable`, with §6.3.1's device: the clock
+  advances only where no row is enabled, and where one is, its gate closes
+  inside its window.
+* **(P-phase), `PhasePunctual`**: obvious alone, and jointly with the rows
+  obvious by construction. The clock stops at each landmark, and the marker
+  fires there first. Model: the markers fire at clock 1, 2 and 3.
+* **The MVBA's timing, `TimedMvbaAdmissible T`**: obvious alone
+  (`Mvba.admissible_exists`). **Jointly not obvious**: Chorus's own steps
+  drive the MVBA's inputs (here `abandon`), and the projection needs the
+  MVBA to be stepped infinitely often without any row becoming enabled.
+  Discharged by `Chorus.timedTermination_premises_satisfiable`. The
+  handoff clause is derived from the rows (C15,
+  `Chorus.timedMvbaAdmissible_of_rows`), so the witness supplies only the
+  MVBA's own three clauses, on a quiet projection.
 
-* **(Δδ-justice), `TimedJustice`**: every row of the table in §6.4.2 is
-  `BufferedFair` at its bound, gate and owed-condition, and the proposal is
-  one family per `(i, v)`. **Each row is obvious alone**: a run in which the
-  row's label is never enabled with its gate open, or fires at once. The
-  owed-conditions only remove obligations (F5, F6), so they cannot make the
-  set harder to satisfy. **Jointly not obvious**, for two reasons. The
-  family quantifies over every value, including ones that never become
-  proposable. And the rows share one clock: with `δ = 0` a `δ`-row enabled
-  at `N` is due by `ref N`, so it must fire before the clock moves. The
-  witness answers both with §6.3.1's device: the clock advances only at
-  states where no row is enabled.
-* **(P-phase), `PhasePunctual`**: **obvious alone**: the markers fire at the
-  clock readings `D`, `D + Δ`, `D + 2Δ`. **Jointly with the rows, obvious
-  by construction**: the clock stops at each landmark, where the marker
-  fires first. (P2) forbids the clock from jumping over a landmark, and the
-  device above only lets it advance at quiet states, so the two rules
-  agree.
-* **The MVBA's timing, `TimedMvbaAdmissible T`**: at the system's
-  instance, `Mvba.Admissible` of the timed projection
-  (`Chorus.timedMvbaAdmissible_atMvba_iff`; a witness supplies it with
-  `Chorus.timedMvbaAdmissible_of_sync`). **Obvious alone**
-  (`Mvba.admissible_exists`). **Jointly not obvious**, for two reasons.
-  Chorus's own steps drive the MVBA's inputs (`mvba_propose`, `abandon`).
-  And a projection needs the MVBA to be stepped infinitely often
-  (`Scheduled`), so the composed run's tail has to keep taking MVBA steps
-  (the MVBA witness's availability marks, as oracle steps) without enabling
-  any row. **The clause on the caller is derived (C15, closed in R8)**: the
-  MVBA's handoff clause `Mvba.Relayed` (a decided commit certificate reaches
-  every undecided correct validator within `Δ + ρ`) holds on every
-  projection of a run satisfying `TimedJustice`, at every schedule with
-  `δ ≤ Δ + ρ` (`Chorus.relayed_of_timedJustice`). So a witness supplies only
-  the MVBA's own three clauses (`Chorus.timedMvbaAdmissible_of_rows`). The
-  handoff row itself is one more `Δ`-row, owed once a correct validator has
-  decided, obvious alone and jointly as the other rows are.
+The bridge, a premise of both termination claims:
 
-The bridge:
+* **`ValidBridge`**: **not obvious**. It fixes the MVBA theory's `valid`
+  against Chorus's network at every index, in both directions (§6.3.3).
+  Discharged by `Chorus.termination_premises_satisfiable` and
+  `Chorus.timedTermination_premises_satisfiable`. With
+  `valid := (· = v⋆)`, `v⋆` giving the proposer its root and everyone else
+  nothing, soundness holds because `v⋆` is the only vector that passes the
+  certificate check at any index (`Chorus.Witness.certified_eq`). A
+  non-proposer can have no entry. The proposer's entry cannot be negative,
+  since no negative FastQC and no `FBCert` ever exist. Completeness holds
+  because nobody decides in the MVBA.
 
-* **`ValidBridge`**: **not obvious**, unchanged from the untimed claim. It
-  fixes the MVBA theory's `valid` against Chorus's network at every index
-  (§6.3.3).
+The untimed fairness, a premise of `Chorus.termination`:
+
+* **`FJustice`**, weak fairness over plain enabledness for correct senders,
+  with the proposal and handoff families: obvious alone, at every quorum
+  sort, since every fair action fires once (`Chorus.justice_enabledMove`,
+  §6.4.7). **Jointly not obvious**, for the timed row's reason: the
+  families quantify over every value. Discharged by
+  `Chorus.termination_premises_satisfiable`: in the idle tail no fair label
+  is enabled at all.
+* **`MvbaAdmissible`**: the MVBA's own three premises on a projection.
+  Jointly not obvious, as the timed form is. Discharged by
+  `Chorus.termination_premises_satisfiable` (its caller premises are
+  derived, (F-relay) by `Chorus.fRelay_of_fJustice`).
 
 The caller's conditions, the contract's antecedents:
 
-* **`AllParticipateBy t`, `SyncParticipationWithin Δ`, `NoEarlyStart` (C2),
-  `NoAbandonBeforeFinalizing` (C1)**: **jointly obvious**. Everyone starts
-  at clock `D − Δ` and abandons, if at all, after finalizing. That is the
-  Conductor's steady state. With the timing model they agree too: an
-  abandonment closes the abandoning validator's gates, which removes
-  obligations, not adds them.
-
-The instance of the claim: a schedule `sch` (any `Mvba.Schedule` plus any
-`D`) and an MVBA contract `T`; at the system's MVBA,
-`T := Mvba.mvbaTemporal`, whose hypotheses are the first three bullets
-above.
+* **`AllParticipate` / `AllParticipateBy t`, `SyncParticipationWithin Δ`,
+  C2 (`NoEarlyStart`), C1 (`NoAbandonBeforeFinalizing`)**: **jointly
+  obvious**. Everyone starts at `D − Δ` and abandons only after finalizing,
+  the Conductor's steady state. With the timing model they agree as well:
+  an abandonment closes the abandoning validator's gates, which removes
+  obligations.
+* **Totality's antecedent**, a correct validator finalizes: obvious. Model:
+  all three do, at clock 1.
 
 What the ledger must say besides, so that an auditor comparing proofs does
 not trip on it: the model's `finalized` is the committed entry vector, so
 the paper's payload recovery (`line:da-recover-slot`) has no counterpart in
-either claim (§6.4.4).
+any of the claims (§6.4.4).
 
-The untimed claim after option A:
+**The model** ([Chorus/Witness.lean](../Cadence/Chorus/Witness.lean)'s
+header has the index table). The instance as above; the MVBA's values are
+entry vectors over one root, `Unit`. One run serves all three claims, and
+the untimed one forgets its clock:
 
-* **`FJustice`**, weak fairness over plain enabledness for correct senders,
-  with the proposal and handoff families: obvious alone, as in §6.3, and at
-  every quorum sort — every fair action fires once
-  (`Chorus.justice_enabledMove`, §6.4.7), so once the run is idle no fair
-  label is enabled and the tail owes nothing. The owed-conditions only
-  remove obligations (F5), so they cannot make it harder to satisfy. The
-  premise is the same as weak fairness over state-changing steps
-  (`Chorus.fJustice_iff_move`), the form it had from R3 to R6. Jointly
-  **not obvious** for the same reason as the timed row: the family
-  quantifies over every value.
-* **`MvbaAdmissible`**: the MVBA's own three scheduling premises on a
-  projection; its caller premises, (F-relay) among them since R8, are
-  derived (`Chorus.fRelay_of_fJustice`).
-* **`ValidBridge`**: as above.
-* **Eventual participation, and abandonment only after finalizing**:
-  obvious.
+* **Clock 0.** The three correct validators participate. The proposer
+  proposes, its chunk reaches all four validators, and the three correct
+  ones record it.
+* **Clock 1 (`D`).** The deadline marker fires. Everyone votes, forms the
+  FastQC, signs and casts its fast commit vote, broadcasts the commit
+  certificate, commits the proposer's entry and finalizes, all on the fast
+  path. Then everyone abandons, as C1 permits.
+* **Clocks 2 and 3.** The fallback-arm and MVBA-arm markers fire on a run
+  in which nobody is active any more. So nobody proposes to the MVBA, which
+  stays quiet. Its projection is the abandonments plus the environment's
+  availability marks, the quiet run of `Mvba.admissible_exists`
+  ([Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean): `Mvba.Quiet`,
+  `Mvba.not_enabled_of_quiet`, `Mvba.boundedJustice_of_quiet`).
+* **The tail** repeats the MVBA's availability mark, a step that changes
+  nothing, one clock unit per step.
 
-**The model.** One model and one run, following §6.3.1, serve both
-claims; the untimed projection forgets the clock. The run:
+Bounds are upper bounds, so this eager run is one the paper's protocol
+produces. Nobody sends anything the paper's rules would not. The clock
+advances only at four plateau ends. At three of them no row is enabled. At
+the first, the end of clock 0, only re-dissemination is, and its `Δ`-window
+reaches clock 1, where its gate is closed. Every timed row therefore holds
+with its antecedent false. Both proven claims also apply to the run
+(`example`s in the file), which checks that it lives at their instance
+regime.
 
-* `Fin 4` with validator 3 Byzantine and silent, one proposer, `ℕ` time,
-  `Δ = 1`, `δ = 0`, `D = 1`, GST 0, and everyone participating at 0.
-* The fast path. The proposal goes out at 0, votes at `D`, FastQCs and
-  commit votes follow, and everyone finalizes. All of it happens at clock
-  1, before the fallback arm opens at 2. Bounds are upper bounds, so an
-  eager run may deliver at once.
-* Then **everyone abandons**, as C1 permits. That disables the case-(a)
-  proposals, so the MVBA receives no input. Its projection is the quiet
-  run of `Mvba.admissible_exists`, which is trivially `Sync`, and
-  `ValidBridge`'s completeness clause holds vacuously.
-* The soundness clause holds with `valid := (· = v⋆)`. Here `v⋆` maps the
-  proposer to its root and every other validator to `none`, which is the
-  only certifiable vector in this run. With one proposer and no negative
-  evidence, uniqueness is a short argument.
-* The clock advances only at states where no row is enabled (the
-  §6.3.1 device), and the untimed idle tail is one step that changes
-  nothing, at a state where no fair label is enabled, so both fairness
-  premises ask nothing of it.
+**What the model found: F11, re-dissemination off the fallback path.**
+The first version of the run had validators 1 and 2 re-disseminate the
+proposer's chunk at clock 0. The model's `redisseminate_chunk` has no
+fallback-path guard, and its row was owed whenever `f+1` correct validators
+held the chunk (`CorrectChunkQuorum`), with only `Active k` as its gate. So
+`TimedJustice` obliged every active correct validator to re-disseminate
+within `Δ`, on the fast path too. The paper re-disseminates only on the
+fallback path: inside the fallback-entry rule (`line:fb-redisseminate`) and
+in the fallback commit round's wait (`line:fb-commit-wait`). **Counterexample**
+(`Δ = 1`, `δ = 0`, `D = 1`): a fast-path run whose messages take their full
+`Δ` (FastQCs at 2, finalization and abandonment at 3) leaves the row for
+validator 1 owed, enabled and gated open from clock 0 to clock 1. It must
+fire by clock 1, and the paper's validator never sends it. Such paper runs
+violated the premise, so both timed claims said nothing about them. A forced
+re-delivery could even change outcomes: a chunk arriving before the
+deadline turns a negative vote entry positive. The untimed `FJustice` had
+the same gap for a validator that stays active. **Fixed in R11**
+(`bd887c5`): the row is owed on the fallback signer's own positive entry
+(F8), or once the sender has itself decided in the MVBA and the chunk is
+decodable from correct holders. `Chorus.termination` was re-proven against
+it. The witness needed no change, because its proof never used the
+owed-condition; it only drops the forced re-dissemination steps.
 
-A witness that runs the MVBA arm would be stronger evidence of the
-proposal family and the completeness clause. It is not needed for joint
-satisfiability, since one model suffices (§6.3). It can be added as a
-second run if review asks for it.
-
-**Order: after the model edit, and one witness for both.** On the current
-model a witness cannot abandon. `advance_to_mvba_arm` is weakly fair, so
-the case-(a) proposals are forced, and with them a full MVBA decision, the
-handlers and the fallback commit round, all inside the run. That witness
-would then be discarded when option A adds state and gates. So the untimed
-non-vacuity item of [TODO.md](TODO.md) § Liveness should wait for S1
-below and be built once, for both claims, as soon as the timed premises
-are stated (S2). The witness depends on definitions only, so it can run
-in parallel with the proofs. If option A is declined, the untimed witness
-can go first on the current model, at the cost just described.
+**A second run, through the MVBA arm** (recommended, not required). This
+run satisfies the proposal families, the handoff family and `ValidBridge`'s
+completeness vacuously: nobody proposes to the MVBA and nobody decides.
+That is enough for joint satisfiability, since one model suffices (§6.3).
+A run that fires the case-(a) proposals, decides in the MVBA and finalizes
+through the fallback commit round would show those three premises holding
+non-vacuously, together with the rows that guard them. It would also be the
+first witness in which `valid := (· = v⋆)` meets an actual decision.
 
 #### 6.4.6 Staging and sizing
 
@@ -2507,8 +2552,10 @@ after its step 2.
      text in [CLAUDE.md](../CLAUDE.md), [Architecture.md](Architecture.md)
      §4 and [CompositionContracts.md](CompositionContracts.md) §5;
    * the (A-sc-termination) entry, which moves from assumed to discharged.
-6. **S6: non-vacuity.** The final ledger and the one witness (§6.4.5).
-   It can start after S2 and run beside S3–S4. It touches no model file.
+6. **S6: non-vacuity. Done** (R10, 2026-10-01): the final ledger and the
+   one witness, [Chorus/Witness.lean](../Cadence/Chorus/Witness.lean)
+   (§6.4.5). It touched no model file. It found F11 (re-dissemination owed
+   off the fallback path), which R11 fixed in the statements.
 
 Total: six to eight sessions. As in the MVBA leg, the dominant risk is
 statement churn: F1–F4 are the churn this record tries to absorb up

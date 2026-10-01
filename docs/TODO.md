@@ -171,51 +171,32 @@ come first.
   conclusion — and the reason it may not be worth it: the clock makes
   (A-viewsync) a theorem outright.
 
-* **Exhibit a run satisfying the premises — done for the MVBA, open for
-  Chorus.** For the MVBA, one concrete model and one run meet every premise
-  of both termination theorems:
-  `Mvba.timedTermination_premises_satisfiable` and
-  `Mvba.termination_premises_satisfiable`
-  ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)), with the
-  premise-by-premise ledger in [Bounds.md](Bounds.md) §6.3. The run is the
-  one planned here — everyone proposes and decides in one view, then idles —
-  after a model fix the witness exposed: the model did not halt a validator
-  after deciding, as the supplement does (§6.3.2). Every fair action of
-  both models fires once, so the premise holds at every quorum sort, not
-  only at finite ones, and the witness's idle tail owes nothing: there no
-  fair label is enabled ([Bounds.md](Bounds.md) §6.2.4 and §6.4.7).
+* **Exhibit a run satisfying the premises — done, for the MVBA and for
+  Chorus.** Non-vacuity means that every premise of a theorem holds
+  *jointly*. It is shown by a premise-by-premise ledger saying why each is
+  satisfiable, plus one formal model and one run meeting all of them at
+  once. Traces alone are illustrations.
+  * **The MVBA:** `Mvba.timedTermination_premises_satisfiable` and
+    `Mvba.termination_premises_satisfiable`
+    ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)), ledger in
+    [Bounds.md](Bounds.md) §6.3. Building it found that the model did not
+    halt a validator after deciding, as the supplement does (§6.3.2).
+  * **Chorus:** `Chorus.termination_premises_satisfiable`,
+    `Chorus.timedTermination_premises_satisfiable` and
+    `Chorus.totality_premises_satisfiable`
+    ([Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean), R10),
+    ledger in [Bounds.md](Bounds.md) §6.4.5. One run: everyone finalizes on
+    the fast path, then abandons, and the MVBA stays quiet. `ValidBridge`
+    holds with `valid := (· = v⋆)`, the one certifiable vector. Building
+    it found F11: the re-dissemination row was owed off the fallback path,
+    where the paper never re-disseminates, so the timed claims excluded
+    ordinary fast-path runs. R11 fixed it in the statements.
 
-  **Open for Chorus: `Chorus.termination` is proven, and its premises
-  still need the satisfiability argument.** Non-vacuity here means what it
-  means for the MVBA: every premise of the theorem — its hypotheses (the
-  quorum family at `n = 3f+1`, `ViewOrderEnum`), the configuration
-  `Cadence.chorusTheory` and its assumptions, the three run premises
-  `FJustice`, `MvbaAdmissible`, `ValidBridge`, and the caller's two
-  premises `AllParticipate` and `NoAbandonBeforeFinalizing` — holds
-  *jointly*, shown by
-  (a) a premise-by-premise ledger saying why each is satisfiable, and (b)
-  one formal model and one run meeting all of them at once. Traces alone
-  are illustrations, not the argument. The pattern is the MVBA leg's
-  [Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean) (PR #41) with its ledger in
-  [Bounds.md](Bounds.md) §6.3. The MVBA sub-state can reuse that model,
-  which halts on its own, for `MvbaAdmissible`. Two premises are new since
-  that model was written, and they need the most care:
-  * **the proposal family of `FJustice`** — at `chorusTheory`, the run
-    must let every correct validator's `mvba_propose` fire for the
-    certified vector, and the family clause must hold for every `(i, v)`,
-    including values that never become proposable;
-  * **`ValidBridge` at `chorusTheory`** — it relates the MVBA theory's
-    `valid` to Chorus's network certificates at every index, so the model
-    has to fix `valid` and produce certificates satisfying both
-    directions, not merely an MVBA run that decides
-    ([Bounds.md](Bounds.md) §6.3.3).
-
-  The caller's two premises are jointly obvious (everyone participates at
-  the start and abandons, if at all, after finalizing). The witness is built
-  once for both claims ([Bounds.md](Bounds.md) §6.4.5, S6). The timed
-  premises it has to meet are stated since S2
-  ([Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)), with
-  their ledger draft in §6.4.5, so S6 can start.
+  Every fair action of both models fires once, so both fairness premises
+  hold at every quorum sort, and an idle tail owes nothing
+  ([Bounds.md](Bounds.md) §6.2.4 and §6.4.7). **Left, optional:** a second
+  Chorus run through the MVBA arm, which would satisfy the proposal and
+  handoff families and `ValidBridge`'s completeness non-vacuously (§6.4.5).
 
 * Full liveness-to-safety, so that liveness properties are stated and
   discharged inside the Veil models, like their safety properties. The

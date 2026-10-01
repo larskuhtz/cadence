@@ -329,8 +329,13 @@ relations, and it takes a human to confirm each use is positive.
    [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and
    [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean), which a `grep` for `(A-` still
    finds; aligning those comments re-solves proof families, so it waits
-   for the next edit there ([TODO.md](TODO.md) § Liveness). Whether the premises
-   can all hold at once is open ([TODO.md](TODO.md) § Liveness). The
+   for the next edit there ([TODO.md](TODO.md) § Liveness). The premises
+   can all hold at once: one model and one run meet every premise of
+   `Chorus.termination`, of the timed `TimedTerminationClaim` and of
+   `TotalityClaim` (`Chorus.termination_premises_satisfiable`,
+   `Chorus.timedTermination_premises_satisfiable`,
+   `Chorus.totality_premises_satisfiable`; the ledger is
+   [Bounds.md](Bounds.md) §6.4.5). The
    MVBA's side of the argument puts one assumption on this list in an
    unusual place:
    **(A-viewsync)**, a premise of the untimed `Mvba.termination`, is the
@@ -534,6 +539,7 @@ table can be read off one file:
 | `Mvba.bounded_termination`, `Mvba.aViewSync_of_sync` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)) | same | ✓ |
 | `Mvba.mvbaTemporal`, `Mvba.timed_termination`, `Mvba.admissible_exists`, `Mvba.mvbaFull` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) | same | ✓ |
 | `Mvba.timedTermination_premises_satisfiable`, `Mvba.termination_premises_satisfiable` ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)) | same | ✓ |
+| `Chorus.termination_premises_satisfiable`, `Chorus.timedTermination_premises_satisfiable`, `Chorus.totality_premises_satisfiable` ([Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean)) | same | ✓ |
 | the `MvbaNoLock` refutation ([Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean)) | expected model-checker violation (trace) | ✓ |
 
 cvc5's `unsat` verdicts are trusted nowhere: every discharge runs with proof
