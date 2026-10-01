@@ -117,6 +117,9 @@ stage() {
   fi
 }
 
+# TEMPORARY (PR #54): memory probe of the Chorus model, reverted before ready.
+[ -f ci-probe/probe.sh ] && bash ci-probe/probe.sh
+
 # Composition-layer models: small, and they run their invariant sweeps in-file.
 stage Cadence.Cadence Cadence.Conductor
 
