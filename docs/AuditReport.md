@@ -12,6 +12,8 @@ are the blockquoted **Resolution note** lines under individual findings,
 recording what has since been closed and by which commit; the report text is
 otherwise verbatim.*
 
+*Maintainers' note (2026-09-30): `Cadence/FallbackReceipt/PreFix.lean`, cited below, has left the working tree; it is kept at the tag `v1-receipt-refutation`.*
+
 Three questions were asked:
 
 1. Does the model **faithfully implement** the protocol as described in the paper?

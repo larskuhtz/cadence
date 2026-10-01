@@ -32,16 +32,13 @@ formalisation mirrors that decomposition one-to-one:
   runs one slot-consensus instance per slot under the orchestrator and
   assembles the MCP log. Modelled in [Cadence/Cadence.lean](../Cadence/Cadence.lean).
 
-Two auxiliary models cover the layer where the protocol's per-validator
+An auxiliary model covers the layer where the protocol's per-validator
 reasoning is most intricate: the **fallback receipt/propose layer**
-([Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) and companions), which
-mechanises the per-validator layer where a real liveness bug was found
-and fixed (see §5), and the *pre-fix* variant — the paper's receipt
-rules as they stood **before** that bug fix, i.e. as published in
-`arXiv:2607.02275v1` (§5; "pre-fix" is used in this sense throughout) —
-kept as a machine-checked refutation.
+([Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) and companions), the
+rules by which each validator turns the evidence it has received into a
+valid proposal (§5).
 
-A third model goes one level *below* the published paper: the **MVBA
+A further model goes one level *below* the published paper: the **MVBA
 instantiation** ([Cadence/Mvba.lean](../Cadence/Mvba.lean) and companions).
 `mod:mvba` is an interface in the paper; the leader-based protocol that
 implements it lives in the paper repository's *internal supplement*, which
@@ -144,16 +141,13 @@ reconstruction-resistant cells; no trusted islands are needed.
 only where it is a *complete* method or strictly redundant — **no claim
 about the final protocol rests on a bounded-instance check**:
 
-* the **refutation** of the pre-fix receipt rules (§5) — exhibiting a
-  reachable counterexample is complete evidence of a bug regardless of
-  instance size; the found trace (`n = 3f+1`, `f = 1`) is pinned
-  verbatim in the build;
 * the **mutation test** of the MVBA instantiation
   ([Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean)): with the
   `Pre-Prepare` handler's lock check removed, the checker exhibits two
-  correct validators deciding differently — on a restriction of the mutant
-  every run of which is a run of the mutant, so the evidence is complete
-  in the same sense — which shows the proven invariants of
+  correct validators deciding differently — exhibiting a reachable
+  counterexample is complete evidence regardless of instance size, and
+  it is found on a restriction of the mutant every run of which is a run
+  of the mutant — which shows the proven invariants of
   [Cadence/Mvba.lean](../Cadence/Mvba.lean) are load-bearing and not merely true; the trace is
   pinned verbatim in the build;
 * a **redundant regression check** over the receipt layer's structural
@@ -247,7 +241,6 @@ The paper's headline properties and their formal counterparts:
 | Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of `lemma:chorus-termination`'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
 | Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of `lemma:chorus-termination`'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
 | Progress dichotomy (`lemma:chorus-termination`'s case split as one statement: saturated reachable state ⇒ per-proposer commitQCs from honest votes alone, or MVBA invoked with per-proposer decide evidence) | `progress_dichotomy_of_saturation` ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)), all `n = 3f+1` | sweep + Lean |
-| The pre-fix receipt rules are broken (the §7.2 finding) | pinned model-checker violation, [Cadence/FallbackReceipt/PreFix.lean](../Cadence/FallbackReceipt/PreFix.lean) | model check |
 | The MVBA's lock check is load-bearing (`lem:lock-persistence`'s premise; the mutation test of [docs/MvbaPlan.md](MvbaPlan.md) §4): without it, two correct validators decide differently | pinned model-checker violation, [Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) | model check |
 | Conductor as the paper's orchestrator, state-level: open-prefix agreement, Monotonicity, Integrity (at most once), the observables' monotonicity and frames; boundedness in interval form | Conductor sweep + `Conductor.orchestratorSafety` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | sweep + composition |
 | MCP Safety, positional form (`def:safety`) — for the glue over any contract instances, and for the composed system | `positional_log_safety` ([Cadence/Composition.lean](../Cadence/Composition.lean)); `system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | composition |
@@ -490,31 +483,28 @@ relations, and it takes a human to confirm each use is positive.
    silently mistranslated, is
    [Dependencies.md](Dependencies.md) § "Trusted computing base".
 
-## 5. The receipt layer: why the auxiliary models exist
+## 5. The receipt layer: why it has its own model
 
-The fallback receipt rules of `arXiv:2607.02275v1` contain a liveness bug: an
-accepted EquivCert is never harvested, so a validator can propose an invalid
-meta-block and never retry, which breaks the premise of the termination
-proof. It was reported by a parallel formal-verification effort using Rocq,
-confirmed against the paper sources here, and fixed in **v2** by a receipt
-restriction plus an atomic build. The full record, including the
-counterexample and which half of the fix is load-bearing, is
-[ChorusDesign.md](ChorusDesign.md) §7.2.
+Chorus's monotone network abstracts away how a validator *observes*
+certificates ([ChorusDesign.md](ChorusDesign.md) §8, "EquivCert is the pair
+of proposer signatures"), but the MVBA's termination needs every correct
+validator to propose a valid meta-block assembled from what it holds
+locally. The fallback receipt rules (`alg:fallback`) are that per-validator
+step: a receipt restriction plus an atomic build at propose time.
+[ChorusDesign.md](ChorusDesign.md) §7.2 explains why the rules are shaped
+this way and which half of them is load-bearing. The paper's v1 had a
+liveness bug at exactly this step, fixed in v2; the model checker's
+counterexample to the v1 rules is preserved at the git tag
+`v1-receipt-refutation`.
 
-Because both versions are published, "pre-fix" and "fixed" name immutable
-documents rather than an internal commit range. Two artefacts of this
-development follow from the episode:
+Two artefacts of this development follow:
 
 * the **fallback commit round** and the tightened wire format are modelled
   in [Cadence/Chorus.lean](../Cadence/Chorus.lean) rather than documented away; and
-* the receipt/propose layer is mechanised **in both directions**: the v2
-  design verified (including the counting argument, for every `n = 3f+1`,
-  kernel-checked), and the v1 design refuted by exhaustive model checking,
-  with the counterexample — the reported scenario — pinned in the build.
-
-Keeping both directions in the build is what makes the refutation a standing
-check rather than a one-off: a change that made the v1 rules verify, or the
-v2 rules fail, breaks the build.
+* the receipt/propose layer has its own per-validator model,
+  [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean), which
+  verifies the rules — "valid by construction" by SMT, and the counting
+  argument for every `n = 3f+1`, kernel-checked.
 
 ## 6. Trust base
 
@@ -538,7 +528,6 @@ table can be read off one file:
 | `Mvba.bounded_termination`, `Mvba.aViewSync_of_sync` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)) | same | ✓ |
 | `Mvba.mvbaTemporal`, `Mvba.timed_termination`, `Mvba.admissible_exists`, `Mvba.mvbaFull` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) | same | ✓ |
 | `Mvba.timedTermination_premises_satisfiable`, `Mvba.termination_premises_satisfiable` ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)) | same | ✓ |
-| the `FallbackReceiptPreFix` refutation ([Cadence/FallbackReceipt/PreFix.lean](../Cadence/FallbackReceipt/PreFix.lean)) | expected model-checker violation (trace) | ✓ |
 | the `MvbaNoLock` refutation ([Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean)) | expected model-checker violation (trace) | ✓ |
 
 cvc5's `unsat` verdicts are trusted nowhere: every discharge runs with proof
@@ -605,6 +594,5 @@ share.
 
 Decision history and per-build records intentionally live outside this
 document: [History.md](History.md) (build history, per-module status) and
-the git log. [ChorusDesign.md](ChorusDesign.md) §7.2 carries the one
-protocol bug found so far, because that record is a result rather than a
-build log.
+the git log; a past state worth keeping whole is tagged (the v1 receipt
+counterexample, §5).

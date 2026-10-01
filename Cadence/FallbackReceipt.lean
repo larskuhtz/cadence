@@ -11,16 +11,14 @@ proofs live in the per-action files under
 reachability certificate by
 [FallbackReceipt/Certify.lean](FallbackReceipt/Certify.lean).
 
-Mechanisation of the layer behind the bug record in
-[ChorusDesign.md](../docs/ChorusDesign.md) §7.2: the per-validator receipt of `FallbackVote`s and the once-only
+Mechanisation of the layer whose rules
+[ChorusDesign.md](../docs/ChorusDesign.md) §7.2 explains: the per-validator receipt of `FallbackVote`s and the once-only
 MVBA propose with the atomic per-proposer build, exactly as the paper's
 **v2** states it (`alg:fallback`) — the receipt restriction at
 `line:fb-accept` (a vote is accepted only if every entry is a valid
 FastQC or the sender's *own* valid fallback signed entry), FastQC
 harvesting at `line:fb-harvest`, and the atomic build at
-`line:fb-build-entry`–`line:fb-formqc`. The companion module
-[FallbackReceipt/PreFix.lean](FallbackReceipt/PreFix.lean) models the
-**v1** (pre-fix) rules and mechanically refutes them.
+`line:fb-build-entry`–`line:fb-formqc`.
 
 This module is deliberately *per-validator*: it models one (correct)
 receiving validator `i` — its `M_i`, its `Ev` harvest, its build. The
@@ -64,7 +62,8 @@ votes suffice, Byzantine senders included — the receipt restriction
 alone pins each accepted vote to FastQC-or-own-entry, and FallbackQCs
 aggregate any `f+1` matching signatures. (Contrast the *global* pigeonhole
 over honest entries, [ChorusDesign.md](../docs/ChorusDesign.md) §7; the
-per-validator argument is what the §7.2 fix makes work.)
+per-validator argument is what the receipt restriction of §7.2 makes
+work.)
 
 ## Integration seam (the implementability of `Mvba.termination`'s caller premise)
 
@@ -263,7 +262,7 @@ action deliver_entry_neg (r : node) (p : proposer) {
 /-- Receipt (`line:fb-accept`, the v2 restriction): the first
 `FallbackVote` from `r` joins `M_i` iff it carries, for every proposer,
 a valid FastQC or `r`'s own valid signed entry. (Votes carrying anything
-else — e.g. an EquivCert, cf. the pre-fix module — are rejected; in this
+else — e.g. an EquivCert — are rejected; in this
 module's vocabulary such votes cannot even be expressed, which *is* the
 restriction.) -/
 action accept_vote (r : node) {

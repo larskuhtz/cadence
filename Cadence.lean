@@ -13,10 +13,8 @@ import Cadence.Chorus.Termination
 import Cadence.Composition
 import Cadence.System
 
--- The fallback receipt/propose leg, both directions: the shipped design
--- verified, and the pre-fix design refuted.
+-- The fallback receipt/propose leg: the shipped design, verified.
 import Cadence.FallbackReceipt.Totality
-import Cadence.FallbackReceipt.PreFix
 
 -- The MVBA leg: the leader-based instantiation of the paper repository's
 -- internal supplement, its contract (the safety fragment, the timed temporal
@@ -225,7 +223,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   premise of `Mvba.termination`. [Bounds.md](docs/Bounds.md) §6.3 is the
   premise-by-premise ledger
 
-Three further build-checked claims are pinned where they are made, because
+Two further build-checked claims are pinned where they are made, because
 their form is not an axiom footprint:
 
 * **Completeness of the per-VC evidence.** `#veil_status Chorus` (in
@@ -236,17 +234,13 @@ their form is not an axiom footprint:
   statement-matching, kernel-checked theorem is in scope. All three are
   pinned at every condition real, over the three standard axioms. That is the claim "nothing here is stubbed", as a command rather
   than as prose.
-* **The pre-fix receipt rules are broken.**
-  [FallbackReceipt/PreFix.lean](Cadence/FallbackReceipt/PreFix.lean) pins the model checker's
-  *counterexample* to the receipt rules as published in `arXiv:2607.02275v1`.
-  That file builds only if the bug is still found, verbatim.
 * **The MVBA's lock check is load-bearing.** [Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean)
   pins the model checker's *counterexample* to the MVBA instantiation with
   the `Pre-Prepare` handler's lock check removed — two correct validators
   deciding different vectors — found on a restriction of that mutant every
   run of which is a run of the mutant. It is the mutation test of the
   instantiation's invariants: they are not merely true but needed. That
-  file, too, builds only if the violation is still found, verbatim.
+  file builds only if the violation is still found, verbatim.
 
 ## What this module does not import
 

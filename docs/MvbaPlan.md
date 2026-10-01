@@ -1294,12 +1294,11 @@ machine-checked evidence.
    generated binders are hygienic since the 2026-09 Veil bump.)
 2. **Quorum non-vacuity**, following [ByzQuorum.lean](../Cadence/ByzQuorum.lean)'s
    witness pattern, so the quorum interface cannot be vacuously satisfiable.
-3. **Mutation testing with `#model_check`** — the strongest available, with
-   precedent: [FallbackReceipt/PreFix.lean](../Cadence/FallbackReceipt/PreFix.lean)
-   pins a counterexample with `#guard_msgs` and a green build *requires* the
-   violation. Do the same here: a sibling [Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) with the lock
+3. **Mutation testing with `#model_check`** — the strongest available: a
+   sibling [Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) with the lock
    check of `handle_preprepare` removed must fail agreement, with the witness
-   pinned. That demonstrates the invariants are load-bearing rather than
+   pinned by `#guard_msgs`, so that a green build *requires* the
+   violation. That demonstrates the invariants are load-bearing rather than
    merely true — which is the question vacuity is really asking. It must
    use `(sequential := true)`; the parallel search's frontier split is
    core-count dependent and the pin would hold only on the machine that
