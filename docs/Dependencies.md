@@ -336,72 +336,53 @@ without restating it — and what makes a badly-shaped field fatal.
 
 ## The VC registry's memory
 
-**Interim, since 2026-09-30 (PR #54).** The staged build runs the Chorus
-model stage at `LEAN_NUM_THREADS=2` (`scripts/revalidate.sh`, comment at the
-stage). It is a fallback, not a fix: the fix is the Veil change below, and
-the session that lands it removes the line.
+**Fixed in the fork** (2026-10-01, PR #54): `port/registry-memory`, stacked
+on `port/vc-registry` and merged into `port/integration`, pinned here at
+`d0532f70`. The fork's
+[`docs/VCRegistry.md`](https://github.com/larskuhtz/veil/blob/port/integration/docs/VCRegistry.md)
+is the record of the Veil side; this section is what it means here.
 
-**What happened.** CI's `verify` job killed the `Cadence.Chorus` stage (the
-model build alone) with exit 137 after 1 069 s: out of memory in the 13 GB
+**What happened.** CI's `verify` job killed the `Cadence.Chorus` stage, the
+model build alone, with exit 137 after 1 069 s: out of memory in the 13 GB
 container on the 4-core runner. The stage had been growing for weeks (660 s
 in #46, 824 s in #50, 873 s in #51); R8's one action and one relation tipped
-it over.
+it over. An interim `LEAN_NUM_THREADS=2` for the stage failed instead with a
+registry heartbeat timeout, locally and on CI (run 36794438116), and was
+reverted.
 
-**Measured** (2026-09-30, this machine: 14 cores, 36 GB, macOS peak resident
-set, `LEAN_NUM_THREADS=4`, model olean deleted; run-to-run noise about
+**The mechanism.** `Module.persistVCRegistry` elaborates the closed
+statement of every VC (9 587 for Chorus) in `getNumCores − 1` chunks, all
+started at once. Each chunk was one `liftTermElabM` run over all its
+statements, so its elaboration state grew over the whole chunk, and the
+chunk had one heartbeat budget, which also absorbed what the worker thread
+ran while the chunk waited. On a workstation that is 13 chunks of ~740; on
+the 4-vCPU runner it was 3 chunks of ~3 200, all alive together. Since the
+fix every statement is its own elaboration run (fresh state, its own budget),
+and the stored types are hash-consed before the extension write. No VC
+statement changes, so the proof cache hits and every `#veil_status` pin
+holds.
+
+**Measured** (this machine: 14 cores, 36 GB; macOS peak resident set of
+`lake build Cadence.Chorus`, model olean deleted; run-to-run noise about
 ±1 GB):
 
-| run | peak | wall |
-|---|---|---|
-| `lake build Cadence.Chorus`, master `8b13627` | 17.7 GB | 302 s |
-| `lake build Cadence.Chorus`, R8 | 18.3 GB | 306 s |
-| R8 model elaborated as a scratch file (no olean written) | 16.4 GB | 287 s |
-| … with `veil.gen.vcRegistry false` | 12.7 GB | 264 s |
-| … with `veil.gen.executableActions false` | 15.7 GB | 274 s |
-| … with `veil.noVerify true` (no background `doesNotThrow`) | 17.6 GB | 286 s |
-| … truncated before `#gen_spec` | 10.9 GB | 210 s |
+| model | Veil | `LEAN_NUM_THREADS` | result | peak | wall |
+|---|---|---|---|---|---|
+| master `8b13627` | before | 4 | ok | 17.7 GB | 302 s |
+| master `8b13627` | after | 4 | ok | 15.6 GB | 312 s |
+| R8 | before | 4 | ok | 18.3 GB | 306 s |
+| R8 | before | 2 | registry heartbeat timeout | 15.8 GB | 294 s |
+| R8 | after | 2 | ok | 15.6 GB | 355 s |
+| R8 | after | 4 | ok | 16.7 GB | 339 s |
+| R8 | after | 8 | ok | 16.1 GB | 324 s |
 
-So the registry is the one large separable cost, about 3.7 GB here; the
-executable extraction (which the monitor needs) is under 1 GB, and the
-background `doesNotThrow` checks cost nothing measurable.
-
-**The mechanism.** `Module.persistVCRegistry` (Veil,
-`Frontend/DSL/Module/VCGen/Induction.lean`) elaborates the closed statement
-of every VC (9 587 for Chorus) in `getNumCores − 1` chunks. Each chunk is
-**one** `liftTermElabM` run over all its statements, so its elaboration
-state (the metavariable context and caches) grows over the whole chunk, and
-all chunks are started at once. The core count is the machine's, not the
-build's thread budget. Here that is 13 chunks of ~740, at most 4 running.
-On the 4-vCPU runner it is 3 chunks of ~3 200, all alive together: the
-whole registry's elaboration state at once. That is why the stage passes on
-a workstation and dies on CI, and why it grows with every VC. Two threads
-cap the chunks in flight at two.
-
-**The fix, planned** (the Veil fork; a dedicated session, which also
-removes the fallback):
-
-* elaborate each statement in its **own** `TermElabM` run, so no state
-  outlives the statement, and `instantiateMVars` the result;
-* feed the statements to a fixed number of workers (the build's thread
-  budget, not `getNumCores`) in **bounded batches**, so the live state is
-  `workers × batch`, independent of the VC count;
-* hash-cons the stored types (`ShareCommon`) before `vcRegistryExt.addEntry`,
-  so the 9 587 statements that repeat the invariant clump share it in memory
-  as they already do in the olean.
-
-No VC statement changes: the registry entries are the same `Expr`s, and only
-their construction and sharing differ, so every cache key and every
-`#veil_status` pin stays. It should lower master's peak as well.
-
-*Cost and steps.* A `port/*` branch in the fork on the shared base, with a
-regression check in the fork (a large synthetic module's peak, before and
-after); the integration merge into `port/integration`; then here a re-pin
-(`lake update veil`, the manifest's `rev`) — which also moves the shared
-`.lake/packages/veil` for every worktree that links it — a model rebuild of
-the three families (statements unchanged, so the proof files replay warm),
-removal of the `LEAN_NUM_THREADS=2` line, and CI. CI rebuilds Veil inside the
-container until the published images are rebuilt from the new pin
-([Images.md](Images.md)).
+The model elaborated as a scratch file (no olean written), before the fix:
+16.4 GB in full, 12.7 GB with `veil.gen.vcRegistry false`, 15.7 GB with
+`veil.gen.executableActions false` (the monitor needs that extraction),
+17.6 GB with `veil.noVerify true`, 10.9 GB truncated before `#gen_spec`. So
+the registry was the one large separable cost here, about 3.7 GB, and on the
+4-core runner, where the old code held all of it at once, more. The CI run
+on the re-pinned head is the check under the runner's conditions.
 
 ## Native shared libraries
 

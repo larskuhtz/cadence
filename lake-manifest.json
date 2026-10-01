@@ -25,7 +25,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "73fa6fd484fc7288bbb86ab7c4dd44ff07b35b79",
+   "rev": "d0532f7023f5629897b622e17e327680cc79e152",
    "name": "veil",
    "manifestFile": "lake-manifest.json",
    "inputRev": "port/integration",
