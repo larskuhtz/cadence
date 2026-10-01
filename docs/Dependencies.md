@@ -337,7 +337,7 @@ without restating it — and what makes a badly-shaped field fatal.
 ## The Chorus model's memory
 
 Two fixes in the fork (2026-10-01, PR #54), both merged into
-`port/integration` and pinned here at `023fd53a`:
+`port/integration` and pinned here at `461c6832`:
 
 - **`port/registry-memory`**, stacked on `port/vc-registry`. The VC registry
   elaborates each statement in its own run and hash-conses the stored types.
@@ -402,7 +402,8 @@ process, about ±1 GB of noise.
 | … off for the declarations only | 10.4 GB | flat until `#gen_spec`, which then adds about 5 GB |
 | … off for `#gen_spec` only | 13.0 GB | the full climb |
 | `lake build`, Veil `d0532f70` | 10.3 GB | climbs to the end |
-| `lake build`, Veil `023fd53a` (the fix) | 8.6 GB | flat at 4.8–5.3 GB, then the registry and olean write |
+| `lake build`, Veil `023fd53a` (constants only) | 8.6 GB | flat at 4.8–5.3 GB, then the registry and olean write |
+| `lake build`, Veil `461c6832` (the fix) | 8.6 GB | flat at 4.8–5.2 GB, then the registry and olean write |
 
 The registry's per-statement runs (the first fix) took about 1–2 GB off the
 local peak, and its `ShareCommon` costs 135 ms. It did not move the CI
@@ -419,10 +420,25 @@ file, for the `.ilean`. The language server does the same for an open file.
 Veil's declarations recorded the info trees of all the code they generate,
 together with the metavariable contexts behind them.
 
-The fix keeps one bare reference per constant the user wrote. The `.ilean` of
-`Chorus` is identical before and after: 242 names, 207 definitions, 432 usage
-ranges, the same enclosing declarations. Hovers on bound variables and on
-subterm types go.
+The fix keeps one reference per identifier the user wrote:
+- a constant with no context;
+- a variable with the minimal local context its hover needs, such as an
+  action's parameter or a state component in an action body.
+
+The `.ilean` of `Chorus` is identical before and after: 242 names, 207
+definitions, 432 usage ranges, the same enclosing declarations.
+
+The site keeps its hovers. On the rendered Chorus page:
+
+| site | `var` hovers | `const` hovers |
+|---|---|---|
+| master's docs CI (run 36806672953) | 2 585 | 577 |
+| constants only (`023fd53a`) | 293 | 582 |
+| the fix (`461c6832`) | 2 602 | 582 |
+
+The variables' types render in full (`i : node`, `local_mvba_qc_accepted :
+node → Bool`). Only hovers on the types of compound subterms go. Rendering
+the page peaks at 6.0 GB, against about 10 GB before the fix.
 
 ### What to look at next
 

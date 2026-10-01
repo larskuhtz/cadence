@@ -158,7 +158,8 @@ echo "=== 2/6  rendering each module"
 # reason: the `jq` pass above has to run between the two stages, and the
 # facet does both in one job. Everything else is Verso's — the planner above
 # and the renderer below are its executables, and `literate.toml` governs
-# both. Serial by choice: `Cadence.Chorus` alone peaks near 10 GB.
+# both. Serial by choice: `Cadence.Chorus` is the largest single render
+# (docs/Dependencies.md § "The Chorus model's memory" has its peak).
 complete_json() { [ -s "$1" ] && jq -e . "$1" > /dev/null 2>&1; }
 
 # A rendered module is reused when its JSON still parses, which makes a
