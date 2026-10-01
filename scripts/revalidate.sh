@@ -121,7 +121,18 @@ stage() {
 stage Cadence.Cadence Cadence.Conductor
 
 # Model files of the three proof families: VC registry only, no sweep.
-stage Cadence.Chorus
+#
+# INTERIM (2026-09-30, PR #54): the Chorus model stage runs at
+# LEAN_NUM_THREADS=2. The cause is Veil's VC registry
+# (`Module.persistVCRegistry`, Induction.lean): it elaborates every
+# statement in (getNumCores − 1) chunks, each one long `TermElabM` run whose
+# state accumulates over the chunk, with all chunks in flight at once. On a
+# 4-core runner that is 3 chunks of ~3 200 of Chorus's 9 587 VCs alive
+# together, which took the stage past the 13 GB container (exit 137 after
+# 1 069 s). Two threads keep at most two chunks in flight. The fix belongs in
+# the Veil fork and removes this line: docs/Dependencies.md § "The VC
+# registry's memory".
+LEAN_NUM_THREADS=2 stage Cadence.Chorus
 stage Cadence.FallbackReceipt
 stage Cadence.Mvba
 
