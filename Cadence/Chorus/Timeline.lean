@@ -22,6 +22,8 @@ step is read off the statement:
 | the MVBA's trigger from correct senders | `correctTrigger_of_saturated` | (same index) |
 | a correct fast voter's FastQCs adopted (F7) | `within_complete_fast_metablock` | `M + 3Δ + 2δ` |
 | the proposal on a correct `FBCert` | `within_input_of_fbcert` | `M + 3Δ + 2δ` |
+| the proposal on the own fast meta-block (F9) | `within_input_of_fast` | `M + 3Δ + 3δ` |
+| every correct validator's MVBA proposal | `within_all_input` | `M + 3Δ + 3δ` |
 
 The chain that is assumed of the run is (Δδ-justice) and (P-phase) only:
 neither the MVBA's timing nor the bridge enters before the proposals. What
@@ -31,9 +33,8 @@ window (`ActiveUntil`). On the branch S4 uses, where nobody has finalized by
 the window's end, C1 gives it (`activeUntil_of_not_finalized`).
 
 **Every `Δ`-row costs `Δ` because `δ ≤ Δ`.** With its gate already open, a
-row's window is `ref N + max(Δ, δ)`; the milestones from the fallback
-signatures on take `δ ≤ Δ` (F10, [Bounds.md](../../docs/Bounds.md) §6.4.2). The first-round vote and
-the proposer's chunk do not need it.
+row's window is `ref N + max(Δ, δ)`; the schedule's `δ_le_Δ` (F10,
+[Bounds.md](../../docs/Bounds.md) §6.4.2) makes it `ref N + Δ`.
 
 ## How it is built
 
@@ -410,7 +411,7 @@ opens by `D + Δ ≤ M + 2Δ`. The honest quorum's votes are frozen
 (`vote_pos_sig_frozen`), so the case split is made at `Nv`: positive
 evidence among them makes `fb_sign_pos` owed and enabled throughout, its
 absence `fb_sign_neg`. -/
-theorem within_fb_sig (sch : Schedule view time) (hδΔ : sch.δ ≤ sch.Δ) {r : TChorusRun thS thM time}
+theorem within_fb_sig (sch : Schedule view time) {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) (hPP : PhasePunctual sch r) {t : time}
     (hD : sch.D ≤ t + sch.Δ) {N₀ : Nat}
     (hact : ActiveUntil r N₀ (max t r.gst + 2 • sch.Δ + sch.δ))
@@ -437,7 +438,7 @@ theorem within_fb_sig (sch : Schedule view time) (hδΔ : sch.δ ≤ sch.Δ) {r 
       _ ≤ M + sch.Δ + sch.Δ := by gcongr; exact le_max_left _ _
       _ = M + 2 • sch.Δ := by rw [two_nsmul, add_assoc]
   have hcv' : r.clk Nv ≤ M + 2 • sch.Δ := le_trans hcv (by
-    rw [two_nsmul, ← add_assoc]; gcongr)
+    rw [two_nsmul, ← add_assoc]; exact add_le_add le_rfl sch.δ_le_Δ)
   have hrefN' : r.ref (max Nv Nf) ≤ M + 2 • sch.Δ :=
     r.ref_le (r.clk_max_le' hcv' hcf) (le_trans hg (le_add_nn (nsmul_nonneg hΔ 2)))
   have hW : r.bufWindow Nv (max Nv Nf) sch.Δ sch.δ ≤ M + 2 • sch.Δ + sch.δ := by
@@ -510,7 +511,7 @@ Every proposer has `i`'s fallback signature at one index by `M + 2Δ + δ`
 `cast_fallback_vote` is a `δ`-row with the fallback arm as its gate. A
 validator that casts its fast commit vote first has its second-round vote
 all the same. -/
-theorem within_cast [Fintype node] (sch : Schedule view time) (hδΔ : sch.δ ≤ sch.Δ)
+theorem within_cast [Fintype node] (sch : Schedule view time)
     {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) (hPP : PhasePunctual sch r) {t : time}
     (hD : sch.D ≤ t + sch.Δ) {N₀ : Nat}
@@ -538,7 +539,7 @@ theorem within_cast [Fintype node] (sch : Schedule view time) (hδΔ : sch.δ �
     (Finset.univ : Finset node).toList
     (fun J _ => by
       by_cases hJ : thS.is_proposer J = true
-      · obtain ⟨k, hk, hck, hk'⟩ := within_fb_sig sch hδΔ hTJ hPP hD (hact.mono hB1) hqv hqvh hNv hcv
+      · obtain ⟨k, hk, hck, hk'⟩ := within_fb_sig sch hTJ hPP hD (hact.mono hB1) hqv hqvh hNv hcv
           hvoted hi hJ
         exact ⟨k, hk, hck, fun _ => hk'⟩
       · exact ⟨Nv, le_rfl, hcv1, fun h => absurd h hJ⟩)
@@ -589,7 +590,7 @@ theorem within_cast [Fintype node] (sch : Schedule view time) (hδΔ : sch.δ �
 `M + 2Δ + 2δ`**: the first-round votes (`within_all_voted`), then each
 second-round vote (`within_cast`), collapsed; a cast carries its signatures
 (`saturated_of_cast`). This is the timed `eventually_all_saturated`. -/
-theorem within_all_saturated [Fintype node] (sch : Schedule view time) (hδΔ : sch.δ ≤ sch.Δ)
+theorem within_all_saturated [Fintype node] (sch : Schedule view time)
     {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) (hPP : PhasePunctual sch r) {t : time}
     (hD : sch.D ≤ t + sch.Δ) {N₀ : Nat} (hN₀ : r.clk N₀ ≤ t)
@@ -614,7 +615,7 @@ theorem within_all_saturated [Fintype node] (sch : Schedule view time) (hδΔ : 
     (fun i _ => by
       by_cases hi : nset.is_byz i = true
       · exact ⟨Nv, le_rfl, le_trans hcv hB, fun h => absurd hi h⟩
-      · obtain ⟨k, hk, hck, hk'⟩ := within_cast sch hδΔ hTJ hPP hD hact hqv hqvh hNv hcv
+      · obtain ⟨k, hk, hck, hk'⟩ := within_cast sch hTJ hPP hD hact hqv hqvh hNv hcv
           (fun a ha => (hvoted a ha).1) hi
         exact ⟨k, hk, hck, fun _ => hk'⟩)
   exact ⟨Ns, by omega, hcs, fun i hi => saturated_of_cast hi (hall i (by simp) hi)⟩
@@ -654,7 +655,7 @@ one by `ref N + Δ`: the same rule broadcast its `FastBlock`, so each
 `aggregate_fastqc_*` is owed from `N` (no gate) and enabled, its vote quorum
 being on the network (`local_fastqc_*_backed`). -/
 theorem within_complete_fast_metablock [Fintype node] (sch : Schedule view time)
-    (hδΔ : sch.δ ≤ sch.Δ) {r : TChorusRun thS thM time}
+    {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) {N : Nat} {i0 : node} (hi0 : ¬ nset.is_byz i0 = true)
     (hcast0 : (r.at' N).msg_commit_cast i0 = true)
     (h0 : Chorus.complete_fast_metablock (nset := nset) (mvba := Mvba.mvbaSafety thM) i0 thS (r.at' N))
@@ -662,6 +663,7 @@ theorem within_complete_fast_metablock [Fintype node] (sch : Schedule view time)
     r.WithinFrom N (r.ref N + sch.Δ)
       (fun st => Chorus.complete_fast_metablock (nset := nset) (mvba := Mvba.mvbaSafety thM) i thS st) := by
   mvba_inst
+  have hδΔ : sch.δ ≤ sch.Δ := sch.δ_le_Δ
   have hW : r.bufWindow N (max N N) sch.Δ sch.δ ≤ r.ref N + sch.Δ := by
     rw [max_self]; exact r.bufWindow_le le_rfl (add_le_add le_rfl hδΔ)
   have hcN : r.clk N ≤ r.ref N + sch.Δ :=
@@ -716,7 +718,7 @@ theorem within_complete_fast_metablock [Fintype node] (sch : Schedule view time)
 `within_complete_fast_metablock` from a fast voter's index at or before the
 second-round deadline `M + 2Δ + 2δ`. -/
 theorem within_complete_fast_metablock_by [Fintype node] (sch : Schedule view time)
-    (hδΔ : sch.δ ≤ sch.Δ) {r : TChorusRun thS thM time}
+    {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) {t : time} {N : Nat}
     (hcN : r.clk N ≤ max t r.gst + 2 • sch.Δ + 2 • sch.δ)
     {i0 : node} (hi0 : ¬ nset.is_byz i0 = true)
@@ -731,7 +733,7 @@ theorem within_complete_fast_metablock_by [Fintype node] (sch : Schedule view ti
   have hrefN : r.ref N ≤ max t r.gst + 2 • sch.Δ + 2 • sch.δ :=
     r.ref_le hcN (le_trans (le_max_right _ _) (by
       rw [add_assoc]; exact le_add_of_nonneg_right (add_nonneg (nsmul_nonneg hΔ 2) (nsmul_nonneg hδ 2))))
-  refine (within_complete_fast_metablock sch hδΔ hTJ hi0 hcast0 h0 hi).mono_time ?_
+  refine (within_complete_fast_metablock sch hTJ hi0 hcast0 h0 hi).mono_time ?_
   calc r.ref N + sch.Δ ≤ max t r.gst + 2 • sch.Δ + 2 • sch.δ + sch.Δ := add_le_add hrefN le_rfl
     _ = max t r.gst + 3 • sch.Δ + 2 • sch.δ := by
       rw [show (3 : ℕ) = 2 + 1 from rfl, add_nsmul, one_nsmul]; abel
@@ -744,7 +746,7 @@ is a `Δ`-row on those votes whose gate — the MVBA arm — opens by
 `D + 2Δ ≤ M + 3Δ`. Its guard "no input yet" lapses only by an input, which is
 the goal. The certified vector and its validity are the bridge's (S4,
 `certifiedVector`, `ValidBridge`'s soundness clause). -/
-theorem within_input_of_fbcert (sch : Schedule view time) (hδΔ : sch.δ ≤ sch.Δ)
+theorem within_input_of_fbcert (sch : Schedule view time)
     {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) (hPP : PhasePunctual sch r) {t : time}
     (hD : sch.D ≤ t + sch.Δ) {N₀ : Nat}
@@ -757,6 +759,7 @@ theorem within_input_of_fbcert (sch : Schedule view time) (hδΔ : sch.δ ≤ sc
     r.WithinFrom N (max t r.gst + 3 • sch.Δ + 2 • sch.δ)
       (fun st => ∃ E, st.mvba_st.input i E = true) := by
   mvba_inst
+  have hδΔ : sch.δ ≤ sch.Δ := sch.δ_le_Δ
   obtain ⟨Nm, hNmc, hNm⟩ := reached_within sch hPP .mvbaArm
   set M := max t r.gst with hMdef
   have hg : r.gst ≤ M := le_max_right _ _
@@ -791,7 +794,7 @@ theorem within_input_of_fbcert (sch : Schedule view time) (hδΔ : sch.δ ≤ sc
   refine r.withinFrom_of_bufferedFairFamily (P := fun st => ∃ E, st.mvba_st.input i E = true)
     (hTJ.propose i v) (le_max_left _ _) hW
     (fun l ⟨mn, hl⟩ _ _ htr => by subst hl; exact ⟨v, Mvba.propose_effect_tr thM (mvba_propose_tr htr)⟩)
-    (fun n hn _ hnot => ⟨Or.inl (hfb' n hn), fun hgate => ?_⟩)
+    (fun n hn _ hnot => ⟨hfb' n hn, fun hgate => ?_⟩)
     (fun n hn hc _ => ⟨hact n (by omega) hc i hi, hNm n (by omega)⟩)
   obtain ⟨st', hst'⟩ := enabled_propose_mvba (fun E h => hnot ⟨E, h⟩)
     (fun h => hgate.1.2 (abandoned_of_mvba_abandoned r.toLRun i n h)) hvalid
@@ -821,13 +824,14 @@ theorem phase_pre_of_lt (sch : Schedule view time) {r : TChorusRun thS thM time}
 signed.** `deliver_chunk_assigned` is a `Δ`-row gated on the proposer's
 participation; its fired-once guard lapses only with the delivery
 (`chunk_sent_received`). -/
-theorem within_chunk_delivered (sch : Schedule view time) (hδΔ : sch.δ ≤ sch.Δ)
+theorem within_chunk_delivered (sch : Schedule view time)
     {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r)
     {j : node} (hj : ¬ nset.is_byz j = true) {m : merkle_root} {Np : Nat}
     (hs : (r.at' Np).msg_proposer_signed j m = true)
     (hactj : ∀ n, Np ≤ n → r.clk n ≤ r.ref Np + sch.Δ → Active (r.at' n) j) (i : node) :
     r.WithinFrom Np (r.ref Np + sch.Δ) (fun st => st.msg_chunk_received i j m = true) := by
   mvba_inst
+  have hδΔ : sch.δ ≤ sch.Δ := sch.δ_le_Δ
   have hW : r.bufWindow Np (max Np Np) sch.Δ sch.δ ≤ r.ref Np + sch.Δ := by
     rw [max_self]; exact r.bufWindow_le le_rfl (add_le_add le_rfl hδΔ)
   refine r.withinFrom_of_bufferedFair (hTJ.rows (.deliver_chunk_assigned i j m) .net rfl (fun h => h))
@@ -873,7 +877,7 @@ theorem within_entry_recorded (sch : Schedule view time) {r : TChorusRun thS thM
 `j` signed its root by `X` and is active over the window, every correct
 validator holds a positive entry for `j` by `max(X, GST) + Δ + δ`, provided
 that is before the deadline. -/
-theorem within_proposal_recorded (sch : Schedule view time) (hδΔ : sch.δ ≤ sch.Δ)
+theorem within_proposal_recorded (sch : Schedule view time)
     {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r) (hPP : PhasePunctual sch r)
     {j : node} (hj : ¬ nset.is_byz j = true) (hJ : thS.is_proposer j = true)
     {m : merkle_root} {Np : Nat} {X : time} (hcp : r.clk Np ≤ X)
@@ -884,7 +888,7 @@ theorem within_proposal_recorded (sch : Schedule view time) (hδΔ : sch.δ ≤ 
     r.WithinFrom Np (max X r.gst + sch.Δ + sch.δ) (fun st => ∃ m', st.local_entry_pos i j m' = true) := by
   mvba_inst
   have hrefp : r.ref Np ≤ max X r.gst := r.ref_le (le_trans hcp (le_max_left _ _)) (le_max_right _ _)
-  obtain ⟨Nd, hNd, hcd, hd⟩ := within_chunk_delivered sch hδΔ hTJ hj hs
+  obtain ⟨Nd, hNd, hcd, hd⟩ := within_chunk_delivered sch hTJ hj hs
     (fun n hn hc => hactj n hn (le_trans hc (add_le_add hrefp le_rfl))) i
   have hrefd : r.ref Nd ≤ max X r.gst + sch.Δ :=
     r.ref_le (le_trans hcd (add_le_add hrefp le_rfl))
@@ -895,6 +899,101 @@ theorem within_proposal_recorded (sch : Schedule view time) (hδΔ : sch.δ ≤ 
       (fun k hk => Chorus.msg_proposer_signed.mono (r.steps k) j m hk) hs Nd hNd)
     (lt_of_le_of_lt hle hlt)
   exact ⟨k, by omega, le_trans hck hle, hk'⟩
+
+/-! ### The case-(a) proposal, and every proposal -/
+
+/-- **Milestone: the MVBA proposal on the proposer's own complete fast
+meta-block, `δ` after it holds one** (`line:fb-mvba-propose-fast`, the
+`proposeFast` family, F9). From an index `N` at which `i` holds a FastQC for
+every proposer — by `M + 3Δ + 2δ` on the timeline — the proposal is a
+`δ`-row whose gate, the MVBA arm, opens by `D + 2Δ ≤ M + 3Δ`. -/
+theorem within_input_of_fast (sch : Schedule view time)
+    {r : TChorusRun thS thM time}
+    (hTJ : TimedJustice sch r) (hPP : PhasePunctual sch r) {t : time}
+    (hD : sch.D ≤ t + sch.Δ) {N₀ : Nat}
+    (hact : ActiveUntil r N₀ (max t r.gst + 3 • sch.Δ + 3 • sch.δ))
+    {N : Nat} (hN : N₀ ≤ N) (hcN : r.clk N ≤ max t r.gst + 3 • sch.Δ + 2 • sch.δ)
+    {i : node} (hi : ¬ nset.is_byz i = true)
+    (hfq : Chorus.complete_fast_metablock (nset := nset) (mvba := Mvba.mvbaSafety thM) i thS (r.at' N))
+    {v : node → Option merkle_root}
+    (hcert : ∀ n, N ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) v)
+    (hvalid : (Mvba.mvbaSafety (nset := nset) thM).Valid v) :
+    r.WithinFrom N (max t r.gst + 3 • sch.Δ + 3 • sch.δ)
+      (fun st => ∃ E, st.mvba_st.input i E = true) := by
+  mvba_inst
+  obtain ⟨Nm, hNmc, hNm⟩ := reached_within sch hPP .mvbaArm
+  set M := max t r.gst with hMdef
+  have hg : r.gst ≤ M := le_max_right _ _
+  have hΔ : 0 ≤ sch.Δ := sch.mvba.Δ_pos.le
+  have hδ : 0 ≤ sch.δ := sch.mvba.δ_nonneg
+  have h3 : M + 3 • sch.Δ + 3 • sch.δ = M + 3 • sch.Δ + 2 • sch.δ + sch.δ := by
+    rw [show (3 : ℕ) = 2 + 1 from rfl, add_nsmul _ 2 1, one_nsmul]; abel
+  have hpos : M ≤ M + 3 • sch.Δ + 2 • sch.δ := by
+    rw [add_assoc]; exact le_add_of_nonneg_right (add_nonneg (nsmul_nonneg hΔ 3) (nsmul_nonneg hδ 2))
+  have hcm : r.clk Nm ≤ M + 3 • sch.Δ + 2 • sch.δ := by
+    refine le_trans hNmc ?_
+    show sch.D + 2 • sch.Δ ≤ M + 3 • sch.Δ + 2 • sch.δ
+    calc sch.D + 2 • sch.Δ ≤ t + sch.Δ + 2 • sch.Δ := add_le_add hD le_rfl
+      _ ≤ M + sch.Δ + 2 • sch.Δ := add_le_add (add_le_add (le_max_left _ _) le_rfl) le_rfl
+      _ = M + 3 • sch.Δ := by rw [show (3 : ℕ) = 2 + 1 from rfl, add_nsmul, one_nsmul]; abel
+      _ ≤ M + 3 • sch.Δ + 2 • sch.δ := le_add_of_nonneg_right (nsmul_nonneg hδ 2)
+  have hrefN : r.ref N ≤ M + 3 • sch.Δ + 2 • sch.δ := r.ref_le hcN (le_trans hg hpos)
+  have hrefN' : r.ref (max N Nm) ≤ M + 3 • sch.Δ + 2 • sch.δ :=
+    r.ref_le (r.clk_max_le' hcN hcm) (le_trans hg hpos)
+  have hW : r.bufWindow N (max N Nm) sch.δ sch.δ ≤ M + 3 • sch.Δ + 3 • sch.δ :=
+    r.bufWindow_le (by rw [h3]; exact add_le_add hrefN le_rfl) (by rw [h3]; exact add_le_add hrefN' le_rfl)
+  have hfq' : ∀ n, N ≤ n →
+      Chorus.complete_fast_metablock (nset := nset) (mvba := Mvba.mvbaSafety thM) i thS (r.at' n) :=
+    r.mono (P := fun st => Chorus.complete_fast_metablock (nset := nset) (mvba := Mvba.mvbaSafety thM) i thS st)
+      (fun k hk => complete_fast_metablock_step (r.steps k) hk) hfq
+  refine r.withinFrom_of_bufferedFairFamily (P := fun st => ∃ E, st.mvba_st.input i E = true)
+    (hTJ.proposeFast i v) (le_max_left _ _) hW
+    (fun l ⟨mn, hl⟩ _ _ htr => by subst hl; exact ⟨v, Mvba.propose_effect_tr thM (mvba_propose_tr htr)⟩)
+    (fun n hn _ hnot => ⟨hfq' n hn, fun hgate => ?_⟩)
+    (fun n hn hc _ => ⟨hact n (by omega) hc i hi, hNm n (by omega)⟩)
+  obtain ⟨st', hst'⟩ := enabled_propose_mvba (fun E h => hnot ⟨E, h⟩)
+    (fun h => hgate.1.2 (abandoned_of_mvba_abandoned r.toLRun i n h)) hvalid
+  obtain ⟨h1, h2, h3⟩ := hcert n hn
+  exact ⟨_, ⟨st', rfl⟩, enabled_mvba_propose hi hgate.1
+    (Or.inr ⟨hfq' n hn, hgate.2⟩) h1 h2 h3 hst'⟩
+
+/-- **Milestone: every correct validator proposes to the MVBA, by
+`t_M = M + 3Δ + 3δ`** — the paper's "by `M + 3Δ`: MVBA proposals", with the
+local steps counted. From the index `Ns` at which every correct validator is
+saturated (by `M + 2Δ + 2δ`, `within_all_saturated`), the MVBA's trigger
+holds from correct senders (`correctTrigger_of_saturated`): either a correct
+`FBCert`, and every correct validator proposes on it by `M + 3Δ + 2δ`
+(`within_input_of_fbcert`); or a correct fast voter's complete meta-block,
+whose FastQCs every correct validator adopts by `M + 3Δ + 2δ`
+(`within_complete_fast_metablock_by`, F7) and proposes on `δ` later
+(`within_input_of_fast`, F9). The vector `v` is certified from `Ns` on and
+`Valid`: S4 supplies it (`certifiedVector` at the evidence, `ValidBridge`'s
+soundness). -/
+theorem within_all_input [Fintype node] (sch : Schedule view time)
+    {r : TChorusRun thS thM time}
+    (hTJ : TimedJustice sch r) (hPP : PhasePunctual sch r) {t : time}
+    (hD : sch.D ≤ t + sch.Δ) {N₀ : Nat}
+    (hact : ActiveUntil r N₀ (max t r.gst + 3 • sch.Δ + 3 • sch.δ))
+    {H : nodeset} (hH : nset.supermajority H)
+    (hHh : ∀ a, nset.member a H = true → ¬ nset.is_byz a = true)
+    {Ns : Nat} (hNs : N₀ ≤ Ns) (hcs : r.clk Ns ≤ max t r.gst + 2 • sch.Δ + 2 • sch.δ)
+    (hsat : ∀ i, ¬ nset.is_byz i = true → Saturated thS (r.at' Ns) i)
+    {v : node → Option merkle_root}
+    (hcert : ∀ n, Ns ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) v)
+    (hvalid : (Mvba.mvbaSafety (nset := nset) thM).Valid v)
+    {i : node} (hi : ¬ nset.is_byz i = true) :
+    r.WithinFrom Ns (max t r.gst + 3 • sch.Δ + 3 • sch.δ)
+      (fun st => ∃ E, st.mvba_st.input i E = true) := by
+  mvba_inst
+  have hδ : 0 ≤ sch.δ := sch.mvba.δ_nonneg
+  have h23 : max t r.gst + 3 • sch.Δ + 2 • sch.δ ≤ max t r.gst + 3 • sch.Δ + 3 • sch.δ :=
+    add_le_add le_rfl (nsmul_le_nsmul_left hδ (by norm_num))
+  rcases correctTrigger_of_saturated hH hHh hsat with hfb | ⟨i0, hi0, hcast0, h0⟩
+  · exact (within_input_of_fbcert sch hTJ hPP hD (hact.mono h23) hNs hcs hfb hi hcert hvalid).mono_time h23
+  · obtain ⟨Nf, hNf, hcf, hfq⟩ := within_complete_fast_metablock_by sch hTJ hcs hi0 hcast0 h0 hi
+    obtain ⟨k, hk, hck, hk'⟩ := within_input_of_fast sch hTJ hPP hD hact (by omega) hcf hi hfq
+      (fun n hn => hcert n (by omega)) hvalid
+    exact ⟨k, by omega, hck, hk'⟩
 
 end Timeline
 
@@ -1017,3 +1116,15 @@ info: 'Chorus.within_proposal_recorded' depends on axioms: [propext, Classical.c
 -/
 #guard_msgs in
 #print axioms Chorus.within_proposal_recorded
+
+/--
+info: 'Chorus.within_input_of_fast' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_input_of_fast
+
+/--
+info: 'Chorus.within_all_input' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_all_input

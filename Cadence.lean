@@ -154,7 +154,10 @@ Each entry is the result, the file its statement lives in, and what it says.
   (`Chorus.correctTrigger_of_saturated`); a correct fast voter's FastQCs
   adopted by everyone by `M + 3Δ + 2δ` (`Chorus.within_complete_fast_metablock_by`);
   the proposal on a correct `FBCert` by `M + 3Δ + 2δ`
-  (`Chorus.within_input_of_fbcert`); and a correct proposer's chunk
+  (`Chorus.within_input_of_fbcert`), or on the proposer's own fast meta-block
+  `δ` later (`Chorus.within_input_of_fast`), so every correct validator has
+  proposed to the MVBA by `M + 3Δ + 3δ` (`Chorus.within_all_input`); and a
+  correct proposer's chunk
   delivered and recorded (`Chorus.within_proposal_recorded`). Stage S3 of
   [Bounds.md](docs/Bounds.md) §6.4.6; the MVBA tail and the assembly into
   `TimedTerminationClaim` are S4
@@ -413,6 +416,18 @@ info: 'Chorus.within_proposal_recorded' depends on axioms: [propext, Classical.c
 -/
 #guard_msgs in
 #print axioms Chorus.within_proposal_recorded
+
+/--
+info: 'Chorus.within_all_input' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_all_input
+
+/--
+info: 'Chorus.within_input_of_fast' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_input_of_fast
 
 /--
 info: 'Chorus.justice_enabledMove' depends on axioms: [propext, Classical.choice, Quot.sound]
