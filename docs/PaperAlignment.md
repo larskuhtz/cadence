@@ -421,3 +421,56 @@ choice is recorded here until they answer.
   on the corresponding rules ("has not already formed …", "upon first
   collecting …"), so the question concerns the published Chorus
   pseudocode only.
+
+## 9. The decision handoff: v2 against the supplement
+
+The supplement at `eb1bb51` ("Decision output and handoff",
+`lem:decision-propagation`, `line:mvba:qc-decide`) and v2 end the fallback
+path differently.
+
+* **v2** (`alg:fallback`): on `MVBA[s].decide(B')` each validator waits for
+  its chunks, casts a `FallbackCommitVote` over `entries(B')`
+  (`line:fb-commitvote`), and finalizes on a `fbCommitQC` of `2f+1` such
+  votes (`line:fb-formcommitqc`, `line:fb-recv-commit`). The MVBA's output is
+  the meta-block alone.
+* **The supplement**: `decide(x, CommitQC)` also outputs the MVBA's own
+  commit certificate. Chorus broadcasts it; a correct validator that
+  receives a valid one re-broadcasts it and finalizes; and the MVBA accepts
+  a transferred certificate of any view. So **the MVBA's internal Commit
+  round replaces v2's fallback commit round** as the commitment proof.
+
+**The model keeps v2's round**, and takes from the supplement only the
+handoff of the certificate between MVBAs. Since R8 (2026-09-30,
+[Bounds.md](Bounds.md) §6.4.2) Chorus has the step
+`accept_mvba_commitqc`: a correct validator hands a transferred valid
+certificate to its own MVBA through the contract's input `accept`, and
+`MVBASafety` carries the strengthened interface (`certifies`,
+`decided_certified`, `accept`). What it does not do is finalize on that
+certificate. Three reasons:
+
+* **v2 is what this development verifies.** The Chorus model follows the
+  published algorithm, and its safety results (agreement through the
+  `fbCommitQC`/`commitQC` quorum intersection, totality, proposal inclusion)
+  are stated about v2's finalization rules. Finalizing on the MVBA's
+  certificate is a second route to `local_committed` whose agreement with
+  the first would have to be proven afresh from the MVBA contract.
+* **The handoff is what the MVBA's termination needs.** The supplement's
+  termination argument relies on the composing layer to deliver a decided
+  certificate to every undecided correct validator
+  (`lem:decision-propagation`). Until R8 the model assumed that delivery
+  inside the MVBA's timing premise (C15). With the handoff step it is
+  derived from Chorus's own rows (`Chorus.relayed_of_timedJustice`,
+  `Chorus.fRelay_of_fJustice`), and that is the whole of the change the
+  proof needed.
+* **Keeping the extra round is conservative.** The model's fallback path
+  takes one round more than the supplement's (the fallback commit votes and
+  their certificate after the decision). A bound proven for the model is
+  therefore an upper bound for the supplement's path too, and no safety
+  argument depends on the round being absent.
+
+The model's re-broadcast is implicit, since a validator that has accepted a
+certificate has decided, and its decision output is its broadcast. The
+model's handoff broadcast is folded into the decision output, the
+supplement's "upon receiving this output, Chorus broadcasts" at its
+instantaneous local computation; [Bounds.md](Bounds.md) §6.4.2 says why a
+separate, participation-gated broadcast rule would not do.

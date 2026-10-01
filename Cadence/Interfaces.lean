@@ -51,7 +51,8 @@ Each module `X` is two classes over a shared skeleton.
   consumer *use* the contract instead of restating it, and it is also why a
   non-first-order field here is fatal: the check commands reject one by class
   and field name before any solver starts
-  (`attribute [veil_smt_ignore] C.field` is the escape hatch, unused here;
+  (`attribute [veil_smt_ignore] C.field` is the escape hatch, used here only
+  for the three liveness facts of the MVBA's decision handoff;
   [CLAUDE.md](../CLAUDE.md) and `spikes/03_*.lean` have the detail).
 * **`XTemporal … [S : XSafety …]`** — everything else the paper promises,
   stated **over the safety instance**: every field mentions `S.init`,
@@ -822,8 +823,9 @@ full class.
 ([CompositionContracts.md](../docs/CompositionContracts.md) §3): `instantiate mvba : MVBASafety node
 mvalue mmsg mstate (fun i => nset.is_byz i = true)` over an abstract state
 `mvba_st`,
-advanced by the oracle step `mvba_step` and the driven input
-`mvba_propose`, with two per-entry decision handlers reading
+advanced by the oracle step `mvba_step`, the driven input `mvba_propose`
+and the handoff `accept_mvba_commitqc`, with two per-entry decision handlers
+reading
 `mvba.decided` off the state ([Chorus.lean](Chorus.lean), "The MVBA
 instance"). The value is the entry vector, which Chorus reads through two
 immutable projections `mval_pos`/`mval_neg` of an opaque sort;
@@ -853,7 +855,14 @@ and where it is discharged.
   ([Mvba/Temporal.lean](Mvba/Temporal.lean)), under the timing model of [Mvba/Schedule.lean](Mvba/Schedule.lean)
 * **`quiescence`** — Quiescence; *safety (one-step form)*. Mvba, from the
   transition bodies (`sent_new_tr`: every honest send requires the input and
-  `¬ abandoned`) — `Mvba.mvbaSafety` -/
+  `¬ abandoned`) — `Mvba.mvbaSafety`
+* **`certifies`, `decided_certified`, `accept`, `accept_trans`,
+  `accept_effect`, `accept_enabled`** — the decision handoff of the
+  supplement's strengthened interface (`decide(x, CommitQC)`, "Decision
+  output and handoff", `line:mvba:qc-decide`); *safety (first-order, rely
+  form)*. Mvba: a certificate is an existing commit certificate, a decision
+  has one (`decided_backed`), and the handoff is `decide` — `Mvba.mvbaSafety`.
+  Chorus drives `accept` (`accept_mvba_commitqc`) -/
 
 /-- The state-level fragment of `mod:mvba`. -/
 class MVBASafety (party value message state : Type) (byz : party → Prop)
@@ -911,6 +920,38 @@ class MVBASafety (party value message state : Type) (byz : party → Prop)
   /-- **External validity** — a decided value is valid. -/
   external_validity : ∀ st, reachable st → ∀ p v,
     ¬ byz p → decided st p v → Valid v
+
+  /- The decision handoff: the supplement's strengthened interface
+  (`decide(x, CommitQC)`, "Decision output and handoff"). A decision comes
+  with a transferable certificate, and a transferred valid certificate is
+  accepted. -/
+
+  /-- `c` is a valid commitment proof for `v` at `st`: the certificate a
+      decision outputs, which any party can check. -/
+  certifies : state → message → value → Prop
+  /-- **Decide exposes its certificate** — a correct party's decision has a
+      valid certificate that commits it. -/
+  decided_certified : ∀ st, reachable st → ∀ p v, ¬ byz p → decided st p v →
+    ∃ c, certifies st c v
+  /-- Input: the caller hands party `p` a transferred certificate `c`. -/
+  accept : state → party → message → state → Prop
+  accept_trans : ∀ st p c st', accept st p c st' → trans st st'
+  /-- Accepting a valid certificate for `v` decides `v`. -/
+  accept_effect : ∀ st p c st' v, accept st p c st' → certifies st c v → decided st' p v
+  /-- **A transferred valid certificate is accepted** — in the rely form: if
+      the caller hands a valid certificate to a correct party that has
+      proposed, is not abandoned and has not decided, the party can take
+      it. -/
+  accept_enabled : ∀ st p c v, reachable st → ¬ byz p → certifies st c v →
+    (∃ v', proposed st p v') → ¬ abandoned st p → (∀ v', ¬ decided st p v') →
+    ∃ st', accept st p c st'
+
+/- The three handoff facts only a liveness proof uses are withheld from the
+solver: Chorus's safety cells need the input and `accept_trans`, and every
+field of an instantiated class is otherwise a hypothesis of every cell. They
+stay declared axioms of the class, proven by `Mvba.mvbaSafety`. -/
+attribute [veil_smt_ignore] MVBASafety.decided_certified MVBASafety.accept_effect
+  MVBASafety.accept_enabled
 
 /-- The temporal level of `mod:mvba`, over a safety instance `S`. With the
 inputs, their observables, the frames and Quiescence all in the fragment —

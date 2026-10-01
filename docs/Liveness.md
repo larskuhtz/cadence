@@ -42,8 +42,10 @@ once (§2, last item).
 `Chorus.termination` takes five premises, each a named `Prop` in
 [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean):
 
-* **`FJustice`**: correct validators' actions are scheduled fairly: an
-  action enabled from some point on eventually fires.
+* **`FJustice`**: correct validators' actions are scheduled fairly for the
+  messages of correct senders: an action enabled from some point on, whose
+  messages came from correct validators, eventually fires. Nothing is asked
+  of a Byzantine validator's messages.
 * **`MvbaAdmissible`**: the MVBA's steps inside the run are scheduled the way
   the MVBA's own termination theorem requires.
 * **`ValidBridge`**: the MVBA's validity check agrees with Chorus's
@@ -86,10 +88,20 @@ each.
   action's fired-once guard, which only its own firing sets, enabledness is
   itself monotone, so the enable/disable toggle that strong fairness exists
   for cannot occur. ((F-compassion) is reserved vocabulary for the
-  non-monotone implementation and never invoked.) One action is fair as a
-  family rather than label by label: a correct validator proposing a value
-  to the MVBA — if it can from some point on, it does, whatever the MVBA's
-  state after the input turns out to be (§4.6, Finding 2). **This justification is
+  non-monotone implementation and never invoked.) **A step is owed only for
+  messages from correct senders** (`Chorus.Owed`, since R8): the paper's
+  network delivers "every message between correct validators", and a
+  Byzantine validator may send to some validators only. So a vote quorum,
+  a certificate or a chunk source a step relies on must be correct, or
+  forwarded by a correct validator (a correct fast voter's `FastBlock`, a
+  correct fallback signer's re-dissemination, a correct finalizer's
+  commitment proof); the timed rows take the same conditions
+  ([Bounds.md](Bounds.md) §6.4.2, F5, F7, F8). Two actions are fair as
+  families rather than label by label: a correct validator proposing a
+  value to the MVBA — if it can from some point on, it does, whatever the
+  MVBA's state after the input turns out to be (§4.6, Finding 2) — and a
+  correct validator handing a decided MVBA certificate to its own MVBA
+  (`accept_mvba_commitqc`, owed once a correct validator has decided). **This justification is
   specific to Chorus and does not generalise**: it holds because a slot is
   one-shot and its state purely accumulating. `Mvba` runs views, so nine of
   its honest actions are guarded by the current view and eleven can be
@@ -116,8 +128,12 @@ each.
   exactly one tick — and both timeout actions are guarded on it. With that
   the timeouts are weakly fair like every other honest action, and the
   third class contains the marker alone, governed by (A-viewsync): finite
-  in every view below the good one, and in the good one not before a commit
-  certificate exists. A *fifth* class holds `become_avail_ready`, the
+  in every view below the good one, and in the good one not before a
+  correct validator has decided. The MVBA's weak fairness is owed only for
+  a correct leader's proposal and correct quorums' votes (`Mvba.Owed`), and
+  taking a transferred certificate is the caller's input `decide`, whose
+  handoff is its own premise (F-relay): the composing layer hands a correct
+  validator's decided certificate on. A *fifth* class holds `become_avail_ready`, the
   availability layer's action, governed by (F-avail): it is unguarded, so
   leaving it under weak fairness would have proven (F-avail) and hidden the
   MVBA's dependence on that layer behind "the scheduler is fair".
@@ -139,16 +155,19 @@ each.
   such a reading: a labelling of its MVBA steps (the composed run records
   only the MVBA's states), and infinitely many of them
   (`Component.Scheduled`, part of `Component.Projection` in
-  [Cadence/Fairness.lean](../Cadence/Fairness.lean)). The other two premises of
+  [Cadence/Fairness.lean](../Cadence/Fairness.lean)). The other three premises of
   `Mvba.termination` belong to its caller, Chorus: every correct validator
-  proposes, and none is abandoned before deciding. They are **derived**,
-  not assumed. The second holds on the branch of the proof that needs the
-  MVBA: there no correct validator ever finalizes, so by
-  `NoAbandonBeforeFinalizing` none abandons, and the MVBA's `abandon()` is
-  invoked only by Chorus's `abandon` (`line:fb-abandon`). On the other
-  branch some correct validator has finalized, and the others finalize
-  from its certificates without the MVBA. `MvbaAdmissible` itself did not
-  change shape.
+  proposes, none is abandoned before deciding, and decided certificates are
+  handed on (F-relay). They are **derived**, not assumed. The second holds
+  on the branch of the proof that needs the MVBA: there no correct
+  validator ever finalizes, so by `NoAbandonBeforeFinalizing` none
+  abandons, and the MVBA's `abandon()` is invoked only by Chorus's
+  `abandon` (`line:fb-abandon`). The third is (F-justice) on Chorus's
+  handoff `accept_mvba_commitqc` (`Chorus.fRelay_of_fJustice`, since R8;
+  the timed twin is `Chorus.relayed_of_timedJustice`). On the other branch
+  some correct validator has finalized, and the others finalize from its
+  commitment proof without the MVBA. `MvbaAdmissible` itself did not change
+  shape.
 * **The bridge** (`ValidBridge`) — the MVBA's `Valid` holds exactly for
   the meta-blocks whose entries carry certificates on Chorus's network, in
   both directions the proof uses: a certified meta-block is `Valid` (so a
@@ -194,7 +213,9 @@ timer's durations by two ordering constraints about some correct-led view
 * **not too late**: in every view below `W`, a correct validator's timer
   does eventually fire, so correct validators move on;
 * **not too early**: in `W`, no correct validator's timer fires before a
-  commit certificate exists, so `W` gets enough time.
+  correct validator has decided, so `W` gets enough time. (Until R8: before
+  a commit certificate exists. A certificate the adversary assembles may
+  reach nobody, so it is no longer enough; [Bounds.md](Bounds.md) §6.4.2.)
 
 Both are needed. Without the first, a Byzantine leader's view can stall
 forever. Without the second, every view can be cut short. With them,

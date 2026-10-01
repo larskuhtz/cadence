@@ -8,7 +8,7 @@ temporal level, instantiated at `mvbaSafety th`, the fragment Chorus
 consumes. Its fields:
 
 * **`Admissible`** is `Schedule.Admissible sch th`: the run has a labelling
-  satisfying the three clauses of `Sync`;
+  satisfying the clauses of `Sync`;
 * **`ℓ`** is `Schedule.ℓ sch vfin`, a closed term in the schedule's constants;
 * **`termination`** is `bounded_termination`, read through `Admissible`'s
   labelling (`timed_termination`);
@@ -103,10 +103,21 @@ theorem not_enabled_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodese
   all_goals first
     | (simp [hop] at hh; done)
     | skip
-  /- The fifteen fair labels: expose the guards and read them at the quiet
+  /- The fourteen fair labels: expose the guards and read them at the quiet
   state. Each fails on the input. -/
   all_goals mvba_tr htr
   all_goals simp +unfoldPartialApp [Veil.FieldRepresentation.get, instIsSubStateOfRefl.getFrom_id,
+    hin] at htr
+
+/-- Nor can anybody take a transferred certificate: `decide` needs the input
+too. -/
+theorem not_enabled_decide_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+    (hq : Quiet s) {i : node} {v : view} {e : value} :
+    ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value view) th s (.decide i v e) := by
+  obtain ⟨hin, -, -, -, -, -, -⟩ := hq
+  rintro ⟨s', htr⟩
+  mvba_tr htr
+  simp +unfoldPartialApp [Veil.FieldRepresentation.get, instIsSubStateOfRefl.getFrom_id,
     hin] at htr
 
 /-- `become_avail_ready` is unguarded, so it has a successor at every
@@ -193,8 +204,7 @@ theorem boundedJustice_of_quiet [IsOrderedAddMonoid time] {sch : Schedule view t
   refine ⟨fun l hh N hen => ?_, fun l hh _ => hwhile _ hΔ l _ hh _,
     fun i pv v _ => ⟨hwhile _ hΔ _ _ rfl _, fun w e => hwhile _ hΔ _ _ rfl _⟩,
     fun i v q _ _ => ⟨fun r₀ w e => hwhile _ hΔρ _ _ rfl _, hwhile _ hΔρ _ _ rfl _⟩,
-    fun i pv v => ⟨hwhile _ hΔρ _ _ rfl _, fun w e => hwhile _ hΔρ _ _ rfl _⟩,
-    fun i j v e _ => hwhile _ hΔρ _ _ rfl _⟩
+    fun i pv v => ⟨hwhile _ hΔρ _ _ rfl _, fun w e => hwhile _ hΔρ _ _ rfl _⟩⟩
   obtain ⟨n, hn, hc, hnm⟩ := hq N sch.δ sch.δ_nonneg
   exact absurd (hen n hn hc) (hnm l _ hh)
 
@@ -215,7 +225,10 @@ theorem witnessRun_sync [IsOrderedAddMonoid time] [Archimedean time] (sch : Sche
   refine ⟨boundedJustice_of_quiet fun N D hD => ⟨N, le_rfl,
       le_trans (TLRun.clk_le_ref _ N) (le_add_of_nonneg_right hD),
       fun _ _ hh => not_enabled_of_quiet (hq N) hh⟩,
-    ⟨fun n i v _ hl => ?_, fun m i v _ hent => ?_⟩, fun m i v e _ hacc => ?_⟩
+    ⟨fun n i v _ hl => ?_, fun m i v _ hent => ?_⟩, fun m i v e _ hacc => ?_,
+    fun i j v e _ N hen => absurd (hen N le_rfl (TLRun.clk_le_ref _ N |>.trans
+      (le_add_of_nonneg_right (add_nonneg sch.Δ_pos.le sch.ρ_nonneg)))).1
+      (not_enabled_decide_of_quiet (hq N))⟩
   · cases hl
   · exact absurd hent (by simp [witnessRun, (hq m).2.1 i v])
   · exact absurd hacc (by simp [witnessRun, (hq m).2.2.1 i v e])

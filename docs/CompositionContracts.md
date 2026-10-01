@@ -181,8 +181,10 @@ from an immutable `mvba_init_state` (`assumption [mvba_init]`) and carried as
 `invariant [mvba_reachable]`. The module supplies the oracle step
 `mvba_step`; the driven input `mvba_propose` (the paper's
 `MVBA[s].propose(B_i)`, under the proposer's own trigger and with `Valid B_i`
-as guards — `abandon` stays undriven, since the single-slot model never
-abandons the instance); and two **per-entry decision handlers**
+as guards); the forwarded `abandon`; the **decision handoff**
+`accept_mvba_commitqc` (since R8), which hands a transferred valid commit
+certificate to a validator's MVBA through the contract's input `accept`; and
+two **per-entry decision handlers**
 `on_mvba_decide_pos` / `on_mvba_decide_neg` that transport a correct
 validator's decision `mvba.decided mvba_st i v` into the module's per-proposer
 records through the two immutable projections `mval_pos v j m` /
@@ -194,6 +196,20 @@ is_proposer j` (a non-proposer has no entry).
 The records' agreement is *proven* from the class's `agreement`, through two
 tie invariants stating that every record is the projection of some correct
 validator's decision.
+
+**The decision handoff** is the supplement's strengthened `mod:mvba`
+interface ("Decision output and handoff"), added to `MVBASafety` in R8 and
+nothing else: `certifies st c v` (a valid commitment proof), the field
+`decided_certified` (**decide exposes its certificate**), the input `accept`
+with `accept_trans`, and `accept_effect`/`accept_enabled` (**a transferred
+valid certificate is accepted**, in the rely form). All are first-order;
+the three liveness facts are withheld from the solver (`veil_smt_ignore`),
+so Chorus's cells see only `accept` and `accept_trans` more. `Mvba.mvbaSafety`
+proves them, with `decide` as the instance's `accept`: the MVBA no longer
+decides on a transferred certificate by an internal step, so the oracle
+`mvba_step` cannot take it, and its timing is the caller's, derived from
+Chorus's handoff row ([Bounds.md](Bounds.md) §6.4.2, C15). Nothing was
+weakened and `MVBATemporal` is unchanged; `System.lean` needed no edit.
 
 One **stated bridge** remains, deliberately, and it is the MVBA counterpart
 of the ACS median bridge: each handler verifies the decided entry's

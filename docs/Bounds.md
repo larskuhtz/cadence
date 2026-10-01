@@ -584,6 +584,12 @@ holds.
 | `certificates` | `Δ + ρ` | a timeout certificate, whenever formed, while every correct validator takes part | `line:mvba:viewtc-retx` |
 | `decisions` | `Δ + ρ` | a commit certificate some correct validator has decided on (**N3**) | the composing layer's delivery, `lem:decision-propagation` |
 
+*Since R8 (§6.4.2, C15) the last row is the caller's, not the MVBA's:
+`decide` on a transferred certificate is the contract's input `accept`, so
+the row left `BoundedJustice` for a clause of its own, `Mvba.Relayed`,
+verbatim, and `decide` left the hop table and `Delivers`. Inside Cadence
+Chorus's handoff row derives it (`Chorus.relayed_of_timedJustice`).*
+
 Against the pin `026dc8b` the clause was one line: every network label
 within `Δ` of `max(clk N, gst)`, regardless of its messages' history. That
 held a correct validator to consuming within `Δ` a message sent before GST
@@ -1323,7 +1329,11 @@ The timed claim, `Mvba.timed_termination`:
   The model sends nothing before GST, discards nothing, and every validator
   forms its prepare and commit certificates itself (since R4 each correct
   validator's `form_own_commitqc` is also its decision). So its run is admissible under either
-  reading, and the change moves only the value of `ℓ`.
+  reading, and the change moves only the value of `ℓ`. Since R8 `Sync` has a
+  fourth clause, the caller's handoff `Relayed` (the former `decisions`
+  clause): **obvious** here, since in the model every correct validator
+  forms its own certificate and nobody is left to hand one to, so `decide`
+  is never enabled at a plateau's end (`Mvba.Witness.relayed`).
 * **Every correct validator proposes by `t`**, **with a valid value**, and
   **none abandons before `max(t, GST) + ℓ`**: each obvious alone. Together
   with admissibility they need a run that stops on its own after deciding,
@@ -1332,8 +1342,10 @@ The timed claim, `Mvba.timed_termination`:
 
 The untimed claim, `Mvba.termination`:
 
-* **(F-justice)**, weak fairness of every honest action — if it is
-  enabled from some point on, it fires: **obvious.** A run that does all
+* **(F-justice)**, weak fairness of every honest action for the messages of
+  correct senders — if it is enabled from some point on, and its leader or
+  quorum is correct (`Mvba.Owed`), it fires: **obvious.** The
+  owed-condition (since R8, F5) only removes obligations. A run that does all
   the work there is to do and then idles meets it, since at the idle state
   no honest action is enabled: every fair action is one correct
   validator's step guarded on its own record, so it disables itself by
@@ -1348,11 +1360,17 @@ The untimed claim, `Mvba.termination`:
 * **(A-viewsync)**, the view timer as ordering constraints: **not
   obvious** on its face, but it is a corollary of the timed premises
   (`Mvba.aViewSync_of_sync`), so it inherits their satisfiability. The
-  model checks it directly.
+  model checks it directly. Since R8 its second clause waits for a correct
+  validator's decision rather than for a commit certificate (F5: a
+  certificate the adversary assembled need not reach anyone).
 * **(F-avail)**, the availability shares arrive: obvious.
 * **`AllPropose`**, **`NoEarlyAbandon`**: obvious alone, and not
   obviously compatible with (F-justice) and the timer, for the same reason
   as in the timed claim.
+* **(F-relay)**, the caller hands a correct validator's decided
+  certificate on (since R8; `decide` is the caller's input): **obvious**, for
+  the reason `Relayed` is (`Mvba.Witness.fRelay`). Inside Cadence it is
+  derived, not assumed (`Chorus.fRelay_of_fJustice`).
 
 **What the model found.** Every premise is satisfiable, and none needed
 a change to its statement. Building the model did change the *model*: it
@@ -1846,13 +1864,136 @@ is the MVBA's own `decide` step. Its cost, `Δ + ρ`, is inside `ℓ_MVBA`.
   Each Δ-row is therefore owed only when the messages it consumes came from
   correct senders (the last column). Both untimed `FJustice` definitions,
   Chorus's and the MVBA's, have the same shape, and the finding applies to
-  both. It is open, and closed in R8, before the witness and S3 (TODO §
-  Liveness).
+  both. **Closed in R8** (2026-09-30): both untimed `FJustice`s take the same
+  owed-conditions (`Chorus.Owed`, `Mvba.Owed`), and re-proving
+  `Chorus.termination` against them found F7 and F8 (below).
 * **F6: `cast_fb_commit` reads a shared flag.** Its guard is
   `mvba_complete`, which the first validator to decide sets. The paper's
   rule fires on the voter's own decision (`line:fb-commitvote`). As a δ-row
   with no condition it would owe a vote from a validator whose MVBA has not
   decided. The row is owed once the voter itself has decided.
+
+**The decision handoff (C15): the design** (R8, 2026-09-30, written before
+the build). The supplement's "Decision output and handoff" paragraph says
+four things: `decide(x, CommitQC)` outputs the certificate; Chorus broadcasts
+it; a correct validator that receives a valid one re-broadcasts it and
+finalizes; and the MVBA accepts a transferred `CommitQC` of any view
+(`line:mvba:qc-decide`). Until R8 the MVBA's `decide` (its
+transferred-certificate handler) was an *internal* MVBA step, taken by the
+oracle `mvba_step`, so its timing was assumed inside `T.Admissible`
+(`Mvba.BoundedJustice.decisions`). The design makes the transfer the
+caller's, so that Chorus's own rows carry it.
+
+* **(a) Where the relay lives.** A new Chorus action
+  `accept_mvba_commitqc i c mvba_next` in [Chorus.lean](../Cadence/Chorus.lean),
+  beside `mvba_propose`: a correct validator hands a valid certificate `c`
+  to its MVBA through the contract's new input `mvba.accept mvba_st i c
+  mvba_next`, and sets `mvba_st := mvba_next`. It reads no network relation
+  at all. What stands for the certificate on the wire is the MVBA's own
+  monotone record that it exists (`mvba.certifies`, read inside
+  `mvba.accept`), so the monotone-network contract of
+  [ChorusDesign.md](ChorusDesign.md) §3.1.1 is untouched: the only other
+  guards are `¬ is_byz i` and the fired-once record below. **Chorus's
+  broadcast is folded into the decision output.** A correct validator's
+  decision counts as its broadcast of the certificate that commits it:
+  that is the supplement's "upon receiving this output, Chorus broadcasts",
+  with its instantaneous local computation. A separate broadcast rule,
+  gated on participation, would let a validator decide, finalize on the
+  fast path and abandon before it hands off, which the paper's
+  instantaneous reaction rules out, and the MVBA would then wait for a
+  certificate nobody sends. The re-broadcast needs no step either: once
+  `i` has accepted, it has decided, so it is a sender in turn. The
+  finalization the supplement attaches to the certificate is **not**
+  modelled: the model keeps v2's fallback commit round ([PaperAlignment.md](PaperAlignment.md) §9).
+* **(b) The contract change** ([Interfaces.lean](../Cadence/Interfaces.lean),
+  `MVBASafety`, additions only, first-order):
+  * `certifies st c v`: `c` is a valid commitment proof for `v` at `st`;
+  * `decided_certified`: a correct party's decision has a valid
+    certificate — **decide exposes its certificate**;
+  * the input `accept st p c st'`, with `accept_trans`;
+  * `accept_effect`: accepting a valid certificate for `v` decides `v`,
+    and `accept_enabled`: a correct party that has proposed, is not
+    abandoned and has not decided can accept any valid certificate — **a
+    transferred valid certificate is accepted**, in the rely form (the
+    caller transfers; the MVBA accepts).
+
+  `Mvba.mvbaSafety` proves them: `certifies (.commitqc w e) v` is
+  `v = e ∧ msg_commitqc w e`, `accept` on `.commitqc w e` is the model's
+  `decide p w e`, and `decided_certified` is the existing
+  `reachable_decided_backed`. `Mvba.Msg` gains the constructor `commitqc`
+  (sent by no MVBA party: `Sent` is `False` on it). **At the instance,
+  `decide` becomes an input** (`Label.isInput`), so `mvbaSafety.step`, and
+  with it Chorus's oracle `mvba_step`, no longer takes it: in the composed
+  system an MVBA decides on a transferred certificate only when Chorus
+  hands it over. `decided_certified`, `accept_effect` and `accept_enabled`
+  are liveness facts and are withheld from the solver
+  (`veil_smt_ignore`), so the Chorus cells see two new symbols and
+  `accept_trans`. Nothing is weakened; `MVBATemporal` is unchanged. The
+  MVBA's own claims change on the caller's side, since the transfer is now
+  the caller's: the untimed claim gains the premise (F-relay)
+  (`Mvba.FRelay`, a transfer is owed once a correct party has decided on
+  the value), the timed `Sync` gains `Mvba.Relayed` (the old `decisions`
+  clause, moved out of `BoundedJustice`, verbatim), and `decide` leaves
+  the hop table and `Delivers`.
+* **(c) The rows, and the derivation.** One row, a family per receiver:
+  `accept_mvba_commitqc i _ _` is a `Δ`-row with no gate (it processes a
+  message, like `aggregate_fastqc_*`), owed once **a correct validator has
+  decided** (its certificate was sent at its decision). The derivation is
+  the lemma `Chorus.relayed_of_timedJustice`: for `δ ≤ Δ + ρ` (the paper's
+  `δ = 0` included), in every run satisfying `TimedJustice`, every
+  projection's timed run satisfies `Mvba.Relayed`. In words: if `decide i
+  v e` stayed enabled for `Δ + ρ` after a correct validator decided `e`,
+  the relay row would have made `i` decide within `Δ`, which disables it.
+  `Chorus.timedMvbaAdmissible_of_rows` is the form a witness uses: the
+  MVBA's own three clauses on a projection, plus `TimedJustice`, give
+  `TimedMvbaAdmissible` at the system's instance. The untimed twin is
+  `Chorus.fRelay_of_fJustice`, which makes `MvbaAdmissible`'s premise set
+  exactly the MVBA's own (`Mvba.FJustice ∧ AViewSync ∧ FAvail`) and
+  derives the rest.
+* **(d) The fired-once guard.** `local_mvba_qc_accepted i`, unset by the
+  guard and set by the step, so the step always changes the state and
+  `Chorus.justice_enabledMove` keeps holding with one more case. A validator
+  that has accepted has decided, so the record never blocks a step that
+  is owed.
+
+**F5 closed, and what it needed besides.** Both untimed `FJustice`
+definitions take the owed-conditions of the timed rows: Chorus's `Owed`
+(moved to [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)), and the
+MVBA's correct-sender part of `Delivers` (`Mvba.Owed`, a leader or a quorum
+that is correct). Re-proving `Chorus.termination` against them showed
+that R7's `Owed` was stricter than the paper's network in two rows, both
+places where a correct validator forwards what it received:
+
+* **F7: the fast meta-block travels.** `aggregate_fastqc_*` is also owed
+  when a correct validator that cast its fast commit vote holds the FastQC:
+  the same rule broadcasts its `FastBlock` (`line:fast-metablock`), and a
+  correct validator that receives one adopts its FastQCs. The paper's
+  finalization-time proof uses exactly this ("that validator held a fast
+  meta-block and broadcast it"). Without it the case-(a) proposals would
+  owe nothing whenever the FastQC's quorum had Byzantine voters.
+* **F8: re-dissemination by the decoder.** `redisseminate_chunk k …` is
+  also owed when its correct sender `k` signed a positive fallback entry
+  for the root: it decoded the proposal to sign (`line:fb-redisseminate`
+  sends every validator its chunk). A `FallbackQC`'s correct signer is the
+  paper's source of the chunks (`prop:chorus-finalization-time`, "by
+  `M + 3Δ`").
+
+A third consequence is on the MVBA's untimed premise: (A-viewsync)'s second
+clause now names a correct validator's **decision** rather than a commit
+certificate, because a certificate the adversary assembled reaches only
+whom the adversary chooses, so no transfer of it is owed. The timed model
+implies the new clause as it implied the old one (`Mvba.aViewSync_of_sync`).
+The proof of `Chorus.termination` no longer takes the commit route on the
+late branch: saturation always yields a correct trigger for the MVBA (a
+correct fast voter's meta-block, or a correct `FBCert`), and the MVBA arm
+finalizes.
+
+**Expected pins, written before the build.** Chorus: one action and one
+state relation, no property: `101 + 46 × (101 + 1) + 47 = 4840` (from
+4737). Mvba: the model file does not change (`decide` becomes an input in
+[Mvba/Compose.lean](../Cadence/Mvba/Compose.lean) only), so `1507` stays,
+and NoLock, which copies the model, needs no mirror. FallbackReceipt:
+`220`.
 
 **The phase markers become punctual timers**, leaving the hop table as
 the MVBA's `expire_timer` left it. **(P-phase)**, for each landmark
@@ -2081,17 +2222,14 @@ The timing model, `Sync`:
   And a projection needs the MVBA to be stepped infinitely often
   (`Scheduled`), so the composed run's tail has to keep taking MVBA steps
   (the MVBA witness's availability marks, as oracle steps) without enabling
-  any row. **One clause is assumed rather than derived**: the MVBA's
-  `decisions` clause asks the composing layer to deliver a decided commit
-  certificate within `Δ + ρ` (C15, TODO § Liveness). That delivery is
-  Chorus's protocol step (the supplement's "Decision output and handoff"),
-  which the model does not have yet. It cannot be derived at statement
-  level: the clause is part of the contract's field `T.Admissible`, and no
-  current Chorus step carries the certificate, since the MVBA's messages
-  live inside its abstract state and its `decide` is the oracle step's.
-  Until then it stays inside `T.Admissible`, named, with its cost inside
-  `T.ℓ`. It is open, and closed in R8, before the witness and S3: R8 models
-  the step and derives the `decisions` clause.
+  any row. **The clause on the caller is derived (C15, closed in R8)**: the
+  MVBA's handoff clause `Mvba.Relayed` (a decided commit certificate reaches
+  every undecided correct validator within `Δ + ρ`) holds on every
+  projection of a run satisfying `TimedJustice`, at every schedule with
+  `δ ≤ Δ + ρ` (`Chorus.relayed_of_timedJustice`). So a witness supplies only
+  the MVBA's own three clauses (`Chorus.timedMvbaAdmissible_of_rows`). The
+  handoff row itself is one more `Δ`-row, owed once a correct validator has
+  decided, obvious alone and jointly as the other rows are.
 
 The bridge:
 
@@ -2120,15 +2258,20 @@ either claim (§6.4.4).
 
 The untimed claim after option A:
 
-* **`FJustice`**, weak fairness over plain enabledness, with the proposal
-  family: obvious alone, as in §6.3, and at every quorum sort — every fair
-  action fires once (`Chorus.justice_enabledMove`, §6.4.7), so once the
-  run is idle no fair label is enabled and the tail owes nothing. The
+* **`FJustice`**, weak fairness over plain enabledness for correct senders,
+  with the proposal and handoff families: obvious alone, as in §6.3, and at
+  every quorum sort — every fair action fires once
+  (`Chorus.justice_enabledMove`, §6.4.7), so once the run is idle no fair
+  label is enabled and the tail owes nothing. The owed-conditions only
+  remove obligations (F5), so they cannot make it harder to satisfy. The
   premise is the same as weak fairness over state-changing steps
-  (`Chorus.fJustice_iff_move`), the form it had from R3 to R6.
-  Jointly **not obvious** for the same reason as the timed row: the family
+  (`Chorus.fJustice_iff_move`), the form it had from R3 to R6. Jointly
+  **not obvious** for the same reason as the timed row: the family
   quantifies over every value.
-* **`MvbaAdmissible`, `ValidBridge`**: as above.
+* **`MvbaAdmissible`**: the MVBA's own three scheduling premises on a
+  projection; its caller premises, (F-relay) among them since R8, are
+  derived (`Chorus.fRelay_of_fJustice`).
+* **`ValidBridge`**: as above.
 * **Eventual participation, and abandonment only after finalizing**:
   obvious.
 
@@ -2310,15 +2453,41 @@ after its step 2.
    * **`mvba_propose`'s gate is the MVBA arm** (§6.4.2), and the family is
      owed on a correct trigger only.
 
-   Two findings are open, and closed in R8, before the witness and S3
-   (TODO § Liveness):
+   Two findings were left open for R8, before the witness and S3:
 
    * **F5 on the untimed premises**: both `FJustice`s, Chorus's and the
-     MVBA's, owe steps enabled by Byzantine senders' messages.
+     MVBA's, owed steps enabled by Byzantine senders' messages.
    * **C15**: the MVBA decision certificate's delivery is Chorus's protocol
-     step (the supplement's "Decision output and handoff"). The model does
-     not have that step yet; R8 models it and derives the `decisions`
-     clause.
+     step (the supplement's "Decision output and handoff"), which the
+     model did not have.
+
+   **Both closed in R8** (2026-09-30, §6.4.2 "The decision handoff (C15):
+   the design" is the plan as written before the build). What an auditor
+   should know:
+
+   * **The premises.** Both untimed `FJustice`s owe a step only for
+     messages from correct senders, with the timed rows' own
+     owed-conditions: `Chorus.Owed` (now in
+     [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean), shared with
+     `TimedJustice`) and `Mvba.Owed` (a correct leader, a correct quorum:
+     `Delivers`' sender part, `Mvba.owed_of_delivers`). Two amendments to
+     R7's table came out of the re-proof, both the paper's forwarding rules:
+     F7 (a correct fast voter's `FastBlock`) and F8 (the decoding fallback
+     signer's re-dissemination), §6.4.2.
+   * **The model.** One action, `accept_mvba_commitqc`, with its fired-once
+     record; no invariant. `#veil_status Chorus` 4737 → **4840** = 101 +
+     46 × (101 + 1) + 47, as predicted. The Chorus family re-solved cold,
+     every file with 0 cache hits.
+   * **The contract.** `MVBASafety` gains the supplement's strengthened
+     interface, additions only (§6.4.2 (b)). At the instance `decide` is an
+     input, so the MVBA's claims gain the caller's side: (F-relay) untimed,
+     `Relayed` timed (the former `decisions` clause, verbatim), both derived
+     inside Cadence. (A-viewsync)'s second clause names a correct decision.
+   * **The proof.** `Chorus.termination`'s late branch always takes the
+     MVBA arm (`eventually_mvba_route`); the commit route there rested on
+     commit certificates that may include Byzantine votes. `Mvba.termination`,
+     `Mvba.bounded_termination`, `Mvba.aViewSync_of_sync` and both MVBA
+     witness theorems are re-proven; `Mvba.Witness.ell` is unchanged.
 3. **S3: totality and the timeline to `M + 3Δ`.** Totality comes first,
    because it is small and validates the scaffolding. Then the links up to
    the MVBA proposals. The reassessment asks two things: did the hop table

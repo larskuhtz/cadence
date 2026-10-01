@@ -281,6 +281,67 @@ theorem weaklyFairFamily_eq_iff {r : LRun sys th} {l : lbl} :
       obtain ⟨l', rfl, hl'⟩ := hen n hn
       exact hl'
 
+/-! ### Owed only while a condition holds
+
+A step can be owed only under a condition the environment has to supply —
+the paper's network delivers only between correct validators, so a step that
+consumes a message is owed only once a correct validator has sent it. The
+condition `C` is a state predicate, asked at every point from `N` on beside
+enabledness: the untimed form of the timed rows' owed-condition
+([Timed.lean](Timed.lean), `BufferedFair`). With `C` trivially true it is
+`WeaklyFair` (`weaklyFairWhen_true`), and it asks less than `WeaklyFair`
+(`WeaklyFair.when`). -/
+
+/-- **Weak fairness while `C` holds**: a label that is enabled, with `C`
+holding, at every point from `N` on fires at some point from `N` on. -/
+def WeaklyFairWhen (r : LRun sys th) (C : σ → Prop) (l : lbl) : Prop :=
+  ∀ N, (∀ n, N ≤ n → C (r.at' n) ∧ Enabled sys th (r.at' n) l) → ∃ n, N ≤ n ∧ r.lbl n = l
+
+/-- `WeaklyFairFamily` while `C` holds. -/
+def WeaklyFairFamilyWhen (r : LRun sys th) (C : σ → Prop) (S : lbl → Prop) : Prop :=
+  ∀ N, (∀ n, N ≤ n → C (r.at' n) ∧ ∃ l, S l ∧ Enabled sys th (r.at' n) l) →
+    ∃ n, N ≤ n ∧ S (r.lbl n)
+
+theorem WeaklyFair.when {r : LRun sys th} {C : σ → Prop} {l : lbl} (h : WeaklyFair r l) :
+    WeaklyFairWhen r C l :=
+  fun N hen => h N fun n hn => (hen n hn).2
+
+/-- With nothing further owed, weak fairness while `C` holds is weak
+fairness. -/
+theorem weaklyFairWhen_true {r : LRun sys th} {l : lbl} :
+    WeaklyFairWhen r (fun _ => True) l ↔ WeaklyFair r l :=
+  ⟨fun h N hen => h N fun n hn => ⟨trivial, hen n hn⟩, WeaklyFair.when⟩
+
+/-- A label owed unconditionally (`C` holds everywhere) is weakly fair. -/
+theorem WeaklyFairWhen.of_forall {r : LRun sys th} {C : σ → Prop} {l : lbl}
+    (h : WeaklyFairWhen r C l) (hC : ∀ s, C s) : WeaklyFair r l :=
+  fun N hen => h N fun n hn => ⟨hC _, hen n hn⟩
+
+/-- The form a link uses: owed and enabled from `N` on, the label fires. -/
+theorem WeaklyFairWhen.fires {r : LRun sys th} {C : σ → Prop} {l : lbl}
+    (h : WeaklyFairWhen r C l) (N : Nat) (hC : ∀ n, N ≤ n → C (r.at' n))
+    (hen : ∀ n, N ≤ n → Enabled sys th (r.at' n) l) : ∃ n, N ≤ n ∧ r.lbl n = l :=
+  h N fun n hn => ⟨hC n hn, hen n hn⟩
+
+/-- The same, for a family. -/
+theorem WeaklyFairFamilyWhen.fires {r : LRun sys th} {C : σ → Prop} {S : lbl → Prop}
+    (h : WeaklyFairFamilyWhen r C S) (N : Nat) (hC : ∀ n, N ≤ n → C (r.at' n))
+    (hen : ∀ n, N ≤ n → ∃ l, S l ∧ Enabled sys th (r.at' n) l) : ∃ n, N ≤ n ∧ S (r.lbl n) :=
+  h N fun n hn => ⟨hC n hn, hen n hn⟩
+
+/-- **One fairness link, owed while `C` holds** — `eventually_of_weaklyFair`
+with the condition supplied from `N` on. -/
+theorem eventually_of_weaklyFairWhen {r : LRun sys th} {C : σ → Prop} {l : lbl}
+    (hwf : WeaklyFairWhen r C l) {N : Nat} {P : σ → Prop}
+    (hC : ∀ n, N ≤ n → C (r.at' n))
+    (heff : ∀ st st', sys.tr th st l st' → P st')
+    (hen : ∀ n, N ≤ n → ¬ P (r.at' n) → Enabled sys th (r.at' n) l) :
+    ∃ n, N ≤ n ∧ P (r.at' n) := by
+  by_contra hc
+  push Not at hc
+  obtain ⟨n, hn, hfire⟩ := hwf N (fun n hn => ⟨hC n hn, hen n hn (hc n hn)⟩)
+  exact hc (n + 1) (Nat.le_succ_of_le hn) (heff _ _ (hfire ▸ r.steps n))
+
 /-! ### The state-changing forms, and when they are the same premise
 
 TLA+'s `WF_v`, over `EnabledMove`. Weak fairness over plain enabledness
@@ -323,6 +384,33 @@ theorem weaklyFairFamily_iff_move {r : LRun sys th} {S : lbl → Prop}
   ⟨WeaklyFairFamily.toMove, fun h N hen => h N fun n hn =>
     let ⟨l, hl, he⟩ := hen n hn
     ⟨l, hl, hacc n l hl he⟩⟩
+
+/-- `WeaklyFairWhen` over state-changing steps. -/
+def WeaklyFairWhenMove (r : LRun sys th) (C : σ → Prop) (l : lbl) : Prop :=
+  ∀ N, (∀ n, N ≤ n → C (r.at' n) ∧ EnabledMove sys th (r.at' n) l) → ∃ n, N ≤ n ∧ r.lbl n = l
+
+/-- `WeaklyFairFamilyWhen` over state-changing steps. -/
+def WeaklyFairFamilyWhenMove (r : LRun sys th) (C : σ → Prop) (S : lbl → Prop) : Prop :=
+  ∀ N, (∀ n, N ≤ n → C (r.at' n) ∧ ∃ l, S l ∧ EnabledMove sys th (r.at' n) l) →
+    ∃ n, N ≤ n ∧ S (r.lbl n)
+
+/-- **The bridge, per label, while `C` holds.** -/
+theorem weaklyFairWhen_iff_move {r : LRun sys th} {C : σ → Prop} {l : lbl}
+    (hacc : ∀ n, Enabled sys th (r.at' n) l → EnabledMove sys th (r.at' n) l) :
+    WeaklyFairWhen r C l ↔ WeaklyFairWhenMove r C l :=
+  ⟨fun h N hen => h N fun n hn => ⟨(hen n hn).1, Enabled.of_move (hen n hn).2⟩,
+   fun h N hen => h N fun n hn => ⟨(hen n hn).1, hacc n (hen n hn).2⟩⟩
+
+/-- **The bridge, per family, while `C` holds.** -/
+theorem weaklyFairFamilyWhen_iff_move {r : LRun sys th} {C : σ → Prop} {S : lbl → Prop}
+    (hacc : ∀ n l, S l → Enabled sys th (r.at' n) l → EnabledMove sys th (r.at' n) l) :
+    WeaklyFairFamilyWhen r C S ↔ WeaklyFairFamilyWhenMove r C S :=
+  ⟨fun h N hen => h N fun n hn =>
+    let ⟨l, hl, he⟩ := (hen n hn).2
+    ⟨(hen n hn).1, l, hl, Enabled.of_move he⟩,
+   fun h N hen => h N fun n hn =>
+    let ⟨l, hl, he⟩ := (hen n hn).2
+    ⟨(hen n hn).1, l, hl, hacc n l hl he⟩⟩
 
 /-- If a label fires at `n`, it was enabled at `n`. -/
 theorem enabled_of_fires (r : LRun sys th) (n : Nat) :

@@ -245,7 +245,9 @@ therefore instantiates the constraint with the **silent stub** of
 state and message `Unit`, a `decided` relation that never holds — under
 which the oracle step `mvba_step` is a silent no-op (tagged *internal*, so
 Stage B absorbs it) and the decision handlers `on_mvba_decide_*` and
-`mvba_terminate` can **never be enabled**: a trace carrying a fallback-path
+`mvba_terminate`, and the decision handoff `accept_mvba_commitqc` (since
+R8: nothing is ever certified under the stub, so `accept` never holds), can
+**never be enabled**: a trace carrying a fallback-path
 decision is rejected at the first handler. That is a limit of the monitor,
 not of the model — the model's MVBA is the verified `Mvba` instance
 ([Cadence/System.lean](../Cadence/System.lean)) — and closing it means giving the monitor a real

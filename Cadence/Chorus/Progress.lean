@@ -243,6 +243,67 @@ theorem progress_dichotomy_of_saturation
         · exact Or.inr (Or.inr ⟨Or.inl hq, hfbcert⟩)
         · exact Or.inr (Or.inr ⟨Or.inr hq, hfbcert⟩)
 
+set_option maxHeartbeats 1600000 in
+/-- **The MVBA route's evidence holds in every saturated state.** Every
+proposer has, in exactly the certificate form of `mvba_propose`'s validity
+guards, a positive or a negative certificate — with no case in which only
+commit certificates are available. If some honest validator cast a fast
+commit vote, its path is fast and the vote supermajorities it saw are on the
+network (the dichotomy's mixed case, which now also covers the all-fast
+one); if none did, every honest validator fell back and the evidence
+pigeonhole applies. This is what lets the liveness proof take the MVBA arm
+on its late branch always, with triggers from correct senders only
+([Termination.lean](Termination.lean)). -/
+theorem mvba_evidence_of_saturation
+    {th : Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice}
+    {st : Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice)}
+    (hreach : (Chorus.relationalTransitionSystem slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mmsg Phase PathChoice
+      (nset := byzNodeSetFin n f hf is_byz hbyz)).reachable th st)
+    (hsat : ∀ r : Fin n, ¬ is_byz r →
+      (pCast n st r ∧ ∀ j : Fin n, th.is_proposer j = true →
+        ((∃ m, pPos n st r j m) ∨ pNeg n st r j)) ∨
+      (pFbVote n st r ∧ ∀ j : Fin n, th.is_proposer j = true →
+        ((∃ m, pFbPos n st r j m) ∨ pFbNeg n st r j))) :
+    ∀ j : Fin n, th.is_proposer j = true →
+      ((∃ m, (cpv% Chorus.vote_quorum_pos j m th st) ∨
+             ((cpv% Chorus.fb_quorum_pos j m th st) ∧ (cpv% Chorus.fbcert th st))) ∨
+       ((cpv% Chorus.vote_quorum_neg j th st) ∨
+        (((cpv% Chorus.fb_quorum_neg j th st) ∨ (cpv% Chorus.equiv_evidence j th st)) ∧
+         (cpv% Chorus.fbcert th st)))) := by
+  classical
+  have honest : ∀ r : Fin n, ¬ is_byz r →
+      ¬ (ByzNodeSet.is_byz (self := byzNodeSetFin n f hf is_byz hbyz) r = true) := by
+    intro r hr hb
+    exact hr (by simpa +instances [byzNodeSetFin] using hb)
+  by_cases hexfast : ∃ r : Fin n, ¬ is_byz r ∧ pCast n st r
+  · obtain ⟨r0, hbz0, hcast0⟩ := hexfast
+    have hpath := Chorus.reachable_commit_cast_path_fast
+      (nset := byzNodeSetFin n f hf is_byz hbyz) hreach r0 ⟨honest r0 hbz0, hcast0⟩
+    intro j hj
+    rcases Chorus.reachable_fast_path_implies_vote_quorums
+        (nset := byzNodeSetFin n f hf is_byz hbyz) hreach r0 ⟨honest r0 hbz0, hpath⟩ j hj
+      with ⟨m, hvq⟩ | hvq
+    · exact Or.inl ⟨m, Or.inl hvq⟩
+    · exact Or.inr (Or.inl hvq)
+  · have hallfb : ∀ r : Fin n, ¬ is_byz r →
+        pFbVote n st r ∧ ∀ j : Fin n, th.is_proposer j = true →
+          ((∃ m, pFbPos n st r j m) ∨ pFbNeg n st r j) := by
+      intro r hr
+      rcases hsat r hr with hfast | hfb
+      · exact absurd ⟨r, hr, hfast.1⟩ hexfast
+      · exact hfb
+    have hfbcert : cpv% Chorus.fbcert th st :=
+      fbcert_of_honest_fallback_votes n f hf is_byz hbyz
+        (fun r hr => (hallfb r hr).1)
+    obtain ⟨H, hH_card, hH_honest⟩ := honest_supermajority n f hf is_byz hbyz
+    intro j hj
+    rcases Chorus.evidence_pigeonhole_of_reachable n f hf is_byz hbyz hreach j H hH_card
+        (fun r hr => ⟨hH_honest r hr, ((hallfb r (hH_honest r hr)).2 j hj)⟩)
+      with ⟨m, hq⟩ | hq | hq
+    · exact Or.inl ⟨m, Or.inr ⟨hq, hfbcert⟩⟩
+    · exact Or.inr (Or.inr ⟨Or.inl hq, hfbcert⟩)
+    · exact Or.inr (Or.inr ⟨Or.inr hq, hfbcert⟩)
+
 end Progress
 end Chorus
 
@@ -259,3 +320,9 @@ info: 'Chorus.progress_dichotomy_of_saturation' depends on axioms: [propext, Cla
 -/
 #guard_msgs in
 #print axioms Chorus.progress_dichotomy_of_saturation
+
+/--
+info: 'Chorus.mvba_evidence_of_saturation' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.mvba_evidence_of_saturation

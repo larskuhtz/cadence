@@ -343,6 +343,16 @@ theorem quiet {n : Nat} (hn : PlateauEnd n) {l : L} {hd : Hop} (hh : hop l = som
   all_goals (rcases hn with rfl | hn)
   all_goals omega
 
+/-- Nor is the handoff: at a plateau's end every correct validator has
+decided, so nobody takes a transferred certificate. -/
+theorem quiet_decide {n : Nat} (hn : PlateauEnd n) {i : Fin 4} {v : ℕ} {e : Unit} :
+    ¬ Enabled sys thW (st n) (.decide i v e) := by
+  rintro ⟨s', htr⟩
+  wunfold htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  rcases hn with rfl | hn
+  all_goals omega
+
 /-! ## The run and its schedule -/
 
 /-- The paper's fixed timeout at `ℕ`, with a correct leader in every view. -/
@@ -428,7 +438,14 @@ theorem availWithin : AvailWithin schW run := by
     omega
   · exact le_trans (le_max_left _ _) (Nat.le_add_right _ _)
 
-theorem sync : Sync schW run := ⟨boundedJustice, timerPunctual, availWithin⟩
+/-- **(Δ-relay)**, with its antecedent false: every window reaches a plateau
+end, where nobody can take a transferred certificate. -/
+theorem relayed : Relayed schW run := fun _ _ _ _ _ N hen =>
+  let ⟨P, hP, hNP, hclk⟩ := plateau_after N
+  absurd (hen P hNP (show clk P ≤ max (clk N) 0 + (schW.Δ + schW.ρ) by
+      rw [hclk]; exact le_trans (le_max_left _ _) (Nat.le_add_right _ _))).1 (quiet_decide hP)
+
+theorem sync : Sync schW run := ⟨boundedJustice, timerPunctual, availWithin, relayed⟩
 
 /-- **(A-leader-rotation-k)** at `k = 1`: validator 0 leads every view. -/
 theorem rotation : LeaderRotation natViewOrderEnum schW.k thW := by
@@ -477,7 +494,7 @@ theorem abandons_late (p : Fin 4) (_ : ¬ nsetW.is_byz p = true) (n : Nat)
 /-- **(F-justice)**, with its antecedent false: from any `N` on, the idle
 state is reached, and there no fair label is enabled (`quiet`). -/
 theorem fJustice : FJustice run.toLRun := by
-  intro l hj N hen
+  intro l hj _ N hen
   obtain ⟨hd, hh⟩ := Option.isSome_iff_exists.mp ((hop_isSome_iff l).mpr hj)
   exact absurd (hen (max N 25) (le_max_left _ _))
     (quiet (Or.inr (le_max_right _ _)) hh)
@@ -522,6 +539,11 @@ theorem noEarlyAbandon : NoEarlyAbandon run.toLRun := by
   change (st n).abandoned i = true at hab
   simp [st] at hab
 
+/-- **(F-relay)**, with its antecedent false: from any `N` on, the idle state
+is reached, and there nobody can take a transferred certificate. -/
+theorem fRelay : FRelay run.toLRun := fun _ _ _ N hen =>
+  absurd (hen (max N 25) (le_max_left _ _)).2 (quiet_decide (Or.inr (le_max_right _ _)))
+
 /-! ## The theorems apply
 
 Both liveness theorems, at this instance and on this run. Not needed for
@@ -530,6 +552,7 @@ quantify over, with nothing re-bundled. -/
 
 example : Terminates run.toLRun :=
   termination hqeW natViewOrderEnum run.toLRun fJustice aViewSync fAvail allPropose noEarlyAbandon
+    fRelay
 
 example (q : Fin 4) (hq : ¬ nsetW.is_byz q = true) :
     trW.byGstBound 0 (schW.ℓ natViewOrderEnum) (fun st => ∃ v, (mvbaSafety thW).decided st q v) :=
@@ -583,8 +606,9 @@ open Witness in
 /-- **The premises of `Mvba.termination` are jointly satisfiable.** Some
 instance and run meet all of them at once: the theorem's hypotheses
 (finitely many validators, a supermajority of correct validators, the view
-order), the model's `assumption`s, and the claim's five premises —
-(F-justice), (A-viewsync), (F-avail), `AllPropose` and `NoEarlyAbandon`.
+order), the model's `assumption`s, and the claim's six premises —
+(F-justice), (A-viewsync), (F-avail), `AllPropose`, `NoEarlyAbandon` and
+(F-relay).
 
 It rules out that the untimed Termination claim is vacuous, and in
 particular that its weak-fairness premise contradicts the rest. Weak
@@ -599,10 +623,10 @@ theorem termination_premises_satisfiable :
       (th : Theory node nodeset value view),
       (Mvba.relationalTransitionSystem node nodeset value view).assumptions th ∧
       ∃ r : MvbaRun th,
-        FJustice r ∧ AViewSync r ∧ FAvail r ∧ AllPropose r ∧ NoEarlyAbandon r :=
+        FJustice r ∧ AViewSync r ∧ FAvail r ∧ AllPropose r ∧ NoEarlyAbandon r ∧ FRelay r :=
   ⟨Fin 4, ByzNSet 4, Unit, ℕ, inferInstance, inferInstance, inferInstance, inferInstance,
     nsetW, natViewOrder, inferInstance, hqeW, natViewOrderEnum, thW, holds, run.toLRun,
-    fJustice, aViewSync, fAvail, allPropose, noEarlyAbandon⟩
+    fJustice, aViewSync, fAvail, allPropose, noEarlyAbandon, fRelay⟩
 
 end Mvba
 

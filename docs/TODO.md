@@ -255,60 +255,11 @@ come first.
   **The Chorus leg: statements done (S2, 2026-09-30).** The timing model and
   both targets, `Chorus.TimedTerminationClaim` (`ℓ = 5Δ + ℓ_MVBA + 8δ`) and
   `Chorus.TotalityClaim` (tolerance-parametric), are `Prop` definitions in
-  [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean). Next is
-  S3, totality and the timeline to `M + 3Δ` ([Bounds.md](Bounds.md) §6.4.6).
-
-  **For the timed Chorus leg: the decision's transfer is a composing-layer
-  obligation.** `Mvba.BoundedJustice.decisions` assumes what the
-  supplement's termination setting assumes of the composing layer: a
-  decided `CommitQC` reaches every undecided correct validator within
-  `ρ + Δ` (`lem:decision-propagation`, [MvbaPlan.md](MvbaPlan.md) §11.3
-  C15). In the composed system that delivery is Chorus's (its broadcast
-  on `decide`, and serving the certificate afterwards). So when the timed
-  Chorus claim instantiates the MVBA's timing premise on a projected run,
-  this clause is the one it must discharge from Chorus's own behaviour,
-  not assume; its cost `ρ + Δ` is already inside `ℓ_MVBA`.
-
-  **Status after S2 (2026-09-30): stated, and still assumed; open, closed in
-  R8, before the witness and S3.** The delivery of the MVBA's decision
-  certificate is Chorus's protocol step (the supplement's "Decision output
-  and handoff"), which the model does not have yet. R8 models it and derives
-  the `decisions` clause from it. It cannot be done at statement level. The
-  timed Chorus claim consumes the MVBA through the contract, as
-  `T.Admissible` of the timed projection (`Chorus.TimedMvbaAdmissible`,
-  [Bounds.md](Bounds.md) §6.4.2). At the system's MVBA that includes the
-  `decisions` clause, and the clause cannot be split out without restating
-  the contract's field. It cannot be derived from the current Chorus steps
-  either. No step carries the MVBA's commit certificate: the MVBA's messages
-  live inside its abstract state, and its `decide` is taken by the oracle
-  step `mvba_step`, whose scheduling is what the premise states. Until R8
-  the §6.4.5 ledger records it as the one clause assumed rather than
-  derived.
-
-* **F5 applies to both untimed `FJustice` definitions.** The paper promises
-  delivery only between correct validators (`prop:chorus-finalization-time`'s
-  proof), and so does the supplement's network (N1, [Bounds.md](Bounds.md)
-  §6.2.4). The models' network relations hold from a message's first
-  delivery to anyone, a Byzantine sender's included. The timed premises are
-  therefore owed only for messages from correct senders: Chorus's rows
-  through `Chorus.Owed` ([Bounds.md](Bounds.md) §6.4.2, F5), and the MVBA's
-  through `Delivers`' `CorrectQuorum` since step 5b. The untimed premises
-  have no such condition:
-  * `Chorus.FJustice`: `aggregate_fastqc_pos i j m q` with a Byzantine
-    member of `q` must eventually fire (unless `i` aggregates through
-    another quorum), even though a Byzantine voter may never send `i` its
-    vote;
-  * `Mvba.FJustice`: every correct validator's step is weakly fair for any
-    quorum it names. So `form_own_commitqc i v e q` (and likewise
-    `adopt_prepqc` and `form_own_tc_*`) must eventually fire for a `q` with
-    Byzantine members whose `Commit`s may never reach `i`.
-
-  A paper (or supplement) run in which only such quorums complete is then
-  not a run of the claim. The proofs use correct quorums throughout, so the
-  fix is to restate both `FJustice`s with the same correct-sender
-  conditions, then re-prove `Chorus.termination` and `Mvba.termination`
-  against them. No Veil file is touched. **Open; closed in R8, before the
-  witness and S3.**
+  [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean). The two
+  premise findings it left, F5 and C15, are closed (R8): both fairness
+  premises are owed only for correct senders, and the MVBA's handoff
+  clause is derived from Chorus's handoff row. Next is S3, totality and the
+  timeline to `M + 3Δ` ([Bounds.md](Bounds.md) §6.4.6).
 
 ## Model hygiene
 

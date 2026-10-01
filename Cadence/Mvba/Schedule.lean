@@ -25,10 +25,11 @@ definitions.
 
 ## What is assumed of a run, and of nothing else
 
-An admissible run satisfies exactly four clauses, all relating an
+An admissible run satisfies exactly five clauses, all relating an
 *environment* event — a label firing, a clock reading — to a guard or a
-local record. None mentions `decided`, a commit certificate, a good view, a
-leader or GST as a model event; [Bounds.md](../../docs/Bounds.md) §6.2.4
+local record. None mentions a commit certificate, a good view, a leader or
+GST as a model event; the caller's handoff names a correct validator's
+decision, as the supplement's termination setting does; [Bounds.md](../../docs/Bounds.md) §6.2.4
 has the table.
 
 Each entry is the clause, what this file calls it, and the sentence of the
@@ -48,6 +49,10 @@ supplement it is the formal shape of.
   view timer, restarted on entry
 * **(Δ-avail)** — `AvailWithin`: `avail_ready` within `Δ_sync` of accepting;
   `lem:avail-progress`
+* **(Δ-relay)** — `Relayed`, the caller's: once a correct validator has
+  decided, a correct validator takes the transferred certificate within
+  `Δ + ρ` (the input `decide`); the composing layer's delivery of a decided
+  `CommitQC`, `lem:decision-propagation`
 
 (A-viewsync), the strongest premise of `Mvba.termination`, is **not
 assumed**. Both of its clauses are a corollary: `AViewSyncClaim` below is
@@ -109,13 +114,16 @@ bound depends on the message's history, `Δ` or `Δ + ρ` (`BoundedJustice`
 below). The classification is checked against the paper by its
 consequence: at `δ = 0` the good view's latency is the paper's constant.
 
-`decide` is a network hop. It consumes a commit certificate, and a
-validator that did not form it gets it only by transfer
+`decide` is not in the table. It takes a commit certificate that a
+validator did not form itself, which reaches it only by transfer
 (`lem:decision-propagation`): the supplement's `CommitQC` travels by
-Chorus's broadcast and by the composing layer. At the pin `026dc8b` the
-table classed it as local, which the good view could not catch, since
-there every correct validator forms the certificate itself
-([MvbaPlan.md](../../docs/MvbaPlan.md) §11.3, C16 (N3)).
+Chorus's broadcast. Since R8 taking it is the contract's input `accept`
+([Compose.lean](Compose.lean)), and its timing is the caller's, `Relayed`.
+At the pin `026dc8b` the table classed it as local, which the good view
+could not catch, since there every correct validator forms the certificate
+itself ([MvbaPlan.md](../../docs/MvbaPlan.md) §11.3, C16 (N3)); from step 5b
+to R8 it was a network hop, whose delivery clause stood in for the
+composing layer.
 
 `adopt_prepqc` is a network hop too: a validator forms its prepare
 certificate from the `Prepare`s it received itself, since prepare
@@ -162,7 +170,6 @@ def hop : Mvba.Label node nodeset value view → Option Hop
   | .leader_repropose .. => some .loc
   | .leader_propose_fresh .. => some .loc
   | .send_commit .. => some .loc
-  | .decide .. => some .net
   | .timeout_qc .. => some .loc
   | .timeout_noqc .. => some .loc
   | _ => none
@@ -363,10 +370,6 @@ def NotPast (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
     (i : node) (v : view) : Prop :=
   ∀ V, s.entered i V = true → vord.le V v
 
-/-- Every member of `q` is correct. -/
-def CorrectQuorum (q : nodeset) : Prop :=
-  ∀ p, nset.member p q = true → ¬ nset.is_byz p = true
-
 /-- Some member of `q` has sent a `Timeout` for `v`. -/
 def AnyTimeout (q : nodeset) (v : view)
     (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Prop :=
@@ -387,10 +390,10 @@ label's own validator within `Δ`.
   by that validator;
 * a timeout certificate — first obtained at or after GST. Its first
   correct holder processes it on arrival and forwards it
-  (`line:mvba:sv-forward`);
-* a commit certificate — first obtained at or after GST. Its first
-  correct holder decides, and Chorus broadcasts it
-  (`lem:decision-propagation`).
+  (`line:mvba:sv-forward`).
+
+A commit certificate's transfer is not here: taking it is the input
+`decide`, the caller's, and its timing is `Relayed`.
 
 A label the table classes local, or no label at all, has no first
 delivery (`False`). -/
@@ -415,17 +418,22 @@ def Delivers (r : TMvbaRun th time) : Mvba.Label node nodeset value view → Pro
     CorrectQuorum (node := node) q ∧ SinceGst r (AnyTimeout q v) ∧ RetainedBy r j v (AnyTimeout q v)
   | .sync_view _ pv _ => SinceGst r (fun s => s.msg_tc pv = true)
   | .sync_view_adopt _ pv _ w e => SinceGst r (fun s => s.tc_lock pv w e = true)
-  | .decide _ v e => SinceGst r (fun s => s.msg_commitqc v e = true)
   | _ => False
+
+omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
+/-- **The untimed premise asks the same of the senders.** A label whose
+first delivery the timed premise owes has the correct senders the untimed
+(F-justice) asks for: `Owed` is `Delivers`' sender part. -/
+theorem owed_of_delivers {r : TMvbaRun th time} {l : Mvba.Label node nodeset value view}
+    (h : Delivers r l) : Owed l := by
+  cases l <;> first | exact h.elim | exact h.1 | trivial
 
 /-- **While a first delivery is pending**: every correct validator takes
 part. That the receiver has not moved past the message's view — it
 discards lower views' messages — is in the guard of every per-validator
-step that reads view-scoped messages (`in_view`). A decision needs nothing:
-the composing layer's delivery does not depend on the receiver's view. -/
+step that reads view-scoped messages (`in_view`). -/
 def Receiving : Mvba.Label node nodeset value view →
     Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop
-  | .decide .. => fun _ => True
   | _ => AllActive
 
 /-- Some correct validator has entered `v`. -/
@@ -433,7 +441,7 @@ def SomeEntered (v : view) (s : Mvba.State (Mvba.FieldAbstractType node nodeset 
     Prop :=
   ∃ j, ¬ nset.is_byz j = true ∧ s.entered j v = true
 
-/-- **(Δ-justice)** — the supplement's network, as six clauses. The timed
+/-- **(Δ-justice)** — the supplement's network, as five clauses. The timed
 form of `FJustice`: a fair label that is enabled throughout its window
 fires within it — the same plain enabledness, with a deadline in place of
 "eventually". Every clause is a `BoundedFair` or `BoundedFairWhile` of a
@@ -452,10 +460,9 @@ same premise as over state-changing steps (`boundedFair_iff_move`,
   the certificate within `Δ + ρ` whenever they were first sent (N1);
 * `certificates` — every active validator re-sends `ViewTC_i` every `ρ`
   (`line:mvba:viewtc-retx`), so a timeout certificate is processed within
-  `Δ + ρ` whenever it was formed (N1);
-* `decisions` — the composing layer serves a decided `CommitQC` to every
-  undecided correct validator within `ρ + Δ`
-  (`lem:decision-propagation`'s termination setting) (N3).
+  `Δ + ρ` whenever it was formed (N1).
+
+A decided certificate's transfer is the caller's, and is `Relayed`.
 
 Each window is measured from `max(clk N, gst)` (`BoundedFair`). -/
 structure BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Prop where
@@ -476,7 +483,19 @@ structure BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Pro
   certificates : ∀ (i : node) (pv v : view),
     BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view i pv v) AllActive ∧
     ∀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view_adopt i pv v w e) AllActive
-  decisions : ∀ (i j : node) (v : view) (e : value), ¬ nset.is_byz j = true →
+
+/-- **(Δ-relay)** — the caller hands decided certificates on: once a correct
+validator `j` has decided `e`, a correct validator that can take a
+transferred certificate on `e` does so within `Δ + ρ`, measured from
+`max(clk N, gst)`. The supplement's termination setting asks this of the
+composing layer (`lem:decision-propagation`: Chorus broadcasts the
+`CommitQC` a decision outputs, and serves it again every `ρ` to whoever is
+undecided) (N3). Taking a certificate is the input `decide`, so this is a
+premise on the caller, not on the MVBA's scheduling. It is owed only for a
+correct validator's decision. The timed form of (F-relay); within Cadence
+it is derived from Chorus's rows (`Chorus.relayed_of_timedJustice`). -/
+def Relayed (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
+  ∀ (i j : node) (v : view) (e : value), ¬ nset.is_byz j = true →
     BoundedFairWhile r (sch.Δ + sch.ρ) (.decide i v e) (fun s => s.decided j e = true)
 
 omit [IsOrderedAddMonoid time] in
@@ -528,10 +547,11 @@ def AvailWithin (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
     (r.at' m).accepted i v e = true →
       ∃ n, m ≤ n ∧ (r.at' n).avail_ready i e = true ∧ r.clk n ≤ r.ref m + sch.Δsync
 
-/-- **The whole of what is assumed of a run**: the three clauses. (F-byz)
-is the absence of a fourth. -/
+/-- **The whole of what is assumed of a run**: the three clauses of the
+MVBA's own scheduling and the caller's handoff. (F-byz) is the absence of a
+fifth. -/
 def Sync (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
-  BoundedJustice sch r ∧ TimerPunctual sch r ∧ AvailWithin sch r
+  BoundedJustice sch r ∧ TimerPunctual sch r ∧ AvailWithin sch r ∧ Relayed sch r
 
 /-- **(A-leader-rotation-k)** — among any `k` consecutive views there is
 one with a correct leader. The supplement's "every `f+1` consecutive views

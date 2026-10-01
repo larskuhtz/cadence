@@ -52,16 +52,21 @@ two levels, which gives the full `MVBA` (`Mvba.mvbaFull`).
 
 namespace Mvba
 
-/-- The signed messages of the protocol, per sender: the contract's
-`message` type. The certificate rows (`msg_prepqc`, `msg_commitqc`,
-`msg_tc`, `tc_lock`, `tc_nolock`) have no sender — they are assembled
-from `2f+1` signatures — so they are not messages a party *sends*. -/
+/-- What crosses the wire: the contract's `message` type. The five signed
+messages of the protocol, per sender, and the transferable commit
+certificate `commitqc v e` that `decide(x, CommitQC)` outputs and the
+composing layer hands to other parties (the supplement's "Decision output
+and handoff"). The certificate rows (`msg_prepqc`, `msg_commitqc`, `msg_tc`,
+`tc_lock`, `tc_nolock`) have no sender — they are assembled from `2f+1`
+signatures — so no party *sends* one within the MVBA (`Sent` is `False` on
+`commitqc`); Chorus carries the commit certificate. -/
 inductive Msg (view value : Type) where
   | preprepare (v : view) (e : value)
   | prepare (v : view) (e : value)
   | commit (v : view) (e : value)
   | timeout_qc (v w : view) (e : value)
   | timeout_noqc (v : view)
+  | commitqc (v : view) (e : value)
 
 /-- A consumer that holds the message sort as an opaque parameter needs it
 inhabited (Chorus's `[Inhabited mmsg]`); a view suffices for a witness. -/
@@ -114,16 +119,32 @@ noncomputable def Sent
     @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.msg_timeout_qc) st.msg_timeout_qc p v w e = true
   | .timeout_noqc v =>
     @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.msg_timeout_noqc) st.msg_timeout_noqc p v = true
+  | .commitqc _ _ => False
 
-/-- The labels of the module's two inputs, `propose(v)` and `abandon()`;
-every other label is an internal step of the protocol. -/
+/-- `c` is a valid commitment proof for `e`: a commit certificate on `e`,
+of some view, that exists (`msg_commitqc`: `2f+1` `Commit`s were
+aggregated). -/
+noncomputable def Certifies
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) :
+    Msg view value → value → Prop
+  | .commitqc w e, v =>
+    v = e ∧ @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.msg_commitqc) st.msg_commitqc w e = true
+  | _, _ => False
+
+/-- The labels of the module's three inputs: `propose(v)`, `abandon()`,
+and the handoff of a transferred commit certificate, which the model's
+`decide` handles (the supplement's `line:mvba:qc-decide`: the composing
+layer delivers the certificate, the MVBA accepts it). Every other label is
+an internal step of the protocol; a party decides on a certificate it
+formed itself by the internal `form_own_commitqc`. -/
 def Label.isInput : Mvba.Label node nodeset value view → Prop
   | .propose _ _ => True
   | .abandon _ => True
+  | .decide _ _ _ => True
   | _ => False
 
 omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset vord in
-/-- `Label.isInput` names the two input constructors, in a form that
+/-- `Label.isInput` names the three input constructors, in a form that
 survives leaving this module.
 
 The definition itself does not: at this many constructors Lean compiles its
@@ -133,7 +154,7 @@ Consumers case on this lemma rather than unfold the definition, as
 [Mvba/Liveness.lean](Liveness.lean) does. -/
 theorem Label.isInput_cases {l : Mvba.Label node nodeset value view}
     (h : Label.isInput l) :
-    (∃ i e, l = .propose i e) ∨ (∃ i, l = .abandon i) := by
+    (∃ i e, l = .propose i e) ∨ (∃ i, l = .abandon i) ∨ (∃ i v e, l = .decide i v e) := by
   cases l <;> simp_all [Label.isInput]
 
 variable (th : Mvba.Theory node nodeset value view)
@@ -250,6 +271,34 @@ theorem sent_new_tr
   cases m <;> cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
     mvba_field_simp <;> simp_all <;> exact ⟨_, by assumption⟩
 
+/-- The handoff input: `p` accepts the transferred certificate `c`, which is
+the model's `decide p w e` for `c = commitqc w e`, and no transition for
+any other message. -/
+def Accept (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (p : node) :
+    Msg view value → Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop
+  | .commitqc w e, st' =>
+    (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.decide p w e) st'
+  | _, _ => False
+
+/-- Accepting a valid certificate for `v` decides `v`. -/
+theorem accept_effect_tr {p : node} {c : Msg view value} {v : value}
+    (htr : Accept th st p c st') (hc : Certifies st c v) : Decided st' p v := by
+  cases c <;> simp only [Accept] at htr
+  obtain ⟨rfl, -⟩ := hc
+  mvba_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); mvba_field_simp
+
+/-- **A transferred valid certificate is accepted**: a correct party that
+has proposed, is not abandoned and has not decided can take any valid
+certificate — `decide`'s guards, which accept a certificate of any view. -/
+theorem accept_enabled_tr {p : node} {c : Msg view value} {v : value}
+    (hp : ¬ nset.is_byz p = true) (hc : Certifies st c v) (hin : ∃ v', Proposed st p v')
+    (hab : ¬ Abandoned st p) (hnd : ∀ v', ¬ Decided st p v') :
+    ∃ st'', Accept th st p c st'' := by
+  cases c <;> simp only [Certifies] at hc
+  obtain ⟨-, hqc⟩ := hc
+  simp only [Accept, Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct, trSimp]
+  exact ⟨_, hp, hin, hab, hqc, hnd, rfl⟩
+
 /-- Initially nobody has decided. -/
 theorem init_not_decided
     (hinit : (Mvba.relationalTransitionSystem node nodeset value view).init th st)
@@ -331,6 +380,20 @@ noncomputable def mvbaSafety :
   -- with the party not having abandoned. `sent_new_tr` is exactly that, over
   -- all 5 message kinds × every action.
   quiescence _ _ p m hn hp hnew hold := sent_new_tr th hn.choose_spec p m hp hnew hold
+  -- **The decision handoff.** A certificate is a commit certificate that
+  -- exists; a decision has one (`decided_backed`, an invariant of the
+  -- model); and the handoff is `decide`, which accepts a certificate of any
+  -- view.
+  certifies := Certifies
+  decided_certified _ hr i e hi hd := by
+    obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed hr i e hi hd
+    exact ⟨.commitqc V e, rfl, hV⟩
+  accept := Accept th
+  accept_trans _ _ c _ h := by
+    cases c <;> simp only [Accept] at h
+    exact ⟨_, h⟩
+  accept_effect _ _ _ _ _ h hc := accept_effect_tr th h hc
+  accept_enabled _ _ _ _ _ hp hc hin hab hnd := accept_enabled_tr th hp hc hin hab hnd
 
 /-! ### The join toward the full `MVBA`
 

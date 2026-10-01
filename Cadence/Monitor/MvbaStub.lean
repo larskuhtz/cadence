@@ -19,7 +19,8 @@ So the monitor instantiates
   external validity vacuous), so the instance is a *consistent* model of the
   class, and every guard that reads it is decidable (the instances at the
   end). Its consequence for coverage is documented in [Monitor.md](../../docs/Monitor.md) §8:
-  the decision handlers and `mvba_terminate` can never fire under it, so the
+  the decision handlers, `mvba_terminate` and the handoff
+  `accept_mvba_commitqc` can never fire under it, so the
   MVBA leg of the fallback path is outside what the current monitor can
   accept. The fixtures under `traces/` are fast-path only and never reach it.
 
@@ -114,6 +115,13 @@ synthesis sees through its fields. -/
   agreement _ _ _ _ _ _ _ _ h _ := h.elim
   integrity _ _ _ _ _ _ h _ := h.elim
   external_validity _ _ _ _ _ _ := trivial
+  -- The decision handoff: nothing is ever certified, so nothing is accepted.
+  certifies _ _ _ := False
+  decided_certified _ _ _ _ _ h := h.elim
+  accept _ _ _ _ := False
+  accept_trans _ _ _ _ h := h.elim
+  accept_effect _ _ _ _ _ h _ := h.elim
+  accept_enabled _ _ _ _ _ _ h := h.elim
 
 /-! The guards of the MVBA actions, decidable at the silent instance. The
 extracted executor asks for these as instance arguments (Veil cannot decide
@@ -130,5 +138,9 @@ instance silentMvba.decPropose {α : Type} (byz : α → Prop) (st : Unit) (i : 
 enabled under this monitor ([Monitor.md](../../docs/Monitor.md) §8). -/
 instance silentMvba.decAbandon {α : Type} (byz : α → Prop) (st : Unit) (i : α) (st' : Unit) :
     Decidable ((silentMvba byz).abandon st i st') := isFalse id
+/-- Nothing is certified under the stub, so the handoff input is never
+enabled either. -/
+instance silentMvba.decAccept {α : Type} (byz : α → Prop) (st : Unit) (i : α) (c : Unit) (st' : Unit) :
+    Decidable ((silentMvba byz).accept st i c st') := isFalse id
 
 end ChorusMonitor
