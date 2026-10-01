@@ -8,6 +8,7 @@ import Cadence.Chorus.Pigeonhole
 import Cadence.Chorus.Counting
 import Cadence.Chorus.Progress
 import Cadence.Chorus.Termination
+import Cadence.Chorus.Timeline
 
 -- The orchestration / pipelining leg, and the composed system.
 import Cadence.Composition
@@ -128,6 +129,35 @@ Each entry is the result, the file its statement lives in, and what it says.
   same premise as weak fairness over state-changing steps
   (`Chorus.fJustice_iff_move`).
   [Liveness.md](docs/Liveness.md) §2 explains each premise in short
+* **`Chorus.totality`** ([Chorus/Totality.lean](Cadence/Chorus/Totality.lean)) — **Chorus's
+  `d_tot`-totality** (`prop:chorus-totality`), the first timed claim of
+  [Chorus/Schedule.lean](Cadence/Chorus/Schedule.lean) (`TotalityClaim`), in its
+  tolerance-parametric form: if one correct validator finalizes at a clock
+  reading `c`, every correct validator finalizes by
+  `max(c, GST) + max(Δ, d) + 2δ`. The premises: every timed step a correct
+  validator owes is taken within its bound (`TimedJustice`, the hop table),
+  participation is synchronized within `d`, and no correct validator abandons
+  before finalizing. Neither the phase timers nor the MVBA nor the bridge is a
+  premise. Hypothesis: finitely many validators.
+  **`Chorus.totality_paper`** is the paper's statement read off it: at the
+  paper's instantaneous local steps (`δ = 0`) and Δ-synchronized
+  participation, every correct validator finalizes by `max(c, GST) + Δ`,
+  so `d_tot = Δ`
+* **The timeline to the MVBA proposals** ([Chorus/Timeline.lean](Cadence/Chorus/Timeline.lean)) —
+  the milestones of `prop:chorus-finalization-time` up to the MVBA's input,
+  each a lemma with its deadline, from `M = max(t, GST)`, under the timing
+  model (`TimedJustice`, `PhasePunctual`) and every correct validator
+  participating on the window: first-round votes by `M + Δ + δ`
+  (`Chorus.within_all_voted`); every correct validator's second-round vote,
+  fast or fallback, by `M + 2Δ + 2δ` (`Chorus.within_all_saturated`), at
+  which the MVBA's trigger holds from correct senders
+  (`Chorus.correctTrigger_of_saturated`); a correct fast voter's FastQCs
+  adopted by everyone by `M + 3Δ + 2δ` (`Chorus.within_complete_fast_metablock_by`);
+  the proposal on a correct `FBCert` by `M + 3Δ + 2δ`
+  (`Chorus.within_input_of_fbcert`); and a correct proposer's chunk
+  delivered and recorded (`Chorus.within_proposal_recorded`). Stage S3 of
+  [Bounds.md](docs/Bounds.md) §6.4.6; the MVBA tail and the assembly into
+  `TimedTerminationClaim` are S4
 * **`Conductor.orchestratorSafety`** ([Composition.lean](Cadence/Composition.lean)) — Conductor
   ⊨ `OrchestratorSafety` — the state-level fragment of the paper's
   slot-scheduling module contract (open-prefix agreement, Monotonicity,
@@ -335,6 +365,54 @@ info: 'Chorus.termination' depends on axioms: [propext, Classical.choice, Quot.s
 -/
 #guard_msgs in
 #print axioms Chorus.termination
+
+/--
+info: 'Chorus.totality' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.totality
+
+/--
+info: 'Chorus.totality_paper' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.totality_paper
+
+/--
+info: 'Chorus.within_all_voted' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_all_voted
+
+/--
+info: 'Chorus.within_all_saturated' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_all_saturated
+
+/--
+info: 'Chorus.correctTrigger_of_saturated' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.correctTrigger_of_saturated
+
+/--
+info: 'Chorus.within_complete_fast_metablock_by' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_complete_fast_metablock_by
+
+/--
+info: 'Chorus.within_input_of_fbcert' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_input_of_fbcert
+
+/--
+info: 'Chorus.within_proposal_recorded' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_proposal_recorded
 
 /--
 info: 'Chorus.justice_enabledMove' depends on axioms: [propext, Classical.choice, Quot.sound]
