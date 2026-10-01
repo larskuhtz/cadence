@@ -2380,8 +2380,7 @@ after its step 2.
      commit certificate beside it, and the early-finalization branch needs
      both.
    * **FallbackReceipt.lean's header** was aligned too (§6.4.1 had left it
-     for its own next edit). The receipt family replays warm and
-     `PreFix.lean` still finds its counterexample.
+     for its own next edit). The receipt family replays warm.
    * **The monitor**: the silent MVBA stub has no `abandon`, so `abandon` is
      never enabled under the monitor, a coverage gap of the same kind as
      the decision handlers ([Monitor.md](Monitor.md) §8). The fixtures gained

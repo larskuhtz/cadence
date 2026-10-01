@@ -228,8 +228,6 @@ never write one by hand.
 
 ### FallbackReceipt
 
-* [PreFix.lean](../../../Cadence/FallbackReceipt/PreFix.lean)'s model-check **violation is the expected result** and is
-  `#guard_msgs`-pinned. A green build requires it.
 * The layer's `#model_check` (exhaustive at `n = 4, f = 1`) is a redundant,
   solver-free regression over properties that also have unbounded proofs — and
   a non-vacuity witness, since the explored graph is checked to contain
@@ -239,6 +237,6 @@ never write one by hand.
 
 The list of verification-status invariants in
 [CLAUDE.md](../../../CLAUDE.md) — no trusted solver step, no `sorryAx`,
-complete `#veil_status` pins, the pre-fix refutation still failing. Each is
+complete `#veil_status` pins, the lock-check mutation test still failing. Each is
 build-checked, so you will find out; the point of the list is that "fixing"
 the build by weakening one of them changes what the project claims.

@@ -1068,103 +1068,65 @@ fork ([Liveness.md](Liveness.md) §3 points to it).
 Safety properties are unaffected by all of this: they hold in every
 reachable state regardless of scheduling.
 
-### 7.2 A liveness bug in the v1 receipt rules: the EquivCert harvest omission
+### 7.2 The fallback receipt rules, and why they are shaped this way
 
-*A record of the one protocol bug this line of work has found. It was
-reported by a parallel verification effort using Rocq, confirmed here against
-the LaTeX sources, and fixed in the paper's v2. The rules discussed below are
-v1's; the fix is described at the end.*
-
-The finding is that **(A-mvba) is not implementable by the v1 pseudocode as
-written**. The bug is a liveness/termination bug in `alg_fallback.tex`;
-safety is unaffected.
-
-**The bug.** The `FallbackVote` receive handler accepts a carried
-EquivCert as valid evidence but never harvests it into `Ev(pid)` — the
-harvest rules cover only received FastQCs and FallbackQCs
-(`alg_fallback.tex`, the two harvest loops after `M_i ← M_i ∪ {m}`).
-The MVBA-propose rule then fires unconditionally on `|M_i| ≥ 2f+1`
-with a once-only `mvbaInvoked`, so its comment "by the rules above,
-every `Ev(pid)` is a FastQC, FallbackQC, or EquivCert" is false.
-Counterexample (n = 4, f = 1): Byzantine proposer/validator D
-equivocates roots `r1 ≠ r2`; honest A holds a positive fallback signed
-entry for `r1`, honest C a negative one; A receives {A's vote, C's
-vote, D's vote carrying EquivCert(r1,r2)} before honest B's `r2` vote.
-At `|M_A| = 3 = 2f+1` neither local-formation rule is enabled (one
-bare positive, one bare negative, one non-signed-entry EquivCert), so
-A proposes a meta-block whose entry for D is a *bare* fallback signed
-entry — not a valid fallback meta-block
-(`p2_chorus.tex` §`subsection:fallback_path`) — and, `mvbaInvoked`
-being once-only, never re-proposes when B's vote later arrives. Since
-`mod:mvba`'s `ℓ_MVBA`-termination presumes all correct validators
-propose *valid* meta-blocks, the paper's claims "B is valid by
-construction" and the termination-proof step "assembled a valid
-meta-block and proposed it" (`prop:chorus-finalization-time`) are
-unsupported, and `lemma:chorus-termination` inherits the gap.
-
-**Why this model cannot see it.** The propose step and the
-per-validator `Ev`/`M_i` state are exactly the "visibility plumbing"
-the monotone network abstracts away (§8, "EquivCert is the pair of
-proposer signatures"): here `equiv_evidence j` holds the moment the
+The fallback receipt/propose layer (`alg_fallback.tex`) is the bridge
+between two premises of different shape. The model's MVBA handoff needs
+*global* evidence existence: `equiv_evidence j` holds the moment the
 proposer has signed two roots, the MVBA's decisions are read off the
 abstract instance and checked against network-global certificates (the
-bridge, §4), and (A-mvba)'s premise is *global* evidence existence. The real MVBA's premise is *per-validator*: every
-correct validator must assemble locally-held certified evidence into
-its proposal. The paper's harvest rules are the intended bridge from
-the former to the latter, and the report shows that bridge is broken.
-Note the counting asymmetry that makes the omission load-bearing: the
-evidence pigeonhole of §7 splits the `2f+1` *honest* fallback entries
-globally, but a validator's `M_i` guarantees only `f+1` honest votes —
-closing the argument per-validator requires counting the Byzantine
-votes' entries too, i.e. harvesting carried certificates *including
-EquivCerts*.
-
-**The fix.** Published as **`arXiv:2607.02275v2`**, so the before/after is a
-public diff:
-`arxiv.org/e-print/2607.02275v1` against `…v2`, where `alg_fallback.tex`
-carries both changes below.
+bridge, §4). The real MVBA needs *per-validator* evidence: every correct
+validator must assemble certified evidence it holds locally into a valid
+fallback meta-block (`p2_chorus.tex` §`subsection:fallback_path`) and
+propose it, once (`mvbaInvoked`). The receipt rules are what carry the
+first to the second, and two rules do it.
 
 * *Receipt restriction* (`line:fb-accept`): a fallback vote is accepted
   only if every carried entry is a valid FastQC or the **sender's own**
-  valid fallback signed entry, one vote counted per sender. Carried
-  FallbackQCs/EquivCerts are gone from the wire format; the receipt
-  rule harvests FastQCs only (`line:fb-harvest`), and the `Ev` chain
-  shrinks to `⊥ →` own signed entry `→ FastQC` (`alg_fast.tex`).
+  valid fallback signed entry, one vote counted per sender. The receipt
+  rule harvests FastQCs only (`line:fb-harvest`), and the `Ev` chain is
+  `⊥ →` own signed entry `→ FastQC` (`alg_fast.tex`).
 * *Atomic build at propose time*
-  (`line:fb-build-entry`–`line:fb-formqc`): the standing
-  FallbackQC/EquivCert formation rules are deleted; when
-  `|M_i| ≥ 2f+1` fires, the meta-block is assembled per proposer
-  directly from `M_i` — FastQC if harvested, else EquivCert from two
-  conflicting positive entries, else a FallbackQC from `f+1` matching
-  entries. The counting argument (if neither of the first two cases
-  applies, the `2f+1` bare entries span at most two values — one root
-  and `⊥` — so one value has `f+1` matching copies) is inline in
-  the v2 paper (§`subsection:fallback_path`, meta-block paragraph) and
-  spelled out in the `M+3Δ` step of `prop:chorus-finalization-time`.
+  (`line:fb-build-entry`–`line:fb-formqc`): there are no standing
+  FallbackQC/EquivCert formation rules; when `|M_i| ≥ 2f+1` fires, the
+  meta-block is assembled per proposer directly from `M_i` — FastQC if
+  harvested, else EquivCert from two conflicting positive entries, else
+  a FallbackQC from `f+1` matching entries. The counting argument (if
+  neither of the first two cases applies, the `2f+1` bare entries span
+  at most two values — one root and `⊥` — so one value has `f+1`
+  matching copies) is inline in the paper (§`subsection:fallback_path`,
+  meta-block paragraph) and spelled out in the `M+3Δ` step of
+  `prop:chorus-finalization-time`.
 
-Against v2 the counterexample above is dead — the EquivCert-carrying
-vote is rejected at `line:fb-accept`, every variant of D's own entry
-feeds one of the three build cases, and the upgrade/propose race is
-structurally eliminated (no standing upgrade rules remain). "`B` is
-valid by construction" is a proved statement.
+**Why the counting has to cover Byzantine votes.** The evidence
+pigeonhole of §7 splits the `2f+1` *honest* fallback entries globally,
+but a validator's `M_i` guarantees only `f+1` honest votes. Closing the
+argument per validator therefore counts the Byzantine votes' entries
+too, and the receipt restriction is what makes every accepted entry
+countable: an entry is a FastQC or a signed entry of its sender, so each
+of the `2f+1` accepted votes feeds one of the three build cases.
 
-**Which half of the fix is load-bearing:** the atomic build alone is not
-enough. Without the receipt restriction a validator still *accepts* carried
-EquivCerts without counting them, leaving the counting hole open; it is the
-restriction at `line:fb-accept` that closes it.
+**Which half is load-bearing.** The receipt restriction. The atomic
+build alone is not enough: a validator that still *accepted* carried
+EquivCerts without counting them would leave a vote in `M_i` that feeds
+no build case, and could then propose an entry that is a bare signed
+entry rather than valid evidence — with `mvbaInvoked` once-only, never
+to re-propose. The atomic build removes the remaining race: with no
+standing upgrade rules there is nothing for the propose to overtake.
+The paper's v1 had exactly that gap — a liveness bug, reported by a
+parallel verification effort, reproduced here, and fixed in v2; the
+model checker's counterexample to the v1 rules is preserved at the tag
+`v1-receipt-refutation`.
 
-**Mechanised:**
-[Cadence/FallbackReceipt/PreFix.lean](../Cadence/FallbackReceipt/PreFix.lean)
-reproduces the counterexample above mechanically (a model-checker
-violation at `n = 4, f = 1` whose trace is exactly this scenario), and
-[Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) verifies the
-v2 design ("valid by construction" by SMT for all `n`; the per-validator
-counting argument exhaustively at `n = 4, f = 1`).
+**Mechanised:** [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean)
+verifies these rules — "`B` is valid by construction" by SMT for all `n`,
+and the per-validator counting argument for every `n = 3f+1` in
+[Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean).
 
-The v2 revision also reshaped the surrounding machinery: the MVBA module
-interface (§`mod:mvba`), the fallback commit round (§6.7), and an explicit
+Around the receipt layer the paper also fixes the MVBA module interface
+(§`mod:mvba`), the fallback commit round (§6.7), and an explicit
 participation convention. The model tracks all three, and none of them
-contradicts a proven safety invariant. One v2 guard is worth naming because
+contradicts a proven safety invariant. One guard is worth naming because
 the model depends on it: a positive vote is accepted only if it carries its
 *sender's assigned* chunk (`byz_sign_vote_pos` requires
 `msg_chunk_received r j m`), which is what makes
@@ -1208,17 +1170,16 @@ f+1 accepted positive votes pin f+1 *distinct* chunks.
   the certificate `⟨equiv, s, j, ρ₁, σ_{p,1}, ρ₂, σ_{p,2}⟩`. The
   fallback votes through which an implementation *observes* the two
   signed roots are visibility plumbing the monotone network abstracts
-  away. This abstraction is where the v1 liveness bug of §7.2 hid:
-  received EquivCerts were dropped by the harvest rules, a failure of the
-  observation step this model cannot express. Against v2 the abstraction is
-  *aligned* rather than merely benign: fallback votes carry only FastQCs or
-  the
-  sender's own signed entry — exactly this model's
-  `msg_fb_pos_sig`/`msg_fb_neg_sig` vocabulary — and EquivCerts /
-  FallbackQCs exist only as objects assembled at propose time from the
-  signed entries in `M_i`, i.e. the v2 paper itself treats these
-  certificates as derived from network-visible signatures, which is
-  precisely the ghost-relation view here.
+  away. A failure of that observation step — a validator receiving
+  evidence and not counting it — is something this model cannot express,
+  which is why the receipt rules are verified in their own per-validator
+  model (§7.2). Under those rules the abstraction is *aligned* rather than
+  merely benign: fallback votes carry only FastQCs or the sender's own
+  signed entry — exactly this model's `msg_fb_pos_sig`/`msg_fb_neg_sig`
+  vocabulary — and EquivCerts / FallbackQCs exist only as objects
+  assembled at propose time from the signed entries in `M_i`, i.e. the
+  paper itself treats these certificates as derived from network-visible
+  signatures, which is precisely the ghost-relation view here.
 
 * **`fbCommitQC` entries are implicit.** `msg_fbcommit_sig r` records
   that `r` broadcast a `FallbackCommitVote` (`line:fb-commitvote`)

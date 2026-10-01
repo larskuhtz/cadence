@@ -16,8 +16,7 @@ them fails, the build fails**.
 > reconstructed as a Lean proof term and re-checked by the kernel. Every end
 > theorem is pinned to exactly `propext` / `Classical.choice` / `Quot.sound`
 > — Lean's three standard axioms — with no `sorry` and no trusted solver
-> verdict. The receipt layer additionally keeps a bug from an earlier version
-> of the paper as a machine-checked refutation.
+> verdict.
 
 **Start here:** [Cadence.lean](Cadence.lean) — the audit root. It imports
 every finished result and re-derives each axiom's footprint as a build-checked
@@ -95,7 +94,6 @@ is a build failure.
 | The verification conditions are the ones the model states — they are not re-typed by hand anywhere | the proof files read their statements out of the model's own persisted registry; identity is by construction |
 | **The composition is not a transcription.** The glue, the Conductor and Chorus consume the sub-protocol contracts as *class constraints* over abstract states (`instantiate orch : OrchestratorSafety …`, `instantiate sc : SlotConsensusSafety …`, `instantiate acs : ACSSafety …`, `instantiate mvba : MVBASafety …`), so no contract property is restated as a guard or invariant; the implementations' instances (`Conductor.orchestratorSafety`, `Chorus.slotConsensusSafety`, `Mvba.mvbaSafety`) are checked against the same classes. Two stated *bridges* remain — the ACS median range and the MVBA decision's certificate check — each the interpretation of a class parameter in the consumer's vocabulary rather than a restatement (docs/CompositionContracts.md §7) | the `instantiate` lines in [Cadence/Cadence.lean](Cadence/Cadence.lean), [Cadence/Conductor.lean](Cadence/Conductor.lean) and [Cadence/Chorus.lean](Cadence/Chorus.lean); the instance definitions' types; [Cadence/System.lean](Cadence/System.lean), which instantiates the glue's end theorem at the instances, with `Mvba.mvbaSafety` filling Chorus's constraint, and leaves one contract hypothesis, the Conductor's `ACSSafety` |
 | **What is not proven about the composition is a type, not prose.** Each implementation's unproven contract obligations are the fields of a class it has *no instance of* — stated over the very transition system it proved, so they are written down once and nowhere else. The one temporal level that *is* proven, the MVBA's, is an instance of the same class, with its hypotheses in its type | `OrchestratorTemporal` / `orchestrator_of_temporal` ([Cadence/Composition.lean](Cadence/Composition.lean)), `SlotConsensusTemporal` / `slotConsensus_of_temporal` ([Cadence/Chorus/Compose.lean](Cadence/Chorus/Compose.lean)); `MVBATemporal` is instantiated, `Mvba.mvbaTemporal`, and joined by `mvba_of_temporal` into `Mvba.mvbaFull` ([Cadence/Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean)) — each join paired with a `rfl` lemma that it hands back exactly the proven fragment |
-| The receipt rules of the paper's **v1** really are broken | [Cadence/FallbackReceipt/PreFix.lean](Cadence/FallbackReceipt/PreFix.lean) pins the model checker's counterexample; the file builds only if the bug is still found, verbatim |
 | The MVBA instantiation's invariants are **load-bearing**, not merely true: remove the lock check and agreement fails | [Cadence/Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean) pins the model checker's counterexample to the mutant; the file builds only if the violation is still found, verbatim |
 
 In short: `lake build` succeeding is the claim. You can re-derive any pin
@@ -189,7 +187,6 @@ in [Cadence.lean](Cadence.lean).
 | **`Conductor ⊨ OrchestratorSafety`**, **`Chorus ⊨ SlotConsensusSafety`** — the state-level fragments of the paper's module contracts, every field proven (including the two-state fields: monotonicity of the observables, frames, the paper's Monotonicity) | [Cadence/Composition.lean](Cadence/Composition.lean) (`Conductor.orchestratorSafety`), [Cadence/Chorus/Compose.lean](Cadence/Chorus/Compose.lean) (`Chorus.slotConsensusSafety`) | composition, over persisted VC theorems and Veil's transition bodies |
 | **The joins toward the full contracts** — given an `OrchestratorTemporal` instance at the proven fragment (Totality, `B`-Boundedness, `R`-Recovery, the execution model) the Conductor is a full `Orchestrator`; given a `SlotConsensusTemporal` one (the participation interface, Termination, Quiescence, the clock) Chorus is a full `SlotConsensus`. This development supplies neither, and that is precisely the claim about what is unproven. Integrity's timing half and Hiding's protocol half are first-order and *are* proven — they sit in the fragments | `orchestrator_of_temporal`, `slotConsensus_of_temporal` | plain Lean; what is unproven is a hypothesis, never an axiom |
 | **Fallback meta-block "valid by construction"**, including the counting argument, for **every** `n = 3f+1` | [Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) + [Cadence/FallbackReceipt/Totality.lean](Cadence/FallbackReceipt/Totality.lean) | sweep + composition |
-| **The v1 receipt rules are broken** — the rules as published in `arXiv:2607.02275v1`, before the fix that v2 carries; the bug, mechanically reproduced | [Cadence/FallbackReceipt/PreFix.lean](Cadence/FallbackReceipt/PreFix.lean) | exhaustive model check; the counterexample trace is pinned in the build |
 | **MVBA agreement, integrity and external validity** — the three safety properties of `mod:mvba`, for the leader-based instantiation of the paper repository's *internal supplement* (views, timeouts, timeout certificates, the lock; the referent is pinned to a paper-repository commit in the model's header and is not yet part of the published paper) | [Cadence/Mvba.lean](Cadence/Mvba.lean) (`agreement`, `integrity`, `external_validity`) → `Mvba.mvbaSafety` | sweep + composition |
 | **`Mvba ⊨ MVBASafety`** — the state-level fragment of the paper's MVBA contract, every field proven, including the two inputs, their observables and **Quiescence**; given an `MVBATemporal` instance (the clock, the admissible-run model, `ℓ_MVBA`-Termination — four fields, nothing safety-shaped) the instantiation is a full `MVBA`. Chorus consumes the class as a constraint and [Cadence/System.lean](Cadence/System.lean) fills it with this instance | [Cadence/Mvba/Compose.lean](Cadence/Mvba/Compose.lean) (`Mvba.mvbaSafety`, `mvba_of_temporal`) | composition, over persisted VC theorems and Veil's transition bodies |
 | **`Mvba ⊨ MVBATemporal`, and so a full `MVBA`**, the one the composed system runs: **`ℓ_MVBA`-Termination with an explicit `ℓ`**, the supplement's `O(fΔ)` at `k = f + 1`. Every correct validator decides by `max(t, GST) + ℓ` once all have proposed valid values by `t` and none abandons early, in every admissible run. Admissible means bounded fairness after GST under the supplement's network (a message sent at or after GST by a correct validator and retained is consumed within `Δ`, a retransmitted one within `Δ + ρ`, a local step within `δ`), a punctual view timer, and availability within `Δ_sync`, and such runs exist. The hypotheses are finitely many validators, the honest-quorum and view-order classes, a correct leader in every `k` consecutive views, a capped timeout that eventually exceeds the chain's latency, and a cancellative, Archimedean time monoid. | [Cadence/Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean) (`Mvba.mvbaTemporal`, `Mvba.mvbaFull`), from [Cadence/Mvba/BoundedTermination.lean](Cadence/Mvba/BoundedTermination.lean) (`Mvba.bounded_termination`) | plain Lean over timed runs of the generated transition system; premises are hypotheses, never axioms ([docs/Bounds.md](docs/Bounds.md) §6.2) |
@@ -350,7 +347,7 @@ around a platform limitation — see [docs/Container.md](docs/Container.md).
 | `#prove_action <Module> <action>` (one per file under `<Model>/Proofs/`) | re-creates every VC of one action from the module's persisted registry, discharges it with cvc5, **reconstructs** each `unsat` verdict as a Lean proof term that the kernel re-checks — the solver's word is never taken — persists the theorems, and emits the action's preservation lemma. Cells SMT cannot find carry a hand-written *tactic* in the same file (`#prove_vc … by <tactic>`) — the statement still comes from the registry — and are consumed after a statement check |
 | `#gen_composition <Module>` (in `<Model>/Certify.lean`) | composes the per-action preservation lemmas into `<Module>.invariants_of_reachable` — every reachable state satisfies every invariant — plus one named `reachable_<property>` projection per property; kernel-checked at every step |
 | `#veil_status <Module>` (pinned in `<Model>/Certify.lean`) | the audit command: walks the module's VC registry against the environment and reports, per VC, whether a real, statement-matching, kernel-checked theorem is in scope, and the axiom union over all of them. `#veil_status <Module> table` prints the full per-VC table |
-| `#model_check` (receipt layer; the two refutations) | exhaustively explores a small concrete instance (`n = 4`, `f = 1`) — an independent, solver-free check over the same properties; and, in [FallbackReceipt/PreFix.lean](Cadence/FallbackReceipt/PreFix.lean) and [Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean), the mechanical refutations whose pinned counterexamples a green build requires |
+| `#model_check` (receipt layer; the mutation test) | exhaustively explores a small concrete instance (`n = 4`, `f = 1`) — an independent, solver-free check over the same properties; and, in [Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean), the mechanical refutation whose pinned counterexample a green build requires |
 | `#gen_theorems` (the small models [Cadence/Cadence.lean](Cadence/Cadence.lean), [Cadence/Conductor.lean](Cadence/Conductor.lean)) | after an in-file `#check_invariants` sweep, persists each proven VC as a named theorem in the module's `.olean` |
 | `#guard_msgs in #print axioms <thm>` | the trust-base pin: the build fails unless the theorem depends on *exactly* the expected axioms |
 
@@ -467,7 +464,6 @@ Cadence/
   FallbackReceipt/Proofs/, FallbackReceipt/Certify.lean
                                    the receipt layer's proof-file family (axiom-pinned)
   FallbackReceipt/Totality.lean    build totality for every n = 3f+1 (axiom-pinned)
-  FallbackReceipt/PreFix.lean      the v1 rules, mechanically refuted (pinned counterexample)
   Mvba.lean                        leader-based MVBA MODEL — the internal supplement's
                                     instantiation, referent pinned in the header; no sweep,
                                     VC registry, three sat trace witnesses
@@ -576,7 +572,7 @@ between them.
 | **Chorus** (per-slot consensus) | [docs/ChorusDesign.md](docs/ChorusDesign.md) — the network abstraction and its soundness contract (§3), the state-locality contract with a paper analogue per relation (§3.5), the invariant map (§6), the liveness argument (§7), abstractions to review (§8) | [Cadence/Chorus.lean](Cadence/Chorus.lean) |
 | **MVBA** | the model header of [Cadence/Mvba.lean](Cadence/Mvba.lean) — the specification it is read against, the state, the abstractions, and the safety argument; [docs/MvbaPlan.md](docs/MvbaPlan.md) for the decisions behind it | [Cadence/Mvba.lean](Cadence/Mvba.lean) |
 | **Conductor** and the **glue** | [docs/ConductorDesign.md](docs/ConductorDesign.md) | [Cadence/Conductor.lean](Cadence/Conductor.lean), [Cadence/Cadence.lean](Cadence/Cadence.lean) |
-| **Fallback receipts** | [docs/ChorusDesign.md](docs/ChorusDesign.md) §7.2 (the bug record) | [Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) |
+| **Fallback receipts** | [docs/ChorusDesign.md](docs/ChorusDesign.md) §7.2 (why the receipt rules are shaped as they are) | [Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) |
 
 Every model file carries a header that states its scope, its abstractions and
 its property coverage; those headers are authoritative where they and a
@@ -615,18 +611,22 @@ The models are verified against the Cadence preprint:
 > **Cadence: Extreme Pipelining with Multiple Concurrent Proposers.**
 > arXiv:[2607.02275](https://arxiv.org/abs/2607.02275) \[cs.DC].
 
-This development verifies **v2** (2026-07-07). v1 (2026-07-02) contained a
-liveness bug in the fallback receipt rules, corrected in v2. Both versions are
-modelled: [Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean)
-verifies the v2 design, and
-[Cadence/FallbackReceipt/PreFix.lean](Cadence/FallbackReceipt/PreFix.lean)
-mechanically refutes the v1 rules.
+This development verifies **v2** (2026-07-07).
+
+**The v1 receipt bug.** v1 (2026-07-02) had a liveness bug in its fallback
+receipt rules: a validator could propose an entry that was not valid
+fallback evidence, once and for good. It was reported by a parallel
+verification effort, reproduced here, and fixed in v2, whose rules
+[Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) verifies. The
+model checker's counterexample to the v1 rules is preserved at the tag
+[`v1-receipt-refutation`](https://github.com/larskuhtz/cadence/tree/v1-receipt-refutation)
+(in `Cadence/FallbackReceipt/PreFix.lean`).
 
 ### Paper Revisions
 
 | arXiv | date | paper-repo commit | note |
 |---|---|---|---|
-| v1 | 2026-07-02 | `89322be` | the pre-fix design [PreFix.lean](Cadence/FallbackReceipt/PreFix.lean) refutes |
+| v1 | 2026-07-02 | `89322be` | the receipt rules with the liveness bug — [see above](#the-protocol-paper) |
 | v2 | 2026-07-07 | `3efdbfe` | what this development verifies |
 | — | 2026-09-03 | `026dc8b` | the **internal supplement**'s MVBA instantiation as first modelled |
 | — | 2026-09-28 | `eb1bb51` | the internal supplement at the current pin — the referent of [Cadence/Mvba.lean](Cadence/Mvba.lean) (not yet published) |

@@ -162,14 +162,13 @@ done
 # Composition certificates (#gen_composition + the #veil_status audit pins).
 stage Cadence.Chorus.Certify Cadence.FallbackReceipt.Certify Cadence.Mvba.Certify
 
-# End theorems, the pre-fix refutation, and the monitor.
+# End theorems and the monitor.
 stage Cadence.Chorus.Compose Cadence.Chorus.Pigeonhole \
       Cadence.Chorus.Counting Cadence.Chorus.Progress \
       Cadence.Chorus.Liveness Cadence.Chorus.Termination \
       Cadence.Mvba.BoundedTermination \
       Cadence.Composition \
-      Cadence.FallbackReceipt.Totality \
-      Cadence.FallbackReceipt.PreFix
+      Cadence.FallbackReceipt.Totality
 # The composed system: the glue's end theorem at the Conductor and Chorus
 # instances (imports both composition files).
 stage Cadence.System

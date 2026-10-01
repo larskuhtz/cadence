@@ -515,8 +515,8 @@ For completeness, the things whose correctness the results *do* rest on:
   is taken at face value is the `sat trace` reachability sanity checks, which
   are non-load-bearing: a wrong `sat` there could make a sanity check vacuous,
   never a safety claim wrong.
-* **The concrete model checker**, for the pre-fix refutation and the
-  receipt-layer regression.
+* **The concrete model checker**, for the MVBA's lock-check mutation test
+  and the receipt-layer regression.
 
 The full picture, including everything the Lean development deliberately
 does not establish, is [Architecture.md](Architecture.md) §4 and §6.
