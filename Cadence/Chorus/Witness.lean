@@ -1,4 +1,4 @@
-import Cadence.Chorus.Schedule
+import Cadence.Chorus.Totality
 import Mathlib.Tactic.IntervalCases
 
 /-! # Chorus.Witness — the premises of the Chorus liveness claims are jointly satisfiable
@@ -64,10 +64,13 @@ transition is then linear arithmetic over the index.
 The clock advances only out of four **plateau ends** (indices 11, 37, 39
 and the idle tail). At 37, 39 and in the tail no row of the hop table is
 enabled. At 11, the end of clock 0, only re-dissemination is: the chunk is
-decodable from correct holders, and the model's `redisseminate_chunk` has
-no fallback-path guard. Its row is a `Δ`-row, though, so its window reaches
-clock 1, where every correct validator has abandoned and its gate is
-closed. So every row of `TimedJustice` holds with its antecedent false: the
+decodable, and the model's `redisseminate_chunk` has no fallback-path
+guard. The row is not owed there (F11: a correct validator re-disseminates
+only on the fallback path), but the proof does not use that: the row is a
+`Δ`-row, so its window reaches clock 1, where every correct validator has
+abandoned and its gate is closed, under either owed-condition. Building this
+witness is what found F11 ([Bounds.md](../../docs/Bounds.md) §6.4.5). So
+every row of `TimedJustice` holds with its antecedent false: the
 run never leaves an obligation pending while time passes. The untimed
 fairness holds for the same reason: in the idle tail no fair label is
 enabled at all. -/
@@ -667,8 +670,11 @@ theorem bufferedFair_of_quiet {D δ : ℕ} {C gate : CS → Prop} {l : CL} {h : 
 /-! ## The schedule, and the instance's hypotheses -/
 
 /-- The MVBA's fixed-timeout schedule (`Δ = 1`, `δ = 0`, `ρ = 1`), and the
-deadline `D = 1`. -/
-def schC : Chorus.Schedule ℕ ℕ := ⟨Mvba.Schedule.fixedNat ℕ 1, 1⟩
+deadline `D = 1`. A local step is no slower than a hop: `0 ≤ 1`. -/
+def schC : Chorus.Schedule ℕ ℕ where
+  mvba := Mvba.Schedule.fixedNat ℕ 1
+  D := 1
+  δ_le_Δ := Nat.zero_le _
 
 /-- Re-dissemination's row, with its antecedent false: its bound is `Δ = 1`,
 so its window reaches clock 1, and at 37, on clock 1, its gate is closed
@@ -710,10 +716,12 @@ theorem rotation : Mvba.LeaderRotation natViewOrderEnum schC.mvba.k thM := by
 
 /-! ## (a) The timed premises -/
 
-/-- **(Δδ-justice)**: every row and both families with their antecedents
-false. -/
+/-- **(Δδ-justice)**: every row and the three families (the proposal on its
+two triggers, and the handoff) with their antecedents false. -/
 theorem timedJustice : TimedJustice schC run := by
   refine ⟨fun l h hh _ => ?_, fun _ _ => bufferedFairFamily_of_quiet fun _ ⟨_, hl⟩ =>
+      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => by rw [hl] at h; cases h⟩,
+    fun _ _ => bufferedFairFamily_of_quiet fun _ ⟨_, hl⟩ =>
       ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => by rw [hl] at h; cases h⟩,
     fun _ => bufferedFairFamily_of_quiet fun _ ⟨_, _, hl⟩ =>
       ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => by rw [hl] at h; cases h⟩⟩
@@ -975,15 +983,22 @@ theorem finalizes : (run.at' 32).local_committed 0 = true := by
   show (st 32).local_committed 0 = true
   simp [st]
 
-/-! ## The untimed claim applies
+/-! ## The proven claims apply
 
-Not needed for non-vacuity: it checks that the run is an instance of what
-`Chorus.termination` quantifies over, at its own instance regime, with
-nothing re-bundled. The two timed claims are not proven yet (stages S3–S5). -/
+Not needed for non-vacuity: these check that the run is an instance of what
+`Chorus.termination` and `Chorus.totality` quantify over, at their own
+instance regime, with nothing re-bundled. The timed termination claim is not
+proven yet (stage S4). -/
 
 example : Terminates run.toLRun :=
   termination 4 1 rfl isByz hbyz natViewOrderEnum run.toLRun fJustice mvbaAdmissible validBridge
     allParticipate noAbandonBeforeFinalizing
+
+example (j : Fin 4) (hj : ¬ nsetC.is_byz j = true) :
+    ∃ m, run.clk m ≤ max (run.clk 32) run.gst + schC.dtot schC.Δ ∧
+      (run.at' m).local_committed j = true :=
+  totality schC schC.Δ run timedJustice (syncParticipationWithin _) noAbandonBeforeFinalizing
+    32 0 (by decide) finalizes j hj
 
 end Witness
 
