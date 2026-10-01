@@ -233,14 +233,32 @@ come first.
   Since step 5b its timing premise is the supplement's network at
   `eb1bb51` ([Bounds.md](Bounds.md) §6.2.4, "The network clauses").
 
-  **The Chorus leg: statements done (S2, 2026-09-30).** The timing model and
-  both targets, `Chorus.TimedTerminationClaim` (`ℓ = 5Δ + ℓ_MVBA + 8δ`) and
+  **The Chorus leg: statements done (S2, 2026-09-30), totality and the
+  timeline to the proposals proven (S3, 2026-10-01).** The timing model and
+  both targets, `Chorus.TimedTerminationClaim` (`ℓ = 5Δ + ℓ_MVBA + 9δ`) and
   `Chorus.TotalityClaim` (tolerance-parametric), are `Prop` definitions in
-  [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean). The two
-  premise findings it left, F5 and C15, are closed (R8): both fairness
-  premises are owed only for correct senders, and the MVBA's handoff
-  clause is derived from Chorus's handoff row. Next is S3, totality and the
-  timeline to `M + 3Δ` ([Bounds.md](Bounds.md) §6.4.6).
+  [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean). The
+  premise findings F5 and C15 are closed (R8). `TotalityClaim` is proven
+  (`Chorus.totality`, with the paper's `d_tot = Δ` as
+  `Chorus.totality_paper`), and so is every milestone of
+  `prop:chorus-finalization-time` up to the MVBA proposals, by
+  `M + 3Δ + 3δ` (`Chorus.within_all_input`,
+  [Cadence/Chorus/Timeline.lean](../Cadence/Chorus/Timeline.lean)). S3's
+  findings F9–F11 are fixed in the statements ([Bounds.md](Bounds.md)
+  §6.4.2). Next: R12 (F12, below), then S4, the MVBA tail and the assembly
+  ([Bounds.md](Bounds.md) §6.4.6, the reassessment after S3).
+
+  **Open: F12, the fallback commit vote's DA wait** (found by R10). The
+  paper waits only under FallbackQC entries ("for each FallbackQC in B′ with
+  a positive entry ⟨s, j, root⟩: wait until p_i has received and validated
+  its assigned chunk for root", `line:fb-commit-foreach`,
+  `line:fb-commit-wait`); the model's `cast_fb_commit` waits under every
+  decided positive root
+  (`∀ J M, is_proposer J → mvba_decided_pos J M → msg_chunk_received i J M`),
+  FastQC-backed ones included. The model has fewer runs than the paper, and
+  the timed bound would pay a Δ the paper does not. Open; closed in a
+  dedicated model session (R12: guard change + cold Chorus re-solve), after
+  R10 and R11 merge, and before S4.
 
 ## Model hygiene
 

@@ -1462,7 +1462,7 @@ is enabled and the tail owes nothing.
 ### 6.4 The Chorus leg: the kick-off record
 
 *Written 2026-09-29, after `Chorus.termination` (PR #43) and before any
-Lean. S1, S1b and S2 are done since (§6.4.6, items 1 and 2, have their records); the rest is not. It supersedes §6's staging for Chorus
+Lean. S1, S1b, S2 and S3 are done since (§6.4.6, items 1–3, have their records); the rest is not. It supersedes §6's staging for Chorus
 (steps 1–3), which predates the MVBA leg. §6.2 and §6.3 are the template.
 Decisions are recorded with their reasons. Those marked **open** are for
 Lars to take: item 1 above all, and the two class changes it depends on.*
@@ -1800,12 +1800,13 @@ The table has three consequences:
 
 * **Participation.** Every row whose rule is gated (§6.4.1) adds
   participation to its gate.
-* **`mvba_propose` is conservative.** It is a Δ-row, although its
-  case-(a) trigger (`line:fb-mvba-propose-fast`) reads only local
-  FastQCs. With the split hop that costs nothing: the network part holds
-  from `M + 2Δ + δ`, and the landmark gate opens at `D + 2Δ ≤ M + 3Δ`.
-  So one row suffices, and splitting the action into the paper's two
-  rules is optional.
+* **`mvba_propose` is two rules** (corrected by S3, F9 below). This
+  bullet first said that one Δ-row suffices, because "with the split hop
+  that costs nothing". That holds for the case-(b) trigger, others' fallback
+  votes, but not for case (a) (`line:fb-mvba-propose-fast`), whose trigger
+  is the proposer's own complete fast meta-block: it exists only once the
+  FastQCs have arrived, so a Δ-row on it costs a second Δ. The premise
+  therefore has the paper's two rules, a Δ-family and a δ-family.
 * **The check.** At δ = 0 the table reproduces the paper's timeline term
   for term (§6.4.3), as §6.2.4's did for the MVBA. The MVBA leg's own
   finding C16 (N3, PR #44) questions a δ-row that consumes another
@@ -1829,9 +1830,10 @@ Each row has a bound, a gate, and a condition under which it is owed at all.
 | `fb_sign_pos i j m q qc` | `Δ` | `Active i`, the fallback arm | `q` and `qc` correct, and a correct supermajority has cast its votes |
 | `fb_sign_neg i j qv` | `Δ` | `Active i`, the fallback arm | `qv` correct |
 | `cast_fallback_vote i` | `δ` | `Active i`, the fallback arm | always |
-| `mvba_propose i v _` (one family per `(i, v)`) | `Δ` | `Active i`, the MVBA arm | `FBCert` from a correct supermajority, or `i`'s own complete fast meta-block |
+| `mvba_propose i v _` on `FBCert` (`propose`, one family per `(i, v)`) | `Δ` | `Active i`, the MVBA arm | `FBCert` from a correct supermajority |
+| `mvba_propose i v _` on the fast meta-block (`proposeFast`, one family per `(i, v)`, F9) | `δ` | `Active i`, the MVBA arm | `i`'s own complete fast meta-block |
 | `on_mvba_decide_*`, `mvba_terminate` | `δ` | the MVBA arm | always (the guard reads `i`'s own decision) |
-| `redisseminate_chunk k i j m` | `Δ` | `Active k` | `f+1` correct validators hold their chunk under `(j, m)` |
+| `redisseminate_chunk k i j m` | `Δ` | `Active k` | `k` signed a positive fallback entry for `(j, m)` (F8), or `k` has itself decided and `f+1` correct validators hold their chunk under `(j, m)` (F11) |
 | `cast_fb_commit i` | `δ` | `Active i`, the MVBA arm | `i` has itself decided |
 | `commit_assign_* i j …` | `Δ` | `Active i` | a correct validator finalized with that entry, or the fallback commit certificate from correct voters over the decided entry |
 | `finalize_commit i` | `δ` | `Active i` | always |
@@ -1988,6 +1990,57 @@ late branch: saturation always yields a correct trigger for the MVBA (a
 correct fast voter's meta-block, or a correct `FBCert`), and the MVBA arm
 finalizes.
 
+**Four findings from S3** (2026-10-01, R11, while proving the milestones;
+each is built into the statement in the same PR, and F12 is left open for a
+model session). Three are about premises, one about the model.
+
+* **F9: the case-(a) proposal is a local step.** The table had one Δ-row for
+  `mvba_propose`, owed on `CorrectFBCert ∨ i`'s own complete fast meta-block.
+  In case (a) a correct validator cast its fast commit vote by
+  `M + 2Δ + 2δ`, its FastQCs reach every correct validator through
+  `aggregate_fastqc_*` (F7) by `M + 3Δ + 2δ`, and only then is the row owed,
+  because the trigger is the receiver's local state. A Δ-row from there puts
+  the proposals at `M + 4Δ + 2δ`, one Δ beyond the paper's `M + 3Δ`. The
+  premise now has the paper's two rules (`TimedJustice.propose`,
+  `line:fb-mvba-propose`, a Δ-family owed on a correct `FBCert`; and
+  `TimedJustice.proposeFast`, `line:fb-mvba-propose-fast`, a δ-family owed
+  on the own meta-block), and the proposals are by `M + 3Δ + 3δ`
+  (`Chorus.within_all_input`). This raises `ℓ`'s δ-multiple from 8 to 9.
+* **F10: a Δ-row costs `max(Δ, δ)`.** With its gate already open
+  (`N = N'`), a buffered row's window is `ref N + max(Δ, δ)`; a row without a
+  gate is always in this case. At `δ > Δ` every such hop costs `δ`, and
+  `5Δ + ℓ_MVBA + 8δ` was then not reachable on the paper's route (a run may
+  delay each step to the end of its window). The schedule now has the field
+  `Chorus.Schedule.δ_le_Δ`: a local step is no slower than a network hop,
+  true at the paper's `δ = 0`. It implies the `δ ≤ Δ + ρ` that
+  `relayed_of_timedJustice` takes. `TotalityClaim` never needed it.
+* **F11: re-dissemination was owed on the fast path** (found by R10, during
+  the witness). `Owed (.redisseminate_chunk k …)` was
+  `CorrectChunkQuorum j m ∨ msg_fb_pos_sig k j m`, with gate `Active k`, so
+  every active correct validator owed every validator its chunk within Δ of
+  a chunk quorum. The paper re-disseminates in two places only: inside the
+  fallback-entry rule (`line:fb-redisseminate`, F8's disjunct) and after the
+  validator's own MVBA decision (`line:fb-commit-wait`). R10's run: `Δ = 1`,
+  `δ = 0`, `D = 1`, a fast-path finalization at clock 3, but the row for
+  `k = 1` owed and open from clock 0 and due by 1. Both untimed and timed
+  premises excluded such paper runs. The chunk-quorum disjunct is now owed
+  only once `k` has itself decided. `Chorus.termination` is re-proven
+  against it with no model change: `eventually_fbcommit_sig` used the
+  disjunct only with `k := i`, the voter, which has decided.
+* **F12: the model's fallback commit vote waits under more roots than the
+  paper's** (found by R10). The paper waits only under FallbackQC entries:
+  "**for each** FallbackQC in B′ with a positive entry ⟨s, j, root⟩: **wait
+  until** p_i has received and validated its assigned chunk for root"
+  (`line:fb-commit-foreach`, `line:fb-commit-wait`). The model's
+  `cast_fb_commit` requires
+  `∀ J M, is_proposer J → mvba_decided_pos J M → msg_chunk_received i J M`,
+  under every decided positive root, FastQC-backed ones included. So the
+  model has fewer runs than the paper: the safety claims do not cover a
+  paper run in which the vote is cast without that wait, and the liveness
+  bound must pay for a chunk the paper does not wait for. **Open; closed in
+  a dedicated model session (R12: guard change + cold Chorus re-solve),
+  after R10 and R11 merge.**
+
 **Expected pins, written before the build.** Chorus: one action and one
 state relation, no property: `101 + 46 × (101 + 1) + 47 = 4840` (from
 4737). Mvba: the model file does not change (`decide` becomes an input in
@@ -2133,6 +2186,35 @@ F4 is withdrawn. The δ-multiple `c` is whatever the links count. It is
 fixed by the proof, as `Lcert`'s was, and pinned by an `abel`-closed
 equation.
 
+**The milestones as proven** (S3, 2026-10-01,
+[Chorus/Timeline.lean](../Cadence/Chorus/Timeline.lean)). Up to the MVBA
+proposals, each milestone is a lemma whose statement carries its deadline.
+The premises are (Δδ-justice), (P-phase), C2 (for `D ≤ t + Δ`), and the
+gate on the window (`ActiveUntil`, from C1 on S4's branch,
+`activeUntil_of_not_finalized`). Neither the MVBA's timing nor the bridge
+enters before the proposals, except that the proposed vector must be
+certified and `Valid` (S4 supplies it from the evidence at saturation).
+
+| milestone | lemma | by | `δ`s |
+|---|---|---|---|
+| every correct validator participating | `exists_start` | `t` | 0 |
+| the deadline | `deadline_le_of_start` + (P2) | `D ≤ t + Δ` | 0 |
+| first-round votes, all at one index | `within_voted`, `within_all_voted` | `M + Δ + δ` | 1 |
+| a fallback signature per proposer | `within_fb_sig` | `M + 2Δ + δ` | 1 |
+| the second-round vote, fast or fallback | `within_cast`, `within_all_saturated` | `M + 2Δ + 2δ` | 2 |
+| the MVBA's trigger from correct senders | `correctTrigger_of_saturated` | (the same index) | 2 |
+| a correct fast voter's FastQCs, everywhere (F7) | `within_complete_fast_metablock_by` | `M + 3Δ + 2δ` | 2 |
+| the proposal on a correct `FBCert` | `within_input_of_fbcert` | `M + 3Δ + 2δ` | 2 |
+| the proposal on the own meta-block (F9) | `within_input_of_fast` | `M + 3Δ + 3δ` | 3 |
+| every correct validator's proposal | `within_all_input` | `t_M = M + 3Δ + 3δ` | 3 |
+| a correct proposer's chunk, delivered and recorded | `within_proposal_recorded` | `max(X, GST) + Δ + δ`, if `< D` | 1 |
+
+The last row is not on the termination path: it is the proposal-inclusion
+corollary's first step, with the strict `< D` that §6.4.2's "What
+`s.deadline − Δ ≥ GST` becomes" anticipated. The fallback chunks of the
+paper's `M + 3Δ` milestone are left to S4, where the fallback commit round
+needs them (§6.4.6, the reassessment).
+
 #### 6.4.4 `d_tot`-totality
 
 **The route.** A correct validator finalizes at index `n` with clock `t`.
@@ -2172,6 +2254,17 @@ because an auditor comparing the proofs will notice the difference.
 as a parameter: under `d`-synchronized participation, the latency is
 `max(Δ, d) + 2δ`. The class field is its instance at `d = Δ`. §6.4.6 says
 why the parameter matters.
+
+**Proven** (S3, 2026-10-01, [Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)).
+`Chorus.totality` is `TotalityClaim sch d` at every schedule and tolerance,
+over finitely many validators, by exactly the route above: the assignments
+by `max(c, GST) + max(Δ, d) + δ` (`within_assigned`), the finalization a
+further `δ` (`within_finalized`). The latency is `Ltot` with no slack.
+`Chorus.totality_paper` is the paper's `d_tot = Δ` at `δ = 0` and `d = Δ`.
+The proof uses neither `δ ≤ Δ` nor the phase timers nor the MVBA nor the
+bridge. One fact it needed that the model does not export is
+`committed_participating`: a finalizer participates, since `finalize_commit`
+is gated (the start of the finalizer's synchronized-participation window).
 
 #### 6.4.5 The premises are jointly satisfiable
 
@@ -2488,7 +2581,7 @@ after its step 2.
      the instance `T := Mvba.mvbaTemporal …` (`mvbaTemporal_ℓ`,
      `timedMvbaAdmissible_atMvba_iff`, by `rfl`).
    * **The `δ`-multiple of `ℓ` is fixed now**, at `8`
-     (`Lchorus Δ δ ℓM = 5Δ + ℓM + 8δ`). The docstring derives it milestone
+     (`Lchorus Δ δ ℓM = 5Δ + ℓM + 8δ`; restated as `9` by S3, F9). The docstring derives it milestone
      by milestone. S3–S4 confirm it, or restate it before the instance, as
      `Lcert` was.
    * **`TotalityClaim` takes fewer premises than the class field allows**:
@@ -2537,6 +2630,107 @@ after its step 2.
    because it is small and validates the scaffolding. Then the links up to
    the MVBA proposals. The reassessment asks two things: did the hop table
    survive the guards, and does the split hop keep the paper's arithmetic.
+
+   **Done** (2026-10-01, the "R11" PR). Totality (§6.4.4, "Proven") and the
+   timeline to the proposals (§6.4.3, "The milestones as proven"), plain
+   Lean in two new files, every theorem at the standard trio. Three
+   statement fixes went in with it, under one commit before the proofs that
+   need them: F9 (the proposal's two rules), F10 (`δ_le_Δ`) and F11
+   (re-dissemination owed only where the paper sends), §6.4.2. F11 changed
+   `Chorus.termination`'s premise, and its proof was re-run (one lemma). No
+   model file, no Veil proof file, nothing re-solved, every `#veil_status`
+   pin unchanged. F12 is open for a model session.
+
+   **Reassessment after S3.**
+
+   *(a) Did the hop table survive the guards?* Row by row, for the rows the
+   proofs exercise:
+
+   * `vote` (δ, gate: active, past `D`): yes, exactly. Its fired-once guard
+     `¬ local_voted` lapses only by the vote.
+   * `fb_sign_pos`/`fb_sign_neg` (Δ, gate: the fallback arm): yes, with one
+     fact the untimed chain did not need. Whether the honest quorum's votes
+     are positive evidence must be settled once, at the index where they
+     have all voted; otherwise late evidence would disable `fb_sign_neg` and
+     restart the window. It is: a correct vote is frozen once cast
+     (`vote_pos_sig_frozen`, from three existing invariants). The lapses of
+     `¬ msg_commit_cast`, `local_path ≠ fallback` and R5's fired-once
+     `¬ local_fb_entry` are each the progress wanted.
+   * `cast_fallback_vote` (δ): yes.
+   * `aggregate_fastqc_*` (Δ, no gate): yes, through F7's disjunct only (a
+     correct fast voter's meta-block), the quorum disjunct is not needed.
+     Its fired-once `¬ local_fastqc` lapses by the goal.
+   * `mvba_propose`: **no**, as one Δ-row (F9); as the paper's two rules,
+     yes. Its "no input yet" guard lapses only by an input.
+   * `commit_assign_*` (Δ, gate: active) and `finalize_commit` (δ):
+     yes, in totality, with the owed-conditions verbatim the commitment
+     proofs (`ProofPos`, `ProofNeg`).
+   * `deliver_chunk_assigned` (Δ, gate: the proposer active) and
+     `record_chunk` (δ): yes; R5's fired-once `local_chunk_sent` lapses only
+     with the delivery. `record_chunk`'s phase guard *closes* at `D`, so its
+     milestone needs the strict `< D` (the tie §6.4.2 recorded).
+   * `redisseminate_chunk`: its owed-condition was wrong (F11); not on the
+     path to the proposals.
+   * R8's handoff row `accept_mvba_commitqc` is not on the path to the
+     proposals; its derivation (`relayed_of_timedJustice`) is unchanged and
+     its `δ ≤ Δ + ρ` now follows from `δ_le_Δ`.
+   * Not exercised by S3: `commit_sign_*`/`cast_fast_commit` (the fast
+     commit vote is never awaited, only counted when it happens),
+     `broadcast_commitqc_*` (R8: the late branch takes the MVBA arm), the
+     decision handlers, `mvba_terminate` and `cast_fb_commit` (S4).
+
+   Every R5 fired-once guard met on the way lapsed only by the progress its
+   link wanted, which `TLRun.withinFrom_of_bufferedFair` absorbs by widening
+   the goal; none blocked an owed step. Across all rows, a Δ-row costs
+   `max(Δ, δ)`, which is F10.
+
+   *(b) Does the split hop keep the paper's arithmetic at δ = 0?* Yes, term
+   for term, once F9 is in: first-round votes by `M + Δ`, the second-round
+   vote by `M + 2Δ`, the FastQCs and the proposals by `M + 3Δ` — the
+   paper's three milestones — and totality's `Δ`. The split is what keeps
+   the fallback entry at `M + 2Δ`: its message part (the votes, by
+   `M + Δ`) and its gate (the arm, by `D + Δ ≤ M + 2Δ`) are measured
+   separately, where one hop from the later of the two would cost
+   `M + 3Δ`. At δ > 0 the multiples are those of the table in §6.4.3,
+   `t_M = M + 3Δ + 3δ`, so `ℓ = 5Δ + ℓ_MVBA + 9δ` (restated in
+   `Chorus.Lchorus` from R7's 8; S4 confirms the rest).
+
+   *(c) What S4 needs, and what F4 looks like now.*
+
+   * **The MVBA tail.** `T.termination` on `mvbaTimedRun p` of a projection:
+     proposals by `t_M` (`within_all_input`, carried to the projection by
+     `Projection.timed_forward`); a `Valid` input (`certifiedVector` at the
+     saturation index's evidence, `mvba_evidence_of_saturation`, and
+     `ValidBridge`'s soundness); no abandonment before
+     `max(t_M, GST) + ℓ_MVBA` (`activeUntil_of_not_finalized` on the branch
+     where nobody finalizes before the inner split, then the MVBA's
+     `abandoned` row through `abandoned_of_mvba_abandoned`). The decision
+     comes back by `Projection.timed_back` and `TimedRun.byGstBound_iff`.
+   * **The handoff** is already derived (`relayed_of_timedJustice`); S4
+     consumes it only through `T.Admissible`.
+   * **The fallback commit round**: the decision handlers and
+     `mvba_terminate` (δ each, per proposer collapsed by
+     `withinFrom_forall`), then `cast_fb_commit` (δ, owed on the own
+     decision, F6), the fallback commit certificate (a ghost), the
+     assignments and the finalization (`within_assigned`/`within_finalized`
+     from Totality.lean, as they stand). **F12 bites here.** The DA wait in
+     the model's `cast_fb_commit` covers FastQC-backed roots too, and after
+     F11 the only owed source of a validator's own chunk under such a root
+     is its own re-dissemination after its decision. That costs a Δ the
+     paper does not pay: with the model as it is, the commit vote is due
+     `Δ + δ` after the decision, not `δ`. FallbackQC roots are fine: their
+     chunks come from the correct signer (F8) by `M + 3Δ + 2δ`, which needs
+     one more first-flip fact (a correct validator signs fallback entries
+     only before its second-round vote). **So R12 (F12's model fix) should
+     land before S4**, or S4's bound carries an extra Δ.
+   * **The case split, and F4.** From the milestones: the decision by
+     `t_M + ℓ_MVBA`, the fallback commit vote `3δ` later, the commitment
+     `Δ`, the finalization `δ`, so `T₀ = M + 4Δ + ℓ_MVBA + 7δ` (with F12
+     fixed). F4's single split at `T₀ − Δ` still looks right: a validator
+     that finalizes before `T₀ − Δ` hands everyone totality's `Δ + 2δ`, and
+     on the other branch nobody has abandoned by then, so the chain runs to
+     `T₀`, giving `M + 4Δ + ℓ_MVBA + O(δ)`. Nothing in the milestones uses
+     the outer split. F4 is decided in S4.
 4. **S4: the MVBA tail and the assembly.** `T.termination` through the
    projection, the fallback commit round, and the case split, giving the
    bound. F4 is decided here.
