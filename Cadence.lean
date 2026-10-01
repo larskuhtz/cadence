@@ -9,6 +9,7 @@ import Cadence.Chorus.Counting
 import Cadence.Chorus.Progress
 import Cadence.Chorus.Termination
 import Cadence.Chorus.Timeline
+import Cadence.Chorus.Witness
 
 -- The orchestration / pipelining leg, and the composed system.
 import Cadence.Composition
@@ -161,6 +162,19 @@ Each entry is the result, the file its statement lives in, and what it says.
   delivered and recorded (`Chorus.within_proposal_recorded`). Stage S3 of
   [Bounds.md](docs/Bounds.md) §6.4.6; the MVBA tail and the assembly into
   `TimedTerminationClaim` are S4
+* **`Chorus.termination_premises_satisfiable`,
+  `Chorus.timedTermination_premises_satisfiable`,
+  `Chorus.totality_premises_satisfiable`**
+  ([Chorus/Witness.lean](Cadence/Chorus/Witness.lean)) — **the Chorus
+  liveness claims are not vacuous**: one concrete model (four validators,
+  one Byzantine and silent, one proposer, clock `ℕ`, `Δ = 1`, `δ = 0`) and
+  one run, in which everyone finalizes on the fast path and then abandons,
+  meet every premise of `Chorus.termination` at once, every premise of the
+  timed `TimedTerminationClaim` at the system's MVBA, and every premise of
+  `TotalityClaim` together with its antecedent (`Chorus.totality` proves
+  that claim; the timed termination claim is stated in
+  [Chorus/Schedule.lean](Cadence/Chorus/Schedule.lean) and not yet proven).
+  [Bounds.md](docs/Bounds.md) §6.4.5 is the premise-by-premise ledger
 * **`Conductor.orchestratorSafety`** ([Composition.lean](Cadence/Composition.lean)) — Conductor
   ⊨ `OrchestratorSafety` — the state-level fragment of the paper's
   slot-scheduling module contract (open-prefix agreement, Monotonicity,
@@ -440,6 +454,24 @@ info: 'Chorus.fJustice_iff_move' depends on axioms: [propext, Classical.choice, 
 -/
 #guard_msgs in
 #print axioms Chorus.fJustice_iff_move
+
+/--
+info: 'Chorus.termination_premises_satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.termination_premises_satisfiable
+
+/--
+info: 'Chorus.timedTermination_premises_satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.timedTermination_premises_satisfiable
+
+/--
+info: 'Chorus.totality_premises_satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.totality_premises_satisfiable
 
 /--
 info: 'Conductor.orchestratorSafety' depends on axioms: [propext, Classical.choice, Quot.sound]

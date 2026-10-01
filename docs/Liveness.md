@@ -1223,12 +1223,16 @@ internal steps, and the family's instance discharges it at every use.
 
 **What remains.**
 
-* **Non-vacuity.** The premises have to be shown jointly satisfiable: a
-  premise ledger and one model and run meeting all of them, in the pattern
-  of the MVBA leg's [Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean). The two premises
-  that need thought are the proposal family of `FJustice` and
-  `ValidBridge`, both at `chorusTheory`. [TODO.md](TODO.md) § Liveness
-  records the obligation.
+* ~~**Non-vacuity.** The premises have to be shown jointly satisfiable.~~
+  **Done** (R10, 2026-10-01): `Chorus.termination_premises_satisfiable`
+  ([Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean)), with
+  the timed claims' premises in the same file and the ledger in
+  [Bounds.md](Bounds.md) §6.4.5. One model and one run, in the pattern of
+  the MVBA leg's [Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean):
+  everyone finalizes on the fast path and then abandons, so the MVBA stays
+  quiet and the proposal family holds with its antecedent false.
+  `ValidBridge` at `chorusTheory` holds with `valid := (· = v⋆)`, the one
+  vector a certificate check can pass in the run.
 * **The timed claim.** `SlotConsensusTemporal.termination`, finalization
   within `5Δ + ℓ_MVBA`, still has no instance. The route is the one the MVBA
   leg took ([Bounds.md](Bounds.md) §6): a timing model over timed runs of
