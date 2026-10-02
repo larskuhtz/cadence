@@ -12,7 +12,7 @@ together with the join toward the full `MVBA` class. This is the only file
 of the `Mvba` family that imports `Cadence.Interfaces`, on the pattern of
 [Chorus/Compose.lean](../Chorus/Compose.lean).
 
-**The instance.** `mod:mvba` is one instance per Chorus slot, and the model
+**The instance.** Module 3 (`mod:mvba`) is one instance per Chorus slot, and the model
 is one instance, so the contract is instantiated directly: `init`, `step`,
 `trans`, `reachable` are the model's own relations, the state is the
 model's state, `Valid` is the theory's immutable `valid` (the entry vector
@@ -133,7 +133,7 @@ noncomputable def Certifies
 
 /-- The labels of the module's three inputs: `propose(v)`, `abandon()`,
 and the handoff of a transferred commit certificate, which the model's
-`decide` handles (the supplement's `line:mvba:qc-decide`: the composing
+`decide` handles (Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`): the composing
 layer delivers the certificate, the MVBA accepts it). Every other label is
 an internal step of the protocol; a party decides on a certificate it
 formed itself by the internal `form_own_commitqc`. -/
@@ -400,7 +400,7 @@ noncomputable def mvbaSafety :
 With the inputs, their observables, the frames and one-step Quiescence all
 proven above, what the full `MVBA` adds to the fragment is an instance of
 **`MVBATemporal … (S := mvbaSafety th)`**: the admissible-run model, `ℓ`
-and `ℓ_MVBA`-Termination (the supplement's `thm:termination`, `O(fΔ)`).
+and `ℓ_MVBA`-Termination (Supplement, Theorem 2 (`thm:termination`), `O(fΔ)`).
 That instance is `Mvba.mvbaTemporal` ([Mvba/Temporal.lean](Temporal.lean)),
 and this join makes it the full `MVBA` of the fragment Chorus consumes. -/
 

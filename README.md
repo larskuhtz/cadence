@@ -56,11 +56,11 @@ flowchart BT
 
 | Layer | Paper | Model | Proves | Consumes |
 |---|---|---|---|---|
-| Pipelining glue | `algorithm:cadence` | [Cadence/Cadence.lean](Cadence/Cadence.lean) | MCP Safety (positional) | Orchestrator, SlotConsensus |
-| Slot scheduling | `mod:orchestrator_2` | [Cadence/Conductor.lean](Cadence/Conductor.lean) | `Conductor.orchestratorSafety` | ACS |
-| Per-slot consensus | `mod:slotconsensus` | [Cadence/Chorus.lean](Cadence/Chorus.lean) | `Chorus.slotConsensusSafety` | MVBA |
-| Byzantine agreement | `mod:mvba` | [Cadence/Mvba.lean](Cadence/Mvba.lean) | `Mvba.mvbaSafety` | — |
-| Fallback receipts | `alg:fallback` | [Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) | meta-block validity by construction | — |
+| Pipelining glue | Algorithm 1 (`algorithm:cadence`) | [Cadence/Cadence.lean](Cadence/Cadence.lean) | MCP Safety (positional) | Orchestrator, SlotConsensus |
+| Slot scheduling | Module 2 (`mod:orchestrator_2`) | [Cadence/Conductor.lean](Cadence/Conductor.lean) | `Conductor.orchestratorSafety` | ACS |
+| Per-slot consensus | Module 1 (`mod:slotconsensus`) | [Cadence/Chorus.lean](Cadence/Chorus.lean) | `Chorus.slotConsensusSafety` | MVBA |
+| Byzantine agreement | Module 3 (`mod:mvba`) | [Cadence/Mvba.lean](Cadence/Mvba.lean) | `Mvba.mvbaSafety` | — |
+| Fallback receipts | Algorithm 5 (`alg:fallback`) | [Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) | meta-block validity by construction | — |
 
 The receipt layer implements no contract: it refines one step *inside*
 Chorus's fallback path — assembling a valid meta-block from received receipts
@@ -181,13 +181,13 @@ in [Cadence.lean](Cadence.lean).
 | **Fair-progress liveness content** (no livelock of fair actions — strictly stronger than deadlock-freedom) | [Cadence/Chorus.lean](Cadence/Chorus.lean), liveness section | sweep + the named temporal assumptions ([docs/Liveness.md](docs/Liveness.md)) |
 | **Progress dichotomy** — the liveness case split as one theorem: in any reachable state where every honest validator has cast its path vote, either commitQCs exist for every proposer from honest votes alone, or the MVBA stands invoked with decide-enabling evidence for every proposer, for **every** `n = 3f+1` | [Cadence/Chorus/Progress.lean](Cadence/Chorus/Progress.lean) (`progress_dichotomy_of_saturation`); its counting inputs — the evidence pigeonhole and certificate formation — are separately stated and pinned in [Cadence/Chorus/Pigeonhole.lean](Cadence/Chorus/Pigeonhole.lean) and [Cadence/Chorus/Counting.lean](Cadence/Chorus/Counting.lean) | plain Lean over reachable states |
 | **MVBA termination, bound-erased** — every correct validator eventually decides, from six named premises (weak fairness of the honest actions for correct senders, the timeout discipline, availability, and the caller's three: everyone proposes, nobody is abandoned before deciding, decided certificates are handed on) and three hypothesis classes. The timing premise, (A-viewsync), states the view timer as ordering constraints (timers do fire; the good view's timer waits for a correct validator's decision), so the theorem reads *given enough time, the protocol decides*. It is a theorem of the timing model below (`Mvba.aViewSync_of_sync`); [docs/Liveness.md](docs/Liveness.md) §2.1 explains it in short. This is the untimed shadow of `MVBATemporal.termination`, not that field | [Cadence/Mvba/Liveness.lean](Cadence/Mvba/Liveness.lean) (`Mvba.termination`) | plain Lean over runs of the generated transition system; premises are hypotheses, never axioms ([docs/Liveness.md](docs/Liveness.md) §2.1) |
-| **Chorus termination, bound-erased** — every correct validator finalizes the slot, for **every** `n = 3f+1`, at the configuration the composed system runs, from five named premises: correct validators' actions are scheduled fairly, for the messages of correct senders (`FJustice`); the MVBA's steps are scheduled as the MVBA's own termination theorem requires (`MvbaAdmissible`); the MVBA's validity check agrees with Chorus's certificates (`ValidBridge`, the cryptographic seam between the two models, not a fairness assumption); and the caller's two conditions, that every correct validator eventually participates (`AllParticipate`) and none abandons before finalizing (`NoAbandonBeforeFinalizing`). The MVBA's termination is not assumed: the proof applies `Mvba.termination` to the run's MVBA steps. The untimed form of `lemma:chorus-termination`; the `5Δ + ℓ_MVBA` bound is not proven | [Cadence/Chorus/Termination.lean](Cadence/Chorus/Termination.lean) (`Chorus.termination`), premises in [Cadence/Chorus/Liveness.lean](Cadence/Chorus/Liveness.lean) | plain Lean over runs of the generated transition system; premises are hypotheses, never axioms ([docs/Liveness.md](docs/Liveness.md) §2) |
+| **Chorus termination, bound-erased** — every correct validator finalizes the slot, for **every** `n = 3f+1`, at the configuration the composed system runs, from five named premises: correct validators' actions are scheduled fairly, for the messages of correct senders (`FJustice`); the MVBA's steps are scheduled as the MVBA's own termination theorem requires (`MvbaAdmissible`); the MVBA's validity check agrees with Chorus's certificates (`ValidBridge`, the cryptographic seam between the two models, not a fairness assumption); and the caller's two conditions, that every correct validator eventually participates (`AllParticipate`) and none abandons before finalizing (`NoAbandonBeforeFinalizing`). The MVBA's termination is not assumed: the proof applies `Mvba.termination` to the run's MVBA steps. The untimed form of Lemma 11 (`lemma:chorus-termination`); the `5Δ + ℓ_MVBA` bound is not proven | [Cadence/Chorus/Termination.lean](Cadence/Chorus/Termination.lean) (`Chorus.termination`), premises in [Cadence/Chorus/Liveness.lean](Cadence/Chorus/Liveness.lean) | plain Lean over runs of the generated transition system; premises are hypotheses, never axioms ([docs/Liveness.md](docs/Liveness.md) §2) |
 | **Network-level build totality** — any supermajority of accepted receipts (Byzantine members included) yields a buildable fallback meta-block entry per proposer: the state-level half of "every correct validator can propose", for **every** `n = 3f+1` | [Cadence/Chorus/Counting.lean](Cadence/Chorus/Counting.lean) (`build_totality_of_reachable`) | plain Lean over reachable states |
 | **MCP Safety, positional form** — for the glue over *any* orchestrator and slot consensus satisfying the contracts, and **for the composed system** (the glue running the Conductor's and Chorus's own transition systems, Chorus running the `Mvba` model's as its MVBA; conditional only on the ACS contract `ACSSafety`) | [Cadence/Composition.lean](Cadence/Composition.lean) (`positional_log_safety`), [Cadence/System.lean](Cadence/System.lean) (`system_positional_log_safety`) | sweep (against the contracts as class constraints) + composition |
 | **`Conductor ⊨ OrchestratorSafety`**, **`Chorus ⊨ SlotConsensusSafety`** — the state-level fragments of the paper's module contracts, every field proven (including the two-state fields: monotonicity of the observables, frames, the paper's Monotonicity) | [Cadence/Composition.lean](Cadence/Composition.lean) (`Conductor.orchestratorSafety`), [Cadence/Chorus/Compose.lean](Cadence/Chorus/Compose.lean) (`Chorus.slotConsensusSafety`) | composition, over persisted VC theorems and Veil's transition bodies |
 | **The joins toward the full contracts** — given an `OrchestratorTemporal` instance at the proven fragment (Totality, `B`-Boundedness, `R`-Recovery, the execution model) the Conductor is a full `Orchestrator`; given a `SlotConsensusTemporal` one (the participation interface, Termination, Quiescence, the clock) Chorus is a full `SlotConsensus`. This development supplies neither, and that is precisely the claim about what is unproven. Integrity's timing half and Hiding's protocol half are first-order and *are* proven — they sit in the fragments | `orchestrator_of_temporal`, `slotConsensus_of_temporal` | plain Lean; what is unproven is a hypothesis, never an axiom |
 | **Fallback meta-block "valid by construction"**, including the counting argument, for **every** `n = 3f+1` | [Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) + [Cadence/FallbackReceipt/Totality.lean](Cadence/FallbackReceipt/Totality.lean) | sweep + composition |
-| **MVBA agreement, integrity and external validity** — the three safety properties of `mod:mvba`, for the leader-based instantiation of the paper repository's *internal supplement* (views, timeouts, timeout certificates, the lock; the referent is pinned to a paper-repository commit in the model's header and is not yet part of the published paper) | [Cadence/Mvba.lean](Cadence/Mvba.lean) (`agreement`, `integrity`, `external_validity`) → `Mvba.mvbaSafety` | sweep + composition |
+| **MVBA agreement, integrity and external validity** — the three safety properties of Module 3 (`mod:mvba`), for the leader-based instantiation of the paper repository's *internal supplement* (views, timeouts, timeout certificates, the lock; the referent is pinned to a paper-repository commit in the model's header and is not yet part of the published paper) | [Cadence/Mvba.lean](Cadence/Mvba.lean) (`agreement`, `integrity`, `external_validity`) → `Mvba.mvbaSafety` | sweep + composition |
 | **`Mvba ⊨ MVBASafety`** — the state-level fragment of the paper's MVBA contract, every field proven, including the two inputs, their observables and **Quiescence**; given an `MVBATemporal` instance (the clock, the admissible-run model, `ℓ_MVBA`-Termination — four fields, nothing safety-shaped) the instantiation is a full `MVBA`. Chorus consumes the class as a constraint and [Cadence/System.lean](Cadence/System.lean) fills it with this instance | [Cadence/Mvba/Compose.lean](Cadence/Mvba/Compose.lean) (`Mvba.mvbaSafety`, `mvba_of_temporal`) | composition, over persisted VC theorems and Veil's transition bodies |
 | **`Mvba ⊨ MVBATemporal`, and so a full `MVBA`**, the one the composed system runs: **`ℓ_MVBA`-Termination with an explicit `ℓ`**, the supplement's `O(fΔ)` at `k = f + 1`. Every correct validator decides by `max(t, GST) + ℓ` once all have proposed valid values by `t` and none abandons early, in every admissible run. Admissible means bounded fairness after GST under the supplement's network (a message sent at or after GST by a correct validator and retained is consumed within `Δ`, a retransmitted one within `Δ + ρ`, a local step within `δ`), a punctual view timer, and availability within `Δ_sync`, and such runs exist. The hypotheses are finitely many validators, the honest-quorum and view-order classes, a correct leader in every `k` consecutive views, a capped timeout that eventually exceeds the chain's latency, and a cancellative, Archimedean time monoid. | [Cadence/Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean) (`Mvba.mvbaTemporal`, `Mvba.mvbaFull`), from [Cadence/Mvba/BoundedTermination.lean](Cadence/Mvba/BoundedTermination.lean) (`Mvba.bounded_termination`) | plain Lean over timed runs of the generated transition system; premises are hypotheses, never axioms ([docs/Bounds.md](docs/Bounds.md) §6.2) |
 | **The MVBA's lock check is load-bearing** — with the `Pre-Prepare` handler's lock check removed, two correct validators decide different vectors: the mutation test showing the instantiation's invariants are needed, not merely true | [Cadence/Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean) | exhaustive model check of a restriction of the mutant (every run of which is a run of the mutant); the counterexample trace is pinned in the build |
@@ -634,7 +634,7 @@ All of it is to be made public, and the supplement's MVBA is a standard
 leader-based BFT primitive.
 
 **The Conductor.** The development verifies the main body's
-`algorithm:conductor`. The supplement's practical Conductor is outside the
+Algorithm 7 (`algorithm:conductor`). The supplement's practical Conductor is outside the
 verified surface ([docs/PaperAlignment.md](docs/PaperAlignment.md) §9).
 
 **The receipt layer and v1.** arXiv v1 had a liveness bug in the fallback
@@ -648,20 +648,24 @@ counterexample to the v1 rules is at the tag
 
 ### Resolving a citation
 
-The sources and documentation cite the paper by its LaTeX `\label` names:
-`lemma:chorus-agreement`, `alg:fallback`, `mod:slotconsensus`,
-`line:fb-pathvote-guard`, and for the MVBA `sec:mvba-instantiation`,
-`line:mvba:qc-decide`. Every citation is to the target revision.
+The sources and documentation cite the paper as a reader sees it in the
+target's rendered PDF, with the LaTeX label in parentheses as the
+secondary key: Lemma 9 (`lemma:chorus-agreement`), Algorithm 5, line 7
+(`line:fb-pathvote-guard`), Module 1 (`mod:slotconsensus`). The main body
+and the supplement are separate documents, so a supplement citation says
+so: Supplement, Section 1 (`sec:mvba-instantiation`), Supplement,
+Algorithm 1, line 31 (`line:mvba:qc-decide`). Every citation is to the
+target revision.
 
-These labels are grep targets rather than hyperlinks. The PDF is compiled
-with `hypertexnames=false` and carries no label-named destinations, and
-arXiv's HTML substitutes its own ids. To resolve one, grep the paper
-repository at the target commit, excluding `supplementary-internal-bkp.tex`
-(a stale snapshot that duplicates labels):
-
-```bash
-git -C <paper-repo> grep -n 'label{lemma:chorus-agreement}' 48cac9a -- \
-  main.tex src supplementary-internal.tex
-```
+The authority for every such reference is the label map
+[docs/paper-labels.tsv](docs/paper-labels.tsv): each label of the two
+documents at the target, with its rendered reference and its page,
+generated by machine from a build of the target. To look a label up, grep
+the map. To regenerate it, for instance at a new target, run
+`scripts/paper-labels.sh` (it reads the paper checkout with `git archive`
+and builds both documents with `tectonic`); `scripts/paper-cites.sh` then
+checks every citation in the repository against it. The labels are not
+hyperlinks: the PDF is compiled with `hypertexnames=false` and carries no
+label-named destinations, and arXiv's HTML substitutes its own ids.
 
 The compiled PDFs of arXiv v1 and v2 are checked in under [paper/](paper).

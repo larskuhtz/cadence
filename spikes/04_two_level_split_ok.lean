@@ -19,7 +19,7 @@ class OrchSafety (validator slot state : Type) where
   lt        : slot → slot → Prop
   reachable_init  : reachable init
   reachable_step  : ∀ st st', reachable st → step st st' → reachable st'
-  /-- Monotonicity (`mod:orchestrator_2`). -/
+  /-- Monotonicity (Module 2 (`mod:orchestrator_2`)). -/
   opened_monotone : ∀ st st' i s, step st st' → opened st i s → opened st' i s
   /-- Open-prefix agreement: the safety residue of Totality + Monotonicity. -/
   open_prefix_agreement : ∀ st, reachable st →

@@ -533,7 +533,7 @@ theorem ref_add_le {N : Nat} (hgst : r.gst ≤ r.clk N) {D B : time}
 
 /-- **Link 1, `sync_view` (a forwarded certificate, `Δ`): a correct
 validator enters `W`.** The first correct validator in `W` forwarded the
-certificate below it (`line:mvba:sv-forward`), after GST. Its view guard
+certificate below it (Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)), after GST. Its view guard
 `∀ V, entered i V → V ≤ PV` lapses only by entering a view above `PV`,
 which on the prefix bounded by `W` is `W` itself. -/
 theorem within_entered_of_tc (hbj : BoundedJustice sch r)
@@ -731,7 +731,7 @@ theorem within_commitqc (hbj : BoundedJustice sch r)
 validator decides** within `Δ + ρ` of the reference time `ref N`, once some
 correct validator `j` has decided on the certificate's vector — the
 composing layer hands a decided `CommitQC` on (`Relayed`,
-`lem:decision-propagation`). From any index, before GST included. Needs no
+Supplement, Lemma 13 (`lem:decision-propagation`)). From any index, before GST included. Needs no
 view guard, so no prefix fact: only `¬ abandoned` on the window, and
 `∀ E, ¬ decided` lapses only by the decision. -/
 theorem within_decided_ref (hrel : Relayed sch r)

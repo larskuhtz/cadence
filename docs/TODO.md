@@ -13,7 +13,7 @@ The composition itself is in place and described in
 [CompositionContracts.md](CompositionContracts.md). What remains, in the
 order worth taking:
 
-* **Chorus's participation interface.** `mod:slotconsensus`'s
+* **Chorus's participation interface.** Module 1 (`mod:slotconsensus`)'s
   `participate`/`abandon`/`propose` are absent from the model, so the whole
   of `SlotConsensus`'s upper level except Hiding's protocol half is unproven
   (the fields of `SlotConsensusTemporal`), and the glue's records of those
@@ -241,7 +241,7 @@ come first.
   premise findings F5 and C15 are closed (R8). `TotalityClaim` is proven
   (`Chorus.totality`, with the paper's `d_tot = Δ` as
   `Chorus.totality_paper`), and so is every milestone of
-  `prop:chorus-finalization-time` up to the MVBA proposals, by
+  Proposition 5 (`prop:chorus-finalization-time`) up to the MVBA proposals, by
   `M + 3Δ + 3δ` (`Chorus.within_all_input`,
   [Cadence/Chorus/Timeline.lean](../Cadence/Chorus/Timeline.lean)). S3's
   findings F9–F11 are fixed in the statements ([Bounds.md](Bounds.md)
@@ -250,10 +250,9 @@ come first.
 
   **Open from R12** ([Bounds.md](Bounds.md) §6.4.2, "F12 closed"): F13, a
   root with both a FastQC and a FallbackQC leaves the model's fallback commit
-  vote without the paper's wait, a timed-premise residual that needs the
-  certificate kind in the MVBA's entry vector (composition leg); F14,
-  re-dissemination's "decided" owed-disjunct is used by no proof and owes
-  more than the paper sends (drop it in the next statement session).
+  vote without the paper's wait, a timed-premise residual that R15 closes
+  ([PaperAlignment.md](PaperAlignment.md) §5.5). F14 is closed (R14,
+  "F14 closed").
 
 ## Model hygiene
 
@@ -332,26 +331,20 @@ internal supplement). The models do not correspond to it yet. The review
 and the realignment plan are [PaperAlignment.md](PaperAlignment.md). The
 plan's sessions, in order:
 
-* **R14**: `Primitives.ErasureCoding` over indexed fragments; drop F14's
-  decided disjunct; the documentation items:
-  * cite `sec:domain-separation` where the network relations rely on
-    message-type non-confusability ([ChorusDesign.md](ChorusDesign.md)
-    §3.1's relation inventory, [Architecture.md](Architecture.md) §4
-    item 3);
-  * cite the per-slot dispatch sentence in the
-    [Cadence.lean](../Cadence/Cadence.lean) header;
-  * record ChunkSync and `Δ_sync` beside the (F-justice) justification for
-    `redisseminate_chunk`. The implementation (supplement Part II) drops
-    `line:fb-redisseminate`, while the main body keeps it.
+* **R14** (done, 2026-10-02): `Primitives.ErasureCoding` over indexed
+  fragments; F14 closed; the documentation items; citations to the
+  rendered PDF, with the label map and its check
+  ([PaperAlignment.md](PaperAlignment.md) §8, "R14").
 * **R15**: the MVBA value carries certificate kinds, the contract states
   Agreement and Integrity over `entries`, and Chorus waits under its own
-  `B′` (closes F13). Mvba and Chorus re-solve cold.
+  `B′` (closes F13). Mvba and Chorus re-solve cold. The citations of
+  Interfaces.lean and System.lean move to the rendered form.
 * **R16**: Chorus finalizes on the MVBA's `CommitQC` as well (Part I's
   route). Chorus re-solves cold.
 * **R17**: re-validate, flip the statement to "corresponds", tag
   `paper-target/48cac9a`.
 
-The development verifies the main body's `algorithm:conductor`. The
+The development verifies the main body's Algorithm 7 (`algorithm:conductor`). The
 supplement's practical Conductor is outside the verified surface
 ([PaperAlignment.md](PaperAlignment.md) §9). Once it stabilises:
 
@@ -361,7 +354,7 @@ supplement's practical Conductor is outside the verified surface
   main-body Conductor stays the verified one.
 
 The `EquivCert` build guard is settled for the target: the main body's
-`line:fb-build-equiv` is the protocol, and the supplement's witness-chunk
+Algorithm 5, line 29 (`line:fb-build-equiv`) is the protocol, and the supplement's witness-chunk
 rule is an implementation variant
 ([PaperAlignment.md](PaperAlignment.md) §5.9; the supplement's
 self-contradiction on it is finding P3).

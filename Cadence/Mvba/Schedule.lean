@@ -42,17 +42,17 @@ supplement it is the formal shape of.
   correct validators and retained, or within `Δ + ρ` when they are
   retransmitted; the supplement's termination setting (messages sent at or
   after GST delivered within `Δ`; timeouts, `ViewTC_i` and a decided
-  `CommitQC` re-sent every `ρ`) and `sec:reliable-delivery` (one-view
+  `CommitQC` re-sent every `ρ`) and Supplement, Section 10.3 (`sec:reliable-delivery`) (one-view
   retention), local steps instantaneous (`δ = 0`)
 * **(T-timer)** — `TimerPunctual`: `expire_timer i v` fires no earlier than
   `τ v` after `i` entered `v`, and `timer_expired i v` holds no later; the
   view timer, restarted on entry
 * **(Δ-avail)** — `AvailWithin`: `avail_ready` within `Δ_sync` of accepting;
-  `lem:avail-progress`
+  Supplement, Lemma 5 (`lem:avail-progress`)
 * **(Δ-relay)** — `Relayed`, the caller's: once a correct validator has
   decided, a correct validator takes the transferred certificate within
   `Δ + ρ` (the input `decide`); the composing layer's delivery of a decided
-  `CommitQC`, `lem:decision-propagation`
+  `CommitQC`, Supplement, Lemma 13 (`lem:decision-propagation`)
 
 (A-viewsync), the strongest premise of `Mvba.termination`, is **not
 assumed**. Both of its clauses are a corollary: `AViewSyncClaim` below is
@@ -116,7 +116,7 @@ consequence: at `δ = 0` the good view's latency is the paper's constant.
 
 `decide` is not in the table. It takes a commit certificate that a
 validator did not form itself, which reaches it only by transfer
-(`lem:decision-propagation`): the supplement's `CommitQC` travels by
+(Supplement, Lemma 13 (`lem:decision-propagation`)): the supplement's `CommitQC` travels by
 Chorus's broadcast. Since R8 taking it is the contract's input `accept`
 ([Compose.lean](Compose.lean)), and its timing is the caller's, `Relayed`.
 At the pin `026dc8b` the table classed it as local, which the good view
@@ -227,9 +227,11 @@ structure Schedule (view time : Type) [vord : TotalOrderWithMinimum view]
   Δ : time
   /-- The local-step bound; the paper's is `0`. -/
   δ : time
-  /-- The retransmission interval `ρ` of `sec:reliable-delivery`, the
-  supplement's `O(Δ)`: timeouts, `ViewTC_i` and a decided `CommitQC` are
-  re-sent every `ρ`. -/
+  /-- The retransmission interval of Supplement, Section 10.3 (`sec:reliable-delivery`), which the
+  supplement names `ρ_mvba` (Supplement, Section 1.2 (`subsec:mvba-protocol`)), to keep it apart from
+  its Merkle-root symbol `ρ`, and assumes `O(Δ)`: timeouts, `ViewTC_i` and a
+  decided `CommitQC` are re-sent every `ρ_mvba`. The field keeps the
+  name `ρ`. -/
   ρ : time
   /-- The availability layer's bound (`Δ_sync`). -/
   Δsync : time
@@ -277,7 +279,7 @@ def burn (sch : Schedule view time) : time :=
   fewer than `k` more reach a correct leader;
 * `Lcert` — the good view's chain, to its commit certificate;
 * `Δ + ρ` — the decision, which reaches a validator that did not form the
-  certificate by transfer (`lem:decision-propagation`).
+  certificate by transfer (Supplement, Lemma 13 (`lem:decision-propagation`)).
 
 `O(kΔ)` when every constant is `O(Δ)` and the ramp is empty — the
 supplement's `O(fΔ)` at `k = f + 1`. -/
@@ -304,8 +306,8 @@ abbrev TMvbaRun (th : Theory node nodeset value view) (time : Type) [LinearOrder
 
 /-! ### (Δ-justice): the supplement's network, clause by clause
 
-The termination setting of `eb1bb51` (`subsec:mvba-correctness`, before
-`lem:decision-propagation`) and `sec:reliable-delivery` say what the network
+The termination setting of `eb1bb51` (Supplement, Section 1.3 (`subsec:mvba-correctness`), before
+Supplement, Lemma 13 (`lem:decision-propagation`)) and Supplement, Section 10.3 (`sec:reliable-delivery`) say what the network
 guarantees. Messages between correct validators **sent at or after GST**
 are delivered within `Δ`. **Timeouts, `ViewTC_i` and a decided `CommitQC`
 are retransmitted** every `ρ`. A validator **retains** view-scoped
@@ -352,7 +354,7 @@ def ReachedPrev (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)
 
 /-- **(N2) One-view retention**: wherever `P` holds, `i` has reached
 `w − 1`. A view-`w` message sent then reaches `i` in view `w − 1` or
-later, so `i` retains it (`sec:reliable-delivery`, "Future-view message
+later, so `i` retains it (Supplement, Section 10.3 (`sec:reliable-delivery`), "Future-view message
 retention"). -/
 def RetainedBy (r : TMvbaRun th time) (i : node) (w : view)
     (P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop) : Prop :=
@@ -390,7 +392,7 @@ label's own validator within `Δ`.
   by that validator;
 * a timeout certificate — first obtained at or after GST. Its first
   correct holder processes it on arrival and forwards it
-  (`line:mvba:sv-forward`).
+  (Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)).
 
 A commit certificate's transfer is not here: taking it is the input
 `decide`, the caller's, and its timing is `Relayed`.
@@ -454,12 +456,12 @@ same premise as over state-changing steps (`boundedFair_iff_move`,
   correct validators, and retained, fires within `Δ` (N1, N2);
 * `forwarded` — a timeout certificate forwarded at or after GST, by the
   first correct validator to enter the view it justifies
-  (`line:mvba:sv-forward`), is processed within `Δ`;
+  (Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)), is processed within `Δ`;
 * `timeouts` — a correct quorum's timeouts are re-sent every `ρ` by
   validators still in the view, so a correct validator in the view forms
   the certificate within `Δ + ρ` whenever they were first sent (N1);
 * `certificates` — every active validator re-sends `ViewTC_i` every `ρ`
-  (`line:mvba:viewtc-retx`), so a timeout certificate is processed within
+  (Supplement, Algorithm 1, line 40 (`line:mvba:viewtc-retx`)), so a timeout certificate is processed within
   `Δ + ρ` whenever it was formed (N1).
 
 A decided certificate's transfer is the caller's, and is `Relayed`.
@@ -488,7 +490,7 @@ structure BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Pro
 validator `j` has decided `e`, a correct validator that can take a
 transferred certificate on `e` does so within `Δ + ρ`, measured from
 `max(clk N, gst)`. The supplement's termination setting asks this of the
-composing layer (`lem:decision-propagation`: Chorus broadcasts the
+composing layer (Supplement, Lemma 13 (`lem:decision-propagation`): Chorus broadcasts the
 `CommitQC` a decision outputs, and serves it again every `ρ` to whoever is
 undecided) (N3). Taking a certificate is the input `decide`, so this is a
 premise on the caller, not on the MVBA's scheduling. It is owed only for a
@@ -555,7 +557,7 @@ def Sync (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
 
 /-- **(A-leader-rotation-k)** — among any `k` consecutive views there is
 one with a correct leader. The supplement's "every `f+1` consecutive views
-contain a correct leader" (`subsec:mvba-protocol`), with `k = f+1`. The
+contain a correct leader" (Supplement, Section 1.2 (`subsec:mvba-protocol`)), with `k = f+1`. The
 model's assumption `leader_honest_cofinal` is the `k`-free consequence. A
 hypothesis of the *instance*, since it constrains the theory, not the
 run. -/

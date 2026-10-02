@@ -35,16 +35,15 @@ namespace Mvba.Proofs
 /- **Manual cell — agreement at the certificate level.** The solver finds
 this proof too (25 s cold on 14 cores, at 41 % of the budget); it is
 written out for the same reason as `form_prepqc`'s: it is a real argument,
-and the margin is not one a slower runner keeps. It is the supplement's
-`thm:agreement` for the new certificate `(v, e)` against every commit
+and the margin is not one a slower runner keeps. It is Supplement, Theorem 1 (`thm:agreement`) for the new certificate `(v, e)` against every commit
 certificate `(V0, E0)` already on the wire. Same view: the two `2f+1`
 commit quorums share an honest signer, who accepted both vectors in that
-view (`lem:vote-uniqueness`). Otherwise the higher view's prepare
+view (Supplement, Lemma 1 (`lem:vote-uniqueness`)). Otherwise the higher view's prepare
 certificate — held by the new quorum's honest signers if `v` is the higher
 view, or implied by the old certificate if `V0` is — blocks the lower
 view's commit quorum by `prepqc_blocks_lower_commits`, while an honest
 member of that quorum committed there, which `no_block` refutes from
-`lem:commit-provenance` and `rem:lock-monotonicity`. -/
+Supplement, Lemma 2 (`lem:commit-provenance`) and Supplement, Remark 3 (`rem:lock-monotonicity`). -/
 #prove_vc Mvba form_commitqc commitqc_agree by
   unveil_local
   veil_inv_have h_honest_commit_accepted := honest_commit_accepted

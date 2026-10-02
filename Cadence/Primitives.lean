@@ -8,7 +8,8 @@ primitives the Chorus sub-protocol depends on. They serve two purposes:
 
 1. Documentation: each class states the *signatures* and *properties* of the
    primitive that Chorus relies on, lifted from the Cadence paper
-   (`arXiv:2607.02275v2`): §Cryptographic Primitives `appendix:crypto`.
+   at the target revision ([README.md](../README.md)): Appendix C.1
+   (`appendix:crypto`), "Cryptographic Primitives".
 2. Targets for instantiation: a concrete implementation of Chorus would
    discharge each class by an actual scheme. For verification we only use the
    algebraic properties stated here.
@@ -136,31 +137,43 @@ class ThresholdIBE
 
 /-! ## Erasure coding
 
-`Encode` splits a ciphertext into `n` fragments and `Decode` reconstructs the
-ciphertext from any `f + 1` of them. Used to amortise the cost of
-disseminating the encrypted proposal across all validators.
+`Encode` splits a ciphertext into `n` fragments, and `Decode` reconstructs it
+from a set of *indexed* fragments `(r, d_r)` with at least `f + 1` distinct
+indices, as the paper's cryptographic preliminaries state the interface.
+Used to amortise the cost of disseminating the encrypted proposal across all
+validators.
+
+`n` and `f` are the system's parameters, fixed per instance. An index is a
+`Fin n`, so the paper's position `r ∈ {1, …, n}` is `r - 1` here, the
+convention `MerkleTree` below uses for its leaf index. Distinctness is what
+the decode threshold counts: a set holding the same index twice counts it
+once, so `f + 1` copies of one fragment do not suffice.
 
 The Veil protocol model treats decoded-payload availability abstractly: once
-`≥ f + 1` chunks have been ingested by honest validators, the ciphertext is
-recoverable. The actual codec is not modelled. -/
-class ErasureCoding (cipher : Type) (fragment : Type) where
-  /-- `Encode(c)` produces `n` fragments. -/
-  Encode : cipher → Nat → List fragment
-  /-- `Decode({d_i})` returns the original ciphertext or fails. -/
-  Decode : List fragment → Option cipher
+`≥ f + 1` distinct assignees hold their chunks, the ciphertext is
+recoverable (`chunk_quorum` counts distinct assignees). The actual codec is
+not modelled. -/
+class ErasureCoding (n f : Nat) (cipher : Type) (fragment : Type) where
+  /-- `Encode(c)` produces the `n` fragments `(d_1, …, d_n)`; it is
+      deterministic. -/
+  Encode : cipher → Fin n → fragment
+  /-- `Decode(D)` returns the original ciphertext or fails (`none`, the
+      paper's `⊥`). -/
+  Decode : Finset (Fin n × fragment) → Option cipher
 
-  /-- Decoding is the left inverse of encoding on any sufficiently large
-      subset of the encoded fragments (size `≥ f + 1`). -/
+  /-- Decoding is the left inverse of encoding on any set of the encoded
+      fragments, each at its own index, with at least `f + 1` distinct
+      indices. -/
   decode_sound :
-    ∀ (c : cipher) (n f : Nat),
-      ∀ (S : List fragment), S.length ≥ f + 1 →
-        (∀ x ∈ S, x ∈ Encode c n) → Decode S = some c
+    ∀ (c : cipher) (D : Finset (Fin n × fragment)),
+      (D.image Prod.fst).card ≥ f + 1 →
+      (∀ x ∈ D, Encode c x.1 = x.2) → Decode D = some c
 
   /-- Encoding is injective: two ciphertexts that yield the same
-      collection of fragments must be equal. This is the "Merkle
-      binding" property as enforced at decode time in the DA module. -/
+      fragments must be equal. This is the "Merkle binding" property as
+      enforced at decode time in the DA module. -/
   encode_inj :
-    ∀ (c c' : cipher) (n : Nat), Encode c n = Encode c' n → c = c'
+    ∀ (c c' : cipher), Encode c = Encode c' → c = c'
 
 /-! ## Merkle trees
 
@@ -193,7 +206,7 @@ class MerkleTree (leaf : Type) (root : Type) (proof : Type) where
 
 /-! ## Where the MVBA contract lives
 
-The MVBA is a *module* contract (`mod:mvba`), not a cryptographic primitive,
+The MVBA is a *module* contract (Module 3 (`mod:mvba`)), not a cryptographic primitive,
 so it is stated with the other module contracts in
 [Interfaces.lean](Interfaces.lean) (`MVBASafety` / `MVBA`) rather than
 here. Chorus consumes `MVBASafety` as a class constraint

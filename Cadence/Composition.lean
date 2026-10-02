@@ -97,13 +97,13 @@ theorem triple_of_meets {ρ σ α : Type} [Inhabited α] {m : Veil.Mode}
 
 /-! ## The positional-log lemma (generic half)
 
-The paper's MCP Safety (`def:safety`) speaks about *positions* of ordered
+The paper's MCP Safety (Definition 1 (`def:safety`)) speaks about *positions* of ordered
 logs; the glue module proves the slot-indexed residues. The bridge is a
 protocol-independent fact about sorted association lists: if two strictly
 sorted lists agree on shared keys and are mutually downward-closed (a key
 of one that lies strictly below some key of the other also occurs in the
 other), then they agree *positionally* on their common prefix. This is
-the list-level content of `lemma:cadence-safety`'s case analysis. -/
+the list-level content of Lemma 1 (`lemma:cadence-safety`)'s case analysis. -/
 
 /-- Generic positional prefix agreement for sorted association lists. -/
 theorem sorted_prefix_agreement {α β : Type} {r : α → α → Prop}
@@ -205,7 +205,7 @@ is kernel-checked. Stated for arbitrary instances of the two contracts:
 this is the glue's claim *as a function of its assumptions*. -/
 #gen_composition Cadence
 
-/-! ### MCP Safety in positional form (`def:safety`, `lemma:cadence-safety`)
+/-! ### MCP Safety in positional form (Definition 1 (`def:safety`), Lemma 1 (`lemma:cadence-safety`))
 
 The paper's top-level safety property over ordered local logs, derived
 from the SMT-checked slot-indexed residues: `log_agreement` gives
@@ -517,7 +517,7 @@ noncomputable def orchestratorSafety (th : Conductor.Theory slot window time nod
 /-! ### What the full `Orchestrator` still owes
 
 `OrchestratorSafety` above is proven. What remains between it and the full
-`Orchestrator` (the paper's `mod:orchestrator_2`,
+`Orchestrator` (the paper's Module 2 (`mod:orchestrator_2`),
 [Interfaces.lean](Interfaces.lean)) is an instance of
 **`OrchestratorTemporal … (S := orchestratorSafety th)`** — and there is
 none. That is the whole statement of the gap: not a structure restating the
@@ -526,9 +526,9 @@ of a class whose every field is already stated over `(orchestratorSafety
 th).init`, `.trans`, `.reachable` and `.opened`.
 
 Its fields are the formal counterparts of the paper's Totality
-(`lemma:conductor-totality`), `B`-Boundedness (`lem:boundedness`,
-`B = 2W − p`) and `R`-Recovery (`prop:smooth-windows`,
-`prop:first-post-gst-window-time`, `R = 2Wτ`), together with the admissible
+(Lemma 15 (`lemma:conductor-totality`)), `B`-Boundedness (Lemma 14 (`lem:boundedness`),
+`B = 2W − p`) and `R`-Recovery (Proposition 18 (`prop:smooth-windows`),
+Proposition 19 (`prop:first-post-gst-window-time`), `R = 2Wτ`), together with the admissible
 execution model they are stated for — (A-orch-totality),
 (A-orch-boundedness) and (A-orch-recovery) of
 [Architecture.md](../docs/Architecture.md) §4 item 4, whose

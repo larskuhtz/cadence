@@ -21,14 +21,14 @@ root [README.md](../README.md) for the citation and how to resolve the label
 names used here) is a BFT consensus design with three layers, and the
 formalisation mirrors that decomposition one-to-one:
 
-* **Chorus** (`p2_chorus.tex`, `alg_*.tex`) — the per-slot one-shot
+* **Chorus** (Appendix C (`section:slot_agreement`)) — the per-slot one-shot
   consensus: `k` concurrent proposers, a two-round fast path, and a
   fallback path (fallback voting → MVBA → a final commit round).
   Modelled in [Cadence/Chorus.lean](../Cadence/Chorus.lean).
-* **Conductor** (`p2_conductor_proofs.tex`, the ACS version) — the
+* **Conductor** (Appendix D (`section:conductor-formal`), the ACS version) — the
   window-based orchestrator that schedules slots. Modelled in
   [Cadence/Conductor.lean](../Cadence/Conductor.lean).
-* **Cadence** (`p2_framework.tex`) — the extreme-pipelining glue that
+* **Cadence** (Appendix B (`section:framework`)) — the extreme-pipelining glue that
   runs one slot-consensus instance per slot under the orchestrator and
   assembles the MCP log. Modelled in [Cadence/Cadence.lean](../Cadence/Cadence.lean).
 
@@ -40,12 +40,12 @@ valid proposal (§5).
 
 A further model goes one level *below* the published paper: the **MVBA
 instantiation** ([Cadence/Mvba.lean](../Cadence/Mvba.lean) and companions).
-`mod:mvba` is an interface in the paper; the leader-based protocol that
+Module 3 (`mod:mvba`) is an interface in the paper; the leader-based protocol that
 implements it lives in the paper repository's *internal supplement*, which
 is not yet part of the published paper and has neither tags nor versions,
 so the model pins the paper-repository commit it was read against in its
 header ([MvbaPlan.md](MvbaPlan.md) §0). Its safety properties are the
-three of `mod:mvba`, proven as for Chorus. It supplies the `MVBA` contract's
+three of Module 3 (`mod:mvba`), proven as for Chorus. It supplies the `MVBA` contract's
 instance, which Chorus consumes as a class constraint and
 [Cadence/System.lean](../Cadence/System.lean) fills in (§4 item 3).
 
@@ -82,10 +82,10 @@ flowchart BT
 
 | Paper module | Contract class | Implementation | Instance | Still owed |
 |---|---|---|---|---|
-| `mod:slotconsensus` | `SlotConsensusSafety` / `SlotConsensus` | [Cadence/Chorus.lean](../Cadence/Chorus.lean) | `Chorus.slotConsensusSafety` | `SlotConsensusTemporal` |
-| `mod:orchestrator_2` | `OrchestratorSafety` / `Orchestrator` | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | `Conductor.orchestratorSafety` | `OrchestratorTemporal` |
-| `mod:mvba` | `MVBASafety` / `MVBA` | [Cadence/Mvba.lean](../Cadence/Mvba.lean) | `Mvba.mvbaSafety`, `Mvba.mvbaTemporal`, the full `Mvba.mvbaFull` | nothing |
-| `mod:acs` | `ACSSafety` / `ACS` | — (out of scope) | — | the whole contract |
+| Module 1 (`mod:slotconsensus`) | `SlotConsensusSafety` / `SlotConsensus` | [Cadence/Chorus.lean](../Cadence/Chorus.lean) | `Chorus.slotConsensusSafety` | `SlotConsensusTemporal` |
+| Module 2 (`mod:orchestrator_2`) | `OrchestratorSafety` / `Orchestrator` | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | `Conductor.orchestratorSafety` | `OrchestratorTemporal` |
+| Module 3 (`mod:mvba`) | `MVBASafety` / `MVBA` | [Cadence/Mvba.lean](../Cadence/Mvba.lean) | `Mvba.mvbaSafety`, `Mvba.mvbaTemporal`, the full `Mvba.mvbaFull` | nothing |
+| Module 4 (`mod:acs`) | `ACSSafety` / `ACS` | — (out of scope) | — | the whole contract |
 
 The fallback receipt/propose layer
 ([Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean)) implements
@@ -175,7 +175,7 @@ quantitative obligation over explicit runs
 
 * `Conductor ⊨ OrchestratorSafety` (`Conductor.orchestratorSafety`, every
   field proven — the two-state fields from Veil's transition bodies) and
-  the paper's **positional MCP Safety** (`def:safety` over ordered logs) —
+  the paper's **positional MCP Safety** (Definition 1 (`def:safety`) over ordered logs) —
   [Cadence/Composition.lean](../Cadence/Composition.lean);
 * `Chorus ⊨ SlotConsensusSafety` (`Chorus.slotConsensusSafety`) —
   [Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean), over the composed
@@ -231,23 +231,23 @@ The paper's headline properties and their formal counterparts:
 
 | Paper claim | Formal artefact | Method |
 |---|---|---|
-| Chorus Agreement (`lemma:chorus-agreement`) | `safety [agreement_pos]`, `[agreement_pos_neg]`; instance field `agreement` in [Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean) | sweep + composition |
+| Chorus Agreement (Lemma 9 (`lemma:chorus-agreement`)) | `safety [agreement_pos]`, `[agreement_pos_neg]`; instance field `agreement` in [Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean) | sweep + composition |
 | Chorus integrity | `safety [integrity_pos]`, `[integrity_pos_neg]` | sweep |
-| Proposal inclusion / censorship resistance (`lemma:chorus-proposal-inclusion`) | `safety [proposal_inclusion]`, `[proposal_inclusion_no_neg]` (premise `all_honest_recorded`); instance field `proposal_inclusion` | sweep + composition |
-| Hiding until the deadline (`lemma:chorus-hiding`) | protocol half: `safety [hiding_until_deadline]`; crypto half axiomatised (`ThresholdIBE`, [Cadence/Primitives.lean](../Cadence/Primitives.lean)) | sweep + axiom |
+| Proposal inclusion / censorship resistance (Lemma 10 (`lemma:chorus-proposal-inclusion`)) | `safety [proposal_inclusion]`, `[proposal_inclusion_no_neg]` (premise `all_honest_recorded`); instance field `proposal_inclusion` | sweep + composition |
+| Hiding until the deadline (Lemma 7 (`lemma:chorus-hiding`)) | protocol half: `safety [hiding_until_deadline]`; crypto half axiomatised (`ThresholdIBE`, [Cadence/Primitives.lean](../Cadence/Primitives.lean)) | sweep + axiom |
 | Speculative-finality revertibility claim | `safety [speculative_agreement_pos]`, `[..._pos_neg]` (conditional on `no_equivocation` and `no_invalid_encoding`) | sweep |
-| Chorus termination (`lemma:chorus-termination`), bound-erased: every correct validator finalizes the slot, at every `n = 3f+1` | `Chorus.termination` ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), from the premises `FJustice`, `MvbaAdmissible`, `ValidBridge` of [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) (§4 item 2); consumes `Mvba.termination`; untimed (no `5Δ + ℓ_MVBA` bound) | sweep + Lean over runs |
-| "Fallback meta-block valid by construction" (`alg:fallback` build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
-| Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of `lemma:chorus-termination`'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
-| Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of `lemma:chorus-termination`'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
-| Progress dichotomy (`lemma:chorus-termination`'s case split as one statement: saturated reachable state ⇒ per-proposer commitQCs from honest votes alone, or MVBA invoked with per-proposer decide evidence) | `progress_dichotomy_of_saturation` ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)), all `n = 3f+1` | sweep + Lean |
-| The MVBA's lock check is load-bearing (`lem:lock-persistence`'s premise; the mutation test of [docs/MvbaPlan.md](MvbaPlan.md) §4): without it, two correct validators decide differently | pinned model-checker violation, [Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) | model check |
+| Chorus termination (Lemma 11 (`lemma:chorus-termination`)), bound-erased: every correct validator finalizes the slot, at every `n = 3f+1` | `Chorus.termination` ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), from the premises `FJustice`, `MvbaAdmissible`, `ValidBridge` of [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) (§4 item 2); consumes `Mvba.termination`; untimed (no `5Δ + ℓ_MVBA` bound) | sweep + Lean over runs |
+| "Fallback meta-block valid by construction" (Algorithm 5 (`alg:fallback`) build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
+| Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of Lemma 11 (`lemma:chorus-termination`)'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
+| Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of Lemma 11 (`lemma:chorus-termination`)'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
+| Progress dichotomy (Lemma 11 (`lemma:chorus-termination`)'s case split as one statement: saturated reachable state ⇒ per-proposer commitQCs from honest votes alone, or MVBA invoked with per-proposer decide evidence) | `progress_dichotomy_of_saturation` ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)), all `n = 3f+1` | sweep + Lean |
+| The MVBA's lock check is load-bearing (Supplement, Lemma 8 (`lem:lock-persistence`)'s premise; the mutation test of [docs/MvbaPlan.md](MvbaPlan.md) §4): without it, two correct validators decide differently | pinned model-checker violation, [Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) | model check |
 | Conductor as the paper's orchestrator, state-level: open-prefix agreement, Monotonicity, Integrity (at most once), the observables' monotonicity and frames; boundedness in interval form | Conductor sweep + `Conductor.orchestratorSafety` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | sweep + composition |
-| MCP Safety, positional form (`def:safety`) — for the glue over any contract instances, and for the composed system | `positional_log_safety` ([Cadence/Composition.lean](../Cadence/Composition.lean)); `system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | composition |
+| MCP Safety, positional form (Definition 1 (`def:safety`)) — for the glue over any contract instances, and for the composed system | `positional_log_safety` ([Cadence/Composition.lean](../Cadence/Composition.lean)); `system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | composition |
 | Conductor/Cadence temporal claims (totality, ℓ-liveness, recovery, termination, quiescence) | fields of the `…Temporal` classes in [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), stated over timed runs; the unproven subset per implementation is the field list of `OrchestratorTemporal` / `SlotConsensusTemporal`, of which this development supplies no instance | not proven — §4 item 4 |
-| MVBA agreement, integrity, external validity (`mod:mvba`; the internal supplement's `thm:agreement` at the entries level and `lem:external-validity`, for its leader-based instantiation — [Cadence/Mvba.lean](../Cadence/Mvba.lean)'s header pins the referent) | `safety [agreement]`, `[integrity]`, `[external_validity]` in [Cadence/Mvba.lean](../Cadence/Mvba.lean); instance fields of `Mvba.mvbaSafety` in [Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean) | sweep + composition |
-| MVBA Quiescence (`mod:mvba`), and the module's inputs and their observables | proven in `Mvba.mvbaSafety` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) from the transition bodies | composition |
-| MVBA `ℓ_MVBA`-Termination (`mod:mvba`; the internal supplement's `thm:termination`, `O(fΔ)` at `k = f + 1`) | `Mvba.bounded_termination` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)); the contract field in `Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), under the timing model and hypotheses of §4 item 4 | Lean over timed runs |
+| MVBA agreement, integrity, external validity (Module 3 (`mod:mvba`); the internal Supplement, Theorem 1 (`thm:agreement`) at the entries level and Supplement, Lemma 9 (`lem:external-validity`), for its leader-based instantiation — [Cadence/Mvba.lean](../Cadence/Mvba.lean)'s header pins the referent) | `safety [agreement]`, `[integrity]`, `[external_validity]` in [Cadence/Mvba.lean](../Cadence/Mvba.lean); instance fields of `Mvba.mvbaSafety` in [Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean) | sweep + composition |
+| MVBA Quiescence (Module 3 (`mod:mvba`)), and the module's inputs and their observables | proven in `Mvba.mvbaSafety` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) from the transition bodies | composition |
+| MVBA `ℓ_MVBA`-Termination (Module 3 (`mod:mvba`); the internal Supplement, Theorem 2 (`thm:termination`), `O(fΔ)` at `k = f + 1`) | `Mvba.bounded_termination` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)); the contract field in `Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), under the timing model and hypotheses of §4 item 4 | Lean over timed runs |
 
 ## 4. The meta-assumption inventory
 
@@ -422,7 +422,13 @@ relations, and it takes a human to confirm each use is positive.
    a view no validator can leave, and no assumption about scheduling or the
    network would unstick it. An end-to-end example instantiation
    of the remaining class stack (a `ThresholdIBE` model instance) is open
-   work ([ChorusDesign.md](ChorusDesign.md) §9).
+   work ([ChorusDesign.md](ChorusDesign.md) §9). Signatures are not a
+   class at all: each signed message type is its own network relation, so
+   the models take for granted that a signature of one type cannot be
+   presented as one of another. A deployment obtains that by the
+   supplement's domain-separation rule, a tag unique to each message type
+   at the start of the signed bytes (Supplement, Section 10.5 (`sec:domain-separation`);
+   [ChorusDesign.md](ChorusDesign.md) §3.1).
 4. **Temporal/quantitative module obligations**: totality, termination,
    `d_tot`-totality, Quiescence, boundedness, recovery — *fields* of the
    full contracts `Orchestrator`, `SlotConsensus`,
@@ -500,7 +506,7 @@ Chorus's monotone network abstracts away how a validator *observes*
 certificates ([ChorusDesign.md](ChorusDesign.md) §8, "EquivCert is the pair
 of proposer signatures"), but the MVBA's termination needs every correct
 validator to propose a valid meta-block assembled from what it holds
-locally. The fallback receipt rules (`alg:fallback`) are that per-validator
+locally. The fallback receipt rules (Algorithm 5 (`alg:fallback`)) are that per-validator
 step: a receipt restriction plus an atomic build at propose time.
 [ChorusDesign.md](ChorusDesign.md) §7.2 explains why the rules are shaped
 this way and which half of them is load-bearing. The paper's v1 had a

@@ -83,11 +83,11 @@ the file and the reason [ViewOrder.lean](../ViewOrder.lean) exists.
 The inputs `propose`, `abandon` and `decide` are the *caller's*, not the
 scheduler's (`Label.isInput` in [Compose.lean](Compose.lean)), so no
 fairness is assumed of them. That every correct validator proposes is
-`AllPropose`, a premise of the claim exactly as it is in `thm:termination`
+`AllPropose`, a premise of the claim exactly as it is in Supplement, Theorem 2 (`thm:termination`)
 ("once every correct validator has invoked propose"). That a correct
 validator's decided certificate is handed on is (F-relay): the supplement's
 termination argument relies on the composing layer for it
-(`lem:decision-propagation`).
+(Supplement, Lemma 13 (`lem:decision-propagation`)).
 
 ## What the claim does not mention
 
@@ -152,7 +152,7 @@ def TimerLabel : Mvba.Label node nodeset value view → Prop
 
 /-- The three contract inputs: `propose`, `abandon`, and `decide` — the
 handoff of a transferred commit certificate, which the composing layer
-delivers (the contract's `accept`, the supplement's `line:mvba:qc-decide`).
+delivers (the contract's `accept`, Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)).
 A party decides on a certificate it formed itself by `form_own_commitqc`,
 its own step, which is in `JusticeLabel`.
 
@@ -171,7 +171,7 @@ def InputLabel : Mvba.Label node nodeset value view → Prop
 /-- **(F-avail).** The availability layer's action. Like the timer it is the
 *environment's*, not the scheduler's: `become_avail_ready` stands for another
 sub-protocol delivering `i`'s shares, and the supplement bounds when
-(`lem:avail-progress`, `Δ_sync`).
+(Supplement, Lemma 5 (`lem:avail-progress`), `Δ_sync`).
 
 It has its own class for a reason worth stating, because the alternative
 looks tidier and is wrong. `become_avail_ready` is **unguarded**, so it is
@@ -329,7 +329,7 @@ def FJustice (r : MvbaRun th) : Prop :=
 /-- **(F-relay)** — the caller hands decided certificates on: once a correct
 validator has decided `e`, a correct validator that can take a transferred
 certificate on `e` eventually does. A decision's certificate is transferred
-by the composing layer (the supplement's "Decision output and handoff":
+by the composing layer (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff":
 Chorus broadcasts the `CommitQC` a decision outputs), and taking it is the
 input `decide`. So this is the caller's premise, not the scheduler's, and it
 is owed only for a correct validator's decision: a certificate the adversary
@@ -394,7 +394,7 @@ load-bearing — a flat "the timer never runs out in `W`" would be
 unsatisfiable the moment anything forced timers to expire.
 
 The good view is required to be **above the first**, by naming its
-predecessor `PV`. That is not a convenience: `thm:termination`'s proof makes
+predecessor `PV`. That is not a convenience: Supplement, Theorem 2 (`thm:termination`)'s proof makes
 the same restriction in as many words — "View 1 is exceptional because
 validators enter it when their local `propose` call occurs, and those calls
 need not be Δ-synchronized … We therefore analyze below a later view entered
@@ -415,7 +415,7 @@ def AViewSync (r : MvbaRun th) : Prop :=
 /-- **(F-avail)** — the availability shares arrive. A correct validator that
 accepted a vector eventually has `avail_ready` for it, which is
 `send_commit`'s environment precondition. The supplement's `Δ_sync`
-(`lem:avail-progress`), with the bound erased.
+(Supplement, Lemma 5 (`lem:avail-progress`)), with the bound erased.
 
 It is a premise and not a consequence of (F-justice) because `AvailLabel` is
 its own fairness class — see there for why, since the model makes the
@@ -425,13 +425,13 @@ def FAvail (r : MvbaRun th) : Prop :=
     (r.at' n).accepted i V E = true → ∃ m, (r.at' m).avail_ready i E = true
 
 /-- **The caller's premise**, not a fairness assumption: every correct
-validator invokes `propose`. `thm:termination` says "once every correct
+validator invokes `propose`. Supplement, Theorem 2 (`thm:termination`) says "once every correct
 validator has invoked propose", and this is that. -/
 def AllPropose (r : MvbaRun th) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ (n : Nat) (E : value), (r.at' n).input i E = true
 
 /-- **The caller's second premise**: no correct validator is abandoned before
-it decides. `thm:termination`'s "if no correct validator is externally
+it decides. Supplement, Theorem 2 (`thm:termination`)'s "if no correct validator is externally
 abandoned before deciding"; `abandon` is a contract *input*, so this is a
 condition on the consumer, not on the scheduler. -/
 def NoEarlyAbandon (r : MvbaRun th) : Prop :=
@@ -441,7 +441,7 @@ def NoEarlyAbandon (r : MvbaRun th) : Prop :=
 /-! ## The target -/
 
 /-- **Bound-erased termination**: every correct validator decides. The
-`O(fΔ)`-free skeleton of `thm:termination`, and the untimed sibling of
+`O(fΔ)`-free skeleton of Supplement, Theorem 2 (`thm:termination`), and the untimed sibling of
 `MVBATemporal.termination` ([Interfaces.lean](../Interfaces.lean)), whose
 timed form is proven (`Mvba.mvbaTemporal`, [Temporal.lean](Temporal.lean)). -/
 def Terminates (r : MvbaRun th) : Prop :=
@@ -589,7 +589,7 @@ legitimately sync past a view. -/
 /-- `i` is **active**: the caller has not abandoned it, and it has not
 halted after deciding. Every honest send requires both: the supplement's
 decision paths end in `decide(…); abandon()` (`Decide` in
-`alg:mvba-cont3`, reached from `line:mvba:qc-decide`), and the model keeps that halt apart from the
+Supplement, Algorithm 1 (`alg:mvba-cont3`), reached from Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)), and the model keeps that halt apart from the
 caller's `abandon` ([Mvba.lean](../Mvba.lean), "A decided validator
 halts"). -/
 def Active (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (i : node) : Prop :=
@@ -1127,7 +1127,7 @@ theorem eventually_quorum (enum : Cadence.ByzNodeSetEnum node nodeset nset)
 /-- **A view with an honest leader decides**, given that its correct quorum
 is settled there and the leader has proposed.
 
-This is the whole of `thm:termination`'s "correct-leader view" paragraph,
+This is the whole of Supplement, Theorem 2 (`thm:termination`)'s "correct-leader view" paragraph,
 bound erased: every member of the honest quorum accepts the proposal and
 prepares, each of them forms the prepare certificate from those prepares
 and commits, one of them forms the commit certificate from those commits,

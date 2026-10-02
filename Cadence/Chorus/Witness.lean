@@ -68,7 +68,7 @@ decodable, and the model's `redisseminate_chunk` has no fallback-path
 guard. The row is not owed there (F11: a correct validator re-disseminates
 only on the fallback path), but the proof does not use that: the row is a
 `Δ`-row, so its window reaches clock 1, where every correct validator has
-abandoned and its gate is closed, under either owed-condition. Building this
+abandoned and its gate is closed, whatever the row is owed on. Building this
 witness is what found F11 ([Bounds.md](../../docs/Bounds.md) §6.4.5). So
 every row of `TimedJustice` holds with its antecedent false: the
 run never leaves an obligation pending while time passes. The untimed

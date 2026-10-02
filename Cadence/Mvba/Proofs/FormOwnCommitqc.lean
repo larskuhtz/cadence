@@ -118,7 +118,7 @@ is not guaranteed. -/
     · exact key V' E' (hc2 (fun h1 h2 => h ⟨h1, h2⟩))
   rw [hE, hE']
 
-/- **Manual cell — `thm:agreement` at the decision this step makes.** The
+/- **Manual cell — Supplement, Theorem 1 (`thm:agreement`) at the decision this step makes.** The
 step decides `e`, so agreement needs every earlier decision to be on `e`:
 an earlier decision is certificate-backed (`decided_backed`), and the
 certificate-level argument of the cell above (`key`) puts that certificate

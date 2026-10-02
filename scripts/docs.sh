@@ -233,6 +233,11 @@ while IFS= read -r m; do
   [ -n "$m" ] && link_files+=("${m//.//}.lean")
 done < "$WORK/plan.txt"
 bash scripts/site-links.sh table "$WORK/plan.txt" "${link_files[@]}" > "$WORK/links.tsv"
+# Paper citations get the same treatment as links: a cited label that is not
+# in the label map (docs/paper-labels.tsv), or a rendered reference that is
+# not the map's, stops the build (`CLAUDE.md`, "Documentation rules").
+echo "    checking paper citations"
+bash scripts/paper-cites.sh
 jq -R -s 'split("\n") | map(select(. != "") | split("\t"))
           | reduce .[] as [$f, $h, $t] ({}; .[$f][$h] = $t)' \
   "$WORK/links.tsv" > "$WORK/links.json"

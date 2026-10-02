@@ -8,7 +8,7 @@ header first). This file proves, in plain Lean, the one claim of the
 receipt/propose layer that is *not* SMT-dischargeable — **build
 totality**, the per-validator two-class pigeonhole behind the paper's
 "one of the three cases always applies, by counting"
-(`line:fb-build-entry`) — for the concrete instance family
+(Algorithm 5, line 26 (`line:fb-build-entry`)) — for the concrete instance family
 `byzNodeSetFin n f`: **every** `n = 3f+1`, every Byzantine set of size
 `≤ f`, arbitrary `proposer` and `merkle_root` types.
 

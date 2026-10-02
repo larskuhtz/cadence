@@ -15,42 +15,43 @@ they and this document disagree.*
 
 The rendered paper describes the Conductor twice, **consistently on ACS**:
 
-* `p1_informal.tex` `§section:conductor-overview` (the rendered
-  overview): validators propose first-slot *deadlines* for the next
+* Section 5 (`section:conductor-overview`), the overview: validators propose first-slot *deadlines* for the next
   window, feed them into an off-the-shelf **ACS**, and take the
   **median** of the decided vector as the agreed deadline.
-* `p2_conductor_proofs.tex` `§section:conductor-formal` (active lines
-  ~285–1260; the rest of the file is commented-out older drafts): windows
-  over **ACS** (`mod:acs`) — each validator proposes the next window's
+* Appendix D (`section:conductor-formal`), the formal treatment: windows
+  over **ACS** (Module 4 (`mod:acs`)) — each validator proposes the next window's
   *first slot* (deadlines are fixed, read-only data), ACS decides a set
   of ≥ 2f+1 (validator, slot) pairs, and everyone opens the window
   starting at the **median** of the decided slot numbers. This is the
-  version the proofs cover (`algorithm:conductor`, Lemmas Integrity /
-  Monotonicity / (2W−p)-Boundedness / Totality / (2Wτ)-Recovery).
+  version the proofs cover (Algorithm 7 (`algorithm:conductor`); Integrity,
+  Lemma 12 (`lemma:conductor-integrity`); Monotonicity, Lemma 13
+  (`lemma:conductor-monotonicity`); (2W−p)-Boundedness, Lemma 14
+  (`lem:boundedness`); Totality, Lemma 15 (`lemma:conductor-totality`);
+  (2Wτ)-Recovery, Lemma 16 (`lemma:conductor-recovery`)).
 
 The model follows the **formal** version, since that is the one the paper
 proves. The informal↔formal difference is deliberate and confirmed by the
 paper's authors: the overview agrees on the first slot's *deadline*, the
 formal part on the first *slot* over read-only deadlines — the same idea
-under two equivalent views (moving deadlines ↔ skipping slots,
-`p2_framework.tex` §orchestrator).
+under two equivalent views (moving deadlines ↔ skipping slots, the
+orchestrator of Appendix B.1 (`subsection:building_blocks_framework`)).
 
-One source-tree hazard: the paper repository also carries
-`p2_conductor.tex` (+ `p2_conductor_alg.tex`, `p2_conductor_module.tex`),
-an older **deadline-MVBA** draft with a leftover reviewer comment ("Not
-compatible with API. It assumes MVBA"). These files are **not** input by
-`main.tex` and are not part of the paper. Before citing an anchor, check
-that the file it lives in is actually rendered.
+One source-tree hazard: the paper repository also carries an older
+**deadline-MVBA** draft of the Conductor with a leftover reviewer comment
+("Not compatible with API. It assumes MVBA"). It is not part of the
+rendered paper, so its labels have no rendered number and are absent from
+the label map ([paper-labels.tsv](paper-labels.tsv)); a citation of one
+fails `scripts/paper-cites.sh`.
 
-The composition lives in `p2_framework.tex`: `mod:slotconsensus` (the
-interface Chorus implements), `mod:orchestrator_2` (the interface
+The composition lives in Appendix B (`section:framework`): Module 1 (`mod:slotconsensus`) (the
+interface Chorus implements), Module 2 (`mod:orchestrator_2`) (the interface
 Conductor implements: Totality, Integrity, Monotonicity, B-Boundedness,
-R-Recovery), `algorithm:cadence` (the glue: opened/skipped bookkeeping,
+R-Recovery), Algorithm 1 (`algorithm:cadence`) (the glue: opened/skipped bookkeeping,
 pending set, `ready_to_append` log assembly), and
-`§subsection:correctness_cadence` (MCP Safety / ℓ-Liveness /
+Appendix B.3 (`subsection:correctness_cadence`) (MCP Safety / ℓ-Liveness /
 c-Censorship-Resistance / Hiding / B-Bounded-Concurrency from the two
 module contracts). The MCP problem definition (logs, consistency, the
-four properties) is `p2_problem_definition.tex`.
+four properties) is Appendix A (`section:formal_problem_definition`).
 
 ## 2. Architecture: three modules + a class layer
 
@@ -111,25 +112,25 @@ fields, not substitutes for them.
   inclusion (conditional on the synchrony premise) in the fragment;
   termination, hiding's protocol residue, quiescence and the participation
   interface in the full class. `d_tot`-totality and `ℓ`-termination are
-  *not* part of `mod:slotconsensus` — they are Chorus-specific
-  strengthenings (`prop:chorus-totality`, `lemma:chorus-termination`) that
-  Conductor's proofs consume (`lemma:conductor-totality`, via
+  *not* part of Module 1 (`mod:slotconsensus`) — they are Chorus-specific
+  strengthenings (Proposition 4 (`prop:chorus-totality`), Lemma 11 (`lemma:chorus-termination`)) that
+  Conductor's proofs consume (Lemma 15 (`lemma:conductor-totality`), via
   Φ_oc = ℓ_chorus + d_tot) — and live in `SlotConsensusWithTotality`.
   Instance: `Chorus.slotConsensusSafety` (§5); no instance of
   `SlotConsensusTemporal` at it.
 * `ACS` — agreement, genuine validity, integrity, the `propose` input in
   the fragment; quantitative validity, ℓ-termination, Δ-totality,
-  quiescence in the full class (`mod:acs`). No instance (standard
+  quiescence in the full class (Module 4 (`mod:acs`)). No instance (standard
   primitive); the Conductor consumes the fragment as its `acs` constraint.
 * `Orchestrator` — open-prefix agreement, Monotonicity, Integrity's
   at-most-once half, the `complete` input in the fragment; Integrity's
   totality, B-boundedness and R-recovery in the temporal class
-  (`mod:orchestrator_2`); Integrity's timing half is first-order and sits in
+  (Module 2 (`mod:orchestrator_2`)); Integrity's timing half is first-order and sits in
   the fragment. Instance: `Conductor.orchestratorSafety`; no instance of
   `OrchestratorTemporal` at it.
 * `MVBA` — agreement, integrity, external validity, the two inputs and
   one-step quiescence in the fragment; ℓ_MVBA-termination in the temporal
-  class (`mod:mvba`). Instance: `Mvba.mvbaSafety`
+  class (Module 3 (`mod:mvba`)). Instance: `Mvba.mvbaSafety`
   ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)), consumed by Chorus and plugged in by
   [Cadence/System.lean](../Cadence/System.lean); its `MVBATemporal` instance is `Mvba.mvbaTemporal`
   ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), so the full contract is proven.
@@ -143,7 +144,7 @@ fields, not substitutes for them.
 * **Cross-window slot monotonicity** — the decided first slot of ACS[ω]
   is ≥ last slot of window ω−1 + 1 (paper: `s ≥ s' + W`). Via the ACS
   oracle's agreement + the honest propose-guard (`s* > last[cw]`,
-  `line:sstar-guard`) + median range validity (see below).
+  Algorithm 7, line 40 (`line:sstar-guard`)) + median range validity (see below).
 * **Window-assignment agreement** — any two correct validators that
   place slot s in a window place it in the same window; hence the same
   deadline (the Conductor-module "Safety").
@@ -185,7 +186,7 @@ The split is the same as in Chorus.
    structure*. The window→interval assignment **cannot** be static
    uninterpreted theory (`win_of`, `win_first/win_last` with Horn
    axioms): a window's first slot is decided at runtime by `ACS[ω]`
-   (`line:median-compute`), so the assignment is execution-dependent
+   (Algorithm 7, line 48 (`line:median-compute`)), so the assignment is execution-dependent
    state. The encoding therefore splits — static order structure only
    (`TotalOrderWithMinimum` on `slot` and `window`, no `+W` arithmetic in
    the SMT layer), with the intervals themselves as oracle state in the
@@ -224,7 +225,7 @@ unconstrained. The module therefore needs no quorum machinery of its own;
 
 ## 4. The Cadence glue module and the top-level properties
 
-`algorithm:cadence` is its own small Veil module:
+Algorithm 1 (`algorithm:cadence`) is its own small Veil module:
 
 * State (per validator): `opened`, `skipped`, `pending(s, v)`,
   `appended(s, v)` (the log as a slot-indexed relation — the ordered-list
@@ -353,8 +354,8 @@ weighted instance provides.
   deliberate overview↔formal difference (agree on the first slot's
   *deadline* vs. on the first *slot* over read-only deadlines) is the
   deadline↔slot equivalence of §1. The model follows the formal
-  version. (`p2_conductor.tex`'s deadline-MVBA variant is an unrendered
-  draft — see the §1 source-tree note.)
+  version. (The deadline-MVBA variant is an unrendered draft — see the §1
+  source-tree note.)
 * Validator-set changes, epochs and proposer rotation are outside the
   paper's consensus-layer treatment: `s.proposers` is an immutable
   per-slot relation (generalizing Chorus's single-slot `is_proposer`).

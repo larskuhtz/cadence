@@ -202,7 +202,7 @@ theorem fbcert_of_honest_fallback_votes
   exact ⟨H, hlen, fun r hr => h r (hH r hr)⟩
 
 /-- **`fbCommitQC` formation** (the commit-round epilogue,
-`line:fb-collect-commit` / `line:fb-formcommitqc`): once every honest
+Algorithm 5, line 42 (`line:fb-collect-commit`) / Algorithm 5, line 43 (`line:fb-formcommitqc`)): once every honest
 validator has cast its fallback commit vote, `fbcommitqc` holds — the same
 honest-population quorum. Reachability-free. -/
 theorem fbcommitqc_of_honest_commit_votes

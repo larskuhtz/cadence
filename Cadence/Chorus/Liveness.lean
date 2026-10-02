@@ -71,7 +71,7 @@ caller, and they are exactly the antecedents of the contract's own
   `mvba_propose` and the progress analysis, the second from
   `NoAbandonBeforeFinalizing` on the branch of the proof where no correct
   validator finalizes (the MVBA's `abandon()` is invoked only by Chorus's
-  `abandon`, `line:fb-abandon`), the third from (F-justice) on the handoff
+  `abandon`, Algorithm 5, line 48 (`line:fb-abandon`)), the third from (F-justice) on the handoff
   `accept_mvba_commitqc` (`fRelay_of_fJustice`). The premise is unconditional, as before:
   the proof uses the MVBA only on that branch.
 * **The bridge** — `ValidBridge`: the MVBA's `Valid` agrees with Chorus's
@@ -174,7 +174,7 @@ def OracleLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg 
   | _ => False
 
 /-- **The module's three inputs**: `participate`, `abandon` and the
-proposer's `propose` (`mod:slotconsensus`). The caller invokes them, so they
+proposer's `propose` (Module 1 (`mod:slotconsensus`)). The caller invokes them, so they
 carry no fairness. What the claim needs of the caller is stated as two
 premises instead (`AllParticipate`, `NoAbandonBeforeFinalizing`).
 
@@ -200,7 +200,7 @@ def JusticeLabel (l : Chorus.Label slot node nodeset merkle_root mstate mvalue m
 
 /-- **The labels at which the MVBA's state moves**: the oracle step and the
 three driven inputs, `mvba_propose`, the handoff `accept_mvba_commitqc`,
-and `abandon` (which forwards to the MVBA's `abandon()`, `line:fb-abandon`).
+and `abandon` (which forwards to the MVBA's `abandon()`, Algorithm 5, line 48 (`line:fb-abandon`)).
 This is the component's `isSub` (`mvbaComponent` below), a different cut
 from the fairness classes — `mvba_propose` and `accept_mvba_commitqc` are
 justice labels *and* MVBA steps, and they appear in the projected run as the
@@ -460,7 +460,7 @@ theorem mvba_propose_tr {i v mvba_next}
 
 set_option maxHeartbeats 1000000 in
 /-- `abandon`'s guard is `mvba.abandon`, the MVBA's `abandon` label's
-transition: the forwarding of `line:fb-abandon`. -/
+transition: the forwarding of Algorithm 5, line 48 (`line:fb-abandon`). -/
 theorem abandon_tr {i mvba_next}
     (htr : (atMvba thM).tr thS s (.abandon i mvba_next) s') :
     (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
@@ -907,7 +907,7 @@ end Component
 /-! ## What a step is owed for: correct senders
 
 The paper's network delivers "every message between correct validators"
-(`prop:chorus-finalization-time`'s proof). The model's network relations
+(Proposition 5 (`prop:chorus-finalization-time`)'s proof). The model's network relations
 hold from a message's first delivery to anyone, a Byzantine sender's
 included, so a step that consumes a Byzantine validator's message would be
 owed a delivery the paper does not promise: a Byzantine voter may send its
@@ -955,14 +955,6 @@ def CorrectFbCommitQC
   ∃ q, nset.supermajority q ∧ Mvba.CorrectQuorum (node := node) q ∧
     ∀ r, nset.member r q = true → s.msg_fbcommit_sig r = true
 
-/-- `f+1` correct validators hold their chunk under `(j, m)`: the data is
-decodable from correct holders. -/
-def CorrectChunkQuorum (j : node) (m : merkle_root)
-    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
-    Prop :=
-  ∃ q, nset.greater_than_third q ∧ Mvba.CorrectQuorum (node := node) q ∧
-    ∀ r, nset.member r q = true → s.msg_chunk_received r j m = true
-
 /-- The MVBA proposal is owed when its trigger came from correct senders:
 `FBCert` from a correct supermajority, or the proposer's own complete fast
 meta-block, which is local. The certificates of a particular value need no
@@ -976,7 +968,7 @@ def proposeOwed
 
 /-- The handoff is owed once a correct validator has decided: its decision
 output carries the certificate (`mvba.decided_certified`), and Chorus
-broadcasts it (the supplement's "Decision output and handoff"). -/
+broadcasts it (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"). -/
 def relayOwed
     (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
     Prop :=
@@ -987,25 +979,29 @@ environment owes the step at all.
 
 * `aggregate_fastqc_*`: the vote quorum is correct, or a correct validator
   that cast its fast commit vote holds the FastQC — the same rule broadcasts
-  its `FastBlock` (`line:fast-metablock`), whose FastQCs a receiver adopts;
+  its `FastBlock` (Algorithm 4, line 20 (`line:fast-metablock`)), whose FastQCs a receiver adopts;
 * the other rows over a quorum parameter: the quorum is correct;
 * `fb_sign_pos`: also the `2f+1` votes its guard counts, from correct voters;
 * the proposal: its trigger from correct senders (`proposeOwed`);
 * the handoff: a correct validator has decided (`relayOwed`);
-* `redisseminate_chunk k …`: only where the paper re-disseminates (F11):
-  either the sender `k` signed a positive fallback entry for the root, which
-  it could only do after decoding (`line:fb-redisseminate`), or `k` has
-  itself decided in the MVBA — its fallback commit round has started
-  (`line:fb-commit-wait`) — and the data is decodable from correct holders.
-  A correct validator on the fast path re-disseminates nothing;
+* `redisseminate_chunk k …`: only where the paper sends other validators
+  their chunks (F11, F14): the sender `k` signed a positive fallback entry
+  for the root, which it could only do after decoding, and the same rule
+  re-encodes and sends each validator its chunk (Algorithm 5, line 12 (`line:fb-redisseminate`)).
+  A decided validator broadcasts only its own chunk (Algorithm 5, line 39 (`line:fb-commit-wait`)),
+  and a correct validator on the fast path re-disseminates nothing. Both
+  rules are the main body's; the supplement's implementation drops the
+  re-encode-and-send for ChunkSync, which pulls the missing chunks within
+  `Δ_sync` (Supplement, Section 1.2 (`subsec:mvba-protocol`), Supplement, Section 7.4 (`sec:fallback-transition`)), and the
+  model follows the main body;
 * `commit_assign_*`: a commitment proof a correct validator sent — a correct
   validator's finalization re-broadcasts its proof
-  (`line:fast-rebroadcast-commitqc`, `line:fb-commit-rebroadcast`), and the
+  (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)), and the
   fallback commit certificate from correct commit voters, over the decided
   entry;
 * `cast_fb_commit`: the voter has itself decided. The model's guard reads
   the shared `mvba_complete`, which the first validator to decide sets; the
-  paper's rule fires on the voter's own decision (`line:fb-commitvote`);
+  paper's rule fires on the voter's own decision (Algorithm 5, line 41 (`line:fb-commitvote`));
 * everything else: nothing (`True`). The chunk's delivery has a correct
   proposer by its guard, and the decision handlers and `mvba_terminate` fire
   on the validator's own decision by theirs. -/
@@ -1024,8 +1020,7 @@ def Owed (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Ph
   | .fb_sign_neg _ _ qv => fun _ => Mvba.CorrectQuorum (node := node) qv
   | .mvba_propose i .. => proposeOwed th i
   | .accept_mvba_commitqc .. => relayOwed
-  | .redisseminate_chunk k _ j m => fun s =>
-      (CorrectChunkQuorum j m s ∧ ∃ v, mvba.decided s.mvba_st k v) ∨ s.msg_fb_pos_sig k j m = true
+  | .redisseminate_chunk k _ j m => fun s => s.msg_fb_pos_sig k j m = true
   | .commit_assign_pos _ j m => fun s =>
       (∃ k, ¬ nset.is_byz k = true ∧ s.local_committed k = true ∧
         s.local_committed_pos k j m = true) ∨
@@ -1189,7 +1184,7 @@ def ValidBridge (r : ChorusRun thS thM) : Prop :=
 
 /-- **The caller's first premise: every correct validator participates.**
 Each correct validator eventually invokes `participate()`. Within Cadence
-the glue does so when it opens the slot (`line:participate`). This is the
+the glue does so when it opens the slot (Algorithm 1, line 17 (`line:participate`)). This is the
 first antecedent of `SlotConsensusTemporal.termination`. -/
 def AllParticipate (r : ChorusRun thS thM) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).participating i = true
@@ -1197,7 +1192,7 @@ def AllParticipate (r : ChorusRun thS thM) : Prop :=
 /-- **The caller's second premise: no correct validator abandons before
 finalizing.** Whenever a correct validator has invoked `abandon()`, it has
 already finalized. Within Cadence the glue abandons a slot only once it has
-finalized it (`line:abandon`). This is the second antecedent of
+finalized it (Algorithm 1, line 23 (`line:abandon`)). This is the second antecedent of
 `SlotConsensusTemporal.termination`, and the C1 antecedent of the timed
 fields. Without it the claim is false: a validator that abandons at once
 never finalizes, since finalizing is itself a gated rule. -/
@@ -1209,7 +1204,7 @@ def NoAbandonBeforeFinalizing (r : ChorusRun thS thM) : Prop :=
 
 /-- **Termination**: every correct validator finalizes the slot —
 `finalize_commit` fires for it, which is `local_committed`. The single-slot
-form of `lemma:chorus-termination`, with the `5Δ + ℓ_MVBA` bound erased, and
+form of Lemma 11 (`lemma:chorus-termination`), with the `5Δ + ℓ_MVBA` bound erased, and
 the untimed sibling of `SlotConsensusTemporal.termination`, whose timed form
 this development still has no instance of. -/
 def Terminates (r : ChorusRun thS thM) : Prop :=

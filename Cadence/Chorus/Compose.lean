@@ -10,7 +10,7 @@ transition system, packaged as the state-level slot-consensus contract that
 the `Cadence` glue module consumes as its `sc` constraint
 ([Interfaces.lean](../Interfaces.lean)).
 
-**The family.** `mod:slotconsensus` is one instance per slot, and the
+**The family.** Module 1 (`mod:slotconsensus`) is one instance per slot, and the
 contract is stated as the family over slots. Chorus is a single-slot model,
 so the instance runs one independent copy of it per slot: every slot's
 `init`, `step`, `reachable` are Chorus's own, and a validator's finalized
@@ -54,7 +54,7 @@ all consumed through the named reachability projections of
 [Chorus/Certify.lean](Certify.lean) (emitted by `#gen_composition` from
 the proof-file family's preservation lemmas).
 
-**Internal steps and inputs.** Chorus models `mod:slotconsensus`'s three
+**Internal steps and inputs.** Chorus models Module 1 (`mod:slotconsensus`)'s three
 inputs as actions (`participate`, `abandon`, and the proposer's `propose`),
 so the instance separates them: `trans` is every transition, and `step`,
 the contract's internal steps, is every transition whose label is not an
@@ -101,7 +101,7 @@ section Inputs
 variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
 
 /-- The labels of the module's three inputs, `participate()`, `abandon()`
-and `propose(P)` (`mod:slotconsensus`); every other label is an internal
+and `propose(P)` (Module 1 (`mod:slotconsensus`)); every other label is an internal
 step of the protocol. The contract's `step` is the internal steps, so that
 its frames ("internal steps do not change a correct validator's inputs")
 are about exactly them. -/

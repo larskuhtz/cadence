@@ -14,11 +14,11 @@ reachability certificate by
 Mechanisation of the layer whose rules
 [ChorusDesign.md](../docs/ChorusDesign.md) §7.2 explains: the per-validator receipt of `FallbackVote`s and the once-only
 MVBA propose with the atomic per-proposer build, exactly as the paper's
-**v2** states it (`alg:fallback`) — the receipt restriction at
-`line:fb-accept` (a vote is accepted only if every entry is a valid
+**v2** states it (Algorithm 5 (`alg:fallback`)) — the receipt restriction at
+Algorithm 5, line 18 (`line:fb-accept`) (a vote is accepted only if every entry is a valid
 FastQC or the sender's *own* valid fallback signed entry), FastQC
-harvesting at `line:fb-harvest`, and the atomic build at
-`line:fb-build-entry`–`line:fb-formqc`.
+harvesting at Algorithm 5, line 20 (`line:fb-harvest`), and the atomic build at
+Algorithm 5, lines 26–30 (`line:fb-build-entry`–`line:fb-formqc`).
 
 This module is deliberately *per-validator*: it models one (correct)
 receiving validator `i` — its `M_i`, its `Ev` harvest, its build. The
@@ -35,7 +35,7 @@ vote content.
 * **Build totality (the per-validator pigeonhole, proven for all `n` in
   [FallbackReceipt/Totality.lean](FallbackReceipt/Totality.lean))** —
   once `|M_i| ≥ 2f+1`, one of the three build cases applies for *every*
-  proposer (`line:fb-build-entry`, "one of the three cases always
+  proposer (Algorithm 5, line 26 (`line:fb-build-entry`), "one of the three cases always
   applies, by counting"): if no FastQC was harvested and no two positive
   entries conflict, the `2f+1` entries for the proposer span at most two
   values (one root and ⊥), so one value has `f+1` matching copies.
@@ -120,7 +120,7 @@ arbitrary interleavings of the delivery/acceptance actions.
 * Entries are frozen per sender at acceptance (`first` message only,
   the receive handler's guard).
 * Carried FallbackQCs are not modelled: on the shipped wire a fallback
-  vote carries only FastQCs or own entries (`line:fb-accept`), so the
+  vote carries only FastQCs or own entries (Algorithm 5, line 18 (`line:fb-accept`)), so the
   kind does not exist. -/
 
 veil module FallbackReceipt
@@ -155,21 +155,21 @@ relation carried_pos (r : node) (p : proposer) (m : merkle_root)
 /-- `r`'s vote carries `r`'s own negative signed entry `⟨s, p, ⊥⟩`. -/
 relation carried_neg (r : node) (p : proposer)
 
-/-- `r`'s vote passed the `line:fb-accept` receipt restriction: membership
+/-- `r`'s vote passed the Algorithm 5, line 18 (`line:fb-accept`) receipt restriction: membership
 of `M_i`. -/
 relation accepted (r : node)
 
 /-! ## Build state — the assembled meta-block entries -/
 
-/-- The entry for `p` is a harvested FastQC for `m` (`line:fb-build-fast`). -/
+/-- The entry for `p` is a harvested FastQC for `m` (Algorithm 5, line 27 (`line:fb-build-fast`)). -/
 relation built_fastqc (p : proposer) (m : merkle_root)
-/-- The entry for `p` is an EquivCert (`line:fb-build-equiv`). -/
+/-- The entry for `p` is an EquivCert (Algorithm 5, line 29 (`line:fb-build-equiv`)). -/
 relation built_equiv (p : proposer)
-/-- The entry for `p` is a positive FallbackQC for `m` (`line:fb-formqc`). -/
+/-- The entry for `p` is a positive FallbackQC for `m` (Algorithm 5, line 30 (`line:fb-formqc`)). -/
 relation built_fbqc_pos (p : proposer) (m : merkle_root)
-/-- The entry for `p` is a negative FallbackQC (`line:fb-formqc`). -/
+/-- The entry for `p` is a negative FallbackQC (Algorithm 5, line 30 (`line:fb-formqc`)). -/
 relation built_fbqc_neg (p : proposer)
-/-- `MVBA[s].propose(B)` has fired (`line:fb-mvba-propose`); once-only
+/-- `MVBA[s].propose(B)` has fired (Algorithm 5, line 36 (`line:fb-mvba-propose`)); once-only
 (`mvbaInvoked`). -/
 individual proposed : Bool
 
@@ -177,17 +177,17 @@ individual proposed : Bool
 
 /-! ## Derived state (ghosts) -/
 
-/-- `Ev(p)` holds a harvested FastQC (`line:fb-harvest`; harvesting is
+/-- `Ev(p)` holds a harvested FastQC (Algorithm 5, line 20 (`line:fb-harvest`); harvesting is
 atomic with receipt, so it is derived state). -/
 ghost relation ev_fastqc (p : proposer) (m : merkle_root) :=
   ∃ r, accepted r ∧ carried_fastqc r p m
 
-/-- `|M_i| ≥ 2f+1` — the propose trigger (`line:fb-build-entry` guard). -/
+/-- `|M_i| ≥ 2f+1` — the propose trigger (Algorithm 5, line 26 (`line:fb-build-entry`) guard). -/
 ghost relation received_supermajority :=
   ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → accepted r
 
 /-- Two conflicting positive signed entries in `M_i`: the EquivCert build
-case (`line:fb-build-equiv`). The two entries carry verifying `σ_p`s
+case (Algorithm 5, line 29 (`line:fb-build-equiv`)). The two entries carry verifying `σ_p`s
 on distinct roots — the certificate's content. (Distinct senders are
 implied: one sender has at most one entry per proposer.) -/
 ghost relation equiv_available (p : proposer) :=
@@ -196,7 +196,7 @@ ghost relation equiv_available (p : proposer) :=
     accepted r2 ∧ carried_pos r2 p m2
 
 /-- `f+1` matching positive signed entries in `M_i`: a positive FallbackQC
-is formable (`line:fb-formqc`). -/
+is formable (Algorithm 5, line 30 (`line:fb-formqc`)). -/
 ghost relation fbqc_pos_available (p : proposer) (m : merkle_root) :=
   ∃ q, nset.greater_than_third q ∧
     ∀ r, nset.member r q → accepted r ∧ carried_pos r p m
@@ -259,7 +259,7 @@ action deliver_entry_neg (r : node) (p : proposer) {
   carried_neg r p := true
 }
 
-/-- Receipt (`line:fb-accept`, the v2 restriction): the first
+/-- Receipt (Algorithm 5, line 18 (`line:fb-accept`), the v2 restriction): the first
 `FallbackVote` from `r` joins `M_i` iff it carries, for every proposer,
 a valid FastQC or `r`'s own valid signed entry. (Votes carrying anything
 else — e.g. an EquivCert — are rejected; in this
@@ -272,37 +272,37 @@ action accept_vote (r : node) {
   accepted r := true
 }
 
-/-! ## The atomic build (`line:fb-build-entry`–`line:fb-formqc`)
+/-! ## The atomic build (Algorithm 5, lines 26–30 (`line:fb-build-entry`–`line:fb-formqc`))
 
 Fires at the propose trigger (`|M_i| ≥ 2f+1`, once-only), one case per
 proposer with the paper's `if / else if / else` precedence as explicit
 guards. -/
 
-/-- First case: a FastQC for `p` was harvested (`line:fb-build-fast`). -/
+/-- First case: a FastQC for `p` was harvested (Algorithm 5, line 27 (`line:fb-build-fast`)). -/
 action build_entry_fastqc (p : proposer) (m : merkle_root) {
   require ¬ proposed
   require received_supermajority
   require ¬ entry_built p
-  -- `line:fb-build-fast`
+  -- Algorithm 5, line 27 (`line:fb-build-fast`)
   require ev_fastqc p m
   built_fastqc p m := true
 }
 
 /-- Second case: no FastQC, and two conflicting positive entries give an
-EquivCert (`line:fb-build-equiv`). -/
+EquivCert (Algorithm 5, line 29 (`line:fb-build-equiv`)). -/
 action build_entry_equiv (p : proposer) {
   require ¬ proposed
   require received_supermajority
   require ¬ entry_built p
   -- else: no FastQC harvested …
   require ∀ M, ¬ ev_fastqc p M
-  -- `line:fb-build-equiv`
+  -- Algorithm 5, line 29 (`line:fb-build-equiv`)
   require equiv_available p
   built_equiv p := true
 }
 
 /-- Third case, positive: neither earlier case applies, and `f+1` matching
-positive signed entries form a FallbackQC (`line:fb-formqc`). -/
+positive signed entries form a FallbackQC (Algorithm 5, line 30 (`line:fb-formqc`)). -/
 action build_entry_fbqc_pos (p : proposer) (m : merkle_root) (q : nodeset) {
   require ¬ proposed
   require received_supermajority
@@ -310,7 +310,7 @@ action build_entry_fbqc_pos (p : proposer) (m : merkle_root) (q : nodeset) {
   -- else: neither of the first two cases …
   require ∀ M, ¬ ev_fastqc p M
   require ¬ equiv_available p
-  -- `line:fb-formqc`: f+1 matching positive signed entries.
+  -- Algorithm 5, line 30 (`line:fb-formqc`): f+1 matching positive signed entries.
   require nset.greater_than_third q
   require ∀ r, nset.member r q → accepted r ∧ carried_pos r p m
   built_fbqc_pos p m := true
@@ -329,7 +329,7 @@ action build_entry_fbqc_neg (p : proposer) (q : nodeset) {
   built_fbqc_neg p := true
 }
 
-/-- `MVBA[s].propose(B)` (`line:fb-mvba-propose`): once-only, at the
+/-- `MVBA[s].propose(B)` (Algorithm 5, line 36 (`line:fb-mvba-propose`)): once-only, at the
 trigger, with the meta-block complete. -/
 action propose (q : nodeset) {
   require ¬ proposed

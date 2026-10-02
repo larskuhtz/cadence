@@ -289,7 +289,7 @@ theorem timed_termination [IsOrderedCancelAddMonoid time] [Fintype node]
   unfold TimedRun.byTime
   exact ⟨n, by rw [hclk n]; exact hc, E, by rw [hat n]; exact hd⟩
 
-/-- **`Mvba ⊨ MVBATemporal`.** The temporal level of `mod:mvba` at the
+/-- **`Mvba ⊨ MVBATemporal`.** The temporal level of Module 3 (`mod:mvba`) at the
 fragment Chorus consumes, `mvbaSafety th`, proven from the instance
 hypotheses of §6.2.5: finitely many validators, `ByzNodeSetHonestQuorum`,
 `ViewOrderEnum`, (A-leader-rotation-k), and a cancellative, Archimedean
@@ -342,7 +342,7 @@ end Instance
 
 The paper's fixed known timeout at `time := ℕ`, the obvious model of the
 clock: `Δ = 1`, instantaneous local steps and availability, a
-retransmission interval `ρ = 1` (the supplement's `ρ = O(Δ)`), and a
+retransmission interval `ρ = 1` (the supplement's `ρ_mvba = O(Δ)`), and a
 timeout of `5 > Lcert 1 0 0 = 4` in every view, so the ramp is empty. The
 timeout is the supplement's `T := Δ_R + 4Δ + max{Δ, Δ_sync}` at `Δ_R = 0`. `ℕ` is a
 cancellative, Archimedean linearly ordered monoid, so `mvbaTemporal`'s

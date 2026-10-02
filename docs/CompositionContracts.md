@@ -19,8 +19,8 @@ owes of its module contract, and the seams the composition does not close.
 
 ## 1. The problem
 
-The paper decomposes Cadence into modules — `mod:slotconsensus`,
-`mod:orchestrator_2`, `mod:acs`, `mod:mvba` — and proves the top-level MCP
+The paper decomposes Cadence into modules — Module 1 (`mod:slotconsensus`),
+Module 2 (`mod:orchestrator_2`), Module 4 (`mod:acs`), Module 3 (`mod:mvba`) — and proves the top-level MCP
 properties from their specifications. A mechanised composition has to
 reproduce that structure without introducing a gap of its own. Two gaps are
 easy to introduce and both are avoided here:
@@ -112,7 +112,7 @@ non-vacuity question, not a proof failure ("Vacuity does not compose",
 * *Time.* Timed properties take a `time` type with Veil's `TotalOrder` and an
   `Add`; the paper's `max(t, GST) + d` is `TimedRun.byGstBound` ("by `u + d`
   for the least `u` above both"), so no decidability of the order is needed.
-* *Hiding.* `def:hiding` is simulation-based and not expressible here. The
+* *Hiding.* Definition 4 (`def:hiding`) is simulation-based and not expressible here. The
   contract carries its protocol-level residue (`hiding_residue`: payloads
   become recoverable only after the deadline) and names the two steps that
   stay meta — `ThresholdIBE.decrypt_secret` and the paper's simulation.
@@ -197,8 +197,8 @@ The records' agreement is *proven* from the class's `agreement`, through two
 tie invariants stating that every record is the projection of some correct
 validator's decision.
 
-**The decision handoff** is the supplement's strengthened `mod:mvba`
-interface ("Decision output and handoff"), added to `MVBASafety` in R8 and
+**The decision handoff** is the supplement's strengthened Module 3 (`mod:mvba`)
+interface (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"), added to `MVBASafety` in R8 and
 nothing else: `certifies st c v` (a valid commitment proof), the field
 `decided_certified` (**decide exposes its certificate**), the input `accept`
 with `accept_trans`, and `accept_effect`/`accept_enabled` (**a transferred
@@ -251,7 +251,7 @@ meta-block is certified (what enables the handlers) —
   `¬ local_committed i`.
 * **`Mvba.mvbaSafety th : MVBASafety node value (Mvba.State …) (fun i =>
   nset.is_byz i = true)`** ([Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)). The model is one instance of
-  `mod:mvba`, so the contract is instantiated directly: `Valid` is the
+  Module 3 (`mod:mvba`), so the contract is instantiated directly: `Valid` is the
   theory's immutable `valid` (the value being the entry vector), `decided` the
   relation of that name, `step` the transitions other than the two inputs;
   `agreement`, `integrity` and `external_validity` are the model's three
@@ -322,8 +322,8 @@ down.
 **`OrchestratorTemporal … (S := Conductor.orchestratorSafety th)`** —
 `Admissible`, `admissible_exists`, `clock_agrees`, `totality`, `bound`,
 `boundedness`, `recovery_time`, `recovery`: the paper's Totality
-(`lemma:conductor-totality`), `B`-Boundedness (`lem:boundedness`) and
-`R`-Recovery (`prop:smooth-windows`, `prop:first-post-gst-window-time`),
+(Lemma 15 (`lemma:conductor-totality`)), `B`-Boundedness (Lemma 14 (`lem:boundedness`)) and
+`R`-Recovery (Proposition 18 (`prop:smooth-windows`), Proposition 19 (`prop:first-post-gst-window-time`)),
 over timed runs of the Conductor with the admissible-execution model as
 data. `clock_agrees` ties a run's clock to the Conductor's own `now`. The
 interval form of boundedness *is* proven, as `safety [bounded_tail]`; what
@@ -334,7 +334,7 @@ it, so it sits in `OrchestratorSafety` (`integrity_timing`, from `safety
 
 **`SlotConsensusTemporal … (S := Chorus.slotConsensusSafety th)`** — the
 largest of the three. Since the participation edit
-([Bounds.md](Bounds.md) §6.4.6, S1) Chorus models `mod:slotconsensus`'s
+([Bounds.md](Bounds.md) §6.4.6, S1) Chorus models Module 1 (`mod:slotconsensus`)'s
 participation interface: `participate` and `abandon` are input actions over
 per-validator `participating`/`abandoned` state, `propose` is the third
 input, and every sending rule is gated on active participation. What is
@@ -363,7 +363,7 @@ behaviours.
 **`MVBATemporal … (S := Mvba.mvbaSafety th)` is proven**, as
 `Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)):
 `Admissible`, `admissible_exists`, `ℓ` and `termination`, the timed part of
-`mod:mvba` (`ℓ_MVBA`-Termination). `mvba_of_temporal` joins it into the full
+Module 3 (`mod:mvba`) (`ℓ_MVBA`-Termination). `mvba_of_temporal` joins it into the full
 `MVBA`, `Mvba.mvbaFull`, whose fragment is by `rfl` the one
 [System.lean](../Cadence/System.lean) plugs into Chorus. The instance's
 hypotheses are the classes and the schedule of [Bounds.md](Bounds.md)

@@ -77,7 +77,7 @@ safety proof never has to ask where a guard's failure came from. By guard:
   `voted_implies_accepted_proposal`, resting on `voted_within_entered`,
   `voted_implies_leader_proposed`, `honest_preprepare_unique` and
   `honest_preprepare_proposed`. Those last two are the formal content of
-  `thm:termination`'s "the correct leader broadcasts a single valid
+  Supplement, Theorem 2 (`thm:termination`)'s "the correct leader broadcasts a single valid
   proposal".
 
 * the three leader actions' `¬ proposed_in l v` — `proposed_in_backed`,
