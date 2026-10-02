@@ -628,10 +628,14 @@ this paragraph to "corresponds". Earlier revisions and how the development
 moved between them: [docs/History.md](docs/History.md) § "Paper alignment
 before the single target", and the tags.
 
-**Open: access to the target.** The target includes the internal
-supplement, which is not public. How an auditor obtains revision `48cac9a`,
-and the supplement in particular, is not yet settled
-([docs/PaperAlignment.md](docs/PaperAlignment.md) §9).
+**Access to the target.** Auditors are assumed to have, or to be able to
+obtain, the paper sources at `48cac9a`, the internal supplement included.
+All of it is to be made public, and the supplement's MVBA is a standard
+leader-based BFT primitive.
+
+**The Conductor.** The development verifies the main body's
+`algorithm:conductor`. The supplement's practical Conductor is outside the
+verified surface ([docs/PaperAlignment.md](docs/PaperAlignment.md) §9).
 
 **The receipt layer and v1.** arXiv v1 had a liveness bug in the fallback
 receipt rules: a validator could propose an entry that was not valid

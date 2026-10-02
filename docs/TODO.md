@@ -351,9 +351,14 @@ plan's sessions, in order:
 * **R17**: re-validate, flip the statement to "corresponds", tag
   `paper-target/48cac9a`.
 
-Two questions are open for Lars ([PaperAlignment.md](PaperAlignment.md)
-§9): how an auditor obtains the target revision, including the internal
-supplement, and whether the practical Conductor is in scope.
+The development verifies the main body's `algorithm:conductor`. The
+supplement's practical Conductor is outside the verified surface
+([PaperAlignment.md](PaperAlignment.md) §9). Once it stabilises:
+
+* **Check that the practical Conductor is compatible with the main-body
+  Conductor at the interface level**, the `OrchestratorSafety` contract
+  ([Interfaces.lean](../Cadence/Interfaces.lean)). If it is, the simpler
+  main-body Conductor stays the verified one.
 
 The `EquivCert` build guard is settled for the target: the main body's
 `line:fb-build-equiv` is the protocol, and the supplement's witness-chunk

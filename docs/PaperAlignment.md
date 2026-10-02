@@ -50,6 +50,9 @@ model or a design document resolves at the target in one of these files.
   models. Two further supplement anchors are cited as context, not as
   something a model rests on: `sec:fallback-transition` and
   `sec:domain-separation` (§5).
+* **Not in the surface:** the supplement's practical Conductor
+  (`alg:conductor-practical` and its sections). The verified Conductor is
+  the main body's `algorithm:conductor` (§9).
 
 **The check.** In the paper repository:
 
@@ -126,12 +129,13 @@ makes to how Chorus uses it**. Part II's departures are recorded (§5) but
 not modelled, and where a model covers a Part II variant as well this
 document says so. Part I components the main body does not use (the
 practical Conductor, chain-state certification, the ACS instantiation) are
-outside the verified surface. Whether "corresponds" should cover the
-practical Conductor is an open question (§9).
+outside the verified surface. For the Conductor in particular, the
+development verifies the main body's `algorithm:conductor`; the practical
+Conductor is outside the verified surface (§9).
 
-**Visibility.** The main body is public up to v2, and the target's main body
-is the source of a future v3. The supplement is internal. §9 records the
-question this raises.
+**Access.** The main body is public up to v2. Auditors are assumed to have,
+or to be able to obtain, the paper sources at the target, the supplement
+included (§9).
 
 ## 3. Review: the main body, arXiv v2 (`3efdbfe`) → `48cac9a`
 
@@ -394,10 +398,8 @@ MVBA over candidate sets. Both are rewritten in places between `eb1bb51` and
 the target (S10, S11). Neither is modelled, so the target's practical
 Conductor is outside the verified surface. Its relation lemmas assume
 `2 ≤ p ≤ W−1` where the main body allows `p ∈ {0, …, W−1}` (§6, P9).
-Whether "corresponds to the target" must include the practical Conductor is
-§9's second question. The recommendation is no: it is a second protocol,
-the main body's claims are about the first, and the supplement relates the
-two itself.
+The development verifies the main body's Conductor and not the practical
+one (§9).
 
 ### 5.9 The `EquivCert` rule
 
@@ -666,17 +668,19 @@ stopped ([Bounds.md](Bounds.md) §6.4.6):
   with its `rfl` lemma. After that: the [Cadence.lean](../Cadence.lean)
   rows, and (A-sc-termination) moving from assumed to discharged.
 
-## 9. Open questions
+## 9. Scope and access
 
-* **Access to the target (needs Lars).** The target includes the internal
-  supplement, which is not public. How does an auditor obtain the target
-  revision `48cac9a`, and the supplement in particular, to check the
-  models against it? Until that is settled, an auditor can check the
-  main-body claims against the public arXiv v2 as far as they agree with
-  §3, but cannot read the MVBA specification
-  [Mvba.lean](../Cadence/Mvba.lean) models.
-* **The practical Conductor (needs Lars).** Should "corresponds to the
-  target" cover Part I's practical Conductor (§5.8), or is the main body's
-  `algorithm:conductor` the Conductor the development verifies? The
-  recommendation is the latter, with the practical Conductor named as
-  outside the verified surface.
+* **Access to the target.** Auditors are assumed to have, or to be able to
+  obtain, the paper sources at `48cac9a`, the internal supplement included.
+  All of it is to be made public. The supplement's MVBA is a standard,
+  well-understood leader-based BFT primitive, so nothing sensitive is
+  involved.
+* **The Conductor.** The development verifies the main body's
+  `algorithm:conductor`. The supplement's practical Conductor
+  (`alg:conductor-practical`, §5.8) is outside the verified surface. It has
+  not been reviewed for this development, and it is still changing: its
+  algorithm file changed between `eb1bb51` and `48cac9a`, and P9 applies to
+  it. Once it stabilises, a check of its compatibility with the main-body
+  Conductor at the interface level, the `OrchestratorSafety` contract, is
+  on [TODO.md](TODO.md). If the two are compatible there, the simpler
+  main-body Conductor stays the verified one.
