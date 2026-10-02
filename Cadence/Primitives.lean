@@ -136,31 +136,43 @@ class ThresholdIBE
 
 /-! ## Erasure coding
 
-`Encode` splits a ciphertext into `n` fragments and `Decode` reconstructs the
-ciphertext from any `f + 1` of them. Used to amortise the cost of
-disseminating the encrypted proposal across all validators.
+`Encode` splits a ciphertext into `n` fragments, and `Decode` reconstructs it
+from a set of *indexed* fragments `(r, d_r)` with at least `f + 1` distinct
+indices, as the paper's cryptographic preliminaries state the interface.
+Used to amortise the cost of disseminating the encrypted proposal across all
+validators.
+
+`n` and `f` are the system's parameters, fixed per instance. An index is a
+`Fin n`, so the paper's position `r ∈ {1, …, n}` is `r - 1` here, the
+convention `MerkleTree` below uses for its leaf index. Distinctness is what
+the decode threshold counts: a set holding the same index twice counts it
+once, so `f + 1` copies of one fragment do not suffice.
 
 The Veil protocol model treats decoded-payload availability abstractly: once
-`≥ f + 1` chunks have been ingested by honest validators, the ciphertext is
-recoverable. The actual codec is not modelled. -/
-class ErasureCoding (cipher : Type) (fragment : Type) where
-  /-- `Encode(c)` produces `n` fragments. -/
-  Encode : cipher → Nat → List fragment
-  /-- `Decode({d_i})` returns the original ciphertext or fails. -/
-  Decode : List fragment → Option cipher
+`≥ f + 1` distinct assignees hold their chunks, the ciphertext is
+recoverable (`chunk_quorum` counts distinct assignees). The actual codec is
+not modelled. -/
+class ErasureCoding (n f : Nat) (cipher : Type) (fragment : Type) where
+  /-- `Encode(c)` produces the `n` fragments `(d_1, …, d_n)`; it is
+      deterministic. -/
+  Encode : cipher → Fin n → fragment
+  /-- `Decode(D)` returns the original ciphertext or fails (`none`, the
+      paper's `⊥`). -/
+  Decode : Finset (Fin n × fragment) → Option cipher
 
-  /-- Decoding is the left inverse of encoding on any sufficiently large
-      subset of the encoded fragments (size `≥ f + 1`). -/
+  /-- Decoding is the left inverse of encoding on any set of the encoded
+      fragments, each at its own index, with at least `f + 1` distinct
+      indices. -/
   decode_sound :
-    ∀ (c : cipher) (n f : Nat),
-      ∀ (S : List fragment), S.length ≥ f + 1 →
-        (∀ x ∈ S, x ∈ Encode c n) → Decode S = some c
+    ∀ (c : cipher) (D : Finset (Fin n × fragment)),
+      (D.image Prod.fst).card ≥ f + 1 →
+      (∀ x ∈ D, Encode c x.1 = x.2) → Decode D = some c
 
   /-- Encoding is injective: two ciphertexts that yield the same
-      collection of fragments must be equal. This is the "Merkle
-      binding" property as enforced at decode time in the DA module. -/
+      fragments must be equal. This is the "Merkle binding" property as
+      enforced at decode time in the DA module. -/
   encode_inj :
-    ∀ (c c' : cipher) (n : Nat), Encode c n = Encode c' n → c = c'
+    ∀ (c c' : cipher), Encode c = Encode c' → c = c'
 
 /-! ## Merkle trees
 
