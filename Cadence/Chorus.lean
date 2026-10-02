@@ -129,17 +129,20 @@ requiring the proposer's signature on `⟨s, j, m⟩` together with
 the chunks themselves to determine the proposal. -/
 type merkle_root
 
-/-! The abstract state, value and message sorts of the MVBA instance the
-fallback path consumes (Module 3 (`mod:mvba`); the "Multi-Value Byzantine Agreement"
-section below). Opaque here: Chorus reads the state only through the
-contract's observables, and the value only through the two immutable
-projections `mval_pos` / `mval_neg`. -/
+/-! The abstract state, value, entry-vector and message sorts of the MVBA
+instance the fallback path consumes (Module 3 (`mod:mvba`); the "Multi-Value
+Byzantine Agreement" section below). Opaque here: Chorus reads the state
+only through the contract's observables, a value through the contract's
+`entries` and the immutable `mval_fb`, and an entry vector through the two
+immutable projections `mval_pos` / `mval_neg`. -/
 
 /-- The MVBA instance's abstract state. -/
 type mstate
-/-- The MVBA's value: the decided entry vector, read through `mval_pos` /
-`mval_neg`. -/
+/-- The MVBA's value: a meta-block representation `B′`, its entry vector
+together with each positive entry's certificate kind. -/
 type mvalue
+/-- An entry vector `entries(B′)`, read through `mval_pos` / `mval_neg`. -/
+type mentries
 /-- The MVBA's messages. -/
 type mmsg
 
@@ -181,8 +184,11 @@ restated as guards or invariants. The fault pattern is the module's own
 `nset.is_byz`, so the contract and the quorum interface speak about the
 same correct validators. The instance is `Mvba.mvbaSafety`
 ([Mvba/Compose.lean](Mvba/Compose.lean)), plugged in by
-[System.lean](System.lean) with `mvalue := node → Option merkle_root`. -/
-instantiate mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)
+[System.lean](System.lean) with `mvalue := MetaBlock node merkle_root` and
+`mentries := node → Option merkle_root`. The quorum family the contract's
+availability field counts with is the module's own `nset`. -/
+instantiate mvba : MVBASafety node mvalue mentries mmsg mstate nodeset nset
+  (fun i => nset.is_byz i = true)
 
 /-! ## Immutable configuration -/
 
@@ -210,18 +216,26 @@ it — the paper's "invalidly encoded root" culprit case
 signing rules below consult. -/
 immutable relation well_encoded (m : merkle_root)
 
-/-- The MVBA's value is the paper's meta-block at the entries level — the
-vector `node → Option merkle_root` ([MvbaPlan.md](../docs/MvbaPlan.md) §1.2) — but a Veil
-module needs a first-order sort for it, so `mvalue` is opaque and is read
-through two immutable projections: `mval_pos v j m` says entry `j` of `v` is
-the positive entry `⟨s, j, m⟩`, `mval_neg v j` that it is the negative entry
-`⟨s, j, ⊥⟩`. The two assumptions after `#gen_state` (`[mval_pos_functional]`,
+/-- The MVBA decides a meta-block representation, and agreement is over its
+entries: two correct validators may decide representations whose
+certificates differ (Supplement, Section 1.2 (`subsec:mvba-protocol`),
+"Agreement and Integrity over entries"). A Veil module needs first-order
+sorts for both, so `mvalue` and `mentries` are opaque, joined by the
+contract's `mvba.entries`. An entry vector is read through two immutable
+projections: `mval_pos e j m` says entry `j` of `e` is the positive entry
+`⟨s, j, m⟩`, `mval_neg e j` that it is the negative entry `⟨s, j, ⊥⟩`. The
+two assumptions after `#gen_state` (`[mval_pos_functional]`,
 `[mval_pos_neg_excl]`) are the only facts about them this module uses, and
-[System.lean](System.lean) discharges both at `v j = some m` / `v j = none`. -/
-immutable relation mval_pos (v : mvalue) (j : node) (m : merkle_root)
-/-- Entry `j` of the MVBA value `v` is the negative entry `⟨s, j, ⊥⟩`; see
+[System.lean](System.lean) discharges both at `e j = some m` / `e j = none`. -/
+immutable relation mval_pos (e : mentries) (j : node) (m : merkle_root)
+/-- Entry `j` of the entry vector `e` is the negative entry `⟨s, j, ⊥⟩`; see
 `mval_pos`. -/
-immutable relation mval_neg (v : mvalue) (j : node)
+immutable relation mval_neg (e : mentries) (j : node)
+/-- The positive entry `j` of the representation `v` is certified by a
+`FallbackQC`; otherwise by a `FastQC`. This is what the fallback commit
+wait reads ("for each `FallbackQC` in `B′`", Algorithm 5, line 38
+(`line:fb-commit-foreach`)). -/
+immutable relation mval_fb (v : mvalue) (j : node)
 
 /-! ## Abstract phase
 
@@ -506,10 +520,10 @@ instantiation (`Mvba.mvbaSafety`; `v j = some m` / `v j = none`). -/
 
 assumption [mvba_init] mvba.init mvba_init_state
 assumption [mval_pos_functional]
-  ∀ (V : mvalue) (J : node) (M1 M2 : merkle_root),
-    mval_pos V J M1 → mval_pos V J M2 → M1 = M2
+  ∀ (E : mentries) (J : node) (M1 M2 : merkle_root),
+    mval_pos E J M1 → mval_pos E J M2 → M1 = M2
 assumption [mval_pos_neg_excl]
-  ∀ (V : mvalue) (J : node) (M : merkle_root), ¬ (mval_pos V J M ∧ mval_neg V J)
+  ∀ (E : mentries) (J : node) (M : merkle_root), ¬ (mval_pos E J M ∧ mval_neg E J)
 
 /-! ## Derived certificates (ghost relations)
 
@@ -1177,18 +1191,21 @@ and the module consumes the state-level fragment as the class constraint
   action; it is what gives the instance's Termination premise ("all
   correct validators propose") its meaning for the liveness step.
 * **`on_mvba_decide_pos` / `on_mvba_decide_neg`** — the decision handlers,
-  per entry: a correct validator `i` has decided `v` (`mvba.decided
-  mvba_st i v`, read off the abstract state), entry `j` of `v` is
-  `⟨s, j, m⟩` resp. `⟨s, j, ⊥⟩` (`mval_pos v j m` / `mval_neg v j`), and
+  per entry: a correct validator `i` has decided its own representation `v`
+  (`mvba.decided mvba_st i v`, read off the abstract state), entry `j` of
+  `entries(v)` is `⟨s, j, m⟩` resp. `⟨s, j, ⊥⟩`
+  (`mval_pos (mvba.entries v) j m` / `mval_neg (mvba.entries v) j`), and
   the handler records it in `mvba_decided_pos j m` / `mvba_decided_neg j`.
+  The records are shared: they hold the agreed entries, which every correct
+  decision has.
   Per entry rather than as a bulk transport of the vector, so every update
   stays a monotone `:= true` and every downstream invariant keeps its
   form. The handler is gated by `mvba_invoked` (a Chorus-side listening
   condition — no safety invariant relies on it) and by the phase.
 * **The one stated bridge.** Before acting on an entry, each handler
-  verifies the entry's certificate against the network:
-  `vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, resp. the
-  negative form. This is a **bridge, not a restatement**
+  verifies the certificate its own representation names for the entry
+  against the network: a vote quorum for a `FastQC`, `fb_quorum_pos j m ∧
+  fbcert` for a `FallbackQC` (`mval_fb v j`), resp. the negative form. This is a **bridge, not a restatement**
   ([MvbaPlan.md](../docs/MvbaPlan.md) §1.1, [CompositionContracts.md](../docs/CompositionContracts.md) §7): the
   class's `external_validity` says the decided value is `Valid`; the guard
   says what a valid certificate *means* in a model whose signatures are
@@ -1242,12 +1259,13 @@ action mvba_propose (i : node) (v : mvalue) (mvba_next : mstate) {
   require (fbcert ∧ (phase = post_fb_arm ∨ phase = post_mvba_arm)) ∨
     (complete_fast_metablock i ∧ phase = post_mvba_arm)
   -- `Valid B_i`, the caller's obligation: every entry is a proposer's and
-  -- certificate-backed, and every proposer has an entry.
-  require ∀ J M, mval_pos v J M →
-    is_proposer J ∧ (vote_quorum_pos J M ∨ (fb_quorum_pos J M ∧ fbcert))
-  require ∀ J, mval_neg v J →
+  -- carries the certificate its kind names, and every proposer has an entry.
+  require ∀ J M, mval_pos (mvba.entries v) J M →
+    is_proposer J ∧
+      ((¬ mval_fb v J ∧ vote_quorum_pos J M) ∨ (mval_fb v J ∧ fb_quorum_pos J M ∧ fbcert))
+  require ∀ J, mval_neg (mvba.entries v) J →
     is_proposer J ∧ (vote_quorum_neg J ∨ ((fb_quorum_neg J ∨ equiv_evidence J) ∧ fbcert))
-  require ∀ J, is_proposer J → (∃ M, mval_pos v J M) ∨ mval_neg v J
+  require ∀ J, is_proposer J → (∃ M, mval_pos (mvba.entries v) J M) ∨ mval_neg (mvba.entries v) J
   -- `MVBA[s].propose(B_i)`.
   require mvba.propose mvba_st i v mvba_next
   mvba_st := mvba_next
@@ -1283,9 +1301,10 @@ action on_mvba_decide_pos (i : node) (j : node) (m : merkle_root) (v : mvalue) {
   require mvba_invoked
   -- The output has occurred: `i` has decided `v`, whose entry for `j` is `m`.
   require mvba.decided mvba_st i v
-  require mval_pos v j m
-  -- The bridge: the entry's certificate verifies against the network.
-  require vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)
+  require mval_pos (mvba.entries v) j m
+  -- The bridge: the certificate `v` names for the entry verifies against
+  -- the network.
+  require (¬ mval_fb v j ∧ vote_quorum_pos j m) ∨ (mval_fb v j ∧ fb_quorum_pos j m ∧ fbcert)
   -- Fired once: `i` has not recorded entry `j` of its decision yet.
   require ¬ local_mvba_recorded i j
   mvba_decided_pos j m := true
@@ -1298,7 +1317,7 @@ action on_mvba_decide_neg (i : node) (j : node) (v : mvalue) {
   require is_proposer j
   require mvba_invoked
   require mvba.decided mvba_st i v
-  require mval_neg v j
+  require mval_neg (mvba.entries v) j
   -- The bridge, negative form: a negative FastQC, or (with FBCert) a
   -- negative FallbackQC or an EquivCert (equivocation excludes the
   -- proposer, Appendix C.3 (`subsection:fallback_path`)).
@@ -1316,7 +1335,8 @@ action mvba_terminate (i : node) (v : mvalue) {
   require mvba.decided mvba_st i v
   -- Every proposer's entry of the decided vector has been recorded.
   require ∀ J, is_proposer J →
-    ((∃ M, mval_pos v J M ∧ mvba_decided_pos J M) ∨ (mval_neg v J ∧ mvba_decided_neg J))
+    ((∃ M, mval_pos (mvba.entries v) J M ∧ mvba_decided_pos J M) ∨
+      (mval_neg (mvba.entries v) J ∧ mvba_decided_neg J))
   mvba_complete := true
 }
 
@@ -1352,18 +1372,23 @@ Modelling notes:
   a given chunk once (`local_chunk_sent`). Beyond that, its precondition
   is the network-level capability itself. A Byzantine sender has the same
   capability, unconstrained and unfair, as `byz_redisseminate_chunk`.
-* **The DA wait is the paper's, under FallbackQC entries only**
-  (Algorithm 5, line 38 (`line:fb-commit-foreach`)). The decided entry vector does not say which
-  certificate holds each entry; the decision handlers check that one of
-  the two does (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`). So
-  `cast_fb_commit` reads "held by a FallbackQC" as "no FastQC for it
-  exists": under each decided-positive root it requires a positive FastQC
-  *or* the validator's own chunk. Both reads are positive. Where a root
-  has both certificates the model does not wait and the paper may: the
-  model then has more runs than the paper, which only widens the safety
-  claims. Fair progress needs no chunk under a FastQC; under a FallbackQC
-  one of its `f+1` signers is correct and re-disseminated the chunk when
-  it signed (Algorithm 5, line 12 (`line:fb-redisseminate`)).
+* **The DA wait is the paper's, under the `FallbackQC` entries of the
+  validator's own `B′`** (Algorithm 5, line 38 (`line:fb-commit-foreach`)). Correct validators agree
+  on entries but may decide representations whose certificates differ, so
+  each waits under its own decision: `cast_fb_commit i v` takes `i`'s
+  decided `v` as a parameter and waits for its own chunk under exactly the
+  positive entries `v` certifies by a `FallbackQC` (`mval_fb v j`). Both
+  reads are positive. A root `FastQC`-certified elsewhere but
+  `FallbackQC`-certified in `v` is waited for, as in the paper. Fair
+  progress needs no chunk under a `FastQC`; under a `FallbackQC` one of its
+  `f+1` signers is correct and re-disseminated the chunk when it signed
+  (Algorithm 5, line 12 (`line:fb-redisseminate`)).
+* **A redelivered decision** (the contract's Integrity permits outputs
+  with one entry vector and different representations;
+  [PaperAlignment.md](../docs/PaperAlignment.md) §6, P11). The vote fires
+  once per validator (`local_fbcommit_voted`), its content is the entry
+  vector, and its wait reads the representation it is cast for, so every
+  reading of the paper's handler is a run of the model.
 * **Participation gating** (the paper's standing convention that every
   message-sending rule requires active participation,
   Appendix C.3 (`subsection:chorus-protocol-overview`)) is modelled directly:
@@ -1394,22 +1419,25 @@ action redisseminate_chunk (k : node) (i : node) (j : node) (m : merkle_root) {
 }
 
 /-- Validator `i` casts its fallback commit vote over the decided entries
-(Algorithm 5, line 41 (`line:fb-commitvote`)), after the DA wait. -/
-action cast_fb_commit (i : node) {
+(Algorithm 5, line 41 (`line:fb-commitvote`)), after the DA wait under the
+`FallbackQC` entries of its own decision `v`. -/
+action cast_fb_commit (i : node) (v : mvalue) {
   require ¬ is_byz i
   require participating i
   require ¬ abandoned i
   require phase = post_mvba_arm
-  -- The validator has decided: Algorithm 5, line 37 (`line:fb-mvba-decide`) delivers the full
-  -- entry vector `B'` at once, whose model shadow is the completed
-  -- per-proposer decision relation (`mvba_complete_per_proposer`).
+  -- Upon `MVBA[s].decide(B′)` (Algorithm 5, line 37 (`line:fb-mvba-decide`)): `v` is `i`'s own
+  -- decided meta-block `B′`.
+  require mvba.decided mvba_st i v
+  -- The decision delivers the full entry vector at once, whose model
+  -- shadow is the completed per-proposer decision relation
+  -- (`mvba_complete_per_proposer`).
   require mvba_complete
   -- DA wait (Algorithm 5, line 38 (`line:fb-commit-foreach`), Algorithm 5, line 39 (`line:fb-commit-wait`)): for each
-  -- positive entry ⟨s, J, M⟩ of `B'` held by a FallbackQC, wait until the
+  -- positive entry ⟨s, J, M⟩ of `B′` held by a FallbackQC, wait until the
   -- own assigned chunk for `M` is received and validated. An entry held by
-  -- a FastQC needs no wait (see the section note).
-  require ∀ J M, is_proposer J → mvba_decided_pos J M →
-    vote_quorum_pos J M ∨ msg_chunk_received i J M
+  -- a FastQC needs no wait.
+  require ∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J → msg_chunk_received i J M
   -- Fired once: `i` has not cast its fallback commit vote yet.
   require ¬ local_fbcommit_voted i
   msg_fbcommit_sig i := true
@@ -2091,12 +2119,12 @@ invariant [mvba_reachable] mvba.reachable mvba_st
 invariant [mvba_decided_pos_tied]
   ∀ (J : node) (M : merkle_root),
     mvba_decided_pos J M →
-    ∃ I V, ¬ is_byz I ∧ mvba.decided mvba_st I V ∧ mval_pos V J M
+    ∃ I V, ¬ is_byz I ∧ mvba.decided mvba_st I V ∧ mval_pos (mvba.entries V) J M
 
 invariant [mvba_decided_neg_tied]
   ∀ (J : node),
     mvba_decided_neg J →
-    ∃ I V, ¬ is_byz I ∧ mvba.decided mvba_st I V ∧ mval_neg V J
+    ∃ I V, ¬ is_byz I ∧ mvba.decided mvba_st I V ∧ mval_neg (mvba.entries V) J
 
 invariant [mvba_decided_pos_unique]
   ∀ (J : node) (M1 M2 : merkle_root),

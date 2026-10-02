@@ -15,8 +15,10 @@ JSONL line format (positional args):
   {"action": "aggregate_fastqc_pos", "args": [0, 0, 1, [0,1,2]]}
   {"action": "advance_to_deadline"}                 -- args optional when empty
 Args: node/merkle_root are ints (Fin 4 / Fin 2); a nodeset is a JSON array of
-ints (subset of {0,1,2,3}); an MVBA value (entry vector) is a JSON array of
-four entries, each a root index or null; the MVBA's abstract state is not
+ints (subset of {0,1,2,3}); an MVBA value (a meta-block representation) is
+a JSON array of four entries, each null, a root index (a FastQC-certified
+positive entry) or {"fallback": k} (a FallbackQC-certified one); the MVBA's
+abstract state is not
 observable and is written null.  Blank lines and lines beginning with `//` or
 `#` are ignored.
 
@@ -56,15 +58,16 @@ abbrev ND := Fin (3 * 1 + 1)
 abbrev NS := ByzNSet (3 * 1 + 1)
 abbrev MR := Fin 2
 -- The MVBA's abstract sorts at the silent stub ([MvbaStub.lean](MvbaStub.lean)):
--- state and message `Unit`, the value the finite entry vector `MV`.
+-- state and message `Unit`, the value the finite representation `MV` over
+-- the entry vector `ME`.
 abbrev MS := Unit
 abbrev MM := Unit
 abbrev PH := Chorus.Phase_IndT
 abbrev PC := Chorus.PathChoice_IndT
 
-abbrev Th  := Chorus.Theory SL ND NS MR MS MV MM PH PC
-abbrev St  := Chorus.State (Chorus.FieldConcreteType SL ND NS MR MS MV MM PH PC)
-abbrev Lbl := Chorus.Label SL ND NS MR MS MV MM PH PC
+abbrev Th  := Chorus.Theory SL ND NS MR MS MV ME MM PH PC
+abbrev St  := Chorus.State (Chorus.FieldConcreteType SL ND NS MR MS MV ME MM PH PC)
+abbrev Lbl := Chorus.Label SL ND NS MR MS MV ME MM PH PC
 
 /-- Empty Byzantine set at n = 3f+1 = 4, f = 1: all four nodes honest.  A valid
     ≤f instantiation (the model's safety theorem is universal over ≤f Byzantine,
@@ -80,9 +83,10 @@ def emptyByz4 : ByzNodeSet ND NS :=
     decoupled from node identity; here `num_proposals = 1`).  Every root is
     well-encoded (second field): the fixtures' proposals are honestly
     encoded, and the sim's DA layer produces no invalid encodings. The
-    entry-vector projections are the stub's (`v j = some m` / `v j = none`),
-    and the MVBA's initial state is the only `Unit`. -/
-def chThy : Th := Chorus.Theory.mk (fun j => j == 0) (fun _ => true) mvalPos mvalNeg ()
+    entry-vector projections and the certificate kind are the stub's
+    (`e j = some m` / `e j = none`, the representation's flag), and the MVBA's
+    initial state is the only `Unit`. -/
+def chThy : Th := Chorus.Theory.mk (fun j => j == 0) (fun _ => true) mvalPos mvalNeg mvalFb ()
 
 /-- Explicit specialized Inhabited seed — avoids the pathological `Inhabited St`
     search (this is what `#model_check` does via `inhabσ`). -/
@@ -95,7 +99,7 @@ def cnext (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
     (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun _ => False) (by decide))
     (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
-    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
+    (mstate := MS) (mvalue := MV) (mentries := ME) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 
 /-- The extracted initializer at this instance. -/
 def cinit : VeilMultiExecM Std.Format ℤ Th St Unit :=
@@ -103,7 +107,7 @@ def cinit : VeilMultiExecM Std.Format ℤ Th St Unit :=
     (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun _ => False) (by decide))
     (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
-    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC)
+    (mstate := MS) (mvalue := MV) (mentries := ME) (mmsg := MM) (Phase := PH) (PathChoice := PC)
 
 def initState : Option St :=
   (extractValidStates cinit chThy stInhab.default).filterMap id |>.head?
@@ -222,7 +226,7 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "on_mvba_decide_neg", [a,b,c]    => do pure (.on_mvba_decide_neg (← dNode a) (← dNode b) (← dMValue c))
   | "mvba_terminate", [a,b]          => do pure (.mvba_terminate (← dNode a) (← dMValue b))
   | "redisseminate_chunk", [a,b,c,d] => do pure (.redisseminate_chunk (← dNode a) (← dNode b) (← dNode c) (← dRoot d))
-  | "cast_fb_commit", [a]            => do pure (.cast_fb_commit (← dNode a))
+  | "cast_fb_commit", [a,b]          => do pure (.cast_fb_commit (← dNode a) (← dMValue b))
   | "commit_assign_pos", [a,b,c]     => do pure (.commit_assign_pos (← dNode a) (← dNode b) (← dRoot c))
   | "commit_assign_neg", [a,b]       => do pure (.commit_assign_neg (← dNode a) (← dNode b))
   | "finalize_commit", [a]           => do pure (.finalize_commit (← dNode a))
@@ -336,25 +340,25 @@ def cnextB0 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
     (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun x => x = 0) (by decide))
     (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
-    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
+    (mstate := MS) (mvalue := MV) (mentries := ME) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 def cnextB1 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
   Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz1)
     (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun x => x = 1) (by decide))
     (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
-    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
+    (mstate := MS) (mvalue := MV) (mentries := ME) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 def cnextB2 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
   Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz2)
     (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun x => x = 2) (by decide))
     (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
-    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
+    (mstate := MS) (mvalue := MV) (mentries := ME) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 def cnextB3 (lbl : Lbl) : VeilMultiExecM Std.Format ℤ Th St Unit :=
   Chorus.NextAct.extracted (ρ := Th) (σ := St) (nset := byz3)
     (cnt := Cadence.byzNodeSetFinGen_counting (3 * 1 + 1) 1 (by decide) (fun x => x = 3) (by decide))
     (mvba := silentMvba _)
     (slot := SL) (node := ND) (nodeset := NS) (merkle_root := MR)
-    (mstate := MS) (mvalue := MV) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
+    (mstate := MS) (mvalue := MV) (mentries := ME) (mmsg := MM) (Phase := PH) (PathChoice := PC) lbl
 
 def runExec (prog : VeilMultiExecM Std.Format ℤ Th St Unit) (st : St) : StepResult :=
   match extractAllOutcomes prog chThy st with

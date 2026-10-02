@@ -93,12 +93,12 @@ open scoped Cadence.Timed
 
 section Labels
 
-variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
 
 /-- **The three phase markers.** They leave the hop table, as the MVBA's
 `expire_timer` left its own: their timing is (P-phase), a punctual timer at
 each landmark, and not a hop bound. -/
-def MarkerLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
+def MarkerLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
   | .advance_to_deadline => True
   | .advance_to_fb_arm => True
   | .advance_to_mvba_arm => True
@@ -142,7 +142,7 @@ not charged again here.
 Written with a wildcard, so that an action added to the model lands on
 `none`, which *weakens* the premise set rather than strengthening it;
 `hop_isSome_iff` pins the coverage. -/
-def hop : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice →
+def hop : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice →
     Option Mvba.Hop
   | .deliver_chunk_assigned .. => some .net
   | .aggregate_fastqc_pos .. => some .net
@@ -175,7 +175,7 @@ A label has a hop bound iff it is a `JusticeLabel` of
 split is over the model's own label type, so an action added to the model and
 forgotten here is an error, not a silent omission. -/
 theorem hop_isSome_iff
-    (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) :
+    (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) :
     (hop l).isSome ↔ JusticeLabel l ∧ ¬ MarkerLabel l := by
   cases l <;> simp [hop, JusticeLabel, ByzLabel, OracleLabel, InputLabel, MarkerLabel]
 
@@ -305,17 +305,17 @@ def time {view time : Type} [vord : TotalOrderWithMinimum view] [LinearOrder tim
   | .mvbaArm => sch.D + 2 • sch.Δ
 
 /-- Each landmark's marker. -/
-def marker {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type} :
-    Landmark → Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice
+def marker {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type} :
+    Landmark → Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice
   | .deadline => .advance_to_deadline
   | .fbArm => .advance_to_fb_arm
   | .mvbaArm => .advance_to_mvba_arm
 
 /-- The phase is at or past the landmark: once there, it stays (the phase
 only moves forward). -/
-def Reached {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+def Reached {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
     [Chorus.Phase_EnumClass Phase]
-    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg
       Phase PathChoice)) : Landmark → Prop
   | .deadline => s.phase ≠ Phase_EnumClass.pre_deadline
   | .fbArm => s.phase = Phase_EnumClass.post_fb_arm ∨ s.phase = Phase_EnumClass.post_mvba_arm
@@ -324,8 +324,8 @@ def Reached {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice :
 end Landmark
 
 /-- The markers are exactly the three landmarks'. -/
-theorem markerLabel_iff {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
-    (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) :
+theorem markerLabel_iff {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
+    (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) :
     MarkerLabel l ↔ ∃ L : Landmark, l = L.marker := by
   constructor
   · intro h
@@ -349,31 +349,31 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
   {thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice}
-  {thM : Mvba.Theory node nodeset (node → Option merkle_root) view}
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
   {time : Type} [LinearOrder time] [AddCommMonoid time]
 
 /-- A state of Chorus at the `Mvba` instance. -/
 abbrev StateAtMvba (slot node nodeset merkle_root view Phase PathChoice : Type) :=
   Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-    (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-    (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
+    (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+    (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
 
 /-- A label of Chorus at the `Mvba` instance. -/
 abbrev LabelAtMvba (slot node nodeset merkle_root view Phase PathChoice : Type) :=
   Chorus.Label slot node nodeset merkle_root
-    (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-    (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice
+    (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+    (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice
 
 /-- A labelled **timed** run of Chorus at the `Mvba` instance: the object every
 premise below is about. Its `toLRun` is [Liveness.lean](Liveness.lean)'s
 `ChorusRun`. -/
 abbrev TChorusRun
     (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
-    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)
     (time : Type) [LinearOrder time] :=
   TLRun (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM) thS time
 
@@ -416,7 +416,7 @@ def gate : LabelAtMvba slot node nodeset merkle_root view Phase PathChoice →
   | .on_mvba_decide_neg .. => fun s => s.phase = Phase_EnumClass.post_mvba_arm
   | .mvba_terminate .. => fun s => s.phase = Phase_EnumClass.post_mvba_arm
   | .redisseminate_chunk k .. => fun s => Active s k
-  | .cast_fb_commit i => fun s => Active s i ∧ s.phase = Phase_EnumClass.post_mvba_arm
+  | .cast_fb_commit i _ => fun s => Active s i ∧ s.phase = Phase_EnumClass.post_mvba_arm
   | .commit_assign_pos i .. => fun s => Active s i
   | .commit_assign_neg i .. => fun s => Active s i
   | .finalize_commit i => fun s => Active s i
@@ -458,10 +458,10 @@ structure TimedJustice (sch : Schedule view time)
     hop l = some h → ¬ FamilyLabel l →
       BufferedFair r (sch.bound h) sch.δ (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l)
         (gate l) l
-  propose : ∀ (i : node) (v : node → Option merkle_root),
+  propose : ∀ (i : node) (v : MetaBlock node merkle_root),
     BufferedFairFamily r sch.Δ sch.δ (CorrectFBCert (nset := nset))
       (proposeGate i) (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)
-  proposeFast : ∀ (i : node) (v : node → Option merkle_root),
+  proposeFast : ∀ (i : node) (v : MetaBlock node merkle_root),
     BufferedFairFamily r sch.δ sch.δ
       (fun s => Chorus.complete_fast_metablock (nset := nset) (mvba := Mvba.mvbaSafety thM) i thS s)
       (proposeGate i) (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)
@@ -490,7 +490,7 @@ def PhasePunctual (sch : Schedule view time) (r : TChorusRun thS thM time) : Pro
 at `mvbaSafety thM`): the timed projection with its labels forgotten. -/
 noncomputable def mvbaTimedRun {r : TChorusRun thS thM time}
     (p : (mvbaComponent thS thM).Projection r.toLRun) :
-    TimedRun (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
+    TimedRun (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
       time (Mvba.mvbaSafety thM).init (Mvba.mvbaSafety thM).trans :=
   p.timed.toTimedRun (Mvba.mvbaSafety thM).init (Mvba.mvbaSafety thM).trans
     ⟨p.timed.holds, p.timed.starts⟩ (fun n => ⟨_, p.timed.steps n⟩)
@@ -517,18 +517,20 @@ projection, at every schedule with `δ ≤ Δ + ρ`, and
 `timedMvbaAdmissible_of_rows` is this premise with the clause supplied. So
 what a witness has to show of the MVBA is only its own three clauses. -/
 def TimedMvbaAdmissible
-    (T : MVBATemporal node (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root))
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)) time
-      (fun i => nset.is_byz i = true) (S := Mvba.mvbaSafety thM))
+    (T : MVBATemporal node (MetaBlock node merkle_root) (node → Option merkle_root)
+      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      nodeset time nset (fun i => nset.is_byz i = true) (S := Mvba.mvbaSafety thM))
     (r : TChorusRun thS thM time) : Prop :=
   ∃ p : (mvbaComponent thS thM).Projection r.toLRun, T.Admissible (mvbaTimedRun p)
 
 /-- **The whole of what is assumed of a run's timing**: the three clauses.
 The bridge `ValidBridge` is not timing and is a separate premise. -/
 def Sync (sch : Schedule view time)
-    (T : MVBATemporal node (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root))
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)) time
-      (fun i => nset.is_byz i = true) (S := Mvba.mvbaSafety thM))
+    (T : MVBATemporal node (MetaBlock node merkle_root) (node → Option merkle_root)
+      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      nodeset time nset (fun i => nset.is_byz i = true) (S := Mvba.mvbaSafety thM))
     (r : TChorusRun thS thM time) : Prop :=
   TimedJustice sch r ∧ PhasePunctual sch r ∧ TimedMvbaAdmissible T r
 
@@ -581,12 +583,13 @@ some index whose clock is at most `max(t, GST) + ℓ`, with
 The MVBA enters only through `T`: its `Admissible` and its `ℓ`. At the
 system's MVBA, `T := Mvba.mvbaTemporal thM hqe sch.mvba vfin hrot`. -/
 def TimedTerminationClaim (sch : Schedule view time)
-    (T : MVBATemporal node (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root))
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)) time
-      (fun i => nset.is_byz i = true) (S := Mvba.mvbaSafety thM))
+    (T : MVBATemporal node (MetaBlock node merkle_root) (node → Option merkle_root)
+      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      nodeset time nset (fun i => nset.is_byz i = true) (S := Mvba.mvbaSafety thM))
     (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice) :
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice) :
     Prop :=
   ∀ r : TChorusRun thS thM time, Sync sch T r → ValidBridge r.toLRun →
     SyncParticipationWithin sch.Δ r → NoAbandonBeforeFinalizing r.toLRun → NoEarlyStart sch r →
@@ -607,9 +610,9 @@ only the commitment and finalization rows, so neither the phase timers, nor
 the MVBA, nor the bridge is a premise. -/
 def TotalityClaim (sch : Schedule view time) (d : time)
     (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
-    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view) : Prop :=
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view) : Prop :=
   ∀ r : TChorusRun thS thM time, TimedJustice sch r →
     SyncParticipationWithin d r → NoAbandonBeforeFinalizing r.toLRun →
     ∀ n i, ¬ nset.is_byz i = true → (r.at' n).local_committed i = true →
@@ -633,9 +636,9 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
   {thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice}
-  {thM : Mvba.Theory node nodeset (node → Option merkle_root) view}
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedCancelAddMonoid time]
   [Archimedean time] [Fintype node]
 
@@ -686,9 +689,10 @@ antecedent false. -/
 theorem relayed_of_timedJustice (sch : Schedule view time) (hδ : sch.δ ≤ sch.Δ + sch.mvba.ρ)
     {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r)
     (p : (mvbaComponent thS thM).Projection r.toLRun) : Mvba.Relayed sch.mvba p.timed := by
-  letI : MVBASafety node (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root))
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM
+  letI : MVBASafety node (MetaBlock node merkle_root) (node → Option merkle_root)
+      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      nodeset nset (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM
   intro i j v e hj K hen
   exfalso
   have hΔρ : sch.Δ ≤ sch.Δ + sch.mvba.ρ := le_add_of_nonneg_right sch.mvba.ρ_nonneg
@@ -717,13 +721,17 @@ theorem relayed_of_timedJustice (sch : Schedule view time) (hδ : sch.δ ≤ sch
       have hg := decide_enabled_guards hen'
       refine ⟨⟨j, e, hj, hd⟩, fun _ => ?_⟩
       obtain ⟨st', htr'⟩ := hen'
-      refine ⟨_, ⟨.commitqc v e, st', rfl⟩, enabled_accept_mvba_commitqc hi (fun hf => ?_) htr'⟩
+      -- The certificate is on `e`'s entries; the MVBA takes it with `e` itself.
+      have hacc : Mvba.Accept thM (r.at' n).mvba_st i (.commitqc v (thM.ent e)) st' :=
+        ⟨e, rfl, htr'⟩
+      refine ⟨_, ⟨.commitqc v (thM.ent e), st', rfl⟩,
+        enabled_accept_mvba_commitqc hi (fun hf => ?_) hacc⟩
       obtain ⟨w, hw⟩ := qc_accepted_decided r.toLRun n hf
       exact hg.2 w hw)
     (fun _ _ _ => trivial)
   -- So `i` has decided inside the window, where `decide i v e` is still enabled.
-  obtain ⟨w, e', -, htr⟩ := accept_mvba_commitqc_tr (hl ▸ r.steps m)
-  exact (decide_enabled_guards (hcomp (m + 1) (by omega) (le_trans hcm hW)).1).2 e'
+  obtain ⟨w, e', x, -, -, htr⟩ := accept_mvba_commitqc_tr (hl ▸ r.steps m)
+  exact (decide_enabled_guards (hcomp (m + 1) (by omega) (le_trans hcm hW)).1).2 x
     (Mvba.decide_effect htr)
 
 /-- **The form a witness supplies, with the handoff derived.** A projection

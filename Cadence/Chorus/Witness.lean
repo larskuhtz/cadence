@@ -33,9 +33,11 @@ Its template is [Mvba/Witness.lean](../Mvba/Witness.lean).
 * Validator 0 is the one proposer; roots are `Unit`, every root is
   well-encoded. The configuration is the system's `chorusTheory`, so a
   vector's entry is a root or a proposer's explicit absence.
-* The MVBA's values are entry vectors, and `valid := (· = v⋆)`, where `v⋆`
-  gives the proposer its root and every other validator nothing: the one
-  vector a certificate check can pass in this run (`certified_eq`).
+* The MVBA's values are meta-block representations, `ent` drops their
+  certificates (the system's `mvbaTheory`), and `valid := (· = v⋆)`, where
+  `v⋆` gives the proposer its root held by a FastQC and every other
+  validator nothing: the one representation a certificate check can pass
+  in this run (`certified_eq`).
   Validator 0 leads every MVBA view.
 * Views and time are `ℕ`; the schedule is the MVBA's fixed timeout
   (`Δ = 1`, `δ = 0`, `ρ = 1`) and the deadline `D = 1`. GST is 0.
@@ -99,19 +101,25 @@ theorem cntC : ByzNodeSetCounting (Fin 4) (ByzNSet 4) nsetC := byzNodeSetFin_cou
 
 attribute [local instance] nsetC cntC natViewOrder
 
-/-- The MVBA's values: entry vectors, one root type `Unit`. -/
-abbrev V := Fin 4 → Option Unit
-abbrev MS := Mvba.State (Mvba.FieldAbstractType (Fin 4) (ByzNSet 4) V ℕ)
+/-- The MVBA's values: meta-block representations over one root type `Unit`,
+and their entry vectors. -/
+abbrev V := MetaBlock (Fin 4) Unit
+abbrev E := Fin 4 → Option Unit
+abbrev MS := Mvba.State (Mvba.FieldAbstractType (Fin 4) (ByzNSet 4) V E ℕ)
 abbrev Ph := Chorus.Phase_IndT
 abbrev PC := Chorus.PathChoice_IndT
 abbrev CS := StateAtMvba Unit (Fin 4) (ByzNSet 4) Unit ℕ Ph PC
 abbrev CL := LabelAtMvba Unit (Fin 4) (ByzNSet 4) Unit ℕ Ph PC
 
-/-- `v⋆`: the proposer's root, and nothing for every other validator. -/
-def vstar : V := fun j => if j.val = 0 then some () else none
+/-- `v⋆`: the proposer's root, held by a `FastQC`, and nothing for every
+other validator. -/
+def vstar : V := fun j => if j.val = 0 then some ((), CertKind.fastQC) else none
 
-/-- The MVBA theory: `valid := (· = v⋆)`; validator 0 leads every view. -/
-def thM : Mvba.Theory (Fin 4) (ByzNSet 4) V ℕ where
+/-- The MVBA theory: `ent` the representation's entries (the system's
+configuration, `Cadence.mvbaTheory`), `valid := (· = v⋆)`; validator 0
+leads every view. -/
+def thM : Mvba.Theory (Fin 4) (ByzNSet 4) V E ℕ where
+  ent := MetaBlock.entries
   valid v := decide (v = vstar)
   leader _ l := decide (l = 0)
 
@@ -164,7 +172,7 @@ def mst (n : Nat) : MS where
 
 /-- The system's configuration: validator 0 the one proposer, every root
 well-encoded, and the MVBA starting from `mst 0`. -/
-noncomputable def thS : Chorus.Theory Unit (Fin 4) (ByzNSet 4) Unit MS V (Mvba.Msg ℕ V) Ph PC :=
+noncomputable def thS : Chorus.Theory Unit (Fin 4) (ByzNSet 4) Unit MS V E (Mvba.Msg ℕ V E) Ph PC :=
   Cadence.chorusTheory (slot := Unit) (Phase := Ph) (PathChoice := PC)
     (fun j => decide (j.val = 0)) (fun _ => true) (mst 0)
 
@@ -353,14 +361,14 @@ local macro "mexpose" : tactic =>
 
 /-- Close an equation between two `mst` literals, field by field: the
 abandonment record by arithmetic, the availability record by a split on
-whether the entry vector is the marked one. -/
+whether the representation is the marked one. -/
 local macro "mclose" : tactic =>
   `(tactic| (
     refine ⟨fun a => ?_, fun a e => ?_⟩
     · simp only [← Bool.decide_and, ← Bool.decide_or, decide_eq_decide, Fin.ext_iff,
         Fin.lt_def, Fin.le_def]
       omega
-    · have hc : (∀ x, (default : Option Unit) = e x) ↔ (∀ x, e x = default) :=
+    · have hc : (∀ x, (default : Option (Unit × CertKind)) = e x) ↔ (∀ x, e x = default) :=
         ⟨fun h x => (h x).symm, fun h x => (h x).symm⟩
       simp only [hc, ← Bool.decide_and, ← Bool.decide_or, decide_eq_decide, Fin.ext_iff,
         Fin.val_zero]
@@ -371,13 +379,13 @@ local macro "mclose" : tactic =>
 
 /-- The availability mark is an internal MVBA step, not one of its inputs. -/
 theorem avail_not_input : ¬ Mvba.Label.isInput (.become_avail_ready (0 : Fin 4) (default : V) :
-    Mvba.Label (Fin 4) (ByzNSet 4) V ℕ) := fun h => by
+    Mvba.Label (Fin 4) (ByzNSet 4) V E ℕ) := fun h => by
   rcases Mvba.Label.isInput_cases h with ⟨_, _, h⟩ | ⟨_, h⟩ | ⟨_, _, _, h⟩ <;> cases h
 
 /-- The MVBA's step at a tick: the availability mark, set at 11 and unchanged
 after. -/
 theorem tick_tr (n : Nat) (h : n = 11 ∨ 37 ≤ n) :
-    (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V ℕ).tr thM (mst n)
+    (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V E ℕ).tr thM (mst n)
       (.become_avail_ready 0 default) (mst (n + 1)) := by
   mexpose
   mclose
@@ -388,7 +396,7 @@ theorem tick_step (n : Nat) (h : n = 11 ∨ 37 ≤ n) :
 
 /-- Chorus's `abandon i` forwards to the MVBA's `abandon()`, at `34 + i`. -/
 theorem abandon_tr (i : Fin 4) (hi : i.val < 3) :
-    (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V ℕ).tr thM (mst (34 + i.val))
+    (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V E ℕ).tr thM (mst (34 + i.val))
       (.abandon i) (mst (34 + i.val + 1)) := by
   mexpose
   mclose
@@ -422,7 +430,7 @@ step is a transition: the 41 steps of the active prefix, then the idle tail,
 whose state no longer changes. -/
 
 /-- The MVBA model's assumptions at `thM`: validator 0 leads every view. -/
-theorem mholds : (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V ℕ).assumptions thM := by
+theorem mholds : (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V E ℕ).assumptions thM := by
   simp only [Mvba.relationalTransitionSystem, Mvba.Assumptions, Mvba.leader_functional,
     Mvba.leader_honest_cofinal, thM, instIsSubReaderOfRefl.readFrom_id]
   refine ⟨fun _ L L' h h' => ?_, fun V => ⟨V, 0, TotalOrderWithMinimum.le_refl V, rfl, ?_⟩⟩
@@ -431,7 +439,7 @@ theorem mholds : (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V ℕ).ass
   · dsimp +instances only [nsetC, byzNodeSetFin]
     decide
 
-theorem mstarts : (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V ℕ).init thM (mst 0) := by
+theorem mstarts : (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V E ℕ).init thM (mst 0) := by
   simp only [Mvba.relationalTransitionSystem, Mvba.Init, trSimp]
   simp +unfoldPartialApp [Veil.FieldRepresentation.set,
       Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate,
@@ -580,7 +588,7 @@ local macro "wquiet" : tactic =>
     all_goals first | (simp [hop] at hh; done) | skip
     all_goals first | exact absurd ⟨_, _, _, _, rfl⟩ hr' | skip
     case accept_mvba_commitqc i c mn =>
-      obtain ⟨w, e, -, h⟩ := accept_mvba_commitqc_tr htr
+      obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
       exact Mvba.not_enabled_decide_of_quiet (mquiet _) ⟨_, h⟩
     case on_mvba_decide_pos =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
@@ -591,6 +599,10 @@ local macro "wquiet" : tactic =>
       obtain ⟨-, -, -, -, hdec, -⟩ := htr
       exact not_decided _ _ _ hdec
     case mvba_terminate =>
+      simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
+      obtain ⟨-, -, -, -, hdec, -⟩ := htr
+      exact not_decided _ _ _ hdec
+    case cast_fb_commit =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
       obtain ⟨-, -, -, -, hdec, -⟩ := htr
       exact not_decided _ _ _ hdec
@@ -768,7 +780,7 @@ theorem phasePunctual : PhasePunctual schC run := by
 
 /-- The MVBA's label at each index: the three abandonments, and the
 availability mark at every tick. -/
-def mlbl (n : Nat) : Mvba.Label (Fin 4) (ByzNSet 4) V ℕ :=
+def mlbl (n : Nat) : Mvba.Label (Fin 4) (ByzNSet 4) V E ℕ :=
   if n = 34 then .abandon 0 else if n = 35 then .abandon 1 else if n = 36 then .abandon 2
   else .become_avail_ready 0 default
 
@@ -781,7 +793,7 @@ theorem mvbaStep_cases {n : Nat} (h : MvbaStepLabel (lbl n)) :
   · omega
 
 theorem realizes (n : Nat) (h : MvbaStepLabel (lbl n)) :
-    (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V ℕ).tr thM (mst n) (mlbl n) (mst (n + 1)) := by
+    (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V E ℕ).tr thM (mst n) (mlbl n) (mst (n + 1)) := by
   rcases mvbaStep_cases h with rfl | rfl | rfl | rfl | rfl | rfl | h41
   · exact tick_tr 11 (Or.inl rfl)
   · exact abandon_tr 0 (by decide)
@@ -906,26 +918,36 @@ local macro "wnocert" h:ident : tactic =>
     have := hall r (by simpa using hr)
     simp +unfoldPartialApp [Veil.FieldRepresentation.get, instIsSubStateOfRefl.getFrom_id, st] at this))
 
-/-- **The only certifiable vector is `v⋆`**, at every index. A non-proposer
-has no entry: a negative entry is a proposer's explicit absence, and a
-positive one a proposer's. The proposer's entry cannot be negative, since
-no negative FastQC and no `FBCert` ever exist, so it is its one root. -/
+/-- **The only certifiable representation is `v⋆`**, at every index. A
+non-proposer has no entry: a negative entry is a proposer's explicit
+absence, and a positive one a proposer's. The proposer's entry cannot be
+negative, since no negative FastQC and no `FBCert` ever exist, so it is its
+one root; and that root is held by a FastQC, since a FallbackQC entry needs
+the `FBCert` too. -/
 theorem certified_eq (n : Nat) (v : V) (hc : Certified (thS := thS) (thM := thM) (st n) v) :
     v = vstar := by
   obtain ⟨hpos, hneg, hall⟩ := hc
   funext j
-  simp only [thS, Cadence.chorusTheory, decide_eq_true_eq] at hpos hneg hall
+  simp only [thS, Cadence.chorusTheory, thM, MetaBlock.entries, decide_eq_true_eq] at hpos hneg hall
   by_cases hj : j.val = 0
   · have hj0 : j = 0 := Fin.ext hj
     subst hj0
     rcases hall 0 (by decide) with ⟨M, hM⟩ | hM
-    · simp [vstar, hM]
+    · cases hv : v 0 with
+      | none => simp [hv] at hM
+      | some p =>
+        obtain ⟨u, k⟩ := p
+        rcases (hpos 0 u (by simp [hv])).2 with ⟨hnf, -⟩ | ⟨-, -, h⟩
+        · cases k
+          · simp [vstar]
+          · simp [hv] at hnf
+        · wnocert h
     · rcases (hneg 0 hM).2 with h | ⟨-, h⟩
       · wnocert h
       · wnocert h
   · cases hv : v j with
     | none => simp [vstar, hj]
-    | some M => exact absurd (hpos j M hv).1 hj
+    | some p => exact absurd (hpos j p.1 (by simp [hv])).1 hj
 
 /-- **`ValidBridge`**, with `valid := (· = v⋆)`, in both directions at every
 index. Soundness: a certified vector is `v⋆` (`certified_eq`), hence valid.
@@ -1026,8 +1048,8 @@ theorem termination_premises_satisfiable :
       (_ : Cadence.ViewOrderEnum view vord)
       (is_proposer : Fin n → Bool) (well_encoded : merkle_root → Bool)
       (mvba_init_state :
-        Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view))
-      (thM : Mvba.Theory (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view),
+        Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view))
+      (thM : Mvba.Theory (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view),
       (atMvba (nset := byzNodeSetFin n f hf is_byz hbyz) (slot := slot) (Phase := Phase)
         (PathChoice := PathChoice) thM).assumptions
         (Cadence.chorusTheory (slot := slot) (Phase := Phase) (PathChoice := PathChoice)
@@ -1073,8 +1095,8 @@ theorem timedTermination_premises_satisfiable :
       (hqe : ByzNodeSetHonestQuorum (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz))
       (is_proposer : Fin n → Bool) (well_encoded : merkle_root → Bool)
       (mvba_init_state :
-        Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view))
-      (thM : Mvba.Theory (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)
+        Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view))
+      (thM : Mvba.Theory (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view)
       (sch : Chorus.Schedule view time)
       (hrot : Mvba.LeaderRotation (nset := byzNodeSetFin n f hf is_byz hbyz) vfin sch.mvba.k thM),
       (atMvba (nset := byzNodeSetFin n f hf is_byz hbyz) (slot := slot) (Phase := Phase)
@@ -1114,8 +1136,8 @@ theorem totality_premises_satisfiable :
       (time : Type) (_ : LinearOrder time) (_ : AddCommMonoid time)
       (is_proposer : Fin n → Bool) (well_encoded : merkle_root → Bool)
       (mvba_init_state :
-        Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view))
-      (thM : Mvba.Theory (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)
+        Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view))
+      (thM : Mvba.Theory (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view)
       (sch : Chorus.Schedule view time),
       (atMvba (nset := byzNodeSetFin n f hf is_byz hbyz) (slot := slot) (Phase := Phase)
         (PathChoice := PathChoice) thM).assumptions

@@ -23,7 +23,9 @@ the handler's bridge `require` — the decided entry's certificate against the
 network — is the evidence hypothesis `hev` the arguments intersect with the
 commitQC's quorum. The `intro` pattern follows the handler's guards:
 `¬ is_byz i`, the phase, `is_proposer j`, `mvba_invoked`,
-`mvba.decided mvba_st i v`, `mval_pos v j m`, and then the bridge. -/
+`mvba.decided mvba_st i v`, `mval_pos (mvba.entries v) j m`, and then the
+bridge, which names the certificate kind `v` carries for the entry (a
+`FastQC`'s vote quorum, or a `FallbackQC` with `FBCert`). -/
 
 open Veil Chorus
 
@@ -46,7 +48,7 @@ namespace Chorus.Proofs
   intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev _hfresh J M1 M2 hqc hmv
   by_cases hnew : j = J ∧ m = M2
   · obtain ⟨rfl, rfl⟩ := hnew
-    rcases hev with ⟨Q2, hQ2_sup, hQ2⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩
+    rcases hev with ⟨-, ⟨Q2, hQ2_sup, hQ2⟩⟩ | ⟨-, -, ⟨qf, hqf_sup, hqf⟩⟩
     · obtain ⟨Qm, hQm_sup, hQm⟩ := h_msg_commitqc_pos_votes j M1 hqc
       obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest Qm Q2 hQm_sup hQ2_sup
       exact h_vote_unique_pos b j M1 m (Bool.eq_false_iff.mpr hb_hon) (hQm b hb1) (hQ2 b hb2)
@@ -69,7 +71,7 @@ namespace Chorus.Proofs
   intro _hbyz _hphase _hprop _hinvoked _hdec _hval hev _hfresh J M hqc
   refine ⟨?_, h_commitqc_neg_mvba_pos_excl J M hqc⟩
   rintro rfl rfl
-  rcases hev with ⟨Q2, hQ2_sup, hQ2⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩
+  rcases hev with ⟨-, ⟨Q2, hQ2_sup, hQ2⟩⟩ | ⟨-, -, ⟨qf, hqf_sup, hqf⟩⟩
   · obtain ⟨Qn, hQn_sup, hQn⟩ := h_msg_commitqc_neg_votes j hqc
     obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest Q2 Qn hQ2_sup hQn_sup
     have hx := h_vote_unique_pos_neg b j m (Bool.eq_false_iff.mpr hb_hon) (hQ2 b hb1)
