@@ -277,7 +277,10 @@ actions; parameter lists stay well under ten.
 * **`AvailReady` is an environment relation.** `become_avail_ready i e` is
   an unguarded honest action setting `avail_ready i e`; `send_commit` reads
   it positively. Safety-neutral (a guard), and the hook for the `Δ_sync`
-  assumption (§3).
+  assumption (§3). Since R16 the instance classifies it as the contract's
+  availability input (`markAvail`), and in the composed system Chorus takes
+  it, with its chunk wait as the guard
+  ([PaperAlignment.md](PaperAlignment.md) §8.2).
 * **`abandon` is modelled**, unlike in Chorus: a monotone flag that every
   honest send requires to be unset, and `propose` is the `input` record.
   Cheap, and it is what lets the provider prove the class's input fields

@@ -480,8 +480,8 @@ Naming convention: bare identifier.
 | State | Paper analogue |
 |---|---|
 | `phase : Phase` | the slot's notional time landmark. One global value: per-validator clock skew is absorbed into the gap between `advance_*` actions. |
-| `mvba_st : mstate` | the abstract state of the slot's MVBA instance (Module 3 (`mod:mvba`)), held as the glue holds `sc_state s`: an opaque sort, read only through the contract `mvba : MVBASafety …` (§4), advanced by the oracle step `mvba_step` and the driven input `mvba_propose`. |
-| `mvba_decided_pos j m`, `mvba_decided_neg j` | Chorus's per-proposer records of a correct validator's decision, written by the handlers `on_mvba_decide_*` from `mvba.decided mvba_st i v` through the entry-vector projections `mval_pos`/`mval_neg`. The contract's agreement makes a single global view sound: `mvba_decided_pos_unique` is *proven* from it (§6.4). |
+| `mvba_st : mstate` | the abstract state of the slot's MVBA instance (Module 3 (`mod:mvba`)), held as the glue holds `sc_state s`: an opaque sort, read only through the contract `mvba : MVBASafety …` (§4), advanced by the oracle step `mvba_step` and the driven inputs `mvba_propose`, `accept_mvba_commitqc`, `mvba_avail_ready` and `abandon`. |
+| `mvba_decided_pos j m`, `mvba_decided_neg j` | Chorus's per-proposer records of the certified entries, written by the decision handlers `on_mvba_decide_*` from a correct validator's decision `mvba.decided mvba_st i v`, and by the `CommitQC` route's handlers `on_mvba_commitqc_*` from a valid certificate `mvba.certifies mvba_st c (mvba.entries v)`, through the entry-vector projections `mval_pos`/`mval_neg`. The contract's agreement and its certificate fields make a single global view sound: `mvba_decided_pos_unique` is *proven* from them (§6.4). |
 | `mvba_complete : Bool` | a correct validator's full decision vector has been recorded (`mvba_terminate`). |
 
 ### 3.5.1 Why `msg_chunk_received` is the only per-recipient network relation
@@ -611,7 +611,12 @@ two triggers below) and with the caller's `Valid B_i` obligation as
 guards (every entry a proposer's and certificate-backed, every proposer
 covered); safety needs nothing from it, liveness needs it for
 Termination's "all correct validators propose" premise (§7). `abandon`
-stays undriven (this single-slot model never abandons the instance). The
+is forwarded by Chorus's own `abandon` input. `mvba_avail_ready i v`
+drives the contract's availability input `markAvail`: Chorus reports
+`AvailReady_i(v)` once `i` has received its assigned chunk under every
+positive `FallbackQC` entry of `v`, the supplement's definition
+(Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit availability
+condition"), and `avail_ready_chunks` proves that meaning. The
 **decision handlers** `on_mvba_decide_pos i j m v` / `on_mvba_decide_neg
 i j v` transport a correct validator's decision (`mvba.decided mvba_st i
 v`) entry by entry into the records `mvba_decided_pos j m` /
@@ -620,7 +625,31 @@ update stays a monotone `:= true` and the downstream invariants keep their
 form. `mvba_terminate i v` records that every proposer's entry of a
 correct validator's decision has been recorded (`mvba_complete`), the
 model shadow of Algorithm 5, line 37 (`line:fb-mvba-decide`) delivering `B'` at once, and gates
-the fallback commit round.
+the fallback commit round. None of them has a phase gate: the paper's
+handler runs "upon `MVBA[s].decide(B′)`", with no time condition, and a
+decision can come before the MVBA arm (the case-2 proposal needs only the
+fallback votes).
+
+**The `CommitQC` route** (Supplement, Section 1.2 (`subsec:mvba-protocol`),
+"Decision output and handoff"): "A correct validator that receives a
+valid such certificate re-broadcasts it and finalizes the certified
+outcome, recovering a matching meta-block or the underlying proposals as
+required by the ordinary commitment-proof recovery path." The handlers
+`on_mvba_commitqc_pos i j m c v` / `on_mvba_commitqc_neg i j c v` take a
+valid certificate `c` and a representation `v` of its entries (the
+recovered meta-block), check the certificates `v` names against the
+network, the bridge below, and record the entries in the same shared
+records. Finalization is then the ordinary `commit_assign_*` /
+`finalize_commit`, whose certificate disjunct reads `fbcommitqc ∨
+mvba_commitqc` (the ghost "a valid MVBA certificate exists"). The
+re-broadcast needs no step, since a valid certificate stays valid
+(`certified_mono`). The records are fired once per entry from either
+source (`local_mvba_recorded`). The route's agreement with the fast path
+is `commitqc_pos_mvba_consistent` and its two exclusion siblings at the
+new handlers, by the main body's fast-path argument over the bridge
+evidence. Its agreement with the `fbCommitQC` route and with itself is
+the contract's `certified_unique` and `certified_decided`, through the
+restated ties.
 
 **The one stated bridge.** Before acting on an entry, each handler
 verifies the entry's certificate against the network: `vote_quorum_pos j
@@ -647,17 +676,23 @@ validators' internal state: the MVBA can only verify what a proposal
 carries, so a gate referring to honest validators' aggregated FastQCs would
 not be implementable. None is needed — with commitQC-based finalization the
 paper's own asynchronous agreement argument goes through (§6). The bridge is
-stated in three places and nowhere else: the two handlers in
-[Cadence/Chorus.lean](../Cadence/Chorus.lean), and — as the same disjunction — the validity guards
-of `mvba_propose`, where it is the caller's obligation rather than the
-receiver's check.
+stated in five places and nowhere else: the two decision handlers and the
+two `CommitQC` route handlers in [Cadence/Chorus.lean](../Cadence/Chorus.lean), and — as the
+same disjunction — the validity guards of `mvba_propose`, where it is the
+caller's obligation rather than the receiver's check. At the route the
+checked representation is the recovered one, and the same soundness
+argument applies: `Recover(e)` returns a valid representation
+(`certified_valid`), and a valid one passes the check.
 
 **What the class buys.** Agreement of the records —
 `mvba_decided_pos_unique`, `mvba_decided_pos_neg_excl` — is *proven* from the
 class's `agreement` at the reachable abstract state (`mvba_reachable`),
 through two **tie invariants** (`mvba_decided_pos_tied`,
 `mvba_decided_neg_tied`: every record is the projection of some correct
-validator's decision) and the two `mval_*` assumptions. This is how
+validator's decision or of a valid certificate) and the two `mval_*`
+assumptions, with `certified_decided` and `certified_unique` for the
+certificate-sourced records and `certified_mono` keeping the ties
+inductive. This is how
 `Mvba.mvbaSafety` enters Chorus's trust base: the decision handlers assert no
 agreement property of their own. [spikes/09_mvba_consumer_ok.lean](../spikes/09_mvba_consumer_ok.lean) and
 [10_mvba_consumer_no_tie.lean](../spikes/10_mvba_consumer_no_tie.lean) are the shape experiment and its negative
@@ -669,9 +704,11 @@ whose monotone-network shadow is `fbcert` — and the case-(a) trigger — a
 complete fast meta-block held at the MVBA arm. Both are modelled:
 `mvba_propose` requires the proposer's own trigger (`fbcert` from the
 fallback arm on, or its own `complete_fast_metablock` at the MVBA arm),
-and the handlers and `mvba_terminate` require the derived
+and the decision handlers and `mvba_terminate` require the derived
 `mvba_invoked = fbcert ∨ (∃ honest I, complete_fast_metablock I)` — a
 Chorus-side listening condition on which no safety invariant relies. The
+`CommitQC` route does not: a validator on the fast path that receives a
+certificate finalizes on it. The
 case-(a) trigger is load-bearing for liveness in the *mixed* regime where
 between 1 and 2f honest validators took the fast path — there neither a
 commitQC nor an FBCert is guaranteed, and termination flows through MVBA
@@ -831,9 +868,9 @@ signed-implies-voted family (`vote_sig_pos_implies_voted`,
 `vote_pos_sig_chunk`.
 
 Phase timestamps: `voted_post_deadline`, `fastqc_post_deadline`,
-`fb_sig_phase`, `mvba_decided_phase`, `fbcommit_sig_phase`,
-`mvba_complete_phase` — every protocol artefact postdates the landmark
-that produces it; used by `hiding_until_deadline` and by the
+`fb_sig_phase`, `mvba_decided_phase` — every protocol artefact postdates
+the landmark that produces it (a record, the deadline: its certificate's
+correct signers signed after it); used by `hiding_until_deadline` and by the
 premise-stability arguments of the conditional properties.
 
 ### 6.3 Certificate backing and intersection consequences
@@ -900,8 +937,7 @@ two hypotheses).
 
 `fbcommit_sig_backed` (an honest commit vote postdates the decision
 vector it signs — Algorithm 5, line 37 (`line:fb-mvba-decide`) precedes Algorithm 5, line 41 (`line:fb-commitvote`)),
-`fbcommit_sig_phase` and `mvba_complete_phase` (filed under the phase
-timestamps, §6.2), `fbcommitqc_implies_mvba_complete` (an `fbCommitQC`
+`fbcommitqc_implies_mvba_complete` (an `fbCommitQC`
 certifies the decision vector: its `2f+1` votes contain an honest one),
 and `mvba_decided_pos_proposer_signed` (filed under §6.4). Together
 with `mvba_decided_pos_chunks_decodable` and `mvba_decided_is_proposer`
@@ -985,7 +1021,7 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
    (`mvba_decided_is_proposer` + `mvba_decided_pos_chunks_decodable` +
    `mvba_decided_pos_proposer_signed`) and owed, so (F-justice) delivers
    each honest validator's assigned chunk; `cast_fb_commit` is then enabled
-   (`mvba_complete_phase` closes the phase leg); the `2f+1` honest
+   (it has no phase gate); the `2f+1` honest
    commit votes are a certificate outright
    (`Chorus.fbcommitqc_of_honest_commit_votes` — the honest population
    is itself the quorum), and `fbcommitqc_implies_mvba_complete` +

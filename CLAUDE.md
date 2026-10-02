@@ -26,8 +26,10 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `Cadence/Chorus/Certify.lean` composes them. Model-only build ~2 min. It
   consumes the MVBA as the class constraint `instantiate mvba : MVBASafety
   …` over an abstract state (`docs/CompositionContracts.md` §3), with
-  two per-entry decision handlers whose certificate check against the
-  network is the **one stated bridge**, so it imports `Interfaces.lean` —
+  per-entry decision handlers and `CommitQC`-route handlers whose
+  certificate check against the network is the **one stated bridge**, and
+  it drives the contract's `AvailReady` input itself (`mvba_avail_ready`),
+  so it imports `Interfaces.lean` —
   which means an edit to the contracts now rebuilds the Chorus family. Do
   not touch its imports casually (it imports `Primitives.lean`,
   `QuorumCounting.lean`, `Interfaces.lean` and `Tooling.lean` only).
@@ -441,7 +443,7 @@ is a change to what this project *claims*, not a refactor.
 * **No `sorryAx` anywhere.** Every axiom pin stays at exactly
   `[propext, Classical.choice, Quot.sound]`, in every per-result pin and
   in [`Cadence.lean`](./Cadence.lean).
-* **The audit pins stay complete**: `#veil_status Chorus` at `4840/4840 real`,
+* **The audit pins stay complete**: `#veil_status Chorus` at `5099/5099 real`,
   `#veil_status FallbackReceipt` at `220/220 real` and `#veil_status Mvba`
   at `1507/1507 real`. If an invariant **or a `step_property`** is added, these
   numbers change — a step property costs one cell per action — so update the

@@ -305,15 +305,15 @@ relations, and it takes a human to confirm each use is positive.
      progress relies on adversarial help.
    * **`MvbaAdmissible`**: the run's MVBA steps, read as a run of the MVBA
      model, satisfy the MVBA's own scheduling premises — weak fairness of
-     its honest actions for correct senders, (A-viewsync) and (F-avail),
-     stated with
+     its honest actions for correct senders, and (A-viewsync), stated with
      [Cadence/Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s definitions. It includes that the
      run takes infinitely many MVBA steps (`Component.Scheduled`), and it
      supplies the labels, since the composed run records only the MVBA's
      states.
    * **`ValidBridge`**: the MVBA's `Valid` holds exactly for meta-blocks
      whose entries carry certificates on Chorus's network — certified
-     meta-blocks are `Valid`, and decided ones are certified. It is the
+     meta-blocks are `Valid`, and the ones a correct validator decided or
+     holds in its MVBA are certified. It is the
      **cryptographic seam** between the two models (certificates cannot
      be forged and are publicly verifiable), the run-level form of the one
      stated bridge of item 3, and **not a fairness assumption**.
@@ -321,9 +321,13 @@ relations, and it takes a human to confirm each use is positive.
    **(A-mvba) is retired.** It was the assumption that the MVBA,
    invoked with per-proposer evidence, terminates. `Chorus.termination`
    applies `Mvba.termination` to the run's MVBA steps instead, and derives
-   that theorem's three caller premises (every correct validator proposes;
+   that theorem's four caller premises (every correct validator proposes;
    none is abandoned before deciding; decided certificates are handed on,
-   by Chorus's handoff `accept_mvba_commitqc`). `MvbaAdmissible` and `ValidBridge`
+   by Chorus's handoff `accept_mvba_commitqc`; the availability shares
+   arrive, (F-avail), by Chorus's availability report `mvba_avail_ready`
+   and its re-dissemination, since R16). The timed (Δ-avail) is still
+   assumed inside `TimedMvbaAdmissible` until S4 derives it from the same
+   rows ([TODO.md](TODO.md) § Liveness). `MvbaAdmissible` and `ValidBridge`
    are what it leaves. The name survives in the prose of
    [Cadence/Chorus.lean](../Cadence/Chorus.lean),
    [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and
@@ -535,7 +539,7 @@ table can be read off one file:
 |---|---|---|
 | `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_temporal` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | `propext, Classical.choice, Quot.sound` | ✓ |
 | `Cadence.system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | same | ✓ |
-| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 4840/4840 real |
+| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 5099/5099 real |
 | `FallbackReceipt.invariants_of_reachable` ([Cadence/FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean)) | same | ✓ + `#veil_status`: 220/220 real |
 | `FallbackReceipt.build_totality_of_reachable` ([Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean)) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)) | same | ✓ |

@@ -184,11 +184,18 @@ from an immutable `mvba_init_state` (`assumption [mvba_init]`) and carried as
 `MVBA[s].propose(B_i)`, under the proposer's own trigger and with `Valid B_i`
 as guards); the forwarded `abandon`; the **decision handoff**
 `accept_mvba_commitqc` (since R8), which hands a transferred valid commit
-certificate to a validator's MVBA through the contract's input `accept`; and
-two **per-entry decision handlers**
-`on_mvba_decide_pos` / `on_mvba_decide_neg` that transport a correct
-validator's decision `mvba.decided mvba_st i v` into the module's per-proposer
-records. **The value is the meta-block representation** (an entry vector
+certificate to a validator's MVBA through the contract's input `accept`; the
+**availability report** `mvba_avail_ready` (since R16), which drives the
+contract's input `markAvail` once the validator holds its assigned chunk
+under every positive FallbackQC entry of a representation; two
+**per-entry decision handlers** `on_mvba_decide_pos` / `on_mvba_decide_neg`
+that transport a correct validator's decision `mvba.decided mvba_st i v` into
+the module's per-proposer records; and the two handlers of the **`CommitQC`
+route** `on_mvba_commitqc_pos` / `on_mvba_commitqc_neg` (since R16), which
+record the entries of a valid certificate `mvba.certifies mvba_st c
+(mvba.entries v)` in the same records, so that a validator finalizes on the
+MVBA's own commit certificate (Supplement, Section 1.2
+(`subsec:mvba-protocol`), "Decision output and handoff"). **The value is the meta-block representation** (an entry vector
 and each positive entry's certificate kind,
 [PaperAlignment.md](PaperAlignment.md) §8.1), and agreement is over its
 entries: two correct validators may decide representations whose
@@ -202,9 +209,10 @@ entry). The fallback commit vote `cast_fb_commit i v` reads the
 validator's own decision the same way and waits under exactly the
 FallbackQC entries of `v`.
 
-The records' agreement is *proven* from the class's `agreement`, through two
-tie invariants stating that every record is the projection of some correct
-validator's decision.
+The records' agreement is *proven* from the class's `agreement`,
+`certified_decided` and `certified_unique`, through two tie invariants
+stating that every record is the projection of some correct validator's
+decision or of a valid certificate.
 
 **The decision handoff** is the supplement's strengthened Module 3 (`mod:mvba`)
 interface (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"), added to `MVBASafety` in R8 and
@@ -218,10 +226,17 @@ representation of the certified entries). Beside them sit the
 (`certified_unique`), the one every correct party decides
 (`certified_decided`), with a valid representation (`certified_valid`) and
 with the availability its correct signers established
-(`certified_available`, over the observable `availReady`). All are
-first-order; seven facts no safety cell of Chorus reads are withheld from
-the solver (`veil_smt_ignore`), so Chorus's cells see only `accept` and
-`accept_trans` more. `Mvba.mvbaSafety`
+(`certified_available`, over the observable `availReady`), and it stays
+valid (`certified_mono`, R16: the certificate is transferable). **The
+availability input** (R16) is `markAvail` with `markAvail_trans`,
+`markAvail_effect`, `availReady_markAvail_frame`, `init_availReady` and the
+four frames saying that no other transition changes `availReady`. The
+supplement makes `AvailReady` a predicate on the dissemination layer's
+state, so the caller decides it ([PaperAlignment.md](PaperAlignment.md)
+§6, P12). All are first-order. Five facts with an `∃` in their conclusion
+that no safety cell of Chorus reads are withheld from the solver
+(`veil_smt_ignore`: `decided_certified`, `accept_effect`, `accept_enabled`,
+`certified_valid`, `certified_available`). `Mvba.mvbaSafety`
 proves them, with `decide` as the instance's `accept`: the MVBA no longer
 decides on a transferred certificate by an internal step, so the oracle
 `mvba_step` cannot take it, and its timing is the caller's, derived from
@@ -230,9 +245,11 @@ weakened and `MVBATemporal` is unchanged; `System.lean` needed no edit.
 
 One **stated bridge** remains, deliberately, and it is the MVBA counterpart
 of the ACS median bridge: each handler verifies the certificate the
-decided representation names for the entry against Chorus's own network
+representation names for the entry against Chorus's own network
 relations — `vote_quorum_pos j m` for a FastQC, `fb_quorum_pos j m ∧
-fbcert` for a FallbackQC, and the negative form.
+fbcert` for a FallbackQC, and the negative form. Its sites are the two
+decision handlers, where the representation is the validator's decision,
+and the two `CommitQC` route handlers, where it is the recovered one.
 The paper's `Valid B` is a function of the meta-block, which *carries* its
 certificates; Chorus's certificate predicate is a fact about Chorus's
 **state**, which a class parameter declared before `#gen_state` cannot
@@ -242,8 +259,9 @@ directions and becomes a named run-level premise, `Chorus.ValidBridge` in
 [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean): a
 certified meta-block is `Valid` (what lets `mvba_propose` fire, since the
 contract's `propose` requires `Valid`), and a correct validator's decided
-meta-block is certified (what enables the handlers) —
-[Liveness.md](Liveness.md) §4.3.
+or accepted meta-block is certified (what enables the handlers, and what
+gives the availability report its chunks) — [Liveness.md](Liveness.md)
+§4.3.
 
 ## 4. The providers: the proven instances
 
