@@ -1008,7 +1008,7 @@ theorem enabled_cast_fb_commit {i : node}
     (hi : ¬ nset.is_byz i = true) (ha : Active s i) (hph : s.phase = Phase_EnumClass.post_mvba_arm)
     (hc : s.mvba_complete = true)
     (hda : ∀ J M, th.is_proposer J = true → s.mvba_decided_pos J M = true →
-      s.msg_chunk_received i J M = true)
+      Chorus.vote_quorum_pos J M th s ∨ s.msg_chunk_received i J M = true)
     (hfr : ¬ s.local_fbcommit_voted i = true) :
     Enabled RTS th s (.cast_fb_commit i) := by
   chorus_enabled
@@ -2375,17 +2375,15 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
 
 set_option maxHeartbeats 1000000 in
 /-- **Every correct validator casts its fallback commit vote**, once the
-decision is transported and it has decided itself: for each decided-positive
-root its own chunk arrives, and no new decided root appears (the records are
-unique per proposer), so `cast_fb_commit` stays enabled, and it is owed.
+decision is transported and it has decided itself: its DA wait is met under
+every decided-positive root, and no new decided root appears (the records
+are unique per proposer), so `cast_fb_commit` stays enabled, and it is owed.
 
-The chunk comes from a correct re-disseminator, whose send is owed: the root
-is certificate-backed (`mvba_decided_pos_backed`). Under a FastQC its `2f+1`
-voters include `f+1` correct ones, each holding its chunk
-(`vote_pos_sig_chunk`), so `i` itself decodes from correct holders once it
-has decided (`line:fb-commit-wait`, the only fast-path-free source, F11);
-under a FallbackQC one of its `f+1` signers is correct and decoded the
-proposal to sign (`line:fb-redisseminate`), so it re-disseminates. -/
+The wait is the paper's (`line:fb-commit-foreach`): a root is certificate-
+backed (`mvba_decided_pos_backed`). Under a FastQC there is nothing to wait
+for. Under a FallbackQC one of its `f+1` signers is correct and decoded the
+proposal to sign, so it re-disseminates `i`'s chunk (`line:fb-redisseminate`,
+F8's disjunct of the owed-condition). -/
 theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
     (hfj : PerLabel r)
     {A : Nat} (hact : ActiveFrom r A)
@@ -2400,62 +2398,62 @@ theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
   obtain ⟨Nm, hNm⟩ := eventually_mvbaArm r hfj
   have hreach := r.reachable T
   obtain ⟨kd, w, hdw⟩ := hdi
-  -- `i`'s chunk under every root decided positive at `T`.
+  -- The wait under every root decided positive at `T`: a FastQC, or `i`'s chunk.
+  have hwait_step : ∀ J M n, Chorus.vote_quorum_pos J M thS (r.at' n) ∨
+      (r.at' n).msg_chunk_received i J M = true →
+      Chorus.vote_quorum_pos J M thS (r.at' (n + 1)) ∨
+        (r.at' (n + 1)).msg_chunk_received i J M = true := fun J M n h =>
+    h.imp (vote_quorum_pos_step (r.steps n)) (Chorus.msg_chunk_received.mono (r.steps n) i J M)
   obtain ⟨Nd, hNd, hall⟩ := r.eventually_forall
     (fun J st => thS.is_proposer J = true →
-      ∀ M, (r.at' T).mvba_decided_pos J M = true → st.msg_chunk_received i J M = true)
-    (fun J n h hJ M hM => Chorus.msg_chunk_received.mono (r.steps n) i J M (h hJ M hM)) T nodes
+      ∀ M, (r.at' T).mvba_decided_pos J M = true →
+        Chorus.vote_quorum_pos J M thS st ∨ st.msg_chunk_received i J M = true)
+    (fun J n h hJ M hM => hwait_step J M n (h hJ M hM)) T nodes
     (fun J _ => by
       by_cases hJ : thS.is_proposer J = true
       · rcases (hT T (Nat.le_refl _)).2 J hJ with ⟨M0, -, hM0⟩ | ⟨-, hneg⟩
-        · -- The chunk's correct source.
-          obtain ⟨k, hk, hown⟩ : ∃ k, ¬ nset.is_byz k = true ∧ ∀ n, max T kd ≤ n →
-              ((CorrectChunkQuorum J M0 (r.at' n) ∧
-                  ∃ v, (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' n).mvba_st k v) ∨
-                (r.at' n).msg_fb_pos_sig k J M0 = true) := by
-            rcases Chorus.reachable_mvba_decided_pos_backed hreach J M0 hM0 with
-              ⟨q, hq, hall⟩ | ⟨⟨q, hq, hall⟩, -⟩
-            · -- `i` decodes from the correct holders itself, once it has decided
-              -- (`line:fb-commit-wait`, F11).
-              obtain ⟨t, ht, htq⟩ := cnt.honest_third_in_supermajority q hq
-              exact ⟨i, hi, fun n hn => Or.inl ⟨⟨t, ht, fun a ha => (htq a ha).2, fun a ha =>
-                r.mono (P := fun st => st.msg_chunk_received a J M0 = true)
-                  (fun m h => Chorus.msg_chunk_received.mono (r.steps m) a J M0 h)
-                  (Chorus.reachable_vote_pos_sig_chunk hreach a J M0 (hall a (htq a ha).1)) n (by omega)⟩,
-                w, decided_persists r hdw n (by omega)⟩⟩
-            · obtain ⟨k, hkq, hk⟩ := ByzNodeSet.greater_than_third_one_honest q hq
-              exact ⟨k, hk, fun n hn => Or.inr (r.mono (P := fun st => st.msg_fb_pos_sig k J M0 = true)
-                (fun m h => Chorus.msg_fb_pos_sig.mono (r.steps m) k J M0 h) (hall k hkq) n (by omega))⟩
-          obtain ⟨n, hn, h⟩ := eventually_of_weaklyFairWhen
-            (hfj (.redisseminate_chunk k i J M0) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
-            (P := fun st => st.msg_chunk_received i J M0 = true) (N := max (max T kd) A)
-            (fun n hn => hown n (by omega))
-            (fun _ _ h => redisseminate_chunk_effect h)
-            (fun n hn hnr => enabled_redisseminate_chunk hk (hact n (by omega) k hk) hJ
-              (r.mono (P := fun st => st.msg_proposer_signed J M0 = true)
-                (fun m h => Chorus.msg_proposer_signed.mono (r.steps m) J M0 h)
-                (proposer_signed_of_decided_pos hreach hM0) n (by omega))
-              (r.mono (P := fun st => Chorus.chunk_quorum J M0 thS st)
-                (fun m h => chunk_quorum_step (r.steps m) h)
-                (Chorus.reachable_mvba_decided_pos_chunks_decodable hreach J M0 hM0) n (by omega))
-              fun hf => hnr (chunk_sent_received r n hf))
-          refine ⟨n, by omega, fun _ M hM => ?_⟩
-          obtain rfl := Chorus.reachable_mvba_decided_pos_unique hreach J M M0 ⟨hM, hM0⟩
-          exact h
+        · rcases Chorus.reachable_mvba_decided_pos_backed hreach J M0 hM0 with
+            ⟨q, hq, hallq⟩ | ⟨⟨q, hq, hallq⟩, -⟩
+          · -- A FastQC: no wait.
+            refine ⟨T, Nat.le_refl _, fun _ M hM => ?_⟩
+            obtain rfl := Chorus.reachable_mvba_decided_pos_unique hreach J M M0 ⟨hM, hM0⟩
+            exact Or.inl ⟨q, hq, hallq⟩
+          · -- A FallbackQC: its correct signer re-disseminates `i`'s chunk.
+            obtain ⟨k, hkq, hk⟩ := ByzNodeSet.greater_than_third_one_honest q hq
+            have hown : ∀ n, T ≤ n → (r.at' n).msg_fb_pos_sig k J M0 = true := fun n hn =>
+              r.mono (P := fun st => st.msg_fb_pos_sig k J M0 = true)
+                (fun m h => Chorus.msg_fb_pos_sig.mono (r.steps m) k J M0 h) (hallq k hkq) n hn
+            obtain ⟨n, hn, h⟩ := eventually_of_weaklyFairWhen
+              (hfj (.redisseminate_chunk k i J M0) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
+              (P := fun st => st.msg_chunk_received i J M0 = true) (N := max T A)
+              (fun n hn => Or.inr (hown n (by omega)))
+              (fun _ _ h => redisseminate_chunk_effect h)
+              (fun n hn hnr => enabled_redisseminate_chunk hk (hact n (by omega) k hk) hJ
+                (r.mono (P := fun st => st.msg_proposer_signed J M0 = true)
+                  (fun m h => Chorus.msg_proposer_signed.mono (r.steps m) J M0 h)
+                  (proposer_signed_of_decided_pos hreach hM0) n (by omega))
+                (r.mono (P := fun st => Chorus.chunk_quorum J M0 thS st)
+                  (fun m h => chunk_quorum_step (r.steps m) h)
+                  (Chorus.reachable_mvba_decided_pos_chunks_decodable hreach J M0 hM0) n (by omega))
+                fun hf => hnr (chunk_sent_received r n hf))
+            refine ⟨n, by omega, fun _ M hM => ?_⟩
+            obtain rfl := Chorus.reachable_mvba_decided_pos_unique hreach J M M0 ⟨hM, hM0⟩
+            exact Or.inr h
         · exact ⟨T, Nat.le_refl _, fun _ M hM =>
             absurd ⟨hM, hneg⟩ (Chorus.reachable_mvba_decided_pos_neg_excl hreach J M)⟩
       · exact ⟨T, Nat.le_refl _, fun h => absurd h hJ⟩)
   -- The DA wait holds from then on: every root decided later was decided at `T`.
   have hda : ∀ n, max Nd Nm ≤ n → ∀ J M, thS.is_proposer J = true →
-      (r.at' n).mvba_decided_pos J M = true → (r.at' n).msg_chunk_received i J M = true := by
+      (r.at' n).mvba_decided_pos J M = true →
+        Chorus.vote_quorum_pos J M thS (r.at' n) ∨ (r.at' n).msg_chunk_received i J M = true := by
     intro n hn J M hJ hM
     rcases (hT T (Nat.le_refl _)).2 J hJ with ⟨M0, -, hM0⟩ | ⟨-, hneg⟩
     · have hM0n := r.mono (P := fun st => st.mvba_decided_pos J M0 = true)
         (fun m h => Chorus.mvba_decided_pos.mono (r.steps m) J M0 h) hM0 n (by omega)
       obtain rfl := Chorus.reachable_mvba_decided_pos_unique (r.reachable n) J M M0 ⟨hM, hM0n⟩
-      exact r.mono (P := fun st => st.msg_chunk_received i J M = true)
-        (fun m h => Chorus.msg_chunk_received.mono (r.steps m) i J M h)
-        (hall J (hnodes J) hJ M hM0) n (by omega)
+      exact r.mono (P := fun st => Chorus.vote_quorum_pos J M thS st ∨
+          st.msg_chunk_received i J M = true)
+        (fun m h => hwait_step J M m h) (hall J (hnodes J) hJ M hM0) n (by omega)
     · have hnegn := r.mono (P := fun st => st.mvba_decided_neg J = true)
         (fun m h => Chorus.mvba_decided_neg.mono (r.steps m) J h) hneg n (by omega)
       exact absurd ⟨hM, hnegn⟩ (Chorus.reachable_mvba_decided_pos_neg_excl (r.reachable n) J M)

@@ -1353,17 +1353,18 @@ Modelling notes:
   a given chunk once (`local_chunk_sent`). Beyond that, its precondition
   is the network-level capability itself. A Byzantine sender has the same
   capability, unconstrained and unfair, as `byz_redisseminate_chunk`.
-* **The DA wait covers every decided-positive root.** The paper waits
-  only under positive *FallbackQC* entries (`line:fb-commit-foreach`;
-  FastQC entries already carry chunk-backed vote supermajorities). The
-  model does not track which certificate backed an MVBA decision, so
-  `cast_fb_commit` waits for the validator's chunk under *every*
-  decided-positive root. This is a strictly stronger guard on an honest
-  action: safety-neutral (it only removes behaviours), and fair progress
-  is preserved because every decided-positive root is decodable
-  (`mvba_decided_pos_chunks_decodable`) and proposer-signed
-  (`mvba_decided_pos_proposer_signed`), so `redisseminate_chunk` can
-  always deliver the missing chunk ((F-justice)).
+* **The DA wait is the paper's, under FallbackQC entries only**
+  (`line:fb-commit-foreach`). The decided entry vector does not say which
+  certificate holds each entry; the decision handlers check that one of
+  the two does (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`). So
+  `cast_fb_commit` reads "held by a FallbackQC" as "no FastQC for it
+  exists": under each decided-positive root it requires a positive FastQC
+  *or* the validator's own chunk. Both reads are positive. Where a root
+  has both certificates the model does not wait and the paper may: the
+  model then has more runs than the paper, which only widens the safety
+  claims. Fair progress needs no chunk under a FastQC; under a FallbackQC
+  one of its `f+1` signers is correct and re-disseminated the chunk when
+  it signed (`line:fb-redisseminate`).
 * **Participation gating** (the paper's standing convention that every
   message-sending rule requires active participation,
   §`subsection:chorus-protocol-overview`) is modelled directly:
@@ -1404,10 +1405,12 @@ action cast_fb_commit (i : node) {
   -- entry vector `B'` at once, whose model shadow is the completed
   -- per-proposer decision relation (`mvba_complete_per_proposer`).
   require mvba_complete
-  -- DA wait (`line:fb-commit-wait`): own assigned chunk received and
-  -- validated under every decided-positive root (see the section note
-  -- on why this covers all positives, not only FallbackQC-backed ones).
-  require ∀ J M, is_proposer J → mvba_decided_pos J M → msg_chunk_received i J M
+  -- DA wait (`line:fb-commit-foreach`, `line:fb-commit-wait`): for each
+  -- positive entry ⟨s, J, M⟩ of `B'` held by a FallbackQC, wait until the
+  -- own assigned chunk for `M` is received and validated. An entry held by
+  -- a FastQC needs no wait (see the section note).
+  require ∀ J M, is_proposer J → mvba_decided_pos J M →
+    vote_quorum_pos J M ∨ msg_chunk_received i J M
   -- Fired once: `i` has not cast its fallback commit vote yet.
   require ¬ local_fbcommit_voted i
   msg_fbcommit_sig i := true

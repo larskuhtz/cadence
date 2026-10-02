@@ -1991,8 +1991,8 @@ correct fast voter's meta-block, or a correct `FBCert`), and the MVBA arm
 finalizes.
 
 **Four findings from S3** (2026-10-01, R11, while proving the milestones;
-each is built into the statement in the same PR, and F12 is left open for a
-model session). Three are about premises, one about the model.
+each is built into the statement in the same PR; F12 was left for a
+model session, R12, which closed it). Three are about premises, one about the model.
 
 * **F9: the case-(a) proposal is a local step.** The table had one Δ-row for
   `mvba_propose`, owed on `CorrectFBCert ∨ i`'s own complete fast meta-block.
@@ -2027,19 +2027,70 @@ model session). Three are about premises, one about the model.
   only once `k` has itself decided. `Chorus.termination` is re-proven
   against it with no model change: `eventually_fbcommit_sig` used the
   disjunct only with `k := i`, the voter, which has decided.
-* **F12: the model's fallback commit vote waits under more roots than the
+* **F12: the model's fallback commit vote waited under more roots than the
   paper's** (found by R10). The paper waits only under FallbackQC entries:
   "**for each** FallbackQC in B′ with a positive entry ⟨s, j, root⟩: **wait
   until** p_i has received and validated its assigned chunk for root"
   (`line:fb-commit-foreach`, `line:fb-commit-wait`). The model's
-  `cast_fb_commit` requires
+  `cast_fb_commit` required
   `∀ J M, is_proposer J → mvba_decided_pos J M → msg_chunk_received i J M`,
   under every decided positive root, FastQC-backed ones included. So the
-  model has fewer runs than the paper: the safety claims do not cover a
+  model had fewer runs than the paper: the safety claims did not cover a
   paper run in which the vote is cast without that wait, and the liveness
-  bound must pay for a chunk the paper does not wait for. **Open; closed in
-  a dedicated model session (R12: guard change + cold Chorus re-solve),
-  after R10 and R11 merge.**
+  bound had to pay for a chunk the paper does not wait for. **Closed in
+  R12** (2026-10-01), see "F12 closed" below.
+
+**F12 closed** (R12). The guard now reads like the paper line:
+
+| | `cast_fb_commit`'s DA wait |
+|---|---|
+| paper | for each FallbackQC in B′ with a positive entry ⟨s, j, root⟩: wait until p_i has received and validated its assigned chunk for root |
+| before | `∀ J M, is_proposer J → mvba_decided_pos J M → msg_chunk_received i J M` |
+| after | `∀ J M, is_proposer J → mvba_decided_pos J M → vote_quorum_pos J M ∨ msg_chunk_received i J M` |
+
+The decided entry vector does not record which certificate holds an
+entry. The decision handlers check that one does
+(`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`). So the model reads
+"held by a FallbackQC" as "no positive FastQC for it exists". Both network
+reads are positive, the antecedent is the frozen decided-vector read
+already documented ([ChorusDesign.md](ChorusDesign.md) §3.1), and the
+action keeps its one parameter, `i`. No invariant was needed:
+none mentions the DA wait, and all 103 of the action's cells re-solved
+cold. The `#veil_status Chorus` count was written down before the build as
+unchanged, `101 + 46 × (101 + 1) + 47 = 4840`, and it is. `Chorus.termination`
+is re-proven with a simpler argument (`eventually_fbcommit_sig`): under a
+FastQC root there is nothing to wait for, and under a FallbackQC root one
+of its `f+1` signers is correct and owes the re-dissemination (F8's
+disjunct). Timeline, Totality and Witness needed no edit.
+
+Two findings from the fix, both reported, neither acted on:
+
+* **F13: where a root has both certificates, the model does not wait and
+  the paper may.** If B′ carries a FallbackQC for `(j, m)` while a
+  positive FastQC for `(j, m)` also exists (the MVBA proposer held only
+  the former), the paper's validator waits for its chunk and the model's
+  does not. For safety this only adds runs. For the timed claim it leaves
+  a residual: in such a run the δ-row of `cast_fb_commit` is owed from the
+  decision, while the paper's validator may wait for its chunk until the
+  correct FallbackQC signer's re-dissemination arrives (a Δ-row). The run
+  then violates the premise, and the claim says nothing about it. Closing
+  this exactly needs the certificate kind in the MVBA's value (an entry
+  vector that says FastQC or FallbackQC), which changes the value type
+  `System.lean` instantiates. That is outside this session's scope.
+  **Proposal:** carry the certificate kind in the entry vector in the
+  composition leg, or accept the residual as stated here.
+* **F14: re-dissemination's "decided" owed-disjunct is now used by no
+  proof, and it is stronger than the paper.** `Owed (.redisseminate_chunk
+  k i j m)` is `(CorrectChunkQuorum j m ∧ k has decided) ∨ msg_fb_pos_sig
+  k j m`. The left disjunct was used only by the old
+  `eventually_fbcommit_sig`, for FastQC roots, which no longer need a chunk.
+  The paper's decided validator broadcasts only *its own* chunk, and only
+  under FallbackQC entries (`line:fb-commit-wait`). It does not send other
+  validators their chunks. So the disjunct owes steps that paper runs
+  need not take. Dropping it weakens `FJustice` and `TimedJustice` (fewer
+  obligations) and needs no proof change (the witness never used either
+  owed-condition, and nothing else mentions `CorrectChunkQuorum`).
+  **Proposal:** drop it in the next statement session.
 
 **Expected pins, written before the build.** Chorus: one action and one
 state relation, no property: `101 + 46 × (101 + 1) + 47 = 4840` (from
@@ -2299,25 +2350,52 @@ proofs use.
 
 **The ledger.** "Obvious" means an auditor can see by inspection that the
 premise can hold. "Not obvious" means it needs the model, and the line
-names the witness theorem that discharges it.
+names the witness theorem that discharges it. "Used in" names the proof steps that consume the premise, the
+best-effort half of independence: a premise no proof uses could be dropped.
+Every premise of `Chorus.termination` and `TotalityClaim` is used. Of
+`TimedTerminationClaim`'s, those its proof (S4) has not reached yet say
+so.
 
 The instance, shared by the three claims:
 
 * **Finitely many validators, `n = 3f + 1`, at most `f` Byzantine**
   (`Fin n`, `byzNodeSetFin`): obvious. Model: `Fin 4`, validator 3
-  Byzantine and silent.
+  Byzantine and silent. *Used in:* `Chorus.termination` only, through
+  `Chorus.honest_supermajority` (the correct validators are `2f+1`, for
+  `saturation_fin` and `mvba_evidence_of_saturation`) and the counting
+  class (the FallbackQC's correct signer in `eventually_fbcommit_sig`, the
+  MVBA's honest core in `Mvba.termination`). The timed claims hold at any
+  instance.
 * **The system's configuration** (`chorusTheory`: its assumption is that the
   MVBA starts in an initial state): obvious. Model: one proposer,
-  validator 0; every root well-encoded; the MVBA's initial state.
+  validator 0; every root well-encoded; the MVBA's initial state. *Used
+  in:* `abandoned_of_mvba_abandoned` (the MVBA's abandonments come from
+  Chorus's, for `all_decided_of_all_input` and the timeline's
+  `within_input_of_*`) and `eventually_mvba_complete` (the MVBA's
+  reachability, hence its agreement).
 * **`ViewOrderEnum`, a correct supermajority (`ByzNodeSetHonestQuorum`)**:
-  obvious (§6.3). Model: `ℕ`, and `{0, 1, 2}`.
+  obvious (§6.3). Model: `ℕ`, and `{0, 1, 2}`. *Used in:*
+  `all_decided_of_all_input` (handed to `Mvba.termination`), and the honest
+  quorum in `eventually_committed_of_mvba_arm` and `eventually_fbcommitqc`.
+  The timed claim reaches them only through `T.termination`, in S4.
 * **The MVBA instance's hypotheses** (`LeaderRotation`, the MVBA's
   `Schedule`, a cancellative Archimedean time): obvious (§6.3). Model:
-  validator 0 leads every view, `Schedule.fixedNat` over `ℕ`.
+  validator 0 leads every view, `Schedule.fixedNat` over `ℕ`. *Used in:*
+  `Mvba.timed_termination`, which S4 consumes as `T.termination`; no
+  Chorus proof uses the rotation or the time classes yet. The schedule's
+  `Δ_pos`/`δ_nonneg` are used by `Chorus.totality` and every timeline
+  milestone, `ρ_nonneg` by `relayed_of_timedJustice`.
 * **The Chorus schedule** (the MVBA's plus the deadline `D`, with
-  `δ ≤ Δ`, F10): obvious. Model: `Δ = 1`, `δ = 0`, `D = 1`.
+  `δ ≤ Δ`, F10): obvious. Model: `Δ = 1`, `δ = 0`, `D = 1`. *Used in:*
+  `δ_le_Δ` by the Δ-row milestones (`within_fb_sig`,
+  `within_complete_fast_metablock`, `within_input_of_fbcert`,
+  `within_chunk_delivered`); `D` by `deadline_le_of_start` and the window
+  arithmetic.
 * **`δ ≤ Δ + ρ`**, a hypothesis of the handoff's derivation
   (`Chorus.relayed_of_timedJustice`): obvious, it follows from `δ ≤ Δ`.
+  *Used in:* `relayed_of_timedJustice` and `timedMvbaAdmissible_of_rows`
+  (the handoff's window). It is not a hypothesis of any of the three
+  claims, which assume `TimedMvbaAdmissible` outright.
 
 The timing model, `Sync`, premises of the timed termination claim
 (`TotalityClaim` takes `TimedJustice` only):
@@ -2333,10 +2411,22 @@ The timing model, `Sync`, premises of the timed termination claim
   `Chorus.timedTermination_premises_satisfiable` and
   `Chorus.totality_premises_satisfiable`, with §6.3.1's device: the clock
   advances only where no row is enabled, and where one is, its gate closes
-  inside its window.
+  inside its window. *Used in:* `Chorus.totality` (`commit_assign_*` in
+  `within_assigned`, `finalize_commit` in `within_finalized`) and the
+  timeline (`within_voted`, `within_fb_sig`, `within_cast`,
+  `within_complete_fast_metablock`, `within_chunk_delivered`,
+  `within_entry_recorded`; the two proposal families in
+  `within_input_of_fbcert` / `within_input_of_fast`; the handoff in
+  `relayed_of_timedJustice`). Not yet used, S4's rows: the commit-path
+  rows, the decision handlers, `mvba_terminate`, `redisseminate_chunk`,
+  `cast_fb_commit`.
 * **(P-phase), `PhasePunctual`**: obvious alone, and jointly with the rows
   obvious by construction. The clock stops at each landmark, and the marker
-  fires there first. Model: the markers fire at clock 1, 2 and 3.
+  fires there first. Model: the markers fire at clock 1, 2 and 3. *Used
+  in:* (P2) by `reached_within`, behind every milestone that waits for a
+  phase (`within_voted`, `within_fb_sig`, `within_cast`,
+  `within_input_of_*`); (P1) by `phase_pre_of_lt`, for
+  `within_entry_recorded` (`record_chunk` closes at `D`).
 * **The MVBA's timing, `TimedMvbaAdmissible T`**: obvious alone
   (`Mvba.admissible_exists`). **Jointly not obvious**: Chorus's own steps
   drive the MVBA's inputs (here `abandon`), and the projection needs the
@@ -2344,7 +2434,8 @@ The timing model, `Sync`, premises of the timed termination claim
   Discharged by `Chorus.timedTermination_premises_satisfiable`. The
   handoff clause is derived from the rows (C15,
   `Chorus.timedMvbaAdmissible_of_rows`), so the witness supplies only the
-  MVBA's own three clauses, on a quiet projection.
+  MVBA's own three clauses, on a quiet projection. *Used in:* not yet;
+  S4's MVBA tail consumes it through `T.termination`.
 
 The bridge, a premise of both termination claims:
 
@@ -2357,7 +2448,12 @@ The bridge, a premise of both termination claims:
   certificate check at any index (`Chorus.Witness.certified_eq`). A
   non-proposer can have no entry. The proposer's entry cannot be negative,
   since no negative FastQC and no `FBCert` ever exist. Completeness holds
-  because nobody decides in the MVBA.
+  because nobody decides in the MVBA. *Used in:* soundness by
+  `eventually_committed_of_mvba_arm` (the certified vector is `Valid`, so
+  `mvba_propose` is enabled), completeness by `eventually_mvba_complete`
+  (the decision passes the handlers' certificate check). The timed claim:
+  not yet; the timeline takes the `Valid` input as a hypothesis S4
+  supplies.
 
 The untimed fairness, a premise of `Chorus.termination`:
 
@@ -2367,11 +2463,18 @@ The untimed fairness, a premise of `Chorus.termination`:
   §6.4.7). **Jointly not obvious**, for the timed row's reason: the
   families quantify over every value. Discharged by
   `Chorus.termination_premises_satisfiable`: in the idle tail no fair label
-  is enabled at all.
+  is enabled at all. *Used in:* its rows by every `eventually_*` step of
+  `Chorus.termination` (`eventually_mvbaArm`, `eventually_voted`,
+  `eventually_saturated`, `eventually_mvba_complete`,
+  `eventually_fbcommit_sig`, `eventually_committed_of_assignable`, …); the
+  proposal family by `eventually_input`; the handoff family by
+  `fRelay_of_fJustice`.
 * **`MvbaAdmissible`**: the MVBA's own three premises on a projection.
   Jointly not obvious, as the timed form is. Discharged by
   `Chorus.termination_premises_satisfiable` (its caller premises are
-  derived, (F-relay) by `Chorus.fRelay_of_fJustice`).
+  derived, (F-relay) by `Chorus.fRelay_of_fJustice`). *Used in:*
+  `all_decided_of_all_input`, which hands the projection's three clauses
+  to `Mvba.termination`.
 
 The caller's conditions, the contract's antecedents:
 
@@ -2380,9 +2483,20 @@ The caller's conditions, the contract's antecedents:
   obvious**. Everyone starts at `D − Δ` and abandons only after finalizing,
   the Conductor's steady state. With the timing model they agree as well:
   an abandonment closes the abandoning validator's gates, which removes
-  obligations.
+  obligations. *Used in:* `AllParticipate` by
+  `eventually_committed_of_finalized` and `activeFrom_of_never_finalized`;
+  `AllParticipateBy t` by `exists_start` (the timeline's start);
+  `SyncParticipationWithin` by `Chorus.totality` (the finalizer's peers
+  participate within the tolerance; the timed claim uses it through
+  totality only); C2 by `deadline_le_of_start` (`D ≤ t + Δ`); C1 by
+  `activeFrom_of_never_finalized`, `eventually_committed_of_assignable`,
+  totality's `within_assigned`/`within_finalized` and the timeline's
+  `activeUntil_of_not_finalized` (a validator stays active until it
+  finalizes).
 * **Totality's antecedent**, a correct validator finalizes: obvious. Model:
-  all three do, at clock 1.
+  all three do, at clock 1. *Used in:* `Chorus.totality`, through
+  `committed_participating` and `proofs_of_finalized` (the finalizer's
+  commitment proofs are on the network).
 
 What the ledger must say besides, so that an auditor comparing proofs does
 not trip on it: the model's `finalized` is the committed entry vector, so
@@ -2449,7 +2563,10 @@ That is enough for joint satisfiability, since one model suffices (§6.3).
 A run that fires the case-(a) proposals, decides in the MVBA and finalizes
 through the fallback commit round would show those three premises holding
 non-vacuously, together with the rows that guard them. It would also be the
-first witness in which `valid := (· = v⋆)` meets an actual decision.
+first witness in which `valid := (· = v⋆)` meets an actual decision. **Not done in R12:** it needs a hand-stepped MVBA decision (views,
+votes and the commit certificate of `Mvba.Witness`'s run, driven from
+Chorus's fallback or case-(a) proposals) and the fallback commit round, well
+over the half day it was allowed. Consistency does not depend on it.
 
 #### 6.4.6 Staging and sizing
 
@@ -2639,7 +2756,8 @@ after its step 2.
    (re-dissemination owed only where the paper sends), §6.4.2. F11 changed
    `Chorus.termination`'s premise, and its proof was re-run (one lemma). No
    model file, no Veil proof file, nothing re-solved, every `#veil_status`
-   pin unchanged. F12 is open for a model session.
+   pin unchanged. F12 was left for a model session, and R12 closed it
+   (§6.4.2, "F12 closed").
 
    **Reassessment after S3.**
 
@@ -2713,20 +2831,25 @@ after its step 2.
      `withinFrom_forall`), then `cast_fb_commit` (δ, owed on the own
      decision, F6), the fallback commit certificate (a ghost), the
      assignments and the finalization (`within_assigned`/`within_finalized`
-     from Totality.lean, as they stand). **F12 bites here.** The DA wait in
-     the model's `cast_fb_commit` covers FastQC-backed roots too, and after
-     F11 the only owed source of a validator's own chunk under such a root
-     is its own re-dissemination after its decision. That costs a Δ the
-     paper does not pay: with the model as it is, the commit vote is due
-     `Δ + δ` after the decision, not `δ`. FallbackQC roots are fine: their
-     chunks come from the correct signer (F8) by `M + 3Δ + 2δ`, which needs
-     one more first-flip fact (a correct validator signs fallback entries
-     only before its second-round vote). **So R12 (F12's model fix) should
-     land before S4**, or S4's bound carries an extra Δ.
+     from Totality.lean, as they stand). **F12 bit here, and is fixed
+     (R12).** Before the fix, the DA wait in `cast_fb_commit` covered
+     FastQC-backed roots too, and after F11 the only owed source of a
+     validator's own chunk under such a root was its own re-dissemination
+     after its decision, so the commit vote was due `Δ + δ` after the
+     decision. *Reassessed after R12:* a FastQC root now needs no chunk, so
+     the vote's own hop is `δ` after the transported decision, as in the
+     paper. A FallbackQC root's chunk comes from the correct signer (F8) by
+     `M + 3Δ + 2δ`, before the decision at `t_M + ℓ_MVBA`; that needs the
+     one first-flip fact recorded above (a correct validator signs
+     fallback entries only before its second-round vote), which is S4's to
+     prove. The residual F13 (a root with both certificates) is outside
+     this bound's runs, because the premise excludes them.
    * **The case split, and F4.** From the milestones: the decision by
-     `t_M + ℓ_MVBA`, the fallback commit vote `3δ` later, the commitment
-     `Δ`, the finalization `δ`, so `T₀ = M + 4Δ + ℓ_MVBA + 7δ` (with F12
-     fixed). F4's single split at `T₀ − Δ` still looks right: a validator
+     `t_M + ℓ_MVBA`, the fallback commit vote `3δ` later (the two decision
+     handlers and `mvba_terminate`, then the vote, `δ` each with the
+     handlers collapsed per proposer), the commitment `Δ`, the finalization
+     `δ`, so `T₀ = t_M + ℓ_MVBA + Δ + 4δ = M + 4Δ + ℓ_MVBA + 7δ`, now that
+     F12 is fixed (R12), and `M + 4Δ + ℓ_MVBA` at `δ = 0`. F4's single split at `T₀ − Δ` still looks right: a validator
      that finalizes before `T₀ − Δ` hands everyone totality's `Δ + 2δ`, and
      on the other branch nobody has abandoned by then, so the chain runs to
      `T₀`, giving `M + 4Δ + ℓ_MVBA + O(δ)`. Nothing in the milestones uses

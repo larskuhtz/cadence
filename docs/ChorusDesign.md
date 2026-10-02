@@ -146,8 +146,16 @@ be conservative: it would exclude real behaviours.
 
 **The `cast_fb_commit` decided-vector read.** The commit-round action universally
 quantifies over the decided entries
-(`∀ J M, is_proposer J → mvba_decided_pos J M → msg_chunk_received i J M`),
-i.e. consults `mvba_decided_pos` on the left of an implication.
+(`∀ J M, is_proposer J → mvba_decided_pos J M → vote_quorum_pos J M ∨ msg_chunk_received i J M`),
+i.e. consults `mvba_decided_pos` on the left of an implication. The right
+of it is the paper's DA wait (`line:fb-commit-foreach`,
+`line:fb-commit-wait`): an entry held by a FallbackQC waits for the
+validator's own chunk, one held by a FastQC does not. The decided vector
+does not record which certificate holds an entry, so the model reads "held
+by a FallbackQC" as "no positive FastQC for it exists", and both network
+reads on the right are positive. Where a root has both certificates the
+model does not wait and the paper may, which adds runs and never removes
+one (F12, [Bounds.md](Bounds.md) §6.4.2).
 `mvba_decided_*` is not a network relation (category (A) oracle state,
 §3.5) and the read is sound: the action also requires `mvba_complete`,
 after which the recorded vector is *frozen as a set* — every proposer
@@ -963,11 +971,12 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
    means; the theorem names it as `ValidBridge` ([MvbaPlan.md](MvbaPlan.md) §3).
 5. *(theorem + temporal.)* The fallback commit round
    (`line:fb-mvba-decide`–`line:fb-finalize`) carries decisions to
-   finalization: once `mvba_complete` holds, `redisseminate_chunk` is
-   enabled for every decided-positive root (`mvba_decided_is_proposer`
-   + `mvba_decided_pos_chunks_decodable` +
-   `mvba_decided_pos_proposer_signed`) and (F-justice) delivers each
-   honest validator's assigned chunks; `cast_fb_commit` is then enabled
+   finalization: once `mvba_complete` holds, a decided-positive root is
+   held by a FastQC, which needs no wait, or by a FallbackQC, whose
+   correct signer's `redisseminate_chunk` is enabled
+   (`mvba_decided_is_proposer` + `mvba_decided_pos_chunks_decodable` +
+   `mvba_decided_pos_proposer_signed`) and owed, so (F-justice) delivers
+   each honest validator's assigned chunk; `cast_fb_commit` is then enabled
    (`mvba_complete_phase` closes the phase leg); the `2f+1` honest
    commit votes are a certificate outright
    (`Chorus.fbcommitqc_of_honest_commit_votes` — the honest population
