@@ -31,6 +31,7 @@ Shared by the hand-written monitor and the `#gen_monitor`-generated one.
 Not part of any theorem's trust base.
 -/
 import Cadence.Interfaces
+import Mathlib.Data.List.Basic
 open Lean (ToJson FromJson Json)
 
 namespace ChorusMonitor
@@ -43,7 +44,7 @@ structure ME where
   e1 : Option (Fin 2)
   e2 : Option (Fin 2)
   e3 : Option (Fin 2)
-deriving DecidableEq, Repr, Hashable, Inhabited
+deriving DecidableEq, Repr, Hashable, Inhabited, Ord, Veil.Enumeration
 
 /-- The vector as a function on nodes. -/
 def ME.entry (v : ME) : Fin 4 → Option (Fin 2)
@@ -63,6 +64,28 @@ structure MV where
   fb2 : Bool
   fb3 : Bool
 deriving DecidableEq, Repr, Hashable, Inhabited
+
+/-- `MV` is finite: the monitor's state holds a row per representation
+(`local_avail_marked`), so its domain has to be enumerable. -/
+instance : Veil.Enumeration MV :=
+  Veil.Enumeration.ofEquiv (ME × Bool × Bool × Bool × Bool)
+    { toFun := fun ⟨e, a, b, c, d⟩ => ⟨e, a, b, c, d⟩
+      invFun := fun v => ⟨v.entries, v.fb0, v.fb1, v.fb2, v.fb3⟩
+      left_inv := fun _ => rfl
+      right_inv := fun _ => rfl }
+
+/-- A representation's position in the enumeration, which orders the
+monitor's per-representation rows. -/
+def MV.code (v : MV) : Nat := (Veil.Enumeration.allValues (α := MV)).idxOf v
+
+instance : Ord MV := ⟨compareOn MV.code⟩
+
+instance : Std.TransOrd MV := inferInstanceAs (Std.TransCmp (compareOn MV.code))
+
+instance : Std.LawfulEqOrd MV where
+  eq_of_compare {a b} h := by
+    have hc : a.code = b.code := Std.LawfulEqOrd.eq_of_compare (α := Nat) h
+    exact (List.idxOf_inj (Veil.Enumeration.complete a)).1 hc
 
 /-- The `FallbackQC` flags as a function on nodes. -/
 def MV.fb (v : MV) : Fin 4 → Bool
@@ -160,6 +183,16 @@ synthesis sees through its fields. -/
   integrity _ _ _ _ _ _ h _ := h.elim
   external_validity _ _ _ _ _ _ := trivial
   availReady _ _ _ := False
+  markAvail _ _ _ _ := False
+  markAvail_trans _ _ _ _ h := h.elim
+  markAvail_effect _ _ _ _ h := h.elim
+  availReady_markAvail_frame _ _ _ _ _ _ h _ := h.elim
+  init_availReady _ _ _ _ h := h
+  availReady_step_frame _ _ _ _ _ := Iff.rfl
+  availReady_propose_frame _ _ _ _ _ _ _ := Iff.rfl
+  availReady_abandon_frame _ _ _ _ _ _ := Iff.rfl
+  availReady_accept_frame _ _ _ _ _ _ _ := Iff.rfl
+  certified_mono _ _ _ _ _ h := h
   -- The decision handoff: nothing is ever certified, so nothing is accepted.
   certifies _ _ _ := False
   decided_certified _ _ _ _ _ h := h.elim
@@ -196,5 +229,15 @@ enabled either. -/
 instance silentMvba.decAccept {α pset : Type} {B : ByzNodeSet α pset} (byz : α → Prop)
     (st : Unit) (i : α) (c : Unit) (st' : Unit) :
     Decidable ((silentMvba (B := B) byz).accept st i c st') := isFalse id
+/-- Nothing is certified under the stub, so the `CommitQC` route's handlers
+are never enabled. -/
+instance silentMvba.decCertifies {α pset : Type} {B : ByzNodeSet α pset} (byz : α → Prop)
+    (st : Unit) (c : Unit) (e : ME) :
+    Decidable ((silentMvba (B := B) byz).certifies st c e) := isFalse id
+/-- The stub has no availability input, so Chorus's availability report is
+never enabled under this monitor. -/
+instance silentMvba.decMarkAvail {α pset : Type} {B : ByzNodeSet α pset} (byz : α → Prop)
+    (st : Unit) (i : α) (v : MV) (st' : Unit) :
+    Decidable ((silentMvba (B := B) byz).markAvail st i v st') := isFalse id
 
 end ChorusMonitor
