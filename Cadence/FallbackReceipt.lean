@@ -1,7 +1,9 @@
 import Veil
 import Cadence.Tooling
 
-/-! # FallbackReceipt — the fallback receipt/propose layer (the paper's v2 design)
+/-! # FallbackReceipt — the fallback receipt/propose layer
+
+Paper target: [docs/PaperAlignment.md](../docs/PaperAlignment.md) §0.
 
 This is a **model file** of the verified-module file family
 ([Architecture.md](../docs/Architecture.md) §6): it elaborates the transition
@@ -13,8 +15,8 @@ reachability certificate by
 
 Mechanisation of the layer whose rules
 [ChorusDesign.md](../docs/ChorusDesign.md) §7.2 explains: the per-validator receipt of `FallbackVote`s and the once-only
-MVBA propose with the atomic per-proposer build, exactly as the paper's
-**v2** states it (Algorithm 5 (`alg:fallback`)) — the receipt restriction at
+MVBA propose with the atomic per-proposer build, exactly as the paper
+states it (Algorithm 5 (`alg:fallback`)) — the receipt restriction at
 Algorithm 5, line 18 (`line:fb-accept`) (a vote is accepted only if every entry is a valid
 FastQC or the sender's *own* valid fallback signed entry), FastQC
 harvesting at Algorithm 5, line 20 (`line:fb-harvest`), and the atomic build at
@@ -259,7 +261,7 @@ action deliver_entry_neg (r : node) (p : proposer) {
   carried_neg r p := true
 }
 
-/-- Receipt (Algorithm 5, line 18 (`line:fb-accept`), the v2 restriction): the first
+/-- Receipt (Algorithm 5, line 18 (`line:fb-accept`), the receipt restriction): the first
 `FallbackVote` from `r` joins `M_i` iff it carries, for every proposer,
 a valid FastQC or `r`'s own valid signed entry. (Votes carrying anything
 else — e.g. an EquivCert — are rejected; in this

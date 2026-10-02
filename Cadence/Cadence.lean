@@ -9,6 +9,8 @@ import Cadence.Tooling
 
 /-! # Cadence — the extreme-pipelining glue (Algorithm 1 (`algorithm:cadence`))
 
+Paper target: [docs/PaperAlignment.md](../docs/PaperAlignment.md) §0.
+
 This module is the paper's Algorithm 1 (`algorithm:cadence`): the thin layer that wires a
 single **Orchestrator** instance `O` and one **SlotConsensus** instance
 `S[s]` per slot into the full MCP protocol. It is verified **against the

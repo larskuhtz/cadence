@@ -241,8 +241,8 @@ come first.
   [Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) are proven,
   at the fragment the composed system runs, and its premises are jointly
   satisfiable (`Mvba.timedTermination_premises_satisfiable`, below).
-  Since step 5b its timing premise is the supplement's network at
-  `eb1bb51` ([Bounds.md](Bounds.md) §6.2.4, "The network clauses").
+  Since step 5b its timing premise is the supplement's network
+  ([Bounds.md](Bounds.md) §6.2.4, "The network clauses").
 
   **The Chorus leg: statements done (S2, 2026-09-30), totality and the
   timeline to the proposals proven (S3, 2026-10-01).** The timing model and
@@ -335,27 +335,19 @@ action behaves in a full build.
 
 ## Paper alignment
 
-The development targets one paper revision, `48cac9a` (main body plus
-internal supplement). The models do not correspond to it yet. The review
-and the realignment plan are [PaperAlignment.md](PaperAlignment.md). The
-plan's sessions, in order:
+The development corresponds to the paper target
+([PaperAlignment.md](PaperAlignment.md) §0). The realignment items are
+closed: sessions R14–R17 ([History.md](History.md)). **Next: S4**, where
+the Chorus bounds leg resumes (§ Liveness above, and
+[PaperAlignment.md](PaperAlignment.md) §8, "After the realignment").
 
-* **R14** (done, 2026-10-02): `Primitives.ErasureCoding` over indexed
-  fragments; F14 closed; the documentation items; citations to the
-  rendered PDF, with the label map and its check
-  ([PaperAlignment.md](PaperAlignment.md) §8, "R14").
-* **R15** (done, 2026-10-02): the MVBA value is the meta-block
-  representation, the contract states Agreement and Integrity over
-  `entries` and gains the certificate-level fields, and Chorus waits under
-  its own `B′` (F13 closed); the citations of Interfaces.lean and
-  System.lean are in the rendered form
-  ([PaperAlignment.md](PaperAlignment.md) §8, "R15", and §8.1).
-* **R16** (done, 2026-10-02): Chorus finalizes on the MVBA's `CommitQC` as
-  well (Part I's route), `AvailReady` is a contract input Chorus drives,
-  (F-avail) is derived, and the MVBA-arm gates of the decision rules are
-  gone ([PaperAlignment.md](PaperAlignment.md) §8, "R16", and §8.2).
-* **R17**: re-validate, flip the statement to "corresponds", tag
-  `paper-target/48cac9a`.
+* **Send the findings page to the paper's authors**:
+  [PaperAlignment.md](PaperAlignment.md) §6, P1–P13, all open on their
+  side. Keep it current: a finding the authors resolve is marked so at the
+  next re-check.
+* **At the next paper commit**: re-run §1 of
+  [PaperAlignment.md](PaperAlignment.md) against it and list it in §9; it
+  becomes the target only when a session moves it.
 
 The development verifies the main body's Algorithm 7 (`algorithm:conductor`). The
 supplement's practical Conductor is outside the verified surface

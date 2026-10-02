@@ -10,13 +10,15 @@ the hard rules; this guide is the next level down — the mechanics of the proof
 families and the traps that only show up once you are inside a cell.
 
 **The paper target.** Every model is read against one paper-repository
-revision, `48cac9a`: the main body together with the internal supplement,
-whose Part I MVBA is the referent of `Mvba.lean`. The models are being
-realigned to it, from the earlier target tagged `paper-target/arxiv-v2`.
-Before you change a guard, read the rule at `48cac9a`, not in an arXiv
-e-print. If a rule differs between the main
-body and the supplement, [docs/PaperAlignment.md](../../../docs/PaperAlignment.md)
-§§3–5 says which one the model follows and why. Its §8 is the session plan.
+revision, named in [docs/PaperAlignment.md](../../../docs/PaperAlignment.md)
+§0: the main body together with the internal supplement, whose Part I MVBA
+is the referent of `Mvba.lean`. The development corresponds to it. Before
+you change a guard, read the rule at the target, not in an arXiv
+e-print. Model headers point to §0 and name no revision; keep it so.
+If a rule differs between the main body and the supplement, [docs/PaperAlignment.md](../../../docs/PaperAlignment.md)
+§§3–5 says which one the model follows and why, and §5.10 lists what still
+differs. A paper issue found while modelling is flagged in its §6, never
+silently fixed in the model.
 
 **Citing the paper.** A citation in a comment or a doc reads as the
 target's rendered PDF shows it, with the label in parentheses: "Algorithm
