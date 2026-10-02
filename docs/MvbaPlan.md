@@ -30,7 +30,7 @@ Everything verified so far is checkable against `arXiv:2607.02275v2`. The
 MVBA algorithm is not in it: it lives in the paper repository's **internal
 supplement** (`supplementary-internal.tex` and
 `src/supplementary-internal/`), which is not yet part of the published
-paper ([PaperAlignment.md](PaperAlignment.md) §2, §4). That is stated,
+paper ([PaperAlignment.md](PaperAlignment.md) §2, §9). That is stated,
 not worked around: the model's header, and every document that names the
 model, say that its specification is the internal supplement, not yet part
 of the published paper, and that `mod:mvba` — the contract the model is
@@ -172,7 +172,7 @@ one handler, documented at the action and in [Architecture.md](Architecture.md) 
 `mod:mvba` states Agreement as meta-block equality; the supplement's
 `thm:agreement` proves the entries-level statement and says so
 deliberately — certificates are carried only so validity can be checked
-([PaperAlignment.md](PaperAlignment.md) §4 item 3). Chorus's oracle
+([PaperAlignment.md](PaperAlignment.md) §5.5). Chorus's oracle
 already works per proposer. So the class is instantiated at
 `value := node → Option merkle_root` (`some m` a positive entry, `none` a
 negative one), in both the MVBA model's instance and Chorus's constraint.
@@ -1678,7 +1678,11 @@ on it (stages 2–5, 2026-09-29): the pin is `eb1bb51`, and the timed
 premise states the supplement's network — §11.5 stage 3 has the design
 decision, [Bounds.md](Bounds.md) §6.2.4 the clauses.** The change list and the plan are here; the
 audit trail (what was compared, and how to re-run the comparison) is
-[PaperAlignment.md](PaperAlignment.md) §7.*
+[History.md](History.md) § "Paper alignment before the single target".
+This section is a dated record: its references to PaperAlignment
+section numbers are to that document as it stood at the tag
+`paper-target/arxiv-v2`. The review against the current target
+`48cac9a` is [PaperAlignment.md](PaperAlignment.md) §4.*
 
 ### 11.0 Summary, for an auditor
 

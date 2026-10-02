@@ -327,27 +327,39 @@ action behaves in a full build.
 
 ## Paper alignment
 
-The verified surface is unchanged and mechanically re-checkable; the paper's
-*implementation* track has moved a long way from it. Both, with the audit
-that established them, are [PaperAlignment.md](PaperAlignment.md). Three
-items fall out of the 2026-09-03 audit, all documentary except the first:
+The development targets one paper revision, `48cac9a` (main body plus
+internal supplement). The models do not correspond to it yet. The review
+and the realignment plan are [PaperAlignment.md](PaperAlignment.md). The
+plan's sessions, in order:
 
-* **Re-check the `EquivCert` build guard** once the paper side settles
-  whether witness chunks are intended to supersede `line:fb-build-equiv`.
-  [FallbackReceipt.lean](../Cadence/FallbackReceipt.lean)'s `equiv_available` mirrors the published guard; if
-  the supplement's rule wins, the branch reassignment and the totality
-  counting argument both need re-reading.
-  [PaperAlignment.md](PaperAlignment.md) §3.
-* Cite `sec:domain-separation` where the network relations rely on
-  message-type non-confusability — the paper now names an assumption the
-  model has always made structurally (one relation per message type).
-  Candidate homes: [ChorusDesign.md](ChorusDesign.md) §3.5's relation
-  table and [Architecture.md](Architecture.md) §4 item 3.
-* Record ChunkSync and `Δ_sync` alongside the (F-justice) justification for
-  `redisseminate_chunk`: the implementation dropped
-  `line:fb-redisseminate`, so the paper-side discharge of that fairness
-  assumption now runs through a mechanism the supplement calls
-  liveness-critical and has not specified.
+* **R14**: `Primitives.ErasureCoding` over indexed fragments; drop F14's
+  decided disjunct; the documentation items:
+  * cite `sec:domain-separation` where the network relations rely on
+    message-type non-confusability ([ChorusDesign.md](ChorusDesign.md)
+    §3.1's relation inventory, [Architecture.md](Architecture.md) §4
+    item 3);
+  * cite the per-slot dispatch sentence in the
+    [Cadence.lean](../Cadence/Cadence.lean) header;
+  * record ChunkSync and `Δ_sync` beside the (F-justice) justification for
+    `redisseminate_chunk`. The implementation (supplement Part II) drops
+    `line:fb-redisseminate`, while the main body keeps it.
+* **R15**: the MVBA value carries certificate kinds, the contract states
+  Agreement and Integrity over `entries`, and Chorus waits under its own
+  `B′` (closes F13). Mvba and Chorus re-solve cold.
+* **R16**: Chorus finalizes on the MVBA's `CommitQC` as well (Part I's
+  route). Chorus re-solves cold.
+* **R17**: re-validate, flip the statement to "corresponds", tag
+  `paper-target/48cac9a`.
+
+Two questions are open for Lars ([PaperAlignment.md](PaperAlignment.md)
+§9): how an auditor obtains the target revision, including the internal
+supplement, and whether the practical Conductor is in scope.
+
+The `EquivCert` build guard is settled for the target: the main body's
+`line:fb-build-equiv` is the protocol, and the supplement's witness-chunk
+rule is an implementation variant
+([PaperAlignment.md](PaperAlignment.md) §5.9; the supplement's
+self-contradiction on it is finding P3).
 
 ## Verification-pipeline work
 

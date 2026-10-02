@@ -518,8 +518,8 @@ across runs, and no `ℓ` covers them all. So the supplement's backoff remark
 is compatible with *eventual* termination but not with its `O(fΔ)`
 theorem as stated; the theorem is a fixed-timeout (or capped-backoff)
 result, and a real implementation with exponential backoff satisfies it
-only if the backoff is capped at `O(Δ)`. Recorded in
-[PaperAlignment.md](PaperAlignment.md) §6. §6.1's "a sequence `Δ_v`
+only if the backoff is capped at `O(Δ)`. Recorded, and resolved upstream at
+`eb1bb51`, in [History.md](History.md) § "Paper alignment before the single target". §6.1's "a sequence `Δ_v`
 unbounded relative to a fixed bound" was therefore the wrong requirement:
 the sequence must be *eventually above* `L_cert` and *bounded*, which is
 what (S-ramp) and (S-cap) say.
@@ -1906,7 +1906,9 @@ caller's, so that Chorus's own rows carry it.
   certificate nobody sends. The re-broadcast needs no step either: once
   `i` has accepted, it has decided, so it is a sender in turn. The
   finalization the supplement attaches to the certificate is **not**
-  modelled: the model keeps v2's fallback commit round ([PaperAlignment.md](PaperAlignment.md) §9).
+  modelled yet: the model has the main body's fallback commit round only. At
+  the target the supplement adds the route, and R16 models it
+  ([PaperAlignment.md](PaperAlignment.md) §5.7).
 * **(b) The contract change** ([Interfaces.lean](../Cadence/Interfaces.lean),
   `MVBASafety`, additions only, first-order):
   * `certifies st c v`: `c` is a valid commitment proof for `v` at `st`;
@@ -2078,7 +2080,10 @@ Two findings from the fix, both reported, neither acted on:
   vector that says FastQC or FallbackQC), which changes the value type
   `System.lean` instantiates. That is outside this session's scope.
   **Proposal:** carry the certificate kind in the entry vector in the
-  composition leg, or accept the residual as stated here.
+  composition leg, or accept the residual as stated here. *Re-scoped by
+  R13:* F13 is an artefact of the hybrid target. At `48cac9a` each
+  validator's own `B′` carries its certificates, and the realignment closes
+  F13 exactly ([PaperAlignment.md](PaperAlignment.md) §5.5, §8 R15).
 * **F14: re-dissemination's "decided" owed-disjunct is now used by no
   proof, and it is stronger than the paper.** `Owed (.redisseminate_chunk
   k i j m)` is `(CorrectChunkQuorum j m ∧ k has decided) ∨ msg_fb_pos_sig
@@ -2090,7 +2095,9 @@ Two findings from the fix, both reported, neither acted on:
   need not take. Dropping it weakens `FJustice` and `TimedJustice` (fewer
   obligations) and needs no proof change (the witness never used either
   owed-condition, and nothing else mentions `CorrectChunkQuorum`).
-  **Proposal:** drop it in the next statement session.
+  **Proposal:** drop it in the next statement session. *Kept by R13:*
+  still stronger than the target; dropped in R14
+  ([PaperAlignment.md](PaperAlignment.md) §5.6, §8).
 
 **Expected pins, written before the build.** Chorus: one action and one
 state relation, no property: `101 + 46 × (101 + 1) + 47 = 4840` (from
@@ -2854,7 +2861,10 @@ after its step 2.
      on the other branch nobody has abandoned by then, so the chain runs to
      `T₀`, giving `M + 4Δ + ℓ_MVBA + O(δ)`. Nothing in the milestones uses
      the outer split. F4 is decided in S4.
-4. **S4: the MVBA tail and the assembly.** `T.termination` through the
+4. **S4: the MVBA tail and the assembly.** *Scheduled after the
+   realignment to the paper target `48cac9a`
+   ([PaperAlignment.md](PaperAlignment.md) §8), on the realigned model.*
+   `T.termination` through the
    projection, the fallback commit round, and the case split, giving the
    bound. F4 is decided here.
 5. **S5: the contract instances.** `SlotConsensusTemporal` at the new
@@ -2975,8 +2985,8 @@ from**.
   the fast meta-block rule says it). The plan reads an `upon` handler as
   running once when its condition becomes true. That is the conventional
   reading, but the paper states no convention, so it is a question for the
-  authors, recorded as an open reading in
-  [PaperAlignment.md](PaperAlignment.md) §8.
+  authors, recorded as paper-side finding P6 in
+  [PaperAlignment.md](PaperAlignment.md) §6.
 
 The inventory may not be complete. The acceptance criterion below is what
 decides that, not this list. Candidates to check first:
