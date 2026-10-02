@@ -1123,7 +1123,6 @@ ghost relation mvba_commitqc := ∃ C E, mvba.certifies mvba_st C E
 
 action on_mvba_commitqc_pos (i : node) (j : node) (m : merkle_root) (c : mmsg) (v : mvalue) {
   require ¬ is_byz i
-  require phase = post_mvba_arm
   require is_proposer j
   -- `i` holds a valid commit certificate, and `v` is a representation of
   -- its entries whose entry for `j` is `m` (`Recover(e)`).
@@ -1171,9 +1170,11 @@ likewise. `finalize_commit` is unchanged.
   Every firing sets the record, so `Chorus.justice_enabledMove` keeps its
   proof.
 * **Gates.** `¬ is_byz i` and `is_proposer j`, as at the decision handlers.
-  `phase = post_mvba_arm` is inherited from them, because
-  `mvba_decided_phase` (used by proposal inclusion) pins the records to the
-  MVBA arm (see "Inherited" below). `mvba_invoked` is **not** required: a
+  **No phase gate**: the target's rule has none ("A correct validator that
+  receives a valid such certificate re-broadcasts it and finalizes",
+  Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and
+  handoff"), so the sketch above loses its `require phase = post_mvba_arm`
+  (see "The MVBA-arm gates" below). `mvba_invoked` is **not** required: a
   validator on the fast path that receives a `CommitQC` finalizes on it,
   and no safety invariant relies on the condition. There is no
   participation gate, because the handler only processes, like the
@@ -1347,12 +1348,48 @@ edit of R16. Nothing is weakened.
   stated per signer's own representation, and for a root a signer held by
   a `FastQC` the chunks come from the vote quorum instead.
 
-**Inherited, not changed.** The handlers act from the MVBA arm on, as the
-decision handlers do. The paper invokes the MVBA from the fallback arm, so
-a paper validator can hold a `CommitQC` before `Ds + 2Δ`, and the model
-delays its recording to the MVBA arm. This predates R16 and is recorded
-in [TODO.md](TODO.md) rather than widened here, since lifting it moves
-`mvba_decided_phase`, which proposal inclusion uses.
+**The MVBA-arm gates.** Before R16, four actions required
+`phase = post_mvba_arm`: `on_mvba_decide_pos`, `on_mvba_decide_neg`,
+`mvba_terminate` and `cast_fb_commit`. The target's rules have no such
+gate. The decision handler is "upon `MVBA[s].decide(B′)`" (Algorithm 5,
+line 37 (`line:fb-mvba-decide`)), and the receipt rules are "upon
+receiving a valid `fbCommitQC`" (Algorithm 5, line 45
+(`line:fb-recv-commit`)) and the supplement's sentence quoted under
+"Gates". `Ds + 2Δ` gates only the case-1 *proposal* (Algorithm 5, line 23
+(`line:fb-mvba-propose-fast`)), and the case-2 proposal needs only
+`2f+1` fallback votes, which exist from `Ds + Δ` on. So a paper validator
+can decide, cast its fallback commit vote and hold a `CommitQC` before
+`Ds + 2Δ`, and the gate delayed all of that to the MVBA arm. That is a gap
+of the same kind as the new handlers' gate, and R16 closes both: none of
+the four existing actions and neither new handler has a phase gate. The
+remaining phase guards are the target's own: the deadline (`propose`,
+`record_chunk`, `vote`), the fallback arm (`fb_sign_*`,
+`cast_fallback_vote`), and the two triggers of `mvba_propose`.
+
+*What dropping the gates breaks, by analysis* (the trial build waits for
+the go-ahead on the model edit). Exactly three invariants state the gate
+and so fail by construction: `mvba_decided_phase` (records exist only at
+the MVBA arm), `fbcommit_sig_phase` and `mvba_complete_phase`. Each is
+restated as `phase ≠ pre_deadline`, and in that form it follows from the
+bridge evidence every record carries. A positive record has a vote
+quorum, or a `FallbackQC` under `FBCert`. A negative one has a negative
+vote quorum, or `FBCert`. Each of these contains a correct signer, whose
+signature postdates the deadline (`voted_post_deadline`, `fb_sig_phase`).
+`mvba_complete` and an honest fallback commit vote come after records.
+Only the deadline is needed, by the one consumer: proposal inclusion uses
+`mvba_decided_phase` to show that `all_honest_recorded`, which can only
+become true before the deadline (`record_chunk`), never becomes true after
+a conflicting record exists. `mvba_complete_phase` was the phase leg of
+`cast_fb_commit`'s enabledness, which no longer has one. No file outside
+[Chorus.lean](../Cadence/Chorus.lean) reads the three, so the plain-Lean
+liveness proofs are unaffected. Their frames cover the new labels, and
+the derivations that stepped through the MVBA arm only lose a premise.
+No monotone-network exception is needed, since a gate removed is a guard
+removed. The restatement keeps every count, so (f) is unchanged. What
+analysis cannot settle is whether a cold solve finds the restated
+invariants' cells at the four actions. If one diverges, it is made manual
+from the derivation above, and if one turns out false, the counterexample
+is reported before anything else changes.
 
 **(f) The pins, written down before the build.** Cells are
 `(A + 1)(I + 1) + A·S`.
