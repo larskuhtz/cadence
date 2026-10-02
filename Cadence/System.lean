@@ -48,11 +48,20 @@ that its agreement argument uses (`[mval_pos_functional]`,
 `[mval_pos_neg_excl]`). They enter the composed statement as the
 `assumptions` conjunct of the slot-consensus instance's `init` — a
 hypothesis on the *initial* states, as the glue's own `[sc_init]` is. At the
-intended configuration — `mval_pos v j m := v j = some m`, `mval_neg v j :=
-v j = none ∧ is_proposer j` (`chorusTheory` below) — the two projection assumptions are
+intended configuration — `mval_pos e j m := e j = some m`, `mval_neg e j :=
+e j = none ∧ is_proposer j` (`chorusTheory` below) — the two projection assumptions are
 theorems, so the one genuine hypothesis among the three is that the abstract
 MVBA state Chorus starts from is an initial state of `Mvba`
 (`chorusTheory_assumptions`).
+
+**The MVBA's value is a meta-block representation.** The value Chorus and
+the MVBA exchange is `MetaBlock node merkle_root` ([Interfaces.lean](Interfaces.lean)): each
+proposer's entry with, for a positive entry, the kind of certificate that
+holds it. Agreement is over its entry vector `node → Option merkle_root`,
+so two correct validators may decide representations that differ in their
+certificates ([PaperAlignment.md](../docs/PaperAlignment.md) §8.1). The safety theorem below holds
+for every MVBA theory, whatever its `ent`; the intended one projects a
+representation to its entries (`mvbaTheory`).
 
 Nothing about the temporal obligations enters here — MCP Safety is a safety
 property, and its proof needs only the proven `…Safety` fragments. The
@@ -102,24 +111,25 @@ def SlotConsensusSafety.castByz {slot validator proposal pvector state : Type}
 
 /-! ### Chorus at the `Mvba` instance
 
-The three abstract sorts Chorus's MVBA constraint is stated over are
-instantiated at the `Mvba` model's own types: the value is the entry vector
-`node → Option merkle_root` ([MvbaPlan.md](../docs/MvbaPlan.md) §1.2), the state is the
-model's abstract state, the message type the model's `Msg`. -/
+The four abstract sorts Chorus's MVBA constraint is stated over are
+instantiated at the `Mvba` model's own types: the value is the meta-block
+representation `MetaBlock node merkle_root`, the entry vector
+`node → Option merkle_root`, the state is the model's abstract state, the
+message type the model's `Msg`. -/
 
 /-- Chorus's slot-consensus instance with its MVBA constraint filled by
 `Mvba.mvbaSafety thM`, brought to the system's fault model. -/
 @[implicit_reducible]
 noncomputable def chorusInstance
     (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
-    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)
     (hbyz : ∀ i, (nset.is_byz i = true) ↔ fm.byz i) :
     SlotConsensusSafety slot node merkle_root (slot × (node → Option merkle_root))
       (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-        (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-        (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice))
+        (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+        (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice))
       fm.byz :=
   SlotConsensusSafety.castByz (funext fun i => propext (hbyz i))
     (Chorus.slotConsensusSafety (mvba := Mvba.mvbaSafety thM) thS)
@@ -131,20 +141,20 @@ Chorus state (whose MVBA is the `Mvba` model), proposal vectors the tagged
 Chorus decision vectors. -/
 noncomputable abbrev systemRTS (thC : Conductor.Theory slot window time node acsstate)
     (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
-    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)
     (hbyz : ∀ i, (nset.is_byz i = true) ↔ fm.byz i) :=
   @Cadence.relationalTransitionSystem slot node (slot × (node → Option merkle_root)) merkle_root
     (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
     (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)) time
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)) time
     _ _ _ _ _ _ _ TotalOrderWithMinimum.toTotalOrder _ fm
     (Conductor.orchestratorSafety thC) (chorusInstance thS thM hbyz)
 
-/-- **MCP Safety, positional form, for the composed system** (`def:safety`,
-`lemma:cadence-safety`): in every reachable state of the glue running the
+/-- **MCP Safety, positional form, for the composed system** (Definition 1
+(`def:safety`), Lemma 1 (`lemma:cadence-safety`)): in every reachable state of the glue running the
 Conductor and Chorus — Chorus running the `Mvba` model as its MVBA — two
 correct validators never disagree on the log entry at a given position. The
 one contract hypothesis left is `ACSSafety`, the ACS primitive the Conductor
@@ -153,20 +163,20 @@ Conductor's and Chorus's agreement on the fault pattern. -/
 theorem system_positional_log_safety
     (thC : Conductor.Theory slot window time node acsstate)
     (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
-    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)
     (hbyz : ∀ i, (nset.is_byz i = true) ↔ fm.byz i)
     {th : Cadence.Theory slot node (slot × (node → Option merkle_root)) merkle_root
       (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
       (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-        (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-        (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)) time}
+        (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+        (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)) time}
     {st : Cadence.State (Cadence.FieldAbstractType slot node (slot × (node → Option merkle_root)) merkle_root
       (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
       (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-        (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-        (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)) time)}
+        (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+        (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)) time)}
     (hreach : (systemRTS thC thS thM hbyz).reachable th st)
     {i j : node} (hi : ¬ fm.byz i) (hj : ¬ fm.byz j)
     {Li Lj : List (slot × (slot × (node → Option merkle_root)))}
@@ -175,23 +185,34 @@ theorem system_positional_log_safety
   @Cadence.positional_log_safety slot node (slot × (node → Option merkle_root)) merkle_root
     (Conductor.State (Conductor.FieldAbstractType slot window time node acsstate))
     (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)) time
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)) time
     _ _ _ _ _ _ _ TotalOrderWithMinimum.toTotalOrder _ fm
     (Conductor.orchestratorSafety thC) (chorusInstance thS thM hbyz)
     th st hreach i j hi hj Li Lj hLi hLj
 
-/-! ### Chorus's assumptions, discharged at the entry vector
+/-! ### The configurations, and Chorus's assumptions discharged
 
-`chorusTheory` is the Chorus configuration with the entry-vector projections
-fixed the way the value type dictates; `chorusTheory_assumptions` shows that
-of Chorus's three `assumption`s only `[mvba_init]` survives as a hypothesis
-at it. -/
+`chorusTheory` is the Chorus configuration with the entry-vector
+projections and the certificate kind fixed the way the value types dictate,
+and `mvbaTheory` the MVBA configuration with `ent` the representation's
+entries; `chorusTheory_assumptions` shows that of Chorus's three
+`assumption`s only `[mvba_init]` survives as a hypothesis at it. -/
+
+/-- The MVBA configuration at the system's instantiation: the validity
+predicate and the leader schedule, with `ent := MetaBlock.entries` — a
+representation's entry vector is its entries with the certificates
+dropped. -/
+@[implicit_reducible]
+def mvbaTheory (valid : MetaBlock node merkle_root → Bool) (leader : view → node → Bool) :
+    Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view :=
+  ⟨MetaBlock.entries, valid, leader⟩
 
 /-- The Chorus configuration at the system's instantiation: the proposers,
 the well-encoded roots, and the abstract MVBA state Chorus starts from, with
-`mval_pos v j m := v j = some m` and `mval_neg v j := v j = none ∧
-is_proposer j`.
+`mval_pos e j m := e j = some m`, `mval_neg e j := e j = none ∧
+is_proposer j`, and `mval_fb v j` when `v`'s entry for `j` is held by a
+`FallbackQC`.
 
 A vector's entry for `j` is either a root (`mval_pos`) or a proposer's
 explicit absence (`mval_neg`); a non-proposer has neither. `mvba_propose`
@@ -201,12 +222,13 @@ proposable, and the MVBA would never receive an input
 ([Liveness.md](../docs/Liveness.md) §4.6, Finding 1). -/
 @[implicit_reducible]
 noncomputable def chorusTheory (is_proposer : node → Bool) (well_encoded : merkle_root → Bool)
-    (mvba_init_state : Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)) :
+    (mvba_init_state : Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)) :
     Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice :=
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice :=
   ⟨is_proposer, well_encoded,
     fun v j m => decide (v j = some m), fun v j => decide (v j = none ∧ is_proposer j = true),
+    fun v j => decide ((v j).map Prod.snd = some CertKind.fallbackQC),
     mvba_init_state⟩
 
 omit [TotalOrderWithMinimum slot] fm in
@@ -215,12 +237,12 @@ genuine hypothesis: the abstract MVBA state Chorus starts from is an initial
 state of the `Mvba` model (the two projection assumptions hold by
 computation). -/
 theorem chorusTheory_assumptions
-    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)
     (is_proposer : node → Bool) (well_encoded : merkle_root → Bool)
-    (mvba_init_state : Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)) :
+    (mvba_init_state : Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)) :
     (Chorus.relationalTransitionSystem slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice
       (mvba := Mvba.mvbaSafety thM)).assumptions
         (chorusTheory is_proposer well_encoded mvba_init_state)
     ↔ (Mvba.mvbaSafety thM).init mvba_init_state := by

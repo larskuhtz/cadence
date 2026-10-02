@@ -77,13 +77,13 @@ pair of states. -/
 
 section StatePair
 
-variable {node nodeset value view : Type}
+variable {node nodeset value evec view : Type}
   [vord : TotalOrderWithMinimum view]
-  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
 
 /-- The model's `in_view` ghost over the state accessors: `v` is `i`'s
 maximum entered view. Used by the step lemma below. -/
-def InView (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+def InView (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view))
     (i : node) (v : view) : Prop :=
   s.entered i v = true ∧ ∀ V, s.entered i V = true → vord.le V v
 
@@ -118,9 +118,9 @@ theorem prepqc_not_below_of_guard_disabled
     (h' : ¬ ∀ W E, st'.local_prepqc i W E = true → vord.lt W v) :
     ∃ W E, st'.local_prepqc i W E = true ∧ st.local_prepqc i W E = false ∧
       ¬ vord.lt W v := by
-  have h2 : ∀ p : view × value, st.local_prepqc i p.1 p.2 = true → vord.lt p.1 v :=
+  have h2 : ∀ p : view × evec, st.local_prepqc i p.1 p.2 = true → vord.lt p.1 v :=
     fun p hp => h p.1 p.2 hp
-  have h2' : ¬ ∀ p : view × value, st'.local_prepqc i p.1 p.2 = true → vord.lt p.1 v :=
+  have h2' : ¬ ∀ p : view × evec, st'.local_prepqc i p.1 p.2 = true → vord.lt p.1 v :=
     fun hm => h' fun W E hWE => hm (W, E) hWE
   obtain ⟨⟨W, E⟩, hW, hold, hlt⟩ := exists_new_witness h2 h2'
   refine ⟨W, E, hW, ?_, hlt⟩
@@ -164,9 +164,9 @@ theorem prepqc_above_of_guard_disabled
     (h' : ¬ ∀ W E, st'.local_prepqc i W E = true → vord.le W w) :
     ∃ W E, st'.local_prepqc i W E = true ∧ st.local_prepqc i W E = false ∧
       vord.lt w W := by
-  have h2 : ∀ p : view × value, st.local_prepqc i p.1 p.2 = true → vord.le p.1 w :=
+  have h2 : ∀ p : view × evec, st.local_prepqc i p.1 p.2 = true → vord.le p.1 w :=
     fun p hp => h p.1 p.2 hp
-  have h2' : ¬ ∀ p : view × value, st'.local_prepqc i p.1 p.2 = true → vord.le p.1 w :=
+  have h2' : ¬ ∀ p : view × evec, st'.local_prepqc i p.1 p.2 = true → vord.le p.1 w :=
     fun hm => h' fun W E hWE => hm (W, E) hWE
   obtain ⟨⟨W, E⟩, hW, hold, hle⟩ := exists_new_witness h2 h2'
   refine ⟨W, E, hW, ?_, lt_of_not_le hle⟩
@@ -185,18 +185,18 @@ by `entered.mono` before the maximality conjunct can be blamed. -/
 
 section Step
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
-  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
-  {l : Label node nodeset value view}
+  {th : Theory node nodeset value evec view}
+  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
+  {l : Label node nodeset value evec view}
 
 /-- **Leaving a view is entering a higher one.** If `i` was in view `v`
 before the step and is not after it, `i` has entered some strictly higher
 view. -/
 theorem entered_higher_of_in_view_disabled
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (i : node) (v : view) (h : InView st i v) (h' : ¬ InView st' i v) :
     ∃ W, st'.entered i W = true ∧ vord.lt v W := by
   have hv : st'.entered i v = true := Mvba.entered.mono htr i v h.1

@@ -103,11 +103,11 @@ local macro "mvba_effect" : tactic =>
 
 section Local
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
-  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+  {th : Theory node nodeset value evec view}
+  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
 
 /-- **A certificate is adopted in the view it is of, or on leaving a view.**
 The two actions that grow `local_prepqc` are `adopt_prepqc`, guarded on
@@ -115,9 +115,9 @@ The two actions that grow `local_prepqc` are `adopt_prepqc`, guarded on
 which enters the view after one bounding all of `i`'s entries. Every other
 action leaves the relation untouched (Veil's generated frame lemmas); the case split is
 over the model's own label type. -/
-theorem local_prepqc_set {l : Mvba.Label node nodeset value view} {i : node} {W : view}
-    {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+theorem local_prepqc_set {l : Mvba.Label node nodeset value evec view} {i : node} {W : view}
+    {e : evec}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (h0 : ¬ st.local_prepqc i W e = true) (h1 : st'.local_prepqc i W e = true) :
     InView st i W ∨ ∃ pv v, vord.next pv v ∧ (∀ V, st.entered i V = true → vord.le V pv) ∧
       st'.entered i v = true := by
@@ -194,7 +194,7 @@ theorem local_prepqc_set {l : Mvba.Label node nodeset value view} {i : node} {W 
 certificate it holds there and did not hold at `N` is a certificate of
 `v`. By `local_prepqc_set`: an adoption was in its own view, which is `v`;
 an adopting `sync_view` would have taken `i` above `v`. -/
-theorem local_prepqc_new_in_view (r : MvbaRun th) {i : node} {v W : view} {e : value}
+theorem local_prepqc_new_in_view (r : MvbaRun th) {i : node} {v W : view} {e : evec}
     {N : Nat} (hent : (r.at' N).entered i v = true)
     (hN : ¬ (r.at' N).local_prepqc i W e = true) :
     ∀ n, N ≤ n → (∀ V, (r.at' n).entered i V = true → vord.le V v) →
@@ -226,15 +226,15 @@ end Local
 
 section Entry
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
-  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+  {th : Theory node nodeset value evec view}
+  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
 
 /-- The one view a label can enter: `propose` enters the first view, the two
 `sync_view` variants the view they name, every other action none. -/
-def enteredView : Mvba.Label node nodeset value view → Option view
+def enteredView : Mvba.Label node nodeset value evec view → Option view
   | .propose .. => some vord.zero
   | .sync_view _ _ v => some v
   | .sync_view_adopt _ _ v _ _ => some v
@@ -243,8 +243,8 @@ def enteredView : Mvba.Label node nodeset value view → Option view
 /-- **Each step enters at most one view**: a view newly entered by any
 validator is the label's `enteredView`. One case per action, the non-entering
 ones from Veil's generated frame lemmas. -/
-theorem entered_set_view {l : Mvba.Label node nodeset value view} {j : node} {V : view}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+theorem entered_set_view {l : Mvba.Label node nodeset value evec view} {j : node} {V : view}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (h0 : ¬ st.entered j V = true) (h1 : st'.entered j V = true) :
     enteredView l = some V := by
   cases l
@@ -443,17 +443,17 @@ end Succ
 
 section Timeout
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedAddMonoid time]
   {sch : Schedule view time} {r : TMvbaRun th time}
 
 /-- The goal of the timeout row for `i` in `v`: it has timed out there, or
 it is in a higher view already. Monotone, and the second half is what a
 validator that has left `v` satisfies without doing anything. -/
-def TimedOutOrAbove (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+def TimedOutOrAbove (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view))
     (i : node) (v : view) : Prop :=
   s.timed_out i v = true ∨ ∃ V, vord.lt v V ∧ s.entered i V = true
 
@@ -480,7 +480,7 @@ omit [IsOrderedAddMonoid time] in
 step suffices: `timeout_qc i v v e` stays enabled until the goal holds,
 since no held certificate is of a view above `v` while `i` is in it. -/
 theorem within_timed_out_of_top (hbj : BoundedJustice sch r)
-    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value}
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : evec}
     {N : Nat} {B : time} (hB : r.ref N + sch.δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hent : (r.at' N).entered i v = true)
@@ -612,10 +612,10 @@ section are `δ` steps. -/
 
 section Links
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
   {time : Type} [LinearOrder time] [AddCommMonoid time]
   {sch : Schedule view time} {r : TMvbaRun th time}
 
@@ -719,11 +719,11 @@ theorem form_own_tc_enabled (enum : ByzNodeSetEnum node nodeset nset)
     (hto : ∀ p, nset.member p q = true → SentTimeout (r.at' N) p v)
     (hent : (r.at' N).entered i v = true) :
     (∀ n, N ≤ n → Active (r.at' n) i → ¬ (∃ pv, vord.le v pv ∧ (r.at' n).msg_tc pv = true) →
-      Enabled (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n)
+      Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th (r.at' n)
         (.form_own_tc_nolock i v q)) ∨
     ∃ r₀ w e, ∀ n, N ≤ n → Active (r.at' n) i →
       ¬ (∃ pv, vord.le v pv ∧ (r.at' n).msg_tc pv = true) →
-      Enabled (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n)
+      Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th (r.at' n)
         (.form_own_tc_lock i v q r₀ w e) := by
   have hin : ∀ n, N ≤ n → ∃ E, (r.at' n).input i E = true := fun n hn =>
     let ⟨E, hE⟩ := Mvba.reachable_entered_implies_input (r.reachable N) i v hi hent
@@ -824,10 +824,10 @@ end Links
 
 section Burn
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedAddMonoid time]
 
 omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
@@ -1100,10 +1100,10 @@ itself; the retention at `N_W`; the good-view lemma. -/
 
 section Assembly
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedCancelAddMonoid time]
 
 /-- **The good view the assembly reaches**, measured from `u`: a view `W`
@@ -1509,8 +1509,8 @@ theorem bounded_termination (enum : ByzNodeSetEnum node nodeset nset)
         (le_trans (add_le_add href le_rfl) (le_of_eq (by rw [hℓ, add_assoc])))
         (r.mono (P := fun s => s.input q E₀ = true)
           (fun a ha => Mvba.input.mono (r.steps a) q E₀ ha) hin _ (Nat.le_max_right _ _))
-        (r.mono (P := fun s => s.msg_commitqc V E = true)
-          (fun a ha => Mvba.msg_commitqc.mono (r.steps a) V E ha) hV _ (Nat.le_max_left _ _))
+        (r.mono (P := fun s => s.msg_commitqc V (th.ent E) = true)
+          (fun a ha => Mvba.msg_commitqc.mono (r.steps a) V (th.ent E) ha) hV _ (Nat.le_max_left _ _))
         (r.mono (P := fun s => s.decided j E = true)
           (fun a ha => Mvba.decided.mono (r.steps a) j E ha) hjE _ (Nat.le_max_left _ _))
         (fun k _ h => hnab' q k hq h)
@@ -1560,10 +1560,10 @@ abandoned, it has decided by then (`NoEarlyAbandon`). Otherwise
 
 section ViewSync
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
   {time : Type} [LinearOrder time]
 
 /-- **A correct decision makes a good view.** If a correct validator has

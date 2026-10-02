@@ -175,8 +175,9 @@ lemma of [Windows.lean](../Cadence/Windows.lean), and cardinality is outside the
 ### Chorus ([Chorus.lean](../Cadence/Chorus.lean))
 
 `MVBASafety` is consumed the same way:
-`instantiate mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)`
-after `nset`, with one abstract state `individual mvba_st : mstate` seeded
+`instantiate mvba : MVBASafety node mvalue mentries mmsg mstate nodeset nset (fun i => nset.is_byz i = true)`
+after `nset`, whose quorum family the contract's availability field counts
+with, with one abstract state `individual mvba_st : mstate` seeded
 from an immutable `mvba_init_state` (`assumption [mvba_init]`) and carried as
 `invariant [mvba_reachable]`. The module supplies the oracle step
 `mvba_step`; the driven input `mvba_propose` (the paper's
@@ -187,11 +188,19 @@ certificate to a validator's MVBA through the contract's input `accept`; and
 two **per-entry decision handlers**
 `on_mvba_decide_pos` / `on_mvba_decide_neg` that transport a correct
 validator's decision `mvba.decided mvba_st i v` into the module's per-proposer
-records through the two immutable projections `mval_pos v j m` /
-`mval_neg v j` of the opaque value sort. The value is the entry vector; the
-projections carry two assumptions — functional in the root, and exclusive —
-which [System.lean](../Cadence/System.lean) discharges at `v j = some m` / `v j = none ∧
-is_proposer j` (a non-proposer has no entry).
+records. **The value is the meta-block representation** (an entry vector
+and each positive entry's certificate kind,
+[PaperAlignment.md](PaperAlignment.md) §8.1), and agreement is over its
+entries: two correct validators may decide representations whose
+certificates differ. Chorus reads a value's entry vector through the
+contract's `mvba.entries` and two immutable projections
+`mval_pos e j m` / `mval_neg e j`, and a positive entry's kind through the
+immutable `mval_fb v j`. The projections carry two assumptions —
+functional in the root, and exclusive — which [System.lean](../Cadence/System.lean) discharges at
+`e j = some m` / `e j = none ∧ is_proposer j` (a non-proposer has no
+entry). The fallback commit vote `cast_fb_commit i v` reads the
+validator's own decision the same way and waits under exactly the
+FallbackQC entries of `v`.
 
 The records' agreement is *proven* from the class's `agreement`, through two
 tie invariants stating that every record is the projection of some correct
@@ -199,12 +208,20 @@ validator's decision.
 
 **The decision handoff** is the supplement's strengthened Module 3 (`mod:mvba`)
 interface (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"), added to `MVBASafety` in R8 and
-nothing else: `certifies st c v` (a valid commitment proof), the field
+nothing else: `certifies st c e` (a valid commitment proof for the entry
+vector `e`, since the certificate is over entries), the field
 `decided_certified` (**decide exposes its certificate**), the input `accept`
 with `accept_trans`, and `accept_effect`/`accept_enabled` (**a transferred
-valid certificate is accepted**, in the rely form). All are first-order;
-the three liveness facts are withheld from the solver (`veil_smt_ignore`),
-so Chorus's cells see only `accept` and `accept_trans` more. `Mvba.mvbaSafety`
+valid certificate is accepted**, in the rely form, deciding a
+representation of the certified entries). Beside them sit the
+**certificate-level fields**: one certified entry vector
+(`certified_unique`), the one every correct party decides
+(`certified_decided`), with a valid representation (`certified_valid`) and
+with the availability its correct signers established
+(`certified_available`, over the observable `availReady`). All are
+first-order; seven facts no safety cell of Chorus reads are withheld from
+the solver (`veil_smt_ignore`), so Chorus's cells see only `accept` and
+`accept_trans` more. `Mvba.mvbaSafety`
 proves them, with `decide` as the instance's `accept`: the MVBA no longer
 decides on a transferred certificate by an internal step, so the oracle
 `mvba_step` cannot take it, and its timing is the caller's, derived from
@@ -212,9 +229,10 @@ Chorus's handoff row ([Bounds.md](Bounds.md) §6.4.2, C15). Nothing was
 weakened and `MVBATemporal` is unchanged; `System.lean` needed no edit.
 
 One **stated bridge** remains, deliberately, and it is the MVBA counterpart
-of the ACS median bridge: each handler verifies the decided entry's
-certificate against Chorus's own network relations —
-`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, and the negative form.
+of the ACS median bridge: each handler verifies the certificate the
+decided representation names for the entry against Chorus's own network
+relations — `vote_quorum_pos j m` for a FastQC, `fb_quorum_pos j m ∧
+fbcert` for a FallbackQC, and the negative form.
 The paper's `Valid B` is a function of the meta-block, which *carries* its
 certificates; Chorus's certificate predicate is a fact about Chorus's
 **state**, which a class parameter declared before `#gen_state` cannot
@@ -249,10 +267,11 @@ meta-block is certified (what enables the handlers) —
   two-state lemmas over all 42 actions — including that a committed
   validator's entries are *frozen*, because `commit_assign_*` require
   `¬ local_committed i`.
-* **`Mvba.mvbaSafety th : MVBASafety node value (Mvba.State …) (fun i =>
-  nset.is_byz i = true)`** ([Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)). The model is one instance of
+* **`Mvba.mvbaSafety th : MVBASafety node value evec (Mvba.Msg …) (Mvba.State …)
+  nodeset nset (fun i => nset.is_byz i = true)`** ([Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)). The model is one instance of
   Module 3 (`mod:mvba`), so the contract is instantiated directly: `Valid` is the
-  theory's immutable `valid` (the value being the entry vector), `decided` the
+  theory's immutable `valid` and `entries` its `ent` (the value being the
+  representation, `evec` the entry vector), `decided` the
   relation of that name, `step` the transitions other than the two inputs;
   `agreement`, `integrity` and `external_validity` are the model's three
   `safety` declarations through the named reachability projections; the
@@ -383,7 +402,8 @@ by name; the meta-axiom names (A-orch-totality), (A-orch-boundedness),
 `positional_log_safety` instantiated at `Conductor.orchestratorSafety thC` and
 `Chorus.slotConsensusSafety thS` — the latter with Chorus's own MVBA
 constraint filled by `Mvba.mvbaSafety thM` (`mstate` the `Mvba` model's
-abstract state, `mvalue := node → Option merkle_root`, `mmsg := Mvba.Msg`).
+abstract state, `mvalue := MetaBlock node merkle_root`,
+`mentries := node → Option merkle_root`, `mmsg := Mvba.Msg`).
 The statement is MCP Safety for the glue running the Conductor's and Chorus's
 own transition systems, Chorus running the `Mvba` model's. **One contract
 hypothesis remains, by design: `ACSSafety`**, the agreement-on-a-common-subset
@@ -418,7 +438,8 @@ the proven fragments.
 ## 7. The remaining seams, named
 
 1. **The MVBA certificate bridge.** Each decision handler `require`s the
-   decided entry's certificate against Chorus's network relations. This is a
+   certificate the decided representation names for the entry against
+   Chorus's network relations. This is a
    bridge, not a restatement: the paper's `Valid B` checks the certificates
    the meta-block *carries* — publicly verifiable objects any receiver can
    re-check — while a class parameter declared before `#gen_state` cannot

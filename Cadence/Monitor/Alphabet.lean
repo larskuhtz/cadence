@@ -16,7 +16,9 @@ Instance encoded here: n = 3f+1 = 4, f = 1, roots = 2, slots = 1 (matches
 [ChorusMonitor.lean](ChorusMonitor.lean)). The argument sorts are `node`, `merkle_root`,
 `nodeset` — small bounded non-negative integers / sets of them — and, since
 Chorus consumes the MVBA as a class constraint, the MVBA's
-`mvalue` (the entry vector: four entries, each a root index or null) and
+`mvalue` (a meta-block representation: four entries, each null, a root
+index for a FastQC-certified positive entry, or `{"fallback": k}` for a
+FallbackQC-certified one) and
 `mstate` (the instance's abstract state, not observable: always null). No
 action takes a `slot`/`Phase`/`PathChoice`/`mmsg` argument. No floats,
 strings, or wide arithmetic — the value encoding is unambiguous.
@@ -84,9 +86,9 @@ def alphabetJsonOf (acts : Array (String × Array String)) : String :=
     ++ "    " ++ q "nodeset" ++ ": {" ++ q "encoding" ++ ": " ++ q "array<uint>" ++ ", "
       ++ q "element" ++ ": " ++ q "node" ++ ", "
       ++ q "note" ++ ": " ++ q "strictly ascending; a subset of node" ++ "},\n"
-    ++ "    " ++ q "mvalue" ++ ": {" ++ q "encoding" ++ ": " ++ q "array<uint|null>" ++ ", "
+    ++ "    " ++ q "mvalue" ++ ": {" ++ q "encoding" ++ ": " ++ q "array<uint|{fallback:uint}|null>" ++ ", "
       ++ q "length" ++ ": 4, "
-      ++ q "note" ++ ": " ++ q "the MVBA value: one entry per node, a root index (positive entry) or null (negative)" ++ "},\n"
+      ++ q "note" ++ ": " ++ q "the MVBA value, a meta-block representation: one entry per node, a root index (positive entry held by a FastQC), {fallback: root} (positive entry held by a FallbackQC) or null (negative)" ++ "},\n"
     ++ "    " ++ q "mstate" ++ ": {" ++ q "encoding" ++ ": " ++ q "null" ++ ", "
       ++ q "note" ++ ": " ++ q "the MVBA instance's abstract state; not observable, always null" ++ "}\n"
     ++ "  },\n"
@@ -101,7 +103,7 @@ def alphabetJsonOf (acts : Array (String × Array String)) : String :=
 private def sortRust (s : String) : Option String × (String → String) :=
   match s with
   | "nodeset" => (some "&[u64]", fun nm => "fmt_nodeset(" ++ nm ++ ")")
-  | "mvalue"  => (some "&[Option<u64>]", fun nm => "fmt_mvalue(" ++ nm ++ ")")
+  | "mvalue"  => (some "&[Option<(u64, bool)>]", fun nm => "fmt_mvalue(" ++ nm ++ ")")
   | "mstate"  => (none, fun _ => "\"null\"")   -- not observable
   | _         => (some "u64", fun nm => nm)       -- node, merkle_root
 
@@ -150,8 +152,10 @@ def rustStubOf (acts : Array (String × Array String)) : String :=
     ++ "// Instance: n = 3f+1 = 4, f = 1, roots = 2, slots = 1.\n"
     ++ "// Sort encodings:  node, merkle_root : u64 (node in 0..3, root in 0..1);\n"
     ++ "//                  nodeset : &[u64], strictly ascending, a subset of node;\n"
-    ++ "//                  mvalue  : &[Option<u64>] of length 4 — the MVBA's entry vector,\n"
-    ++ "//                            one entry per node, Some(root) positive, None negative;\n"
+    ++ "//                  mvalue  : &[Option<(u64, bool)>] of length 4 — the MVBA's\n"
+    ++ "//                            meta-block representation, one entry per node,\n"
+    ++ "//                            Some((root, fallback)) positive, None negative;\n"
+    ++ "//                            fallback = held by a FallbackQC, else a FastQC;\n"
     ++ "//                  mstate  : the MVBA instance's abstract state — not observable,\n"
     ++ "//                            no parameter, emitted as null.\n"
     ++ "// The MVBA actions (mvba_propose, accept_mvba_commitqc, on_mvba_decide_*,\n"
@@ -171,8 +175,11 @@ def rustStubOf (acts : Array (String × Array String)) : String :=
     ++ "    let inner = xs.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(\", \");\n"
     ++ "    format!(\"[{}]\", inner)\n"
     ++ "}\n\n"
-    ++ "fn fmt_mvalue(xs: &[Option<u64>]) -> String {\n"
-    ++ "    let inner = xs.iter().map(|x| match x { Some(m) => m.to_string(), None => \"null\".to_string() })\n"
+    ++ "fn fmt_mvalue(xs: &[Option<(u64, bool)>]) -> String {\n"
+    ++ "    let inner = xs.iter().map(|x| match x {\n"
+    ++ "            Some((m, false)) => m.to_string(),\n"
+    ++ "            Some((m, true)) => format!(\"{{\\\"fallback\\\": {}}}\", m),\n"
+    ++ "            None => \"null\".to_string() })\n"
     ++ "        .collect::<Vec<_>>().join(\", \");\n"
     ++ "    format!(\"[{}]\", inner)\n"
     ++ "}\n\n"

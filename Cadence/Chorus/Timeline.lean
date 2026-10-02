@@ -84,20 +84,20 @@ section Steps
 
 open Classical
 
-variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
   [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root]
-  [Inhabited mstate] [Inhabited mvalue] [Inhabited mmsg]
+  [Inhabited mstate] [Inhabited mvalue] [Inhabited mentries] [Inhabited mmsg]
   [Inhabited Phase] [Inhabited PathChoice]
   [nset : ByzNodeSet node nodeset]
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
-  [mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)]
+  [mvba : MVBASafety node mvalue mentries mmsg mstate nodeset nset (fun i => nset.is_byz i = true)]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
-  {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice}
-  {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
+  {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice}
+  {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
 
 /-- The generic Chorus transition system (any quorum instance, any MVBA). -/
 local notation "RTS" => Chorus.relationalTransitionSystem slot node nodeset merkle_root
-  mstate mvalue mmsg Phase PathChoice
+  mstate mvalue mentries mmsg Phase PathChoice
 
 open Lean in
 /-- One `case <action> => have <h> := Chorus.<action>.frame_<field> <htr>; <tac>`
@@ -223,17 +223,18 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
   {thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice}
-  {thM : Mvba.Theory node nodeset (node → Option merkle_root) view}
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedAddMonoid time]
 
 /-- The `MVBASafety` instance the composed system runs, as a local instance
 for the generic step lemmas. -/
 local macro "mvba_inst" : tactic =>
-  `(tactic| letI : MVBASafety node (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root))
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM)
+  `(tactic| letI : MVBASafety node (MetaBlock node merkle_root) (node → Option merkle_root)
+      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      nodeset nset (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM)
 
 /-! ### The gate on a window -/
 
@@ -753,7 +754,7 @@ theorem within_input_of_fbcert (sch : Schedule view time)
     (hact : ActiveUntil r N₀ (max t r.gst + 3 • sch.Δ + 2 • sch.δ))
     {N : Nat} (hN : N₀ ≤ N) (hcN : r.clk N ≤ max t r.gst + 2 • sch.Δ + 2 • sch.δ)
     (hfb : CorrectFBCert (nset := nset) (r.at' N))
-    {i : node} (hi : ¬ nset.is_byz i = true) {v : node → Option merkle_root}
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : MetaBlock node merkle_root}
     (hcert : ∀ n, N ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) v)
     (hvalid : (Mvba.mvbaSafety (nset := nset) thM).Valid v) :
     r.WithinFrom N (max t r.gst + 3 • sch.Δ + 2 • sch.δ)
@@ -915,7 +916,7 @@ theorem within_input_of_fast (sch : Schedule view time)
     {N : Nat} (hN : N₀ ≤ N) (hcN : r.clk N ≤ max t r.gst + 3 • sch.Δ + 2 • sch.δ)
     {i : node} (hi : ¬ nset.is_byz i = true)
     (hfq : Chorus.complete_fast_metablock (nset := nset) (mvba := Mvba.mvbaSafety thM) i thS (r.at' N))
-    {v : node → Option merkle_root}
+    {v : MetaBlock node merkle_root}
     (hcert : ∀ n, N ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) v)
     (hvalid : (Mvba.mvbaSafety (nset := nset) thM).Valid v) :
     r.WithinFrom N (max t r.gst + 3 • sch.Δ + 3 • sch.δ)
@@ -978,7 +979,7 @@ theorem within_all_input [Fintype node] (sch : Schedule view time)
     (hHh : ∀ a, nset.member a H = true → ¬ nset.is_byz a = true)
     {Ns : Nat} (hNs : N₀ ≤ Ns) (hcs : r.clk Ns ≤ max t r.gst + 2 • sch.Δ + 2 • sch.δ)
     (hsat : ∀ i, ¬ nset.is_byz i = true → Saturated thS (r.at' Ns) i)
-    {v : node → Option merkle_root}
+    {v : MetaBlock node merkle_root}
     (hcert : ∀ n, Ns ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) v)
     (hvalid : (Mvba.mvbaSafety (nset := nset) thM).Valid v)
     {i : node} (hi : ¬ nset.is_byz i = true) :

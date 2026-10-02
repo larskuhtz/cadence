@@ -136,7 +136,7 @@ instances: a label is a syntactic object. -/
 
 section Labels
 
-variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
 
 /-- **(F-byz).** The labels the adversary controls — the `byz_*` family,
 including its share of the two anonymous capabilities (assembling a commit
@@ -144,7 +144,7 @@ certificate, re-disseminating a decodable chunk), whose correct-sender forms
 are the fair `broadcast_commitqc_*` and `redisseminate_chunk`. No premise
 requires anything of them, which *is* the assumption: progress never relies
 on adversarial help. `not_justice_of_byz` pins the disjointness. -/
-def ByzLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
+def ByzLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
   | .byz_sign_proposer .. => True
   | .byz_deliver_chunk .. => True
   | .byz_redisseminate_chunk .. => True
@@ -169,7 +169,7 @@ scheduling is the MVBA's own, and `MvbaAdmissible` is what says how it was
 scheduled. `mvba_propose` is *not* here: it is Chorus's own honest action
 (a correct validator proposing to the MVBA), weakly fair like the rest, even
 though it also advances the MVBA's state — see `MvbaStepLabel`. -/
-def OracleLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
+def OracleLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
   | .mvba_step _ => True
   | _ => False
 
@@ -184,7 +184,7 @@ become weakly fair — and weak fairness of `abandon`, which is always
 enabled at the `Mvba` instance, would force every validator to abandon.
 This restates `Chorus.Label.isInput` ([Compose.lean](Compose.lean)) for the
 reason `Mvba.InputLabel` gives; `not_justice_of_input` ties the two. -/
-def InputLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
+def InputLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
   | .participate .. => True
   | .abandon .. => True
   | .propose .. => True
@@ -195,7 +195,7 @@ phase advancement, dissemination and delivery, voting, aggregation, the two
 paths, the MVBA proposal and the decision handlers, the commit round and
 finalization — which is everything that is neither the adversary's, nor the
 oracle step, nor one of the caller's inputs. -/
-def JusticeLabel (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) : Prop :=
+def JusticeLabel (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) : Prop :=
   ¬ ByzLabel l ∧ ¬ OracleLabel l ∧ ¬ InputLabel l
 
 /-- **The labels at which the MVBA's state moves**: the oracle step and the
@@ -206,7 +206,7 @@ from the fairness classes — `mvba_propose` and `accept_mvba_commitqc` are
 justice labels *and* MVBA steps, and they appear in the projected run as the
 MVBA's own `propose` and `decide` labels, which `Mvba.FJustice` excludes
 precisely because the caller schedules them. -/
-def MvbaStepLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
+def MvbaStepLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
   | .mvba_step _ => True
   | .mvba_propose .. => True
   | .accept_mvba_commitqc .. => True
@@ -220,25 +220,25 @@ choice the validator makes. `FJustice` therefore makes the proposal fair per
 validator and value, and the handoff per receiver, over the rest of the
 parameters (`Cadence.WeaklyFairFamilyWhen`) rather than per label;
 [Liveness.md](../../docs/Liveness.md) §4.6 (Finding 2) says why. -/
-def FamilyLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
+def FamilyLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
   | .mvba_propose .. => True
   | .accept_mvba_commitqc .. => True
   | _ => False
 
 /-- **(F-byz), machine-checked at the only level it can be**: no label the
 adversary controls is subject to a fairness hypothesis. -/
-theorem not_justice_of_byz (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
+theorem not_justice_of_byz (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)
     (h : ByzLabel l) : ¬ JusticeLabel l := fun hj => hj.1 h
 
 /-- The oracle step is not under (F-justice) either. -/
-theorem not_justice_of_oracle (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
+theorem not_justice_of_oracle (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)
     (h : OracleLabel l) : ¬ JusticeLabel l := fun hj => hj.2.1 h
 
 /-- **No input is under (F-justice)** — stated against `Label.isInput`
 ([Compose.lean](Compose.lean)), the module's own notion of an input, which
 is what the contract's `step` excludes. In particular `abandon` is not
 weakly fair. -/
-theorem not_justice_of_input (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
+theorem not_justice_of_input (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)
     (h : Label.isInput l) : ¬ JusticeLabel l := by
   rcases Label.isInput_cases h with ⟨i, rfl⟩ | ⟨i, n, rfl⟩ | ⟨j, m, rfl⟩
   · exact fun hj => hj.2.2 trivial
@@ -248,7 +248,7 @@ theorem not_justice_of_input (l : Chorus.Label slot node nodeset merkle_root mst
 /-- The classification is exhaustive — by construction, since `JusticeLabel`
 is the complement of the other three; so this is a classical case split, and
 what checks the action list is the three `match` definitions above. -/
-theorem label_classified (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) :
+theorem label_classified (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) :
     JusticeLabel l ∨ ByzLabel l ∨ OracleLabel l ∨ InputLabel l := by
   classical
   by_cases hb : ByzLabel l
@@ -260,14 +260,14 @@ theorem label_classified (l : Chorus.Label slot node nodeset merkle_root mstate 
   exact Or.inl ⟨hb, ho, hi⟩
 
 /-- The oracle step moves the MVBA's state. -/
-theorem mvbaStepLabel_of_oracle (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
+theorem mvbaStepLabel_of_oracle (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)
     (h : OracleLabel l) : MvbaStepLabel l := by
   cases l <;> trivial
 
 /-- An MVBA step is the oracle step or one of the three driven inputs
 (`mvba_propose`, the handoff, and `abandon`'s forwarding), and nothing
 else. -/
-theorem mvbaStepLabel_iff (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) :
+theorem mvbaStepLabel_iff (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) :
     MvbaStepLabel l ↔ (∃ m, l = .mvba_step m) ∨ (∃ i v m, l = .mvba_propose i v m) ∨
       (∃ i m, l = .abandon i m) ∨ (∃ i c m, l = .accept_mvba_commitqc i c m) := by
   cases l <;> simp [MvbaStepLabel]
@@ -325,26 +325,27 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
 
 /-- **Chorus at the `Mvba` instance**: the module's transition system with its
 MVBA constraint filled by `Mvba.mvbaSafety thM`, the abstract sorts at the
-`Mvba` model's own types — the value is the entry vector, the state the
-model's, the message type the model's ([System.lean](../System.lean), "Chorus at the `Mvba`
+`Mvba` model's own types — the value is the meta-block representation
+`MetaBlock node merkle_root`, the entry vector `node → Option merkle_root`,
+the state the model's, the message type the model's ([System.lean](../System.lean), "Chorus at the `Mvba`
 instance"). Every run-level statement in this file is about this system. -/
-noncomputable abbrev atMvba (thM : Mvba.Theory node nodeset (node → Option merkle_root) view) :=
+noncomputable abbrev atMvba (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view) :=
   Chorus.relationalTransitionSystem slot node nodeset merkle_root
-    (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-    (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice
+    (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+    (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice
     (mvba := Mvba.mvbaSafety thM)
 
 /-- The `Mvba` model's own transition system, the component's `sub`. -/
 noncomputable abbrev mvbaRTS :=
-  Mvba.relationalTransitionSystem node nodeset (node → Option merkle_root) view
+  Mvba.relationalTransitionSystem node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view
 
 variable {thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice}
-  {thM : Mvba.Theory node nodeset (node → Option merkle_root) view}
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
   {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)}
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)}
 
 /-- Expose an action's transition body ([Composition.lean](../Composition.lean)'s
 `conductor_tr`, for Chorus). -/
@@ -370,12 +371,13 @@ the dispatch is by named case rather than a `first` over the lemmas, which
 makes the unifier unfold the transition system at every miss.) -/
 theorem mvba_st_frame_of_not_step
     (l : Chorus.Label slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
     (htr : (atMvba thM).tr thS s l s') (hl : ¬ MvbaStepLabel l) : s'.mvba_st = s.mvba_st := by
-  letI : MVBASafety node (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root))
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM
+  letI : MVBASafety node (MetaBlock node merkle_root) (node → Option merkle_root)
+      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      nodeset nset (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM
   cases l
   case mvba_step => exact absurd trivial hl
   case mvba_propose => exact absurd trivial hl
@@ -473,20 +475,25 @@ theorem abandon_tr {i mvba_next}
 
 set_option maxHeartbeats 1000000 in
 /-- The handoff's guard is `mvba.accept`, which at the `Mvba` instance is the
-model's `decide` on the transferred certificate. -/
+model's `decide` on the transferred certificate, deciding a representation
+of its entries. -/
 theorem accept_mvba_commitqc_tr {i c mvba_next}
     (htr : (atMvba thM).tr thS s (.accept_mvba_commitqc i c mvba_next) s') :
-    ∃ w e, c = .commitqc w e ∧
+    ∃ w e x, c = .commitqc w e ∧ thM.ent x = e ∧
       (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
-        s.mvba_st (.decide i w e) s'.mvba_st := by
+        s.mvba_st (.decide i w x) s'.mvba_st := by
   chorus_tr htr
   obtain ⟨-, -, hacc, htr⟩ := htr
   chorus_field_simp
   subst htr
   cases c
-  all_goals first
-    | exact ⟨_, _, rfl, hacc⟩
-    | exact (hacc : False).elim
+  case commitqc w e =>
+    have h' : Mvba.Accept thM s.mvba_st i (.commitqc w e) mvba_next := hacc
+    obtain ⟨x, hx, h⟩ := h'
+    -- The goal was simplified with `e` eliminated through `thM.ent x = e`.
+    subst hx
+    exact ⟨w, x, rfl, h⟩
+  all_goals exact (hacc : False).elim
 
 set_option maxHeartbeats 1000000 in
 /-- The initial value of `mvba_st`, read off the initializer's transition. -/
@@ -498,9 +505,9 @@ theorem mvba_st_init (hi : (atMvba thM).init thS s) : s.mvba_st = thS.mvba_init_
 /-- **The MVBA is a component of Chorus**, at the system's instantiation. -/
 noncomputable def mvbaComponent
     (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
-    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view) :
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view) :
     Component (atMvba thM) thS
       (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)) thM where
   proj st := st.mvba_st
@@ -515,8 +522,8 @@ noncomputable def mvbaComponent
     | mvba_step mvba_next => exact mvba_step_tr htr
     | mvba_propose i v mvba_next => exact ⟨.propose i v, mvba_propose_tr htr⟩
     | accept_mvba_commitqc i c mvba_next =>
-      obtain ⟨w, e, -, h⟩ := accept_mvba_commitqc_tr htr
-      exact ⟨.decide i w e, h⟩
+      obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
+      exact ⟨.decide i w x, h⟩
     | abandon i mvba_next => exact ⟨.abandon i, abandon_tr htr⟩
     | _ => exact absurd hl id
 
@@ -538,7 +545,7 @@ read off the action's transition body. -/
 set_option maxHeartbeats 1000000 in
 /-- The MVBA proposal changes the state: the `Mvba` model's `propose` guard
 is that the validator has no input yet, and its effect records one. -/
-theorem mvba_propose_moves {i : node} {v : node → Option merkle_root} {n}
+theorem mvba_propose_moves {i : node} {v : MetaBlock node merkle_root} {n}
     (htr : (atMvba thM).tr thS s (.mvba_propose i v n) s') : s' ≠ s := by
   rintro rfl
   have hp := mvba_propose_tr htr
@@ -723,7 +730,7 @@ theorem cast_fallback_vote_moves {i : node}
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem on_mvba_decide_pos_moves {i j : node} {m : merkle_root} {v : node → Option merkle_root}
+theorem on_mvba_decide_pos_moves {i j : node} {m : merkle_root} {v : MetaBlock node merkle_root}
     (htr : (atMvba thM).tr thS s (.on_mvba_decide_pos i j m v) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
@@ -734,7 +741,7 @@ theorem on_mvba_decide_pos_moves {i j : node} {m : merkle_root} {v : node → Op
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem on_mvba_decide_neg_moves {i j : node} {v : node → Option merkle_root}
+theorem on_mvba_decide_neg_moves {i j : node} {v : MetaBlock node merkle_root}
     (htr : (atMvba thM).tr thS s (.on_mvba_decide_neg i j v) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
@@ -745,7 +752,7 @@ theorem on_mvba_decide_neg_moves {i j : node} {v : node → Option merkle_root}
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem mvba_terminate_moves {i : node} {v : node → Option merkle_root}
+theorem mvba_terminate_moves {i : node} {v : MetaBlock node merkle_root}
     (htr : (atMvba thM).tr thS s (.mvba_terminate i v) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
@@ -767,7 +774,7 @@ theorem redisseminate_chunk_moves {k i j : node} {m : merkle_root}
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem accept_mvba_commitqc_moves {i : node} {c : Mvba.Msg view (node → Option merkle_root)} {n}
+theorem accept_mvba_commitqc_moves {i : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {n}
     (htr : (atMvba thM).tr thS s (.accept_mvba_commitqc i c n) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
@@ -778,8 +785,8 @@ theorem accept_mvba_commitqc_moves {i : node} {c : Mvba.Msg view (node → Optio
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem cast_fb_commit_moves {i : node}
-    (htr : (atMvba thM).tr thS s (.cast_fb_commit i) s') : s' ≠ s := by
+theorem cast_fb_commit_moves {i : node} {v}
+    (htr : (atMvba thM).tr thS s (.cast_fb_commit i v) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)
@@ -834,8 +841,8 @@ proposal is a justice label, so each member of its family is covered too
 guard; none is dropped from `JusticeLabel`. -/
 theorem justice_enabledMove
     (l : Chorus.Label slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
     (hl : JusticeLabel l) (hen : Enabled (atMvba thM) thS s l) : EnabledMove (atMvba thM) thS s l := by
   obtain ⟨s', htr⟩ := hen
   refine ⟨s', htr, ?_⟩
@@ -890,14 +897,14 @@ theorem justice_enabledMove
 /-- **Every member of the MVBA proposal family is move-enabled when it is
 enabled**: the family clause of `FJustice` asks nothing more than weak
 fairness over state-changing steps would. -/
-theorem mvba_propose_enabledMove {i : node} {v : node → Option merkle_root} {n}
+theorem mvba_propose_enabledMove {i : node} {v : MetaBlock node merkle_root} {n}
     (hen : Enabled (atMvba thM) thS s (.mvba_propose i v n)) :
     EnabledMove (atMvba thM) thS s (.mvba_propose i v n) :=
   justice_enabledMove _ ⟨fun h => h, fun h => h, fun h => h⟩ hen
 
 /-- **Every member of the handoff family is move-enabled when it is
 enabled**, likewise. -/
-theorem accept_mvba_commitqc_enabledMove {i : node} {c : Mvba.Msg view (node → Option merkle_root)} {n}
+theorem accept_mvba_commitqc_enabledMove {i : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {n}
     (hen : Enabled (atMvba thM) thS s (.accept_mvba_commitqc i c n)) :
     EnabledMove (atMvba thM) thS s (.accept_mvba_commitqc i c n) :=
   justice_enabledMove _ ⟨fun h => h, fun h => h, fun h => h⟩ hen
@@ -923,18 +930,18 @@ section Owed
 
 open Classical
 
-variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
   [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root]
-  [Inhabited mstate] [Inhabited mvalue] [Inhabited mmsg]
+  [Inhabited mstate] [Inhabited mvalue] [Inhabited mentries] [Inhabited mmsg]
   [Inhabited Phase] [Inhabited PathChoice]
   [nset : ByzNodeSet node nodeset]
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
-  [mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)]
+  [mvba : MVBASafety node mvalue mentries mmsg mstate nodeset nset (fun i => nset.is_byz i = true)]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
 
 /-- A correct supermajority has broadcast its first-round votes. -/
 def CorrectVotesCast
-    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) :
     Prop :=
   ∃ q, nset.supermajority q ∧ Mvba.CorrectQuorum (node := node) q ∧
     ∀ r, nset.member r q = true → s.msg_vote_cast r = true
@@ -942,7 +949,7 @@ def CorrectVotesCast
 /-- A correct supermajority has broadcast its fallback votes: `FBCert` from
 correct senders. -/
 def CorrectFBCert
-    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) :
     Prop :=
   ∃ q, nset.supermajority q ∧ Mvba.CorrectQuorum (node := node) q ∧
     ∀ r, nset.member r q = true → s.msg_fallback_sig r = true
@@ -950,7 +957,7 @@ def CorrectFBCert
 /-- A correct supermajority has broadcast its fallback commit votes:
 `fbCommitQC` from correct senders. -/
 def CorrectFbCommitQC
-    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) :
     Prop :=
   ∃ q, nset.supermajority q ∧ Mvba.CorrectQuorum (node := node) q ∧
     ∀ r, nset.member r q = true → s.msg_fbcommit_sig r = true
@@ -961,8 +968,8 @@ meta-block, which is local. The certificates of a particular value need no
 condition: if `i` proposes any value, every member of the family is disabled
 for `i`. -/
 def proposeOwed
-    (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) (i : node)
-    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) (i : node)
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) :
     Prop :=
   CorrectFBCert s ∨ Chorus.complete_fast_metablock (nset := nset) (mvba := mvba) i th s
 
@@ -970,7 +977,7 @@ def proposeOwed
 output carries the certificate (`mvba.decided_certified`), and Chorus
 broadcasts it (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"). -/
 def relayOwed
-    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) :
     Prop :=
   ∃ j v, ¬ nset.is_byz j = true ∧ mvba.decided s.mvba_st j v
 
@@ -999,15 +1006,20 @@ environment owes the step at all.
   (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)), and the
   fallback commit certificate from correct commit voters, over the decided
   entry;
-* `cast_fb_commit`: the voter has itself decided. The model's guard reads
-  the shared `mvba_complete`, which the first validator to decide sets; the
-  paper's rule fires on the voter's own decision (Algorithm 5, line 41 (`line:fb-commitvote`));
+* `cast_fb_commit i v`: the voter has decided `v` and no other
+  representation. The paper's rule fires on the voter's own decision
+  (Algorithm 5, line 37 (`line:fb-mvba-decide`)) and waits under that `B′`; under a redelivered
+  decision with another representation the target does not say which `B′`
+  the handler runs on (P11, [PaperAlignment.md](../../docs/PaperAlignment.md) §8.1 (d)), so the row
+  owes nothing there, and never a vote the paper might not cast. The model's
+  guard also reads the shared `mvba_complete`, which the first validator to
+  decide sets;
 * everything else: nothing (`True`). The chunk's delivery has a correct
   proposer by its guard, and the decision handlers and `mvba_terminate` fire
   on the validator's own decision by theirs. -/
-def Owed (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) :
-    Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice →
-    Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) →
+def Owed (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) :
+    Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice →
+    Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) →
       Prop
   | .aggregate_fastqc_pos _ j m q => fun s => Mvba.CorrectQuorum (node := node) q ∨
       ∃ k, ¬ nset.is_byz k = true ∧ s.msg_commit_cast k = true ∧ s.local_fastqc_pos k j m = true
@@ -1029,7 +1041,8 @@ def Owed (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Ph
       (∃ k, ¬ nset.is_byz k = true ∧ s.local_committed k = true ∧
         s.local_committed_neg k j = true) ∨
       (CorrectFbCommitQC s ∧ s.mvba_decided_neg j = true)
-  | .cast_fb_commit i => fun s => ∃ v, mvba.decided s.mvba_st i v
+  | .cast_fb_commit i v => fun s => mvba.decided s.mvba_st i v ∧
+      ∀ v', mvba.decided s.mvba_st i v' → v' = v
   | _ => fun _ => True
 
 end Owed
@@ -1051,17 +1064,17 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
   {thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice}
-  {thM : Mvba.Theory node nodeset (node → Option merkle_root) view}
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
 
 /-- A labelled run of Chorus at the `Mvba` instance: the object every premise
 below is about. -/
 abbrev ChorusRun
     (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
-    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view) :=
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view) :=
   LRun (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM) thS
 
 /-- **(F-justice)** — weak fairness of every honest action that is neither
@@ -1138,27 +1151,31 @@ def MvbaAdmissible (r : ChorusRun thS thM) : Prop :=
     Mvba.FJustice p.run ∧ Mvba.AViewSync p.run ∧ Mvba.FAvail p.run
 
 /-- **A certified meta-block**, in Chorus's vocabulary: every positive entry
-is a proposer's, backed by a FastQC or by a FallbackQC under `FBCert`; every
-negative entry is a proposer's, backed by a negative FastQC or, under
-`FBCert`, by a negative FallbackQC or an EquivCert; and every proposer has an
-entry. These are `mvba_propose`'s three validity guards **verbatim**, the
-first two clauses being also the decision handlers' bridge `require`
+is a proposer's and backed by the certificate the representation names — a
+FastQC, or a FallbackQC under `FBCert` (`mval_fb`); every negative entry is
+a proposer's, backed by a negative FastQC or, under `FBCert`, by a negative
+FallbackQC or an EquivCert; and every proposer has an entry. These are
+`mvba_propose`'s three validity guards **verbatim**, the first two clauses
+being also the decision handlers' bridge `require`
 ([Chorus.lean](../Chorus.lean), "The MVBA instance"). -/
 def Certified
     (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice))
-    (v : node → Option merkle_root) : Prop :=
-  (∀ J M, thS.mval_pos v J M = true → thS.is_proposer J = true ∧
-    (Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J M thS st ∨
-      (Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J M thS st ∧
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice))
+    (v : MetaBlock node merkle_root) : Prop :=
+  (∀ J M, thS.mval_pos (thM.ent v) J M = true → thS.is_proposer J = true ∧
+    ((¬ thS.mval_fb v J = true ∧
+        Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J M thS st) ∨
+      (thS.mval_fb v J = true ∧
+        Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J M thS st ∧
         Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS st))) ∧
-  (∀ J, thS.mval_neg v J = true → thS.is_proposer J = true ∧
+  (∀ J, thS.mval_neg (thM.ent v) J = true → thS.is_proposer J = true ∧
     (Chorus.vote_quorum_neg (nset := nset) (mvba := Mvba.mvbaSafety thM) J thS st ∨
       ((Chorus.fb_quorum_neg (nset := nset) (mvba := Mvba.mvbaSafety thM) J thS st ∨
         Chorus.equiv_evidence (nset := nset) (mvba := Mvba.mvbaSafety thM) J thS st) ∧
         Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS st))) ∧
-  (∀ J, thS.is_proposer J = true → (∃ M, thS.mval_pos v J M = true) ∨ thS.mval_neg v J = true)
+  (∀ J, thS.is_proposer J = true →
+    (∃ M, thS.mval_pos (thM.ent v) J M = true) ∨ thS.mval_neg (thM.ent v) J = true)
 
 /-- **The bridge** — the MVBA's `Valid` is Chorus's certificate check, in
 both directions, at every point of the run:
@@ -1177,9 +1194,9 @@ meta-block's certificates are genuine, and genuine certificates are `Valid`
 can carry. It is *not* a statement about the protocol's outcome: it relates
 the MVBA theory's `valid` to the network, and nothing else. -/
 def ValidBridge (r : ChorusRun thS thM) : Prop :=
-  (∀ (n : Nat) (v : node → Option merkle_root),
+  (∀ (n : Nat) (v : MetaBlock node merkle_root),
     Certified (thS := thS) (thM := thM) (r.at' n) v → (Mvba.mvbaSafety thM).Valid v) ∧
-  (∀ (n : Nat) (i : node) (v : node → Option merkle_root), ¬ nset.is_byz i = true →
+  (∀ (n : Nat) (i : node) (v : MetaBlock node merkle_root), ¬ nset.is_byz i = true →
     (Mvba.mvbaSafety thM).decided (r.at' n).mvba_st i v → Certified (thS := thS) (thM := thM) (r.at' n) v)
 
 /-- **The caller's first premise: every correct validator participates.**
@@ -1222,9 +1239,9 @@ of the claim — and `Mvba.termination`'s three class hypotheses, for the same
 reason. -/
 def TerminationClaim
     (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
-    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view) : Prop :=
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view) : Prop :=
   ∀ r : ChorusRun thS thM, FJustice r → MvbaAdmissible r → ValidBridge r →
     AllParticipate r → NoAbandonBeforeFinalizing r → Terminates r
 

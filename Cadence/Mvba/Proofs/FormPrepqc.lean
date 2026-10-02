@@ -60,11 +60,12 @@ the `#prove_action` below consumes the cell after a statement check. -/
   intro hsup_q hq W V E' E Q hpq hlt hne hsup_Q
   by_cases hnew : v = W ∧ e = E'
   · obtain ⟨rfl, rfl⟩ := hnew
-    -- An honest preparer `a` of the new certificate accepted `e` in `v`.
+    -- An honest preparer `a` of the new certificate accepted a
+    -- representation `X` of `e` in `v`.
     obtain ⟨a, ha_mem, ha_hon⟩ :=
       nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hsup_q)
     have ha_hon' : ByzNodeSet.is_byz a = false := Bool.eq_false_iff.mpr ha_hon
-    have hacc := h_honest_prepare_accepted a v e ha_hon' (hq a ha_mem)
+    obtain ⟨X, hacc, hXe⟩ := h_honest_prepare_accepted a v e ha_hon' (hq a ha_mem)
     -- `V < v`, so `v` is not the first view and `a`'s acceptance was
     -- justified by a timeout certificate of the previous view `PV ≥ V`.
     have hv0 : ¬ v = TotalOrderWithMinimum.zero := by
@@ -72,7 +73,8 @@ the `#prove_action` below consumes the cell after a statement check. -/
       rw [h0] at hlt
       have h := (TotalOrderWithMinimum.le_lt V TotalOrderWithMinimum.zero).mp hlt
       exact h.2 (TotalOrderWithMinimum.le_antisymm _ _ h.1 (TotalOrderWithMinimum.zero_lt V))
-    obtain ⟨PV, hnext, hjust⟩ := h_accepted_justified a v e ha_hon' hacc hv0
+    obtain ⟨PV, hnext, hjust⟩ := h_accepted_justified a v X ha_hon' hacc hv0
+    rw [hXe] at hjust
     have hVPV : TotalOrderWithMinimum.le V PV := by
       have hn := (TotalOrderWithMinimum.next_def PV v).mp hnext
       rcases TotalOrderWithMinimum.le_total V PV with h | h

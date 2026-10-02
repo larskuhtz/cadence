@@ -98,7 +98,7 @@ emitter which *reconstructed* the schedule would have masked: see the
 | File | Role |
 |---|---|
 | [Cadence/Monitor/ChorusMonitor.lean](../Cadence/Monitor/ChorusMonitor.lean) | the hand-written monitor: instantiation, a JSONL→`Label` decoder with one arm per constructor, the trace fold, and a `main` reading JSONL from stdin. **The test oracle.** |
-| [Cadence/Monitor/MvbaStub.lean](../Cadence/Monitor/MvbaStub.lean) | the stand-in for Chorus's MVBA class constraint (Chorus `instantiate`s `MVBASafety` over three abstract sorts): state and message `Unit`, the value a finite entry-vector record with the two projections Chorus's `Theory` needs, and a *silent* instance of the class that never decides — a consistent model of `MVBASafety` under which every guard reading it is decidable. Shared by both monitors; its coverage consequence is §8. |
+| [Cadence/Monitor/MvbaStub.lean](../Cadence/Monitor/MvbaStub.lean) | the stand-in for Chorus's MVBA class constraint (Chorus `instantiate`s `MVBASafety` over four abstract sorts): state and message `Unit`, the value a finite meta-block representation (an entry-vector record and a FallbackQC flag per entry) with the three projections Chorus's `Theory` needs, and a *silent* instance of the class that never decides — a consistent model of `MVBASafety` under which every guard reading it is decidable. Shared by both monitors; its coverage consequence is §8. |
 | [Cadence/Monitor/ChorusMonitorGen.lean](../Cadence/Monitor/ChorusMonitorGen.lean) | the same monitor with its instantiation produced by Veil's `#gen_monitor` instead of hand-written. Must agree with the oracle on every fixture. |
 | [Cadence/Monitor/Alphabet.lean](../Cadence/Monitor/Alphabet.lean) | the published alphabet: the monitor's alphabet **is** the constructors of `Chorus.Label`, reflected mechanically so it cannot drift from the model. Each action is tagged **observable** (Stage A emits it) or **internal** (Stage B inserts it). |
 | [Cadence/Monitor/TraceMutate.lean](../Cadence/Monitor/TraceMutate.lean) | the trace-mutation tool: corrupt a valid trace in a way that models a class of implementation bug. |
@@ -147,8 +147,10 @@ One JSON object per line, positional arguments:
 
 `args` may be omitted when empty. Node and merkle-root arguments are integers
 (`Fin 4` / `Fin 2`); a node set is a JSON array of integers; an MVBA value
-(the entry vector) is a JSON array of four entries, each a root index or
-`null`; the MVBA's abstract state is not observable and is written `null`
+(a meta-block representation) is a JSON array of four entries, each `null`
+(negative), a root index (positive, held by a FastQC) or `{"fallback": k}`
+(positive on root `k`, held by a FallbackQC); the MVBA's abstract state is
+not observable and is written `null`
 (`mvba_step` takes exactly `[null]`). Blank lines and lines starting with
 `//` or `#` are ignored. The alphabet the emitter must follow is served by
 `--alphabet`; it is reflected from the constructors of `Chorus.Label`, so it
@@ -245,9 +247,10 @@ therefore instantiates the constraint with the **silent stub** of
 state and message `Unit`, a `decided` relation that never holds — under
 which the oracle step `mvba_step` is a silent no-op (tagged *internal*, so
 Stage B absorbs it) and the decision handlers `on_mvba_decide_*` and
-`mvba_terminate`, and the decision handoff `accept_mvba_commitqc` (since
-R8: nothing is ever certified under the stub, so `accept` never holds), can
-**never be enabled**: a trace carrying a fallback-path
+`mvba_terminate`, the fallback commit vote `cast_fb_commit` (it
+reads the validator's own decision), and the decision handoff
+`accept_mvba_commitqc` (nothing is ever certified under the stub, so
+`accept` never holds), can **never be enabled**: a trace carrying a fallback-path
 decision is rejected at the first handler. That is a limit of the monitor,
 not of the model — the model's MVBA is the verified `Mvba` instance
 ([Cadence/System.lean](../Cadence/System.lean)) — and closing it means giving the monitor a real

@@ -140,7 +140,7 @@ the anonymous assemblies, which are the adversary's and carry no bound
 
 section Hops
 
-variable {node nodeset value view : Type}
+variable {node nodeset value evec view : Type}
 
 /-- The two kinds of honest step. -/
 inductive Hop where
@@ -157,7 +157,7 @@ Written with a wildcard so that an action added to the model lands on
 `none`: under no bound, hence *weakening* the premise set rather than
 silently strengthening it. `hop_isSome_iff` pins that the table covers
 exactly `JusticeLabel`, so an omission is caught there. -/
-def hop : Mvba.Label node nodeset value view → Option Hop
+def hop : Mvba.Label node nodeset value evec view → Option Hop
   | .handle_preprepare_first .. => some .net
   | .handle_preprepare .. => some .net
   | .adopt_prepqc .. => some .net
@@ -178,7 +178,7 @@ def hop : Mvba.Label node nodeset value view → Option Hop
 iff it is a `JusticeLabel`; the case split is over the model's own label
 type, so adding an action and forgetting it here is an error, not a silent
 omission. -/
-theorem hop_isSome_iff (l : Mvba.Label node nodeset value view) :
+theorem hop_isSome_iff (l : Mvba.Label node nodeset value evec view) :
     (hop l).isSome ↔ JusticeLabel l := by
   cases l <;> first
     | exact ⟨fun _ => ⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩, fun _ => rfl⟩
@@ -293,16 +293,16 @@ end Schedule
 
 section Runs
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedAddMonoid time]
 
 /-- A labelled timed run of the MVBA: the object every premise below is
 about. Its `toLRun` is [Mvba/Liveness.lean](Liveness.lean)'s `MvbaRun`. -/
-abbrev TMvbaRun (th : Theory node nodeset value view) (time : Type) [LinearOrder time] :=
-  TLRun (Mvba.relationalTransitionSystem node nodeset value view) th time
+abbrev TMvbaRun (th : Theory node nodeset value evec view) (time : Type) [LinearOrder time] :=
+  TLRun (Mvba.relationalTransitionSystem node nodeset value evec view) th time
 
 /-! ### (Δ-justice): the supplement's network, clause by clause
 
@@ -325,30 +325,30 @@ antecedent also asking `C` at every index inside it. The form every
 network clause takes: `C` is what the supplement needs to hold while the
 delivery is pending — the receiver still takes part, and has not moved on
 from the message's view. -/
-def BoundedFairWhile (r : TMvbaRun th time) (D : time) (l : Mvba.Label node nodeset value view)
-    (C : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop) : Prop :=
+def BoundedFairWhile (r : TMvbaRun th time) (D : time) (l : Mvba.Label node nodeset value evec view)
+    (C : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop) : Prop :=
   ∀ N, (∀ n, N ≤ n → r.clk n ≤ r.ref N + D →
-      Enabled (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l ∧
+      Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th (r.at' n) l ∧
         C (r.at' n)) →
     r.FiresWithin N D l
 
 /-- `BoundedFairWhile` over state-changing steps: only the right-hand side
 of `Mvba.boundedFairWhile_iff_move`; no premise is stated with it. -/
-def BoundedFairWhileMove (r : TMvbaRun th time) (D : time) (l : Mvba.Label node nodeset value view)
-    (C : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop) : Prop :=
+def BoundedFairWhileMove (r : TMvbaRun th time) (D : time) (l : Mvba.Label node nodeset value evec view)
+    (C : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop) : Prop :=
   ∀ N, (∀ n, N ≤ n → r.clk n ≤ r.ref N + D →
-      EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l ∧
+      EnabledMove (Mvba.relationalTransitionSystem node nodeset value evec view) th (r.at' n) l ∧
         C (r.at' n)) →
     r.FiresWithin N D l
 
 /-- **(N1) Sent at or after GST**: wherever `P` holds, the clock has
 reached GST — so `P` first held at or after it. -/
 def SinceGst (r : TMvbaRun th time)
-    (P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop) : Prop :=
+    (P : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop) : Prop :=
   ∀ n, P (r.at' n) → r.gst ≤ r.clk n
 
 /-- `i` has entered view `w` or the one before it, or a higher one. -/
-def ReachedPrev (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+def ReachedPrev (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view))
     (i : node) (w : view) : Prop :=
   ∃ V, s.entered i V = true ∧ (vord.le w V ∨ vord.next V w)
 
@@ -357,24 +357,24 @@ def ReachedPrev (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)
 later, so `i` retains it (Supplement, Section 10.3 (`sec:reliable-delivery`), "Future-view message
 retention"). -/
 def RetainedBy (r : TMvbaRun th time) (i : node) (w : view)
-    (P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop) : Prop :=
+    (P : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop) : Prop :=
   ∀ n, P (r.at' n) → ReachedPrev (r.at' n) i w
 
 /-- Every correct validator takes part: none is abandoned or has halted
 after deciding. The supplement's scope for its synchronisation lemmas,
 "no correct validator has decided or abandoned, so all participate". -/
-def AllActive (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Prop :=
+def AllActive (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) : Prop :=
   ∀ j, ¬ nset.is_byz j = true → Active s j
 
 /-- **(N2) Lower views are discarded**: `i` has not moved past `v`, so it
 still processes view-`v` messages. -/
-def NotPast (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+def NotPast (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view))
     (i : node) (v : view) : Prop :=
   ∀ V, s.entered i V = true → vord.le V v
 
 /-- Some member of `q` has sent a `Timeout` for `v`. -/
 def AnyTimeout (q : nodeset) (v : view)
-    (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Prop :=
+    (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) : Prop :=
   ∃ p, nset.member p q = true ∧
     (s.msg_timeout_noqc p v = true ∨ ∃ w e, s.msg_timeout_qc p v w e = true)
 
@@ -399,7 +399,7 @@ A commit certificate's transfer is not here: taking it is the input
 
 A label the table classes local, or no label at all, has no first
 delivery (`False`). -/
-def Delivers (r : TMvbaRun th time) : Mvba.Label node nodeset value view → Prop
+def Delivers (r : TMvbaRun th time) : Mvba.Label node nodeset value evec view → Prop
   | .handle_preprepare_first j l e =>
     ¬ nset.is_byz l = true ∧ SinceGst r (fun s => s.msg_preprepare l vord.zero e = true) ∧
       RetainedBy r j vord.zero (fun s => s.msg_preprepare l vord.zero e = true)
@@ -408,12 +408,12 @@ def Delivers (r : TMvbaRun th time) : Mvba.Label node nodeset value view → Pro
       RetainedBy r j v (fun s => s.msg_preprepare l v e = true)
   | .adopt_prepqc j v e q =>
     CorrectQuorum (node := node) q ∧
-      SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true) ∧
-      RetainedBy r j v (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v e = true)
+      SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v (th.ent e) = true) ∧
+      RetainedBy r j v (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p v (th.ent e) = true)
   | .form_own_commitqc j v e q =>
     CorrectQuorum (node := node) q ∧
-      SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v e = true) ∧
-      RetainedBy r j v (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v e = true)
+      SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v (th.ent e) = true) ∧
+      RetainedBy r j v (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v (th.ent e) = true)
   | .form_own_tc_lock j v q _ _ _ =>
     CorrectQuorum (node := node) q ∧ SinceGst r (AnyTimeout q v) ∧ RetainedBy r j v (AnyTimeout q v)
   | .form_own_tc_nolock j v q =>
@@ -426,7 +426,7 @@ omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
 /-- **The untimed premise asks the same of the senders.** A label whose
 first delivery the timed premise owes has the correct senders the untimed
 (F-justice) asks for: `Owed` is `Delivers`' sender part. -/
-theorem owed_of_delivers {r : TMvbaRun th time} {l : Mvba.Label node nodeset value view}
+theorem owed_of_delivers {r : TMvbaRun th time} {l : Mvba.Label node nodeset value evec view}
     (h : Delivers r l) : Owed l := by
   cases l <;> first | exact h.elim | exact h.1 | trivial
 
@@ -434,12 +434,12 @@ theorem owed_of_delivers {r : TMvbaRun th time} {l : Mvba.Label node nodeset val
 part. That the receiver has not moved past the message's view — it
 discards lower views' messages — is in the guard of every per-validator
 step that reads view-scoped messages (`in_view`). -/
-def Receiving : Mvba.Label node nodeset value view →
-    Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop
+def Receiving : Mvba.Label node nodeset value evec view →
+    Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop
   | _ => AllActive
 
 /-- Some correct validator has entered `v`. -/
-def SomeEntered (v : view) (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) :
+def SomeEntered (v : view) (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) :
     Prop :=
   ∃ j, ¬ nset.is_byz j = true ∧ s.entered j v = true
 
@@ -468,9 +468,9 @@ A decided certificate's transfer is the caller's, and is `Relayed`.
 
 Each window is measured from `max(clk N, gst)` (`BoundedFair`). -/
 structure BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Prop where
-  local_ : ∀ l : Mvba.Label node nodeset value view, hop l = some .loc →
+  local_ : ∀ l : Mvba.Label node nodeset value evec view, hop l = some .loc →
     BoundedFair r sch.δ l
-  first : ∀ (l : Mvba.Label node nodeset value view), hop l = some .net →
+  first : ∀ (l : Mvba.Label node nodeset value evec view), hop l = some .net →
     Delivers r l → BoundedFairWhile r sch.Δ l (Receiving l)
   forwarded : ∀ (i : node) (pv v : view), SinceGst r (SomeEntered v) →
     BoundedFairWhile r sch.Δ (.sync_view i pv v) (fun s => AllActive s ∧ SomeEntered v s) ∧
@@ -506,7 +506,7 @@ model, bounded fairness over plain enabledness and over state-changing steps
 are the same premise: every fair label is move-enabled wherever it is
 enabled (`enabledMove_of_enabled`, at every state). -/
 theorem boundedFair_iff_move {r : TMvbaRun th time} {D : time}
-    {l : Mvba.Label node nodeset value view} (hj : JusticeLabel l) :
+    {l : Mvba.Label node nodeset value evec view} (hj : JusticeLabel l) :
     BoundedFair r D l ↔ BoundedFairMove r D l :=
   Cadence.boundedFair_iff_move fun _ => enabledMove_of_enabled l hj
 
@@ -514,8 +514,8 @@ omit [IsOrderedAddMonoid time] in
 /-- **The bridge, for (Δ-justice)'s network clauses**: the same, with the
 clause's window condition `C` alongside. -/
 theorem boundedFairWhile_iff_move {r : TMvbaRun th time} {D : time}
-    {l : Mvba.Label node nodeset value view}
-    {C : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop}
+    {l : Mvba.Label node nodeset value evec view}
+    {C : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop}
     (hj : JusticeLabel l) :
     BoundedFairWhile r D l C ↔ BoundedFairWhileMove r D l C :=
   ⟨fun h N hen => h N fun n hn hc => ⟨Enabled.of_move (hen n hn hc).1, (hen n hn hc).2⟩,
@@ -562,7 +562,7 @@ model's assumption `leader_honest_cofinal` is the `k`-free consequence. A
 hypothesis of the *instance*, since it constrains the theory, not the
 run. -/
 def LeaderRotation (vfin : ViewOrderEnum view vord) (k : Nat)
-    (th : Theory node nodeset value view) : Prop :=
+    (th : Theory node nodeset value evec view) : Prop :=
   ∀ v : view, ∃ j, j < k ∧
     ∃ L : node, th.leader (vfin.succ^[j] v) L = true ∧ ¬ nset.is_byz L = true
 
@@ -572,15 +572,15 @@ def LeaderRotation (vfin : ViewOrderEnum view vord) (k : Nat)
 over, at `Mvba.mvbaSafety th`: the model's states with a clock reading at
 every index. The `TotalOrder` on `time` is [Timed.lean](../Timed.lean)'s scoped
 bridge from the linear order. -/
-abbrev TimedMvbaRun (th : Theory node nodeset value view) (time : Type) [LinearOrder time] :=
-  TimedRun (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
+abbrev TimedMvbaRun (th : Theory node nodeset value evec view) (time : Type) [LinearOrder time] :=
+  TimedRun (Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) time
     (mvbaSafety th).init (mvbaSafety th).trans
 
 /-- **`MVBATemporal.Admissible`**, as this instance defines it: the run has a
 labelling — a `TMvbaRun` with its states and clocks — that satisfies
 `Sync sch`. The labels are the witness of how the run was scheduled, which
 a `TimedRun` does not carry. -/
-def Admissible (sch : Schedule view time) (th : Theory node nodeset value view)
+def Admissible (sch : Schedule view time) (th : Theory node nodeset value evec view)
     (tr : TimedMvbaRun th time) : Prop :=
   ∃ r : TMvbaRun th time,
     (∀ n, tr.at' n = r.at' n) ∧ (∀ n, tr.clk n = r.clk n) ∧ tr.gst = r.gst ∧ Sync sch r
@@ -599,7 +599,7 @@ validator has decided at some index whose clock is at most
 `Mvba.mvbaSafety th`, with `byGstBound`'s least upper bound written as `max` and
 the observables read off the model's state. -/
 def BoundedTerminationClaim (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
-    (th : Theory node nodeset value view) : Prop :=
+    (th : Theory node nodeset value evec view) : Prop :=
   LeaderRotation vfin sch.k th →
   ∀ r : TMvbaRun th time, Sync sch r →
     ∀ t : time,
@@ -624,7 +624,7 @@ proposes at some index" into a common deadline, and without one nothing
 stops every correct-led view from being burnt before its leader has
 proposed. [Bounds.md](../../docs/Bounds.md) §6.2.8 has the argument. -/
 def AViewSyncClaim [Fintype node] (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
-    (th : Theory node nodeset value view) : Prop :=
+    (th : Theory node nodeset value evec view) : Prop :=
   LeaderRotation vfin sch.k th →
   ∀ r : TMvbaRun th time, Sync sch r →
     AllPropose r.toLRun → NoEarlyAbandon r.toLRun → AViewSync r.toLRun

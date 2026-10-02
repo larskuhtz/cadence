@@ -155,20 +155,20 @@ section Steps
 
 open Classical
 
-variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
   [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root]
-  [Inhabited mstate] [Inhabited mvalue] [Inhabited mmsg]
+  [Inhabited mstate] [Inhabited mvalue] [Inhabited mentries] [Inhabited mmsg]
   [Inhabited Phase] [Inhabited PathChoice]
   [nset : ByzNodeSet node nodeset]
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
-  [mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)]
+  [mvba : MVBASafety node mvalue mentries mmsg mstate nodeset nset (fun i => nset.is_byz i = true)]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
-  {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice}
-  {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
+  {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice}
+  {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
 
 /-- The generic Chorus transition system (any quorum instance, any MVBA). -/
 local notation "RTS" => Chorus.relationalTransitionSystem slot node nodeset merkle_root
-  mstate mvalue mmsg Phase PathChoice
+  mstate mvalue mentries mmsg Phase PathChoice
 
 open Lean in
 /-- One `case <action> => have <h> := Chorus.<action>.frame_<field> <htr>; <tac>`
@@ -235,17 +235,18 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
   {thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice}
-  {thM : Mvba.Theory node nodeset (node → Option merkle_root) view}
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedAddMonoid time]
 
 /-- The `MVBASafety` instance the composed system runs, as a local instance
 for the generic step lemmas. -/
 local macro "mvba_inst" : tactic =>
-  `(tactic| letI : MVBASafety node (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root))
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM)
+  `(tactic| letI : MVBASafety node (MetaBlock node merkle_root) (node → Option merkle_root)
+      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      nodeset nset (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM)
 
 /-- `j` has an entry for proposer `J`, or has finalized: the goal of one
 assignment link, monotone along every run. -/

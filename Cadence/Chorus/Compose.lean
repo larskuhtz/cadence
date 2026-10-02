@@ -98,7 +98,7 @@ open Classical ByzNodeSet
 
 section Inputs
 
-variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
 
 /-- The labels of the module's three inputs, `participate()`, `abandon()`
 and `propose(P)` (Module 1 (`mod:slotconsensus`)); every other label is an internal
@@ -106,7 +106,7 @@ step of the protocol. The contract's `step` is the internal steps, so that
 its frames ("internal steps do not change a correct validator's inputs")
 are about exactly them. -/
 def Label.isInput :
-    Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice → Prop
+    Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
   | .participate _ => True
   | .abandon _ _ => True
   | .propose _ _ => True
@@ -117,7 +117,7 @@ survives leaving this module (at this many constructors the definition's
 `match` does not reduce in an importing file; consumers case on this lemma,
 as [Chorus/Liveness.lean](Liveness.lean) does). -/
 theorem Label.isInput_cases
-    {l : Chorus.Label slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice}
+    {l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice}
     (h : Label.isInput l) :
     (∃ i, l = .participate i) ∨ (∃ i n, l = .abandon i n) ∨ (∃ j m, l = .propose j m) := by
   cases l <;> simp_all [Label.isInput]
@@ -126,9 +126,9 @@ end Inputs
 
 section Instance
 
-variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
   [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root]
-  [Inhabited mstate] [Inhabited mvalue] [Inhabited mmsg]
+  [Inhabited mstate] [Inhabited mvalue] [Inhabited mentries] [Inhabited mmsg]
   [Inhabited Phase] [Inhabited PathChoice]
   [nset : ByzNodeSet node nodeset]
   -- The quorum counting facts Chorus consumes (its `cnt` class constraint).
@@ -136,53 +136,53 @@ variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Ty
   -- The MVBA contract Chorus consumes (its `mvba` class constraint), stated
   -- against the module's own fault pattern; [System.lean](../System.lean) instantiates it at
   -- `Mvba.mvbaSafety`.
-  [mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)]
+  [mvba : MVBASafety node mvalue mentries mmsg mstate nodeset nset (fun i => nset.is_byz i = true)]
   [Phase_Enum : Chorus.Phase_EnumClass Phase]
   [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
 
 /- The abstract field representation of the Chorus state at the canonical
 `Classical` instances (cf. [Composition.lean](../Composition.lean)'s `afr%`). -/
 local macro "afr%" f:ident : term =>
-  `(@Chorus.instAbstractFieldRepresentation slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice
+  `(@Chorus.instAbstractFieldRepresentation slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-    (fun a b => Classical.propDecidable (a = b))
+    (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
     $f)
 
 /-- `i` has committed a positive entry `⟨J, M⟩` (state read at the canonical
 representation). -/
 noncomputable abbrev CommittedPos
-    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
     (i J : node) (M : merkle_root) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (afr% Chorus.State.Label.local_committed_pos)
     st.local_committed_pos i J M = true
 
 /-- `i` has finalized (`local_committed`). -/
 noncomputable abbrev CommittedAll
-    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
     (i : node) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (afr% Chorus.State.Label.local_committed) st.local_committed i = true
 
 /-- `r` has recorded proposer `j`'s entry `m` (`local_entry_pos`) — the
 per-validator half of `all_honest_recorded`. -/
 noncomputable abbrev Recorded
-    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
     (r j : node) (m : merkle_root) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (afr% Chorus.State.Label.local_entry_pos) st.local_entry_pos r j m = true
 
 /-- The slot is past its deadline: the phase is no longer `pre_deadline`. -/
 noncomputable abbrev DeadlinePassed
-    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) : Prop :=
+    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) : Prop :=
   ¬ (@Veil.FieldRepresentation.get _ _ _ (afr% Chorus.State.Label.phase) st.phase = Phase_Enum.pre_deadline)
 
-variable (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
+variable (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)
 
 /-- The proposal vector a committed validator holds: each proposer maps to
 its committed positive root (if any), every non-proposer to `none`. -/
 noncomputable def decisionVector
-    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
     (i : node) : node → Option merkle_root :=
   fun J =>
     if th.is_proposer J = true then
@@ -205,12 +205,12 @@ initial-value lemma. The one fact the update records cannot give is that a
 three sources and when each applies. -/
 
 section StepFacts
-variable {st st' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
+variable {st st' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
 
 /-- `local_committed` stands across every action: the generated whole-system
 monotonicity lemma. -/
 theorem committedAll_mono
-    (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).next th st st')
+    (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).next th st st')
     (i : node) (h : CommittedAll st i) : CommittedAll st' i := by
   obtain ⟨l, htr⟩ := hn
   exact Chorus.local_committed.mono htr i h
@@ -218,7 +218,7 @@ theorem committedAll_mono
 /-- `local_committed_pos` stands across every action: the generated
 whole-system monotonicity lemma. -/
 theorem committedPos_mono
-    (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).next th st st')
+    (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).next th st st')
     (i J : node) (M : merkle_root) (h : CommittedPos st i J M) : CommittedPos st' i J M := by
   obtain ⟨l, htr⟩ := hn
   exact Chorus.local_committed_pos.mono htr i J M h
@@ -230,8 +230,8 @@ requires `¬ local_committed i`): from the checked `step_property
 `#gen_composition`). The contract's `finalized_mono` takes the pre-state's
 reachability, which the glue tracks as an invariant. -/
 theorem committedPos_frozen_of_reachable
-    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).reachable th st)
-    (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).next th st st')
+    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).reachable th st)
+    (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).next th st st')
     (i : node) (hc : CommittedAll st i) (J : node) (M : merkle_root)
     (h : CommittedPos st' i J M) : CommittedPos st i J M := by
   obtain ⟨l, htr⟩ := hn
@@ -240,22 +240,22 @@ theorem committedPos_frozen_of_reachable
 /-- `local_entry_pos` stands across every action: the generated whole-system
 monotonicity lemma. -/
 theorem recorded_mono
-    (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).next th st st')
+    (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).next th st st')
     (r j : node) (m : merkle_root) (h : Recorded st r j m) : Recorded st' r j m := by
   obtain ⟨l, htr⟩ := hn
   exact Chorus.local_entry_pos.mono htr r j m h
 
 /-- Initially nobody has committed: the generated initial-value lemma. -/
 theorem init_not_committed
-    (hinit : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).init th st)
+    (hinit : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).init th st)
     (i : node) : ¬ CommittedAll st i :=
   fun h => Bool.false_ne_true ((Chorus.local_committed.init hinit i).symm.trans h)
 
 /-- A committed validator's decision vector does not change along any step
 from a reachable state. -/
 theorem decisionVector_stable
-    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).reachable th st)
-    (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).next th st st')
+    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).reachable th st)
+    (hn : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).next th st st')
     (i : node) (hc : CommittedAll st i) : decisionVector th st' i = decisionVector th st i := by
   have hiff : ∀ J M, CommittedPos st' i J M ↔ CommittedPos st i J M :=
     fun J M => ⟨committedPos_frozen_of_reachable th hr hn i hc J M, committedPos_mono th hn i J M⟩
@@ -291,14 +291,14 @@ defers to the reachability projections of the Chorus model. -/
 @[implicit_reducible]
 noncomputable def slotConsensusSafety :
     SlotConsensusSafety slot node merkle_root (slot × (node → Option merkle_root))
-      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
       (fun i => nset.is_byz i = true) where
-  init p := (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).assumptions th ∧
-    (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).init th p.2
+  init p := (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).assumptions th ∧
+    (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).init th p.2
   step p p' := p.1 = p'.1 ∧ ∃ l, ¬ Label.isInput l ∧
-    (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).tr th p.2 l p'.2
-  trans p p' := p.1 = p'.1 ∧ (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).next th p.2 p'.2
-  reachable p := (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice).reachable th p.2
+    (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th p.2 l p'.2
+  trans p p' := p.1 = p'.1 ∧ (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).next th p.2 p'.2
+  reachable p := (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).reachable th p.2
   step_trans _ _ h := ⟨h.1, h.2.choose, h.2.choose_spec.2⟩
   reachable_init p h := Veil.RelationalTransitionSystem.reachable.init p.2 h.1 h.2
   reachable_trans p p' hr hn := Veil.RelationalTransitionSystem.reachable.step p.2 p'.2 hr hn.2
@@ -308,7 +308,7 @@ noncomputable def slotConsensusSafety :
   slot_of V := V.1
   includes V j P := V.2 j = some P
   on_time p j P := Chorus.all_honest_recorded (nset := nset)
-    (χ := Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) j P th p.2
+    (χ := Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) j P th p.2
   finalized_mono _ _ i V hr hn h :=
     ⟨committedAll_mono th hn.2 i h.1,
       by rw [h.2, hn.1, decisionVector_stable th hr hn.2 i h.1]⟩
@@ -371,7 +371,7 @@ noncomputable def slotConsensusSafety :
   -- first-order, so it belongs to the fragment.
   deadline_passed p := DeadlinePassed p.2
   payload_recoverable p := Chorus.slot_key_released (nset := nset)
-    (χ := Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) th p.2
+    (χ := Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) th p.2
   hiding_residue _ hr hk := reachable_hiding_until_deadline hr hk
 
 /-! ### What the full `SlotConsensus` still owes
@@ -399,10 +399,10 @@ back out by `rfl`. -/
 @[implicit_reducible]
 noncomputable def slotConsensus_of_temporal {time message : Type} [TotalOrder time] [Add time]
     (h : SlotConsensusTemporal slot node merkle_root (slot × (node → Option merkle_root))
-      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) time message
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) time message
       (fun i => nset.is_byz i = true) (S := slotConsensusSafety th)) :
     SlotConsensus slot node merkle_root (slot × (node → Option merkle_root))
-      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
       time message (fun i => nset.is_byz i = true) :=
   { slotConsensusSafety th, h with }
 
@@ -410,7 +410,7 @@ noncomputable def slotConsensus_of_temporal {time message : Type} [TotalOrder ti
 proven. -/
 theorem slotConsensus_of_temporal_toSafety {time message : Type} [TotalOrder time] [Add time]
     (h : SlotConsensusTemporal slot node merkle_root (slot × (node → Option merkle_root))
-      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) time message
+      (slot × Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) time message
       (fun i => nset.is_byz i = true) (S := slotConsensusSafety th)) :
     (slotConsensus_of_temporal th h).toSlotConsensusSafety = slotConsensusSafety th := rfl
 

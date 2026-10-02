@@ -1187,8 +1187,14 @@ of [TODO.md](TODO.md) § Liveness, unchanged by this stage.
 [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)'s `TerminationClaim`: at every `n = 3f+1` with
 at most `f` Byzantine validators (`Fin n`, `byzNodeSetFin`), at the
 configuration the composed system runs (`Cadence.chorusTheory`, the MVBA
-constraint filled by `Mvba.mvbaSafety`), every run satisfying the three
-premises terminates, i.e. every correct validator finalizes the slot. The
+constraint filled by `Mvba.mvbaSafety` at `Cadence.mvbaTheory`), every run
+satisfying the three premises terminates, i.e. every correct validator
+finalizes the slot. `Cadence.mvbaTheory` fixes one thing, that a
+meta-block's entry vector is its own entries with the certificates dropped
+(`ent := MetaBlock.entries`); termination needs it so that a validator can
+propose a certified meta-block. Its validity predicate and leader schedule
+stay arbitrary. Like `Cadence.chorusTheory` it is the configuration, not a
+premise. The
 proof is what "What stage 5 needs" (end of §4.6) said it would be:
 `eventually_progress_dichotomy`, then `terminates_of_commit_route` on the
 left disjunct and `terminates_of_mvba_arm` on the right. It is pinned at the

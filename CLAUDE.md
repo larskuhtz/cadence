@@ -55,8 +55,10 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `Mvba.mvbaSafety : MVBASafety …` plus `Mvba.mvba_of_temporal` in
   `Compose.lean` — the only Mvba file importing `Interfaces.lean`.
   Chorus consumes the class, and `System.lean` fills its constraint with
-  `Mvba.mvbaSafety`; the value is the entry
-  vector `node → Option merkle_root`.
+  `Mvba.mvbaSafety`; the value is the meta-block representation
+  `MetaBlock node merkle_root` (`Interfaces.lean`), agreement is over its
+  entry vector `node → Option merkle_root`, and the model splits the two
+  sorts (`value`, `evec`, the immutable `ent`).
   The lock-persistence lemma is not inductive; the clump carries the
   Paxos-EPR-style `prepqc_blocks_lower_commits` (the header explains).
   `Mvba/NoLock.lean` is the mutation test: the model checker's
@@ -313,9 +315,9 @@ measurements and the audit ladder:
   relations (`msg_*`) may be consulted in **positive position only**.
   Violations do not fail the build — they silently void the async-safety
   claim. Read [docs/ChorusDesign.md](./docs/ChorusDesign.md) §3.1.1 before
-  adding or modifying an action. Three scoped exception categories are
-  documented there (the third — the seven *self-row* reads — was added by the
-  2026-08 audit response); do not add a fourth without updating that section
+  adding or modifying an action. Two scoped exception categories are
+  documented there (`fb_sign_neg`'s witnessed quorum, and the seven
+  *self-row* reads); do not add a third without updating that section
   and [docs/Architecture.md](./docs/Architecture.md) §4.
 * **Invariants live in the model; proofs live in the proof files.** Manual
   cells do not index the invariant clump by hand: Veil's
@@ -507,7 +509,9 @@ is a change to what this project *claims*, not a refactor.
   target (the paper checkout is only read). Look a label up there before
   citing it, and run `scripts/paper-cites.sh` after editing citations: it
   fails on a label not in the map and on a reference that is not the
-  map's. A newer paper commit is not the target until a session moves it
+  map's. The docs build runs `scripts/paper-cites.sh` beside the link
+  resolution and fails on a cited label missing from
+  [docs/paper-labels.tsv](./docs/paper-labels.tsv). A newer paper commit is not the target until a session moves it
   by PaperAlignment §1's check, which regenerates the map and lets the
   citation check report every reference that moved. The frozen records
   ([docs/History.md](./docs/History.md),

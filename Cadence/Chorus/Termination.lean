@@ -167,20 +167,20 @@ section Steps
 
 open Classical
 
-variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
   [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root]
-  [Inhabited mstate] [Inhabited mvalue] [Inhabited mmsg]
+  [Inhabited mstate] [Inhabited mvalue] [Inhabited mentries] [Inhabited mmsg]
   [Inhabited Phase] [Inhabited PathChoice]
   [nset : ByzNodeSet node nodeset]
   [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
-  [mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)]
+  [mvba : MVBASafety node mvalue mentries mmsg mstate nodeset nset (fun i => nset.is_byz i = true)]
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
-  {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice}
-  {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
+  {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice}
+  {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
 
 /-- The generic Chorus transition system (any quorum instance, any MVBA). -/
 local notation "RTS" => Chorus.relationalTransitionSystem slot node nodeset merkle_root
-  mstate mvalue mmsg Phase PathChoice
+  mstate mvalue mentries mmsg Phase PathChoice
 
 open Lean in
 /-- One `case <action> => have <h> := Chorus.<action>.frame_<field> <htr>; <tac>`
@@ -585,7 +585,7 @@ theorem fbcommit_voted_flip {l} {i : node}
   cases l
   case cast_fb_commit =>
     chorus_tr htr
-    obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, -, -, -, -, rfl⟩ := htr
     chorus_field_simp
     simp_all
   frame_cases htr local_fbcommit_voted hfr
@@ -608,8 +608,8 @@ entry `j` of `v`. -/
 theorem mvba_recorded_flip {l} {i j : node}
     (htr : (RTS).tr th s l s')
     (h0 : ¬ s.local_mvba_recorded i j = true) (h1 : s'.local_mvba_recorded i j = true) :
-    ∃ v, mvba.decided s.mvba_st i v ∧ ((∃ M, th.mval_pos v j M = true ∧ s'.mvba_decided_pos j M = true) ∨
-      (th.mval_neg v j = true ∧ s'.mvba_decided_neg j = true)) := by
+    ∃ v, mvba.decided s.mvba_st i v ∧ ((∃ M, th.mval_pos (mvba.entries v) j M = true ∧ s'.mvba_decided_pos j M = true) ∨
+      (th.mval_neg (mvba.entries v) j = true ∧ s'.mvba_decided_neg j = true)) := by
   cases l
   case on_mvba_decide_pos i' j' m' v' =>
     chorus_tr htr
@@ -687,7 +687,7 @@ local macro "chorus_enabled" : tactic =>
 `participate()` and not `abandon()`. This is the gate every sending rule of
 the model requires of its sender ([Chorus.lean](../Chorus.lean), "Participation
 inputs"), so it is a hypothesis of every sending rule's enabledness below. -/
-def Active (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+def Active (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
     (i : node) : Prop :=
   st.participating i = true ∧ ¬ st.abandoned i = true
 
@@ -918,12 +918,13 @@ theorem enabled_mvba_propose {i : node} {v : mvalue} {n : mstate}
     (htrig : (Chorus.fbcert th s ∧
         (s.phase = Phase_EnumClass.post_fb_arm ∨ s.phase = Phase_EnumClass.post_mvba_arm)) ∨
       (Chorus.complete_fast_metablock i th s ∧ s.phase = Phase_EnumClass.post_mvba_arm))
-    (hpos : ∀ J M, th.mval_pos v J M = true → th.is_proposer J = true ∧
-      (Chorus.vote_quorum_pos J M th s ∨ (Chorus.fb_quorum_pos J M th s ∧ Chorus.fbcert th s)))
-    (hneg : ∀ J, th.mval_neg v J = true → th.is_proposer J = true ∧
+    (hpos : ∀ J M, th.mval_pos (mvba.entries v) J M = true → th.is_proposer J = true ∧
+      ((¬ th.mval_fb v J = true ∧ Chorus.vote_quorum_pos J M th s) ∨
+        (th.mval_fb v J = true ∧ Chorus.fb_quorum_pos J M th s ∧ Chorus.fbcert th s)))
+    (hneg : ∀ J, th.mval_neg (mvba.entries v) J = true → th.is_proposer J = true ∧
       (Chorus.vote_quorum_neg J th s ∨
         ((Chorus.fb_quorum_neg J th s ∨ Chorus.equiv_evidence J th s) ∧ Chorus.fbcert th s)))
-    (hall : ∀ J, th.is_proposer J = true → (∃ M, th.mval_pos v J M = true) ∨ th.mval_neg v J = true)
+    (hall : ∀ J, th.is_proposer J = true → (∃ M, th.mval_pos (mvba.entries v) J M = true) ∨ th.mval_neg (mvba.entries v) J = true)
     (hprop : mvba.propose s.mvba_st i v n) :
     Enabled RTS th s (.mvba_propose i v n) := by
   chorus_enabled
@@ -939,8 +940,9 @@ theorem enabled_accept_mvba_commitqc {i : node} {c : mmsg} {n : mstate}
 theorem enabled_on_mvba_decide_pos {i j : node} {m : merkle_root} {v : mvalue}
     (hi : ¬ nset.is_byz i = true) (hph : s.phase = Phase_EnumClass.post_mvba_arm)
     (hj : th.is_proposer j = true) (hinv : Chorus.mvba_invoked th s)
-    (hd : mvba.decided s.mvba_st i v) (hv : th.mval_pos v j m = true)
-    (hc : Chorus.vote_quorum_pos j m th s ∨ (Chorus.fb_quorum_pos j m th s ∧ Chorus.fbcert th s))
+    (hd : mvba.decided s.mvba_st i v) (hv : th.mval_pos (mvba.entries v) j m = true)
+    (hc : (¬ th.mval_fb v j = true ∧ Chorus.vote_quorum_pos j m th s) ∨
+      (th.mval_fb v j = true ∧ Chorus.fb_quorum_pos j m th s ∧ Chorus.fbcert th s))
     (hfr : ¬ s.local_mvba_recorded i j = true) :
     Enabled RTS th s (.on_mvba_decide_pos i j m v) := by
   chorus_enabled
@@ -956,7 +958,7 @@ theorem on_mvba_decide_pos_effect {i j : node} {m : merkle_root} {v : mvalue}
 theorem enabled_on_mvba_decide_neg {i j : node} {v : mvalue}
     (hi : ¬ nset.is_byz i = true) (hph : s.phase = Phase_EnumClass.post_mvba_arm)
     (hj : th.is_proposer j = true) (hinv : Chorus.mvba_invoked th s)
-    (hd : mvba.decided s.mvba_st i v) (hv : th.mval_neg v j = true)
+    (hd : mvba.decided s.mvba_st i v) (hv : th.mval_neg (mvba.entries v) j = true)
     (hc : Chorus.vote_quorum_neg j th s ∨
       ((Chorus.fb_quorum_neg j th s ∨ Chorus.equiv_evidence j th s) ∧ Chorus.fbcert th s))
     (hfr : ¬ s.local_mvba_recorded i j = true) :
@@ -976,8 +978,8 @@ theorem enabled_mvba_terminate {i : node} {v : mvalue}
     (hnc : ¬ s.mvba_complete = true) (hinv : Chorus.mvba_invoked th s)
     (hd : mvba.decided s.mvba_st i v)
     (hall : ∀ J, th.is_proposer J = true →
-      ((∃ M, th.mval_pos v J M = true ∧ s.mvba_decided_pos J M = true) ∨
-        (th.mval_neg v J = true ∧ s.mvba_decided_neg J = true))) :
+      ((∃ M, th.mval_pos (mvba.entries v) J M = true ∧ s.mvba_decided_pos J M = true) ∨
+        (th.mval_neg (mvba.entries v) J = true ∧ s.mvba_decided_neg J = true))) :
     Enabled RTS th s (.mvba_terminate i v) := by
   chorus_enabled
   exact ⟨_, hi, hph, hnc, hinv, hd, hall, rfl⟩
@@ -1004,21 +1006,22 @@ theorem redisseminate_chunk_effect {k i j : node} {m : merkle_root}
   obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
-theorem enabled_cast_fb_commit {i : node}
+theorem enabled_cast_fb_commit {i : node} {v : mvalue}
     (hi : ¬ nset.is_byz i = true) (ha : Active s i) (hph : s.phase = Phase_EnumClass.post_mvba_arm)
+    (hd : mvba.decided s.mvba_st i v)
     (hc : s.mvba_complete = true)
-    (hda : ∀ J M, th.is_proposer J = true → s.mvba_decided_pos J M = true →
-      Chorus.vote_quorum_pos J M th s ∨ s.msg_chunk_received i J M = true)
+    (hda : ∀ J M, th.mval_pos (mvba.entries v) J M = true → th.mval_fb v J = true →
+      s.msg_chunk_received i J M = true)
     (hfr : ¬ s.local_fbcommit_voted i = true) :
-    Enabled RTS th s (.cast_fb_commit i) := by
+    Enabled RTS th s (.cast_fb_commit i v) := by
   chorus_enabled
-  exact ⟨_, hi, ha.1, ha.2, hph, hc, hda, hfr, rfl⟩
+  exact ⟨_, hi, ha.1, ha.2, hph, hd, hc, hda, hfr, rfl⟩
 
-theorem cast_fb_commit_effect {i : node}
-    (htr : (RTS).tr th s (.cast_fb_commit i) s') :
+theorem cast_fb_commit_effect {i : node} {v : mvalue}
+    (htr : (RTS).tr th s (.cast_fb_commit i v) s') :
     s'.msg_fbcommit_sig i = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 /-! ### The certificates are monotone -/
@@ -1110,8 +1113,8 @@ theorem proposer_signed_of_decided_pos (hr : (RTS).reachable th s) {j : node} {m
 guard: the fallback trigger (`fbcert`) from the fallback arm on, or the
 case-(a) trigger — a complete fast meta-block of its own — at the MVBA
 arm. -/
-def ProposeTrigger (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
-    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+def ProposeTrigger (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)
+    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
     (i : node) : Prop :=
   (Chorus.fbcert th st ∧
     (st.phase = Phase_EnumClass.post_fb_arm ∨ st.phase = Phase_EnumClass.post_mvba_arm)) ∨
@@ -1120,8 +1123,8 @@ def ProposeTrigger (th : Chorus.Theory slot node nodeset merkle_root mstate mval
 /-- **An assignable entry for proposer `j`** — `commit_assign_*`'s
 certificate guard: a broadcast fast commit certificate, or the fallback
 commit certificate together with the MVBA's decision for `j`. -/
-def Assignable (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
-    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+def Assignable (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)
+    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
     (j : node) : Prop :=
   (∃ m, st.msg_commitqc_pos j m = true ∨ (Chorus.fbcommitqc th st ∧ st.mvba_decided_pos j m = true)) ∨
   (st.msg_commitqc_neg j = true ∨ (Chorus.fbcommitqc th st ∧ st.mvba_decided_neg j = true))
@@ -1142,8 +1145,8 @@ theorem assignable_neg_step {l} (htr : (RTS).tr th s l s') {j : node}
 correct validator that cast its fast commit vote with a complete fast
 meta-block (whose `FastBlock` it broadcast). The form of `mvba_invoked` that
 makes the proposals owed. -/
-def CorrectTrigger (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
-    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+def CorrectTrigger (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)
+    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) :
     Prop :=
   CorrectFBCert st ∨ ∃ i0, ¬ nset.is_byz i0 = true ∧ st.msg_commit_cast i0 = true ∧
     Chorus.complete_fast_metablock (nset := nset) (mvba := mvba) i0 th st
@@ -1172,13 +1175,13 @@ a correct validator finalized with that entry (its finalization
 re-broadcast its proof), or the fallback commit certificate from correct
 voters with the MVBA's decision. It is `commit_assign_pos`'s owed-condition
 (`Owed`), verbatim. -/
-def ProofPos (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+def ProofPos (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
     (j : node) (m : merkle_root) : Prop :=
   (∃ k, ¬ nset.is_byz k = true ∧ st.local_committed k = true ∧ st.local_committed_pos k j m = true) ∨
     (CorrectFbCommitQC st ∧ st.mvba_decided_pos j m = true)
 
 /-- The same for `j`'s negative entry. -/
-def ProofNeg (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+def ProofNeg (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
     (j : node) : Prop :=
   (∃ k, ¬ nset.is_byz k = true ∧ st.local_committed k = true ∧ st.local_committed_neg k j = true) ∨
     (CorrectFbCommitQC st ∧ st.mvba_decided_neg j = true)
@@ -1218,19 +1221,19 @@ section RunFacts
 
 open Classical
 
-variable {slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice : Type}
+variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
   [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root]
-  [Inhabited mstate] [Inhabited mvalue] [Inhabited mmsg]
+  [Inhabited mstate] [Inhabited mvalue] [Inhabited mentries] [Inhabited mmsg]
   [Inhabited Phase] [Inhabited PathChoice]
   {nset : ByzNodeSet node nodeset}
   {cnt : Cadence.ByzNodeSetCounting node nodeset nset}
-  {mvba : MVBASafety node mvalue mmsg mstate (fun i => nset.is_byz i = true)}
+  {mvba : MVBASafety node mvalue mentries mmsg mstate nodeset nset (fun i => nset.is_byz i = true)}
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
-  {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice}
+  {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice}
 
 /-- The generic Chorus transition system (any quorum instance, any MVBA). -/
 local notation "RTS" => Chorus.relationalTransitionSystem slot node nodeset merkle_root
-  mstate mvalue mmsg Phase PathChoice
+  mstate mvalue mentries mmsg Phase PathChoice
 
 /-- A labelled run of Chorus at any MVBA instance. -/
 local notation "CRun" => LRun RTS
@@ -1257,7 +1260,7 @@ first set establishes `Q` (the first-flip lemmas above), and `Q` persists.
 This is what lets a link read "`Q` has not happened yet" as "the action has
 not fired yet", which is the action's fired-once guard. -/
 theorem record_backed (r : CRun th)
-    {F Q : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice) → Prop}
+    {F Q : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) → Prop}
     (h0 : ¬ F (r.at' 0))
     (hflip : ∀ n, ¬ F (r.at' n) → F (r.at' (n + 1)) → Q (r.at' (n + 1)))
     (hQ : ∀ n, Q (r.at' n) → Q (r.at' (n + 1))) :
@@ -1314,8 +1317,8 @@ theorem fbcommit_voted_sig (r : CRun th) {i : node} :
 `progress_dichotomy_of_saturation`: it has cast its fast commit vote with a
 commit signature for every proposer, or its fallback vote with a fallback
 signature for every proposer. -/
-def Saturated (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)
-    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice))
+def Saturated (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)
+    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
     (i : node) : Prop :=
   (st.msg_commit_cast i = true ∧ ∀ j, th.is_proposer j = true →
     (∃ m, st.msg_commit_pos_sig i j m = true) ∨ st.msg_commit_neg_sig i j = true) ∨
@@ -1324,7 +1327,7 @@ def Saturated (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mm
 
 /-- Saturation is monotone along every step: every relation in it is. -/
 theorem Saturated.step
-    {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
+    {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
     {l} (htr : (RTS).tr th s l s')
     {i : node} (h : Saturated th s i) : Saturated th s' i := by
   rcases h with ⟨hc, hs⟩ | ⟨hc, hs⟩
@@ -1394,15 +1397,15 @@ theorem path_fallback_sig (r : CRun th) {i : node} :
     · exact path_fallback_flip (r.steps n) h0 h
 
 /-- The phase is at one of the two arms — where the fallback path runs. -/
-def AtArm (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
+def AtArm (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) :
     Prop :=
   st.phase = Phase_EnumClass.post_fb_arm ∨ st.phase = Phase_EnumClass.post_mvba_arm
 
 omit [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root]
-  [Inhabited mstate] [Inhabited mvalue] [Inhabited mmsg] [Inhabited Phase] [Inhabited PathChoice]
+  [Inhabited mstate] [Inhabited mvalue] [Inhabited mentries] [Inhabited mmsg] [Inhabited Phase] [Inhabited PathChoice]
   PathChoice_Enum in
 theorem AtArm.ne_pre
-    {st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
+    {st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
     (h : AtArm st) : st.phase ≠ Phase_EnumClass.pre_deadline := by
   obtain ⟨-, d2, d3, -, -, -⟩ := phase_distinct (Phase := Phase)
   rcases h with h | h <;> rw [h]
@@ -1411,7 +1414,7 @@ theorem AtArm.ne_pre
 
 /-- Past the deadline stays past the deadline. -/
 theorem phase_ne_pre_step
-    {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
+    {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
     {l} (htr : (RTS).tr th s l s')
     (h : s.phase ≠ Phase_EnumClass.pre_deadline) : s'.phase ≠ Phase_EnumClass.pre_deadline := by
   obtain ⟨-, d2, d3, -, -, -⟩ := phase_distinct (Phase := Phase)
@@ -1423,7 +1426,7 @@ theorem phase_ne_pre_step
 
 /-- At an arm stays at an arm. -/
 theorem AtArm.step
-    {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)}
+    {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
     {l} (htr : (RTS).tr th s l s')
     (h : AtArm s) : AtArm s' := by
   obtain ⟨-, d2, d3, d4, d5, -⟩ := phase_distinct (Phase := Phase)
@@ -1932,21 +1935,24 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
 
 /-- **The meta-block the dichotomy's evidence certifies**: for each proposer
 the root of a positive certificate on the network at `st`, where one exists,
-and `⊥` otherwise. -/
+held by a `FastQC` if its vote quorum is there and by a `FallbackQC`
+otherwise, and `⊥` where none exists. -/
 noncomputable def certifiedVector
     (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)
-    (thM : Mvba.Theory node nodeset (node → Option merkle_root) view)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)
     (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)) :
-    node → Option merkle_root := fun j =>
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)) :
+    MetaBlock node merkle_root := fun j =>
   if h : thS.is_proposer j = true ∧ ∃ m,
       Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) j m thS st ∨
       (Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) j m thS st ∧
         Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS st)
-  then some h.2.choose else none
+  then some (h.2.choose,
+    if Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) j h.2.choose thS st then CertKind.fastQC else CertKind.fallbackQC)
+  else none
 
 end CertifiedVector
 
@@ -1961,19 +1967,20 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
   {cnt : Cadence.ByzNodeSetCounting node nodeset nset}
   [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
   {thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice}
-  {thM : Mvba.Theory node nodeset (node → Option merkle_root) view}
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
   {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root)) Phase PathChoice)}
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)}
 
 /-- The `MVBASafety` instance the composed system runs, as a local instance
 for the generic step lemmas. -/
 local macro "mvba_inst" : tactic =>
-  `(tactic| letI : MVBASafety node (node → Option merkle_root) (Mvba.Msg view (node → Option merkle_root))
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view))
-      (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM)
+  `(tactic| letI : MVBASafety node (MetaBlock node merkle_root) (node → Option merkle_root)
+      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      nodeset nset (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM)
 
 set_option maxHeartbeats 1000000 in
 /-- `mvba_step`'s guard, with both halves kept: the MVBA takes a transition
@@ -1994,7 +2001,7 @@ theorem mvba_step_internal {mvba_next}
 preserved by every step of the composed run: the MVBA's state moves only by
 its own transitions (`mvbaComponent`). -/
 theorem mvba_st_step (r : ChorusRun (nset := nset) thS thM)
-    (P : Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view) → Prop)
+    (P : Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view) → Prop)
     (hP : ∀ st l st', (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root)
       (view := view)).tr thM st l st' → P st → P st')
     (n : Nat) (h : P (r.at' n).mvba_st) : P (r.at' (n + 1)).mvba_st := by
@@ -2010,7 +2017,7 @@ set_option maxHeartbeats 1000000 in
 /-- The MVBA's `abandon()` at `j` leaves every other party's `abandoned`
 row alone. -/
 theorem mvba_abandon_frame_other
-    {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)}
+    {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)}
     {j i : node}
     (htr : (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
       st (.abandon j) st')
@@ -2051,7 +2058,7 @@ theorem abandoned_of_mvba_abandoned (r : ChorusRun (nset := nset) thS thM) (i : 
           exact abandon_effect htr
         · rw [mvba_abandon_frame_other (abandon_tr htr) hji] at h
           exact absurd h hprev
-      · obtain ⟨w, e, -, htr⟩ := accept_mvba_commitqc_tr (hm ▸ r.steps n)
+      · obtain ⟨w, e, x, -, -, htr⟩ := accept_mvba_commitqc_tr (hm ▸ r.steps n)
         have := Mvba.decide.frame_abandoned htr
         rw [this] at h
         exact absurd h hprev
@@ -2064,8 +2071,8 @@ omit [Inhabited merkle_root] in
 /-- The MVBA's `propose` input is enabled for a validator with no input yet,
 not abandoned, proposing a valid value. -/
 theorem enabled_propose_mvba
-    {st : Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)}
-    {i : node} {v : node → Option merkle_root}
+    {st : Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)}
+    {i : node} {v : MetaBlock node merkle_root}
     (hin : ∀ E, ¬ st.input i E = true) (hab : ¬ st.abandoned i = true) (hv : thM.valid v = true) :
     ∃ st', (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
       st (.propose i v) st' := by
@@ -2074,7 +2081,7 @@ theorem enabled_propose_mvba
 
 /-- A decision of the MVBA stands in the composed run. -/
 theorem decided_persists (r : ChorusRun (nset := nset) thS thM) {i : node}
-    {v : node → Option merkle_root} {k : Nat}
+    {v : MetaBlock node merkle_root} {k : Nat}
     (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' k).mvba_st i v) :
     ∀ n, k ≤ n → (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' n).mvba_st i v :=
   r.mono (P := fun st => (Mvba.mvbaSafety (nset := nset) thM).decided st.mvba_st i v)
@@ -2097,31 +2104,34 @@ theorem qc_accepted_decided (r : ChorusRun (nset := nset) thS thM) {i : node} :
       exact ⟨v, decided_persists r hv (n + 1) (Nat.le_succ n)⟩
     · obtain ⟨c, hc⟩ := qc_accepted_flip (r.steps n) h0 h
       cases c
-      all_goals first
-        | exact (hc : False).elim
-        | exact ⟨_, Mvba.decide_effect hc⟩
+      case commitqc w e =>
+        have h' : Mvba.Accept thM (r.at' n).mvba_st i (.commitqc w e) (r.at' (n + 1)).mvba_st := hc
+        obtain ⟨x, -, h''⟩ := h'
+        exact ⟨x, Mvba.decide_effect h''⟩
+      all_goals exact (hc : False).elim
 
 omit [Inhabited merkle_root] in
 /-- `decide`'s guards, read off an enabled `decide`: a correct validator that
 has not decided. -/
 theorem decide_enabled_guards
-    {st : Mvba.State (Mvba.FieldAbstractType node nodeset (node → Option merkle_root) view)}
-    {i : node} {v : view} {e : node → Option merkle_root}
+    {st : Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)}
+    {i : node} {v : view} {e : MetaBlock node merkle_root}
     (h : Enabled (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)) thM
       st (.decide i v e)) :
     ¬ nset.is_byz i = true ∧ ∀ E, ¬ st.decided i E = true := by
   obtain ⟨st', htr⟩ := h
   simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct, trSimp] at htr
-  obtain ⟨h1, -, -, -, h5, -⟩ := htr
-  exact ⟨h1, h5⟩
+  obtain ⟨h1, -, -, -, -, h6, -⟩ := htr
+  exact ⟨h1, h6⟩
 
 /-- **(F-relay) is derived, not assumed**: on every projection of a run
 satisfying `FJustice`, the MVBA's caller hands decided certificates on. If
 `decide i v e` stayed enabled in the projected run while a correct
 validator had decided `e`, the handoff would be owed to `i` from the
 corresponding composed index on and enabled there (with the certificate on
-`(v, e)`), so `FJustice`'s handoff family would fire, `i` would decide, and
-`decide i v e` would be disabled after all. So the premise holds with its
+`(v, entries(e))`, taken with the representation `e`), so `FJustice`'s
+handoff family would fire, `i` would decide, and `decide i v e` would be
+disabled after all. So the premise holds with its
 antecedent false. -/
 theorem fRelay_of_fJustice (r : ChorusRun (nset := nset) thS thM) (hfj : FJustice r)
     (p : (mvbaComponent thS thM).Projection r) : Mvba.FRelay p.run := by
@@ -2141,11 +2151,13 @@ theorem fRelay_of_fJustice (r : ChorusRun (nset := nset) thS thM) (hfj : FJustic
     (fun n hn => let ⟨j, hj, hd⟩ := (htrans n hn).1; ⟨j, e, hj, hd⟩)
     (fun n hn => by
       obtain ⟨st', htr'⟩ := (htrans n hn).2
-      refine ⟨_, ⟨.commitqc v e, st', rfl⟩, enabled_accept_mvba_commitqc hi (fun hf => ?_) htr'⟩
+      have hacc : Mvba.Accept thM (r.at' n).mvba_st i (.commitqc v (thM.ent e)) st' :=
+        ⟨e, rfl, htr'⟩
+      refine ⟨_, ⟨.commitqc v (thM.ent e), st', rfl⟩, enabled_accept_mvba_commitqc hi (fun hf => ?_) hacc⟩
       obtain ⟨w, hw⟩ := qc_accepted_decided r n hf
       exact (decide_enabled_guards (htrans n hn).2).2 w hw)
-  obtain ⟨w, e', -, htr⟩ := accept_mvba_commitqc_tr (hl ▸ r.steps m)
-  exact (decide_enabled_guards (htrans (m + 1) (by omega)).2).2 e' (Mvba.decide_effect htr)
+  obtain ⟨w, e', x, -, -, htr⟩ := accept_mvba_commitqc_tr (hl ▸ r.steps m)
+  exact (decide_enabled_guards (htrans (m + 1) (by omega)).2).2 x (Mvba.decide_effect htr)
 
 /-- **The MVBA terminates inside the composed run**: `Mvba.termination`
 applied to the run's MVBA projection. `MvbaAdmissible` supplies the
@@ -2174,10 +2186,16 @@ theorem all_decided_of_all_input [Fintype node] (hqe : Cadence.ByzNodeSetHonestQ
   exact ⟨_, E, hk⟩
 
 /-- The certified vector is `Certified` where the evidence is: every
-proposer has a positive or a negative certificate. -/
+proposer has a positive or a negative certificate. The configuration links
+are the system's: `mval_pos`/`mval_neg` read an entry vector, `ent` drops a
+representation's certificates, and `mval_fb` reads a positive entry's
+kind. -/
 theorem certified_certifiedVector
-    (hmp : ∀ v j m, thS.mval_pos v j m = true ↔ v j = some m)
-    (hmn : ∀ v j, thS.mval_neg v j = true ↔ v j = none ∧ thS.is_proposer j = true)
+    (hmp : ∀ (e : node → Option merkle_root) j m, thS.mval_pos e j m = true ↔ e j = some m)
+    (hmn : ∀ (e : node → Option merkle_root) j,
+      thS.mval_neg e j = true ↔ e j = none ∧ thS.is_proposer j = true)
+    (hent : ∀ v, thM.ent v = MetaBlock.entries v)
+    (hmf : ∀ v j, thS.mval_fb v j = true ↔ (v j).map Prod.snd = some CertKind.fallbackQC)
     (hev : ∀ j, thS.is_proposer j = true →
       (∃ m, Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) j m thS s ∨
         (Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) j m thS s ∧
@@ -2187,46 +2205,64 @@ theorem certified_certifiedVector
           Chorus.equiv_evidence (nset := nset) (mvba := Mvba.mvbaSafety thM) j thS s) ∧
           Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS s))) :
     Certified (thS := thS) (thM := thM) s (certifiedVector thS thM s) := by
+  -- The vector's entry, on either branch of its definition.
+  have hpos : ∀ J (h : thS.is_proposer J = true ∧ ∃ m,
+      Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∨ (Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∧ Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS s)),
+      certifiedVector thS thM s J = some (h.2.choose,
+        if Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J h.2.choose thS s then CertKind.fastQC else CertKind.fallbackQC) := by
+    intro J h
+    unfold certifiedVector
+    rw [dif_pos h]
+  have hnil : ∀ J, ¬ (thS.is_proposer J = true ∧ ∃ m,
+      Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∨ (Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∧ Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS s)) →
+      certifiedVector thS thM s J = none := by
+    intro J h
+    unfold certifiedVector
+    rw [dif_neg h]
   refine ⟨fun J M hJ => ?_, fun J hJ => ?_, fun J hJ => ?_⟩
-  · rw [hmp] at hJ
-    unfold certifiedVector at hJ
-    split at hJ
-    · rename_i h
-      cases Option.some.inj hJ
-      exact ⟨h.1, h.2.choose_spec⟩
-    · cases hJ
-  · rw [hmn] at hJ
+  · rw [hent, hmp] at hJ
+    by_cases h : thS.is_proposer J = true ∧ ∃ m,
+        Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∨ (Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∧ Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS s)
+    · rw [MetaBlock.entries, hpos J h] at hJ
+      simp only [Option.map_some, Option.some.injEq] at hJ
+      subst hJ
+      refine ⟨h.1, ?_⟩
+      by_cases hv : Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J h.2.choose thS s
+      · exact Or.inl ⟨by rw [hmf, hpos J h]; simp [hv], hv⟩
+      · exact Or.inr ⟨by rw [hmf, hpos J h]; simp [hv], h.2.choose_spec.resolve_left hv⟩
+    · rw [MetaBlock.entries, hnil J h] at hJ
+      simp at hJ
+  · rw [hent, hmn] at hJ
     obtain ⟨hnone, hpr⟩ := hJ
-    unfold certifiedVector at hnone
-    split at hnone
-    · cases hnone
-    · rename_i h
-      refine ⟨hpr, ?_⟩
+    by_cases h : thS.is_proposer J = true ∧ ∃ m,
+        Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∨ (Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∧ Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS s)
+    · rw [MetaBlock.entries, hpos J h] at hnone
+      simp at hnone
+    · refine ⟨hpr, ?_⟩
       rcases hev J hpr with hp | hn
       · exact absurd ⟨hpr, hp⟩ h
       · exact hn
-  · by_cases h : ∃ m,
-        Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∨
-        (Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∧
-          Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS s)
-    · refine Or.inl ⟨h.choose, (hmp _ _ _).2 ?_⟩
-      unfold certifiedVector
-      rw [dif_pos ⟨hJ, h⟩]
+  · simp only [hent]
+    by_cases h : thS.is_proposer J = true ∧ ∃ m,
+        Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∨ (Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS s ∧ Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS s)
+    · refine Or.inl ⟨h.2.choose, (hmp _ _ _).2 ?_⟩
+      rw [MetaBlock.entries, hpos J h]
+      rfl
     · refine Or.inr ((hmn _ _).2 ⟨?_, hJ⟩)
-      unfold certifiedVector
-      rw [dif_neg fun h' => h h'.2]
+      rw [MetaBlock.entries, hnil J h]
+      rfl
 
 /-- Certification is monotone: every certificate in it is. -/
 theorem Certified.step {l}
     (htr : (atMvba (nset := nset) (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM).tr thS s l s')
-    {v : node → Option merkle_root}
+    {v : MetaBlock node merkle_root}
     (h : Certified (thS := thS) (thM := thM) s v) : Certified (thS := thS) (thM := thM) s' v := by
   mvba_inst
   obtain ⟨hp, hn, ha⟩ := h
   refine ⟨fun J M hJ => ?_, fun J hJ => ?_, ha⟩
   · obtain ⟨hpr, hc⟩ := hp J M hJ
-    exact ⟨hpr, hc.imp (vote_quorum_pos_step htr)
-      fun ⟨a, b⟩ => ⟨fb_quorum_pos_step htr a, fbcert_step htr b⟩⟩
+    exact ⟨hpr, hc.imp (fun ⟨a, b⟩ => ⟨a, vote_quorum_pos_step htr b⟩)
+      fun ⟨a, b, c⟩ => ⟨a, fb_quorum_pos_step htr b, fbcert_step htr c⟩⟩
   · obtain ⟨hpr, hc⟩ := hn J hJ
     exact ⟨hpr, hc.imp (vote_quorum_neg_step htr)
       fun ⟨a, b⟩ => ⟨a.imp (fb_quorum_neg_step htr) (equiv_evidence_step htr), fbcert_step htr b⟩⟩
@@ -2239,7 +2275,7 @@ theorem eventually_input (r : ChorusRun (nset := nset) thS thM)
     (hfam : ∀ i v, WeaklyFairFamilyWhen r (proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i)
       (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next))
     {A : Nat} (hact : ActiveFrom r A)
-    {i : node} (hi : ¬ nset.is_byz i = true) {v : node → Option merkle_root} {N : Nat}
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : MetaBlock node merkle_root} {N : Nat}
     (htrig : ∀ n, N ≤ n → ProposeTrigger (nset := nset) (mvba := Mvba.mvbaSafety thM) thS (r.at' n) i ∧
       proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i (r.at' n))
     (hcert : ∀ n, N ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) v)
@@ -2263,13 +2299,13 @@ of `v` (`mvba_recorded_flip`), and both persist. -/
 theorem mvba_recorded_entry (r : ChorusRun (nset := nset) thS thM) {i j : node} :
     ∀ n, (r.at' n).local_mvba_recorded i j = true →
       ∃ v, (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' n).mvba_st i v ∧
-        ((∃ M, thS.mval_pos v j M = true ∧ (r.at' n).mvba_decided_pos j M = true) ∨
-          (thS.mval_neg v j = true ∧ (r.at' n).mvba_decided_neg j = true)) := by
+        ((∃ M, thS.mval_pos (thM.ent v) j M = true ∧ (r.at' n).mvba_decided_pos j M = true) ∨
+          (thS.mval_neg (thM.ent v) j = true ∧ (r.at' n).mvba_decided_neg j = true)) := by
   mvba_inst
   refine record_backed r (F := fun st => st.local_mvba_recorded i j = true)
     (Q := fun st => ∃ v, (Mvba.mvbaSafety (nset := nset) thM).decided st.mvba_st i v ∧
-      ((∃ M, thS.mval_pos v j M = true ∧ st.mvba_decided_pos j M = true) ∨
-        (thS.mval_neg v j = true ∧ st.mvba_decided_neg j = true)))
+      ((∃ M, thS.mval_pos (thM.ent v) j M = true ∧ st.mvba_decided_pos j M = true) ∨
+        (thS.mval_neg (thM.ent v) j = true ∧ st.mvba_decided_neg j = true)))
     (by simp [Chorus.local_mvba_recorded.init r.starts i j]) ?_ ?_
   · intro n h0 h1
     obtain ⟨v, hd, he⟩ := mvba_recorded_flip (r.steps n) h0 h1
@@ -2292,11 +2328,11 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
     (hfj : PerLabel r) (hbr : ValidBridge r)
     (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {N : Nat}
     (hinv : Chorus.mvba_invoked (nset := nset) (mvba := Mvba.mvbaSafety thM) thS (r.at' N))
-    {i : node} (hi : ¬ nset.is_byz i = true) {k : Nat} {v : node → Option merkle_root}
+    {i : node} (hi : ¬ nset.is_byz i = true) {k : Nat} {v : MetaBlock node merkle_root}
     (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' k).mvba_st i v) :
     ∃ T, N ≤ T ∧ ∀ n, T ≤ n → (r.at' n).mvba_complete = true ∧ ∀ J, thS.is_proposer J = true →
-      ((∃ M, thS.mval_pos v J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
-        (thS.mval_neg v J = true ∧ (r.at' n).mvba_decided_neg J = true)) := by
+      ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
+        (thS.mval_neg (thM.ent v) J = true ∧ (r.at' n).mvba_decided_neg J = true)) := by
   mvba_inst
   obtain ⟨Nm, hNm⟩ := eventually_mvbaArm r hfj
   have hdec := decided_persists r hd
@@ -2307,38 +2343,40 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
     r.mono (P := fun st => Chorus.mvba_invoked thS st) (fun n h => mvba_invoked_step (r.steps n) h) hinv
   -- Every proposer's entry of `v` is recorded, at one index and ever after.
   have hrec_step : ∀ J n, (thS.is_proposer J = true →
-      ((∃ M, thS.mval_pos v J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
-        (thS.mval_neg v J = true ∧ (r.at' n).mvba_decided_neg J = true))) →
+      ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
+        (thS.mval_neg (thM.ent v) J = true ∧ (r.at' n).mvba_decided_neg J = true))) →
       (thS.is_proposer J = true →
-      ((∃ M, thS.mval_pos v J M = true ∧ (r.at' (n + 1)).mvba_decided_pos J M = true) ∨
-        (thS.mval_neg v J = true ∧ (r.at' (n + 1)).mvba_decided_neg J = true))) := by
+      ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ (r.at' (n + 1)).mvba_decided_pos J M = true) ∨
+        (thS.mval_neg (thM.ent v) J = true ∧ (r.at' (n + 1)).mvba_decided_neg J = true))) := by
     intro J n h hJ
     rcases h hJ with ⟨M, hM, hd⟩ | ⟨hM, hd⟩
     · exact Or.inl ⟨M, hM, Chorus.mvba_decided_pos.mono (r.steps n) J M hd⟩
     · exact Or.inr ⟨hM, Chorus.mvba_decided_neg.mono (r.steps n) J hd⟩
   obtain ⟨Tr, hTr, hall⟩ := r.eventually_forall
     (fun J st => thS.is_proposer J = true →
-      ((∃ M, thS.mval_pos v J M = true ∧ st.mvba_decided_pos J M = true) ∨
-        (thS.mval_neg v J = true ∧ st.mvba_decided_neg J = true)))
+      ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ st.mvba_decided_pos J M = true) ∨
+        (thS.mval_neg (thM.ent v) J = true ∧ st.mvba_decided_neg J = true)))
     hrec_step (max k (max N Nm)) nodes
     (fun J _ => by
       by_cases hJ : thS.is_proposer J = true
       · obtain ⟨-, -, hent⟩ := hcert k (Nat.le_refl _)
         -- While entry `J` of `v` is unrecorded, `i` has recorded nothing for `J`.
         have hfresh : ∀ n, k ≤ n →
-            ¬ ((∃ M, thS.mval_pos v J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
-              (thS.mval_neg v J = true ∧ (r.at' n).mvba_decided_neg J = true)) →
+            ¬ ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
+              (thS.mval_neg (thM.ent v) J = true ∧ (r.at' n).mvba_decided_neg J = true)) →
             ¬ (r.at' n).local_mvba_recorded i J = true := by
           intro n hn hnr hf
           obtain ⟨v', hd', he'⟩ := mvba_recorded_entry r n hf
-          obtain rfl : v' = v := (Mvba.mvbaSafety (nset := nset) thM).agreement _
+          -- The two decisions agree on entries, which is all the records read.
+          have heq : thM.ent v' = thM.ent v := (Mvba.mvbaSafety (nset := nset) thM).agreement _
             (Chorus.reachable_mvba_reachable (r.reachable n)) i i v' v hi hi hd' (hdec n hn)
+          rw [heq] at he'
           exact hnr he'
         rcases hent J hJ with ⟨M, hM⟩ | hM
         · obtain ⟨n, hn, h⟩ := eventually_of_weaklyFair
             ((hfj (.on_mvba_decide_pos i J M v) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h)).of_forall (fun _ => trivial))
-            (P := fun st => (∃ M, thS.mval_pos v J M = true ∧ st.mvba_decided_pos J M = true) ∨
-              (thS.mval_neg v J = true ∧ st.mvba_decided_neg J = true)) (N := max k (max N Nm))
+            (P := fun st => (∃ M, thS.mval_pos (thM.ent v) J M = true ∧ st.mvba_decided_pos J M = true) ∨
+              (thS.mval_neg (thM.ent v) J = true ∧ st.mvba_decided_neg J = true)) (N := max k (max N Nm))
             (fun _ _ h => Or.inl ⟨M, hM, on_mvba_decide_pos_effect h⟩) (fun n hn hnr => by
               obtain ⟨hp, -, -⟩ := hcert n (by omega)
               exact enabled_on_mvba_decide_pos hi (hNm n (by omega)) hJ (hinv' n (by omega))
@@ -2346,8 +2384,8 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
           exact ⟨n, hn, fun _ => h⟩
         · obtain ⟨n, hn, h⟩ := eventually_of_weaklyFair
             ((hfj (.on_mvba_decide_neg i J v) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h)).of_forall (fun _ => trivial))
-            (P := fun st => (∃ M, thS.mval_pos v J M = true ∧ st.mvba_decided_pos J M = true) ∨
-              (thS.mval_neg v J = true ∧ st.mvba_decided_neg J = true)) (N := max k (max N Nm))
+            (P := fun st => (∃ M, thS.mval_pos (thM.ent v) J M = true ∧ st.mvba_decided_pos J M = true) ∨
+              (thS.mval_neg (thM.ent v) J = true ∧ st.mvba_decided_neg J = true)) (N := max k (max N Nm))
             (fun _ _ h => Or.inr ⟨hM, on_mvba_decide_neg_effect h⟩) (fun n hn hnr => by
               obtain ⟨-, hng, -⟩ := hcert n (by omega)
               exact enabled_on_mvba_decide_neg hi (hNm n (by omega)) hJ (hinv' n (by omega))
@@ -2355,11 +2393,11 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
           exact ⟨n, hn, fun _ => h⟩
       · exact ⟨max k (max N Nm), Nat.le_refl _, fun h => absurd h hJ⟩)
   have hrec : ∀ n, Tr ≤ n → ∀ J, thS.is_proposer J = true →
-      ((∃ M, thS.mval_pos v J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
-        (thS.mval_neg v J = true ∧ (r.at' n).mvba_decided_neg J = true)) :=
+      ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
+        (thS.mval_neg (thM.ent v) J = true ∧ (r.at' n).mvba_decided_neg J = true)) :=
     r.mono (P := fun st => ∀ J, thS.is_proposer J = true →
-        ((∃ M, thS.mval_pos v J M = true ∧ st.mvba_decided_pos J M = true) ∨
-          (thS.mval_neg v J = true ∧ st.mvba_decided_neg J = true)))
+        ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ st.mvba_decided_pos J M = true) ∨
+          (thS.mval_neg (thM.ent v) J = true ∧ st.mvba_decided_neg J = true)))
       (fun n h J => hrec_step J n (h J)) (fun J hJ => hall J (hnodes J) hJ)
   -- So `mvba_terminate i v` stays enabled until `mvba_complete` holds.
   have hc : ∃ n, Tr ≤ n ∧ (r.at' n).mvba_complete = true := by
@@ -2375,106 +2413,100 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
 
 set_option maxHeartbeats 1000000 in
 /-- **Every correct validator casts its fallback commit vote**, once the
-decision is transported and it has decided itself: its DA wait is met under
-every decided-positive root, and no new decided root appears (the records
-are unique per proposer), so `cast_fb_commit` stays enabled, and it is owed.
+decision is transported and it has decided itself. Its own decision `w` is
+the `B′` it waits under, and the only one it has (the `Mvba` model decides
+once per validator), so `cast_fb_commit i w` is owed; its DA wait is met
+under every `FallbackQC` entry of `w`, so the vote stays enabled.
 
-The wait is the paper's (Algorithm 5, line 38 (`line:fb-commit-foreach`)): a root is certificate-
-backed (`mvba_decided_pos_backed`). Under a FastQC there is nothing to wait
-for. Under a FallbackQC one of its `f+1` signers is correct and decoded the
-proposal to sign, so it re-disseminates `i`'s chunk (Algorithm 5, line 12 (`line:fb-redisseminate`),
-F8's disjunct of the owed-condition). -/
+The wait is the paper's (Algorithm 5, line 38 (`line:fb-commit-foreach`)): the certificate `w`
+names for an entry is on the network (`ValidBridge`'s completeness). Under a
+`FastQC` entry there is nothing to wait for. Under a `FallbackQC` entry one
+of its `f+1` signers is correct and decoded the proposal to sign, so it
+re-disseminates `i`'s chunk (Algorithm 5, line 12 (`line:fb-redisseminate`), the owed-condition
+of re-dissemination). -/
 theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
-    (hfj : PerLabel r)
+    (hfj : PerLabel r) (hbr : ValidBridge r)
     {A : Nat} (hact : ActiveFrom r A)
-    (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {T : Nat} {v : node → Option merkle_root}
-    (hT : ∀ n, T ≤ n → (r.at' n).mvba_complete = true ∧ ∀ J, thS.is_proposer J = true →
-      ((∃ M, thS.mval_pos v J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
-        (thS.mval_neg v J = true ∧ (r.at' n).mvba_decided_neg J = true)))
+    (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {T : Nat}
+    (hT : ∀ n, T ≤ n → (r.at' n).mvba_complete = true)
     {i : node} (hi : ¬ nset.is_byz i = true)
     (hdi : ∃ k w, (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' k).mvba_st i w) :
     ∃ n, (r.at' n).msg_fbcommit_sig i = true := by
   mvba_inst
   obtain ⟨Nm, hNm⟩ := eventually_mvbaArm r hfj
-  have hreach := r.reachable T
   obtain ⟨kd, w, hdw⟩ := hdi
-  -- The wait under every root decided positive at `T`: a FastQC, or `i`'s chunk.
-  have hwait_step : ∀ J M n, Chorus.vote_quorum_pos J M thS (r.at' n) ∨
-      (r.at' n).msg_chunk_received i J M = true →
-      Chorus.vote_quorum_pos J M thS (r.at' (n + 1)) ∨
-        (r.at' (n + 1)).msg_chunk_received i J M = true := fun J M n h =>
-    h.imp (vote_quorum_pos_step (r.steps n)) (Chorus.msg_chunk_received.mono (r.steps n) i J M)
+  have hdec := decided_persists r hdw
+  -- `w` is `i`'s one decision: the `Mvba` model decides once per validator.
+  have huniq : ∀ n w', (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' n).mvba_st i w' → w' = w :=
+    fun n w' h => Mvba.reachable_integrity
+      (Chorus.reachable_mvba_reachable (r.reachable (max n kd))) i w' w hi
+      (decided_persists r h _ (Nat.le_max_left _ _)) (hdec _ (Nat.le_max_right _ _))
+  -- The certificates `w` names are on the network (the bridge's completeness).
+  have hcert : ∀ n, kd ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) w :=
+    r.mono (P := fun st => Certified (thS := thS) (thM := thM) st w)
+      (fun n h => h.step (r.steps n)) (hbr.2 kd i w hi hdw)
+  -- The wait under each FallbackQC entry of `w`: its correct signer
+  -- re-disseminates `i`'s chunk.
   obtain ⟨Nd, hNd, hall⟩ := r.eventually_forall
-    (fun J st => thS.is_proposer J = true →
-      ∀ M, (r.at' T).mvba_decided_pos J M = true →
-        Chorus.vote_quorum_pos J M thS st ∨ st.msg_chunk_received i J M = true)
-    (fun J n h hJ M hM => hwait_step J M n (h hJ M hM)) T nodes
+    (fun J st => ∀ M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
+      st.msg_chunk_received i J M = true)
+    (fun J n h M hM hfb => Chorus.msg_chunk_received.mono (r.steps n) i J M (h M hM hfb)) kd nodes
     (fun J _ => by
-      by_cases hJ : thS.is_proposer J = true
-      · rcases (hT T (Nat.le_refl _)).2 J hJ with ⟨M0, -, hM0⟩ | ⟨-, hneg⟩
-        · rcases Chorus.reachable_mvba_decided_pos_backed hreach J M0 hM0 with
-            ⟨q, hq, hallq⟩ | ⟨⟨q, hq, hallq⟩, -⟩
-          · -- A FastQC: no wait.
-            refine ⟨T, Nat.le_refl _, fun _ M hM => ?_⟩
-            obtain rfl := Chorus.reachable_mvba_decided_pos_unique hreach J M M0 ⟨hM, hM0⟩
-            exact Or.inl ⟨q, hq, hallq⟩
-          · -- A FallbackQC: its correct signer re-disseminates `i`'s chunk.
-            obtain ⟨k, hkq, hk⟩ := ByzNodeSet.greater_than_third_one_honest q hq
-            have hown : ∀ n, T ≤ n → (r.at' n).msg_fb_pos_sig k J M0 = true := fun n hn =>
-              r.mono (P := fun st => st.msg_fb_pos_sig k J M0 = true)
-                (fun m h => Chorus.msg_fb_pos_sig.mono (r.steps m) k J M0 h) (hallq k hkq) n hn
-            obtain ⟨n, hn, h⟩ := eventually_of_weaklyFairWhen
-              (hfj (.redisseminate_chunk k i J M0) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
-              (P := fun st => st.msg_chunk_received i J M0 = true) (N := max T A)
-              (fun n hn => hown n (by omega))
-              (fun _ _ h => redisseminate_chunk_effect h)
-              (fun n hn hnr => enabled_redisseminate_chunk hk (hact n (by omega) k hk) hJ
-                (r.mono (P := fun st => st.msg_proposer_signed J M0 = true)
-                  (fun m h => Chorus.msg_proposer_signed.mono (r.steps m) J M0 h)
-                  (proposer_signed_of_decided_pos hreach hM0) n (by omega))
-                (r.mono (P := fun st => Chorus.chunk_quorum J M0 thS st)
-                  (fun m h => chunk_quorum_step (r.steps m) h)
-                  (Chorus.reachable_mvba_decided_pos_chunks_decodable hreach J M0 hM0) n (by omega))
-                fun hf => hnr (chunk_sent_received r n hf))
-            refine ⟨n, by omega, fun _ M hM => ?_⟩
-            obtain rfl := Chorus.reachable_mvba_decided_pos_unique hreach J M M0 ⟨hM, hM0⟩
-            exact Or.inr h
-        · exact ⟨T, Nat.le_refl _, fun _ M hM =>
-            absurd ⟨hM, hneg⟩ (Chorus.reachable_mvba_decided_pos_neg_excl hreach J M)⟩
-      · exact ⟨T, Nat.le_refl _, fun h => absurd h hJ⟩)
-  -- The DA wait holds from then on: every root decided later was decided at `T`.
-  have hda : ∀ n, max Nd Nm ≤ n → ∀ J M, thS.is_proposer J = true →
-      (r.at' n).mvba_decided_pos J M = true →
-        Chorus.vote_quorum_pos J M thS (r.at' n) ∨ (r.at' n).msg_chunk_received i J M = true := by
-    intro n hn J M hJ hM
-    rcases (hT T (Nat.le_refl _)).2 J hJ with ⟨M0, -, hM0⟩ | ⟨-, hneg⟩
-    · have hM0n := r.mono (P := fun st => st.mvba_decided_pos J M0 = true)
-        (fun m h => Chorus.mvba_decided_pos.mono (r.steps m) J M0 h) hM0 n (by omega)
-      obtain rfl := Chorus.reachable_mvba_decided_pos_unique (r.reachable n) J M M0 ⟨hM, hM0n⟩
-      exact r.mono (P := fun st => Chorus.vote_quorum_pos J M thS st ∨
-          st.msg_chunk_received i J M = true)
-        (fun m h => hwait_step J M m h) (hall J (hnodes J) hJ M hM0) n (by omega)
-    · have hnegn := r.mono (P := fun st => st.mvba_decided_neg J = true)
-        (fun m h => Chorus.mvba_decided_neg.mono (r.steps m) J h) hneg n (by omega)
-      exact absurd ⟨hM, hnegn⟩ (Chorus.reachable_mvba_decided_pos_neg_excl (r.reachable n) J M)
+      by_cases hc : ∃ M0, thS.mval_pos (thM.ent w) J M0 = true ∧ thS.mval_fb w J = true
+      · obtain ⟨M0, hM0, hfb⟩ := hc
+        have hreach := r.reachable kd
+        obtain ⟨hJ, hkind⟩ := (hcert kd (Nat.le_refl _)).1 J M0 hM0
+        obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
+        obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
+        have hsig := hallq k hkq
+        have hown : ∀ n, kd ≤ n → (r.at' n).msg_fb_pos_sig k J M0 = true := fun n hn =>
+          r.mono (P := fun st => st.msg_fb_pos_sig k J M0 = true)
+            (fun m h => Chorus.msg_fb_pos_sig.mono (r.steps m) k J M0 h) hsig n hn
+        -- A correct signer decoded the proposal: `f+1` chunks are on the network.
+        have hcq : Chorus.chunk_quorum J M0 thS (r.at' kd) := by
+          obtain ⟨q', hq', hv⟩ := Chorus.reachable_msg_fb_pos_sig_backed hreach k J M0 ⟨hkh, hsig⟩
+          exact ⟨q', hq', fun a ha => Chorus.reachable_vote_pos_sig_chunk hreach a J M0 (hv a ha)⟩
+        obtain ⟨n, hn, h⟩ := eventually_of_weaklyFairWhen
+          (hfj (.redisseminate_chunk k i J M0) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
+          (P := fun st => st.msg_chunk_received i J M0 = true) (N := max kd A)
+          (fun n hn => hown n (by omega))
+          (fun _ _ h => redisseminate_chunk_effect h)
+          (fun n hn hnr => enabled_redisseminate_chunk hkh (hact n (by omega) k hkh) hJ
+            (r.mono (P := fun st => st.msg_proposer_signed J M0 = true)
+              (fun m h => Chorus.msg_proposer_signed.mono (r.steps m) J M0 h)
+              (Chorus.reachable_fb_pos_sig_proposer_signed hreach k J M0 hsig) n (by omega))
+            (r.mono (P := fun st => Chorus.chunk_quorum J M0 thS st)
+              (fun m h => chunk_quorum_step (r.steps m) h) hcq n (by omega))
+            fun hf => hnr (chunk_sent_received r n hf))
+        refine ⟨n, by omega, fun M hM _ => ?_⟩
+        obtain rfl := (Veil.RelationalTransitionSystem.reachable_assumptions _ thS _ hreach).2.1
+          _ J M M0 hM hM0
+        exact h
+      · exact ⟨kd, Nat.le_refl _, fun M hM hfb => absurd ⟨M, hM, hfb⟩ hc⟩)
+  have hda : ∀ n, Nd ≤ n → ∀ J M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
+      (r.at' n).msg_chunk_received i J M = true := fun n hn J M hM hfb =>
+    r.mono (P := fun st => st.msg_chunk_received i J M = true)
+      (fun m h => Chorus.msg_chunk_received.mono (r.steps m) i J M h)
+      (hall J (hnodes J) M hM hfb) n hn
   obtain ⟨n, -, h⟩ := eventually_of_weaklyFairWhen
-    (hfj (.cast_fb_commit i) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
-    (P := fun st => st.msg_fbcommit_sig i = true) (N := max (max A kd) (max Nd Nm))
-    (fun n hn => ⟨w, decided_persists r hdw n (by omega)⟩)
+    (hfj (.cast_fb_commit i w) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
+    (P := fun st => st.msg_fbcommit_sig i = true) (N := max (max A kd) (max Nd (max Nm T)))
+    (fun n hn => ⟨hdec n (by omega), huniq n⟩)
     (fun _ _ h => cast_fb_commit_effect h)
-    (fun n hn hnv => enabled_cast_fb_commit hi (hact n (by omega) i hi) (hNm n (by omega)) (hT n (by omega)).1
-      (hda n (by omega)) fun hf => hnv (fbcommit_voted_sig r n hf))
+    (fun n hn hnv => enabled_cast_fb_commit hi (hact n (by omega) i hi) (hNm n (by omega))
+      (hdec n (by omega)) (hT n (by omega)) (hda n (by omega))
+      fun hf => hnv (fbcommit_voted_sig r n hf))
   exact ⟨n, h⟩
 
 /-- **The fallback commit certificate forms, from correct voters**: an honest
 quorum's fallback commit votes are all on the network at one index. -/
 theorem eventually_fbcommitqc (r : ChorusRun (nset := nset) thS thM)
-    (hfj : PerLabel r)
+    (hfj : PerLabel r) (hbr : ValidBridge r)
     {A : Nat} (hact : ActiveFrom r A)
-    (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {T : Nat} {v : node → Option merkle_root}
+    (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {T : Nat} {v : MetaBlock node merkle_root}
     (hT : ∀ n, T ≤ n → (r.at' n).mvba_complete = true ∧ ∀ J, thS.is_proposer J = true →
-      ((∃ M, thS.mval_pos v J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
-        (thS.mval_neg v J = true ∧ (r.at' n).mvba_decided_neg J = true)))
+      ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
+        (thS.mval_neg (thM.ent v) J = true ∧ (r.at' n).mvba_decided_neg J = true)))
     {qv : nodeset} (hqv : nset.supermajority qv)
     (hqvh : ∀ a, nset.member a qv = true → ¬ nset.is_byz a = true)
     (hdec : ∀ a, ¬ nset.is_byz a = true →
@@ -2486,7 +2518,8 @@ theorem eventually_fbcommitqc (r : ChorusRun (nset := nset) thS thM)
     (fun a n h hm => Chorus.msg_fbcommit_sig.mono (r.steps n) a (h hm)) T nodes
     (fun a _ => by
       by_cases hm : nset.member a qv = true
-      · obtain ⟨n, hn⟩ := eventually_fbcommit_sig r hfj hact nodes hnodes hT (hqvh a hm)
+      · obtain ⟨n, hn⟩ := eventually_fbcommit_sig r hfj hbr hact nodes hnodes
+          (fun n hn => (hT n hn).1) (hqvh a hm)
           (hdec a (hqvh a hm))
         exact ⟨max T n, by omega, fun _ => r.mono (P := fun st => st.msg_fbcommit_sig a = true)
           (fun m h => Chorus.msg_fbcommit_sig.mono (r.steps m) a h) hn _ (by omega)⟩
@@ -2499,12 +2532,18 @@ system's MVBA. From an index at which the MVBA's trigger holds from correct
 senders (`CorrectTrigger`) and every proposer has a positive or a negative
 certificate, every correct validator eventually has `local_committed`.
 
-`hmp`/`hmn` say that the theory reads a vector entrywise, `some m` or a
-proposer's `none`, which is what `Cadence.chorusTheory` does. -/
+`hmp`/`hmn` say that the theory reads an entry vector entrywise, `some m`
+or a proposer's `none`, and `hmf` that it reads a representation's
+certificate kind, which is what `Cadence.chorusTheory` does; `hent` that the
+MVBA's `ent` drops a representation's certificates, which is what
+`Cadence.mvbaTheory` does. -/
 theorem eventually_committed_of_mvba_arm [Fintype node]
     (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset) (vfin : Cadence.ViewOrderEnum view vord)
-    (hmp : ∀ v j m, thS.mval_pos v j m = true ↔ v j = some m)
-    (hmn : ∀ v j, thS.mval_neg v j = true ↔ v j = none ∧ thS.is_proposer j = true)
+    (hmp : ∀ (e : node → Option merkle_root) j m, thS.mval_pos e j m = true ↔ e j = some m)
+    (hmn : ∀ (e : node → Option merkle_root) j,
+      thS.mval_neg e j = true ↔ e j = none ∧ thS.is_proposer j = true)
+    (hent : ∀ v, thM.ent v = MetaBlock.entries v)
+    (hmf : ∀ v j, thS.mval_fb v j = true ↔ (v j).map Prod.snd = some CertKind.fallbackQC)
     (r : ChorusRun (nset := nset) thS thM)
     (hfj : FJustice r) (hadm : MvbaAdmissible r) (hbr : ValidBridge r)
     {A : Nat} (hact : ActiveFrom r A)
@@ -2526,7 +2565,7 @@ theorem eventually_committed_of_mvba_arm [Fintype node]
   -- One certified vector for everybody, from the evidence at `N`; `Valid` by the bridge.
   have hcert : ∀ n, N ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) (certifiedVector thS thM (r.at' N)) :=
     r.mono (P := fun st => Certified (thS := thS) (thM := thM) st (certifiedVector thS thM (r.at' N)))
-      (fun n h => h.step (r.steps n)) (certified_certifiedVector hmp hmn hev)
+      (fun n h => h.step (r.steps n)) (certified_certifiedVector hmp hmn hent hmf hev)
   have hvalid := hbr.1 N _ (hcert N (Nat.le_refl _))
   -- Every correct validator proposes it (or something else first).
   have hall : ∀ i, ¬ nset.is_byz i = true → ∃ n E, (r.at' n).mvba_st.input i E = true := by
@@ -2542,7 +2581,7 @@ theorem eventually_committed_of_mvba_arm [Fintype node]
   -- The decision is transported, the fallback commit certificate forms, and the entries are assignable.
   obtain ⟨T, hNT, hT⟩ := eventually_mvba_complete r hfj.1 hbr _ hnodes
     (by mvba_inst; exact mvba_invoked_of_correct htrig) hi0 hd0
-  obtain ⟨F, hTF, hq⟩ := eventually_fbcommitqc r hfj.1 hact _ hnodes hT hqe.honestQuorum_supermajority
+  obtain ⟨F, hTF, hq⟩ := eventually_fbcommitqc r hfj.1 hbr hact _ hnodes hT hqe.honestQuorum_supermajority
     hqe.honestQuorum_correct hdec
   obtain ⟨n, hn, h⟩ := eventually_committed_of_assignable r hfj.1 _ hnodes (N := F)
     (fun j hj => by
@@ -2574,9 +2613,9 @@ variable {slot merkle_root view Phase PathChoice : Type}
   -- The quorum counting facts Chorus consumes (its `cnt` class constraint).
   [cnt : Cadence.ByzNodeSetCounting (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz)]
   {thS : Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root
-      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view))
-      (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice}
-  {thM : Mvba.Theory (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view}
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view))
+      (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view}
 
 /-- Apply a generated `Chorus` declaration at the canonical `Classical`
 instantiation — [Progress.lean](Progress.lean)'s `cpv%`, at the `Mvba` model's types and
@@ -2584,37 +2623,38 @@ with the MVBA constraint filled by `Mvba.mvbaSafety thM`. -/
 local macro "cpvm%" t:ident args:term:max* : term =>
   `(@$t
     (Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root
-      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)) (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice)
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view)) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)) Phase PathChoice)
     (Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root
-      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)) (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice))
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view)) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)) Phase PathChoice))
     slot (fun a b => Classical.propDecidable (a = b)) inferInstance
     (Fin n) (fun a b => Classical.propDecidable (a = b)) inferInstance
     (ByzNSet n) (fun a b => Classical.propDecidable (a = b)) inferInstance
     merkle_root (fun a b => Classical.propDecidable (a = b)) inferInstance
-    (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view))
+    (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view))
       (fun a b => Classical.propDecidable (a = b)) inferInstance
+    (MetaBlock (Fin n) merkle_root) (fun a b => Classical.propDecidable (a = b)) inferInstance
     (Fin n → Option merkle_root) (fun a b => Classical.propDecidable (a = b)) inferInstance
-    (Mvba.Msg view (Fin n → Option merkle_root)) (fun a b => Classical.propDecidable (a = b)) inferInstance
+    (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)) (fun a b => Classical.propDecidable (a = b)) inferInstance
     (byzNodeSetFin n f hf is_byz hbyz) (Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
     (Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thM)
     Phase (fun a b => Classical.propDecidable (a = b)) inferInstance inferInstance
     PathChoice (fun a b => Classical.propDecidable (a = b)) inferInstance inferInstance
     (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root
-      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)) (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice)
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view)) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)) Phase PathChoice)
     (fun ff => @Chorus.instAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root
-      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)) (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view)) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)) Phase PathChoice
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) ff)
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b)) ff)
     (fun ff => @Chorus.instLawfulAbstractFieldRepresentation slot (Fin n) (ByzNSet n) merkle_root
-      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)) (Fin n → Option merkle_root) (Mvba.Msg view (Fin n → Option merkle_root)) Phase PathChoice
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view)) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)) Phase PathChoice
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
       (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
-      (fun a b => Classical.propDecidable (a = b)) ff)
+      (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b)) ff)
     instIsSubStateOfRefl instIsSubReaderOfRefl
     $args*)
 
@@ -2678,11 +2718,17 @@ noncomputable def byzNodeSetFin_honest :
   honestQuorum_correct := (honest_quorum_fin n f hf is_byz hbyz).choose_spec.2
 
 variable {is_proposer : Fin n → Bool} {well_encoded : merkle_root → Bool}
-  {mvba_init_state : Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (Fin n → Option merkle_root) view)}
+  {mvba_init_state : Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view)}
 
 /-- The Chorus configuration at the system's instantiation. -/
 local notation "thC" => Cadence.chorusTheory (slot := slot) (Phase := Phase) (PathChoice := PathChoice)
   is_proposer well_encoded mvba_init_state
+
+variable {mvalid : MetaBlock (Fin n) merkle_root → Bool} {mleader : view → Fin n → Bool}
+
+/-- The MVBA configuration at the system's instantiation: `ent` drops a
+representation's certificates. -/
+local notation "thMC" => Cadence.mvbaTheory (nodeset := ByzNSet n) mvalid mleader
 
 set_option maxHeartbeats 1600000 in
 /-- **The MVBA route is always open, from correct senders.** In every run
@@ -2745,7 +2791,7 @@ validator ever abandons (which holds on the branch this is used on).
 `vfin` is the view order's enumeration, which `Mvba.termination` takes;
 the finiteness of the validators is `Fin n`'s. -/
 theorem mvba_arm_fin (vfin : Cadence.ViewOrderEnum view vord)
-    (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thC thM)
+    (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thC thMC)
     (hfj : FJustice (nset := byzNodeSetFin n f hf is_byz hbyz) r)
     (hadm : MvbaAdmissible (nset := byzNodeSetFin n f hf is_byz hbyz) r)
     (hbr : ValidBridge (nset := byzNodeSetFin n f hf is_byz hbyz) r)
@@ -2754,7 +2800,7 @@ theorem mvba_arm_fin (vfin : Cadence.ViewOrderEnum view vord)
     (hnab : ∀ i, ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz i = true → ∀ k,
       ¬ (r.at' k).abandoned i = true) {N : Nat}
     (hright : CorrectTrigger (nset := byzNodeSetFin n f hf is_byz hbyz)
-      (mvba := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thM) thC (r.at' N) ∧
+      (mvba := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thMC) thC (r.at' N) ∧
       ∀ j : Fin n, (thC).is_proposer j = true →
         ((∃ m, (cpvm% Chorus.vote_quorum_pos j m thC (r.at' N)) ∨
                ((cpvm% Chorus.fb_quorum_pos j m thC (r.at' N)) ∧ (cpvm% Chorus.fbcert thC (r.at' N)))) ∨
@@ -2763,7 +2809,8 @@ theorem mvba_arm_fin (vfin : Cadence.ViewOrderEnum view vord)
            (cpvm% Chorus.fbcert thC (r.at' N)))))) :
     ∀ i : Fin n, ¬ is_byz i → ∃ k, N ≤ k ∧ (r.at' k).local_committed i = true :=
   fun _ hi => eventually_committed_of_mvba_arm (byzNodeSetFin_honest n f hf is_byz hbyz) vfin
-    (fun _ _ _ => decide_eq_true_iff) (fun _ _ => decide_eq_true_iff) r hfj hadm hbr hact hab hnab
+    (fun _ _ _ => decide_eq_true_iff) (fun _ _ => decide_eq_true_iff) (fun _ => rfl)
+    (fun _ _ => decide_eq_true_iff) r hfj hadm hbr hact hab hnab
     hright.1 hright.2
     (by simpa +instances [byzNodeSetFin] using hi)
 
@@ -2771,7 +2818,7 @@ set_option maxHeartbeats 1600000 in
 /-- The MVBA arm in the claim's own vocabulary: if the MVBA route is open
 from correct senders, the run `Terminates`. -/
 theorem terminates_of_mvba_arm (vfin : Cadence.ViewOrderEnum view vord)
-    (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thC thM)
+    (r : ChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thC thMC)
     (hfj : FJustice (nset := byzNodeSetFin n f hf is_byz hbyz) r)
     (hadm : MvbaAdmissible (nset := byzNodeSetFin n f hf is_byz hbyz) r)
     (hbr : ValidBridge (nset := byzNodeSetFin n f hf is_byz hbyz) r)
@@ -2780,7 +2827,7 @@ theorem terminates_of_mvba_arm (vfin : Cadence.ViewOrderEnum view vord)
     (hnab : ∀ i, ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz i = true → ∀ k,
       ¬ (r.at' k).abandoned i = true) {N : Nat}
     (hright : CorrectTrigger (nset := byzNodeSetFin n f hf is_byz hbyz)
-      (mvba := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thM) thC (r.at' N) ∧
+      (mvba := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thMC) thC (r.at' N) ∧
       ∀ j : Fin n, (thC).is_proposer j = true →
         ((∃ m, (cpvm% Chorus.vote_quorum_pos j m thC (r.at' N)) ∨
                ((cpvm% Chorus.fb_quorum_pos j m thC (r.at' N)) ∧ (cpvm% Chorus.fbcert thC (r.at' N)))) ∨
@@ -2797,10 +2844,20 @@ omit cnt in
 set_option maxHeartbeats 1600000 in
 /-- **Stage 5: Chorus terminates.** [Liveness.lean](Liveness.lean)'s `TerminationClaim`, proven:
 at every `n = 3f+1` with at most `f` Byzantine validators, at the system's
-configuration `Cadence.chorusTheory`, every run satisfying `FJustice`,
-`MvbaAdmissible`, `ValidBridge`, `AllParticipate` and
-`NoAbandonBeforeFinalizing` `Terminates` — every correct validator
+configurations `Cadence.chorusTheory` and `Cadence.mvbaTheory`, every run
+satisfying `FJustice`, `MvbaAdmissible`, `ValidBridge`, `AllParticipate`
+and `NoAbandonBeforeFinalizing` `Terminates` — every correct validator
 finalizes the slot.
+
+**Why the MVBA's configuration is fixed.** At `Cadence.mvbaTheory` a
+meta-block's entry vector is its own entries with the certificates dropped
+(`ent := MetaBlock.entries`), as the paper defines `entries(B)`; the
+validity predicate and the leader schedule stay arbitrary. Termination
+needs it because a validator must be able to propose a certified
+meta-block: under an arbitrary `ent` no representation need have the
+entries the network certifies. It fixes the configuration the composed
+system runs, as `Cadence.chorusTheory` does for Chorus's projections; it is
+not a premise.
 
 The proof splits on an early finalization, as the paper's does
 (Lemma 11 (`lemma:chorus-termination`)):
@@ -2827,7 +2884,7 @@ The quorum counting facts are the concrete family's own instance
 (`Cadence.byzNodeSetFin_counting`), not a hypothesis. -/
 theorem termination (vfin : Cadence.ViewOrderEnum view vord) :
     TerminationClaim (nset := byzNodeSetFin n f hf is_byz hbyz)
-      (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz) (thC) thM := by
+      (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz) (thC) thMC := by
   intro r hfj hadm hbr hpart hab
   have hnodes : ∀ a, a ∈ List.ofFn (n := n) id := by simp
   by_cases hearly : ∃ k i, ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz i = true ∧

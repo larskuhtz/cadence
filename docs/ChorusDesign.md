@@ -112,8 +112,8 @@ network relations. Auditing Chorus, the property split is:
 | `msg_vote_*_sig`, `msg_vote_cast`, `msg_fb_*_sig`, `msg_fallback_sig`, `msg_commit_*_sig`, `msg_decrypt_share`, `msg_fbcommit_sig` | ✓ | ✓ (but see the note on `fb_sign_neg` below) |
 | `msg_commit_cast` | ✓ | ✗ — six self-row reads: `¬ msg_commit_cast i` for the acting validator `i` (see "Self-row negative reads" below) |
 | `local_fastqc_*` | ✓ | ✗ (negative observations of own state) |
-| `mvba_st : mstate` | (the contract's `decided_mono`: decisions only accrue along `mvba.step`/`mvba.propose`) | ✓ — consulted only through `mvba.decided`, in positive position, by the decision handlers and `mvba_terminate` |
-| `mvba_decided_*`, `mvba_complete` | ✓ | ✓ for honest actions' network-style reads; `cast_fb_commit`'s post-termination read is a scoped exception (see below). The records are written by the decision handlers, which never read them |
+| `mvba_st : mstate` | (the contract's `decided_mono`: decisions only accrue along `mvba.step`/`mvba.propose`) | ✓ — consulted only through `mvba.decided`, in positive position, by the decision handlers, `mvba_terminate` and `cast_fb_commit` |
+| `mvba_decided_*`, `mvba_complete` | ✓ | ✓ — read positively only. The records are written by the decision handlers, which never read them |
 | `phase : Phase` enum | (forward-only, see below) | ✓ |
 | `local_entry_pos/neg`, `local_voted`, `local_path`, `local_committed*` | ✓ | ✗ |
 | `participating`, `abandoned` | ✓ (written only by the inputs `participate i` / `abandon i`) | ✗ — the participation gate `participating i ∧ ¬ abandoned i` of every sending rule, read at the acting validator (for `broadcast_commitqc_*` and `redisseminate_chunk`, the sender parameter) |
@@ -157,30 +157,15 @@ behaviours asynchrony makes real are retained (the abstraction stays
 conservative). A guard negating over the *global* signature state would not
 be conservative: it would exclude real behaviours.
 
-**The `cast_fb_commit` decided-vector read.** The commit-round action universally
-quantifies over the decided entries
-(`∀ J M, is_proposer J → mvba_decided_pos J M → vote_quorum_pos J M ∨ msg_chunk_received i J M`),
-i.e. consults `mvba_decided_pos` on the left of an implication. The right
-of it is the paper's DA wait (Algorithm 5, line 38 (`line:fb-commit-foreach`),
-Algorithm 5, line 39 (`line:fb-commit-wait`)): an entry held by a FallbackQC waits for the
-validator's own chunk, one held by a FastQC does not. The decided vector
-does not record which certificate holds an entry, so the model reads "held
-by a FallbackQC" as "no positive FastQC for it exists", and both network
-reads on the right are positive. Where a root has both certificates the
-model does not wait and the paper may, which adds runs and never removes
-one (F12, [Bounds.md](Bounds.md) §6.4.2).
-`mvba_decided_*` is not a network relation (category (A) oracle state,
-§3.5) and the read is sound: the action also requires `mvba_complete`,
-after which the recorded vector is *frozen as a set* — every proposer
-has a record (`mvba_complete_per_proposer`), the records are unique and
-exclusive (`mvba_decided_pos_unique`, `mvba_decided_pos_neg_excl`, both
-proven from the MVBA contract's `agreement`, §6.4), so a decision handler
-firing later can only re-record an existing tuple — and the real
-validator holds the complete vector `B'` from its single `decide(B')`
-delivery: the paper's handler enumerates exactly this frozen,
-locally-known object (Algorithm 5, line 38 (`line:fb-commit-foreach`)). Growth of the recorded
-set can therefore never disable the action at any state where it is
-enabled.
+**The fallback commit wait reads only the validator's own decision.**
+`cast_fb_commit i v` requires `mvba.decided mvba_st i v` (the oracle state,
+in positive position) and waits under exactly the FallbackQC entries of
+`v`: `∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J →
+msg_chunk_received i J M`. The antecedents are immutable projections and
+the chunk receipt is read positively, so the action consults no network
+relation negatively and none of the shared decision records (Algorithm 5,
+lines 37–39 (`line:fb-mvba-decide`–`line:fb-commit-wait`);
+[PaperAlignment.md](PaperAlignment.md) §8.1 (d)).
 
 **Self-row negative reads (`msg_proposer_signed`, `msg_commit_cast`).**
 Seven guards read a network relation negatively where the row consulted
@@ -251,10 +236,6 @@ Therefore the following is a **contract**, not a documentation aid:
 > **per-validator local relations** are exempt — negative observations
 > of one's own local state are sound.
 
-(The hand audit's third carve-out — `cast_fb_commit`'s frozen
-decided-vector read, listed alongside these two in [Architecture.md](Architecture.md)
-§4 item 1 — consults *oracle* state, not a network relation, so it
-sits outside this contract's scope; §3.1 documents it.)
 
 The robust semantic formulation is *action monotonicity w.r.t. network
 tuples produced by other participants*: adding such tuples to the
@@ -607,14 +588,18 @@ The instance is the verified leader-based model
 by [Cadence/System.lean](../Cadence/System.lean); both are stated against
 the same `nset.is_byz`, so no fault-model transport is needed between them.
 
-**The value is the entry vector.** Module 3 (`mod:mvba`) decides a meta-block; the
-supplement proves agreement at the entries level, and Chorus works per
-proposer, so the class is instantiated at `value := node → Option
-merkle_root` ([MvbaPlan.md](MvbaPlan.md) §1.2). A Veil module needs a first-order sort
-for it, so `mvalue` is opaque and read through two immutable projections
-`mval_pos v j m` / `mval_neg v j`, with two `assumption`s — functional in
-the root, and exclusive — that [System.lean](../Cadence/System.lean) discharges at `v j = some m` /
-`v j = none ∧ is_proposer j` (the one genuine hypothesis among Chorus's assumptions is then
+**The value is the meta-block representation.** Module 3 (`mod:mvba`) decides a
+meta-block, and agreement is over its entries, so two correct validators
+may decide representations whose certificates differ. The class is
+instantiated at `value := MetaBlock node merkle_root` (entries plus each
+positive entry's certificate kind) and `entryvec := node → Option
+merkle_root` ([PaperAlignment.md](PaperAlignment.md) §8.1). A Veil module needs first-order
+sorts, so `mvalue` and `mentries` are opaque, joined by the contract's
+`mvba.entries`; an entry vector is read through two immutable projections
+`mval_pos e j m` / `mval_neg e j` and a positive entry's kind through
+`mval_fb v j`, with two `assumption`s — functional in the root, and
+exclusive — that [System.lean](../Cadence/System.lean) discharges at `e j = some m` /
+`e j = none ∧ is_proposer j` (the one genuine hypothesis among Chorus's assumptions is then
 `[mvba_init]`, that the abstract state Chorus starts from is an initial
 state of the instance; [System.lean](../Cadence/System.lean), `chorusTheory_assumptions`).
 
@@ -1216,8 +1201,8 @@ f+1 accepted positive votes pin f+1 *distinct* chunks.
 * **`fbCommitQC` entries are implicit.** `msg_fbcommit_sig r` records
   that `r` broadcast a `FallbackCommitVote` (Algorithm 5, line 41 (`line:fb-commitvote`))
   without recording the signed entry vector. An honest vote is over the
-  validator's single MVBA decision, which the MVBA contract's agreement
-  makes globally unique; a Byzantine vote on a different vector — which the
+  entries of the validator's MVBA decision, which the MVBA contract's
+  agreement makes the same for every correct validator; a Byzantine vote on a different vector — which the
   paper's same-entries aggregation would reject — can only *add*
   certificates in the model (`fbcommitqc` over-approximates in the
   adversary's favour), and `commit_assign_*` conjoins `fbcommitqc` with

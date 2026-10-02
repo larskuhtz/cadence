@@ -51,8 +51,8 @@ def emptyByz4 : ByzNodeSet (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1)) :=
 
 /-- The MVBA Chorus's class constraint is filled with: the silent stub, at
 the module's own fault pattern under `emptyByz4`. -/
-instance : MVBASafety (Fin (3 * 1 + 1)) ChorusMonitor.MV Unit Unit
-    (fun i => @ByzNodeSet.is_byz _ _ emptyByz4 i = true) :=
+instance : MVBASafety (Fin (3 * 1 + 1)) ChorusMonitor.MV ChorusMonitor.ME Unit Unit
+    (ByzNSet (3 * 1 + 1)) emptyByz4 (fun i => @ByzNodeSet.is_byz _ _ emptyByz4 i = true) :=
   ChorusMonitor.silentMvba _
 
 /-- The quorum counting facts Chorus's `cnt` class constraint asks for, at
@@ -63,10 +63,10 @@ instance : Cadence.ByzNodeSetCounting (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1)) em
 -- ▼▼▼ the entire instantiation, generated ▼▼▼
 #gen_monitor Chorus into ChorusGen
   sorts (Fin 1), (Fin (3 * 1 + 1)), (ByzNSet (3 * 1 + 1)), (Fin 2),
-        Unit, ChorusMonitor.MV, Unit,
+        Unit, ChorusMonitor.MV, ChorusMonitor.ME, Unit,
         Chorus.Phase_IndT, Chorus.PathChoice_IndT
   theory (Chorus.Theory.mk (fun j => j == 0) (fun _ => true)
-            ChorusMonitor.mvalPos ChorusMonitor.mvalNeg ())
+            ChorusMonitor.mvalPos ChorusMonitor.mvalNeg ChorusMonitor.mvalFb ())
   byz emptyByz4
 -- ▲▲▲ emits ChorusGen.{Th,St,Lbl,chThy,stInhab,cnext,cinit,initStates,step} ▲▲▲
 
@@ -170,7 +170,7 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "on_mvba_decide_neg", [a,b,c]    => do pure (.on_mvba_decide_neg (← dNode a) (← dNode b) (← dMValue c))
   | "mvba_terminate", [a,b]          => do pure (.mvba_terminate (← dNode a) (← dMValue b))
   | "redisseminate_chunk", [a,b,c,d] => do pure (.redisseminate_chunk (← dNode a) (← dNode b) (← dNode c) (← dRoot d))
-  | "cast_fb_commit", [a]            => do pure (.cast_fb_commit (← dNode a))
+  | "cast_fb_commit", [a,b]          => do pure (.cast_fb_commit (← dNode a) (← dMValue b))
   | "commit_assign_pos", [a,b,c]     => do pure (.commit_assign_pos (← dNode a) (← dNode b) (← dRoot c))
   | "commit_assign_neg", [a,b]       => do pure (.commit_assign_neg (← dNode a) (← dNode b))
   | "finalize_commit", [a]           => do pure (.finalize_commit (← dNode a))
