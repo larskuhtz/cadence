@@ -9,6 +9,15 @@ description: Working guide for the Cadence/Chorus/Conductor Veil models — how 
 the hard rules; this guide is the next level down — the mechanics of the proof
 families and the traps that only show up once you are inside a cell.
 
+**The paper target.** Every model is read against one paper-repository
+revision, `48cac9a`: the main body together with the internal supplement,
+whose Part I MVBA is the referent of `Mvba.lean`. The models are being
+realigned to it, from the earlier target tagged `paper-target/arxiv-v2`.
+Before you change a guard, read the rule at `48cac9a` and resolve its
+anchor there, not in an arXiv e-print. If a rule differs between the main
+body and the supplement, [docs/PaperAlignment.md](../../../docs/PaperAlignment.md)
+§§3–5 says which one the model follows and why. Its §8 is the session plan.
+
 ## 1. How a verified module is laid out
 
 Both large models use the same three-layer shape. `Chorus` is the reference;

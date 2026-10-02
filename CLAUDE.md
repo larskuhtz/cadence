@@ -490,15 +490,19 @@ is a change to what this project *claims*, not a refactor.
   Veil-internal plan documents, option-level design notes, or tool
   measurements into `docs/` — a pointer plus the reason is the right amount.
 * Cite the paper by **stable LaTeX anchors** (`lemma:chorus-agreement`,
-  `line:fb-pathvote-guard`), never by page or line number. The paper is public —
-  `arXiv:2607.02275`, **v2 is what this development verifies** (v1 had the
-  receipt bug; the README's paper section points to its counterexample, kept
-  at a tag) — and so is its LaTeX
-  source, whose `src/*.tex` layout is exactly what the citations name. Before
-  adding an anchor, check it exists:
-  `mkdir -p papers/cadence && curl -sL https://arxiv.org/e-print/2607.02275v2 | tar -xz -C papers/cadence`
-  then grep for `\label{…}`. Neither the PDF (`hypertexnames=false`) nor arXiv's
-  HTML exposes label anchors, so they are grep targets, not links. The same
+  `line:fb-pathvote-guard`), never by page or line number. **The target is
+  one paper-repository revision, `48cac9a`**: the main body (`arXiv:2607.02275`)
+  together with the internal supplement. The realignment to it is in progress
+  ([docs/PaperAlignment.md](./docs/PaperAlignment.md) §0, §8). Every citation
+  is to the target. Before adding an anchor, check it exists there:
+  `git -C <paper-repo> grep -n 'label{…}' 48cac9a -- main.tex src supplementary-internal.tex`
+  (never `supplementary-internal-bkp.tex`, a stale snapshot that duplicates
+  labels). A newer paper commit is not the target until a session moves it
+  by PaperAlignment §1's check. Earlier targets, the arXiv e-print layout and
+  the revision table are [docs/History.md](./docs/History.md) § "Paper
+  alignment before the single target". Neither the PDF
+  (`hypertexnames=false`) nor arXiv's HTML exposes label anchors, so they are
+  grep targets, not links. The same
   rule applies inward: cite Lean code by declaration name, never by line
   number — the 2026-08 audit report's Lean line citations had all drifted
   within a week.
