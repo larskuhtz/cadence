@@ -2181,6 +2181,176 @@ as a lemma hypothesis. That is a statement change (`Chorus.Schedule` or
 `Mvba.Schedule`), so it goes to R19 too, and with it the witness's schedule:
 `Mvba.Schedule.fixedNat` has `Δ_sync = 0`.
 
+**F15: the design** (R19, 2026-10-02, written before the build).
+
+*(a) Where the paper re-disseminates.* At two points, both in Algorithm 5
+(`alg:fallback`):
+
+| paper | the model today | the model after R19 |
+|---|---|---|
+| Inside the fallback-entry rule. Its guard is "upon local time reaches `s.deadline + Δ`, at least `2f+1` valid Vote messages have been received, and `pathVote = none`" (Algorithm 5, line 7 (`line:fb-pathvote-guard`)). Then "for each proposer `p_j` … with `Ev(j) = ⊥`" (Algorithm 5, line 8 (`line:fb-cast-entry`)): "if collected `f+1` valid positive votes for `(p_j, ρ)` … and `isDecoded(ρ)`", it signs the positive entry (Algorithm 5, line 11 (`line:fb-positive-entry`)) and then "re-encode proposal; **send** each validator its assigned chunk for `ρ`" (Algorithm 5, line 12 (`line:fb-redisseminate`)). | Two steps. `fb_sign_pos i j m q qc` signs. `redisseminate_chunk k i j m` later delivers `i`'s chunk, once per receiver, while `k` is active (F15). | **One step.** `fb_sign_pos i j m q qc` signs *and* sends every validator its chunk, as the paper's rule does. |
+| After the MVBA decision: "**wait until** `p_i` has received and validated its assigned chunk for `ρ`, then **broadcast** that chunk" (Algorithm 5, line 39 (`line:fb-commit-wait`)). | The wait is `cast_fb_commit`'s guard. The broadcast has no step, because it needs none. `msg_chunk_received i j m` says that `i`'s assigned chunk is on the network, and the decoding threshold `chunk_quorum` counts it from then on, wherever it travels next. Broadcasting it to the others changes no relation. Since F14 no row owes it either. | Unchanged. |
+
+*(b) The fix: one atomic step*, the form R18 called (b). The rule gains
+two bulk updates, each over a single-capital index:
+
+```
+action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q qc : nodeset) {
+  … the guards, unchanged …
+  require ¬ local_fb_entry i j
+  msg_fb_pos_sig i j m := true
+  local_fb_entry i j := true
+  -- Algorithm 5, line 12: re-encode, send each validator its assigned chunk.
+  msg_chunk_received I j m := true
+  local_chunk_sent i I j m := true
+}
+```
+
+* **The parameter list stays at five.** The guards are unchanged, since the
+  rule already requires `chunk_quorum j m` (`isDecoded`) and `well_encoded m`.
+* **No VC is put at risk by the new writes.** No invariant reads
+  `msg_chunk_received` or `local_chunk_sent` on its left-hand side. The
+  three that mention `chunk_quorum` inside a negation
+  (`progress_fallback_signing` and its kin) see no change in its truth
+  value, because the rule's own guard already has `chunk_quorum j m`.
+* **Quiescence is kept.** Every send of the rule happens inside the gated
+  step (`participating i ∧ ¬ abandoned i`). `local_chunk_sent i I j m` is
+  the per-sender send record, and S5's one-step Quiescence can read it as
+  the `sent` observable for chunks, since `msg_chunk_received` has no
+  sender index. After an abandonment, `i` sends nothing.
+* **The fired-once guard is kept.** `fb_sign_pos` keeps `¬ local_fb_entry
+  i j`, so its sends happen once. `Chorus.justice_enabledMove` loses a
+  case and gains none.
+
+*A consequence for the timed premise, which the design fixes.* After the
+atomic step, `msg_chunk_received i j m` holds from the correct signer's
+send. That is the convention every broadcast relation of the model already
+follows: a relation holds from the send, and the *reader's* row is a
+`Δ`-row that times the delivery. Two post-deadline rules read a validator's
+own re-disseminated chunk. Today both are `δ`-rows, because until now the
+chunk arrived through its own `Δ`-row:
+
+* `cast_fb_commit i v`, the DA wait (Algorithm 5, line 39 (`line:fb-commit-wait`)), and
+* `mvba_avail_ready i v`, the availability report.
+
+Kept as `δ`-rows, they would owe their step `δ` after the decision or the
+acceptance, even in a paper run whose chunk is still in flight. After GST
+that is up to `Δ` after the send, and the MVBA can decide sooner than that
+when every other message is fast. Such paper runs would then violate
+`TimedJustice`, the F11 kind of gap. So both rows become `Δ`-rows, by
+the hop table's own classification (they consume another party's
+message):
+
+* **`mvba_avail_ready`**: the `avail` family's bound goes from `δ` to `Δ`.
+  Its owed-condition is unchanged (`i` holds `v`), and so is its gate (none).
+* **`cast_fb_commit`**: a buffered `Δ`-row, split at its trigger. The
+  message part is the chunks, due `Δ` after they were sent. The gate is
+  the rule's trigger, "upon `MVBA[s].decide(B′)`" (Algorithm 5, line 37
+  (`line:fb-mvba-decide`)): `Active i`, `i`'s own decision of `v` (the only
+  one, P11), and the decision landmark `mvba_complete`, which is the model's
+  shadow of the decided vector having arrived. The vote is then due by
+  `max(chunks sent + Δ, trigger + δ)`, the paper's timing. The row moves out
+  of the generic `rows` into its own `TimedJustice` field (`fbCommit`),
+  because its owed-condition is now the gate. The untimed `Owed` is
+  unchanged. **The gate checklist gains one item**: a rule's gate may name
+  the acting validator's own MVBA output that the rule fires upon. That is
+  local state, and the clause still says only "the rule fires `δ` after its
+  trigger".
+
+Both changes only remove or postpone obligations, so the premise gets
+weaker. The bound does not move. On the late branch the chunks are sent by
+saturation (`M + 2Δ + 2δ`, `fb_pos_sig_at_cast`), so they are due by
+`M + 3Δ + 2δ`, which is before the decision. The vote stays at
+`X_v = X_d + 3δ`, and `Lchorus` and `Ltight` are unchanged.
+
+*The alternative, not taken.* The send could happen in the rule with
+delivery as a separate step of the network: an in-flight relation written
+by `fb_sign_pos`, and an ungated delivery step owed `Δ` after it. That
+keeps the readers' rows as they are. But it needs a new relation, a
+delivery record for the fired-once guard (`¬ msg_chunk_received` would be a
+negative network read), and a kind of step the model does not have: one
+taken by the network rather than by a validator. Its Quiescence argument
+also rests on a convention, namely which record counts as `sent`. The
+atomic step is the paper's rule as written, so the cost lands on two
+premise rows instead.
+
+*(c) `redisseminate_chunk` for correct senders is removed.* It stood for
+line 12, which now lives inside `fb_sign_pos`. Line 39 needs no step,
+by (a). Its `Owed` line, its hop row and its gate go with it, and so does
+its untimed fairness row. `byz_redisseminate_chunk` stays: it is the
+adversary's capability, which any holder of `f+1` chunks has, and it is
+unfair. The proofs that consumed the row read the chunk at the signature
+instead, through a first-flip fact proven in plain Lean as
+`fb_pos_sig_flip` was: a correct `k` with `msg_fb_pos_sig k j m` has sent
+every validator its chunk. No invariant is needed for it. This affects
+`eventually_fbcommit_sig`, `within_fb_chunk` and `fAvail_of_fJustice`.
+The last one also loses its `ActiveFrom` hypothesis, which existed only
+for the signer's gate. That is the untimed face of F15.
+
+*(d) The schedule constraint, and the witness.* The derivation of
+(Δ-avail) needs exactly the following:
+
+* A correct `i` accepts `v`. Then `v`'s FallbackQC entries are certified on
+  the network (`ValidBridge` at a held value), each has a correct signer,
+  and by (c) each signer has already sent `i` its chunk.
+* So the `avail` row is owed and enabled from the acceptance on, and it
+  fires within `max(Δ, δ) = Δ` (`δ_le_Δ`).
+
+What is used is therefore **`Δ ≤ Δ_sync`**, not `Δ + δ ≤ Δ_sync`. The
+`+ δ` belongs to a reading in which the chunk arrives through its own
+`Δ`-row and the report then adds `δ`, which the atomic step retires.
+**Proposed:** the field
+
+```
+/-- **The MVBA's availability window covers one Chorus network hop**:
+`Δ ≤ Δ_sync`. … -/
+Δ_le_Δsync : mvba.Δ ≤ mvba.Δsync
+```
+
+beside `δ_le_Δ` in `Chorus.Schedule`
+([Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)). The Chorus
+schedule composes the MVBA's, and the constraint relates the two layers, so
+it belongs to the composing layer and not to `Mvba.Schedule`. R18's
+`Δ + δ ≤ Δ_sync` implies it, and the two coincide at the paper's `δ = 0`.
+If the stronger form is preferred, it is a one-line change, but its `δ`
+would then be unused.
+
+The witness then needs `Δ_sync ≥ Δ = 1`. **Proposed:**
+`Mvba.Schedule.fixedNat` gets `Δsync := 1` (`Δ_sync = Δ`, the composed
+system's natural value). The supplement's timeout
+`T = 4Δ + max{Δ, Δ_sync}` is unchanged at `5`, and the ramp still holds
+(`Lcert 1 0 1 = 4 < 5`). **`Mvba.Witness.ell` does not move**: `ℓ` reads
+`Δ_sync` only through `Lcert`'s `max Δ Δsync`, which is `1` either way, so
+`ell = 24` stands. That edit is in
+[Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean), plain Lean beside the
+Mvba model and not the model itself. The Mvba witness's `availWithin`
+re-checks against the wider window. The fallback, if that file should stay
+untouched, is an override of `Δsync` in the Chorus witness's own schedule.
+
+`timedMvbaAdmissible_of_rows` then takes only the MVBA's own two clauses,
+(Δ-justice) and (T-timer), and derives (Δ-avail) and the handoff from
+`TimedJustice` and the schedule. The new lemma is
+`Chorus.availWithin_of_timedJustice`, the twin of
+`relayed_of_timedJustice`. No interim conditional derivation from R18
+exists to remove.
+
+*(e) The pin.* One action leaves, and no invariant or step property is
+added: `A = 48`, `I = 100`, `S = 1`, so `#veil_status Chorus` is
+`(A + 1)(I + S) + A = 49 · 101 + 48 = 4997` (from `5099`, one action's
+`101 + 1` cells and its does-not-throw cell). Mvba `1507` and
+FallbackReceipt `220` are unchanged. The Mvba model file does not change,
+so NoLock needs no mirror.
+
+*An observation, not acted on.* The proposer's own dissemination has F15's
+shape. `deliver_chunk_assigned i j m` requires `participating j ∧ ¬
+abandoned j` at delivery, where Algorithm 2 (`alg:proposer-dissemination`)
+sends every chunk in the proposing step. No claim is affected: a correct
+proposer abandons only after finalizing (C1), which happens after the
+deadline, and a chunk delivered after the deadline is never recorded. The
+fix is not R19's atomic form, though. The proposer's chunk is read before
+the deadline by `record_chunk`, whose timing proposal inclusion needs, so
+its delivery must stay a step. It is recorded here for a later decision.
+
 **Expected pins, written before the build.** Chorus: one action and one
 state relation, no property: `101 + 46 × (101 + 1) + 47 = 4840` (from
 4737). Mvba: the model file does not change (`decide` becomes an input in
