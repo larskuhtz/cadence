@@ -3,18 +3,19 @@ import Veil
 /-! # Module contracts for the Cadence composition
 
 This file states the **interfaces between the protocol's modules** as Lean
-type classes, lifted from the paper's module specifications
-(`arXiv:2607.02275v2`, `src/p2_framework.tex`, `src/p2_conductor_proofs.tex`,
-`src/p2_mvba.tex`):
+type classes, lifted from the paper's module specifications (Appendix B
+(`section:framework`), Appendix D (`section:conductor-formal`)). Citations
+name the target revision's rendered references
+([PaperAlignment.md](../docs/PaperAlignment.md) §0).
 
 Each entry is the paper's module, the class that states it here, and what
 implements it in this development.
 
-* `mod:slotconsensus` (per-slot consensus) — `SlotConsensus`; Chorus ([Chorus.lean](Chorus.lean))
-* `mod:orchestrator_2` (slot scheduling) — `Orchestrator`; Conductor ([Conductor.lean](Conductor.lean))
-* `mod:acs` (agreement on a core set) — `ACS`; out of scope (a standard
+* Module 1 (`mod:slotconsensus`), per-slot consensus — `SlotConsensus`; Chorus ([Chorus.lean](Chorus.lean))
+* Module 2 (`mod:orchestrator_2`), slot scheduling — `Orchestrator`; Conductor ([Conductor.lean](Conductor.lean))
+* Module 4 (`mod:acs`), agreement on a core set — `ACS`; out of scope (a standard
   primitive)
-* `mod:mvba` (multi-valued Byzantine agreement) — `MVBA`; Mvba ([Mvba.lean](Mvba.lean) — the
+* Module 3 (`mod:mvba`), multi-valued Byzantine agreement — `MVBA`; Mvba ([Mvba.lean](Mvba.lean) — the
   leader-based protocol of the paper repository's internal supplement;
   consumed by Chorus as its `mvba` constraint, instantiated in [System.lean](System.lean))
 
@@ -52,7 +53,8 @@ Each module `X` is two classes over a shared skeleton.
   non-first-order field here is fatal: the check commands reject one by class
   and field name before any solver starts
   (`attribute [veil_smt_ignore] C.field` is the escape hatch, used here only
-  for the three liveness facts of the MVBA's decision handoff;
+  for the MVBA's decision-handoff and certificate-level facts, which no
+  consumer's safety cell reads;
   [CLAUDE.md](../CLAUDE.md) and `spikes/03_*.lean` have the detail).
 * **`XTemporal … [S : XSafety …]`** — everything else the paper promises,
   stated **over the safety instance**: every field mentions `S.init`,
@@ -209,7 +211,7 @@ def byGstBound [Add time] (r : TimedRun state time init trans) (t d : time)
 
 end TimedRun
 
-/-! ## Slot Consensus (`mod:slotconsensus`)
+/-! ## Slot Consensus, Module 1 (`mod:slotconsensus`)
 
 The paper's module is *parameterised by a slot* `s`, one instance per slot,
 and the glue holds one abstract state per slot
@@ -236,7 +238,7 @@ the single-slot Chorus model per slot: its state is a `slot × Chorus.State`
 pair whose first component is the tag, and each finalized vector carries the
 same slot.
 
-Interface (`mod:slotconsensus`): inputs `participate()`, `abandon()`,
+Interface (Module 1 (`mod:slotconsensus`)): inputs `participate()`, `abandon()`,
 `propose(P)`; output `finalize(V)`.
 
 ### Obligations
@@ -263,7 +265,7 @@ and where it is discharged.
   itself, over a `TimedRun` and an implementation-defined `Admissible`, is
   **not proven**: it needs the `SlotConsensusTemporal` instance, which
   waits for the timed claims ([Bounds.md](../docs/Bounds.md) §6.4.6)
-* **`hiding_residue`** — Hiding (`def:hiding`, specialised to the instance's
+* **`hiding_residue`** — Hiding (Definition 4 (`def:hiding`), specialised to the instance's
   slot); *safety*. First-order and proven by Chorus (`safety
   [hiding_until_deadline]`), so it sits in the fragment — see the field's
   docstring for what it does and does not say
@@ -273,11 +275,11 @@ and where it is discharged.
   `abandon()`. The one-step statement over those gates comes with the
   `SlotConsensusTemporal` instance ([Bounds.md](../docs/Bounds.md) §6.4.6, S5)
 
-`d_tot`-totality and `ℓ`-termination are *not* properties of `mod:slotconsensus`
+`d_tot`-totality and `ℓ`-termination are *not* properties of Module 1 (`mod:slotconsensus`)
 — they are Chorus-specific strengthenings the Conductor's proofs consume —
 and live in `SlotConsensusWithTotality` below. -/
 
-/-- The state-level fragment of `mod:slotconsensus`. This is what the
+/-- The state-level fragment of Module 1 (`mod:slotconsensus`). This is what the
 `Cadence` glue module instantiates. Unindexed: the instance's slot is the
 state observable `tag` (see the section docstring). -/
 class SlotConsensusSafety (slot validator proposal pvector state : Type)
@@ -336,20 +338,20 @@ class SlotConsensusSafety (slot validator proposal pvector state : Type)
       decryption threshold has been reached (for Chorus: the slot key is
       released, `slot_key_released`). -/
   payload_recoverable : state → Prop
-  /-- **Hiding** (`def:hiding`, specialised to this instance's slot) — its
+  /-- **Hiding** (Definition 4 (`def:hiding`), specialised to this instance's slot) — its
       *protocol-level residue*: payloads become recoverable only after the
       deadline. The paper's definition is simulation-based (an ideal
       functionality and a simulator) and is not expressible in this language;
       what it reduces to is this residue together with the cryptographic
       hiding of the threshold encryption (`ThresholdIBE.decrypt_secret`,
       [Primitives.lean](Primitives.lean)) and the paper's simulation
-      argument (`appendix:encryption`). Those two steps stay meta-theoretic
+      argument (Appendix C.2 (`appendix:encryption`)). Those two steps stay meta-theoretic
       ([Architecture.md](../docs/Architecture.md) §4 item 3).
 
       First-order, and proven by Chorus, so it sits in the fragment. -/
   hiding_residue : ∀ st, reachable st → payload_recoverable st → deadline_passed st
 
-/-- The temporal level of `mod:slotconsensus`, over a safety instance `S`:
+/-- The temporal level of Module 1 (`mod:slotconsensus`), over a safety instance `S`:
 the participation interface and every property the fragment cannot state.
 `message` is the module's own protocol-message type (used by Quiescence). -/
 class SlotConsensusTemporal (slot validator proposal pvector state time message : Type)
@@ -418,7 +420,7 @@ class SlotConsensusTemporal (slot validator proposal pvector state time message 
   quiescence : ∀ st st' i m, S.trans st st' → ¬ byz i →
     sent st' i m → ¬ sent st i m → participating st' i ∧ ¬ abandoned st i
 
-/-- `mod:slotconsensus` in full: the fragment together with a temporal level
+/-- Module 1 (`mod:slotconsensus`) in full: the fragment together with a temporal level
 about it. -/
 class SlotConsensus (slot validator proposal pvector state time message : Type)
     [TotalOrder time] [Add time] (byz : validator → Prop) extends
@@ -427,20 +429,20 @@ class SlotConsensus (slot validator proposal pvector state time message : Type)
 
 /-! ### Slot consensus with the Chorus timing strengthenings
 
-`d_tot`-**totality** (`prop:chorus-totality`; `d_tot = Δ` since the
-v2 revision) and `ℓ`-**termination** (`lemma:chorus-termination`,
-`ℓ = 5Δ + ℓ_MVBA`) are not part of `mod:slotconsensus`: they are properties of
+`d_tot`-**totality** (Proposition 4 (`prop:chorus-totality`); `d_tot = Δ` since the
+v2 revision) and `ℓ`-**termination** (Lemma 11 (`lemma:chorus-termination`),
+`ℓ = 5Δ + ℓ_MVBA`) are not part of Module 1 (`mod:slotconsensus`): they are properties of
 Chorus that the Conductor's totality and recovery proofs consume
-(`lemma:conductor-totality`, through `Φ_oc = ℓ_chorus + d_tot`). Both are
+(Lemma 15 (`lemma:conductor-totality`), through `Φ_oc = ℓ_chorus + d_tot`). Both are
 conditioned on *Δ-synchronized participation*
-(`def:delta-synchronized-participation`), which is stated here as a predicate
+(Definition 5 (`def:delta-synchronized-participation`)), which is stated here as a predicate
 on the run. An orchestrator built on a slot consensus without these does not
 achieve the paper's bounds. Neither is proven for Chorus (the models are
 untimed; [Bounds.md](../docs/Bounds.md)).
 
 Like `SlotConsensusTemporal`, this is a class **over** the safety instance:
 one more level of what the implementation still owes, kept separate because
-`mod:slotconsensus` does not promise it — only Chorus does. -/
+Module 1 (`mod:slotconsensus`) does not promise it — only Chorus does. -/
 class SlotConsensusWithTotality (slot validator proposal pvector state time message : Type)
     [TotalOrder time] [Add time] (byz : validator → Prop)
     [S : SlotConsensusSafety slot validator proposal pvector state byz]
@@ -469,10 +471,10 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
       Two further antecedents are the caller's side of the contract, the
       conditions the paper's proof uses "when run within Cadence". Neither
       is a condition on the scheduler, so neither is part of `Admissible`.
-      *No abandonment before finalizing* (`line:abandon`) is the same
+      *No abandonment before finalizing* (Algorithm 1, line 23 (`line:abandon`)) is the same
       antecedent `SlotConsensusTemporal.termination` has; without it, a
       validator that abandons at once never finalizes. *No start before
-      `D − Δ`* is the Conductor's integrity (`lemma:conductor-integrity`),
+      `D − Δ`* is the Conductor's integrity (Lemma 12 (`lemma:conductor-integrity`)),
       stated over the observable `participating`. It holds at the start
       index exactly when the paper's form does, and it follows at every
       later one. Without it, a slot whose deadline lies far after `t`
@@ -495,7 +497,7 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
     ∀ n i V, ¬ byz i → S.finalized (r.at' n) i V →
     ∀ j, ¬ byz j → r.byGstBound (r.clk n) d_tot (fun st => ∃ V', S.finalized st j V')
 
-/-! ## Orchestrator (`mod:orchestrator_2`)
+/-! ## Orchestrator, Module 2 (`mod:orchestrator_2`)
 
 The persistent slot-scheduling primitive. Interface: input `complete(s)`,
 output `open(s)`; a slot never opened is *skipped*.
@@ -506,7 +508,7 @@ Each entry is the class field, the paper's name for it, the level it sits at,
 and where it is discharged.
 
 * **`totality`** — Totality; *temporal*. **not proven**:
-  `lemma:conductor-totality`, a per-window induction the untimed model does
+  Lemma 15 (`lemma:conductor-totality`), a per-window induction the untimed model does
   not carry
 * **`opened_mono`** — Integrity, "at most once"; *safety*. The `opened`
   observable is monotone, so an open event (`¬ opened st ∧ opened st'`)
@@ -525,23 +527,23 @@ and where it is discharged.
   [bounded_tail]`; the count `B = 2W − p` needs window widths, which the model
   keeps meta
 * **`recovery`, `recovery_time`** — `R`-Recovery; *temporal*. **not proven**:
-  `prop:smooth-windows`, `prop:first-post-gst-window-time`, the four parameter
+  Proposition 18 (`prop:smooth-windows`), Proposition 19 (`prop:first-post-gst-window-time`), the four parameter
   assumptions
 
 ### `open_prefix_agreement` — the safety residue of Totality + Monotonicity
 
-The paper's prose after `mod:orchestrator_2` derives from the three baseline
+The paper's prose after Module 2 (`mod:orchestrator_2`) derives from the three baseline
 properties that *whenever a correct validator opens a slot `s`, every correct
 validator opens exactly the same set of slots with number at most
 `s.number`*. Totality is temporal, but the derived statement has a
-state-level residue that is inductive and is the fact `lemma:cadence-safety`
+state-level residue that is inductive and is the fact Lemma 1 (`lemma:cadence-safety`)
 case 1 actually uses: if correct `j` has opened `s` and correct `i` has
 opened `s' < s`, then `j` has (already) opened `s'`. The glue's proof of
 skip agreement combines it with `monotonicity`: once `j` opens past `s'`
 without opening it, `s'` is never opened by `j`, hence — by this field — by
 no correct validator. -/
 
-/-- The state-level fragment of `mod:orchestrator_2`. This is what the
+/-- The state-level fragment of Module 2 (`mod:orchestrator_2`). This is what the
 `Cadence` glue module instantiates.
 
 It carries `time`, `clock` and `start_time` — not because the glue reasons
@@ -597,7 +599,7 @@ class OrchestratorSafety (validator slot state time : Type) [ord : TotalOrder sl
     ¬ byz i → ¬ byz j → opened st i s' → opened st j s → ord.le s' s → s' ≠ s →
     opened st j s'
 
-/-- The temporal level of `mod:orchestrator_2`, over a safety instance `S`. -/
+/-- The temporal level of Module 2 (`mod:orchestrator_2`), over a safety instance `S`. -/
 class OrchestratorTemporal (validator slot state time : Type) [ord : TotalOrder slot]
     [TotalOrder time] [Add time] (byz : validator → Prop)
     [S : OrchestratorSafety validator slot state time byz] where
@@ -636,13 +638,13 @@ class OrchestratorTemporal (validator slot state time : Type) [ord : TotalOrder 
     ∀ s, TotalOrder.le (r.gst + recovery_time) (S.start_time s) →
     ∀ i, ¬ byz i → r.byTime (S.start_time s) (fun st => S.opened st i s)
 
-/-- `mod:orchestrator_2` in full. -/
+/-- Module 2 (`mod:orchestrator_2`) in full. -/
 class Orchestrator (validator slot state time : Type) [ord : TotalOrder slot]
     [TotalOrder time] [Add time] (byz : validator → Prop) extends
     OrchestratorSafety validator slot state time byz,
     OrchestratorTemporal validator slot state time byz
 
-/-! ## Agreement on a Core Set (`mod:acs`)
+/-! ## Agreement on a Core Set, Module 4 (`mod:acs`)
 
 Each validator proposes a slot; ACS outputs one agreed set of at least
 `2f + 1` validator–slot pairs. The Conductor consumes one instance per
@@ -678,7 +680,7 @@ at.
   assumptions)*
 * **`quiescence`** — Quiescence; *temporal* -/
 
-/-- The state-level fragment of `mod:acs`. This is what the `Conductor`
+/-- The state-level fragment of Module 4 (`mod:acs`). This is what the `Conductor`
 module instantiates. -/
 class ACSSafety (validator slot state : Type) (byz : validator → Prop)
     extends TransitionSystemSafety state where
@@ -722,7 +724,7 @@ class ACSSafety (validator slot state : Type) (byz : validator → Prop)
   integrity : ∀ st, reachable st → ∀ i,
     ¬ byz i → has_decided st i → ∃ s, proposed st i s
 
-/-- The temporal level of `mod:acs`, over a safety instance `S`. -/
+/-- The temporal level of Module 4 (`mod:acs`), over a safety instance `S`. -/
 class ACSTemporal (validator slot state time message : Type)
     [TotalOrder time] [Add time] (byz : validator → Prop)
     [S : ACSSafety validator slot state byz] where
@@ -784,59 +786,62 @@ class ACSTemporal (validator slot state time message : Type)
     sent st' i m → ¬ sent st i m →
       (∃ s, S.proposed st' i s) ∧ ¬ abandoned st i
 
-/-- `mod:acs` in full. -/
+/-- Module 4 (`mod:acs`) in full. -/
 class ACS (validator slot state time message : Type) [TotalOrder time] [Add time]
     (byz : validator → Prop) extends
     ACSSafety validator slot state byz,
     ACSTemporal validator slot state time message byz
 
-/-! ## Multi-Value Byzantine Agreement (`mod:mvba`)
+/-! ## Multi-Value Byzantine Agreement, Module 3 (`mod:mvba`)
 
 Invoked by Chorus's fallback path, one instance per slot. Interface: inputs
 `propose(B)` (a valid meta-block; doubles as starting to participate),
 `abandon()`; output `decide(B)`. `Valid` is the publicly verifiable external
 validity predicate the instance is parameterised by.
 
-**Agreement is over entries.** The paper's module states Agreement as
-`entries(B) = entries(B')`: correct validators that decide, decide
-meta-blocks with the same entries. That wording is in the paper
-repository from commit `d598c5a`, which postdates v2 ([MvbaPlan.md](../docs/MvbaPlan.md)
-§11). This class's `agreement` says the decided *values* are equal, and its
-one instance sets `value` to the entry vector (`node → Option merkle_root`,
-[System.lean](System.lean)). So at that instance the field is the published
-sentence.
+**The value is a meta-block representation; agreement is over its
+entries.** A meta-block carries, for each proposer, an entry and the
+certificate that makes it valid, and the MVBA "votes and decides over
+`entries(B)`" (Supplement, Section 1.1 (`subsec:mvba-datatypes`)). Two
+valid meta-blocks may carry different certificates for the same entries,
+so correct validators may decide different representations. The class's
+`value` is the representation, `entries` projects it to its entry vector,
+and Agreement and Integrity are stated over `entries`, in the forms of
+Supplement, Section 1.2 (`subsec:mvba-protocol`), "Agreement and Integrity
+over entries". The system instantiates `value` at `MetaBlock` below.
 
 The implementation is `Mvba` ([Mvba.lean](Mvba.lean)) — the leader-based
 protocol of the paper repository's internal supplement, pinned to a
 paper-repository commit in that file's header; [MvbaPlan.md](../docs/MvbaPlan.md) §0 says
-what that referent is and is not — with `value` the entry vector and
-`Valid` the model's immutable `valid`. The instance is `Mvba.mvbaSafety`
+what that referent is and is not — with `Valid` the model's immutable
+`valid` and `entries` its immutable `ent`. The instance is `Mvba.mvbaSafety`
 ([Mvba/Compose.lean](Mvba/Compose.lean)), every field of the fragment
-proven — the inputs, their observables, the frames and one-step Quiescence
-included, which is why they sit in the fragment. The temporal level — the
-admissible-run model, `ℓ` and Termination — is `Mvba.mvbaTemporal`
-([Mvba/Temporal.lean](Mvba/Temporal.lean)), proven from the instance
-hypotheses its docstring lists, and `Mvba.mvbaFull` joins the two into the
-full class.
+proven — the inputs, their observables, the frames, one-step Quiescence and
+the certificate-level facts included, which is why they sit in the
+fragment. The temporal level — the admissible-run model, `ℓ` and
+Termination — is `Mvba.mvbaTemporal` ([Mvba/Temporal.lean](Mvba/Temporal.lean)),
+proven from the instance hypotheses its docstring lists, and `Mvba.mvbaFull`
+joins the two into the full class.
 
 **Chorus consumes this class as a constraint**
 ([CompositionContracts.md](../docs/CompositionContracts.md) §3): `instantiate mvba : MVBASafety node
-mvalue mmsg mstate (fun i => nset.is_byz i = true)` over an abstract state
-`mvba_st`,
-advanced by the oracle step `mvba_step`, the driven input `mvba_propose`
-and the handoff `accept_mvba_commitqc`, with two per-entry decision handlers
-reading
+mvalue mentries mmsg mstate nodeset nset (fun i => nset.is_byz i = true)`
+over an abstract state `mvba_st`, advanced by the oracle step `mvba_step`,
+the driven input `mvba_propose` and the handoff `accept_mvba_commitqc`, with
+two per-entry decision handlers and the fallback commit vote reading
 `mvba.decided` off the state ([Chorus.lean](Chorus.lean), "The MVBA
-instance"). The value is the entry vector, which Chorus reads through two
-immutable projections `mval_pos`/`mval_neg` of an opaque sort;
+instance"). Chorus reads a decided representation through `mvba.entries`
+and two immutable projections of the entry vector, `mval_pos`/`mval_neg`,
+and reads a positive entry's certificate kind through `mval_fb`;
 [System.lean](System.lean) instantiates all of it at `Mvba.mvbaSafety`.
 One thing is deliberately *not* a field of this class: the paper's `Valid
 B` is a function of the meta-block, which *carries* its certificates, while
 Chorus checks a decided entry's certificate against its own network
-relations (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`) — a
-predicate on Chorus's *state*, which a class parameter declared before the
-module's state exists cannot mention. That check is the handlers' one
-stated bridge, the MVBA counterpart of the Conductor's ACS median bridge
+relations (the certificate the representation names: a vote quorum for a
+`FastQC`, `fb_quorum_pos j m ∧ fbcert` for a `FallbackQC`) — a predicate on
+Chorus's *state*, which a class parameter declared before the module's
+state exists cannot mention. That check is the handlers' one stated bridge,
+the MVBA counterpart of the Conductor's ACS median bridge
 ([CompositionContracts.md](../docs/CompositionContracts.md) §7).
 
 ### Obligations
@@ -844,14 +849,14 @@ stated bridge, the MVBA counterpart of the Conductor's ACS median bridge
 Each entry is the class field, the paper's name for it, the level it sits at,
 and where it is discharged.
 
-* **`agreement`** — Agreement; *safety*. Mvba `safety [agreement]` —
-  `Mvba.mvbaSafety`
-* **`integrity`** — Integrity (decides at most once); *safety*. Mvba `safety
-  [integrity]` — `Mvba.mvbaSafety`
+* **`agreement`** — Agreement, over entries; *safety*. Mvba `safety
+  [agreement]` — `Mvba.mvbaSafety`
+* **`integrity`** — Integrity, over entries; *safety*. Mvba `safety
+  [integrity]`, the stronger "decides at most once" — `Mvba.mvbaSafety`
 * **`external_validity`** — External validity; *safety*. Mvba `safety
   [external_validity]` — `Mvba.mvbaSafety`
 * **`termination`, `ℓ`** — `ℓ_MVBA`-Termination; *temporal*. The
-  supplement's `thm:termination`, `O(fΔ)` — `Mvba.mvbaTemporal`
+  supplement's Supplement, Theorem 2 (`thm:termination`), `O(fΔ)` — `Mvba.mvbaTemporal`
   ([Mvba/Temporal.lean](Mvba/Temporal.lean)), under the timing model of [Mvba/Schedule.lean](Mvba/Schedule.lean)
 * **`quiescence`** — Quiescence; *safety (one-step form)*. Mvba, from the
   transition bodies (`sent_new_tr`: every honest send requires the input and
@@ -859,16 +864,56 @@ and where it is discharged.
 * **`certifies`, `decided_certified`, `accept`, `accept_trans`,
   `accept_effect`, `accept_enabled`** — the decision handoff of the
   supplement's strengthened interface (`decide(x, CommitQC)`, "Decision
-  output and handoff", `line:mvba:qc-decide`); *safety (first-order, rely
+  output and handoff", Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)); *safety (first-order, rely
   form)*. Mvba: a certificate is an existing commit certificate, a decision
   has one (`decided_backed`), and the handoff is `decide` — `Mvba.mvbaSafety`.
-  Chorus drives `accept` (`accept_mvba_commitqc`) -/
+  Chorus drives `accept` (`accept_mvba_commitqc`)
+* **`availReady`, `certified_unique`, `certified_decided`,
+  `certified_valid`, `certified_available`** — what a commit certificate
+  guarantees on its own: one certified entry vector, the one every correct
+  validator decides, with a valid representation and with the availability
+  its correct signers established (Supplement, Section 1.2
+  (`subsec:mvba-protocol`), "Commit availability condition"); *safety
+  (first-order)*. Mvba: `commitqc_agree`, `decided_backed`, `commitqc_valid`
+  and `honest_commit_accepted` with `commitqc_backed` — `Mvba.mvbaSafety` -/
 
-/-- The state-level fragment of `mod:mvba`. -/
-class MVBASafety (party value message state : Type) (byz : party → Prop)
+/-- The certificate that holds a positive entry of a meta-block: a `FastQC`
+(`2f+1` fast votes) or a `FallbackQC` (`f+1` fallback entries)
+(Supplement, Section 1.1 (`subsec:mvba-datatypes`)). -/
+inductive CertKind where
+  | fastQC
+  | fallbackQC
+  deriving DecidableEq, Inhabited
+
+/-- **A meta-block representation**, the value the system instantiates the
+MVBA at: for each proposer, its entry — a root (positive) or `none`
+(negative) — and, for a positive entry, the kind of certificate that holds
+it. The representation leaves out the certificate kinds of negative entries
+and the `FBCert`: no rule of either document reads them, and whether they
+verify is part of `Valid` ([PaperAlignment.md](../docs/PaperAlignment.md)
+§8.1 (a)). -/
+abbrev MetaBlock (node merkle_root : Type) := node → Option (merkle_root × CertKind)
+
+/-- `entries(B)`: the meta-block's entry vector, its certificates dropped. -/
+def MetaBlock.entries {node merkle_root : Type} (b : MetaBlock node merkle_root) :
+    node → Option merkle_root :=
+  fun j => (b j).map Prod.fst
+
+/-- The state-level fragment of Module 3 (`mod:mvba`).
+
+**Why the class takes a quorum family.** A certified meta-block's entries
+are available: a supermajority signed its commit certificate, and each
+correct member of that supermajority held its share before signing
+(`certified_available`). Saying "a supermajority" needs the system's quorum
+family, so the class takes it as the parameter `B`; it is used for nothing
+else, and `byz` stays the class's notion of a correct party. -/
+class MVBASafety (party value entryvec message state pset : Type)
+    (B : ByzNodeSet party pset) (byz : party → Prop)
     extends TransitionSystemSafety state where
   /-- The publicly verifiable validity predicate. -/
   Valid : value → Prop
+  /-- `entries(B)`: the entry vector of a representation. -/
+  entries : value → entryvec
 
   /-- Input `propose(v)` by party `p`. That `v` is `Valid` is the caller's
       obligation; it is an antecedent of `MVBATemporal.termination`, the rely
@@ -879,7 +924,7 @@ class MVBASafety (party value message state : Type) (byz : party → Prop)
   propose_trans : ∀ st p v st', propose st p v st' → trans st st'
   abandon_trans : ∀ st p st', abandon st p st' → trans st st'
 
-  /-- Output `decide(v)`: `p` has decided `v`. -/
+  /-- Output `decide(v)`: `p` has decided the representation `v`. -/
   decided : state → party → value → Prop
   proposed : state → party → value → Prop
   abandoned : state → party → Prop
@@ -907,59 +952,95 @@ class MVBASafety (party value message state : Type) (byz : party → Prop)
     sent st' p m → ¬ sent st p m →
       (∃ v, proposed st' p v) ∧ ¬ abandoned st p
 
-  /-- **Agreement** — correct parties that decide, decide the same value.
-      The paper's module states it over entries, `entries(B) = entries(B')`
-      (paper commit `d598c5a`, after v2). The one instance sets `value` to
-      the entry vector, so there this field is the published sentence. -/
+  /-- **Agreement** — "if correct validators decide `x` and `x′`, then
+      `entries(x) = entries(x′)`" (Module 3 (`mod:mvba`); Supplement,
+      Section 1.2 (`subsec:mvba-protocol`), "Agreement and Integrity over
+      entries"). -/
   agreement : ∀ st, reachable st → ∀ p q v v',
-    ¬ byz p → ¬ byz q → decided st p v → decided st q v' → v = v'
-  /-- **Integrity** — a correct party decides at most once (at most one
-      value, the observable being monotone). -/
+    ¬ byz p → ¬ byz q → decided st p v → decided st q v' → entries v = entries v'
+  /-- **Integrity** — "all decision outputs of a correct validator carry the
+      same entry vector" (Supplement, Section 1.2 (`subsec:mvba-protocol`),
+      "Agreement and Integrity over entries"). Redelivery with that entry
+      vector is permitted, so this is not "at most one representation"
+      ([PaperAlignment.md](../docs/PaperAlignment.md) §5.4, P1). -/
   integrity : ∀ st, reachable st → ∀ p v v',
-    ¬ byz p → decided st p v → decided st p v' → v = v'
+    ¬ byz p → decided st p v → decided st p v' → entries v = entries v'
   /-- **External validity** — a decided value is valid. -/
   external_validity : ∀ st, reachable st → ∀ p v,
     ¬ byz p → decided st p v → Valid v
 
+  /-- `AvailReady_p(v)`: `p` holds its assigned availability share under
+      every positive `FallbackQC` entry of `v` (Supplement, Section 1.2
+      (`subsec:mvba-protocol`), "Commit availability condition"). -/
+  availReady : state → party → value → Prop
+
   /- The decision handoff: the supplement's strengthened interface
   (`decide(x, CommitQC)`, "Decision output and handoff"). A decision comes
-  with a transferable certificate, and a transferred valid certificate is
-  accepted. -/
+  with a transferable certificate over its entries, and a transferred valid
+  certificate is accepted. -/
 
-  /-- `c` is a valid commitment proof for `v` at `st`: the certificate a
-      decision outputs, which any party can check. -/
-  certifies : state → message → value → Prop
+  /-- `c` is a valid commitment proof for the entry vector `e` at `st`: the
+      certificate a decision outputs, "an aggregate of `2f+1` Commit
+      signatures over `entries(x)`", which any party can check. -/
+  certifies : state → message → entryvec → Prop
   /-- **Decide exposes its certificate** — a correct party's decision has a
-      valid certificate that commits it. -/
+      valid certificate that commits its entries. -/
   decided_certified : ∀ st, reachable st → ∀ p v, ¬ byz p → decided st p v →
-    ∃ c, certifies st c v
+    ∃ c, certifies st c (entries v)
   /-- Input: the caller hands party `p` a transferred certificate `c`. -/
   accept : state → party → message → state → Prop
   accept_trans : ∀ st p c st', accept st p c st' → trans st st'
-  /-- Accepting a valid certificate for `v` decides `v`. -/
-  accept_effect : ∀ st p c st' v, accept st p c st' → certifies st c v → decided st' p v
+  /-- Accepting a valid certificate for `e` decides a representation of `e`
+      (`Recover(e)`). -/
+  accept_effect : ∀ st p c st' e, accept st p c st' → certifies st c e →
+    ∃ v, entries v = e ∧ decided st' p v
   /-- **A transferred valid certificate is accepted** — in the rely form: if
       the caller hands a valid certificate to a correct party that has
       proposed, is not abandoned and has not decided, the party can take
       it. -/
-  accept_enabled : ∀ st p c v, reachable st → ¬ byz p → certifies st c v →
+  accept_enabled : ∀ st p c e, reachable st → ¬ byz p → certifies st c e →
     (∃ v', proposed st p v') → ¬ abandoned st p → (∀ v', ¬ decided st p v') →
     ∃ st', accept st p c st'
 
-/- The three handoff facts only a liveness proof uses are withheld from the
-solver: Chorus's safety cells need the input and `accept_trans`, and every
-field of an instantiated class is otherwise a hypothesis of every cell. They
-stay declared axioms of the class, proven by `Mvba.mvbaSafety`. -/
-attribute [veil_smt_ignore] MVBASafety.decided_certified MVBASafety.accept_effect
-  MVBASafety.accept_enabled
+  /- What a certificate guarantees on its own. A certificate can exist before
+  any correct party decides — the adversary can aggregate the signatures —
+  so these are not consequences of the decision-level fields. -/
 
-/-- The temporal level of `mod:mvba`, over a safety instance `S`. With the
-inputs, their observables, the frames and Quiescence all in the fragment —
-`Mvba` proves every one of them — this level is exactly the admissible-run
-model, `ℓ` and Termination. -/
-class MVBATemporal (party value message state time : Type)
-    [TotalOrder time] [Add time] (byz : party → Prop)
-    [S : MVBASafety party value message state byz] where
+  /-- **One certified entry vector** — two valid certificates certify the
+      same entries. -/
+  certified_unique : ∀ st, reachable st → ∀ c c' e e',
+    certifies st c e → certifies st c' e' → e = e'
+  /-- **A certified entry vector is the decided one** — every correct
+      party's decision has the certified entries. -/
+  certified_decided : ∀ st, reachable st → ∀ c e p v,
+    certifies st c e → ¬ byz p → decided st p v → entries v = e
+  /-- **A certified entry vector has a valid representation.** -/
+  certified_valid : ∀ st, reachable st → ∀ c e,
+    certifies st c e → ∃ v, entries v = e ∧ Valid v
+  /-- **A certified entry vector is available** — the certificate's signers
+      include a supermajority each of whose correct members was
+      `AvailReady` for a valid representation of the certified entries
+      before signing. -/
+  certified_available : ∀ st, reachable st → ∀ c e, certifies st c e →
+    ∃ q, B.supermajority q ∧ ∀ p, B.member p q = true → ¬ byz p →
+      ∃ v, entries v = e ∧ Valid v ∧ availReady st p v
+
+/- The handoff and certificate facts no consumer's safety cell reads are
+withheld from the solver: Chorus's cells need the input and `accept_trans`,
+and every field of an instantiated class is otherwise a hypothesis of every
+cell, three of these with an `∃` in their conclusion. They stay declared
+axioms of the class, proven by `Mvba.mvbaSafety`. -/
+attribute [veil_smt_ignore] MVBASafety.decided_certified MVBASafety.accept_effect
+  MVBASafety.accept_enabled MVBASafety.certified_unique MVBASafety.certified_decided
+  MVBASafety.certified_valid MVBASafety.certified_available
+
+/-- The temporal level of Module 3 (`mod:mvba`), over a safety instance `S`.
+With the inputs, their observables, the frames and Quiescence all in the
+fragment — `Mvba` proves every one of them — this level is exactly the
+admissible-run model, `ℓ` and Termination. -/
+class MVBATemporal (party value entryvec message state pset time : Type)
+    [TotalOrder time] [Add time] (B : ByzNodeSet party pset) (byz : party → Prop)
+    [S : MVBASafety party value entryvec message state pset B byz] where
   Admissible : TimedRun state time S.init S.trans → Prop
   admissible_exists : ∀ st, S.init st →
     ∃ r : TimedRun state time S.init S.trans, Admissible r ∧ r.at' 0 = st
@@ -969,7 +1050,7 @@ class MVBATemporal (party value message state time : Type)
       by `t` and no correct party abandons before `max(t, GST) + ℓ`, every
       correct party decides by `max(t, GST) + ℓ`. The three antecedents are
       the caller's side of the contract: when to propose, what (`Valid`
-      inputs, `subsec:mvba-protocol`'s precondition), and not to abandon. -/
+      inputs, Supplement, Section 1.2 (`subsec:mvba-protocol`)'s precondition), and not to abandon. -/
   termination : ∀ r : TimedRun state time S.init S.trans, Admissible r →
     ∀ t, (∀ p, ¬ byz p → r.byTime t (fun st => ∃ v, S.proposed st p v)) →
     (∀ p, ¬ byz p → ∀ n v, S.proposed (r.at' n) p v → S.Valid v) →
@@ -979,8 +1060,8 @@ class MVBATemporal (party value message state time : Type)
         ¬ TotalOrder.le (r.clk n) (u + ℓ)) →
     ∀ q, ¬ byz q → r.byGstBound t ℓ (fun st => ∃ v, S.decided st q v)
 
-/-- `mod:mvba` in full. -/
-class MVBA (party value message state time : Type) [TotalOrder time] [Add time]
-    (byz : party → Prop) extends
-    MVBASafety party value message state byz,
-    MVBATemporal party value message state time byz
+/-- Module 3 (`mod:mvba`) in full. -/
+class MVBA (party value entryvec message state pset time : Type) [TotalOrder time] [Add time]
+    (B : ByzNodeSet party pset) (byz : party → Prop) extends
+    MVBASafety party value entryvec message state pset B byz,
+    MVBATemporal party value entryvec message state pset time B byz

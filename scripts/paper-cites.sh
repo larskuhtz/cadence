@@ -130,7 +130,6 @@ function check(file, seg, segline,    pos, st, en, m, inner, sep, a, b, bst, n, 
       continue
     }
     CITES++
-    if (file in DEFERRED) continue
     k = st - 120; if (k < 1) k = 1
     before = flat(substr(seg, k, st - k)); after = substr(seg, en, 1)
     n = expected(a, b); ok = 0
@@ -161,10 +160,6 @@ function process(file,    k) {
 BEGIN {
   # Frozen records: they cite the paper as it was when they were written.
   RECORDS["docs/History.md"]; RECORDS["docs/AuditReport.md"]
-  # Files whose citations keep the bare-label form until the session that
-  # edits them anyway (docs/PaperAlignment.md §8, R15). Their labels must
-  # still be in the map.
-  DEFERRED["Cadence/Interfaces.lean"]; DEFERRED["Cadence/System.lean"]
   # Labels that are cited on purpose although the target does not have them.
   NAT["line:da-rebroadcast"]       # a v1 rule, removed in v2; cited as removed
   NAT["line:mvba:td-decide"]       # removed from the supplement at eb1bb51

@@ -143,8 +143,8 @@ noncomputable abbrev systemRTS (thC : Conductor.Theory slot window time node acs
     _ _ _ _ _ _ _ TotalOrderWithMinimum.toTotalOrder _ fm
     (Conductor.orchestratorSafety thC) (chorusInstance thS thM hbyz)
 
-/-- **MCP Safety, positional form, for the composed system** (`def:safety`,
-`lemma:cadence-safety`): in every reachable state of the glue running the
+/-- **MCP Safety, positional form, for the composed system** (Definition 1
+(`def:safety`), Lemma 1 (`lemma:cadence-safety`)): in every reachable state of the glue running the
 Conductor and Chorus — Chorus running the `Mvba` model as its MVBA — two
 correct validators never disagree on the log entry at a given position. The
 one contract hypothesis left is `ACSSafety`, the ACS primitive the Conductor
