@@ -2299,7 +2299,7 @@ for the signer's gate. That is the untimed face of F15.
 What is used is therefore **`Δ ≤ Δ_sync`**, not `Δ + δ ≤ Δ_sync`. The
 `+ δ` belongs to a reading in which the chunk arrives through its own
 `Δ`-row and the report then adds `δ`, which the atomic step retires.
-**Proposed:** the field
+**Decided at review:** the field
 
 ```
 /-- **The MVBA's availability window covers one Chorus network hop**:
@@ -2312,20 +2312,15 @@ beside `δ_le_Δ` in `Chorus.Schedule`
 schedule composes the MVBA's, and the constraint relates the two layers, so
 it belongs to the composing layer and not to `Mvba.Schedule`. R18's
 `Δ + δ ≤ Δ_sync` implies it, and the two coincide at the paper's `δ = 0`.
-If the stronger form is preferred, it is a one-line change, but its `δ`
-would then be unused.
+The design review also extends the gate checklist by one item: a gate may
+name the acting validator's own MVBA output that its rule fires upon.
 
-The witness then needs `Δ_sync ≥ Δ = 1`. **Proposed:**
-`Mvba.Schedule.fixedNat` gets `Δsync := 1` (`Δ_sync = Δ`, the composed
-system's natural value). The supplement's timeout
-`T = 4Δ + max{Δ, Δ_sync}` is unchanged at `5`, and the ramp still holds
-(`Lcert 1 0 1 = 4 < 5`). **`Mvba.Witness.ell` does not move**: `ℓ` reads
-`Δ_sync` only through `Lcert`'s `max Δ Δsync`, which is `1` either way, so
-`ell = 24` stands. That edit is in
-[Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean), plain Lean beside the
-Mvba model and not the model itself. The Mvba witness's `availWithin`
-re-checks against the wider window. The fallback, if that file should stay
-untouched, is an override of `Δsync` in the Chorus witness's own schedule.
+The witness then needs `Δ_sync ≥ Δ = 1`. **Decided at review:** the
+Chorus witness overrides `Δsync := 1` in its own schedule, and
+`Mvba.Schedule.fixedNat` and the MVBA's witness stay untouched. So
+`Mvba.Witness.ell = 24` cannot move. (At `Δ_sync = 1` the supplement's
+timeout `T = 4Δ + max{Δ, Δ_sync}` is still `5`, and the ramp holds,
+`Lcert 1 0 1 = 4 < 5`.)
 
 `timedMvbaAdmissible_of_rows` then takes only the MVBA's own two clauses,
 (Δ-justice) and (T-timer), and derives (Δ-avail) and the handoff from
@@ -2341,15 +2336,39 @@ added: `A = 48`, `I = 100`, `S = 1`, so `#veil_status Chorus` is
 FallbackReceipt `220` are unchanged. The Mvba model file does not change,
 so NoLock needs no mirror.
 
-*An observation, not acted on.* The proposer's own dissemination has F15's
-shape. `deliver_chunk_assigned i j m` requires `participating j ∧ ¬
-abandoned j` at delivery, where Algorithm 2 (`alg:proposer-dissemination`)
-sends every chunk in the proposing step. No claim is affected: a correct
-proposer abandons only after finalizing (C1), which happens after the
-deadline, and a chunk delivered after the deadline is never recorded. The
-fix is not R19's atomic form, though. The proposer's chunk is read before
-the deadline by `record_chunk`, whose timing proposal inclusion needs, so
-its delivery must stay a step. It is recorded here for a later decision.
+*(f) The proposer's dissemination, the same shape* (added at the design
+review: a gap of F15's shape is closed in the same re-solve, not parked).
+`deliver_chunk_assigned i j m` required `participating j ∧ ¬ abandoned j`
+at delivery. Algorithm 2 (`alg:proposer-dissemination`) sends every chunk in
+the proposing step itself, in the `send` of its "for each validator `p_r`"
+loop. So the model could not deliver a correct proposer's chunks once the
+proposer had abandoned, while the paper's are in flight from the proposal
+on. The safety claims therefore covered a different set of runs from the
+paper's. The fix needs no new relation and no new kind of step:
+
+| | `deliver_chunk_assigned i j m` |
+|---|---|
+| paper | upon `propose`: … for each validator `p_r`: send `p_r` its chunk (Algorithm 2 (`alg:proposer-dissemination`)) |
+| before | `¬ is_byz j`, `participating j`, `¬ abandoned j`, `msg_proposer_signed j m`, `¬ local_chunk_sent j i j m` |
+| after | `¬ is_byz j`, `msg_proposer_signed j m`, `¬ local_chunk_sent j i j m` |
+
+* **The send is `propose`.** It is gated on participation and is the
+  paper's proposing step. Its record is `msg_proposer_signed j m`, which
+  for a correct `j` is written only there, so the guard that remains reads
+  exactly that "the chunk was sent". The delivery stays a step, so
+  `record_chunk`'s pre-deadline timing is unchanged.
+* **Quiescence: a delivery of an earlier send is not a new send.** The
+  proposer's `sent` record for its chunks is the proposal, which the gated
+  `propose` writes. A later delivery writes the receiver's
+  `msg_chunk_received` and the step's fired-once record, and sends
+  nothing.
+* **Its row.** It is still the `Δ`-row it was, owed always (the proposer is
+  correct by the guard). Its gate `Active j` is dropped, so the delivery
+  is due `Δ` after the send whatever the proposer does next. That
+  *strengthens* the premise in one place, since the row is now owed after
+  the proposer abandons. The paper's network promises exactly that: the
+  message was sent between correct validators. No invariant reads the participation
+  relations against chunk delivery, and the pin is unchanged by it.
 
 **Expected pins, written before the build.** Chorus: one action and one
 state relation, no property: `101 + 46 × (101 + 1) + 47 = 4840` (from
