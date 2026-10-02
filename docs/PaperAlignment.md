@@ -199,7 +199,7 @@ explicit `\qed`s. The Conductor sections change more.
 | S3 | `propose(B_i)` requires a valid meta-block, established by "the composing Chorus fallback transition" (Supplement, Section 1.2 (`subsec:mvba-protocol`)) | (d) | Already the contract's rely form: `Valid` inputs are an antecedent of `MVBATemporal.termination`. The cross-reference to Part II is a paper finding (§6, P8). |
 | S4 | The retransmission interval `ρ` is renamed `ρ_mvba` | (d) | `Mvba.Schedule`'s field keeps its name; prose says which `ρ`. |
 | S5 | Explicit `\qed`s removed | (d) | Editorial. |
-| S6 | (in full) The MVBA's value is a meta-block *with its certificates*; `decide(x, CommitQC)` outputs one representation `x`; Agreement and Integrity are over `entries` ("Agreement and Integrity over entries") | (b) | The model's value is the bare entry vector, so a validator's decision carries no certificate kinds. The value becomes the representation (entries plus each entry's certificate kind). §5.5 |
+| S6 | (in full) The MVBA's value is a meta-block *with its certificates*; `decide(x, CommitQC)` outputs one representation `x`; Agreement and Integrity are over `entries` ("Agreement and Integrity over entries") | (b) | The model's value is the bare entry vector, so a validator's decision carries no certificate kinds. The value becomes the representation (entries plus each positive entry's certificate kind). The representation omits negative entries' certificate kinds and the `FBCert`, an abstraction of class (a): no rule of either document reads them, and whether they verify is part of `Valid`. §5.5, §8.1 |
 | S7 | (in full) The `Commit` availability condition `AvailReady_i(x)`: before its `Commit`, a validator waits for its share under every positive entry *of `x` certified by a `FallbackQC`*, and broadcasts it | (b) | The model's `avail_ready i e` is indexed by the entry vector. With S6 it is indexed by the representation. Safety is unaffected, because the relation is an environment relation. The liveness premise (F-avail) is restated over the representation. §5.5 |
 | S8 | (in full) "Decision output and handoff": Chorus broadcasts the decided `CommitQC`; a correct validator that receives a valid one re-broadcasts it and **finalizes**; the MVBA's `Commit` round "also serves as the fallback commitment-certification round" | (b) + (c) | A second finalization route in Chorus, and the contract fields it needs. §5.7 |
 | S9 | (in full) Everything else in Supplement, Section 1 (`sec:mvba-instantiation`): views, leader schedule, the lock, timeout certificates, `SyncView`, retention, the execution model, crash recovery, `Recover`, `Δ_R`, `Δ_sync` | (a) | Unchanged since `eb1bb51`. The model's coverage of each is recorded in the [Mvba.lean](../Cadence/Mvba.lean) header and in [MvbaPlan.md](MvbaPlan.md) §11. |
@@ -452,7 +452,7 @@ and Algorithm 5, line 39 (`line:fb-commit-wait`), both main-body rules that hold
 For the paper's authors. Each item quotes the target `48cac9a` and names
 anchors. P1–P4 are inconsistencies between the main body and the supplement,
 or within one of them. P5–P6 are carried from earlier reviews and
-re-checked. P7–P10 are smaller.
+re-checked. P7–P11 are smaller.
 
 **P1. Module 3 (`mod:mvba`) Integrity was not revised with Agreement.** The supplement
 (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Agreement and Integrity over entries"): "*Integrity:* all decision outputs
@@ -564,6 +564,25 @@ target both use positional leaf hashes. That makes v2's Algorithm 6 (`alg:da`)
 inconsistent with v2's Algorithm 2 (`alg:proposer-dissemination`), an inconsistency the
 target fixes. It is recorded because v2 is the public version: a v3 would
 carry the fix.
+
+**P11. What Chorus does with a redelivered decision is not stated.** The
+supplement's Integrity permits it: "all decision outputs of a correct
+validator carry the same entry vector, and redelivery of a decision with
+that entry vector, for instance after a restart, is permitted"
+(Supplement, Section 1.2 (`subsec:mvba-protocol`), "Agreement and Integrity
+over entries"). Two valid representations may carry different
+certificates, so a redelivered output can name a different `B′`. The
+consumer's rule is "upon `MVBA[s].decide(B′)`: for each `FallbackQC` in
+`B′` with a positive entry …: wait until …" (Algorithm 5, line 37
+(`line:fb-mvba-decide`) to Algorithm 5, line 39 (`line:fb-commit-wait`)),
+written against Module 3 (`mod:mvba`)'s "decides at most once". Neither
+document says whether a second output re-runs the handler, is ignored, or
+replaces the first `B′`, and neither states a convention for `upon` (P6).
+All three readings cast the same `FallbackCommitVote`, since its content is
+`entries(B′)`, so agreement does not depend on the choice. The data the
+vote attests does: the chunks waited for are those of the `B′` the handler
+ran on. §8.1 (d) gives the model's reading, which is safe under each of the
+three.
 
 **No item of the target is unmodellable.** Every protocol rule of the main
 body and of Part I's MVBA can be modelled faithfully within the
@@ -822,7 +841,9 @@ class MVBASafety (party value entryvec message state pset : Type)
   (`subsec:mvba-protocol`), "Commit availability condition").
   `availReady` is the observable `AvailReady_p(v)`, indexed by the
   representation (S7).
-* **All first-order.** The availability field needs a quorum, so the class
+* **All first-order.** The availability field needs a quorum: a certified
+  meta-block's entries are available because a supermajority signed the
+  certificate and each of its correct members held its share. So the class
   takes the system's quorum family `B` as a parameter, as
   `Cadence.ByzNodeSetCounting` does. Chorus passes its own `nset`, and
   `Mvba.mvbaSafety` passes the model's. `byz` stays the class's notion of
@@ -944,6 +965,34 @@ the split of Supplement, Algorithm 1 (`alg:mvba`–`alg:mvba-cont3`).
   `FallbackQC`-certified in this `B′` is waited for, as in the paper.
   `require mvba_complete`, the transport of the vector, stays as it is. The
   vote's content is the entry vector, so `msg_fbcommit_sig` is unchanged.
+* **A redelivered decision** (P11). The contract's Integrity lets a correct
+  validator output several representations with one entry vector, so
+  `mvba.decided mvba_st i v` may hold for two `v`. The target does not say
+  what the handler of Algorithm 5, line 37 (`line:fb-mvba-decide`) does with
+  the second output. It may re-run, be ignored, or replace the first `B′`.
+  The model's rule is safe under all three readings:
+  1. **The vote is cast once per validator.** The fired-once guard
+     `¬ local_fbcommit_voted i` stays, so `cast_fb_commit` moves the state
+     whenever it fires, and `Chorus.justice_enabledMove` keeps its proof.
+     Every reading casts the same message, because the vote's content is
+     the entry vector.
+  2. **The wait reads the `FallbackQC` entries of the `v` it is cast for.**
+     That `v` is some representation `i` decided. Under every reading the
+     paper's validator casts after waiting under the `FallbackQC` entries of
+     one of its decided `B′`s, so every paper vote is a model vote. The
+     model may also cast under a later `v` where the "first `B′` only"
+     reading would not. That adds runs, which is safe, because no safety
+     property reads the wait.
+  3. **The premise owes the vote only for a validator with one
+     representation:** `Owed (.cast_fb_commit i v)` is
+     `mvba.decided s.mvba_st i v ∧ ∀ v', mvba.decided s.mvba_st i v' → v' = v`.
+     With one decision output, all three readings cast after the wait under
+     that `B′`, and the δ-row owes exactly that vote. With several, the row
+     owes nothing, so the premise never owes a vote the paper might not
+     cast. At the system's instance the case does not arise: `Mvba` decides
+     once per validator (it proves the stronger at-most-once Integrity), so
+     the conjunct costs `Chorus.termination` one application of
+     `reachable_integrity`.
 * **No new per-validator record.** The validator's own representation is
   already a per-validator observable that the model reads positively,
   `mvba.decided mvba_st i v`, which the handlers read too. A Chorus-side
@@ -977,7 +1026,8 @@ the split of Supplement, Algorithm 1 (`alg:mvba`–`alg:mvba-cont3`).
   premise reads the `decide` family, whose representation is the `Recover`
   choice. `relayed_of_timedJustice` and `fRelay_of_fJustice` are re-proven.
 * **`Owed`:** the one row that changes is
-  `.cast_fb_commit i v => mvba.decided s.mvba_st i v` (was `∃ v`).
+  `.cast_fb_commit i v => mvba.decided s.mvba_st i v ∧ ∀ v', mvba.decided s.mvba_st i v' → v' = v`
+  (was `∃ v, mvba.decided s.mvba_st i v`). (d) gives the reason.
 * **The hop rows:** `cast_fb_commit` stays a δ-row with the same gate. Its
   chunk is delivered by `redisseminate_chunk`'s own Δ-row from the correct
   `FallbackQC` signer (`Owed` is `msg_fb_pos_sig k j m`, F14). So the
