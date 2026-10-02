@@ -459,7 +459,7 @@ Cadence/
   System.lean                      the composed system: the glue's MCP Safety at the
                                     Conductor, Chorus and Mvba instances — the only
                                     file importing all three legs (axiom-pinned)
-  FallbackReceipt.lean             fallback receipt/propose MODEL, the paper's v2 design
+  FallbackReceipt.lean             fallback receipt/propose MODEL, the post-v1 receipt rules
                                     (+ the n=4 exhaustive model check)
   FallbackReceipt/Proofs/, FallbackReceipt/Certify.lean
                                    the receipt layer's proof-file family (axiom-pinned)
@@ -604,68 +604,64 @@ current state.
 
 ## The protocol paper
 
-The models are verified against the Cadence preprint:
-
 > Kushal Babel, Fatima Elsheimy, Lioba Heimbach, Mohammad Mussadiq Jalalzai,
 > Tobias Klenze, Jovan Komatovic, Jason Milionis, Mike Setrin, Victor Shoup.
 > **Cadence: Extreme Pipelining with Multiple Concurrent Proposers.**
 > arXiv:[2607.02275](https://arxiv.org/abs/2607.02275) \[cs.DC].
 
-This development verifies **v2** (2026-07-07).
+**The target.** The development targets one revision of the paper
+repository: **`48cac9a`** (`48cac9a41efac2fb58f32f61ff21fd89db7c7d98`,
+committed 2026-10-02). The target is the revision as a whole: the main body,
+whose public versions are on arXiv, and the internal supplement, whose
+Part I specifies the leader-based MVBA that
+[Cadence/Mvba.lean](Cadence/Mvba.lean) models. Claims are about that
+revision, and a protocol bug found here is a bug in it.
 
-**The v1 receipt bug.** v1 (2026-07-02) had a liveness bug in its fallback
+**Status: realignment in progress.** The models do not correspond to
+`48cac9a` yet. Their current state is the earlier, mixed target marked by
+the tag `paper-target/arxiv-v2`: arXiv v2 for Chorus, the Conductor, the
+glue and the receipt layer, and the supplement at `eb1bb51` for the MVBA.
+[docs/PaperAlignment.md](docs/PaperAlignment.md) has the review against the
+target, what it found on the paper side, and the realignment plan (§8).
+The plan's last session creates the tag `paper-target/48cac9a` and changes
+this paragraph to "corresponds". Earlier revisions and how the development
+moved between them: [docs/History.md](docs/History.md) § "Paper alignment
+before the single target", and the tags.
+
+**Access to the target.** Auditors are assumed to have, or to be able to
+obtain, the paper sources at `48cac9a`, the internal supplement included.
+All of it is to be made public, and the supplement's MVBA is a standard
+leader-based BFT primitive.
+
+**The Conductor.** The development verifies the main body's
+`algorithm:conductor`. The supplement's practical Conductor is outside the
+verified surface ([docs/PaperAlignment.md](docs/PaperAlignment.md) §9).
+
+**The receipt layer and v1.** arXiv v1 had a liveness bug in the fallback
 receipt rules: a validator could propose an entry that was not valid
-fallback evidence, once and for good. It was reported by a parallel
-verification effort, reproduced here, and fixed in v2, whose rules
-[Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) verifies. The
-model checker's counterexample to the v1 rules is preserved at the tag
-[`v1-receipt-refutation`](https://github.com/larskuhtz/cadence/tree/v1-receipt-refutation)
-(in `Cadence/FallbackReceipt/PreFix.lean`).
-
-### Paper Revisions
-
-| arXiv | date | paper-repo commit | note |
-|---|---|---|---|
-| v1 | 2026-07-02 | `89322be` | the receipt rules with the liveness bug — [see above](#the-protocol-paper) |
-| v2 | 2026-07-07 | `3efdbfe` | what this development verifies |
-| — | 2026-09-03 | `026dc8b` | the **internal supplement**'s MVBA instantiation as first modelled |
-| — | 2026-09-28 | `eb1bb51` | the internal supplement at the current pin — the referent of [Cadence/Mvba.lean](Cadence/Mvba.lean) (not yet published) |
-
-The paper repository also contains a second, **internal** document — an
-implementation supplement that is not yet part of the published paper.
-Exactly one model depends on it:
-[Cadence/Mvba.lean](Cadence/Mvba.lean) is the supplement's leader-based
-MVBA instantiation (`sec:mvba-instantiation`), first read against
-paper-repository commit `026dc8b`, re-read against `eb1bb51`
-([docs/MvbaPlan.md](docs/MvbaPlan.md) §11) and pinned to that commit in
-the model's header. The
-supplement has neither tags nor versions, so a later change to its
-`alg_mvba.tex` or `subsec:mvba-correctness` is the trigger to re-read the
-model against the new commit and move the pin
-([docs/MvbaPlan.md](docs/MvbaPlan.md) §0). Everything else in this
-repository is verified against v2 alone. What the supplement changes on
-paper, and how the two documents relate, is
-[docs/PaperAlignment.md](docs/PaperAlignment.md) §2 and §4.
+fallback evidence, once and for good. v2 fixed the rules, and they are
+unchanged in substance at the target.
+[Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) models them,
+and is kept as a separate model for that reason. The model checker's
+counterexample to the v1 rules is at the tag
+[`v1-receipt-refutation`](https://github.com/larskuhtz/cadence/tree/v1-receipt-refutation).
 
 ### Resolving a citation
 
-The sources and documentation cite the paper by its LaTeX `\label` names —
+The sources and documentation cite the paper by its LaTeX `\label` names:
 `lemma:chorus-agreement`, `alg:fallback`, `mod:slotconsensus`,
-`line:fb-pathvote-guard`. Citations are to v2 unless the surrounding text says
-otherwise.
+`line:fb-pathvote-guard`, and for the MVBA `sec:mvba-instantiation`,
+`line:mvba:qc-decide`. Every citation is to the target revision.
 
-These labels are grep targets rather than hyperlinks: the PDF is compiled with
-`hypertexnames=false` and carries no label-named destinations, and arXiv's HTML
-rendering substitutes its own generated ids. To resolve one, fetch the paper
-source, whose file layout is what the references name (`src/p2_chorus.tex`,
-`src/alg_fallback.tex`, `src/p2_conductor_proofs.tex`, …):
+These labels are grep targets rather than hyperlinks. The PDF is compiled
+with `hypertexnames=false` and carries no label-named destinations, and
+arXiv's HTML substitutes its own ids. To resolve one, grep the paper
+repository at the target commit, excluding `supplementary-internal-bkp.tex`
+(a stale snapshot that duplicates labels):
 
 ```bash
-mkdir -p papers/cadence && curl -sL https://arxiv.org/e-print/2607.02275v2 \
-  | tar -xz -C papers/cadence
-grep -rn 'label{lemma:chorus-agreement}' papers/cadence/src/
+git -C <paper-repo> grep -n 'label{lemma:chorus-agreement}' 48cac9a -- \
+  main.tex src supplementary-internal.tex
 ```
 
-The compiled PDFs of both versions are checked in under [paper/](paper);
-the unpacked source tree `papers/cadence/` is deliberately gitignored and
-exists only after this fetch.
+The compiled PDFs of arXiv v1 and v2 are checked in under [paper/](paper).

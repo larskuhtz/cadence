@@ -35,7 +35,15 @@ import Cadence.Mvba.NoLock
 
 This module is the entry point for auditing the formal verification of the
 **Cadence** BFT consensus protocol (<https://www.category.xyz/cadence>;
-`arXiv:2607.02275v2`). It imports every finished result of the
+`arXiv:2607.02275`). The paper target is one revision of the paper
+repository, `48cac9a` (2026-10-02): the main body together with the internal
+supplement, whose MVBA [Mvba.lean](Cadence/Mvba.lean) models. The
+realignment of the models to that revision is in progress: the results below
+are proven against the earlier target marked by the tag
+`paper-target/arxiv-v2` (arXiv v2, with the MVBA from the supplement at
+`eb1bb51`), and
+[docs/PaperAlignment.md](docs/PaperAlignment.md) §8 is the plan that brings
+them onto `48cac9a`. It imports every finished result of the
 development and, for each one, re-derives its **axiom footprint** as a
 build-checked pin. If any end theorem ever came to depend on an extra axiom
 — a `sorry` (`sorryAx`), a trusted solver verdict standing in as an axiom, a

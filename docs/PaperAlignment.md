@@ -1,485 +1,686 @@
-# Paper alignment — what the models verify, and where the paper has moved
+# Paper alignment — the target revision, the review against it, and the plan
 
-*Audit record, not a status document. It answers one question an auditor
-will ask: the models claim to verify the Cadence paper — is that still the
-paper? Section 1 gives a mechanical check anyone can re-run. The rest
-records what the 2026-09-03 audit found, and is dated: re-run §1 rather
-than trusting §3 to still be current.*
+*What an auditor asks first: the models claim to verify the Cadence paper,
+but which paper, and is it still that paper? §0 names the target revision.
+§1 gives the mechanical check anyone can re-run against it. §§3–5 hold the
+review of what the models rest on, item by item. §6 lists what the review
+found on the paper side. §8 is the plan that brings the models onto the
+target. Earlier comparisons, against arXiv v2 and the supplement at
+`eb1bb51`, are recorded in [History.md](History.md) § "Paper alignment
+before the single target".*
 
-The short answer, as of **2026-09-03**: yes, exactly. Every algorithm and
-proof the models mirror is byte-identical to the published preprint. All
-movement in the paper repository since 2026-07-09 is in a second,
-implementation-oriented document that this repository does not cite and
-that is part of no trust base here.
+## 0. The target
 
-**Re-check of 2026-09-29** (§7), against the paper repository's head
-`eb1bb51`. The MVBA supplement was rewritten. The model's safety side is
-unaffected, and the upgrade is planned in [MvbaPlan.md](MvbaPlan.md) §11.
-The main body has moved too: `mod:mvba`'s Agreement is now stated over
-entries, and six of the eleven verified-surface files differ from v2. The
-models still verify v2, but the repository head is no longer v2, and the
-Chorus side of that drift has not yet been analysed (§7.3).
+The development targets **one revision of the paper repository: `48cac9a`**
+(`48cac9a41efac2fb58f32f61ff21fd89db7c7d98`, branch `master`, committed
+2026-10-02 00:40 UTC, frozen on 2026-10-01 in session R13). The target is
+the revision as a whole: the main body (`main.tex` and `src/*.tex`, the
+paper whose arXiv versions are `2607.02275v1`/`v2`) and the internal
+supplement (`supplementary-internal.tex` with
+`src/supplementary-internal/`). Claims are stated about that revision, and
+a protocol bug found here is a bug in that revision.
+
+**Status: realignment in progress.** The models do not yet correspond to the
+target. Chorus, the Conductor, the glue and the receipt layer were built
+against arXiv v2, and the MVBA against the supplement at `eb1bb51`. That
+earlier target is marked by the tag `paper-target/arxiv-v2`. §§3–5
+classify every difference between it and `48cac9a`. Four items need model
+changes, two need contract changes, and the rest need nothing or only
+documentation. §8 is the plan that closes them. Its last session makes the
+tag `paper-target/48cac9a` and changes this paragraph to "corresponds".
+
+The target does not follow the paper repository's `master`. A later paper
+commit is a new target only when a session moves it, by running §1 against
+the new commit and planning the difference as §8 does.
 
 ## 1. The verified surface, and how to re-check it
 
-The models cite the paper by stable LaTeX anchor (never by page or line —
-see [../CLAUDE.md](../CLAUDE.md)). Every anchor cited by a model or a
-design document resolves in one of eleven files:
+The models cite the paper by stable LaTeX anchor. Every anchor cited by a
+model or a design document resolves at the target in one of these files.
 
-`src/alg_proposer.tex`, `src/alg_voting.tex`, `src/alg_fast.tex`,
-`src/alg_fallback.tex`, `src/alg_da.tex`, `src/p2_problem_definition.tex`,
-`src/p2_framework.tex`, `src/p2_mvba.tex`, `src/p2_chorus.tex`,
-`src/p2_conductor_proofs.tex`, and — for one anchor only,
-`section:conductor-overview`, cited where
-[ConductorDesign.md](ConductorDesign.md) contrasts the paper's informal
-and formal presentations of the Conductor — `src/p1_informal.tex`.
+* **Main body:** `src/alg_proposer.tex`, `src/alg_voting.tex`,
+  `src/alg_fast.tex`, `src/alg_fallback.tex`, `src/alg_da.tex`,
+  `src/p2_problem_definition.tex`, `src/p2_framework.tex`,
+  `src/p2_mvba.tex`, `src/p2_chorus.tex`, `src/p2_conductor_proofs.tex`
+  (which carries the Conductor's module, algorithm and proofs), and one
+  overview anchor, `section:conductor-overview`, in `src/p1_informal.tex`.
+* **Supplement:** `src/supplementary-internal/alg_mvba.tex` and
+  `supplementary-internal.tex` from `sec:mvba-instantiation` to the end of
+  `subsec:mvba-correctness`, which is what [Mvba.lean](../Cadence/Mvba.lean)
+  models. Two further supplement anchors are cited as context, not as
+  something a model rests on: `sec:fallback-transition` and
+  `sec:domain-separation` (§5).
+* **Not in the surface:** the supplement's practical Conductor
+  (`alg:conductor-practical` and its sections). The verified Conductor is
+  the main body's `algorithm:conductor` (§9).
 
-That set *is* the verified surface: Part 2, the algorithm floats, and a
-single Part 1 overview anchor. No model and no design document cites the
-internal supplement (§2) — with two deliberate exceptions, both introduced
-by this audit and both about the supplement rather than resting on it:
-§§3–4 below, and the `sec:domain-separation` item in
-[TODO.md](TODO.md). A future check should expect supplement anchors in
-exactly those two places.
+**The check.** In the paper repository:
 
-So the alignment question reduces to whether those eleven files have
-changed, which is mechanically checkable against the published source:
-
+```bash
+git -C <paper-repo> fetch
+git -C <paper-repo> diff 48cac9a <new> -- src/alg_*.tex src/p2_*.tex src/p1_informal.tex \
+    src/supplementary-internal/alg_mvba.tex supplementary-internal.tex
 ```
-mkdir -p papers/cadence && curl -sL https://arxiv.org/e-print/2607.02275v2 | tar -xz -C papers/cadence
-```
 
-then diff each extracted file against its `src/` counterpart in the paper
-repository. (`papers/` is gitignored. Note the flat layout: the e-print has
-`alg_da.tex` where the paper repository now has `src/alg_da.tex`.)
+then, for the supplement, cut `supplementary-internal.tex` at its
+`\section{Concrete MVBA Instantiation}` and `\subsection{The First ``Dummy''
+View}` boundaries and compare the cut sections, and compare each
+`lem:`/`thm:`/`cor:`/`rem:` statement text after collapsing whitespace.
+The anchor half: extract every `\label{…}` from `main.tex`, `src/*.tex`,
+`src/supplementary-internal/*.tex` and `supplementary-internal.tex`, and
+check each anchor the repository cites against that set.
 
-The paper repository carries **no release tags**, so which commit is which
-arXiv version is recorded once, in [../README.md](../README.md)
-§ "Paper Revisions" — established by exactly this comparison, run over every
-`.tex` file rather than a sample. Tagging that repository would make the
-table redundant.
+**Result at the target** (2026-10-01). The repository cites 199 distinct
+anchor strings, and all real citations resolve. The ten that do not resolve
+are known and deliberate. Five are regex artefacts: Lean quotation syntax,
+wildcard prose, and text about anchors. Five are deliberate non-labels:
+`alg:da.isDecoded` (a function inside `alg:da`),
+`line:assumption-one..four` (range shorthand for four labels that exist),
+`line:da-rebroadcast` (a v1 rule, cited as such), and `line:mvba:td-decide`
+and `line:mvba:hp-pool` (removed at `eb1bb51`, cited as removed). No anchor
+was renamed between v2 or `eb1bb51` and the target, and no citation needed
+changing.
 
-**Result on 2026-09-03.** All five algorithm floats, `p2_framework`,
-`p2_mvba` and `p2_problem_definition` are byte-identical. `p2_chorus` and
-`p2_conductor_proofs` differ only in `\input{src/…}` path prefixes, and
-`p1_informal` only in one figure path, from the paper repository's July
-source reorganisation. Elsewhere: two new formatting macros and one
-reviewer note in `related_work.tex`. No protocol rule, definition, lemma
-statement or proof has moved.
-
-Four cautions for whoever automates the anchor half of this check, each of
-which cost time once:
+Cautions for automating it:
 
 * `sec:` and `section:` are **different** prefixes, as are `mod:` and
   `module:`. A prefix list missing `section:` silently skips
   `section:conductor-overview` and `section:conductor-formal`.
 * A regex alternation listing both `sec` and `section` can emit truncated
-  phantoms (`section:co` from `section:conductor-overview`). Verify any
-  apparent dangler by grepping for it literally before believing it.
-* Some anchor-shaped strings are deliberately not labels:
-  `alg:da.isDecoded` names a function *inside* `alg:da`, and
-  `line:assumption-one..four` is range shorthand for four labels that each
-  exist. `line:da-rebroadcast` names a **v1 rule removed in v2**, cited as
-  such in [ChorusDesign.md](ChorusDesign.md).
-* Exclude `supplementary-internal-bkp.tex` (§6), and be aware the
-  supplement redefines some main-body label names, so "defined somewhere"
-  is the wrong test — resolve against `main.tex` and `src/*.tex` only.
+  phantoms (`section:co`). Grep any apparent dangler literally before
+  believing it.
+* Exclude `supplementary-internal-bkp.tex`, a stale snapshot that duplicates
+  labels. Resolve against `main.tex`, `src/*.tex` and
+  `supplementary-internal.tex` only, because the supplement redefines some
+  main-body label names.
+* `alg_mvba.tex` carries commented-out drafts with labels in them, so a
+  label diff over raw text reports phantom additions and removals. Drop
+  `%` lines first.
+* `src/p2_conductor.tex` is commented out of `main.tex` and is not part of
+  the paper. Its text (`p` as a fraction in `(0,1)`) is not the Conductor
+  the paper proves.
 
-## 2. The paper repository has two tracks
+## 2. One revision, two documents, two parts
 
-* **`main.tex`** — the public paper, `arXiv:2607.02275`, v2. Part 2 and the
-  algorithm floats are what the models verify.
-* **`supplementary-internal.tex`** plus `src/supplementary-internal/` — an
-  internal document describing the *implementation*: how a deployment
-  realises the abstract protocol, which idealisations it must fill in, and
-  which pseudocode steps it changes and why.
+The target revision contains two documents.
 
-Since 2026-07-09 every substantive paper commit has been in the second
-track. This repository cites it nowhere and depends on it in no way; it is
-recorded here because it is where the protocol's engineering intent now
-lives, and because a reader comparing the two documents will find
-differences that are neither errors in this development nor errors in the
-paper.
+* **The main body** (`main.tex`): the paper. It specifies Chorus by its
+  algorithm floats (`alg:proposer-dissemination`, `alg:voting`,
+  `alg:fast-path-certification`, `alg:fallback`, `alg:da`), the MVBA as a
+  module (`mod:mvba`, no algorithm), the Conductor (`algorithm:conductor`)
+  and the framework, and proves their properties.
+* **The internal supplement** (`supplementary-internal.tex`). Its two parts
+  play different roles:
+  * **Part I, "Component Specifications"**, gives protocols for components
+    the main body leaves abstract. These include the leader-based MVBA
+    (`sec:mvba-instantiation`), which [Mvba.lean](../Cadence/Mvba.lean)
+    models, a practical Conductor, chain-state certification, and an ACS
+    built from the MVBA. Part I is specification. Where it touches the main
+    body's protocol it changes it: the MVBA's `decide` also outputs a
+    commit certificate on which Chorus finalizes (§5.7).
+  * **Part II, "Implementation Notes and Guidance"**, says how a deployment
+    departs from the pseudocode, and says so ("Unlike in the pseudocode",
+    "Don't implement the post-MVBA commit round"). Part II describes the
+    implementation, not the protocol whose claims the paper proves.
 
-**Visibility.** Everything the models verify is public. The supplement is
-not: an auditor can read `arXiv:2607.02275v2` but not the implementation
-track. The algorithms it describes are not secret — they are realised in
-the Rust implementation in the `monad-bft` repository — but the *prose
-specification* the models would be read against, were they ever extended to
-cover the supplement, is internal. Nothing in §1 depends on this; it matters
-only for work that targets supplement content — the MVBA instantiation
-being the first candidate — where the spec an auditor would check against is
-unavailable to them.
+What the development verifies is therefore **the main body's protocol,
+with the MVBA instantiated by Part I's MVBA and with the changes Part I
+makes to how Chorus uses it**. Part II's departures are recorded (§5) but
+not modelled, and where a model covers a Part II variant as well this
+document says so. Part I components the main body does not use (the
+practical Conductor, chain-state certification, the ACS instantiation) are
+outside the verified surface. For the Conductor in particular, the
+development verifies the main body's `algorithm:conductor`; the practical
+Conductor is outside the verified surface (§9).
 
-## 3. Where the implementation track diverges from the verified algorithms
+**Access.** The main body is public up to v2. Auditors are assumed to have,
+or to be able to obtain, the paper sources at the target, the supplement
+included (§9).
 
-Seven divergences were found. The classification that matters: in every
-case where the supplement and a model disagree, **the model follows the
-published algorithm**. None of these is a case of this development having
-abstracted differently from a faithful reading of the paper; the model's own
-modelling choices are not implicated in any of them. Five are declared as
-divergences by the supplement itself, in its own words.
+## 3. Review: the main body, arXiv v2 (`3efdbfe`) → `48cac9a`
 
-| Divergence | Where | Declared? | Bearing here |
+Files byte-identical at the target: `alg_fast`, `alg_voting`,
+`p2_framework`, `p2_problem_definition`, `p2_conductor_alg`,
+`p2_conductor_module`, `appendix_chorus`. Files changed only in
+`\input{src/…}` paths: `p2_conductor_proofs`. Files changed in content:
+`alg_proposer`, `alg_da`, `alg_fallback`, `p2_mvba`, `p2_chorus`,
+`p1_informal`, plus macros in `defs` and paths in `main.tex` and
+`introduction`.
+
+The classes are: **(a)** below the model's abstraction; **(b)** to be
+modelled; **(c)** a statement or contract change
+([Interfaces.lean](../Cadence/Interfaces.lean)); **(d)** documentation only.
+
+| # | Change (anchor) | Class | Why, or what |
 |---|---|---|---|
-| An `EquivCert` may be built from two validated witness chunks; "two conflicting positive fallback entries are not required" | `sec:fallback-transition` | **no** | Changes the middle guard of `alg:fallback`'s cascade — see below |
-| A revised Conductor differing from `algorithm:conductor` in six named ways, forfeiting no-premature-abandonment of superseded ACS instances | `alg:conductor-practical` | yes, with its own obligation list | Readiness moves off `line:ready-check`; the ACS median moves from slot numbers to deadlines |
-| MVBA: an availability precondition on `Commit` under a new `Δ_sync` assumption; payload recovery pushed to the composing layer | `sec:mvba-instantiation` | yes | `mod:mvba`'s termination carries no such precondition — see §4 |
-| The positive-entry signer no longer re-encodes and sends each validator its chunk; ChunkSync pulls instead | `sec:fallback-transition` | yes | One of the two paper backings this repository cites for fairness on `redisseminate_chunk` |
-| The finalize wait moves outside consensus: commit on certificate, recovery asynchronous | post-MVBA subsection | yes | Shifts the operational reading of `local_committed_pos_implies_decodable` |
-| All signatures domain-separated by a message-type tag | `sec:domain-separation` | n/a — below the paper's abstraction | Names an assumption the Chorus model already makes structurally |
-| MVBA entry gated on holding the slot's ticket | "Postpone MVBA entry…" | supplement-only mechanism | "ticket" appears nowhere in Part 2 |
+| M1 | Domain tags on the proposer's two signatures, `⟨Prop, s, j, H(payload)⟩` and `⟨Root, s, j, ρ⟩` (`alg:proposer-dissemination`, `alg:da`, `line:fb-cast-entry`'s `σ_p`, the `p2_chorus` prose) | (a) | Each model relation is per message type (`msg_proposer_signed`, `msg_fb_pos_sig`, …), so a signature of one type cannot stand for another in the model. The tags are how an implementation gets that. §5.1 |
+| M2 | Positional fragments: `Data(ρ)` holds `(r, d_r)`; `VerifyMerkle(ρ, r, H(r, d_r), π_r)`; `Decode` needs `f+1` distinct indices; `line:da-reencode` compares positional leaf hashes; `MerkleProof((…), r)` | (a) for the models | A chunk is `(assignee, proposer, root)` in the model, and `chunk_quorum` counts distinct assignees. The target's `alg:da` now says what the model assumed. §5.2 |
+| M3 | The same, for `Primitives.ErasureCoding` | (b) | `Decode : List fragment → Option cipher` and `decode_sound` count list entries, v2's unindexed reading. At the target `Decode` takes indexed fragments with `f+1` distinct indices. A Lean statement change in an uninstantiated class; no VC moves. §5.2 |
+| M4 | Slot checks: `alg:da` rejects a chunk whose header slot `s' ≠ s`; the decrypted proposal must be "for this slot"; `TIBE.Dec` checks slot and label | (a) | One Chorus model is one slot's instance. §5.3 |
+| M5 | Per-slot dispatch: "every message and signed object of Chorus carries its slot … messages for other slots go to their own instances" (`p2_chorus`) | (d) | This is the glue's slot-indexed `sc_state s` ([Cadence.lean](../Cadence/Cadence.lean)). One sentence there. §5.3 |
+| M6 | The TIBE interface paragraph: the four `TIBE.*` operations, the label `ℓ = j`, the context, the simulator's programming of `H_pad` (`p2_chorus`, crypto preliminaries) | (a) | Hiding is not a Veil property; `Primitives.ThresholdIBE` stays an uninstantiated class. |
+| M7 | `alg:da`'s decryption guard counts shares "from at least `f+1` validators" | (a) | The model does not model decryption shares individually. |
+| M8 | `propose` is an input "given only to proposers" (`alg:proposer-dissemination`) | (a) | The model's `propose` requires `is_proposer j`. |
+| M9 | `mod:mvba` Agreement: `entries(B) = entries(B')` (paper commit `d598c5a`) | (c) | Together with S6: the class's `value` becomes the decided representation and Agreement is stated over its entries. §5.5 |
+| M10 | `p2_chorus`'s MVBA summary: "decide meta-blocks with the same entries" | (d) | Prose. |
+| M11 | `p1_informal`: the fast vote is cast "on its entries"; the DA sentence; the Conductor's parameters and the ACS citation; slot independence | (d) | Prose, already true of the models (`alg:fast-path-certification` signs `entries(B)` at v2 too). |
 
-Three of these deserve more than a table row.
+Count: (a) 6, (b) 1, (c) 1, (d) 3.
 
-**The `EquivCert` guard.** `alg:fallback` builds a per-proposer entry by an
-exclusive cascade — a held `FastQC`, else an `EquivCert` when two messages
-carry positive fallback signed entries with distinct roots
-(`line:fb-build-equiv`), else a `FallbackQC` (`line:fb-formqc`) — and
-`line:fb-build-entry` is commented "one of the three cases always applies,
-by counting". [FallbackReceipt.lean](../Cadence/FallbackReceipt.lean)'s `equiv_available` mirrors that middle
-guard, and the model's exclusivity invariants mirror the cascade. The
-supplement now admits witness chunks as the source of the two conflicting
-proposer-signed roots, which *reassigns* branches: in a state with two
-validated witness chunks but no two conflicting positive entries, the
-published algorithm falls through and may build a positive `FallbackQC`
-where the supplement builds an `EquivCert`. Both rules fire only on genuine
-equivocation — each requires the proposer's own signatures on distinct
-roots — so agreement and honest-proposer inclusion are unaffected, and only
-a Byzantine proposer's fate differs. But the paper's counting comment and
-this repository's totality result are stated over the published guards, and
-the supplement supplies its own replacement certifiability argument. This is
-the one divergence with no written reconciliation, and it sits beside the
-receipt rules of [ChorusDesign.md](ChorusDesign.md) §7.2, the step where
-the paper's v1 had its liveness bug.
+## 4. Review: the supplement, `eb1bb51` → `48cac9a`, and the MVBA section in full
 
-**Chunk re-dissemination.** [Chorus.lean](../Cadence/Chorus.lean) justifies (F-justice) on
-`redisseminate_chunk` by the re-encode-and-send being performed by honest
-parties at `line:fb-redisseminate` and `line:fb-commit-wait`. The
-implementation drops the first. The second survives, chunks are
-disseminated unconditionally, and the supplement's new `Δ_sync` argues
-availability from the `f+1` signers of a positive `FallbackQC` — the same
-chain the model's `redisseminate_chunk` encodes. So the assumption holds,
-but its implementation-side discharge now routes through ChunkSync, which
-the supplement flags as required for liveness and has not yet specified.
+Two Overleaf commits (`d40bb61`, `48cac9a`) change the supplement. Three
+further commits in the range touch only `STYLE.md` and the pre-commit
+hook. `src/supplementary-internal/alg_mvba.tex` is byte-identical. In the MVBA
+section, the changes are three edits to its prose and the removal of the
+explicit `\qed`s. The Conductor sections change more.
 
-**The ACS median.** [Windows.lean](../Cadence/Windows.lean)'s median
-lemma is abstract over a total order, so it transfers to deadlines
-unchanged; what does not transfer is the reading, since `win_first` is the
-ACS-decided slot-number median and `prop:acs-nonoverlap` is stated over
-slot numbers.
+| # | Change (anchor) | Class | Why, or what |
+|---|---|---|---|
+| S1 | `CE.verify`: a `FastQC` verifies over `⟨vote, E⟩`, a `FallbackQC` over `⟨fb, E⟩` (was: both over "the tagged entry `⟨s, j, ρ⟩`") (`subsec:mvba-datatypes`) | (a) | The model's `Valid` reads a vote quorum and a fallback quorum through separate relations. The edit corrects the text to what `alg:fallback` signs. |
+| S2 | `EquivCert`'s leading `equiv` is "a structure discriminator, not a signature tag" | (d) | |
+| S3 | `propose(B_i)` requires a valid meta-block, established by "the composing Chorus fallback transition" (`subsec:mvba-protocol`) | (d) | Already the contract's rely form: `Valid` inputs are an antecedent of `MVBATemporal.termination`. The cross-reference to Part II is a paper finding (§6, P8). |
+| S4 | The retransmission interval `ρ` is renamed `ρ_mvba` | (d) | `Mvba.Schedule`'s field keeps its name; prose says which `ρ`. |
+| S5 | Explicit `\qed`s removed | (d) | Editorial. |
+| S6 | (in full) The MVBA's value is a meta-block *with its certificates*; `decide(x, CommitQC)` outputs one representation `x`; Agreement and Integrity are over `entries` ("Agreement and Integrity over entries") | (b) | The model's value is the bare entry vector, so a validator's decision carries no certificate kinds. The value becomes the representation (entries plus each entry's certificate kind). §5.5 |
+| S7 | (in full) The `Commit` availability condition `AvailReady_i(x)`: before its `Commit`, a validator waits for its share under every positive entry *of `x` certified by a `FallbackQC`*, and broadcasts it | (b) | The model's `avail_ready i e` is indexed by the entry vector. With S6 it is indexed by the representation. Safety is unaffected, because the relation is an environment relation. The liveness premise (F-avail) is restated over the representation. §5.5 |
+| S8 | (in full) "Decision output and handoff": Chorus broadcasts the decided `CommitQC`; a correct validator that receives a valid one re-broadcasts it and **finalizes**; the MVBA's `Commit` round "also serves as the fallback commitment-certification round" | (b) + (c) | A second finalization route in Chorus, and the contract fields it needs. §5.7 |
+| S9 | (in full) Everything else in `sec:mvba-instantiation`: views, leader schedule, the lock, timeout certificates, `SyncView`, retention, the execution model, crash recovery, `Recover`, `Δ_R`, `Δ_sync` | (a) | Unchanged since `eb1bb51`. The model's coverage of each is recorded in the [Mvba.lean](../Cadence/Mvba.lean) header and in [MvbaPlan.md](MvbaPlan.md) §11. |
+| S10 | The practical Conductor (Part I): the window-admission lemma moved; the agreed-first-deadline argument rewritten; `eq:predecessor-deadline` folded into `eq:slot-deadline`; `offset(s)` defined; `2 ≤ p ≤ W−1` in the relation lemmas; the `H_ω` slack explained; `eq:ticket-freshness`; `ass:` → `assum:recovery-data-availability`; `lem:certified-prefix` unlabelled | (a) | Outside the verified surface: the Conductor model follows `algorithm:conductor`, which did not change. None of these labels is cited. §5.8, §9 |
+| S11 | The set-agreement ACS as an MVBA instance: "the decided value is the candidate set `S`; `entries(S)` is the canonical ordered list …" | (a) | The Conductor consumes `ACSSafety` abstractly. §5.8 |
+| S12 | The fast-path proposition of the Conductor's relation section: "This branch must close on the fast path" | (d) | |
+| S13 | (in full, Part II) `sec:fallback-transition`: entries evaluated continuously over all votes; `EquivCert` from two witness chunks; no re-encode-and-send | (d) | An implementation variant. The model follows `alg:fallback`. §5.9, and §6 P3 |
+| S14 | (in full, Part II) "Don't implement the post-MVBA commit round" | (d) | Implementation guidance. After S8 the model has both routes, so implementation runs are among its runs for safety. §5.7 |
+| S15 | (in full, Part II) `sec:domain-separation` | (d) | Cited at M1. |
 
-## 4. The MVBA: a contract here, an algorithm there
+Count: (a) 4, (b) 3 (one of them also (c)), (c) 1, (d) 8.
 
-`mod:mvba` in the published paper is an interface — `propose`, `abandon`,
-`decide` — plus five properties (Agreement, Integrity, External validity,
-`ℓ_MVBA`-Termination, Quiescence). It specifies no algorithm. Chorus therefore
-consumes the class `MVBASafety`, instantiated at the supplement's
-leader-based model (`Mvba.mvbaSafety`, plugged in by [Cadence/System.lean](../Cadence/System.lean)),
-whose own termination theorem Chorus's termination consumes
-(`Chorus.termination`, [Architecture.md](Architecture.md) §4 item 2), and its latency `ℓ_MVBA`
-is the one paper bound this development proves
-([Bounds.md](Bounds.md) §6.2).
+**Over both tables:** (a) 10, (b) 4, (c) 2, (d) 11. The (b) and (c)
+items, which the plan in §8 carries out:
 
-The supplement is where that algorithm comes from. `sec:mvba-instantiation`
-gives a concrete leader-based protocol across `alg:mvba`, `alg:mvba-cont`,
-`alg:mvba-cont2` and `alg:mvba-cont3` (four blocks since `eb1bb51`): views with a leader, Pre-Prepare/Prepare/Commit with
-`PrepQC` and `CommitQC`, timeout certificates, view synchronisation
-adopting the highest `PrepQC` as a lock, and persist-before-send with
-atomic reload. `subsec:mvba-correctness` discharges the module's properties
-with roughly fifteen lemmas, `thm:agreement` and `thm:termination`, the
-latter at `O(fΔ)`.
+* **(b) M3.** `Primitives.ErasureCoding` decodes from indexed fragments.
+* **(b) S6, with F13.** The MVBA's value is the representation: an entry
+  vector together with each positive entry's certificate kind. Chorus's
+  decision handlers record the validator's own representation, and
+  `cast_fb_commit` waits exactly under the `FallbackQC` entries of its own
+  `B′`.
+* **(b) S7.** `AvailReady` is indexed by the representation.
+* **(b) S8.** Chorus finalizes on a valid MVBA `CommitQC`, as well as on
+  the `fbCommitQC`.
+* **(c) M9/S6.** `MVBASafety` gains an `entries` projection. Agreement and
+  Integrity are stated over it, in the supplement's forms.
+* **(c) S8.** `MVBASafety` gains the certificate-level facts the second
+  route needs: a certified value agrees with every correct decision, is
+  `Valid`, and comes with the availability its correct `Commit` signers
+  established.
 
-Six consequences for this repository:
+## 5. The items in detail
 
-1. `ℓ_MVBA` has a concrete value, `O(fΔ)`, and a machine-checked
-   counterpart: `Mvba.bounded_termination`
-   ([Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)),
-   a plain-Lean theorem over timed runs of the untimed model, and through it
-   the `MVBATemporal` instance `Mvba.mvbaTemporal`
-   ([Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)).
-2. The open item of instantiating the primitive classes end-to-end
-   ([ChorusDesign.md](ChorusDesign.md) §9) acquired a concrete target,
-   and it has been carried out: [Cadence/Mvba.lean](../Cadence/Mvba.lean)
-   is a Veil model of `alg:mvba` (views, timeouts, timeout certificates, the
-   lock), read against paper-repository commit `026dc8b`, re-read against
-   `eb1bb51` (§7; [MvbaPlan.md](MvbaPlan.md) §11) and pinned to that in
-   the model's header (four algorithm blocks since then), and [Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)
-   discharges `MVBASafety` (`Mvba.mvbaSafety`, every field) and, given the
-   timed level, the full `MVBA` (`Mvba.mvba_of_temporal`, supplied with
-   `Mvba.mvbaTemporal`); the class lives in
-   [Interfaces.lean](../Cadence/Interfaces.lean). This is the one model in
-   the development whose referent is the supplement rather than the published
-   paper; [MvbaPlan.md](MvbaPlan.md) §0 says what that does and does not
-   commit to. Chorus consumes the instance as a class constraint.
-3. **An agreement-level observation.** `mod:mvba` states Agreement as
-   metablock equality, and [Interfaces.lean](../Cadence/Interfaces.lean)'s `MVBASafety.agreement` mirrors
-   it as value equality. The supplement's `thm:agreement` proves the weaker
-   entries-level statement, and says so deliberately: agreement is over a
-   metablock's entries, the certificates being carried only so validity can
-   be checked. Chorus needs no more than that, and the Chorus model already
-   works at that level — its records are the per-proposer
-   `mvba_decided_pos`/`mvba_decided_neg`, filled by the decision handlers
-   through the entry-vector projections `mval_pos`/`mval_neg`, with
-   `mvba_decided_pos_unique` proven from the class's agreement. So
-   the right instantiation of the class's `value` is the entry vector, not
-   the metablock — which is what [Cadence/Mvba.lean](../Cadence/Mvba.lean) does (`value` is the
-   entry vector, `Recover(e)` the identity; [MvbaPlan.md](MvbaPlan.md)
-   §1.2). This is the one place where this development's abstraction
-   matches the supplement rather than the published contract, and it is the
-   sound direction: assuming the stronger contract while needing only the
-   weaker one. *(2026-09-29: resolved upstream. In the paper repository,
-   `mod:mvba` now states Agreement as `entries(B) = entries(B')`
-   (`d598c5a`, after v2), so at this instance the class's field is the
-   published sentence. See §7 and [MvbaPlan.md](MvbaPlan.md) §11.3, C1.)*
-4. **A liveness-level divergence, fixed** (2026-09-29, found while
-   building the non-vacuity witness, [Bounds.md](Bounds.md) §6.3.2). The
-   supplement stops a validator once it decides: both decision paths end
-   in `decide(…); abandon()` (the procedure `Decide` in `alg:mvba-cont3`,
-   reached from `line:mvba:qc-decide`, and the restart path), and the
-   timeout fires only when there is "no decision in view `v`"
-   (`line:mvba:timeout-send`), at `026dc8b` and at the current pin
-   `eb1bb51` alike. The model had neither, which left the timed
-   Termination theorem silent about the supplement's own runs. The model
-   now halts a decided validator (every honest send requires
-   `∀ E, ¬ decided i E`), kept apart from the caller's `abandon`.
-5. **A liveness-level divergence in the timing premise, fixed**
-   (2026-09-29, step 5b; [MvbaPlan.md](MvbaPlan.md) §11.3 C16). At
-   `eb1bb51` the supplement writes its network out: delivery within `Δ` of
-   messages sent at or after GST between correct validators,
-   retransmission of timeouts, `ViewTC_i` and a decided `CommitQC` every
-   `ρ`, and one-view retention (the termination setting;
-   `sec:reliable-delivery`). The timed premise held every network step to
-   `Δ` regardless of its messages' history, so it said nothing about
-   supplement runs that lose a message sent before GST, discard a
-   far-future one, move a decided certificate, or receive a Byzantine
-   leader's proposal selectively. The premise now states that network
-   clause by clause ([Bounds.md](Bounds.md) §6.2.4), the bound is re-proven
-   against it, and `Schedule.ℓ` gained the retransmission terms. The
-   supplement's `lem:good-view` constant is still `Lcert` at `δ = 0`, and
-   its burnt-view cost `2Δ + T` is still `Schedule.burn`. The one item
-   left open there, (N4), is closed in R3: a prepare certificate does not
-   travel, so a validator forms its own from the `Prepare`s it received
-   (`TryFormPrepQC`, `line:mvba:tfp-guard`, `line:mvba:tfp-store`), and the
-   model's `adopt_prepqc` now reads those prepares instead of a certificate
-   formed anywhere ([Bounds.md](Bounds.md) §6.2.4).
-6. **Three "not already" rules, mirrored** (2026-09-30, R4;
-   [Bounds.md](Bounds.md) §6.4.7). The model had formed commit and timeout
-   certificates only by anonymous assemblies, which no rule of the
-   supplement takes and which stay enabled after they have fired. Each
-   is now one correct validator's step with the supplement's local
-   condition. `TryFormCommitQC` forms a `CommitQC` from `2f+1` `Commit`s
-   of the current view "provided that it has not already learned a
-   decision certificate" (`DecidedQC_i = ⊥`), and `Decide` follows in the
-   same handler segment: the model's `form_own_commitqc`, guarded on
-   `∀ E, ¬ decided i E`, which is `DecidedQC_i = ⊥` here because both
-   decision paths set it. `HandleTimeout` forms `TC_{s,v}` "upon first
-   collecting `2f+1` valid timeout messages" for its current view
-   (`line:mvba:ht-advance`), with a local record of having formed it, and
-   processes it through `SyncView`: the model's `form_own_tc_lock` and
-   `form_own_tc_nolock`, with the record `tc_formed i v`, followed by
-   `sync_view`/`sync_view_adopt` as a second step. `TryFormPrepQC` has
-   been mirrored since R3 (`adopt_prepqc`, item 5). The anonymous
-   assemblies stay as the adversary's capability and carry no fairness,
-   so safety's adversary is unchanged and every fair action is now one
-   the supplement's validators take.
+### 5.1 Signature domain tags
 
-## 5. What this implies for the models
+At the target every signature of the main body is over a tagged message:
+`Prop` and `Root` for the proposer, `vote`, `fb`, `fallback`,
+`FallbackCommit`, `Commit` for the votes and certificates, and `Prepare`,
+`Commit`, `Timeout` and `Pre-Prepare` inside the MVBA.
+`sec:domain-separation` makes it a rule: "the bytes signed for each message
+type begin with a tag unique to that type". The models never had a way to
+confuse two types. Each signed object is its own network relation, and a
+guard reads the relation of the type it needs. The tags are the
+implementation's side of that modelling choice. **Class (a)**, with one
+documentation step: [ChorusDesign.md](ChorusDesign.md) §3.1's relation
+inventory is to cite `sec:domain-separation` for it (§8, R14; the item is
+also in [TODO.md](TODO.md)).
 
-Two model changes, both in §4: the MVBA now halts a validator after it
-decides, as the supplement does (item 4), and a validator forms its own
-prepare certificate from the prepares it received, since prepare
-certificates do not travel ((N4), R3). Otherwise nothing: the published
-algorithms are unchanged, and the divergences in §3 are between the
-paper's two documents.
+### 5.2 Positional fragments and Merkle hashing
 
-A third model change follows v2 more closely (R12, F12, [Bounds.md](Bounds.md)
-§6.4.2): the fallback commit vote now waits for the validator's own chunk
-only under FallbackQC entries of the decision, as `line:fb-commit-foreach`
-says, where it used to wait under every positive root. The model's decided
-vector is the entry vector without its certificates, so "held by a
-FallbackQC" reads as "no positive FastQC for it exists". The two differ
-only for a root that has both certificates while B′ carries the FallbackQC,
-where the model votes without waiting. That adds runs (F13).
+At v2, `alg:proposer-dissemination` already bound each chunk to its
+position (`MerkleRoot(H(1, d_1), …, H(n, d_n))`), but `alg:da` verified a
+chunk with `VerifyMerkle(ρ, d_r, π_r)` and decoded from an unindexed set of
+symbols. At the target `alg:da` checks the leaf at its index, stores
+`(r, d_r)`, and decodes from `f+1` distinct indices. The re-encode check
+of `line:da-reencode` compares positional leaf hashes.
 
-What is worth doing is documentary, and is tracked in
-[TODO.md](TODO.md): cite `sec:domain-separation` where the network
-relations assume message-type non-confusability; record ChunkSync and
-`Δ_sync` alongside the (F-justice) justification for `redisseminate_chunk`;
-and re-check the `EquivCert` guard once the paper side settles which of the
-two rules is intended.
+Chorus identifies a chunk by `(assignee, proposer, root)`, and its
+decode threshold `chunk_quorum` counts distinct assignees. So the model
+already had the positional reading, and the target's `alg:da` now states
+it. **Class (a)** for the models. `Primitives.MerkleTree` is already
+positional (`VerifyMerkle : root → Nat → leaf → proof → Bool`).
+`Primitives.ErasureCoding` is not. Its `decode_sound` holds for any list
+of `f+1` entries, duplicates included. **Class (b)** for that class: state
+`Decode` over indexed fragments with `f+1` distinct indices (§8, R14).
 
-## 6. Defects observed on the paper side
+### 5.3 Slot checks and per-slot dispatch
 
-Reported so they are not re-discovered; all in the supplement.
+The target adds two things. One is explicit slot checks: a chunk header for
+another slot is rejected in `alg:da`, and a decrypted proposal must be for
+this slot. The other is a dispatch convention in `p2_chorus`: a pattern
+matches only objects of this slot, and other slots' messages go to their
+own instances. One Chorus model is one slot's instance, so the checks are
+vacuous in it. **Class (a).** The glue holds one abstract slot-consensus
+state per slot (`sc_state s`) and drives each through its own contract
+instance, which is the dispatch convention. **Class (d):** the
+[Cadence.lean](../Cadence/Cadence.lean) model header cites the sentence.
 
-* Three `\mainref` citations truncated to bare `\mainref{mod}` and
-  `\mainref{prop}` (twice) by the 2026-09-03 sync, leaving the sentence
-  that names the MVBA contract ambiguous.
-* An internal contradiction: the equivocation-evidence subsection still
-  argues from `EquivCert`s being assembled *only* from two conflicting
-  positive fallback entries, which `sec:fallback-transition` now
-  supersedes. The stale sentence is the one that matches the published
-  algorithm.
-* `supplementary-internal-bkp.tex`, a stale snapshot committed alongside
-  the 2026-09-03 sync, duplicates labels and will confuse any grep-based
-  anchor audit — including the check in §1, which must exclude it.
-* (Recorded 2026-09-16, after this audit.) `subsec:mvba-protocol` allows
-  the view timeout to be set by *backoff* — "the timeout is eventually
-  increased beyond this value" — while `thm:termination` counts with a
-  fixed `O(Δ)` timeout to reach its `O(fΔ)` bound. The two are compatible
-  only if the backoff is capped: under uncapped backoff the view current
-  at GST, and with it the next timeout to be waited out, is unbounded
-  across runs, so no run-independent bound from `max(t, GST)` exists and
-  only eventual termination holds. The theorem is a fixed-timeout (or
-  capped-backoff) result and should say so. [Bounds.md](Bounds.md)
-  §6.2.3 has the argument; the model's schedule hypotheses (S-cap) and
-  (S-ramp) are its formal shape. *(Resolved at `eb1bb51`: the timeout is
-  now the fixed `T`. Only a mention in the `sec:timing-constants` stub is
-  left; see §7.4.)*
+### 5.4 Integrity over entries
 
-## 7. Re-check of 2026-09-29: the supplement at `eb1bb51`
+The supplement ("Agreement and Integrity over entries") states Integrity as
+"all decision outputs of a correct validator carry the same entry vector,
+and redelivery of a decision with that entry vector … is permitted", and
+says the main-body module "should be revised to these forms". `d598c5a`
+revised Agreement only. At the target `mod:mvba` still says "decides at most
+once" (§6, P1).
 
-*This is the audit trail of the review in [MvbaPlan.md](MvbaPlan.md) §11: what was compared, and the result of each comparison. The change list and the plan are in that section. This one records the evidence.*
+For the model: today `MVBASafety.integrity` is `decided p v → decided p v' →
+v = v'` over the entry vector, which is the supplement's form. Once `value`
+is the representation (§5.5), the same sentence would say "at most one
+representation". That is stronger than the supplement, which permits
+redelivery with a different representation after a restart. **Class (c):**
+Integrity is stated over `entries`, like Agreement. The instance keeps
+proving the strong form, since the model has no crashes and a decided
+validator halts.
 
-### 7.1 Revisions compared
+### 5.5 The meta-block, its certificates, and F13
 
-The paper repository's remote branch is `master`; it has no `main`. Its newest commit is **`eb1bb51`** (2026-09-28, "Update on Overleaf."). There is only one candidate, since the branch has a single head. That head is 29 commits past `b838e17` (2026-09-11), and `b838e17` descends from the pin `026dc8b` (2026-09-03).
+**What the target says.** A meta-block carries, for each proposer, an
+entry and a certificate: a `FastQC`, a `FallbackQC`, or an `EquivCert`. The
+MVBA votes and decides over `entries(B)`. Agreement is over entries in the
+main body (`mod:mvba`) and in the supplement. Two correct validators may
+therefore decide representations that differ in certificates. Concretely,
+a root `ρ` of proposer `j` can be `FastQC`-certified in one validator's
+`B′` and `FallbackQC`-certified in another's. Each validator then runs
+`alg:fallback`'s decision handler on **its own `B′`**:
+`line:fb-commit-foreach` waits for the assigned chunk "for each
+`FallbackQC` in `B′`". The MVBA's own `Commit` does the same over the
+accepted proposal `x_v` (`AvailReady_i(x)`). Both rules are well defined
+per validator.
 
-The repository was read without being changed. `git fetch origin` was run, then `git show <rev>:<path>` and `git diff <a> <b> -- <paths>`. Nothing was checked out and nothing was committed.
+**What the model does today.** The class's `value` is the bare entry
+vector, so a decision carries no certificate kinds. Since R12,
+`cast_fb_commit` reads "held by a `FallbackQC`" as "no positive `FastQC`
+exists for it". The two readings differ only for a root that has both
+certificates, while the validator's own `B′` carries the `FallbackQC`. The
+model does not wait there, and the paper's validator does. That is F13
+([Bounds.md](Bounds.md) §6.4.2).
 
-Six commits in the range touch `alg_mvba.tex`, `p2_mvba.tex` or `supplementary-internal.tex`: `dbe8ddb` (09-15), `e705b6e` (09-18), `e218a06` (09-20), `70887be` (09-21), `d598c5a` (09-21, the `mod:mvba` Agreement edit) and `eb1bb51` (09-28). Most are Overleaf syncs, and the supplement commits also carry Conductor changes, so the commit messages say little. The comparison below is therefore by content.
+**F13 is an artefact of the hybrid target.** Under v2, `mod:mvba`'s
+Agreement was `B = B′`, so every correct validator decided the same
+representation. A model of v2 would have carried the certificate kinds in
+the value, and its wait would have matched the paper's exactly. The residual
+arose because the value was taken at the supplement's entries level while
+the wait follows v2's certificate-dependent rule. At the target, both
+documents agree that only entries are agreed, so certificate kinds
+legitimately differ between validators, and the faithful model carries each
+validator's own representation. With that, F13 disappears:
+`cast_fb_commit` waits exactly under the `FallbackQC` entries of its own
+decided value, and the timed premise owes the vote as the paper does.
+**Classes (b) and (c)**, §8 R15. On the paper side there is a related
+finding. The main body's own proofs still argue from a common `B′`
+(§6, P2).
 
-### 7.2 What was compared, and the result
+### 5.6 F14
 
-| Compared | `026dc8b` → `b838e17` | `b838e17` → `eb1bb51` |
-|---|---|---|
-| `src/supplementary-internal/alg_mvba.tex` | byte-identical | rewritten (543 → 377 lines): a fourth block `alg:mvba-cont3`, `TryDecide` folded into `Decide`, `Pool` replaced by `Accepted_i`, three continuation guards, `ViewTC_i` retransmission, `SyncView` forwarding, a message-retention convention |
-| `supplementary-internal.tex`, from `sec:mvba-instantiation` to the end of `subsec:mvba-correctness` | byte-identical | rewritten. The protocol prose now has 15 named paragraphs, where it had 4. The correctness section has 5 new results: `rem:execution-model`, `lem:decision-propagation`, `lem:view-sync`, `lem:convergence` and `lem:good-view` |
-| Statements of every `lem:`/`thm:`/`cor:`/`rem:` in that section | — | unchanged up to whitespace, except for four: `rem:lock-monotonicity` gains one clause, and `lem:proposability`, `thm:termination` and `cor:mvba-recovery-termination` are restated |
-| The timeout sentence of `subsec:mvba-protocol` | — | "exceeds `Δ_R + 3Δ + max{Δ, Δ_sync}` … backoff … eventually increased" becomes "the fixed, known value `T := Δ_R + 4Δ + max{Δ, Δ_sync}`" |
-| `sec:reliable-delivery` | — | was a pointer to an external design note. It gains a "Future-view message retention" paragraph |
-| `src/p2_mvba.tex` (`mod:mvba`, main body) | byte-identical | Agreement changes from `B = B'` to `entries(B) = entries(B')` (`d598c5a`). Integrity, External validity, Termination and Quiescence are unchanged |
+`Owed (.redisseminate_chunk k i j m)` is `(CorrectChunkQuorum j m ∧ k has
+decided) ∨ msg_fb_pos_sig k j m` ([Bounds.md](Bounds.md) §6.4.2). The left
+disjunct owes chunks to other validators after a decision. At the target,
+a decided validator broadcasts only *its own* chunk, and only under
+`FallbackQC` entries of its `B′` (`line:fb-commit-wait`, unchanged). A
+correct MVBA `Commit` signer does the same under `AvailReady`. Neither
+re-encodes for others. So the disjunct is still stronger than the paper,
+and still used by no proof. **F14 stands as it is.** Dropping the disjunct
+weakens `FJustice` and `TimedJustice` and needs no Veil re-solve (§8,
+R14).
 
-**The method, so it can be re-run.**
+### 5.7 How the fallback path ends
 
-* Extract both revisions with `git show` into a scratch directory.
-* Cut the MVBA section at its `\section{Concrete MVBA Instantiation}` and `\subsection{The First ``Dummy'' View}` boundaries, then `cmp` and `diff` the cut sections.
-* Extract `\label{…}` sets from `alg_mvba.tex` and from the cut section, and compare them with `comm`.
-* Compare each result's statement text after collapsing whitespace. A short script does this: it takes the text from the label to the environment's `\end`.
+**What the target prescribes, with both documents read together:**
 
-Two cautions:
+* **The main body** (`alg:fallback`, unchanged since v2). On
+  `MVBA[s].decide(B′)` a validator waits for its chunks under `B′`'s
+  `FallbackQC` entries, casts a `FallbackCommitVote` over `entries(B′)`
+  (`line:fb-commitvote`), and finalizes on a valid `fbCommitQC`
+  (`line:fb-recv-commit`, `line:fb-finalize`). `mod:mvba`'s `decide` outputs
+  the meta-block alone. `prop:agreement-entries` and
+  `prop:chorus-finalization-time` argue over exactly two commitment proofs:
+  the fast `commitQC` and the `fbCommitQC`.
+* **Supplement Part I** ("Decision output and handoff"). `decide(x,
+  CommitQC)` also outputs the MVBA's commit certificate, and Chorus
+  broadcasts it. A correct validator that receives a valid one
+  re-broadcasts it and finalizes. The MVBA accepts a transferred certificate
+  of any view. "Thus the concrete MVBA's internal `Commit` round **also**
+  serves as the fallback commitment-certification round." The word "also"
+  adds a route and removes none. The MVBA's `Commit` carries the
+  availability wait the fallback commit vote has (`AvailReady`, "inherited
+  from Chorus's fallback-commit vote").
+* **Supplement Part II** ("Don't implement the post-MVBA commit round").
+  The implementation drops `FallbackCommitVote`/`fbCommitQC` and keeps the
+  `CommitQC` broadcast.
 
-* `alg_mvba.tex` carries commented-out drafts. At `b838e17` these include a second `\label{alg:mvba}` and a commented `lem:vote-uniqueness` in the section. A label diff over raw text that is not deduplicated therefore reports phantom removals: `alg:mvba` and `lem:vote-uniqueness` look removed, and neither is.
-* The same holds for `line:mvba:tfp-commit`, which sat in a LaTeX comment.
+So the target **specifies a protocol with two fallback finalization
+routes**: the main body's `fbCommitQC` route, and Part I's `CommitQC` route.
+The implementation runs only the second. The main body proves agreement and
+termination for the first route, but agreement of the second with the fast
+path and with the first is argued only in one sentence of Part I (§6, P2).
 
-**The anchor verdict.** No anchor the model cites was renamed. Only one was removed: `line:mvba:td-decide`. `line:mvba:hp-pool`, also removed, is not cited as a label. All seventeen correctness anchors of [MvbaPlan.md](MvbaPlan.md) §0 resolve at `eb1bb51`. The new anchors are listed in MvbaPlan §11.1.
+**What the model does today.** It has the main body's route, plus Part I's
+handoff of the certificate into the MVBA (`accept_mvba_commitqc`, R8). It
+does not finalize on the MVBA's certificate.
 
-### 7.3 Main-body drift, found alongside the review
+**What realignment does** (§8, R16). Chorus gains Part I's route: a correct
+validator holding a valid MVBA `CommitQC` for `e` finalizes `e`. Its
+re-broadcast is folded into the handoff, as the decision broadcast is
+today. The main body's route stays. The model then has every run of the
+specified protocol, and every run of the Part II implementation as far as
+safety goes, since that implementation is the specified protocol without
+the `fbCommitQC` route. Safety needs the route's agreement with the fast
+path and with the `fbCommitQC` route. These are the fast-path argument of
+`prop:agreement-entries` (no valid fallback meta-block exists once `f+1`
+correct validators cast a fast commit vote) and MVBA agreement. Both are
+available once the contract states that a certified value is agreed and
+`Valid` (§4, (c) S8). Data availability on the new route needs the
+contract to export `AvailReady`'s guarantee to Chorus. The guarantee is
+that each positive entry of a certified `e` is either `FastQC`-backed
+somewhere or was waited for by the `f+1` correct `Commit` signers. This is
+a second stated bridge, beside the certificate check at the decision
+handlers. Liveness keeps the main body's route and the paper's bound.
+Proving a bound through the `CommitQC` route as well is optional, and
+records how the implementation's latency compares.
 
-§1's claim is that the verified surface is byte-identical to arXiv v2. That claim was checked at `026dc8b`. At `eb1bb51` it no longer holds for the repository's head. Between `026dc8b` and `eb1bb51`, six of §1's eleven files changed: `src/alg_da.tex`, `src/alg_fallback.tex`, `src/alg_proposer.tex`, `src/p1_informal.tex`, `src/p2_chorus.tex` and `src/p2_mvba.tex`. That is 68 insertions and 38 deletions over 18 commits (2026-09-05 to 2026-09-21).
+### 5.8 Conductor and ACS
 
-For `p2_mvba` the change is the Agreement edit above. On a first reading, the rest consists of:
+The main body's Conductor (`algorithm:conductor`, `p2_conductor_proofs`) has
+no content change since v2. The models are unaffected: the
+[Conductor.lean](../Cadence/Conductor.lean) model, `Windows.lean`'s median
+lemma, and the `ACSSafety` contract. **No item.**
 
-* domain-separation tags on the proposer's two signatures (`Root`, `Prop`) and on `σ_p` in `line:fb-cast-entry`;
-* positional erasure-code fragments with Merkle proofs in `alg:da`;
-* the per-slot dispatch convention;
-* prose in `p1_informal` and `p2_chorus`.
+The supplement's Part I has a **practical Conductor** (`alg:conductor-practical`,
+with its own relation to the paper's proofs) and an ACS instantiated as an
+MVBA over candidate sets. Both are rewritten in places between `eb1bb51` and
+the target (S10, S11). Neither is modelled, so the target's practical
+Conductor is outside the verified surface. Its relation lemmas assume
+`2 ≤ p ≤ W−1` where the main body allows `p ∈ {0, …, W−1}` (§6, P9).
+The development verifies the main body's Conductor and not the practical
+one (§9).
 
-These look below the Chorus model's abstraction, but none of them was analysed here. They are Chorus-side and outside the MVBA upgrade. **The models still verify arXiv v2.** What changed is that the repository's head has moved ahead of v2, and a v3 would carry these changes.
+### 5.9 The `EquivCert` rule
 
-The re-check is §1's procedure, run against `eb1bb51` instead of v2. It is due before any claim is made about the repository head, and at the latest when a v3 appears. MvbaPlan §11.3 C19 lists two MVBA-section sentences that belong to the same Chorus-side reading.
+`alg:fallback` builds an `EquivCert` only from two positive fallback entries
+with distinct roots (`line:fb-build-equiv`). `line:fb-build-entry` comments
+"one of the three cases always applies, by counting".
+[FallbackReceipt.lean](../Cadence/FallbackReceipt.lean)'s `equiv_available`
+and the exclusivity invariants mirror that cascade.
 
-### 7.4 Paper-side observations at `eb1bb51`
+At the target, `sec:fallback-transition` (Part II) builds it from two
+validated witness chunks instead. Both rules fire only on a proposer's own
+signatures on distinct roots, so agreement and honest-proposer inclusion do
+not depend on the choice. The rule matters only for a Byzantine proposer's
+fate and for certifiability. Since Part II describes the implementation,
+**the main body's rule is the target's protocol**, and the models follow it.
+**Class (d).** The supplement still contradicts itself on the point: its
+equivocation-evidence subsection says `EquivCert`s "are assembled only when
+an MVBA input is built from two conflicting positive fallback entries"
+(§6, P3).
 
-These update §6.
+Two other Part II departures bear on fairness justifications. A signer of
+a positive fallback entry no longer re-encodes and sends each validator its
+chunk; ChunkSync pulls instead. Chunks are also disseminated
+unconditionally ("Disseminate assigned chunks unconditionally"). The model
+justifies (F-justice) on `redisseminate_chunk` by `line:fb-redisseminate`
+and `line:fb-commit-wait`, both main-body rules that hold at the target.
+**Class (d).**
 
-* **Resolved:**
-  * the three truncated `\mainref{mod}` and `\mainref{prop}` citations. None is left in `supplementary-internal.tex`.
-  * the capped-backoff finding (§6, last item). The timeout is now the fixed `T`, and `thm:termination`'s setting says so. What remains of the old text is the `sec:timing-constants` stub, which still lists "the MVBA view timeout and its backoff policy".
-* **Still present:**
-  * `supplementary-internal-bkp.tex` is still in the tree, so §1's exclusion rule still applies.
-  * The equivocation-evidence subsection still says that `EquivCert`s "are assembled only when an MVBA input is built from two conflicting positive fallback entries". That contradicts `sec:fallback-transition`, as before.
-* **New:** the supplement's paragraph "Agreement and Integrity over entries" says that the main-body `mod:mvba` "should be revised to these forms", meaning both Agreement and Integrity. `d598c5a` revised only Agreement. Integrity in the main body still reads "decides at most once", while the supplement permits redelivery of a decision with the same entry vector. The class this development uses is unaffected (MvbaPlan §11.3 C1). The paper, however, is internally inconsistent on this point until the Integrity line follows.
+## 6. Paper-side findings at the target
 
-## 8. Open readings of the published pseudocode
+For the paper's authors. Each item quotes the target `48cac9a` and names
+anchors. P1–P4 are inconsistencies between the main body and the supplement,
+or within one of them. P5–P6 are carried from earlier reviews and
+re-checked. P7–P10 are smaller.
 
-Places where the models take one reading of the paper's pseudocode that the
-paper does not state. Each is a question for the authors. The model's
-choice is recorded here until they answer.
+**P1. `mod:mvba` Integrity was not revised with Agreement.** The supplement
+("Agreement and Integrity over entries"): "*Integrity:* all decision outputs
+of a correct validator carry the same entry vector, and redelivery of a
+decision with that entry vector, for instance after a restart, is permitted
+… The abstract module in the main paper should be revised to these forms".
+`mod:mvba` (`src/p2_mvba.tex`): "*Integrity:* Every correct validator
+decides at most once." `d598c5a` revised Agreement only. The main body
+uses the at-most-once form in `prop:agreement-entries`: "A correct validator
+sends a single fallback commit vote — one per MVBA decision …, and the MVBA
+decides at most once by its integrity property". Under the supplement's
+Integrity, a redelivery could trigger a second fallback commit vote, so the
+argument should say that all of a correct validator's fallback commit votes
+carry the same entries. That is true under the revised Integrity, and it is
+what the argument uses.
 
-* **An `upon` handler runs once, when its condition first becomes true.**
-  The published Chorus rules `line:fast-formqc` (form the FastQC once
-  `2f+1` votes are collected) and `line:fast-collect-commit` (aggregate and
-  broadcast the commit certificate once `2f+1` commit votes are collected)
-  are `upon` handlers of an event-driven protocol, and neither says "first
-  time". Only the fast meta-block rule does. The paper states no
-  convention for `upon`. The conventional reading of an event-driven
-  handler is that it runs when its condition becomes true, not
-  continually. The model reads these rules that way since S1b
-  ([Bounds.md](Bounds.md) §6.4.7): `aggregate_fastqc_*` requires that the
-  validator does not hold the FastQC yet, and `broadcast_commitqc_*` that
-  the collector has not broadcast a certificate for the proposer yet
-  (`local_commitqc_sent`). The same reading covers the per-proposer steps
-  into which the model splits an atomic handler (the commit and fallback
-  entries, the chunk re-dissemination, the fallback commit vote and the
-  decision handler, "Fired-once records" in
-  [Chorus.lean](../Cadence/Chorus.lean)). There the paper's handler runs once
-  by its own text, and the records only make the model's decomposition
-  agree with it. The MVBA supplement is explicit
-  on the corresponding rules ("has not already formed …", "upon first
-  collecting …"), so the question concerns the published Chorus
-  pseudocode only.
+**P2. The main body's proofs argue from a common `B′` and from one fallback
+commitment proof.**
+* `prop:chorus-finalization-time`: "by the MVBA's agreement and external
+  validity, they all decide the same valid meta-block `B′`". Since
+  `d598c5a`, `mod:mvba`'s Agreement gives only `entries(B) = entries(B′)`.
+  The proof goes on to use one `B′` for all validators: "each holds its
+  assigned chunk for every positive `FallbackQC` of `B′`", and "for every
+  `FastQC` entry of `B′` …; for every positive `FallbackQC` entry, the `f+1`
+  correct commit voters' re-broadcast chunks arrive by `T`". When
+  representations differ, a root can be `FastQC`-backed for one validator
+  and `FallbackQC`-backed for another. The conclusion still holds: a
+  `FastQC` puts the chunks of `f+1` correct voters on the network, and
+  under a `FallbackQC` the waiting validators re-broadcast. But the proof as
+  written relies on the Agreement the module no longer states.
+* `prop:agreement-entries` enumerates two kinds of commitment proof, the
+  fast `commitQC` and the `fbCommitQC`. At the target, supplement Part I
+  adds a third: a valid MVBA `CommitQC`, on which a correct validator
+  finalizes ("Decision output and handoff"). Its agreement with the fast
+  path and with the `fbCommitQC` is argued only as "a fallback decision
+  agrees with a fast-path commitment whenever the two certify the same entry
+  vector" (`subsec:mvba-protocol`). That sentence is conditional, and it is
+  not the fast-path argument the main body gives for its second case.
+  Either the main body takes the route in (`mod:mvba`'s `decide` with a
+  certificate, a finalize rule in `alg:fallback`, a third case in
+  `prop:agreement-entries`), or Part I presents it as an implementation
+  variant, as Part II does. As written, the specified protocol has a
+  finalization route the paper's agreement proof does not cover. §5.7 has
+  the model side.
 
-## 9. The decision handoff: v2 against the supplement
+**P3. `EquivCert` construction, contradicted within the supplement.**
+`sec:fallback-transition` (item 2): "the two validated witness chunks
+themselves provide the conflicting proposer-signed roots required to
+construct an `EquivCert`; two conflicting positive fallback entries are not
+required." "Record equivocation evidence even without slashing": "the
+`EquivCert` rarely becomes public, since `EquivCert`s are assembled only when
+an MVBA input is built from two conflicting positive fallback entries". The
+second sentence matches the main body (`line:fb-build-equiv`), and the
+first replaces it. Unchanged since the 2026-09-03 review. Relatedly, the
+main body's "one of the three cases always applies, by counting"
+(`line:fb-build-entry`) is argued over the first `2f+1` fallback votes. The
+supplement's replacement argument ("Fallback-entry certifiability") needs
+entries evaluated continuously over all votes, and witness chunks. The two
+certifiability arguments are for two different rules.
 
-The supplement at `eb1bb51` ("Decision output and handoff",
-`lem:decision-propagation`, `line:mvba:qc-decide`) and v2 end the fallback
-path differently.
+**P4. Part I relies on a Part II argument.** `subsec:mvba-protocol`
+(Part I): "`propose(B_i)` requires `B_i` to be a valid meta-block for `s`;
+the composing Chorus fallback transition establishes that every correct
+validator eventually holds one (`sec:fallback-transition`)". The cited
+section is Part II's implementation variant (P3). For the main body's
+protocol, the precondition is established by `alg:fallback`'s counting
+argument (`line:fb-build-entry`) instead.
 
-* **v2** (`alg:fallback`): on `MVBA[s].decide(B')` each validator waits for
-  its chunks, casts a `FallbackCommitVote` over `entries(B')`
-  (`line:fb-commitvote`), and finalizes on a `fbCommitQC` of `2f+1` such
-  votes (`line:fb-formcommitqc`, `line:fb-recv-commit`). The MVBA's output is
-  the meta-block alone.
-* **The supplement**: `decide(x, CommitQC)` also outputs the MVBA's own
-  commit certificate. Chorus broadcasts it; a correct validator that
-  receives a valid one re-broadcasts it and finalizes; and the MVBA accepts
-  a transferred certificate of any view. So **the MVBA's internal Commit
-  round replaces v2's fallback commit round** as the commitment proof.
+**P5 (F4, carried). `lemma:chorus-termination` claims `5Δ + ℓ_MVBA` where its
+proof gives `4Δ + ℓ_MVBA`.** Re-checked at the target: the lemma is
+byte-identical to v2. It splits at `T₀ = max(t, GST) + 4Δ + ℓ_MVBA` and adds
+totality's `Δ` in the first case. The inner split of
+`prop:chorus-finalization-time` at `T₀ − Δ` already handles early
+finalizers, so a single split gives `M + 4Δ + ℓ_MVBA`. A commented-out
+draft next to the lemma states that bound. The model-side decision is S4's
+([Bounds.md](Bounds.md) §6.4.3). The claim is stated at the paper's `5Δ`,
+which follows by monotonicity, and the sharper bound is a named lemma.
 
-**The model keeps v2's round**, and takes from the supplement only the
-handoff of the certificate between MVBAs. Since R8 (2026-09-30,
-[Bounds.md](Bounds.md) §6.4.2) Chorus has the step
-`accept_mvba_commitqc`: a correct validator hands a transferred valid
-certificate to its own MVBA through the contract's input `accept`, and
-`MVBASafety` carries the strengthened interface (`certifies`,
-`decided_certified`, `accept`). What it does not do is finalize on that
-certificate. Three reasons:
+**P6 (carried). When does an `upon` handler run?** `alg:fast-path-certification`'s
+`line:fast-formqc` and `line:fast-collect-commit` are `upon` rules without
+"first time", and only the fast meta-block rule says "first time". Neither
+document states a convention for `upon`. Re-checked at the target:
+`alg_fast.tex` is byte-identical to v2. The supplement's execution-model
+paragraph covers MVBA handlers only. The model reads an `upon` handler as
+running once, when its condition becomes true ([Bounds.md](Bounds.md)
+§6.4.7; the "Fired-once records" of [Chorus.lean](../Cadence/Chorus.lean)).
+The MVBA's rules say so explicitly ("has not already formed …", "upon first
+collecting …"). A one-line convention in the main body would settle it.
 
-* **v2 is what this development verifies.** The Chorus model follows the
-  published algorithm, and its safety results (agreement through the
-  `fbCommitQC`/`commitQC` quorum intersection, totality, proposal inclusion)
-  are stated about v2's finalization rules. Finalizing on the MVBA's
-  certificate is a second route to `local_committed` whose agreement with
-  the first would have to be proven afresh from the MVBA contract.
-* **The handoff is what the MVBA's termination needs.** The supplement's
-  termination argument relies on the composing layer to deliver a decided
-  certificate to every undecided correct validator
-  (`lem:decision-propagation`). Until R8 the model assumed that delivery
-  inside the MVBA's timing premise (C15). With the handoff step it is
-  derived from Chorus's own rows (`Chorus.relayed_of_timedJustice`,
-  `Chorus.fRelay_of_fJustice`), and that is the whole of the change the
-  proof needed.
-* **Keeping the extra round is conservative.** The model's fallback path
-  takes one round more than the supplement's (the fallback commit votes and
-  their certificate after the decision). A bound proven for the model is
-  therefore an upper bound for the supplement's path too, and no safety
-  argument depends on the round being absent.
+**P7. `supplementary-internal-bkp.tex` is still in the tree.** It
+duplicates labels and misleads any grep-based anchor audit (§1).
 
-The model's re-broadcast is implicit, since a validator that has accepted a
-certificate has decided, and its decision output is its broadcast. The
-model's handoff broadcast is folded into the decision output, the
-supplement's "upon receiving this output, Chorus broadcasts" at its
-instantaneous local computation; [Bounds.md](Bounds.md) §6.4.2 says why a
-separate, participation-gated broadcast rule would not do.
+**P8. The `sec:timing-constants` stub still lists "the MVBA view timeout and
+its backoff policy"**, while `subsec:mvba-protocol` fixes the timeout at
+`T := Δ_R + 4Δ + max{Δ, Δ_sync}` and `thm:termination` counts with it.
+
+**P9. The practical Conductor's parameter range.** The relation lemmas of
+the practical Conductor ("Relation to the Cadence Proofs") use "Since
+`2 ≤ p ≤ W−1`" twice. The main body's Conductor has `p ∈ {0, …, W−1}`
+(`p2_conductor_proofs`, `algorithm:conductor`). The restriction is not
+stated as an assumption of the practical Conductor, so its relation to
+`algorithm:conductor` covers only `p ≥ 2`, and it does not say so.
+
+**P10. `alg:da`'s re-encode check and the proposer's encoding.** At the
+target both use positional leaf hashes. That makes v2's `alg:da`
+inconsistent with v2's `alg:proposer-dissemination`, an inconsistency the
+target fixes. It is recorded because v2 is the public version: a v3 would
+carry the fix.
+
+**No item of the target is unmodellable.** Every protocol rule of the main
+body and of Part I's MVBA can be modelled faithfully within the
+monotone-network contract, with one exception that predates this review:
+the MVBA's "enter the view of the highest retained timeout certificate"
+(C7 of [MvbaPlan.md](MvbaPlan.md) §11.3) needs a negative network read, and
+the model over-approximates it, which is sound for safety and unused by
+liveness.
+
+## 7. Implementation variants the models cover
+
+For reference, the Part II departures and how the models stand to them once
+the plan is done:
+
+* the post-MVBA commit round dropped: covered for safety, because the model
+  has both routes (§5.7);
+* the finalize wait moved outside consensus (recovery asynchronous): the
+  model's finalization is the commit, and `local_committed_pos_implies_decodable`
+  is the availability fact recovery rests on;
+* decryption shares travelling separately from votes: below the model,
+  which does not model shares individually;
+* the fallback transition under separate chunk dissemination (§5.9): not
+  covered, because the model follows the main body's rule;
+* MVBA entry postponed until the slot's ticket is held: not covered.
+  "Ticket" exists only in the supplement.
+
+## 8. The realignment plan
+
+Sessions in order. Each is one PR off `master`, and the next starts after
+the last one merges. "Cold" means the Veil family re-solves from scratch,
+because VC statements move. "Warm" means only kernel replay. One
+Interfaces.lean edit moves every Chorus VC, since class fields are
+hypotheses of every cell, so the plan makes exactly **one** contract edit,
+and puts the Chorus model changes in the same session.
+
+**R14 · Statements that need no Veil re-solve.**
+* `Primitives.ErasureCoding`: `Decode` over indexed fragments, with
+  `decode_sound` requiring `f+1` distinct indices (M3). The class is not
+  instantiated, so no theorem moves.
+* F14: drop the decided disjunct from `Chorus.Owed`'s re-dissemination
+  row, re-check `Chorus.termination`, the timed milestones and the witness
+  (plain Lean).
+* The (d) items:
+  * the [Cadence.lean](../Cadence/Cadence.lean) header cites the per-slot
+    dispatch sentence (M5);
+  * ChorusDesign §3.1 cites `sec:domain-separation` (M1, S15);
+  * the positional-fragment remark (M2);
+  * the `ρ_mvba` naming in the MVBA schedule prose (S4).
+* Families: none cold. Chorus, Mvba and FallbackReceipt replay warm, and
+  the pins stay unchanged.
+* F13, F14, S4: F14 closed; F13 and S4 untouched.
+
+**R15 · The meta-block representation, and the contract.** The one
+Interfaces.lean edit, together with every model change it needs.
+* **Contract (c).** `MVBASafety` gains an `entries` projection from
+  `value`. Agreement and Integrity are stated over it, in the supplement's
+  words (M9, S6, §5.4). It also gains the certificate-level fields of
+  §5.7: a certified value's entries equal every correct decision's, a
+  certified value is `Valid`, and the availability bridge. The
+  `veil_smt_ignore` discipline applies to any field the Chorus cells do not
+  need.
+* **Mvba (b).** The value carries each positive entry's certificate kind
+  (S6). `Prepare`/`Commit`/certificates stay over entries. A decision
+  outputs a representation with the certified entries (`Recover` as a
+  choice among valid representations). `avail_ready` is indexed by the
+  representation (S7).
+* **Chorus (b).** The decision handlers record the validator's own
+  representation, and `cast_fb_commit` waits exactly under its own `B′`'s
+  `FallbackQC` entries. This closes F13 with no residual (§5.5).
+  `mval_pos`/`mval_neg` read through `entries`.
+* **System.lean** re-instantiates at the new value type.
+* Families cold: **Mvba** (with `Mvba/NoLock.lean` re-run; its pinned
+  witness must survive or be re-pinned with the reason recorded) and
+  **Chorus**. FallbackReceipt, Cadence and Conductor stay warm.
+* Pins move, and the new counts are written down before the build:
+  `#veil_status Mvba` and `#veil_status Chorus`. FallbackReceipt stays at
+  220.
+* Re-established:
+  * `Mvba.mvbaSafety`, `Mvba.termination`, `Mvba.bounded_termination`,
+    `Mvba.mvbaTemporal` and the Mvba witness;
+  * `Chorus ⊨ SlotConsensusSafety`, `Chorus.termination`, the Chorus
+    timed milestones, Totality and the Chorus witness;
+  * System.lean's end theorems and every axiom pin in
+    [Cadence.lean](../Cadence.lean);
+  * the monitor decoders for the changed actions.
+* Size: probably two sessions on one branch, since the Mvba side and the
+  Chorus side can be proven in sequence before the PR.
+* F13: closed. F14: closed in R14. S4: re-based on the new model. Its
+  fallback commit round rows owe `cast_fb_commit` under its own `B′`, and
+  the F13 residual it excluded is gone.
+
+**R16 · The `CommitQC` finalization route (S8).**
+* Chorus gains Part I's route: a correct validator holding a valid MVBA
+  `CommitQC` finalizes its entries, with the re-broadcast folded into the
+  handoff.
+* New invariants: the route agrees with the fast path and the
+  `fbCommitQC` route, and has the DA property through the R15 bridge.
+* Families: **Chorus** cold (a model change). Mvba stays warm, because the
+  contract fields came in R15.
+* Pins: `#veil_status Chorus` moves.
+* Re-established: as R15 on the Chorus side.
+* Option: bundle R16 into R15's Chorus re-solve if R15's Chorus side fits
+  one session. The plan keeps them apart because R16's invariants are new
+  safety work, and R15's are a re-statement.
+* S4: unaffected (the paper's bound uses the main body's route).
+
+**R17 · Close the realignment.**
+* A full re-validation, and the four markers counted.
+* The [Cadence.lean](../Cadence.lean) header, the README paper section
+  and §0 here change from "in progress" to "corresponds to `48cac9a`".
+* Anchors re-checked by §1. Each model header's paper pin becomes
+  `48cac9a`, with [Mvba.lean](../Cadence/Mvba.lean) moving from `eb1bb51`.
+* Create and push the tag `paper-target/48cac9a`, with Lars's approval.
+
+**After the realignment: the Chorus bounds leg resumes** at the stage it
+stopped ([Bounds.md](Bounds.md) §6.4.6):
+
+* **S4: the MVBA tail and the assembly.** `T.termination` through the
+  projection, the fallback commit round (rows over the validator's own
+  `B′`), the case split, and the bound. **F4 is decided here** (P5).
+* **S5: the contract instances.** `SlotConsensusTemporal` at the new
+  fragment (Quiescence, `admissible_exists`, Termination as the unbounded
+  corollary), then `SlotConsensusWithTotality` and the `…_of_temporal` join
+  with its `rfl` lemma. After that: the [Cadence.lean](../Cadence.lean)
+  rows, and (A-sc-termination) moving from assumed to discharged.
+
+## 9. Scope and access
+
+* **Access to the target.** Auditors are assumed to have, or to be able to
+  obtain, the paper sources at `48cac9a`, the internal supplement included.
+  All of it is to be made public. The supplement's MVBA is a standard,
+  well-understood leader-based BFT primitive, so nothing sensitive is
+  involved.
+* **The Conductor.** The development verifies the main body's
+  `algorithm:conductor`. The supplement's practical Conductor
+  (`alg:conductor-practical`, §5.8) is outside the verified surface. It has
+  not been reviewed for this development, and it is still changing: its
+  algorithm file changed between `eb1bb51` and `48cac9a`, and P9 applies to
+  it. Once it stabilises, a check of its compatibility with the main-body
+  Conductor at the interface level, the `OrchestratorSafety` contract, is
+  on [TODO.md](TODO.md). If the two are compatible there, the simpler
+  main-body Conductor stays the verified one.

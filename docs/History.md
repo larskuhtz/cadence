@@ -601,3 +601,68 @@ are kept here instead.
   `/-- … -/` before a Veil `safety`, `invariant` or `action` failed to parse,
   so every model declaration was explained in a plain `/- … -/` comment. This
   pass converted them to doc comments.
+
+## Paper alignment before the single target
+
+Until 2026-10-01 the development had **no single paper target**. Chorus,
+the Conductor, the glue and the receipt layer were built against arXiv
+`2607.02275v2`. The MVBA was built against the paper repository's internal
+supplement, first at `026dc8b` and then at `eb1bb51`. The MVBA contract
+took the post-v2 Agreement over entries (paper commit `d598c5a`). The
+commit up to which this held is tagged **`paper-target/arxiv-v2`**, and
+`docs/PaperAlignment.md` at that tag holds the full record summarised
+here. Session R13 froze the single target `48cac9a` (main body plus
+supplement) and re-ran the review against it
+([PaperAlignment.md](PaperAlignment.md)).
+
+**The revisions involved.** The paper repository has no release tags. The
+mapping below was established by comparing every `.tex` file of each arXiv
+e-print with the repository:
+
+| arXiv | date | paper-repo commit | role here |
+|---|---|---|---|
+| v1 | 2026-07-02 | `89322be` | the receipt rules with the liveness bug; refuted by the model checker (tag `v1-receipt-refutation`) |
+| v2 | 2026-07-07 | `3efdbfe` | the target of Chorus, the Conductor, the glue and the receipt layer until R13 |
+| — | 2026-09-03 | `026dc8b` | the supplement's MVBA as first modelled |
+| — | 2026-09-28 | `eb1bb51` | the supplement at the MVBA's pin until R13 |
+| — | 2026-10-02 | `48cac9a` | the single target from R13 on |
+
+Citations were resolved against the public e-print: `curl -sL
+https://arxiv.org/e-print/2607.02275v2 | tar -xz`, a flat layout
+(`alg_da.tex` where the repository has `src/alg_da.tex`). From R13 on,
+anchors are resolved in the paper repository at the target commit.
+
+**The 2026-09-03 audit** found the verified surface (the algorithm floats,
+Part 2 and one Part 1 anchor) byte-identical to v2 at `026dc8b`, apart from
+`\input` path prefixes. It also recorded seven divergences between the
+supplement's implementation notes and the published algorithms. In every
+case the models followed the published algorithm. The seven: the
+witness-chunk `EquivCert`; a revised practical Conductor; the MVBA's
+availability precondition and `Δ_sync`; ChunkSync replacing the signer's
+re-encode-and-send; the finalize wait moved outside consensus; domain
+separation; MVBA entry gated on the slot's ticket. Paper-side defects
+recorded then: three truncated `\mainref` citations (resolved by
+`eb1bb51`), the supplement's internal `EquivCert` contradiction (still
+present at `48cac9a`, finding P3), the stale
+`supplementary-internal-bkp.tex` (still present), and the capped-backoff
+issue in the MVBA timeout (resolved at `eb1bb51` by the fixed `T`).
+
+**The 2026-09-29 re-check against `eb1bb51`** ([MvbaPlan.md](MvbaPlan.md)
+§11 has the change list) moved the MVBA's pin, left its safety untouched,
+and led to the timed premise stating the supplement's network (C16). It
+also found that six of the eleven verified-surface files had moved since v2
+(68 insertions, 38 deletions over 18 commits). These were the domain tags,
+positional fragments, the per-slot dispatch, `mod:mvba`'s Agreement, and
+prose. That drift left the development without one target, which R13
+resolved.
+
+**The decision handoff.** Until R13 the model kept v2's fallback commit
+round. Of the supplement's ending it took only the handoff of the MVBA's
+certificate (`accept_mvba_commitqc`, R8), on the grounds that v2 was the
+verified paper. At the target the supplement's route is part of the
+specified protocol ([PaperAlignment.md](PaperAlignment.md) §5.7).
+
+**The README's paper section before R13** named v2 as what the
+development verifies, kept the revision table above, and explained the v1
+receipt bug in a paragraph. That bug was found by a parallel verification
+effort, reproduced here, and fixed in v2.
