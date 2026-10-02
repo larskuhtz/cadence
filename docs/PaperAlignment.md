@@ -650,7 +650,8 @@ build is [History.md](History.md)'s R14 row).
   pin and run the citation check.
 
 **R15 · The meta-block representation, and the contract.** The one
-Interfaces.lean edit, together with every model change it needs.
+Interfaces.lean edit, together with every model change it needs. The
+design is §8.1.
 * **Contract (c).** `MVBASafety` gains an `entries` projection from
   `value`. Agreement and Integrity are stated over it, in the supplement's
   words (M9, S6, §5.4). It also gains the certificate-level fields of
@@ -726,6 +727,279 @@ stopped ([Bounds.md](Bounds.md) §6.4.6):
   corollary), then `SlotConsensusWithTotality` and the `…_of_temporal` join
   with its `rfl` lemma. After that: the [Cadence.lean](../Cadence.lean)
   rows, and (A-sc-termination) moving from assumed to discharged.
+
+### 8.1 R15: the design
+
+Written before any model edit. [spikes/13_metablock_consumer_ok.lean](../spikes/13_metablock_consumer_ok.lean)
+checks the two Veil mechanisms the design rests on: a class field
+`entries : value → entryvec` read inside a consumer's guards and invariants,
+and a class that takes the system's quorum family as a parameter. It
+reconstructs every cell, and the withheld field is reported as withheld.
+
+**(a) The value.** The MVBA's value is the target's meta-block
+representation: an entry vector together with the certificate kind of each
+positive entry. The MVBA "votes and decides over `entries(B)`"
+(Supplement, Section 1.1 (`subsec:mvba-datatypes`)), and two valid
+meta-blocks "may carry different certificates for the same verdicts"
+(Supplement, Section 1.2 (`subsec:mvba-protocol`), "Agreement and Integrity
+over entries"). At the system's instantiation
+([Interfaces.lean](../Cadence/Interfaces.lean), beside the MVBA classes):
+
+```lean
+inductive CertKind | fastQC | fallbackQC
+abbrev MetaBlock (node merkle_root : Type) := node → Option (merkle_root × CertKind)
+def MetaBlock.entries (b : MetaBlock node merkle_root) : node → Option merkle_root :=
+  fun j => (b j).map Prod.fst
+```
+
+`MetaBlock.entries` is `entries(B)`. The representation leaves out what no
+rule of either document reads: the certificate kinds of negative entries,
+and the `FBCert`. `AvailReady` (Supplement, Algorithm 1, line 90
+(`line:mvba:commit-send`)) and the fallback commit wait (Algorithm 5,
+line 38 (`line:fb-commit-foreach`)) read only the positive `FallbackQC`
+entries. Whether the left-out certificates verify is part of `Valid`, which
+stays a predicate on the representation.
+
+**(b) The contract.** One edit of `MVBASafety`. Unchanged fields are elided.
+
+```lean
+class MVBASafety (party value entryvec message state pset : Type)
+    (B : ByzNodeSet party pset) (byz : party → Prop)
+    extends TransitionSystemSafety state where
+  Valid : value → Prop
+  entries : value → entryvec
+  …
+  agreement : ∀ st, reachable st → ∀ p q v v',
+    ¬ byz p → ¬ byz q → decided st p v → decided st q v' → entries v = entries v'
+  integrity : ∀ st, reachable st → ∀ p v v',
+    ¬ byz p → decided st p v → decided st p v' → entries v = entries v'
+  external_validity : ∀ st, reachable st → ∀ p v, ¬ byz p → decided st p v → Valid v
+  availReady : state → party → value → Prop
+  certifies : state → message → entryvec → Prop
+  decided_certified : ∀ st, reachable st → ∀ p v, ¬ byz p → decided st p v →
+    ∃ c, certifies st c (entries v)
+  accept : state → party → message → state → Prop
+  accept_trans : ∀ st p c st', accept st p c st' → trans st st'
+  accept_effect : ∀ st p c st' e, accept st p c st' → certifies st c e →
+    ∃ v, entries v = e ∧ decided st' p v
+  accept_enabled : ∀ st p c e, reachable st → ¬ byz p → certifies st c e →
+    (∃ v', proposed st p v') → ¬ abandoned st p → (∀ v', ¬ decided st p v') →
+    ∃ st', accept st p c st'
+  certified_unique : ∀ st, reachable st → ∀ c c' e e',
+    certifies st c e → certifies st c' e' → e = e'
+  certified_decided : ∀ st, reachable st → ∀ c e p v,
+    certifies st c e → ¬ byz p → decided st p v → entries v = e
+  certified_valid : ∀ st, reachable st → ∀ c e,
+    certifies st c e → ∃ v, entries v = e ∧ Valid v
+  certified_available : ∀ st, reachable st → ∀ c e, certifies st c e →
+    ∃ q, B.supermajority q ∧ ∀ p, B.member p q = true → ¬ byz p →
+      ∃ v, entries v = e ∧ Valid v ∧ availReady st p v
+```
+
+* **Agreement and Integrity** are the supplement's sentences: "if correct
+  validators decide `x` and `x′`, then `entries(x) = entries(x′)`", and
+  "all decision outputs of a correct validator carry the same entry
+  vector". Redelivery with the same entry vector is permitted, which is why
+  Integrity is not "at most one representation" (§5.4).
+* **The commit certificate is over entries.** It is "an aggregate of
+  `2f+1` Commit signatures over `entries(x)`" (Supplement, Section 1.2
+  (`subsec:mvba-protocol`), "Decision output and handoff"). So `certifies`
+  takes an entry vector, a decision exposes a certificate for its entries,
+  and accepting a certificate decides *some* representation with those
+  entries. That representation is `Recover(e)` (Supplement, Algorithm 1,
+  line 79 (`line:mvba:decide-guard`)).
+* **The certificate-level fields of §5.7.** A certified entry vector is the
+  only one: `certified_unique` against another certificate and
+  `certified_decided` against every correct decision. Both are needed: a
+  certificate can exist before any correct validator decides, because the
+  adversary can aggregate it. A certified entry vector has a valid
+  representation (`certified_valid`). The **availability field**
+  (`certified_available`): a certificate's `2f+1` signers include, among
+  their correct members, only validators that were `AvailReady` for a valid
+  representation of the certified entries. That is the supplement's "the
+  MVBA ensures that each correct Commit signer holds and broadcasts its
+  assigned share before sending its vote" (Supplement, Section 1.2
+  (`subsec:mvba-protocol`), "Commit availability condition").
+  `availReady` is the observable `AvailReady_p(v)`, indexed by the
+  representation (S7).
+* **All first-order.** The availability field needs a quorum, so the class
+  takes the system's quorum family `B` as a parameter, as
+  `Cadence.ByzNodeSetCounting` does. Chorus passes its own `nset`, and
+  `Mvba.mvbaSafety` passes the model's. `byz` stays the class's notion of
+  correct; `B` is used only for counting.
+* **`veil_smt_ignore`:** `decided_certified`, `accept_effect` and
+  `accept_enabled`, as now, and the four `certified_*` fields. No Chorus
+  cell in R15 reads a certificate (`accept_mvba_commitqc` needs only
+  `accept` and `accept_trans`). Every field that reaches the solver is a
+  hypothesis of every one of Chorus's cells, and three of the four have an
+  `∃` in their conclusion. Withheld fields stay declared axioms of the
+  class, proven by `Mvba.mvbaSafety`. R16 lifts the attribute on exactly
+  the fields its new cells use. That changes no statement, and R16 re-solves
+  Chorus cold anyway.
+* **Nothing is weakened.** `external_validity`, the inputs, the frames and
+  Quiescence keep their statements. Agreement is the module's
+  (Module 3 (`mod:mvba`)), Integrity is the supplement's (§5.4, P1), and
+  every certificate field is new. `MVBATemporal` and `MVBA` take the new
+  parameters and keep their fields, so Termination still says every correct
+  party decides *some* representation.
+
+**(c) The MVBA model.** [Mvba.lean](../Cadence/Mvba.lean) gets two sorts:
+`value`, the representation, and `evec`, the entry vector. They are joined
+by `immutable function ent : value → evec`, which the instance exports as
+`entries`. Every relation of the supplement that carries a meta-block
+carries the representation: `input`, `msg_preprepare` (the `Pre-Prepare`
+carries `x` and signs `H(entries(x))`), `accepted` (`x_v`), `decided`,
+`avail_ready` and `valid`. Every signed vote and every certificate carries
+the entry vector: `msg_prepare`, `msg_commit`, `msg_timeout_qc`,
+`msg_prepqc`, `msg_commitqc`, `tc_lock` and `local_prepqc`. This is exactly
+the split of Supplement, Algorithm 1 (`alg:mvba`–`alg:mvba-cont3`).
+
+* `handle_preprepare*` accept a valid `x`, check the lock against
+  `ent x` (Supplement, Algorithm 1, line 17 (`line:mvba:pp-guard`):
+  "`entries(x) = lock(J)` whenever `lock(J) ≠ ⊥`"), and send the `Prepare`
+  on `ent x`. `adopt_prepqc (i v x q)` and `send_commit (i v x)` take the
+  accepted `x` and act on `ent x`. `send_commit` requires `avail_ready i x`,
+  the supplement's `AvailReady_i(x_v)`.
+* **`Recover` is a choice among valid representations.**
+  `leader_repropose (l pv v w x)` re-proposes any valid `x` with
+  `ent x` the lock. `form_own_commitqc (i v q x)` and `decide (i v x)`
+  decide any valid `x` whose entries the certificate certifies. The
+  supplement's `Decide` takes `x_v` when its entries match and `Recover(e)`
+  otherwise, and `Recover(e)` returns "a valid meta-block with entry vector
+  `e`" from any holder (Supplement, Section 1.2 (`subsec:mvba-protocol`),
+  "Crash-recovery contract"). The model's choice includes both, so the
+  model has every run of the supplement and some where a validator decides
+  a representation it fetched although it held one.
+* **How two correct validators decide different representations with the
+  same entries.** A Byzantine leader sends two valid representations with
+  one entry vector to different validators. Both pass the guard, both
+  validators prepare and commit the same entries, and each decides its own
+  `x_v`. The `Recover` choices in a re-proposal and in `decide` give
+  further runs of the same kind.
+* **Why every safety property survives.** The safety argument
+  (`prepqc_blocks_lower_commits`, `commitqc_agree`, Supplement, Theorem 1
+  (`thm:agreement`)) is about votes and certificates, and those are over
+  entry vectors exactly as before. Agreement over `ent` follows from
+  `decided_backed` (a decision's entries carry a commit certificate) and
+  `commitqc_agree`. Integrity is still by construction: one decision per
+  validator, so the model proves the stronger at-most-once. External
+  validity is now the decide guards' `valid x`. Every invariant keeps its
+  name and is restated over the split. Where a fact links a vote to the
+  meta-block behind it, the conclusion is existential. One example is
+  `honest_commit_accepted`: `msg_commit R V E → local_prepqc R V E ∧ ∃ X,
+  ent X = E ∧ accepted R V X ∧ avail_ready R X`, the lifted `TrySendCommit`
+  guard. That invariant is what `certified_available` is proven from.
+  Others are `prepqc_valid` and `commitqc_valid`: a certified entry vector
+  has a valid representation, which is `Recover`'s correctness ("any
+  correct signer of a valid prepare certificate on `e` is such a peer").
+* **NoLock.** [Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) is the same
+  model with the lock check removed, so it takes the same split. Its theory
+  sets `value = evec = Fin 2` and `ent = id`: one representation per entry
+  vector, since the mutation test is about the lock and not about
+  representations. The scenario is unchanged. The pinned message is
+  expected to change, because labels print the new parameter lists. It is
+  re-pinned with `(sequential := true)`, and the reason is recorded in the
+  file.
+* **The witness and liveness.** [Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)
+  instantiates `value = evec = Unit`. The liveness chain needs a `Recover`
+  output wherever a re-proposal or a decision fires: `prepqc_valid` and
+  `commitqc_valid` supply it. (Δ-avail) is indexed by the representation, as
+  the supplement's synchronization assumption is ("whenever a correct
+  validator holds a valid meta-block `x`"). `Mvba.termination`,
+  `Mvba.bounded_termination`, `Mvba.mvbaTemporal` and both witnesses are
+  re-proven on the new labels.
+
+**(d) Chorus.** [Chorus.lean](../Cadence/Chorus.lean) gets the sort
+`mentries` beside `mvalue`, and
+`instantiate mvba : MVBASafety node mvalue mentries mmsg mstate nodeset nset
+(fun i => nset.is_byz i = true)`.
+
+* `mval_pos (e : mentries) j m` and `mval_neg (e : mentries) j` project the
+  entry vector, and every read goes through the class:
+  `mval_pos (mvba.entries v) j m`. The new immutable relation
+  `mval_fb (v : mvalue) j` says entry `j` of the representation is
+  certified by a `FallbackQC`. The two assumptions are unchanged, now over
+  `mentries`, and System.lean proves them as before.
+* **The decision handlers read the validator's own representation.**
+  `on_mvba_decide_pos (i j m v)` requires `mvba.decided mvba_st i v` and
+  `mval_pos (mvba.entries v) j m`. Its bridge now checks the certificate the
+  representation names:
+  `(¬ mval_fb v j ∧ vote_quorum_pos j m) ∨ (mval_fb v j ∧ fb_quorum_pos j m ∧ fbcert)`.
+  This implies the old disjunction, so `mvba_decided_pos_backed` and every
+  invariant downstream keep their statements. The shared per-entry records
+  stay. They hold the agreed entries, and their uniqueness is still proven
+  from `agreement`, now over entries, through the tie invariants (spike 13
+  checks this shape).
+* **`cast_fb_commit (i v)` waits exactly under its own `B′`:**
+
+  | | the fallback commit wait |
+  |---|---|
+  | target | "upon `MVBA[s].decide(B′)`: for each `FallbackQC` in `B′` with a positive entry `⟨s, j, root⟩`: wait until `p_i` has received and validated its assigned chunk for `root`" (Algorithm 5, line 37 (`line:fb-mvba-decide`) to Algorithm 5, line 39 (`line:fb-commit-wait`)) |
+  | before (R12) | `∀ J M, is_proposer J → mvba_decided_pos J M → vote_quorum_pos J M ∨ msg_chunk_received i J M` |
+  | after | `require mvba.decided mvba_st i v` and `∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J → msg_chunk_received i J M` |
+
+  The `B′` is the validator's own decision, a parameter of the label, and
+  the wait runs over its `FallbackQC` entries and no others. F13 closes
+  with no residual: a root that is `FastQC`-certified elsewhere but
+  `FallbackQC`-certified in this `B′` is waited for, as in the paper.
+  `require mvba_complete`, the transport of the vector, stays as it is. The
+  vote's content is the entry vector, so `msg_fbcommit_sig` is unchanged.
+* **No new per-validator record.** The validator's own representation is
+  already a per-validator observable that the model reads positively,
+  `mvba.decided mvba_st i v`, which the handlers read too. A Chorus-side
+  copy would need its own tie invariant and would say nothing more.
+* `mvba_propose` checks `Valid B_i` per kind, the same way as the handlers,
+  for positive entries. `mvba_terminate` reads through `mvba.entries`.
+* **Reads and sizes.** Every new read is positive. `mvba.decided` is read in
+  positive position (oracle state, category (A) of
+  [ChorusDesign.md](ChorusDesign.md) §3.5), as are `msg_chunk_received` and
+  the network ghosts. `mval_*` are immutable. Parameters: `cast_fb_commit`
+  2, `on_mvba_decide_pos` 4, `on_mvba_decide_neg` 3, `mvba_propose` 3.
+* **P1 and P2 do not block.** P1: the contract states Integrity in the
+  supplement's form. The vote fires once and its content is the entry
+  vector, so a redelivered decision with another representation would cast
+  the same message. Nothing in the model relies on the main body's "decides
+  at most once". P2: the model never assumes a common `B′`. Termination is
+  re-proven per validator, which is the repair P2 describes.
+
+**(e) What the liveness vocabulary becomes.**
+
+* **`ValidBridge`** keeps its two directions over the representation, and
+  `Certified st x` names the certificate per kind. For a positive entry
+  `(j, m)` of `entries x`, a `FastQC`-kind entry has `vote_quorum_pos j m`
+  and a `FallbackQC`-kind entry has `fb_quorum_pos j m ∧ fbcert`. Negative
+  entries are unchanged. This is sharper than before, where either
+  certificate would do. It is still the cryptographic content of the seam:
+  a valid meta-block's certificates are genuine, and genuine certificates
+  make it valid.
+* **The handoff.** `accept_mvba_commitqc` is unchanged. `relayOwed` is
+  unchanged ("a correct validator has decided"). The MVBA's `Relayed`
+  premise reads the `decide` family, whose representation is the `Recover`
+  choice. `relayed_of_timedJustice` and `fRelay_of_fJustice` are re-proven.
+* **`Owed`:** the one row that changes is
+  `.cast_fb_commit i v => mvba.decided s.mvba_st i v` (was `∃ v`).
+* **The hop rows:** `cast_fb_commit` stays a δ-row with the same gate. Its
+  chunk is delivered by `redisseminate_chunk`'s own Δ-row from the correct
+  `FallbackQC` signer (`Owed` is `msg_fb_pos_sig k j m`, F14). So the
+  premise owes the vote δ after the wait is over, which is when the paper's
+  validator casts it. The run F13 excluded from the timed claim's premise
+  is now a run of the premise.
+
+**(f) The pins, written down before the build.** Cells are
+`(A + 1)(I + 1) + A·S`: invariant-type properties and one does-not-throw
+cell at every action and at the initializer, and each step property at
+every action.
+
+* `#veil_status Mvba`: `A = 28`, `I = 50`, `S = 1`, all unchanged. No action
+  or property is added or removed, and the availability fact rides on the
+  restated `honest_commit_accepted`. **`29 · 51 + 28 = 1507` → 1507.**
+* `#veil_status Chorus`: `A = 46`, `I = 101`, `S = 1`, all unchanged.
+  **`47 · 102 + 46 = 4840` → 4840.**
+* `#veil_status FallbackReceipt`: 220, warm.
+* Every Mvba and Chorus VC statement changes, so both families re-solve
+  cold although the counts stay. If the cold solve needs a helper
+  invariant, each one costs `A + 1` cells (29 on Mvba, 47 on Chorus). It is
+  recorded as a plan change with the new arithmetic.
 
 ## 9. Scope and access
 
