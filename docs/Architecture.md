@@ -217,8 +217,16 @@ quantitative obligation over explicit runs
   (`Chorus.termination`,
   [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)): the temporal argument on
   top of that content, from the named premises of §4 item 2, consuming
-  `Mvba.termination` for the MVBA arm. Untimed: the `5Δ + ℓ_MVBA` bound
-  of `SlotConsensusTemporal.termination` is not proven.
+  `Mvba.termination` for the MVBA arm. Untimed;
+* **Chorus's timed claims over timed runs**: `d_tot`-totality
+  (`Chorus.totality`, [Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean))
+  and ℓ-termination at the paper's `5Δ + ℓ_MVBA` (`Chorus.timed_termination`,
+  [Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)),
+  with the sharper `4Δ + ℓ_MVBA` from the same premises
+  (`Chorus.timed_termination_tight`), under the timing model of
+  [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean). The
+  contract field `SlotConsensusTemporal.termination` still has no instance
+  (S5).
 
 **Method 4 — documented meta-theory.** What is deliberately *not*
 inside Lean is stated as named assumptions and audited by hand (§4).
@@ -237,6 +245,8 @@ The paper's headline properties and their formal counterparts:
 | Hiding until the deadline (Lemma 7 (`lemma:chorus-hiding`)) | protocol half: `safety [hiding_until_deadline]`; crypto half axiomatised (`ThresholdIBE`, [Cadence/Primitives.lean](../Cadence/Primitives.lean)) | sweep + axiom |
 | Speculative-finality revertibility claim | `safety [speculative_agreement_pos]`, `[..._pos_neg]` (conditional on `no_equivocation` and `no_invalid_encoding`) | sweep |
 | Chorus termination (Lemma 11 (`lemma:chorus-termination`)), bound-erased: every correct validator finalizes the slot, at every `n = 3f+1` | `Chorus.termination` ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), from the premises `FJustice`, `MvbaAdmissible`, `ValidBridge` of [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) (§4 item 2); consumes `Mvba.termination`; untimed (no `5Δ + ℓ_MVBA` bound) | sweep + Lean over runs |
+| Chorus ℓ-termination, timed (Lemma 11 (`lemma:chorus-termination`)): every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA` (plus `9δ` local steps), at every `n = 3f+1`; and by `4Δ + ℓ_MVBA + 8δ` from the same premises (F4) | `Chorus.timed_termination`, `Chorus.timed_termination_tight` ([Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)), from the timing model of [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean), `ValidBridge` and the caller's four conditions; consumes the MVBA contract's `T.termination`; at the system's MVBA `Chorus.timed_termination_atMvba` | Lean over timed runs |
+| Chorus `d_tot`-totality (Proposition 4 (`prop:chorus-totality`)): `Δ + 2δ` after the first correct finalization, at a participation tolerance `d` in general | `Chorus.totality`, `Chorus.totality_paper` ([Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)) | Lean over timed runs |
 | "Fallback meta-block valid by construction" (Algorithm 5 (`alg:fallback`) build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
 | Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of Lemma 11 (`lemma:chorus-termination`)'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
 | Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of Lemma 11 (`lemma:chorus-termination`)'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
@@ -326,8 +336,9 @@ relations, and it takes a human to confirm each use is positive.
    by Chorus's handoff `accept_mvba_commitqc`; the availability shares
    arrive, (F-avail), by Chorus's availability report `mvba_avail_ready`
    and its re-dissemination, since R16). The timed (Δ-avail) is still
-   assumed inside `TimedMvbaAdmissible` until S4 derives it from the same
-   rows ([TODO.md](TODO.md) § Liveness). `MvbaAdmissible` and `ValidBridge`
+   assumed inside `TimedMvbaAdmissible`: deriving it from the same rows
+   needs a model fix first (F15, [Bounds.md](Bounds.md) §6.4.2;
+   [TODO.md](TODO.md) § Liveness). `MvbaAdmissible` and `ValidBridge`
    are what it leaves. The name survives in the prose of
    [Cadence/Chorus.lean](../Cadence/Chorus.lean),
    [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and
@@ -335,8 +346,8 @@ relations, and it takes a human to confirm each use is positive.
    finds; aligning those comments re-solves proof families, so it waits
    for the next edit there ([TODO.md](TODO.md) § Liveness). The premises
    can all hold at once: one model and one run meet every premise of
-   `Chorus.termination`, of the timed `TimedTerminationClaim` and of
-   `TotalityClaim` (`Chorus.termination_premises_satisfiable`,
+   `Chorus.termination`, of the timed `TimedTerminationClaim` (proven as
+   `Chorus.timed_termination`) and of `TotalityClaim` (`Chorus.termination_premises_satisfiable`,
    `Chorus.timedTermination_premises_satisfiable`,
    `Chorus.totality_premises_satisfiable`; the ledger is
    [Bounds.md](Bounds.md) §6.4.5). The
@@ -445,7 +456,9 @@ relations, and it takes a human to confirm each use is positive.
    `SlotConsensusTemporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean);
    the participation interface as contract fields, the clock, Termination,
    Quiescence — the model has the participation window as actions, state
-   and gates, and Termination is proven untimed as `Chorus.termination`).
+   and gates, and Termination is proven untimed as `Chorus.termination`;
+   the timed claims are proven as theorems, `Chorus.timed_termination` and
+   `Chorus.totality`, but not yet as the class's fields).
    The meta-axiom names
    ((A-orch-totality), (A-orch-boundedness), (A-orch-recovery),
    (A-sc-termination), (A-sc-totality), (A-acs-termination),
@@ -474,9 +487,10 @@ relations, and it takes a human to confirm each use is positive.
    One concrete model meets all of these premises together, and the
    untimed theorem's too (`Mvba.timedTermination_premises_satisfiable`,
    `Mvba.termination_premises_satisfiable`; [Bounds.md](Bounds.md) §6.3).
-   The models are untimed; the one latency bound proven,
-   `Mvba.bounded_termination`, is over timed runs, which carry the clock
-   beside the MVBA's untimed states.
+   The models are untimed; the latency bounds proven,
+   `Mvba.bounded_termination`, `Chorus.totality` and
+   `Chorus.timed_termination`, are over timed runs, which carry the clock
+   beside the models' untimed states.
 5. **Scope**: single slot for Chorus (slot independence is argued, not
    modelled), no epochs/proposer rotation, chunk indices and
    erasure-code arithmetic abstracted
@@ -549,6 +563,8 @@ table can be read off one file:
 | `Mvba.mvbaTemporal`, `Mvba.timed_termination`, `Mvba.admissible_exists`, `Mvba.mvbaFull` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) | same | ✓ |
 | `Mvba.timedTermination_premises_satisfiable`, `Mvba.termination_premises_satisfiable` ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)) | same | ✓ |
 | `Chorus.termination_premises_satisfiable`, `Chorus.timedTermination_premises_satisfiable`, `Chorus.totality_premises_satisfiable` ([Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean)) | same | ✓ |
+| `Chorus.totality`, `Chorus.totality_paper` ([Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)) | same | ✓ |
+| `Chorus.timed_termination`, `Chorus.timed_termination_atMvba`, `Chorus.timed_termination_tight`, `Chorus.timed_termination_tight_atMvba` ([Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)) | same | ✓ |
 | the `MvbaNoLock` refutation ([Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean)) | expected model-checker violation (trace) | ✓ |
 
 cvc5's `unsat` verdicts are trusted nowhere: every discharge runs with proof

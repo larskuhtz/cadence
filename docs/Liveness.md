@@ -166,7 +166,8 @@ each.
   meta-block, and on the re-dissemination its chunk wait needs
   (`Chorus.fAvail_of_fJustice`, since R16; until then (F-avail) was part of
   this premise). The timed (Δ-avail) is still assumed inside
-  `TimedMvbaAdmissible` until S4 derives it ([TODO.md](TODO.md) § Liveness). The second holds
+  `TimedMvbaAdmissible`: its derivation needs a model fix first (F15,
+  [Bounds.md](Bounds.md) §6.4.2; [TODO.md](TODO.md) § Liveness). The second holds
   on the branch of the proof that needs the MVBA: there no correct
   validator ever finalizes, so by `NoAbandonBeforeFinalizing` none
   abandons, and the MVBA's `abandon()` is invoked only by Chorus's
@@ -1252,11 +1253,15 @@ internal steps, and the family's instance discharges it at every use.
   quiet and the proposal family holds with its antecedent false.
   `ValidBridge` at `chorusTheory` holds with `valid := (· = v⋆)`, the one
   vector a certificate check can pass in the run.
-* **The timed claim.** `SlotConsensusTemporal.termination`, finalization
-  within `5Δ + ℓ_MVBA`, still has no instance. The route is the one the MVBA
-  leg took ([Bounds.md](Bounds.md) §6): a timing model over timed runs of
-  the same untimed model, consuming `Mvba.bounded_termination` for the
-  `ℓ_MVBA` part.
+* ~~**The timed claim.** `SlotConsensusTemporal.termination`, finalization
+  within `5Δ + ℓ_MVBA`, still has no instance.~~ **Proven** (R18,
+  2026-10-02) as `Chorus.timed_termination`
+  ([Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)):
+  `TimedTerminationClaim` at `5Δ + ℓ_MVBA + 9δ`, by the route the MVBA leg
+  took ([Bounds.md](Bounds.md) §6.4.3), consuming the MVBA contract's
+  `T.termination` for the `ℓ_MVBA` part; `Chorus.timed_termination_tight`
+  gives `4Δ + ℓ_MVBA + 8δ` from the same premises (F4). The contract
+  instance (`SlotConsensusTemporal`, S5) is still to come.
 * ~~**Prose alignment.** The model files that still name (A-mvba) in their
   comments.~~ Done by the participation edit below.
 

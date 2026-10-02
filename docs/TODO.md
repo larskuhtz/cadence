@@ -112,16 +112,26 @@ come first.
 
 ## Liveness
 
-* **Derive the MVBA's (Δ-avail) from Chorus's rows** (S4). Since R16 the
+* **F15: fix the model's re-dissemination, then derive the MVBA's
+  (Δ-avail) from Chorus's rows** (R19; open, found by R18). Since R16 the
   untimed (F-avail) is derived (`Chorus.fAvail_of_fJustice`), and the timed
   premise has the availability report's δ-row (`TimedJustice.avail`). But
   the MVBA's timed clause `Mvba.AvailWithin` is still assumed inside
-  `TimedMvbaAdmissible` until S4 derives it. The derivation is the timed twin
-  of `fAvail_of_fJustice`, of the `relayed_of_timedJustice` kind: the
-  correct `FallbackQC` signer's re-dissemination row, then the report's
-  δ-row, gives `AvailReady` within `Δ + δ` of the later of holding the meta-block and GST,
-  which `Δ_sync` must cover ([PaperAlignment.md](PaperAlignment.md) §8.2
-  (g)).
+  `TimedMvbaAdmissible`. R18 found why it cannot be derived yet: the model's
+  `redisseminate_chunk` is gated on the signer's participation at delivery,
+  where the paper sends inside the fallback-entry rule, so an abandonment
+  between signing and delivery drops a message the paper has already sent
+  ([Bounds.md](Bounds.md) §6.4.2, "F15", with the counterexample run). R19:
+  (1) the model fix, (a) a guard on the sender's own `msg_fb_pos_sig`
+  (conflicts with S5's Quiescence) or (b) `fb_sign_pos` delivering the
+  chunks atomically, as the paper's single rule does (keeps Quiescence);
+  a cold Chorus re-solve; (2) the schedule constraint `Δ + δ ≤ Δ_sync` as a
+  field of the schedule, like `δ_le_Δ` (a statement change; the witness's
+  `Mvba.Schedule.fixedNat` has `Δ_sync = 0`); (3) the derivation, the timed
+  twin of `fAvail_of_fJustice`, of the `relayed_of_timedJustice` kind, and
+  `timedMvbaAdmissible_of_rows` without (Δ-avail)
+  ([PaperAlignment.md](PaperAlignment.md) §5.10 and §8.2 (g)).
+
 
 * **A non-vacuity instrument at the *composition* level.** The reason one is
   needed at all is that non-vacuity does not compose —
@@ -256,8 +266,13 @@ come first.
   `M + 3Δ + 3δ` (`Chorus.within_all_input`,
   [Cadence/Chorus/Timeline.lean](../Cadence/Chorus/Timeline.lean)). S3's
   findings F9–F11 are fixed in the statements ([Bounds.md](Bounds.md)
-  §6.4.2), and R12 fixed F12 in the model. Next: S4, the MVBA tail and the assembly
-  ([Bounds.md](Bounds.md) §6.4.6, the reassessment after S3).
+  §6.4.2), and R12 fixed F12 in the model. **S4 done** (R18, 2026-10-02):
+  `TimedTerminationClaim` is proven (`Chorus.timed_termination`, at the
+  system's MVBA `Chorus.timed_termination_atMvba`), and F4 is confirmed
+  (`Chorus.timed_termination_tight`, `4Δ + ℓ_MVBA + 8δ`;
+  [Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)).
+  Next: R19 (F15, above), then S5, the contract instances
+  ([Bounds.md](Bounds.md) §6.4.6).
 
   F13 is closed (R15, [Bounds.md](Bounds.md) §6.4.2, "F13 closed"): the
   fallback commit vote waits under the FallbackQC entries of the validator's
@@ -337,9 +352,10 @@ action behaves in a full build.
 
 The development corresponds to the paper target
 ([PaperAlignment.md](PaperAlignment.md) §0). The realignment items are
-closed: sessions R14–R17 ([History.md](History.md)). **Next: S4**, where
-the Chorus bounds leg resumes (§ Liveness above, and
-[PaperAlignment.md](PaperAlignment.md) §8, "After the realignment").
+closed: sessions R14–R17 ([History.md](History.md)). The Chorus bounds leg
+resumed with S4 (R18, done; P5 confirmed by proof); next are R19 and S5
+(§ Liveness above, and [PaperAlignment.md](PaperAlignment.md) §8, "After the
+realignment").
 
 * **Send the findings page to the paper's authors**:
   [PaperAlignment.md](PaperAlignment.md) §6, P1–P13, all open on their
