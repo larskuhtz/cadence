@@ -130,7 +130,7 @@ correct validator (`x < 3`), the step that sets each record is:
 
 * `participating x`: `x`; the proposer's root: `3`; the chunk to validator
   `y` (any of the four): `4 + y`; `local_entry_pos x`: `8 + x`;
-* the oracle tick at 11 (the MVBA marks availability), the deadline marker
+* the oracle tick at 11 (validator 3's `Pre-Prepare`), the deadline marker
   at 12;
 * the vote of `x`: `13 + x`; its FastQC: `16 + x`; its commit signature:
   `19 + x`; its fast commit vote: `22 + x`; its commit certificate broadcast:
@@ -144,9 +144,10 @@ Nothing else is ever set: no negative entry, no fallback signature, no MVBA
 input or decision, and validator 3 sends nothing. -/
 
 /-- The MVBA's state at index `n`: quiet, abandoned by the three correct
-validators (`34 + x`), and availability marked by the first tick (11). -/
+validators (`34 + x`), and, from the first tick (11) on, one `Pre-Prepare`
+from the Byzantine validator 3, which no correct validator acts on. -/
 def mst (n : Nat) : MS where
-  msg_preprepare _ _ _ := false
+  msg_preprepare l v x := decide (l.val = 3 ∧ v = 0 ∧ x = default ∧ 11 < n)
   msg_prepare _ _ _ := false
   msg_commit _ _ _ := false
   msg_timeout_qc _ _ _ _ := false
@@ -166,7 +167,7 @@ def mst (n : Nat) : MS where
   proposed_in _ _ := false
   decided _ _ := false
   abandoned i := decide (i.val < 3 ∧ 34 + i.val < n)
-  avail_ready i e := decide (i.val = 0 ∧ e = default ∧ 11 < n)
+  avail_ready _ _ := false
   timer_expired _ _ := false
   tc_formed _ _ := false
 
@@ -220,6 +221,7 @@ def st (n : Nat) : CS where
   local_mvba_recorded _ _ := false
   local_mvba_qc_accepted _ := false
   local_fbcommit_voted _ := false
+  local_avail_marked _ _ := false
   participating i := decide (i.val < 3 ∧ i.val < n)
   abandoned i := decide (i.val < 3 ∧ 34 + i.val < n)
 
@@ -238,8 +240,9 @@ def st (n : Nat) : CS where
 /-- The correct validators, the run's one quorum. -/
 def Q : ByzNSet 4 := ⟨[0, 1, 2], by decide⟩
 
-/-- The oracle tick: the MVBA's environment marks availability (an internal
-MVBA step). The clock moves on it. -/
+/-- The oracle tick: the Byzantine validator 3 sends a `Pre-Prepare` (an
+internal MVBA step, unfair, and the same message at every tick). The clock
+moves on it. -/
 def tick (n : Nat) : CL := .mvba_step (mst (n + 1))
 
 /-- The label of each step of the active prefix. -/
@@ -360,39 +363,41 @@ local macro "mexpose" : tactic =>
       Veil.FieldRepresentation.get, mst, Mvba.State.mk.injEq]))
 
 /-- Close an equation between two `mst` literals, field by field: the
-abandonment record by arithmetic, the availability record by a split on
-whether the representation is the marked one. -/
+`Pre-Prepare` record by a split on whether the representation is the sent
+one, and the abandonment record by arithmetic. -/
 local macro "mclose" : tactic =>
   `(tactic| (
-    refine ⟨fun a => ?_, fun a e => ?_⟩
-    · simp only [← Bool.decide_and, ← Bool.decide_or, decide_eq_decide, Fin.ext_iff,
-        Fin.lt_def, Fin.le_def]
-      omega
+    refine ⟨fun a v e => ?_, fun a => ?_⟩
     · have hc : (∀ x, (default : Option (Unit × CertKind)) = e x) ↔ (∀ x, e x = default) :=
         ⟨fun h x => (h x).symm, fun h x => (h x).symm⟩
       simp only [hc, ← Bool.decide_and, ← Bool.decide_or, decide_eq_decide, Fin.ext_iff,
         Fin.val_zero]
       by_cases hP : ∀ x, e x = default <;>
-        simp only [hP, implies_true, true_and, and_true, false_and, and_false, or_false] <;> omega))
+        simp only [hP, implies_true, true_and, and_true, false_and, and_false, or_false] <;> omega
+    · simp only [← Bool.decide_and, ← Bool.decide_or, decide_eq_decide, Fin.ext_iff,
+        Fin.lt_def, Fin.le_def]
+      omega))
 
 /-! ## The MVBA's steps -/
 
-/-- The availability mark is an internal MVBA step, not one of its inputs. -/
-theorem avail_not_input : ¬ Mvba.Label.isInput (.become_avail_ready (0 : Fin 4) (default : V) :
+/-- The Byzantine `Pre-Prepare` is an internal MVBA step, not one of its
+inputs. -/
+theorem tickLabel_not_input : ¬ Mvba.Label.isInput (.byz_preprepare (3 : Fin 4) 0 (default : V) :
     Mvba.Label (Fin 4) (ByzNSet 4) V E ℕ) := fun h => by
-  rcases Mvba.Label.isInput_cases h with ⟨_, _, h⟩ | ⟨_, h⟩ | ⟨_, _, _, h⟩ <;> cases h
+  rcases Mvba.Label.isInput_cases h with ⟨_, _, h⟩ | ⟨_, h⟩ | ⟨_, _, _, h⟩ | ⟨_, _, h⟩ <;> cases h
 
-/-- The MVBA's step at a tick: the availability mark, set at 11 and unchanged
-after. -/
+/-- The MVBA's step at a tick: validator 3's `Pre-Prepare`, sent at 11 and
+unchanged after. -/
 theorem tick_tr (n : Nat) (h : n = 11 ∨ 37 ≤ n) :
     (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V E ℕ).tr thM (mst n)
-      (.become_avail_ready 0 default) (mst (n + 1)) := by
+      (.byz_preprepare 3 0 default) (mst (n + 1)) := by
   mexpose
+  refine ⟨by dsimp +instances only [nsetC, byzNodeSetFin]; decide, ?_⟩
   mclose
 
 theorem tick_step (n : Nat) (h : n = 11 ∨ 37 ≤ n) :
     (Mvba.mvbaSafety thM).step (mst n) (mst (n + 1)) :=
-  ⟨_, avail_not_input, tick_tr n h⟩
+  ⟨_, tickLabel_not_input, tick_tr n h⟩
 
 /-- Chorus's `abandon i` forwards to the MVBA's `abandon()`, at `34 + i`. -/
 theorem abandon_tr (i : Fin 4) (hi : i.val < 3) :
@@ -405,7 +410,7 @@ theorem abandon_tr (i : Fin 4) (hi : i.val < 3) :
 theorem mst_stable {n : Nat} (h : 37 ≤ n) : mst n = mst 37 := by
   simp only [mst, Mvba.State.mk.injEq, funext_iff, decide_eq_decide]
   and_intros <;> intros <;> first | trivial | omega |
-    exact ⟨fun ⟨a, b, _⟩ => ⟨a, b, by omega⟩, fun ⟨a, b, _⟩ => ⟨a, b, by omega⟩⟩
+    exact ⟨fun ⟨a, b, c, _⟩ => ⟨a, b, c, by omega⟩, fun ⟨a, b, c, _⟩ => ⟨a, b, c, by omega⟩⟩
 
 /-- The MVBA is quiet at every index: nobody has proposed to it. -/
 theorem mquiet (n : Nat) : Mvba.Quiet (mst n) := by
@@ -414,6 +419,16 @@ theorem mquiet (n : Nat) : Mvba.Quiet (mst n) := by
 /-- Nobody decides in the MVBA. -/
 theorem not_decided (n : Nat) (i : Fin 4) (v : V) : ¬ (Mvba.mvbaSafety thM).decided (mst n) i v :=
   fun h => Bool.false_ne_true h
+
+/-- Nobody ever holds a valid MVBA commit certificate: none is formed. -/
+theorem not_certified (n : Nat) (c : Mvba.Msg ℕ V E) (e : E) :
+    ¬ (Mvba.mvbaSafety thM).certifies (mst n) c e := by
+  show ¬ Mvba.Certifies (mst n) c e
+  cases c <;> simp [Mvba.Certifies, Veil.FieldRepresentation.get, mst]
+
+/-- Nobody ever holds a meta-block in the MVBA. -/
+theorem not_accepted (n : Nat) (i : Fin 4) (w : ℕ) (v : V) : ¬ (mst n).accepted i w v = true := by
+  simp [mst]
 
 /-- An MVBA step of Chorus (the oracle tick, or `abandon`'s forwarding): its
 MVBA guard first, from the lemmas about `mst`, then the fields. -/
@@ -587,24 +602,33 @@ local macro "wquiet" : tactic =>
     cases l
     all_goals first | (simp [hop] at hh; done) | skip
     all_goals first | exact absurd ⟨_, _, _, _, rfl⟩ hr' | skip
+    all_goals first | exact absurd ⟨_, _, _, rfl⟩ ha | skip
     case accept_mvba_commitqc i c mn =>
       obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
       exact Mvba.not_enabled_decide_of_quiet (mquiet _) ⟨_, h⟩
     case on_mvba_decide_pos =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
-      obtain ⟨-, -, -, -, hdec, -⟩ := htr
+      obtain ⟨-, -, -, hdec, -⟩ := htr
       exact not_decided _ _ _ hdec
     case on_mvba_decide_neg =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
-      obtain ⟨-, -, -, -, hdec, -⟩ := htr
+      obtain ⟨-, -, -, hdec, -⟩ := htr
       exact not_decided _ _ _ hdec
+    case on_mvba_commitqc_pos i j m c v =>
+      simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
+      obtain ⟨-, -, hc, -⟩ := htr
+      exact not_certified _ _ _ hc
+    case on_mvba_commitqc_neg i j c v =>
+      simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
+      obtain ⟨-, -, hc, -⟩ := htr
+      exact not_certified _ _ _ hc
     case mvba_terminate =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
-      obtain ⟨-, -, -, -, hdec, -⟩ := htr
+      obtain ⟨-, -, -, hdec, -⟩ := htr
       exact not_decided _ _ _ hdec
     case cast_fb_commit =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
-      obtain ⟨-, -, -, -, hdec, -⟩ := htr
+      obtain ⟨-, -, -, hdec, -⟩ := htr
       exact not_decided _ _ _ hdec
     all_goals wunfold htr
     all_goals (repeat (obtain ⟨_, htr⟩ := htr))
@@ -614,30 +638,38 @@ local macro "wquiet" : tactic =>
 /-- Re-dissemination: `k` sends validator `i` its chunk under `(j, m)`. -/
 def IsRedissem (l : CL) : Prop := ∃ k i j m, l = .redisseminate_chunk k i j m
 
-/-- At 11, the end of clock 0, no row other than re-dissemination is
-enabled. -/
-theorem quiet11 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (hr' : ¬ IsRedissem l) :
-    ¬ Enabled sys thS (st 11) l := by
+/-- The availability report, enabled throughout for a representation with
+no `FallbackQC` entry, and owed nowhere, since nobody holds a meta-block. -/
+def IsAvail (l : CL) : Prop := ∃ i v n, l = .mvba_avail_ready i v n
+
+/-- At 11, the end of clock 0, no row other than re-dissemination and the
+availability report is enabled. -/
+theorem quiet11 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (hr' : ¬ IsRedissem l)
+    (ha : ¬ IsAvail l) : ¬ Enabled sys thS (st 11) l := by
   wquiet
 
-theorem quiet37 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) : ¬ Enabled sys thS (st 37) l := by
+theorem quiet37 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
+    ¬ Enabled sys thS (st 37) l := by
   wquiet
-theorem quiet39 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) : ¬ Enabled sys thS (st 39) l := by
+theorem quiet39 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
+    ¬ Enabled sys thS (st 39) l := by
   wquiet
-theorem quiet41 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) : ¬ Enabled sys thS (st 41) l := by
+theorem quiet41 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
+    ¬ Enabled sys thS (st 41) l := by
   wquiet
 
 /-- The indices out of which the clock advances. -/
 def PlateauEnd (n : Nat) : Prop := n = 11 ∨ n = 37 ∨ n = 39 ∨ 41 ≤ n
 
-/-- No row is enabled at a plateau end, re-dissemination aside at 11. -/
+/-- No row is enabled at a plateau end, re-dissemination aside at 11 and the
+availability report aside throughout. -/
 theorem quiet {n : Nat} (hn : PlateauEnd n) {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd)
-    (hr : n = 11 → ¬ IsRedissem l) : ¬ Enabled sys thS (st n) l := by
+    (hr : n = 11 → ¬ IsRedissem l) (ha : ¬ IsAvail l) : ¬ Enabled sys thS (st n) l := by
   rcases hn with rfl | rfl | rfl | hn
-  · exact quiet11 hh (hr rfl)
-  · exact quiet37 hh
-  · exact quiet39 hh
-  · rw [st_stable hn]; exact quiet41 hh
+  · exact quiet11 hh (hr rfl) ha
+  · exact quiet37 hh ha
+  · exact quiet39 hh ha
+  · rw [st_stable hn]; exact quiet41 hh ha
 
 /-- Every index is followed, on the same clock reading, by a plateau end. -/
 theorem plateau_after (N : Nat) : ∃ P, PlateauEnd P ∧ N ≤ P ∧ clk P = clk N := by
@@ -662,7 +694,7 @@ bounds, if no member is re-dissemination: its window reaches a plateau end
 after the gate's index `N'` on the same clock reading, where no member is
 enabled. -/
 theorem bufferedFairFamily_of_quiet {D δ : ℕ} {C gate : CS → Prop} {S : CL → Prop}
-    (hS : ∀ l, S l → (∃ h, hop l = some h) ∧ ¬ IsRedissem l) :
+    (hS : ∀ l, S l → (∃ h, hop l = some h) ∧ ¬ IsRedissem l ∧ ¬ IsAvail l) :
     BufferedFairFamily run D δ C gate S := by
   intro N N' hNN' h1 h2
   obtain ⟨P, hP, hle, hclk⟩ := plateau_after N'
@@ -672,12 +704,20 @@ theorem bufferedFairFamily_of_quiet {D δ : ℕ} {C gate : CS → Prop} {S : CL 
     exact le_trans (run.clk_le_ref N') (le_trans (Nat.le_add_right _ _) (le_max_right _ _))
   obtain ⟨-, hen⟩ := h1 P (le_trans hNN' hle) hW
   obtain ⟨l, hl, hen⟩ := hen (h2 P hle hW)
-  obtain ⟨⟨h, hh⟩, hr⟩ := hS l hl
-  exact absurd hen (quiet hP hh fun _ => hr)
+  obtain ⟨⟨h, hh⟩, hr, ha⟩ := hS l hl
+  exact absurd hen (quiet hP hh (fun _ => hr) ha)
 
 theorem bufferedFair_of_quiet {D δ : ℕ} {C gate : CS → Prop} {l : CL} {h : Mvba.Hop}
-    (hh : hop l = some h) (hr : ¬ IsRedissem l) : BufferedFair run D δ C gate l :=
-  bufferedFair_iff_family.mpr (bufferedFairFamily_of_quiet fun _ hl => ⟨⟨h, hl ▸ hh⟩, hl ▸ hr⟩)
+    (hh : hop l = some h) (hr : ¬ IsRedissem l) (ha : ¬ IsAvail l) : BufferedFair run D δ C gate l :=
+  bufferedFair_iff_family.mpr (bufferedFairFamily_of_quiet fun _ hl => ⟨⟨h, hl ▸ hh⟩, hl ▸ hr, hl ▸ ha⟩)
+
+/-- **A buffered family holds with its owed-condition false** throughout: the
+window's first index is in it. -/
+theorem bufferedFairFamily_of_not_owed {D δ : ℕ} {C gate : CS → Prop} {S : CL → Prop}
+    (hC : ∀ n, ¬ C (st n)) : BufferedFairFamily run D δ C gate S := by
+  intro N N' hNN' h1 _
+  exact (hC N' (h1 N' hNN' (le_trans (run.clk_le_ref N')
+    (le_trans (Nat.le_add_right _ _) (le_max_right _ _)))).1).elim
 
 /-! ## The schedule, and the instance's hypotheses -/
 
@@ -706,7 +746,7 @@ theorem redissem_fair (k i j : Fin 4) (m : Unit) {C : CS → Prop} :
       rw [hclk]
       exact le_trans (run.clk_le_ref N') (le_trans (Nat.le_add_right _ _) (le_max_right _ _))
     obtain ⟨-, hen⟩ := h1 P (le_trans hNN' hle) hW
-    exact absurd (hen (h2 P hle hW)) (quiet hP rfl fun h => absurd h (by omega))
+    exact absurd (hen (h2 P hle hW)) (quiet hP rfl (fun h => absurd h (by omega)) fun ⟨_, _, _, h⟩ => by cases h)
 
 /-- `ByzNodeSetHonestQuorum` at this instance: the three correct validators. -/
 @[implicit_reducible]
@@ -731,17 +771,22 @@ theorem rotation : Mvba.LeaderRotation natViewOrderEnum schC.mvba.k thM := by
 /-- **(Δδ-justice)**: every row and the three families (the proposal on its
 two triggers, and the handoff) with their antecedents false. -/
 theorem timedJustice : TimedJustice schC run := by
-  refine ⟨fun l h hh _ => ?_, fun _ _ => bufferedFairFamily_of_quiet fun _ ⟨_, hl⟩ =>
-      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => by rw [hl] at h; cases h⟩,
+  refine ⟨fun l h hh hfam => ?_, fun _ _ => bufferedFairFamily_of_quiet fun _ ⟨_, hl⟩ =>
+      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => (by rw [hl] at h; cases h),
+        fun ⟨_, _, _, h⟩ => (by rw [hl] at h; cases h)⟩,
     fun _ _ => bufferedFairFamily_of_quiet fun _ ⟨_, hl⟩ =>
-      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => by rw [hl] at h; cases h⟩,
+      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => (by rw [hl] at h; cases h),
+        fun ⟨_, _, _, h⟩ => (by rw [hl] at h; cases h)⟩,
     fun _ => bufferedFairFamily_of_quiet fun _ ⟨_, _, hl⟩ =>
-      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => by rw [hl] at h; cases h⟩⟩
+      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => (by rw [hl] at h; cases h),
+        fun ⟨_, _, _, h⟩ => (by rw [hl] at h; cases h)⟩,
+    fun i v => bufferedFairFamily_of_not_owed fun n ⟨w, hw⟩ => not_accepted n i w v hw⟩
+  have ha : ¬ IsAvail l := fun ⟨_, _, _, h⟩ => hfam (h ▸ trivial)
   by_cases hr : IsRedissem l
   · obtain ⟨k, i, j, m, rfl⟩ := hr
     obtain rfl : h = .net := by simp [hop] at hh; exact hh.symm
     exact redissem_fair k i j m
-  · exact bufferedFair_of_quiet hh hr
+  · exact bufferedFair_of_quiet hh hr ha
 
 theorem lbl_deadline {n : Nat} (h : lbl n = .advance_to_deadline) : n = 12 := by
   by_cases hn : n < 41
@@ -778,11 +823,11 @@ theorem phasePunctual : PhasePunctual schC run := by
 
 /-! ## The MVBA's projection: quiet, abandoned by the caller -/
 
-/-- The MVBA's label at each index: the three abandonments, and the
-availability mark at every tick. -/
+/-- The MVBA's label at each index: the three abandonments, and validator
+3's `Pre-Prepare` at every tick. -/
 def mlbl (n : Nat) : Mvba.Label (Fin 4) (ByzNSet 4) V E ℕ :=
   if n = 34 then .abandon 0 else if n = 35 then .abandon 1 else if n = 36 then .abandon 2
-  else .become_avail_ready 0 default
+  else .byz_preprepare 3 0 default
 
 /-- The MVBA moves at the ticks and at the three abandonments, and nowhere
 else. -/
@@ -804,14 +849,14 @@ theorem realizes (n : Nat) (h : MvbaStepLabel (lbl n)) :
   · have ht := tick_tr 37 (Or.inr le_rfl)
     rw [mst_stable (n := 38) (by omega)] at ht
     rw [mst_stable (n := n) (by omega), mst_stable (n := n + 1) (by omega)]
-    have hl : mlbl n = .become_avail_ready 0 default := by
+    have hl : mlbl n = .byz_preprepare 3 0 default := by
       simp only [mlbl, if_neg (show n ≠ 34 by omega), if_neg (show n ≠ 35 by omega),
         if_neg (show n ≠ 36 by omega)]
     rw [hl]
     exact ht
 
 /-- **The MVBA's projection.** Its steps are the run's ticks and the
-forwarded abandonments, labelled by the MVBA's own `become_avail_ready` and
+forwarded abandonments, labelled by the MVBA's own `byz_preprepare` and
 `abandon`. The idle tail ticks for ever, so the MVBA is stepped infinitely
 often. -/
 noncomputable def proj : (mvbaComponent thS thM).Projection run.toLRun where
@@ -862,38 +907,44 @@ theorem sync : Sync schC (Mvba.mvbaTemporal thM hqeC schC.mvba natViewOrderEnum 
 
 /-- At the idle state no fair label is enabled: the rows by `quiet41`, and the
 three phase markers because the phase is past the last landmark. -/
-theorem justice41 (l : CL) (hj : JusticeLabel l) : ¬ Enabled sys thS (st 41) l := by
+theorem justice41 (l : CL) (hj : JusticeLabel l) (ha : ¬ IsAvail l) :
+    ¬ Enabled sys thS (st 41) l := by
   by_cases hm : MarkerLabel l
   · obtain ⟨L, rfl⟩ := (markerLabel_iff l).mp hm
     rintro ⟨s', htr⟩
     cases L <;> simp only [Landmark.marker] at htr <;> wunfold htr
   · obtain ⟨h, hh⟩ := Option.isSome_iff_exists.mp ((hop_isSome_iff l).mpr ⟨hj, hm⟩)
-    exact quiet41 hh
+    exact quiet41 hh ha
 
-theorem justice_tail {n : Nat} (hn : 41 ≤ n) (l : CL) (hj : JusticeLabel l) :
+theorem justice_tail {n : Nat} (hn : 41 ≤ n) (l : CL) (hj : JusticeLabel l) (ha : ¬ IsAvail l) :
     ¬ Enabled sys thS (run.at' n) l := by
   show ¬ Enabled sys thS (st n) l
   rw [st_stable hn]
-  exact justice41 l hj
+  exact justice41 l hj ha
 
 /-- **(F-justice)**, every clause with its antecedent false: from any `N` on
 the idle state is reached, and there no fair label is enabled. -/
 theorem fJustice : FJustice run.toLRun :=
-  ⟨fun l hj _ N hen => absurd (hen (max N 41) (le_max_left _ _)).2
-      (justice_tail (le_max_right _ _) l hj),
+  ⟨fun l hj hfam N hen => absurd (hen (max N 41) (le_max_left _ _)).2
+      (justice_tail (le_max_right _ _) l hj fun ⟨_, _, _, h⟩ => hfam (h ▸ trivial)),
     fun _ _ N hen => by
       obtain ⟨-, l, ⟨_, rfl⟩, hl⟩ := hen (max N 41) (le_max_left _ _)
-      exact absurd hl (justice_tail (le_max_right _ _) _ ⟨fun h => h, fun h => h, fun h => h⟩),
+      exact absurd hl (justice_tail (le_max_right _ _) _ ⟨fun h => h, fun h => h, fun h => h⟩
+        fun ⟨_, _, _, h⟩ => by cases h),
     fun _ N hen => by
       obtain ⟨-, l, ⟨_, _, rfl⟩, hl⟩ := hen (max N 41) (le_max_left _ _)
-      exact absurd hl (justice_tail (le_max_right _ _) _ ⟨fun h => h, fun h => h, fun h => h⟩)⟩
+      exact absurd hl (justice_tail (le_max_right _ _) _ ⟨fun h => h, fun h => h, fun h => h⟩
+        fun ⟨_, _, _, h⟩ => by cases h),
+    fun i v N hen => by
+      obtain ⟨⟨w, hw⟩, -⟩ := hen N le_rfl
+      exact (not_accepted N i w v hw).elim⟩
 
 /-- **The MVBA's scheduling premise** on the untimed projection: (F-justice)
-with its antecedent false, (A-viewsync) with `W = 1` vacuously (nobody enters
-a view or expires a timer), and (F-avail) vacuously (nobody accepts). -/
+with its antecedent false, and (A-viewsync) with `W = 1` vacuously (nobody
+enters a view or expires a timer). -/
 theorem mvbaAdmissible : MvbaAdmissible run.toLRun := by
   refine ⟨proj, fun l hj _ N hen => ?_, ⟨1, 0, 0, rfl, rfl, ?_, fun i V _ _ ⟨n, hn⟩ => ?_,
-    fun i n _ hexp => ?_⟩, fun i n V E _ hacc => ?_⟩
+    fun i n _ hexp => ?_⟩⟩
   · obtain ⟨h, hh⟩ := Option.isSome_iff_exists.mp ((Mvba.hop_isSome_iff l).mpr hj)
     have := hen N le_rfl
     rw [proj_at] at this
@@ -902,7 +953,6 @@ theorem mvbaAdmissible : MvbaAdmissible run.toLRun := by
     decide
   · rw [proj_at] at hn; simp [mst] at hn
   · rw [proj_at] at hexp; simp [mst] at hexp
-  · rw [proj_at] at hacc; simp [mst] at hacc
 
 /-! ## The bridge -/
 
@@ -951,12 +1001,14 @@ theorem certified_eq (n : Nat) (v : V) (hc : Certified (thS := thS) (thM := thM)
 
 /-- **`ValidBridge`**, with `valid := (· = v⋆)`, in both directions at every
 index. Soundness: a certified vector is `v⋆` (`certified_eq`), hence valid.
-Completeness: nobody decides in the MVBA, so it asks nothing. -/
+Completeness: nobody decides or holds a meta-block in the MVBA, so it asks
+nothing. -/
 theorem validBridge : ValidBridge run.toLRun :=
   ⟨fun n v hc => by
       show decide (v = vstar) = true
       exact decide_eq_true (certified_eq n v hc),
-    fun n i v _ hd => absurd hd (not_decided n i v)⟩
+    fun n i v _ hd => absurd hd (not_decided n i v),
+    fun n i w v _ hacc => absurd hacc (not_accepted n i w v)⟩
 
 /-! ## The caller's premises -/
 

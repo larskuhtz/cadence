@@ -274,6 +274,31 @@ theorem decisionVector_stable
 
 end StepFacts
 
+/-- **The commit availability condition, in Chorus's vocabulary**
+(Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit availability
+condition": "the MVBA ensures that each correct Commit signer holds and
+broadcasts its assigned share before sending its vote"). A valid MVBA
+commit certificate for `e` has a supermajority each of whose correct members
+received its assigned chunk under every positive `FallbackQC` entry of a
+valid representation of `e` of its own. This is the contract's
+`certified_available` read through `avail_ready_chunks`: `AvailReady` is
+the input Chorus drives with exactly that chunk wait. The representation is
+the member's own, since two correct signers may hold different certificate
+kinds for one root (PaperAlignment §6, P2). -/
+theorem certified_available_chunks {st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
+    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).reachable th st)
+    {c : mmsg} {e : mentries} (hc : mvba.certifies st.mvba_st c e) :
+    ∃ q, nset.supermajority q ∧ ∀ p, nset.member p q = true → ¬ nset.is_byz p = true →
+      ∃ v, mvba.entries v = e ∧ mvba.Valid v ∧
+        ∀ J M, th.mval_pos e J M = true → th.mval_fb v J = true →
+          st.msg_chunk_received p J M = true := by
+  obtain ⟨q, hq, hall⟩ := mvba.certified_available _ (Chorus.reachable_mvba_reachable hr) c e hc
+  refine ⟨q, hq, fun p hp hpc => ?_⟩
+  obtain ⟨v, hv, hval, hav⟩ := hall p hp hpc
+  refine ⟨v, hv, hval, fun J M hM hfb => ?_⟩
+  subst hv
+  exact Chorus.reachable_avail_ready_chunks hr p v J M ⟨hpc, hav⟩ hM hfb
+
 set_option maxHeartbeats 1000000 in
 /-- **`Chorus ⊨ SlotConsensusSafety`** — for every Chorus theory `th`, the
 slot-indexed copies of the Chorus transition system are an instance of the
@@ -444,3 +469,9 @@ info: 'Chorus.slotConsensus_of_temporal' depends on axioms: [propext, Classical.
 -/
 #guard_msgs in
 #print axioms Chorus.slotConsensus_of_temporal
+
+/--
+info: 'Chorus.certified_available_chunks' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.certified_available_chunks

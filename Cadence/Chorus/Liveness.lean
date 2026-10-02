@@ -61,19 +61,22 @@ caller, and they are exactly the antecedents of the contract's own
 * **The MVBA's scheduling** — `MvbaAdmissible`: the run *has* a projection
   onto the MVBA (a labelling of its steps plus infinitely many of them —
   `Component.Projection`, whose header says why both are data) whose
-  projected run satisfies `Mvba.FJustice`, `Mvba.AViewSync` and
-  `Mvba.FAvail`. Those are three of `Mvba.termination`'s six premises,
-  stated with that file's own definitions and restated nowhere. The other
-  three — every correct validator proposes, none is abandoned before
-  deciding, decided certificates are handed on — are the *caller's*
-  premises and the caller is Chorus, so they are **derived** in
+  projected run satisfies `Mvba.FJustice` and `Mvba.AViewSync`. Those are
+  two of `Mvba.termination`'s six premises, stated with that file's own
+  definitions and restated nowhere. The other four — every correct
+  validator proposes, none is abandoned before deciding, decided
+  certificates are handed on, and the availability shares arrive — are the
+  *caller's* premises and the caller is Chorus, so they are **derived** in
   [Termination.lean](Termination.lean), not assumed: the first from (F-justice) on
   `mvba_propose` and the progress analysis, the second from
   `NoAbandonBeforeFinalizing` on the branch of the proof where no correct
   validator finalizes (the MVBA's `abandon()` is invoked only by Chorus's
   `abandon`, Algorithm 5, line 48 (`line:fb-abandon`)), the third from (F-justice) on the handoff
-  `accept_mvba_commitqc` (`fRelay_of_fJustice`). The premise is unconditional, as before:
-  the proof uses the MVBA only on that branch.
+  `accept_mvba_commitqc` (`fRelay_of_fJustice`), and the fourth from
+  (F-justice) on the availability report `mvba_avail_ready` and on the
+  re-dissemination its chunk wait needs (`fAvail_of_fJustice`). The
+  premise is unconditional, as before: the proof uses the MVBA only on
+  that branch.
 * **The bridge** — `ValidBridge`: the MVBA's `Valid` agrees with Chorus's
   certificate check. Chorus consumes the MVBA through the class
   `MVBASafety`, whose `Valid` is a predicate on values alone, while the
@@ -199,8 +202,9 @@ def JusticeLabel (l : Chorus.Label slot node nodeset merkle_root mstate mvalue m
   ¬ ByzLabel l ∧ ¬ OracleLabel l ∧ ¬ InputLabel l
 
 /-- **The labels at which the MVBA's state moves**: the oracle step and the
-three driven inputs, `mvba_propose`, the handoff `accept_mvba_commitqc`,
-and `abandon` (which forwards to the MVBA's `abandon()`, Algorithm 5, line 48 (`line:fb-abandon`)).
+four driven inputs, `mvba_propose`, the handoff `accept_mvba_commitqc`, the
+availability report `mvba_avail_ready`, and `abandon` (which forwards to
+the MVBA's `abandon()`, Algorithm 5, line 48 (`line:fb-abandon`)).
 This is the component's `isSub` (`mvbaComponent` below), a different cut
 from the fairness classes — `mvba_propose` and `accept_mvba_commitqc` are
 justice labels *and* MVBA steps, and they appear in the projected run as the
@@ -210,19 +214,22 @@ def MvbaStepLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue men
   | .mvba_step _ => True
   | .mvba_propose .. => True
   | .accept_mvba_commitqc .. => True
+  | .mvba_avail_ready .. => True
   | .abandon .. => True
   | _ => False
 
-/-- **The two families**: the MVBA proposal `mvba_propose i v mvba_next` and
-the handoff `accept_mvba_commitqc i c mvba_next`. Each is a justice label
-whose last parameter is a *result*, the MVBA's state after the input, not a
-choice the validator makes. `FJustice` therefore makes the proposal fair per
-validator and value, and the handoff per receiver, over the rest of the
-parameters (`Cadence.WeaklyFairFamilyWhen`) rather than per label;
+/-- **The three families**: the MVBA proposal `mvba_propose i v mvba_next`,
+the handoff `accept_mvba_commitqc i c mvba_next`, and the availability
+report `mvba_avail_ready i v mvba_next`. Each is a justice label whose last
+parameter is a *result*, the MVBA's state after the input, not a choice the
+validator makes. `FJustice` therefore makes the proposal and the report
+fair per validator and value, and the handoff per receiver, over the rest
+of the parameters (`Cadence.WeaklyFairFamilyWhen`) rather than per label;
 [Liveness.md](../../docs/Liveness.md) §4.6 (Finding 2) says why. -/
 def FamilyLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
   | .mvba_propose .. => True
   | .accept_mvba_commitqc .. => True
+  | .mvba_avail_ready .. => True
   | _ => False
 
 /-- **(F-byz), machine-checked at the only level it can be**: no label the
@@ -264,12 +271,13 @@ theorem mvbaStepLabel_of_oracle (l : Chorus.Label slot node nodeset merkle_root 
     (h : OracleLabel l) : MvbaStepLabel l := by
   cases l <;> trivial
 
-/-- An MVBA step is the oracle step or one of the three driven inputs
-(`mvba_propose`, the handoff, and `abandon`'s forwarding), and nothing
-else. -/
+/-- An MVBA step is the oracle step or one of the four driven inputs
+(`mvba_propose`, the handoff, the availability report, and `abandon`'s
+forwarding), and nothing else. -/
 theorem mvbaStepLabel_iff (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) :
     MvbaStepLabel l ↔ (∃ m, l = .mvba_step m) ∨ (∃ i v m, l = .mvba_propose i v m) ∨
-      (∃ i m, l = .abandon i m) ∨ (∃ i c m, l = .accept_mvba_commitqc i c m) := by
+      (∃ i m, l = .abandon i m) ∨ (∃ i c m, l = .accept_mvba_commitqc i c m) ∨
+      (∃ i v m, l = .mvba_avail_ready i v m) := by
   cases l <;> simp [MvbaStepLabel]
 
 end Labels
@@ -382,6 +390,7 @@ theorem mvba_st_frame_of_not_step
   case mvba_step => exact absurd trivial hl
   case mvba_propose => exact absurd trivial hl
   case accept_mvba_commitqc => exact absurd trivial hl
+  case mvba_avail_ready => exact absurd trivial hl
   case abandon => exact absurd trivial hl
   case participate => exact Chorus.participate.frame_mvba_st htr
   case advance_to_deadline => exact Chorus.advance_to_deadline.frame_mvba_st htr
@@ -403,6 +412,8 @@ theorem mvba_st_frame_of_not_step
   case cast_fallback_vote => exact Chorus.cast_fallback_vote.frame_mvba_st htr
   case on_mvba_decide_pos => exact Chorus.on_mvba_decide_pos.frame_mvba_st htr
   case on_mvba_decide_neg => exact Chorus.on_mvba_decide_neg.frame_mvba_st htr
+  case on_mvba_commitqc_pos => exact Chorus.on_mvba_commitqc_pos.frame_mvba_st htr
+  case on_mvba_commitqc_neg => exact Chorus.on_mvba_commitqc_neg.frame_mvba_st htr
   case mvba_terminate => exact Chorus.mvba_terminate.frame_mvba_st htr
   case redisseminate_chunk => exact Chorus.redisseminate_chunk.frame_mvba_st htr
   case cast_fb_commit => exact Chorus.cast_fb_commit.frame_mvba_st htr
@@ -474,6 +485,22 @@ theorem abandon_tr {i mvba_next}
   exact hab
 
 set_option maxHeartbeats 1000000 in
+/-- The availability report's last guard is `mvba.markAvail`, the `Mvba`
+model's `become_avail_ready` label's transition. -/
+theorem mvba_avail_ready_tr {i v mvba_next}
+    (htr : (atMvba thM).tr thS s (.mvba_avail_ready i v mvba_next) s') :
+    (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
+      s.mvba_st (.become_avail_ready i v) s'.mvba_st := by
+  chorus_tr htr
+  obtain ⟨-, htr⟩ := htr
+  obtain ⟨-, htr⟩ := htr
+  obtain ⟨-, htr⟩ := htr
+  obtain ⟨hav, htr⟩ := htr
+  chorus_field_simp
+  subst htr
+  exact hav
+
+set_option maxHeartbeats 1000000 in
 /-- The handoff's guard is `mvba.accept`, which at the `Mvba` instance is the
 model's `decide` on the transferred certificate, deciding a representation
 of its entries. -/
@@ -525,6 +552,7 @@ noncomputable def mvbaComponent
       obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
       exact ⟨.decide i w x, h⟩
     | abandon i mvba_next => exact ⟨.abandon i, abandon_tr htr⟩
+    | mvba_avail_ready i v mvba_next => exact ⟨.become_avail_ready i v, mvba_avail_ready_tr htr⟩
     | _ => exact absurd hl id
 
 /-! ## Every enabled fair label changes the state
@@ -752,6 +780,39 @@ theorem on_mvba_decide_neg_moves {i j : node} {v : MetaBlock node merkle_root}
   simp_all
 
 set_option maxHeartbeats 1000000 in
+theorem on_mvba_commitqc_pos_moves {i j : node} {m : merkle_root} {c} {v : MetaBlock node merkle_root}
+    (htr : (atMvba thM).tr thS s (.on_mvba_commitqc_pos i j m c v) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_mvba_recorded i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem on_mvba_commitqc_neg_moves {i j : node} {c} {v : MetaBlock node merkle_root}
+    (htr : (atMvba thM).tr thS s (.on_mvba_commitqc_neg i j c v) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_mvba_recorded i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem mvba_avail_ready_moves {i : node} {v : MetaBlock node merkle_root} {n}
+    (htr : (atMvba thM).tr thS s (.mvba_avail_ready i v n) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_avail_marked i v) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
 theorem mvba_terminate_moves {i : node} {v : MetaBlock node merkle_root}
     (htr : (atMvba thM).tr thS s (.mvba_terminate i v) s') : s' ≠ s := by
   rintro rfl
@@ -865,6 +926,9 @@ theorem justice_enabledMove
   case cast_fallback_vote => exact cast_fallback_vote_moves htr
   case on_mvba_decide_pos => exact on_mvba_decide_pos_moves htr
   case on_mvba_decide_neg => exact on_mvba_decide_neg_moves htr
+  case on_mvba_commitqc_pos => exact on_mvba_commitqc_pos_moves htr
+  case on_mvba_commitqc_neg => exact on_mvba_commitqc_neg_moves htr
+  case mvba_avail_ready => exact mvba_avail_ready_moves htr
   case mvba_terminate => exact mvba_terminate_moves htr
   case redisseminate_chunk => exact redisseminate_chunk_moves htr
   case cast_fb_commit => exact cast_fb_commit_moves htr
@@ -900,6 +964,13 @@ fairness over state-changing steps would. -/
 theorem mvba_propose_enabledMove {i : node} {v : MetaBlock node merkle_root} {n}
     (hen : Enabled (atMvba thM) thS s (.mvba_propose i v n)) :
     EnabledMove (atMvba thM) thS s (.mvba_propose i v n) :=
+  justice_enabledMove _ ⟨fun h => h, fun h => h, fun h => h⟩ hen
+
+/-- **Every member of the availability family is move-enabled when it is
+enabled**, likewise. -/
+theorem mvba_avail_ready_enabledMove {i : node} {v : MetaBlock node merkle_root} {n}
+    (hen : Enabled (atMvba thM) thS s (.mvba_avail_ready i v n)) :
+    EnabledMove (atMvba thM) thS s (.mvba_avail_ready i v n) :=
   justice_enabledMove _ ⟨fun h => h, fun h => h, fun h => h⟩ hen
 
 /-- **Every member of the handoff family is move-enabled when it is
@@ -990,7 +1061,10 @@ environment owes the step at all.
 * the other rows over a quorum parameter: the quorum is correct;
 * `fb_sign_pos`: also the `2f+1` votes its guard counts, from correct voters;
 * the proposal: its trigger from correct senders (`proposeOwed`);
-* the handoff: a correct validator has decided (`relayOwed`);
+* the handoff and the `CommitQC` route's handlers: a correct validator has
+  decided (`relayOwed`), and Chorus broadcasts that decision's certificate.
+  The premise owes nothing on a certificate the adversary assembled and
+  showed to nobody (F5);
 * `redisseminate_chunk k …`: only where the paper sends other validators
   their chunks (F11, F14): the sender `k` signed a positive fallback entry
   for the root, which it could only do after decoding, and the same rule
@@ -1015,8 +1089,9 @@ environment owes the step at all.
   guard also reads the shared `mvba_complete`, which the first validator to
   decide sets;
 * everything else: nothing (`True`). The chunk's delivery has a correct
-  proposer by its guard, and the decision handlers and `mvba_terminate` fire
-  on the validator's own decision by theirs. -/
+  proposer by its guard, the decision handlers and `mvba_terminate` fire
+  on the validator's own decision by theirs, and the availability report
+  consumes only the validator's own chunk receipts. -/
 def Owed (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) :
     Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice →
     Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) →
@@ -1032,6 +1107,8 @@ def Owed (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentrie
   | .fb_sign_neg _ _ qv => fun _ => Mvba.CorrectQuorum (node := node) qv
   | .mvba_propose i .. => proposeOwed th i
   | .accept_mvba_commitqc .. => relayOwed
+  | .on_mvba_commitqc_pos .. => relayOwed
+  | .on_mvba_commitqc_neg .. => relayOwed
   | .redisseminate_chunk k _ j m => fun s => s.msg_fb_pos_sig k j m = true
   | .commit_assign_pos _ j m => fun s =>
       (∃ k, ¬ nset.is_byz k = true ∧ s.local_committed k = true ∧
@@ -1077,6 +1154,19 @@ abbrev ChorusRun
     (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view) :=
   LRun (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM) thS
 
+/-- The availability report is owed for a meta-block the validator holds:
+the supplement's synchronization assumption is about "a valid meta-block `x`"
+that "a correct validator `p_i` holds" (Supplement, Section 1.2
+(`subsec:mvba-protocol`), "Availability-synchronization assumption"), the
+MVBA's accepted `x_v`. Read at the `Mvba` instance, since the abstract
+module exposes no such observable ([PaperAlignment.md](../../docs/PaperAlignment.md) §6, P12). -/
+def availOwed (i : node) (v : MetaBlock node merkle_root)
+    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)) :
+    Prop :=
+  ∃ w, s.mvba_st.accepted i w v = true
+
 /-- **(F-justice)** — weak fairness of every honest action that is neither
 the oracle step nor one of the three inputs, for the messages of correct
 senders: if from some point on a correct validator's action is enabled at
@@ -1106,8 +1196,10 @@ def FJustice (r : ChorusRun thS thM) : Prop :=
     WeaklyFairWhen r (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l) l) ∧
   (∀ i v, WeaklyFairFamilyWhen r (proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i)
     (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)) ∧
-  ∀ i, WeaklyFairFamilyWhen r (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
-    (fun l => ∃ c mvba_next, l = .accept_mvba_commitqc i c mvba_next)
+  (∀ i, WeaklyFairFamilyWhen r (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
+    (fun l => ∃ c mvba_next, l = .accept_mvba_commitqc i c mvba_next)) ∧
+  ∀ i v, WeaklyFairFamilyWhen r (availOwed i v)
+    (fun l => ∃ mvba_next, l = .mvba_avail_ready i v mvba_next)
 
 /-- **The bridge**: for this model, (F-justice) over plain enabledness is the
 same premise as weak fairness over state-changing steps (TLA+'s `WF_v`, the
@@ -1119,25 +1211,34 @@ theorem fJustice_iff_move (r : ChorusRun thS thM) :
         WeaklyFairWhenMove r (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l) l) ∧
       (∀ i v, WeaklyFairFamilyWhenMove r (proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i)
         (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)) ∧
-      ∀ i, WeaklyFairFamilyWhenMove r (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
-        (fun l => ∃ c mvba_next, l = .accept_mvba_commitqc i c mvba_next) := by
+      (∀ i, WeaklyFairFamilyWhenMove r (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
+        (fun l => ∃ c mvba_next, l = .accept_mvba_commitqc i c mvba_next)) ∧
+      ∀ i v, WeaklyFairFamilyWhenMove r (availOwed i v)
+        (fun l => ∃ mvba_next, l = .mvba_avail_ready i v mvba_next) := by
   refine and_congr (forall_congr' fun l => imp_congr_right fun hj => imp_congr_right fun _ =>
       weaklyFairWhen_iff_move fun _ => justice_enabledMove l hj)
     (and_congr (forall_congr' fun i => forall_congr' fun v =>
       weaklyFairFamilyWhen_iff_move fun _ l hl hen => ?_)
-      (forall_congr' fun i => weaklyFairFamilyWhen_iff_move fun _ l hl hen => ?_))
+      (and_congr (forall_congr' fun i => weaklyFairFamilyWhen_iff_move fun _ l hl hen => ?_)
+        (forall_congr' fun i => forall_congr' fun v =>
+          weaklyFairFamilyWhen_iff_move fun _ l hl hen => ?_)))
   · obtain ⟨_, rfl⟩ := hl
     exact mvba_propose_enabledMove hen
   · obtain ⟨_, _, rfl⟩ := hl
     exact accept_mvba_commitqc_enabledMove hen
+  · obtain ⟨_, rfl⟩ := hl
+    exact mvba_avail_ready_enabledMove hen
 
 /-- **The MVBA's scheduling premise**, replacing (A-mvba): the run has a
 projection onto the MVBA — a labelling of its steps that explains them, and
 infinitely many of them (`Component.Projection`) — whose projected run
-satisfies the three scheduling premises of `Mvba.termination`: weak
-fairness of the MVBA's honest actions, the timer discipline of the good
-view, and availability. Stated with [Mvba/Liveness.lean](../Mvba/Liveness.lean)'s own definitions;
-the caller's two premises of that theorem are derived, not assumed (header).
+satisfies the two scheduling premises of `Mvba.termination`: weak fairness
+of the MVBA's honest actions, and the timer discipline of the good view.
+Stated with [Mvba/Liveness.lean](../Mvba/Liveness.lean)'s own definitions. The theorem's other four
+premises are the caller's, and the caller is Chorus, so they are derived,
+not assumed (header): every correct validator proposes, none abandons
+early, decided certificates are handed on, and availability (F-avail),
+which Chorus reports itself (`mvba_avail_ready`).
 
 The existential over the projection is the honest form: the composed run
 records only the MVBA's post-states, so an assumption about how the MVBA's
@@ -1148,7 +1249,7 @@ composed run, so nothing is smuggled in by the re-indexing; and
 is what is asked of it. -/
 def MvbaAdmissible (r : ChorusRun thS thM) : Prop :=
   ∃ p : (mvbaComponent thS thM).Projection r,
-    Mvba.FJustice p.run ∧ Mvba.AViewSync p.run ∧ Mvba.FAvail p.run
+    Mvba.FJustice p.run ∧ Mvba.AViewSync p.run
 
 /-- **A certified meta-block**, in Chorus's vocabulary: every positive entry
 is a proposer's and backed by the certificate the representation names — a
@@ -1183,8 +1284,12 @@ both directions, at every point of the run:
 * *soundness*: a certified meta-block is `Valid` — what lets a correct
   validator's `mvba_propose` fire, since the contract's `propose` requires
   `Valid` of its input;
-* *completeness*: a meta-block a correct validator decided is certified —
-  what enables the decision handlers, whose bridge `require` is that check.
+* *completeness*: a meta-block a correct validator decided or accepted is
+  certified — what enables the decision handlers, whose bridge `require` is
+  that check, and what gives the availability report its chunks: a correct
+  validator accepts only a `Valid` meta-block, so the `FallbackQC` entries
+  it waits under are genuine, and each has a correct signer that
+  re-disseminates.
 
 The header says why this is a premise: `Valid` is a parameter of the class,
 fixed before Chorus's state exists, and the certificates are facts about
@@ -1197,7 +1302,9 @@ def ValidBridge (r : ChorusRun thS thM) : Prop :=
   (∀ (n : Nat) (v : MetaBlock node merkle_root),
     Certified (thS := thS) (thM := thM) (r.at' n) v → (Mvba.mvbaSafety thM).Valid v) ∧
   (∀ (n : Nat) (i : node) (v : MetaBlock node merkle_root), ¬ nset.is_byz i = true →
-    (Mvba.mvbaSafety thM).decided (r.at' n).mvba_st i v → Certified (thS := thS) (thM := thM) (r.at' n) v)
+    (Mvba.mvbaSafety thM).decided (r.at' n).mvba_st i v → Certified (thS := thS) (thM := thM) (r.at' n) v) ∧
+  (∀ (n : Nat) (i : node) (w : view) (v : MetaBlock node merkle_root), ¬ nset.is_byz i = true →
+    (r.at' n).mvba_st.accepted i w v = true → Certified (thS := thS) (thM := thM) (r.at' n) v)
 
 /-- **The caller's first premise: every correct validator participates.**
 Each correct validator eventually invokes `participate()`. Within Cadence
