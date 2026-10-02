@@ -52,11 +52,13 @@ them.
 * **weakly fair** — `JusticeLabel`, the two `timeout_*` among them;
   (F-justice)
 * **timer** — `TimerLabel`, i.e. `expire_timer`; (A-viewsync), both clauses
-* **availability** — `AvailLabel`, i.e. `become_avail_ready`; (F-avail)
+* **availability** — `AvailLabel`, i.e. `become_avail_ready`, the input by
+  which the composing dissemination layer reports `AvailReady`; (F-avail)
 * **input** — `InputLabel`: `propose`, `abandon`, and `decide` on a
   transferred certificate; nothing here — the caller's, and the premises
   `AllPropose`, `NoEarlyAbandon` and (F-relay) of the claim say what is
-  asked of the caller
+  asked of the caller. The availability input is the caller's too, and
+  (F-avail) is what is asked of it
 
 Weak fairness is owed only for messages from correct senders (`Owed`): the
 supplement's network delivers only between correct validators.
@@ -80,9 +82,9 @@ validators reach the good view.** Both are consequences: reaching the good
 view is the **theorem** `eventually_entered_good`, the longest argument in
 the file and the reason [ViewOrder.lean](../ViewOrder.lean) exists.
 
-The inputs `propose`, `abandon` and `decide` are the *caller's*, not the
-scheduler's (`Label.isInput` in [Compose.lean](Compose.lean)), so no
-fairness is assumed of them. That every correct validator proposes is
+The inputs `propose`, `abandon`, `decide` and `become_avail_ready` are the
+*caller's*, not the scheduler's (`Label.isInput` in
+[Compose.lean](Compose.lean)), so no fairness is assumed of them. That every correct validator proposes is
 `AllPropose`, a premise of the claim exactly as it is in Supplement, Theorem 2 (`thm:termination`)
 ("once every correct validator has invoked propose"). That a correct
 validator's decided certificate is handed on is (F-relay): the supplement's
@@ -150,9 +152,10 @@ def TimerLabel : Mvba.Label node nodeset value evec view → Prop
   | .expire_timer .. => True
   | _ => False
 
-/-- The three contract inputs: `propose`, `abandon`, and `decide` — the
-handoff of a transferred commit certificate, which the composing layer
+/-- Three of the four contract inputs: `propose`, `abandon`, and `decide` —
+the handoff of a transferred commit certificate, which the composing layer
 delivers (the contract's `accept`, Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)).
+The fourth, the availability report, has its own class, `AvailLabel`.
 A party decides on a certificate it formed itself by `form_own_commitqc`,
 its own step, which is in `JusticeLabel`.
 
@@ -168,10 +171,13 @@ def InputLabel : Mvba.Label node nodeset value evec view → Prop
   | .decide .. => True
   | _ => False
 
-/-- **(F-avail).** The availability layer's action. Like the timer it is the
-*environment's*, not the scheduler's: `become_avail_ready` stands for another
-sub-protocol delivering `i`'s shares, and the supplement bounds when
-(Supplement, Lemma 5 (`lem:avail-progress`), `Δ_sync`).
+/-- **(F-avail).** The availability layer's action, and the contract's
+fourth input (`markAvail`). Like the timer it is not the scheduler's:
+`become_avail_ready` is the composing dissemination layer reporting that
+`i` holds its shares, and the supplement bounds when
+(Supplement, Lemma 5 (`lem:avail-progress`), `Δ_sync`). In the composed
+system the caller is Chorus, which takes the input with its chunk wait as
+the guard, and derives (F-avail) from its own fairness.
 
 It has its own class for a reason worth stating, because the alternative
 looks tidier and is wrong. `become_avail_ready` is **unguarded**, so it is
@@ -229,10 +235,11 @@ theorem not_justice_of_timer (l : Mvba.Label node nodeset value evec view)
 `InputLabel` to the module's own notion of an input. -/
 theorem not_justice_of_input (l : Mvba.Label node nodeset value evec view)
     (h : Label.isInput l) : ¬ JusticeLabel l := by
-  rcases Label.isInput_cases h with ⟨i, e, rfl⟩ | ⟨i, rfl⟩ | ⟨i, v, e, rfl⟩
+  rcases Label.isInput_cases h with ⟨i, e, rfl⟩ | ⟨i, rfl⟩ | ⟨i, v, e, rfl⟩ | ⟨i, e, rfl⟩
   · exact fun hj => hj.2.2.1 trivial
   · exact fun hj => hj.2.2.1 trivial
   · exact fun hj => hj.2.2.1 trivial
+  · exact fun hj => hj.2.2.2.1 trivial
 
 /-- And the availability layer's action is the environment's, so
 (F-justice) does not reach it either (`AvailLabel` says why that matters). -/

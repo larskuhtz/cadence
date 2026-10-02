@@ -378,33 +378,37 @@ The implementation runs only the second. The main body proves agreement and
 termination for the first route, but agreement of the second with the fast
 path and with the first is argued only in one sentence of Part I (§6, P2).
 
-**What the model does today.** It has the main body's route, plus Part I's
-handoff of the certificate into the MVBA (`accept_mvba_commitqc`, R8). It
-does not finalize on the MVBA's certificate.
+**What the model does** (since R16, §8.2). It has both routes. The main
+body's is the fallback commit round (`cast_fb_commit`, `fbcommitqc`). Part
+I's is the handoff into the MVBA (`accept_mvba_commitqc`) together with the
+`CommitQC` route: a correct validator holding a valid MVBA `CommitQC`
+recovers a matching representation, checks the certificates it names, and
+records the certified entries (`on_mvba_commitqc_pos` / `_neg`). It then
+finalizes on them, because `commit_assign_*` accept "a valid MVBA
+`CommitQC` exists" in place of `fbcommitqc`. The re-broadcast is folded
+into the handoff, as the decision broadcast is. So the model has every run
+of the specified protocol, and every run of the Part II implementation as
+far as safety goes, since that implementation is the specified protocol
+without the `fbCommitQC` route.
 
-**What realignment does** (§8, R16). Chorus gains Part I's route: a correct
-validator holding a valid MVBA `CommitQC` for `e` finalizes `e`. Its
-re-broadcast is folded into the handoff, as the decision broadcast is
-today. The main body's route stays. The model then has every run of the
-specified protocol, and every run of the Part II implementation as far as
-safety goes, since that implementation is the specified protocol without
-the `fbCommitQC` route. Safety needs the route's agreement with the fast
-path and with the `fbCommitQC` route. These are the fast-path argument of
-Proposition 1 (`prop:agreement-entries`) (no valid fallback meta-block exists once `f+1`
-correct validators cast a fast commit vote) and MVBA agreement. The
-contract states both (R15, §8.1 (b)): a certified entry vector is the only
-one and the one every correct validator decides (`certified_unique`,
-`certified_decided`), and it has a valid representation
-(`certified_valid`). Data availability on the new route needs the
-contract's `AvailReady` guarantee, `certified_available`: the correct
-members of a certificate's signing supermajority were `AvailReady` for a
-valid representation of its entries. Read in Chorus's vocabulary, each
-positive entry of a certified `e` is then either `FastQC`-backed somewhere
-or was waited for by the `f+1` correct `Commit` signers. That reading is
-a second stated bridge, beside the certificate check at the decision
-handlers. Liveness keeps the main body's route and the paper's bound.
-Proving a bound through the `CommitQC` route as well is optional, and
-records how the implementation's latency compares.
+**What safety rests on.** The route's agreement with the fast path is the
+fast-path argument of Proposition 1 (`prop:agreement-entries`), applied
+to the certificates of the recovered representation: a vote quorum
+intersects the commit certificate's quorum, and an `FBCert` intersects it
+in a validator that would have cast both votes. Its agreement with the
+`fbCommitQC` route and with itself comes from the contract:
+`certified_unique` (two certificates certify one entry vector) and
+`certified_decided` (that is the vector every correct validator decides).
+Data availability on the route needs no second bridge. The certificate check
+that agreement needs already gives every recorded positive entry a vote
+quorum or a `FallbackQC`, so its chunks are on the network
+(`local_committed_pos_implies_decodable`). The contract's
+`certified_available` is not used by the safety proofs. Read in Chorus's
+vocabulary it is now a theorem, not a bridge, because `AvailReady` is a
+Chorus-driven input whose meaning Chorus proves (`avail_ready_chunks`).
+Liveness keeps the main body's route and the paper's bound. Proving a bound
+through the `CommitQC` route as well is optional; it would record how the
+implementation's latency compares.
 
 ### 5.8 Conductor and ACS
 
@@ -455,7 +459,9 @@ and Algorithm 5, line 39 (`line:fb-commit-wait`), both main-body rules that hold
 For the paper's authors. Each item quotes the target `48cac9a` and names
 anchors. P1–P4 are inconsistencies between the main body and the supplement,
 or within one of them. P5–P6 are carried from earlier reviews and
-re-checked. P7–P11 are smaller.
+re-checked. P7–P11 are smaller. P12 (found in R16) is a module-boundary
+issue between the main body's abstract MVBA and the supplement's concrete
+one.
 
 **P1. Module 3 (`mod:mvba`) Integrity was not revised with Agreement.** The supplement
 (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Agreement and Integrity over entries"): "*Integrity:* all decision outputs
@@ -586,6 +592,40 @@ All three readings cast the same `FallbackCommitVote`, since its content is
 vote attests does: the chunks waited for are those of the `B′` the handler
 ran on. §8.1 (d) gives the model's reading, which is safe under each of the
 three.
+
+**P12. The MVBA's availability couples it to the dissemination layer
+through state the abstract module does not expose.** Module 3
+(`mod:mvba`) has the interface `propose(B)`, `abandon()` and `decide(B)`,
+and no other observable. The supplement's concrete MVBA adds two
+dependencies on its caller, both stated over the concrete protocol's
+state:
+* its `Commit` waits on `AvailReady_i(x)`, which holds "if, for every
+  positive entry `⟨s, j, ρ⟩` of `x` that is certified by a `FallbackQC`,
+  validator `p_i` holds its assigned availability share for `ρ`"
+  (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit availability
+  condition"). That is a predicate on the dissemination layer's state;
+* its termination needs the caller to deliver those shares: "whenever a
+  correct validator `p_i` holds a valid meta-block `x`, all availability
+  shares required for `AvailReady_i(x)` that it does not already hold
+  become available to `p_i` within at most `Δ_sync`" ("Availability-
+  synchronization assumption"). The trigger, "holds a valid meta-block
+  `x`", is the MVBA's internal accepted value `x_v`.
+
+So the concrete MVBA's `ℓ_MVBA`-Termination is conditional on a service
+of the composing layer, and that service is owed on an event internal to
+the MVBA. Lemma 11 (`lemma:chorus-termination`) uses
+`ℓ_MVBA`-Termination through Module 3 (`mod:mvba`) as if the MVBA were
+self-contained. The composition is still sound: Chorus provides the
+service. But the module boundary the main body claims does not carry it.
+Either the module states the dependency (an `AvailReady` input and a
+"holds `x`" observable, or an `ℓ_MVBA` conditional on the caller's
+`Δ_sync`), or the supplement states its assumption over an event the
+module exposes. The model takes the first reading: `AvailReady` is a
+contract input that Chorus drives (`mvba_avail_ready`). The two premises
+that need the trigger read the MVBA's internal `accepted` at the system's
+instance, which is the honest form: the fairness owed to the availability
+report (`availOwed`), and the bridge's completeness at an accepted value
+(`ValidBridge`'s third clause). §8.2 has the interface check item by item.
 
 **No item of the target is unmodellable.** Every protocol rule of the main
 body and of Part I's MVBA can be modelled faithfully within the
@@ -748,29 +788,63 @@ is §8.1.
 * **One session.** The plan expected two sessions on one branch; R15 and
   its Chorus side fit one.
 
-**R16 · The `CommitQC` finalization route (S8).**
-* Chorus gains Part I's route: a correct validator holding a valid MVBA
-  `CommitQC` finalizes its entries, with the re-broadcast folded into the
-  handoff.
-* New invariants: the route agrees with the fast path and the
-  `fbCommitQC` route, and has the DA property through the R15 bridge.
-* The certificate-level fields its cells read lose `veil_smt_ignore`
-  (no statement changes; R16 re-solves Chorus cold anyway).
-* **To decide:** whether `AvailReady` stays the MVBA's environment
-  relation, read through `certified_available` and a stated bridge to
-  Chorus's chunks, or becomes a contract input Chorus drives with the
-  chunk wait as its guard. The second removes the bridge and makes the
-  supplement's `Δ_sync` assumption a consequence of Chorus's rows; on the
-  MVBA side it is a change to `Label.isInput` in
-  [Mvba/Compose.lean](../Cadence/Mvba/Compose.lean) only.
-* Families: **Chorus** cold (a model change). Mvba stays warm, because the
-  contract fields came in R15.
-* Pins: `#veil_status Chorus` moves.
-* Re-established: as R15 on the Chorus side.
-* Option: bundle R16 into R15's Chorus re-solve if R15's Chorus side fits
-  one session. The plan keeps them apart because R16's invariants are new
-  safety work, and R15's are a re-statement.
-* S4: unaffected (the paper's bound uses the main body's route).
+**R16 · The `CommitQC` finalization route (S8). Done** (2026-10-02; the
+builds are [History.md](History.md)'s R16 row). The design and what the
+build decided are §8.2.
+* **Chorus has Part I's route.** `on_mvba_commitqc_pos` / `_neg` record a
+  valid MVBA certificate's entries after the certificate bridge on the
+  recovered representation. `commit_assign_*` finalize on `fbcommitqc ∨
+  mvba_commitqc` together with the records. The re-broadcast is folded
+  into the handoff. The main body's route stays.
+* **Contract.** `certified_mono`, and `AvailReady` as an input the caller
+  drives: `markAvail`, its effect, its own-party frame, `init_availReady`
+  and four frames. `certified_unique` and `certified_decided` reach the
+  solver. `Mvba.mvbaSafety` proves every field, with no Mvba model
+  change.
+* **Chorus drives `AvailReady`** (`mvba_avail_ready`, the chunk wait as its
+  guard). `avail_ready_chunks` proves what it means, and
+  `Chorus.certified_available_chunks` reads `certified_available` in
+  Chorus's vocabulary.
+* **Gates.** The MVBA-arm gates of the decision handlers, `mvba_terminate`
+  and `cast_fb_commit` are gone: our modelling error, since the target has
+  none. `mvba_decided_phase` reads `phase ≠ pre_deadline`, and the two
+  helpers `mvba_complete_phase` and `fbcommit_sig_phase` are deleted.
+* **Liveness.** (F-avail) is derived (`Chorus.fAvail_of_fJustice`) and has
+  left `MvbaAdmissible`. `ValidBridge`'s completeness covers held
+  (accepted) meta-blocks. The availability report is a fair family, owed
+  for a held meta-block (`availOwed`). The timed premise has its δ-row, and
+  (Δ-avail) is assumed inside `TimedMvbaAdmissible` until S4.
+* **Findings.** P12 (§6): the MVBA's availability couples it to the
+  dissemination layer through state Module 3 (`mod:mvba`) does not
+  expose. The interface check is §8.2 (h).
+* Families: Chorus cold; Mvba warm (instance proofs and liveness in plain
+  Lean); FallbackReceipt warm.
+* Pins: `#veil_status Chorus` 4840 → **5099** (§8.2 (i)); Mvba 1507 and
+  FallbackReceipt 220 unchanged.
+* Re-established at `[propext, Classical.choice, Quot.sound]`:
+  `Chorus.slotConsensusSafety`, `Chorus.termination`, the timeline,
+  `Chorus.totality`, the three Chorus witnesses, System.lean's end theorems
+  and every pin of [Cadence.lean](../Cadence.lean). The monitor suites
+  pass.
+* S4: the paper's bound still uses the main body's route. (Δ-avail) is now
+  S4's to derive ([TODO.md](TODO.md) § Liveness).
+
+*Plan changes made in R16:*
+* **No second stated bridge.** §5.7 expected the route's data availability
+  to need one. The certificate bridge the route needs for agreement also
+  gives DA.
+* **AvailReady is an input**, which the plan left open. On Lars's decision
+  it is driven by Chorus, which needed one premise change (`ValidBridge` at
+  held values) and the owed condition `availOwed`. Both read the MVBA's
+  internal `accepted` (P12).
+* **The gates.** The plan did not foresee them. Dropping them deleted two
+  helper invariants, so the pin is 5099, not the designed 5199.
+* **Contract shape.** `availReady_markAvail_frame` was added after the
+  first cold solve found it missing (❌). `markAvail_enabled` was dropped,
+  because no cell reads it and the monitor stub could not satisfy it.
+* **The design's new invariants were fewer than planned.** The route's
+  agreement and DA are covered by the existing invariants, restated over
+  the widened ties. The one new invariant is `avail_ready_chunks`.
 
 **R17 · Close the realignment.**
 * A full re-validation, and the four markers counted.
@@ -1096,6 +1170,383 @@ every action.
   cold although the counts stay. If the cold solve needs a helper
   invariant, each one costs `A + 1` cells (29 on Mvba, 47 on Chorus). It is
   recorded as a plan change with the new arithmetic.
+
+### 8.2 R16: the design
+
+Written before any model edit, and sent to the coordinator before one.
+
+**(a) The route, as the target states it.**
+
+| | the `CommitQC` finalization route |
+|---|---|
+| target | "Upon receiving this output, Chorus broadcasts the `CommitQC`. A correct validator that receives a valid such certificate re-broadcasts it and finalizes the certified outcome, recovering a matching meta-block or the underlying proposals as required by the ordinary commitment-proof recovery path. Thus the concrete MVBA's internal Commit round also serves as the fallback commitment-certification round." (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff") |
+| the MVBA's side | "upon receiving a valid `CommitQC` … if `DecidedQC_i = ⊥`: `Decide(CommitQC)`" (Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)); every correct validator decides within `2Δ_R + Δ` of the first learner (Supplement, Lemma 13 (`lem:decision-propagation`)) |
+| the recovery path | "A correct validator finalizes only the proposal vector `recoverProposals(entries(B))` (Algorithm 6, line 14 (`line:da-recover-slot`)) for a meta-block `B` whose entries are backed by a commitment proof it holds" (Lemma 9 (`lemma:chorus-agreement`), proof) |
+| model | a correct validator `i` that holds a valid MVBA certificate `c` recovers a matching representation `v` (`mvba.certifies mvba_st c (mvba.entries v)`), checks the certificates `v` names, and records the certified entries (`on_mvba_commitqc_pos` / `_neg`). It then commits and finalizes them by the ordinary `commit_assign_*` / `finalize_commit`, whose certificate disjunct gains "a valid MVBA `CommitQC` exists" |
+
+The re-broadcast is folded into the handoff, as the decision broadcast is
+today: a certificate is transferable and stays valid, so its existence is
+its availability to every validator, and nothing is written. The handoff
+into the MVBA (`accept_mvba_commitqc`) is unchanged. The main body's
+`fbCommitQC` route stays.
+
+**(b) The new actions.** Two handlers and one guard disjunct.
+
+```lean
+ghost relation mvba_commitqc := ∃ C E, mvba.certifies mvba_st C E
+
+action on_mvba_commitqc_pos (i : node) (j : node) (m : merkle_root) (c : mmsg) (v : mvalue) {
+  require ¬ is_byz i
+  require is_proposer j
+  -- `i` holds a valid commit certificate, and `v` is a representation of
+  -- its entries whose entry for `j` is `m` (`Recover(e)`).
+  require mvba.certifies mvba_st c (mvba.entries v)
+  require mval_pos (mvba.entries v) j m
+  -- The bridge, as at the decision handlers: the certificate `v` names for
+  -- the entry verifies against the network.
+  require (¬ mval_fb v j ∧ vote_quorum_pos j m) ∨ (mval_fb v j ∧ fb_quorum_pos j m ∧ fbcert)
+  require ¬ local_mvba_recorded i j
+  mvba_decided_pos j m := true
+  local_mvba_recorded i j := true
+}
+-- on_mvba_commitqc_neg (i j c v): the same with `mval_neg` and the
+-- negative bridge of `on_mvba_decide_neg`.
+```
+
+`commit_assign_pos` requires
+`msg_commitqc_pos j m ∨ ((fbcommitqc ∨ mvba_commitqc) ∧ mvba_decided_pos j m)`
+(was `… ∨ (fbcommitqc ∧ mvba_decided_pos j m)`), and `commit_assign_neg`
+likewise. `finalize_commit` is unchanged.
+
+* **The records stay shared and keep their meaning**, "the agreed
+  entries". They now have two sources: a correct validator's decision, and
+  a valid certificate. The new handlers write the records the decision
+  handlers write, so every invariant downstream of the records
+  (`*_backed`, `*_chunks_decodable`, `*_proposer_signed`, the
+  commitQC-consistency invariants, proposal inclusion, speculative safety)
+  keeps its statement and now covers the route. A separate pair of records
+  would duplicate about twenty of them.
+* **Why a handler, and not only the guard disjunct.** A certificate can
+  exist before any correct validator decides (the adversary aggregates
+  `2f+1` `Commit`s), and the paper's validator finalizes on it then. With
+  only the disjunct, finalization would wait for a correct decision's
+  records. The handler records from the certificate itself.
+* **Reads.** All positive. `mvba.certifies` is oracle state read in
+  positive position (category (A) of [ChorusDesign.md](ChorusDesign.md)
+  §3.5), and the ghosts and `mval_*` are read as at the decision handlers.
+  The one negative read is the fired-once record `local_mvba_recorded i j`,
+  which is local state (category (L)). No network relation is read
+  negatively, so the §3.1.1 audit gains no entry.
+* **Parameters**: 5 and 4.
+* **Fired once.** `local_mvba_recorded i j` is shared with the decision
+  handlers: a validator records entry `j` once, from whichever source comes
+  first, and both sources write the same value (`mvba_decided_pos_unique`).
+  Every firing sets the record, so `Chorus.justice_enabledMove` keeps its
+  proof.
+* **Gates.** `¬ is_byz i` and `is_proposer j`, as at the decision handlers.
+  **No phase gate**: the target's rule has none ("A correct validator that
+  receives a valid such certificate re-broadcasts it and finalizes",
+  Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and
+  handoff"), so the sketch above loses its `require phase = post_mvba_arm`
+  (see "The MVBA-arm gates" below). `mvba_invoked` is **not** required: a
+  validator on the fast path that receives a `CommitQC` finalizes on it,
+  and no safety invariant relies on the condition. There is no
+  participation gate, because the handler only processes, like the
+  decision handlers. `commit_assign_*` and `finalize_commit` keep theirs.
+* **Liveness classification.** Both handlers are honest labels, so they
+  are under (F-justice). Their `Owed` is the handoff's `relayOwed` ("a
+  correct validator has decided", and Chorus broadcasts that decision's
+  certificate). The premise asks nothing on a certificate the adversary
+  assembled and showed to nobody (F5). `Owed` of `commit_assign_*` is
+  unchanged, so the liveness argument keeps the main body's route, and S4
+  is unaffected.
+
+**The bridge is the existing one, at one more site. This is for Lars.**
+The route needs the certificate check on the recovered `v`, and there is
+no way around it. Chorus's agreement with the fast path needs the
+certified entries' certificates to be genuine. The contract's only
+statement about a certified entry vector's certificates is
+`certified_valid` (`Valid v` for some representation), and `Valid` is a
+predicate fixed before Chorus's network exists. That is exactly the gap
+the decision handlers' bridge closes. The route uses the same statement
+("a valid meta-block's certificates verify against the network") with the
+same soundness argument: the check removes no real behaviour, because
+`Recover(e)` returns a valid representation (`certified_valid`) and a valid
+one passes it. The content of the trust-base item does not change. Its
+sites become the two decision handlers and the two route handlers, and its
+wording in [CompositionContracts.md](CompositionContracts.md) §3/§7 and
+[Architecture.md](Architecture.md) §4 says "at the decision handlers and
+the `CommitQC` route". **No second bridge is needed for data
+availability**, although §5.7 expected one: the route's DA follows from
+the same check, through `mvba_decided_pos_chunks_decodable` (see (e)).
+
+**(c) `AvailReady`: an MVBA input that Chorus drives.** The target makes
+the DA layer the source of availability. `AvailReady_i(x)` holds "if, for
+every positive entry `⟨s, j, ρ⟩` of `x` that is certified by a
+`FallbackQC`, validator `p_i` holds its assigned availability share for
+`ρ`", and "the MVBA treats availability synchronization as a service of the
+composing dissemination and ChunkSync layer" (Supplement, Section 1.2
+(`subsec:mvba-protocol`), "Commit availability condition" and
+"Availability-synchronization assumption"). So `become_avail_ready`
+becomes the contract's fourth input, and Chorus drives it with the chunk
+wait as its guard:
+
+```lean
+-- Interfaces.lean, MVBASafety
+  markAvail : state → party → value → state → Prop
+  markAvail_trans : ∀ st p v st', markAvail st p v st' → trans st st'
+  markAvail_effect : ∀ st p v st', markAvail st p v st' → availReady st' p v
+  markAvail_enabled : ∀ st p v, ∃ st', markAvail st p v st'           -- withheld
+  init_availReady : ∀ st p v, init st → ¬ availReady st p v
+  availReady_frame : ∀ st st' p v, ¬ byz p →
+    (step st st' ∨ (∃ q w, propose st q w st') ∨ (∃ q, abandon st q st') ∨
+      (∃ q c, accept st q c st')) → (availReady st' p v ↔ availReady st p v)
+
+-- Chorus.lean
+action mvba_avail_ready (i : node) (v : mvalue) (mvba_next : mstate) {
+  require ¬ is_byz i
+  require ∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J → msg_chunk_received i J M
+  require ¬ local_avail_marked i v
+  require mvba.markAvail mvba_st i v mvba_next
+  mvba_st := mvba_next
+  local_avail_marked i v := true
+}
+```
+
+* **On the MVBA side the model does not change.** `become_avail_ready` is
+  already an unguarded action, and the instance classifies it as an input
+  (`Label.isInput` in [Mvba/Compose.lean](../Cadence/Mvba/Compose.lean),
+  and `InputLabel` in place of `AvailLabel` in
+  [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)). (F-avail) stays a
+  premise of `Mvba.termination`, now as a caller's premise beside
+  `AllPropose`. The Mvba family stays warm. The instance proofs,
+  `Mvba.Liveness`, `Mvba.Temporal` and the Mvba witnesses re-check in plain
+  Lean.
+* **On the Chorus side the premise `MvbaAdmissible` loses `Mvba.FAvail`.**
+  `Chorus.termination` derives it instead, as it derives `AllPropose`. The
+  derivation uses (F-justice) on the new family (per validator and value,
+  with `Owed` true, since it consumes only the validator's own chunk
+  receipts), and the chunk under a `FallbackQC` entry reaches `i` by
+  `redisseminate_chunk` from the entry's correct signer (`Owed` is
+  `msg_fb_pos_sig k j m`, F14). The derivation needs the accepted value's
+  `FallbackQC` entries to be genuine. That is the bridge's completeness
+  direction at an **accepted** value, and `ValidBridge` states it today at a
+  decided one. So `ValidBridge`'s second clause is extended from decided to
+  accepted values. **This is a premise change, for Lars.** In the timed
+  claim ([Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)), the
+  `Mvba.AvailWithin` premise is replaced by a δ-row for the new family.
+  That is a statement change; the proof is S4's. The three Chorus witnesses
+  fire the new family where the MVBA's environment marked availability
+  before.
+* **What this buys.** The supplement's `Δ_sync` assumption becomes a
+  consequence of Chorus's rows (§8, R16's "to decide"). One premise of the
+  composed liveness claim is removed and one is extended.
+* **The alternative** is to keep `AvailReady` the MVBA's environment
+  relation. It needs no bridge either (by (e)), and it costs nothing in
+  Chorus's liveness. But (F-avail) then stays an assumption, in the
+  composed system, about a step that is Chorus's own. It has one action and
+  one invariant fewer: `#veil_status Chorus` is then 5046 instead of 5199.
+
+**(d) Fields that reach the solver.** The new cells read
+`certified_unique` (two certificate-sourced records), `certified_decided`
+(a certificate-sourced record against a decision-sourced one), the new
+`certified_mono` (the certificate tie survives every transition, below)
+and, for (c), `markAvail_trans`, `markAvail_effect`, `init_availReady` and
+`availReady_frame`. All of them are universally quantified implications,
+so they are first-order. They leave `veil_smt_ignore`, or are added
+outside it. `decided_certified`, `accept_effect`, `accept_enabled`,
+`certified_valid`, `certified_available` and the new `markAvail_enabled`
+stay withheld: each has an `∃` in its conclusion, and no cell reads it.
+
+```lean
+  certified_mono : ∀ st st' c e, trans st st' → certifies st c e → certifies st' c e
+```
+
+`certified_mono` is new: "a valid certificate stays valid", which is what
+makes it transferable. `Mvba.mvbaSafety` proves it from the generated
+monotonicity of `msg_commitqc`. Together with (c) this is the one contract
+edit of R16. Nothing is weakened.
+
+**(e) Invariants.**
+
+* **Restated: the tie invariants.** A record is now the projection of a
+  correct decision *or* of a valid certificate:
+
+  ```lean
+  invariant [mvba_decided_pos_tied]
+    ∀ J M, mvba_decided_pos J M →
+      (∃ I V, ¬ is_byz I ∧ mvba.decided mvba_st I V ∧ mval_pos (mvba.entries V) J M) ∨
+      (∃ C E, mvba.certifies mvba_st C E ∧ mval_pos E J M)
+  ```
+
+  The negative form is the same. Uniqueness of the records then follows
+  from `agreement` (two decisions), `certified_decided` (a decision and a
+  certificate) and `certified_unique` (two certificates). The ties are read
+  nowhere outside [Chorus.lean](../Cadence/Chorus.lean).
+* **Agreement of the route with the fast path and with the `fbCommitQC`
+  route needs no new invariant.** Every route finalizes either on
+  `msg_commitqc_*` or on a record, and the existing invariants relate the
+  two: `local_committed_pos_unique`, `local_committed_pos_neg_excl`,
+  `commitqc_pos_mvba_consistent` and its two exclusion siblings, then the
+  `safety` statements `agreement_pos` and `agreement_pos_neg`. Their cells
+  at the new handlers are the decision handlers' cells, from the same
+  bridge evidence. The four manual cells there (two per handler) are
+  mirrored.
+* **DA on the route needs no new invariant either.**
+  `local_committed_pos_implies_decodable` covers the route through
+  `mvba_decided_pos_chunks_decodable`, which follows from the bridge
+  evidence as at the decision handlers.
+* **New, for (c): what `AvailReady` means.**
+
+  ```lean
+  invariant [avail_ready_chunks]
+    ∀ I V J M, ¬ is_byz I ∧ mvba.availReady mvba_st I V →
+      mval_pos (mvba.entries V) J M → mval_fb V J → msg_chunk_received I J M
+  ```
+
+  With `certified_available`, this turns §5.7's reading of the R15 field
+  in Chorus's vocabulary from a stated bridge into a theorem. A certified
+  entry vector has a supermajority whose correct members each received
+  its assigned chunk under every `FallbackQC` entry of its own
+  representation. That is a plain-Lean corollary,
+  `Chorus.certified_available_chunks`.
+* **P2.** The proofs assume no common `B′`. Records and certificates are
+  over entries, and the bridge is per representation. The agreement case
+  P2 says the main body omits, a `CommitQC` against a fast `commitQC`, is
+  `commitqc_pos_mvba_consistent` at the new handler. It is proven by the
+  main body's fast-path argument (vote-quorum intersection, and the
+  `FBCert`/commit intersection), not by Part I's conditional sentence. P2's
+  representation divergence does matter for
+  `Chorus.certified_available_chunks`: two `Commit` signers may have waited
+  under different certificate kinds for one root. So the corollary is
+  stated per signer's own representation, and for a root a signer held by
+  a `FastQC` the chunks come from the vote quorum instead.
+
+**The MVBA-arm gates.** Before R16, four actions required
+`phase = post_mvba_arm`: `on_mvba_decide_pos`, `on_mvba_decide_neg`,
+`mvba_terminate` and `cast_fb_commit`. The target's rules have no such
+gate. The decision handler is "upon `MVBA[s].decide(B′)`" (Algorithm 5,
+line 37 (`line:fb-mvba-decide`)), and the receipt rules are "upon
+receiving a valid `fbCommitQC`" (Algorithm 5, line 45
+(`line:fb-recv-commit`)) and the supplement's sentence quoted under
+"Gates". `Ds + 2Δ` gates only the case-1 *proposal* (Algorithm 5, line 23
+(`line:fb-mvba-propose-fast`)), and the case-2 proposal needs only
+`2f+1` fallback votes, which exist from `Ds + Δ` on. So a paper validator
+can decide, cast its fallback commit vote and hold a `CommitQC` before
+`Ds + 2Δ`, and the gate delayed all of that to the MVBA arm. That is a gap
+of the same kind as the new handlers' gate, and R16 closes both: none of
+the four existing actions and neither new handler has a phase gate. The
+remaining phase guards are the target's own: the deadline (`propose`,
+`record_chunk`, `vote`), the fallback arm (`fb_sign_*`,
+`cast_fallback_vote`), and the two triggers of `mvba_propose`.
+
+*What dropping the gates breaks, by analysis* (the trial build waits for
+the go-ahead on the model edit). Exactly three invariants state the gate
+and so fail by construction: `mvba_decided_phase` (records exist only at
+the MVBA arm), `fbcommit_sig_phase` and `mvba_complete_phase`. Each is
+restated as `phase ≠ pre_deadline`, and in that form it follows from the
+bridge evidence every record carries. A positive record has a vote
+quorum, or a `FallbackQC` under `FBCert`. A negative one has a negative
+vote quorum, or `FBCert`. Each of these contains a correct signer, whose
+signature postdates the deadline (`voted_post_deadline`, `fb_sig_phase`).
+`mvba_complete` and an honest fallback commit vote come after records.
+Only the deadline is needed, by the one consumer: proposal inclusion uses
+`mvba_decided_phase` to show that `all_honest_recorded`, which can only
+become true before the deadline (`record_chunk`), never becomes true after
+a conflicting record exists. `mvba_complete_phase` was the phase leg of
+`cast_fb_commit`'s enabledness, which no longer has one. No file outside
+[Chorus.lean](../Cadence/Chorus.lean) reads the three, so the plain-Lean
+liveness proofs are unaffected. Their frames cover the new labels, and
+the derivations that stepped through the MVBA arm only lose a premise.
+No monotone-network exception is needed, since a gate removed is a guard
+removed. The restatement keeps every count, so (f) is unchanged. What
+analysis cannot settle is whether a cold solve finds the restated
+invariants' cells at the four actions. If one diverges, it is made manual
+from the derivation above, and if one turns out false, the counterexample
+is reported before anything else changes.
+
+**(f) The pins, written down before the build.** Cells are
+`(A + 1)(I + 1) + A·S`.
+
+* `#veil_status Chorus`: `A = 46 + 3 = 49` (`on_mvba_commitqc_pos`,
+  `on_mvba_commitqc_neg`, `mvba_avail_ready`), `I = 101 + 1 = 102`
+  (`avail_ready_chunks`), `S = 1`. **`50 · 103 + 49 = 5199`**, which is
+  `4840 + 3 · 103 + 1 · 50`. Each new action adds one cell per property and
+  step property plus its does-not-throw cell (`102 + 1`), and the new
+  invariant adds one cell per action and one at the initializer
+  (`49 + 1`). Without (c): `A = 48`, `I = 101`, `49 · 102 + 48 = 5046`.
+* `#veil_status Mvba`: 1507, warm (no model change).
+* `#veil_status FallbackReceipt`: 220, warm.
+* A helper invariant found during the cold solve costs `A + 1 = 50` cells,
+  and is recorded as a plan change.
+
+**(g) What the cold solve found, and what was decided** (after the
+go-ahead; Lars's decisions relayed by the coordinator).
+
+* **The MVBA-arm gates were our modelling error**, not a paper finding.
+  The target is clear that the decision handler runs "upon
+  `MVBA[s].decide(B′)`" with no time condition (Algorithm 5, line 37
+  (`line:fb-mvba-decide`)). The four gates are dropped, and the new
+  handlers have none.
+* **Two helper invariants are deleted**: `mvba_complete_phase` and
+  `fbcommit_sig_phase`. Without the gate they are false. With no
+  proposers, `complete_fast_metablock` holds vacuously, so `mvba_invoked`
+  holds before the deadline. The contract lets a correct decision appear
+  there, and `mvba_terminate`'s per-proposer check is vacuous, so
+  `mvba_complete` and then a fallback commit vote can precede the
+  deadline. Proving the helpers would need "a correct party decides only
+  after proposing". Module 3 (`mod:mvba`) does not state that: its
+  interface says only that `propose(B)` is how a validator "thereby
+  start[s] to participate", and its Quiescence covers messages, not
+  outputs. So the helpers relied on more than the module promises, and
+  deleting them is correct. Nothing consumed them: their one use was the
+  phase leg of `cast_fb_commit`'s enabledness, which no longer exists.
+  `mvba_decided_phase` stays, in the form `phase ≠ pre_deadline`, because
+  a record carries a certificate whose correct signers postdate the
+  deadline.
+* **One contract frame was missing**: `availReady_markAvail_frame` (the
+  report concerns its own party and representation). Without it
+  `avail_ready_chunks` failed at `mvba_avail_ready` (❌). It is first-order,
+  and `Mvba` proves it from the transition body.
+* **`markAvail_enabled` is not a contract field.** No Chorus cell reads
+  it, and the monitor's silent stub, whose state is `Unit`, could not
+  satisfy it together with `init_availReady`. The one liveness proof that
+  needs the input to be enabled runs at the `Mvba` instance, where
+  `become_avail_ready` is unguarded.
+* **The availability report is owed for a meta-block the validator holds**
+  (`availOwed i v := ∃ w, accepted i w v`, at the `Mvba` instance). The
+  supplement's assumption is about "a correct validator `p_i` [that]
+  holds a valid meta-block `x`". Owing the report for every
+  representation would make (F-justice) demand reports nobody makes.
+* **(Δ-avail) stays assumed inside `TimedMvbaAdmissible` until S4 derives
+  it.** The timed premise gains the δ-row (`TimedJustice.avail`).
+  Deriving the MVBA's timed clause from it and from the re-dissemination
+  rows is a timed proof of the `relayed_of_timedJustice` kind, and it
+  belongs to the bounds leg ([TODO.md](TODO.md) § Liveness). The untimed
+  (F-avail) is derived (`fAvail_of_fJustice`) and has left
+  `MvbaAdmissible`.
+
+**(h) The interface check.** Each R16 addition, against what Module 3
+(`mod:mvba`) and the supplement's concrete MVBA expose:
+
+| addition | exposed by the target? | verdict |
+|---|---|---|
+| `AvailReady` as an input (`markAvail` and its frames) | not by Module 3 (`mod:mvba`); the supplement defines it over the dissemination layer's shares and calls synchronization "a service of the composing dissemination and ChunkSync layer" | the composition needs more than the abstract module states: P12 |
+| `availOwed` and `ValidBridge`'s accepted clause, reading `accepted` | neither document exposes the MVBA's `x_v`; the supplement's `Δ_sync` is stated over it | the same seam, P12. Read at the system's instance; no class field carries it |
+| `certified_mono` | the commit certificate is the supplement's strengthened interface ("serves as a transferable commitment proof"); transferability is persistence | stated by the supplement, not extra |
+| the certificate bridge at the route | `Valid` is "publicly verifiable" in both documents; the bridge says what a valid certificate means in a network of relations | the existing bridge, one more site, not extra |
+
+P12 does not break the claimed abstraction for **safety**. The safety
+proofs read the MVBA only through the contract, and the `AvailReady`
+input changes no safety statement of the MVBA. It does for **liveness**:
+the main body's `ℓ_MVBA` is a constant of a self-contained module, while
+the supplement's depends on the composing layer's `Δ_sync`, triggered by
+MVBA-internal state. The model states that dependency rather than hiding
+it.
+
+**(i) The pins, after the build.** `A = 49`, `I = 100` (101 + 1 new − 2
+deleted), `S = 1`: **`50 · 101 + 49 = 5099`**. `#veil_status Mvba` 1507
+and `#veil_status FallbackReceipt` 220, both warm.
 
 ## 9. Scope and access
 

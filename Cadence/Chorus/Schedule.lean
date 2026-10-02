@@ -115,12 +115,15 @@ the three phase markers ((P-phase) times them).
   (`broadcast_commitqc_*`), others' fallback votes (the `mvba_propose`
   family on its `FBCert` trigger, Algorithm 5, line 36 (`line:fb-mvba-propose`)), the caster's chunk (`redisseminate_chunk`), a
   certificate someone else sent (`commit_assign_*`), a decided MVBA
-  certificate (the handoff `accept_mvba_commitqc`);
+  certificate (the handoff `accept_mvba_commitqc`, and the `CommitQC`
+  route's handlers `on_mvba_commitqc_*`);
 * `δ`: `record_chunk`, `vote`, `commit_sign_*`, `cast_fast_commit`,
   `cast_fallback_vote`, the `mvba_propose` family on its case-(a) trigger
   (Algorithm 5, line 23 (`line:fb-mvba-propose-fast`): the proposer's own complete fast meta-block,
   local state), the decision handlers `on_mvba_decide_*` and
-  `mvba_terminate`, `cast_fb_commit`, `finalize_commit`.
+  `mvba_terminate`, `cast_fb_commit`, `finalize_commit`, and the
+  availability report `mvba_avail_ready` (a family, `avail`: it reads the
+  validator's own chunk receipts).
 
 **The proposal is two families, the paper's two rules** (F9). `mvba_propose`
 is one label with both triggers, so `hop` gives it its `Δ` row and
@@ -153,6 +156,8 @@ def hop : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg
   | .broadcast_commitqc_neg .. => some .net
   | .mvba_propose .. => some .net
   | .accept_mvba_commitqc .. => some .net
+  | .on_mvba_commitqc_pos .. => some .net
+  | .on_mvba_commitqc_neg .. => some .net
   | .redisseminate_chunk .. => some .net
   | .commit_assign_pos .. => some .net
   | .commit_assign_neg .. => some .net
@@ -167,6 +172,7 @@ def hop : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg
   | .mvba_terminate .. => some .loc
   | .cast_fb_commit .. => some .loc
   | .finalize_commit .. => some .loc
+  | .mvba_avail_ready .. => some .loc
   | _ => none
 
 /-- **The table covers exactly the fair labels that are not phase markers.**
@@ -394,8 +400,10 @@ def proposeGate (i : node) (s : StateAtMvba slot node nodeset merkle_root view P
 /-- **The gates.** A sending rule is gated on its sender's active participation
 (Appendix C.3 (`subsection:chorus-protocol-overview`)), and a rule that waits for a landmark
 on the landmark's phase. The processing rules (`record_chunk`,
-`aggregate_fastqc_*`, and the decision handlers apart from their phase) have
-no participation gate, as in the model. -/
+`aggregate_fastqc_*`, the decision and certificate handlers, and the
+availability report) have no participation gate, as in the model, and no
+phase gate: the paper's decision handler is "upon `MVBA[s].decide(B′)`"
+(Algorithm 5, line 37 (`line:fb-mvba-decide`)). -/
 def gate : LabelAtMvba slot node nodeset merkle_root view Phase PathChoice →
     StateAtMvba slot node nodeset merkle_root view Phase PathChoice → Prop
   | .deliver_chunk_assigned _ j _ => fun s => Active s j
@@ -412,11 +420,8 @@ def gate : LabelAtMvba slot node nodeset merkle_root view Phase PathChoice →
   | .cast_fallback_vote i => fun s => Active s i ∧
       (s.phase = Phase_EnumClass.post_fb_arm ∨ s.phase = Phase_EnumClass.post_mvba_arm)
   | .mvba_propose i .. => proposeGate i
-  | .on_mvba_decide_pos .. => fun s => s.phase = Phase_EnumClass.post_mvba_arm
-  | .on_mvba_decide_neg .. => fun s => s.phase = Phase_EnumClass.post_mvba_arm
-  | .mvba_terminate .. => fun s => s.phase = Phase_EnumClass.post_mvba_arm
   | .redisseminate_chunk k .. => fun s => Active s k
-  | .cast_fb_commit i _ => fun s => Active s i ∧ s.phase = Phase_EnumClass.post_mvba_arm
+  | .cast_fb_commit i _ => fun s => Active s i
   | .commit_assign_pos i .. => fun s => Active s i
   | .commit_assign_neg i .. => fun s => Active s i
   | .finalize_commit i => fun s => Active s i
@@ -446,7 +451,12 @@ complete fast meta-block (Algorithm 5, line 23 (`line:fb-mvba-propose-fast`), a 
 gate (it processes a message): once a correct validator has decided, whose
 decision output is the certificate's broadcast, `i` takes a transferred
 certificate within `Δ` if it can throughout the window. This row is what
-the MVBA's handoff premise is derived from (`relayed_of_timedJustice`).
+the MVBA's handoff premise is derived from (`relayed_of_timedJustice`). The
+availability report is one family per validator and value, a `δ`-row with
+no gate: once `i` holds `v`, it reports `AvailReady_i(v)` within `δ` of
+its chunk wait being met. With the re-dissemination rows it is what the
+MVBA's (Δ-avail) is to be derived from; until then (Δ-avail) is assumed
+inside `TimedMvbaAdmissible` (S4, [TODO.md](../../docs/TODO.md) § Liveness).
 
 Each window is measured from `max(clk N, gst)` (`TLRun.ref`), so an
 obligation pending at GST is due `Δ` (or `δ`) after it. Stated over plain
@@ -468,6 +478,9 @@ structure TimedJustice (sch : Schedule view time)
   relay : ∀ i : node,
     BufferedFairFamily r sch.Δ sch.δ (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
       (fun _ => True) (fun l => ∃ c mvba_next, l = .accept_mvba_commitqc i c mvba_next)
+  avail : ∀ (i : node) (v : MetaBlock node merkle_root),
+    BufferedFairFamily r sch.δ sch.δ (availOwed i v)
+      (fun _ => True) (fun l => ∃ mvba_next, l = .mvba_avail_ready i v mvba_next)
 
 /-- **(P-phase)** — the phase markers are punctual timers. For each landmark
 `L`:

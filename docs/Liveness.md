@@ -47,9 +47,11 @@ once (§2, last item).
   messages came from correct validators, eventually fires. Nothing is asked
   of a Byzantine validator's messages.
 * **`MvbaAdmissible`**: the MVBA's steps inside the run are scheduled the way
-  the MVBA's own termination theorem requires.
+  the MVBA's own termination theorem requires of its scheduler. What it
+  requires of its caller, Chorus, is derived.
 * **`ValidBridge`**: the MVBA's validity check agrees with Chorus's
-  certificates. This is the cryptographic seam, not a fairness assumption.
+  certificates, for the meta-blocks a correct validator decides or holds.
+  This is the cryptographic seam, not a fairness assumption.
 * **`AllParticipate`**: every correct validator eventually invokes
   `participate()`.
 * **`NoAbandonBeforeFinalizing`**: no correct validator invokes `abandon()`
@@ -149,16 +151,22 @@ each.
   progress never relies on adversarial help, which makes the discharged
   content strictly stronger than deadlock freedom.
 * **The MVBA's scheduling** (`MvbaAdmissible`) — the run's MVBA steps,
-  read as a run of the MVBA model, satisfy the three scheduling premises of
-  `Mvba.termination`: weak fairness of the MVBA's honest actions,
-  (A-viewsync) and (F-avail) (above, and §2.1). The premise says the run *has*
+  read as a run of the MVBA model, satisfy the two scheduling premises of
+  `Mvba.termination`: weak fairness of the MVBA's honest actions, and
+  (A-viewsync) (above, and §2.1). The premise says the run *has*
   such a reading: a labelling of its MVBA steps (the composed run records
   only the MVBA's states), and infinitely many of them
   (`Component.Scheduled`, part of `Component.Projection` in
-  [Cadence/Fairness.lean](../Cadence/Fairness.lean)). The other three premises of
+  [Cadence/Fairness.lean](../Cadence/Fairness.lean)). The other four premises of
   `Mvba.termination` belong to its caller, Chorus: every correct validator
-  proposes, none is abandoned before deciding, and decided certificates are
-  handed on (F-relay). They are **derived**, not assumed. The second holds
+  proposes, none is abandoned before deciding, decided certificates are
+  handed on (F-relay), and the availability shares arrive (F-avail). They
+  are **derived**, not assumed. The fourth is (F-justice) on Chorus's
+  availability report `mvba_avail_ready`, owed once the validator holds the
+  meta-block, and on the re-dissemination its chunk wait needs
+  (`Chorus.fAvail_of_fJustice`, since R16; until then (F-avail) was part of
+  this premise). The timed (Δ-avail) is still assumed inside
+  `TimedMvbaAdmissible` until S4 derives it ([TODO.md](TODO.md) § Liveness). The second holds
   on the branch of the proof that needs the MVBA: there no correct
   validator ever finalizes, so by `NoAbandonBeforeFinalizing` none
   abandons, and the MVBA's `abandon()` is invoked only by Chorus's
@@ -172,7 +180,11 @@ each.
   the meta-blocks whose entries carry certificates on Chorus's network, in
   both directions the proof uses: a certified meta-block is `Valid` (so a
   correct validator can propose it), and a meta-block a correct validator
-  decided is certified (so the decision handlers are enabled). This is the
+  decided or holds in its MVBA is certified (so the decision handlers are
+  enabled, and the `FallbackQC` entries a validator waits under for its
+  availability report have a correct signer). The second reading, at a
+  held meta-block, reads the MVBA's internal `accepted`; the abstract
+  module exposes no such observable ([PaperAlignment.md](PaperAlignment.md) §6, P12). This is the
   **cryptographic seam** between the two models: certificates cannot be
   forged, and a decided value's certificates are publicly verifiable. It
   says nothing about scheduling. `Valid` is a parameter of the MVBA contract,

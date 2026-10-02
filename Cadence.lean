@@ -118,10 +118,12 @@ Each entry is the result, the file its statement lives in, and what it says.
     messages of correct senders (nothing is asked of a Byzantine
     validator's messages);
   * `MvbaAdmissible`: the MVBA's steps inside the run are scheduled as
-    `Mvba.termination` requires;
+    `Mvba.termination` requires of its scheduler (what it requires of its
+    caller, Chorus, is derived);
   * `ValidBridge`: the MVBA's validity check agrees with Chorus's
-    certificates — the cryptographic seam between the two models, not a
-    fairness assumption;
+    certificates, for the meta-blocks a correct validator decides or holds
+    — the cryptographic seam between the two models, not a fairness
+    assumption;
   * `AllParticipate`: every correct validator eventually invokes
     `participate()`;
   * `NoAbandonBeforeFinalizing`: no correct validator invokes `abandon()`

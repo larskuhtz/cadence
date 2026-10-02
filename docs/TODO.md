@@ -112,6 +112,17 @@ come first.
 
 ## Liveness
 
+* **Derive the MVBA's (Δ-avail) from Chorus's rows** (S4). Since R16 the
+  untimed (F-avail) is derived (`Chorus.fAvail_of_fJustice`), and the timed
+  premise has the availability report's δ-row (`TimedJustice.avail`). But
+  the MVBA's timed clause `Mvba.AvailWithin` is still assumed inside
+  `TimedMvbaAdmissible` until S4 derives it. The derivation is the timed twin
+  of `fAvail_of_fJustice`, of the `relayed_of_timedJustice` kind: the
+  correct `FallbackQC` signer's re-dissemination row, then the report's
+  δ-row, gives `AvailReady` within `Δ + δ` of the later of holding the meta-block and GST,
+  which `Δ_sync` must cover ([PaperAlignment.md](PaperAlignment.md) §8.2
+  (g)).
+
 * **A non-vacuity instrument at the *composition* level.** The reason one is
   needed at all is that non-vacuity does not compose —
   [CompositionContracts.md](CompositionContracts.md) §7, "Vacuity does
@@ -339,11 +350,10 @@ plan's sessions, in order:
   its own `B′` (F13 closed); the citations of Interfaces.lean and
   System.lean are in the rendered form
   ([PaperAlignment.md](PaperAlignment.md) §8, "R15", and §8.1).
-* **R16**: Chorus finalizes on the MVBA's `CommitQC` as well (Part I's
-  route). Chorus re-solves cold. It lifts `veil_smt_ignore` on the
-  certificate-level fields its cells read, and decides whether `AvailReady`
-  becomes a contract input Chorus drives or a stated bridge
-  ([PaperAlignment.md](PaperAlignment.md) §8, "R16").
+* **R16** (done, 2026-10-02): Chorus finalizes on the MVBA's `CommitQC` as
+  well (Part I's route), `AvailReady` is a contract input Chorus drives,
+  (F-avail) is derived, and the MVBA-arm gates of the decision rules are
+  gone ([PaperAlignment.md](PaperAlignment.md) §8, "R16", and §8.2).
 * **R17**: re-validate, flip the statement to "corresponds", tag
   `paper-target/48cac9a`.
 
