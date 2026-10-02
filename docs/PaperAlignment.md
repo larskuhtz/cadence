@@ -642,10 +642,10 @@ build is [History.md](History.md)'s R14 row).
   `scripts/paper-cites.sh` checks their labels against the map but not
   their form. R15 rewrites their citations in the same edit and removes
   the exemption.
-* **The citation check is not in CI.** CI's settings were not changed in
-  R14. The check needs Python only (the map is committed, so `tectonic` is
-  not needed), and running it beside `scripts/site-links.sh check` is
-  proposed for the next session that edits CI.
+* **The citation check runs in the docs build.** `scripts/docs.sh` runs
+  `scripts/paper-cites.sh` beside the link resolution, so the docs workflow
+  fails on a cited label missing from the map as it fails on a dead link.
+  No workflow file or limit changed.
 * **R17's anchor re-check** is §1's check: regenerate the map at the new
   pin and run the citation check.
 

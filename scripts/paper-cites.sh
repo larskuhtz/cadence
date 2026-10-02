@@ -19,8 +19,14 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
+command -v python3 >/dev/null || { echo "paper-cites: python3 not found" >&2; exit 1; }
 if [ "$#" -eq 0 ]; then
-  set -- $(git ls-files '*.lean' '*.md')
+  # Outside a git checkout (the docs container), every source file instead.
+  files="$(git ls-files '*.lean' '*.md' 2>/dev/null || true)"
+  [ -n "$files" ] || files="$(find . \( -name .lake -o -name .git -o -name node_modules \) -prune -o \
+    \( -name '*.lean' -o -name '*.md' \) -type f -print | sed 's|^\./||' | sort)"
+  [ -n "$files" ] || { echo "paper-cites: no source files found" >&2; exit 1; }
+  set -- $files
 fi
 exec python3 - "$@" <<'EOF'
 import re, sys

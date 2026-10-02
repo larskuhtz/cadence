@@ -335,8 +335,6 @@ plan's sessions, in order:
   fragments; F14 closed; the documentation items; citations to the
   rendered PDF, with the label map and its check
   ([PaperAlignment.md](PaperAlignment.md) §8, "R14").
-* **Run `scripts/paper-cites.sh` in CI**, beside `scripts/site-links.sh
-  check` (R14 left CI's settings unchanged).
 * **R15**: the MVBA value carries certificate kinds, the contract states
   Agreement and Integrity over `entries`, and Chorus waits under its own
   `B′` (closes F13). Mvba and Chorus re-solve cold. The citations of
