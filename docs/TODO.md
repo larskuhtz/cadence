@@ -250,10 +250,9 @@ come first.
 
   **Open from R12** ([Bounds.md](Bounds.md) §6.4.2, "F12 closed"): F13, a
   root with both a FastQC and a FallbackQC leaves the model's fallback commit
-  vote without the paper's wait, a timed-premise residual that needs the
-  certificate kind in the MVBA's entry vector (composition leg); F14,
-  re-dissemination's "decided" owed-disjunct is used by no proof and owes
-  more than the paper sends (drop it in the next statement session).
+  vote without the paper's wait, a timed-premise residual that R15 closes
+  ([PaperAlignment.md](PaperAlignment.md) §5.5). F14 is closed (R14,
+  "F14 closed").
 
 ## Model hygiene
 
@@ -332,20 +331,16 @@ internal supplement). The models do not correspond to it yet. The review
 and the realignment plan are [PaperAlignment.md](PaperAlignment.md). The
 plan's sessions, in order:
 
-* **R14**: `Primitives.ErasureCoding` over indexed fragments; drop F14's
-  decided disjunct; the documentation items:
-  * cite Supplement, Section 10.5 (`sec:domain-separation`) where the network relations rely on
-    message-type non-confusability ([ChorusDesign.md](ChorusDesign.md)
-    §3.1's relation inventory, [Architecture.md](Architecture.md) §4
-    item 3);
-  * cite the per-slot dispatch sentence in the
-    [Cadence.lean](../Cadence/Cadence.lean) header;
-  * record ChunkSync and `Δ_sync` beside the (F-justice) justification for
-    `redisseminate_chunk`. The implementation (supplement Part II) drops
-    Algorithm 5, line 12 (`line:fb-redisseminate`), while the main body keeps it.
+* **R14** (done, 2026-10-02): `Primitives.ErasureCoding` over indexed
+  fragments; F14 closed; the documentation items; citations to the
+  rendered PDF, with the label map and its check
+  ([PaperAlignment.md](PaperAlignment.md) §8, "R14").
+* **Run `scripts/paper-cites.sh` in CI**, beside `scripts/site-links.sh
+  check` (R14 left CI's settings unchanged).
 * **R15**: the MVBA value carries certificate kinds, the contract states
   Agreement and Integrity over `entries`, and Chorus waits under its own
-  `B′` (closes F13). Mvba and Chorus re-solve cold.
+  `B′` (closes F13). Mvba and Chorus re-solve cold. The citations of
+  Interfaces.lean and System.lean move to the rendered form.
 * **R16**: Chorus finalizes on the MVBA's `CommitQC` as well (Part I's
   route). Chorus re-solves cold.
 * **R17**: re-validate, flip the statement to "corresponds", tag

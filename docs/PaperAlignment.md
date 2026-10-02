@@ -599,22 +599,55 @@ Interfaces.lean edit moves every Chorus VC, since class fields are
 hypotheses of every cell, so the plan makes exactly **one** contract edit,
 and puts the Chorus model changes in the same session.
 
-**R14 · Statements that need no Veil re-solve.**
-* `Primitives.ErasureCoding`: `Decode` over indexed fragments, with
-  `decode_sound` requiring `f+1` distinct indices (M3). The class is not
-  instantiated, so no theorem moves.
-* F14: drop the decided disjunct from `Chorus.Owed`'s re-dissemination
-  row, re-check `Chorus.termination`, the timed milestones and the witness
-  (plain Lean).
-* The (d) items:
-  * the [Cadence.lean](../Cadence/Cadence.lean) header cites the per-slot
-    dispatch sentence (M5);
-  * ChorusDesign §3.1 cites Supplement, Section 10.5 (`sec:domain-separation`) (M1, S15);
-  * the positional-fragment remark (M2);
-  * the `ρ_mvba` naming in the MVBA schedule prose (S4).
-* Families: none cold. Chorus, Mvba and FallbackReceipt replay warm, and
-  the pins stay unchanged.
+**R14 · Statements that need no Veil re-solve. Done** (2026-10-02; the
+build is [History.md](History.md)'s R14 row).
+* `Primitives.ErasureCoding` (M3). Before, `Decode : List fragment →
+  Option cipher`, and `decode_sound` held for any list of `f+1` encoded
+  fragments, duplicates included, at every `f`. After, the class takes the
+  system's `n` and `f`, `Encode : cipher → Fin n → fragment`, `Decode`
+  takes a `Finset (Fin n × fragment)`, and `decode_sound` requires `f+1`
+  distinct indices, each fragment at its own index, as Appendix C.1
+  (`appendix:crypto`) states the interface. No Chorus VC statement moved:
+  a warm Chorus proof file replayed with no new cache entry.
+* F14 (§5.6): `Owed (.redisseminate_chunk k i j m)` is
+  `msg_fb_pos_sig k j m`. `Chorus.termination`, the timeline milestones,
+  `Chorus.totality` and the three witness theorems re-checked in plain
+  Lean at `[propext, Classical.choice, Quot.sound]`.
+* The (d) items: the per-slot dispatch sentence in the
+  [Cadence.lean](../Cadence/Cadence.lean) header (M5); domain separation in
+  [ChorusDesign.md](ChorusDesign.md) §3.1 and in
+  [Architecture.md](Architecture.md) §4 item 3 (M1, S15); the
+  positional-fragment remark beside ChorusDesign's network table (M2);
+  `ρ_mvba` in the MVBA schedule's prose (S4); and, from
+  [TODO.md](TODO.md), ChunkSync and `Δ_sync` beside the (F-justice)
+  justification of re-dissemination (`Chorus.Owed`).
+* Families: none cold. The pins are unchanged.
 * F13, F14, S4: F14 closed; F13 and S4 untouched.
+
+*Plan changes made in R14:*
+* **Citations to the rendered PDF** (Lars, 2026-10-02), added to R14. Every
+  citation reads as the target's rendered PDF shows it, with the label in
+  parentheses, and names the supplement where it is the supplement. The
+  label map [paper-labels.tsv](paper-labels.tsv) is generated from the
+  target by `scripts/paper-labels.sh`, and `scripts/paper-cites.sh` checks
+  every citation against it (§1). Citations by `.tex` path or by paragraph
+  title are replaced by the enclosing numbered unit; an unlabelled unit
+  (several of the supplement's Part II subsections) is cited by its
+  labelled parent, with its title as a description. The model headers now
+  say that citations name the target's references, while the statement
+  that the models were built against v2 stays until R17.
+* **Two files keep the bare-label form until R15**:
+  [Interfaces.lean](../Cadence/Interfaces.lean) and
+  [System.lean](../Cadence/System.lean), which R14 does not touch.
+  `scripts/paper-cites.sh` checks their labels against the map but not
+  their form. R15 rewrites their citations in the same edit and removes
+  the exemption.
+* **The citation check is not in CI.** CI's settings were not changed in
+  R14. The check needs Python only (the map is committed, so `tectonic` is
+  not needed), and running it beside `scripts/site-links.sh check` is
+  proposed for the next session that edits CI.
+* **R17's anchor re-check** is §1's check: regenerate the map at the new
+  pin and run the citation check.
 
 **R15 · The meta-block representation, and the contract.** The one
 Interfaces.lean edit, together with every model change it needs.
@@ -635,6 +668,9 @@ Interfaces.lean edit, together with every model change it needs.
   `FallbackQC` entries. This closes F13 with no residual (§5.5).
   `mval_pos`/`mval_neg` read through `entries`.
 * **System.lean** re-instantiates at the new value type.
+* **Citations** of Interfaces.lean and System.lean move to the rendered
+  form, and `scripts/paper-cites.sh` drops its exemption for them (R14's
+  plan change).
 * Families cold: **Mvba** (with `Mvba/NoLock.lean` re-run; its pinned
   witness must survive or be re-pinned with the reason recorded) and
   **Chorus**. FallbackReceipt, Cadence and Conductor stay warm.
@@ -674,7 +710,8 @@ Interfaces.lean edit, together with every model change it needs.
 * A full re-validation, and the four markers counted.
 * The [Cadence.lean](../Cadence.lean) header, the README paper section
   and §0 here change from "in progress" to "corresponds to `48cac9a`".
-* Anchors re-checked by §1. Each model header's paper pin becomes
+* Anchors and references re-checked by §1 (the map regenerated, the
+  citation check clean). Each model header's paper pin becomes
   `48cac9a`, with [Mvba.lean](../Cadence/Mvba.lean) moving from `eb1bb51`.
 * Create and push the tag `paper-target/48cac9a`, with Lars's approval.
 
