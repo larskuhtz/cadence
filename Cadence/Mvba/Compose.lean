@@ -146,20 +146,24 @@ noncomputable def Certifies
     e' = e ∧ @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.msg_commitqc) st.msg_commitqc w e = true
   | _, _ => False
 
-/-- The labels of the module's three inputs: `propose(v)`, `abandon()`,
-and the handoff of a transferred commit certificate, which the model's
+/-- The labels of the module's four inputs: `propose(v)`, `abandon()`,
+the handoff of a transferred commit certificate, which the model's
 `decide` handles (Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`): the composing
-layer delivers the certificate, the MVBA accepts it). Every other label is
-an internal step of the protocol; a party decides on a certificate it
-formed itself by the internal `form_own_commitqc`. -/
+layer delivers the certificate, the MVBA accepts it), and the availability
+report `become_avail_ready` (the composing dissemination layer says that a
+party holds its shares, Supplement, Section 1.2 (`subsec:mvba-protocol`),
+"Availability-synchronization assumption"). Every other label is an
+internal step of the protocol; a party decides on a certificate it formed
+itself by the internal `form_own_commitqc`. -/
 def Label.isInput : Mvba.Label node nodeset value evec view → Prop
   | .propose _ _ => True
   | .abandon _ => True
   | .decide _ _ _ => True
+  | .become_avail_ready _ _ => True
   | _ => False
 
 omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view] nset vord in
-/-- `Label.isInput` names the three input constructors, in a form that
+/-- `Label.isInput` names the four input constructors, in a form that
 survives leaving this module.
 
 The definition itself does not: at this many constructors Lean compiles its
@@ -169,7 +173,8 @@ Consumers case on this lemma rather than unfold the definition, as
 [Mvba/Liveness.lean](Liveness.lean) does. -/
 theorem Label.isInput_cases {l : Mvba.Label node nodeset value evec view}
     (h : Label.isInput l) :
-    (∃ i e, l = .propose i e) ∨ (∃ i, l = .abandon i) ∨ (∃ i v e, l = .decide i v e) := by
+    (∃ i e, l = .propose i e) ∨ (∃ i, l = .abandon i) ∨ (∃ i v e, l = .decide i v e) ∨
+      (∃ i e, l = .become_avail_ready i e) := by
   cases l <;> simp_all [Label.isInput]
 
 variable (th : Mvba.Theory node nodeset value evec view)
@@ -192,7 +197,7 @@ local macro "mvba_tr" h:ident : tactic =>
 /-- Evaluate the field-representation `get`/`set` pair at the canonical
 representation, everywhere. -/
 local macro "mvba_field_simp" : tactic =>
-  `(tactic| simp +unfoldPartialApp [Decided, Proposed, Abandoned, Sent,
+  `(tactic| simp +unfoldPartialApp [Decided, Proposed, Abandoned, AvailReady, Sent,
       Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
       Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
       Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
@@ -249,6 +254,47 @@ theorem abandoned_frame_internal (hl : ¬ Label.isInput l)
     (i : node) : Abandoned st' i ↔ Abandoned st i := by
   cases l <;> simp [Label.isInput] at hl <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
     mvba_field_simp
+
+set_option maxHeartbeats 4000000 in
+/-- Every label but the availability input leaves `avail_ready` untouched. -/
+theorem avail_frame_of_ne (hl : ∀ i e, l ≠ .become_avail_ready i e)
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
+    (i : node) (e : value) : AvailReady st' i e ↔ AvailReady st i e := by
+  cases l <;> simp at hl <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
+    mvba_field_simp
+
+/-- Internal steps leave `avail_ready` untouched: only its input sets it. -/
+theorem avail_frame_internal (hl : ¬ Label.isInput l)
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
+    (i : node) (e : value) : AvailReady st' i e ↔ AvailReady st i e :=
+  avail_frame_of_ne th (fun i e h => hl (by subst h; simp [Label.isInput])) htr i e
+
+/-- The availability input records `avail_ready i e`. -/
+theorem avail_effect_tr {i : node} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
+      (.become_avail_ready i e) st') : AvailReady st' i e := by
+  mvba_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); mvba_field_simp
+
+/-- The availability input marks its own party and representation only. -/
+theorem avail_effect_frame_tr {i : node} {e : value}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
+      (.become_avail_ready i e) st') (q : node) (w : value) (h : AvailReady st' q w) :
+    AvailReady st q w ∨ (q = i ∧ w = e) := by
+  mvba_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); mvba_field_simp
+  rcases h with ⟨rfl, rfl⟩ | h
+  · exact Or.inr ⟨rfl, rfl⟩
+  · exact Or.inl h
+
+set_option maxHeartbeats 8000000 in
+/-- A commit certificate stands across every action. -/
+theorem certifies_mono_tr
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
+    (c : Msg view value evec) (e : evec) (h : Certifies st c e) : Certifies st' c e := by
+  cases c <;> simp only [Certifies] at h ⊢
+  obtain ⟨rfl, h⟩ := h
+  refine ⟨rfl, ?_⟩
+  cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
+    mvba_field_simp <;> first | exact h | (right; exact h)
 
 /-- `propose(e)` at `i` records `input i e`. -/
 theorem propose_effect_tr {i : node} {e : value}
@@ -338,6 +384,14 @@ theorem init_not_proposed
   simp only [Mvba.initializer.ext.tr] at hinit
   (repeat (obtain ⟨_, hinit⟩ := hinit)); mvba_field_simp
 
+/-- Initially nobody is `AvailReady`. -/
+theorem init_not_avail
+    (hinit : (Mvba.relationalTransitionSystem node nodeset value evec view).init th st)
+    (i : node) (e : value) : ¬ AvailReady st i e := by
+  simp only [Mvba.relationalTransitionSystem, Mvba.Init] at hinit
+  simp only [Mvba.initializer.ext.tr] at hinit
+  (repeat (obtain ⟨_, hinit⟩ := hinit)); mvba_field_simp
+
 /-- Initially nobody has abandoned. -/
 theorem init_not_abandoned
     (hinit : (Mvba.relationalTransitionSystem node nodeset value evec view).init th st)
@@ -409,7 +463,21 @@ noncomputable def mvbaSafety :
   -- model); and the handoff is `decide`, which accepts a certificate of any
   -- view.
   availReady := AvailReady
+  markAvail st p v st' := (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
+    (.become_avail_ready p v) st'
+  markAvail_trans _ _ _ _ h := ⟨_, h⟩
+  markAvail_effect _ _ _ _ h := avail_effect_tr th h
+  availReady_markAvail_frame _ _ _ _ q w h hq := avail_effect_frame_tr th h q w hq
+  init_availReady _ p v h := init_not_avail th h.2 p v
+  availReady_step_frame _ _ p v h := avail_frame_internal th h.choose_spec.1 h.choose_spec.2 p v
+  availReady_propose_frame _ _ _ _ p v h := avail_frame_of_ne th (by intros; simp) h p v
+  availReady_abandon_frame _ _ _ p v h := avail_frame_of_ne th (by intros; simp) h p v
+  availReady_accept_frame _ _ c _ p v h := by
+    cases c <;> simp only [Accept] at h
+    obtain ⟨_, -, h⟩ := h
+    exact avail_frame_of_ne th (by intros; simp) h p v
   certifies := Certifies
+  certified_mono _ _ c e hn h := certifies_mono_tr th hn.choose_spec c e h
   decided_certified _ hr i e hi hd := by
     obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed hr i e hi hd
     exact ⟨.commitqc V (th.ent e), rfl, hV⟩

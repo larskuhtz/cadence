@@ -868,14 +868,22 @@ and where it is discharged.
   form)*. Mvba: a certificate is an existing commit certificate, a decision
   has one (`decided_backed`), and the handoff is `decide` — `Mvba.mvbaSafety`.
   Chorus drives `accept` (`accept_mvba_commitqc`)
-* **`availReady`, `certified_unique`, `certified_decided`,
+* **`availReady`, `markAvail` and its fields** — `AvailReady_p(v)` and the
+  input by which the composing dissemination layer reports it
+  (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit availability
+  condition", "Availability-synchronization assumption"); *safety
+  (first-order, rely form)*. Mvba: `become_avail_ready` is that input, and
+  nothing else writes `avail_ready` — `Mvba.mvbaSafety`. Chorus drives it
+  (`mvba_avail_ready`), with its chunk wait as the guard
+* **`certified_mono`, `certified_unique`, `certified_decided`,
   `certified_valid`, `certified_available`** — what a commit certificate
-  guarantees on its own: one certified entry vector, the one every correct
-  validator decides, with a valid representation and with the availability
-  its correct signers established (Supplement, Section 1.2
+  guarantees on its own: it stays valid, it certifies one entry vector, the
+  one every correct validator decides, with a valid representation and with
+  the availability its correct signers established (Supplement, Section 1.2
   (`subsec:mvba-protocol`), "Commit availability condition"); *safety
-  (first-order)*. Mvba: `commitqc_agree`, `decided_backed`, `commitqc_valid`
-  and `honest_commit_accepted` with `commitqc_backed` — `Mvba.mvbaSafety` -/
+  (first-order)*. Mvba: the monotonicity of `msg_commitqc`,
+  `commitqc_agree`, `decided_backed`, `commitqc_valid` and
+  `honest_commit_accepted` with `commitqc_backed` — `Mvba.mvbaSafety` -/
 
 /-- The certificate that holds a positive entry of a meta-block: a `FastQC`
 (`2f+1` fast votes) or a `FallbackQC` (`f+1` fallback entries)
@@ -973,6 +981,27 @@ class MVBASafety (party value entryvec message state pset : Type)
       every positive `FallbackQC` entry of `v` (Supplement, Section 1.2
       (`subsec:mvba-protocol`), "Commit availability condition"). -/
   availReady : state → party → value → Prop
+  /-- Input: the composing dissemination layer reports `AvailReady_p(v)`.
+      "The MVBA treats availability synchronization as a service of the
+      composing dissemination and ChunkSync layer" (Supplement, Section 1.2
+      (`subsec:mvba-protocol`), "Availability-synchronization assumption"),
+      so the caller decides when `p` holds its shares, and this input is how
+      it says so. -/
+  markAvail : state → party → value → state → Prop
+  markAvail_trans : ∀ st p v st', markAvail st p v st' → trans st st'
+  markAvail_effect : ∀ st p v st', markAvail st p v st' → availReady st' p v
+  /-- The report is about `p` and `v` only. -/
+  availReady_markAvail_frame : ∀ st p v st' q w, markAvail st p v st' →
+    availReady st' q w → availReady st q w ∨ (q = p ∧ w = v)
+  init_availReady : ∀ st p v, init st → ¬ availReady st p v
+  /-- `availReady` changes only by its input: every internal step and every
+      other input leaves it as it is. -/
+  availReady_step_frame : ∀ st st' p v, step st st' →
+    (availReady st' p v ↔ availReady st p v)
+  availReady_propose_frame : ∀ st q w st' p v, propose st q w st' →
+    (availReady st' p v ↔ availReady st p v)
+  availReady_abandon_frame : ∀ st q st' p v, abandon st q st' →
+    (availReady st' p v ↔ availReady st p v)
 
   /- The decision handoff: the supplement's strengthened interface
   (`decide(x, CommitQC)`, "Decision output and handoff"). A decision comes
@@ -990,6 +1019,8 @@ class MVBASafety (party value entryvec message state pset : Type)
   /-- Input: the caller hands party `p` a transferred certificate `c`. -/
   accept : state → party → message → state → Prop
   accept_trans : ∀ st p c st', accept st p c st' → trans st st'
+  availReady_accept_frame : ∀ st q c st' p v, accept st q c st' →
+    (availReady st' p v ↔ availReady st p v)
   /-- Accepting a valid certificate for `e` decides a representation of `e`
       (`Recover(e)`). -/
   accept_effect : ∀ st p c st' e, accept st p c st' → certifies st c e →
@@ -1005,6 +1036,10 @@ class MVBASafety (party value entryvec message state pset : Type)
   /- What a certificate guarantees on its own. A certificate can exist before
   any correct party decides — the adversary can aggregate the signatures —
   so these are not consequences of the decision-level fields. -/
+
+  /-- **A valid certificate stays valid** — what makes it a transferable
+      commitment proof. -/
+  certified_mono : ∀ st st' c e, trans st st' → certifies st c e → certifies st' c e
 
   /-- **One certified entry vector** — two valid certificates certify the
       same entries. -/
@@ -1026,13 +1061,13 @@ class MVBASafety (party value entryvec message state pset : Type)
       ∃ v, entries v = e ∧ Valid v ∧ availReady st p v
 
 /- The handoff and certificate facts no consumer's safety cell reads are
-withheld from the solver: Chorus's cells need the input and `accept_trans`,
-and every field of an instantiated class is otherwise a hypothesis of every
-cell, three of these with an `∃` in their conclusion. They stay declared
-axioms of the class, proven by `Mvba.mvbaSafety`. -/
+withheld from the solver. Every field of an instantiated class is otherwise
+a hypothesis of every cell, and each of these has an `∃` in its conclusion.
+Chorus's cells read the inputs, `certified_unique`, `certified_decided`,
+`certified_mono` and the `availReady` frames, all universal. The withheld
+fields stay declared axioms of the class, proven by `Mvba.mvbaSafety`. -/
 attribute [veil_smt_ignore] MVBASafety.decided_certified MVBASafety.accept_effect
-  MVBASafety.accept_enabled MVBASafety.certified_unique MVBASafety.certified_decided
-  MVBASafety.certified_valid MVBASafety.certified_available
+  MVBASafety.accept_enabled MVBASafety.certified_valid MVBASafety.certified_available
 
 /-- The temporal level of Module 3 (`mod:mvba`), over a safety instance `S`.
 With the inputs, their observables, the frames and Quiescence all in the
