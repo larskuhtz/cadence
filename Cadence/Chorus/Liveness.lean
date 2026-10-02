@@ -989,7 +989,11 @@ environment owes the step at all.
   for the root, which it could only do after decoding, and the same rule
   re-encodes and sends each validator its chunk (`line:fb-redisseminate`).
   A decided validator broadcasts only its own chunk (`line:fb-commit-wait`),
-  and a correct validator on the fast path re-disseminates nothing;
+  and a correct validator on the fast path re-disseminates nothing. Both
+  rules are the main body's; the supplement's implementation drops the
+  re-encode-and-send for ChunkSync, which pulls the missing chunks within
+  `Δ_sync` (`subsec:mvba-protocol`, `sec:fallback-transition`), and the
+  model follows the main body;
 * `commit_assign_*`: a commitment proof a correct validator sent — a correct
   validator's finalization re-broadcasts its proof
   (`line:fast-rebroadcast-commitqc`, `line:fb-commit-rebroadcast`), and the

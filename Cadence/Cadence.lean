@@ -17,7 +17,11 @@ module contracts alone**: the two primitives enter as class constraints —
 SlotConsensusSafety …` ([Interfaces.lean](Interfaces.lean)) — over
 abstract state types `ostate` and `scstate` that this module holds as its own
 state (`os`, one `sc_state s` per slot) and reads only through the contracts'
-observables. The contract properties are *not* restated here as guards or
+observables. One `sc_state s` per slot is the paper's per-slot dispatch:
+"every message and signed object of Chorus carries its slot … messages for
+other slots go to their own instances" (`subsection:chorus-protocol-overview`),
+so each slot's instance sees only its own slot's traffic, and one Chorus
+model is one slot's instance. The contract properties are *not* restated here as guards or
 invariants: they are the classes' axioms, which Veil hands to the solver, so
 every verification condition below is discharged from the contract as
 written in [Interfaces.lean](Interfaces.lean) — the same mechanism by which

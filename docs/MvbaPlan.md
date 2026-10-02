@@ -1993,7 +1993,7 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
   * no correct validator is abandoned by its caller before deciding;
   * a message *sent at or after GST* is delivered within `Δ`;
   * the timeout is the fixed `T`, and the retransmission interval is
-    `ρ = O(Δ)`;
+    `ρ_mvba = O(Δ)` (the schedule's field `ρ`);
   * the composing layer delivers a decided `CommitQC` to every undecided
     validator within `ρ + Δ`.
 

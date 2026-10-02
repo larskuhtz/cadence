@@ -344,7 +344,8 @@ check the premises against the supplement without reading Lean.
   held to `δ`. A step that consumes another party's message is held to what
   the supplement's network guarantees (since step 5b, 2026-09-29): `Δ` for
   messages sent at or after GST by correct validators and retained, `Δ + ρ`
-  for the retransmitted classes. While some fair labels stayed enabled
+  for the retransmitted classes (`ρ` is the supplement's retransmission
+  interval `ρ_mvba`, the schedule's field `ρ`). While some fair labels stayed enabled
   after firing, plain enabledness made every admissible model
   unsatisfiable once a proposal existed. That was the second finding
   (§6.2.4), answered first in the premises (R3: fairness over

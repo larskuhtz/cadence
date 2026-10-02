@@ -227,9 +227,11 @@ structure Schedule (view time : Type) [vord : TotalOrderWithMinimum view]
   Δ : time
   /-- The local-step bound; the paper's is `0`. -/
   δ : time
-  /-- The retransmission interval `ρ` of `sec:reliable-delivery`, the
-  supplement's `O(Δ)`: timeouts, `ViewTC_i` and a decided `CommitQC` are
-  re-sent every `ρ`. -/
+  /-- The retransmission interval of `sec:reliable-delivery`, which the
+  supplement names `ρ_mvba` (`subsec:mvba-protocol`), to keep it apart from
+  its Merkle-root symbol `ρ`, and assumes `O(Δ)`: timeouts, `ViewTC_i` and a
+  decided `CommitQC` are re-sent every `ρ_mvba`. The field keeps the
+  name `ρ`. -/
   ρ : time
   /-- The availability layer's bound (`Δ_sync`). -/
   Δsync : time

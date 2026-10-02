@@ -342,7 +342,7 @@ end Instance
 
 The paper's fixed known timeout at `time := ℕ`, the obvious model of the
 clock: `Δ = 1`, instantaneous local steps and availability, a
-retransmission interval `ρ = 1` (the supplement's `ρ = O(Δ)`), and a
+retransmission interval `ρ = 1` (the supplement's `ρ_mvba = O(Δ)`), and a
 timeout of `5 > Lcert 1 0 0 = 4` in every view, so the ramp is empty. The
 timeout is the supplement's `T := Δ_R + 4Δ + max{Δ, Δ_sync}` at `Δ_R = 0`. `ℕ` is a
 cancellative, Archimedean linearly ordered monoid, so `mvbaTemporal`'s

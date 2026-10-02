@@ -126,6 +126,18 @@ only, so those three are proven by hand, with the same statement, in
 [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)
 (`Chorus.msg_vote_pos_sig_mono` and its two siblings).
 
+**One relation per message type.** Each signed object is its own relation
+in the inventory above, and every guard reads the relation of the type it
+needs, so a signature of one type can never stand for another in the
+model. The implementation's side of this choice is the supplement's rule
+that all signatures are domain-separated: "the bytes signed for each
+message type begin with a tag unique to that type", which "rules out
+type-confusion attacks" (`sec:domain-separation`). At the target the main
+body tags every signature as well (`⟨Prop, s, j, H(payload)⟩` and
+`⟨Root, s, j, ρ⟩` for the proposer, `vote`, `fb`, `fallback`, … for the
+votes; [PaperAlignment.md](PaperAlignment.md) §5.1). The models rest on
+non-confusability; the tags are how a deployment obtains it.
+
 `phase` is a 4-valued enum (`pre_deadline → post_deadline →
 post_fb_arm → post_mvba_arm`); it advances only through explicit
 `advance_to_*` actions whose preconditions force the forward direction.
@@ -412,6 +424,17 @@ exist. Naming convention: `msg_*`.
 | `msg_commit_cast r` | `r` has broadcast its `CommitVote` (`line:fast-commitvote`). Only broadcast commit signatures count toward a commitQC. |
 | `msg_decrypt_share r` | the extraction share released with `r`'s `Vote`. |
 | `msg_fbcommit_sig r` | `r`'s `FallbackCommitVote` broadcast (`line:fb-commitvote`). The entry vector it signs is implicit — an honest vote is over the MVBA-decided entries, unique by the MVBA contract's agreement (§6.4); see the relation's comment in [Cadence/Chorus.lean](../Cadence/Chorus.lean) for why this over-approximates only the adversary. |
+
+**Positional chunks.** A chunk is identified by `(assignee, proposer,
+root)`: `msg_chunk_received i j m` is the fragment at validator `i`'s own
+position under `j`'s root `m`, and the decode threshold `chunk_quorum`
+counts distinct assignees. That is the target's positional reading:
+`alg:da` stores validated fragments as pairs `(r, d_r)`, checks each leaf at
+its index, and decodes from `f+1` distinct indices, and the re-encode check
+(`line:da-reencode`) compares positional leaf hashes. The model never had
+an unindexed fragment to confuse, so nothing changes in it.
+`Primitives.ErasureCoding` states the codec at the same reading
+([PaperAlignment.md](PaperAlignment.md) §5.2).
 
 The contract from §3.1.1 applies to all of these.
 

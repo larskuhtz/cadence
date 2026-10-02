@@ -422,7 +422,13 @@ relations, and it takes a human to confirm each use is positive.
    a view no validator can leave, and no assumption about scheduling or the
    network would unstick it. An end-to-end example instantiation
    of the remaining class stack (a `ThresholdIBE` model instance) is open
-   work ([ChorusDesign.md](ChorusDesign.md) §9).
+   work ([ChorusDesign.md](ChorusDesign.md) §9). Signatures are not a
+   class at all: each signed message type is its own network relation, so
+   the models take for granted that a signature of one type cannot be
+   presented as one of another. A deployment obtains that by the
+   supplement's domain-separation rule, a tag unique to each message type
+   at the start of the signed bytes (`sec:domain-separation`;
+   [ChorusDesign.md](ChorusDesign.md) §3.1).
 4. **Temporal/quantitative module obligations**: totality, termination,
    `d_tot`-totality, Quiescence, boundedness, recovery — *fields* of the
    full contracts `Orchestrator`, `SlotConsensus`,
