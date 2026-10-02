@@ -3,11 +3,11 @@
 *What an auditor asks first: the models claim to verify the Cadence paper,
 but which paper, and is it still that paper? §0 names the target revision.
 §1 gives the mechanical check anyone can re-run against it. §§3–5 hold the
-review of what the models rest on, item by item. §6 lists what the review
-found on the paper side. §8 is the plan that brings the models onto the
-target. Earlier comparisons, against arXiv v2 and the supplement at
-`eb1bb51`, are recorded in [History.md](History.md) § "Paper alignment
-before the single target".*
+review of what the models rest on, item by item, and §5.10 what still
+differs and why. §6 is the page of findings for the paper's authors. §8 is
+the realignment that brought the models onto the target, with the designs
+it rests on. Earlier targets are recorded in [History.md](History.md)
+§ "Paper alignment before the single target".*
 
 ## 0. The target
 
@@ -96,9 +96,12 @@ then, for the supplement, compare its Section 1 alone (from
 View}`), and each `lem:`/`thm:`/`cor:`/`rem:` statement text after
 collapsing whitespace.
 
-**Result at the target** (2026-10-02, R14 and R15). The map has every
+**Result at the target** (2026-10-02, R14, R15 and R17). The map has every
 label of the two documents, and every citation outside the two frozen
-records checks against it, in label and in rendered reference.
+records checks against it, in label and in rendered reference. R17
+regenerated the map from `48cac9a` with `scripts/paper-labels.sh`: it is
+byte-identical to the committed one (377 labels), and
+`scripts/paper-cites.sh` reports no problem.
 
 Cautions for the content diff:
 
@@ -210,23 +213,25 @@ explicit `\qed`s. The Conductor sections change more.
 Count: (a) 4, (b) 3 (one of them also (c)), (c) 1, (d) 8.
 
 **Over both tables:** (a) 10, (b) 4, (c) 2, (d) 11. The (b) and (c)
-items, which the plan in §8 carries out:
+items, each now in the models (§8 has the sessions):
 
-* **(b) M3.** `Primitives.ErasureCoding` decodes from indexed fragments.
-* **(b) S6, with F13.** The MVBA's value is the representation: an entry
-  vector together with each positive entry's certificate kind. Chorus's
-  decision handlers record the validator's own representation, and
-  `cast_fb_commit` waits exactly under the `FallbackQC` entries of its own
-  `B′`.
-* **(b) S7.** `AvailReady` is indexed by the representation.
-* **(b) S8.** Chorus finalizes on a valid MVBA `CommitQC`, as well as on
-  the `fbCommitQC`.
-* **(c) M9/S6.** `MVBASafety` gains an `entries` projection. Agreement and
-  Integrity are stated over it, in the supplement's forms.
-* **(c) S8.** `MVBASafety` gains the certificate-level facts the second
-  route needs: a certified value agrees with every correct decision, is
-  `Valid`, and comes with the availability its correct `Commit` signers
-  established.
+* **(b) M3** (R14). `Primitives.ErasureCoding` decodes from indexed
+  fragments with `f+1` distinct indices.
+* **(b) S6, with F13** (R15). The MVBA's value is the representation, an
+  entry vector together with each positive entry's certificate kind
+  (`MetaBlock`). Chorus's decision handlers check the certificate their
+  own representation names, and `cast_fb_commit` waits exactly under the
+  `FallbackQC` entries of its own `B′`.
+* **(b) S7** (R15). `AvailReady` is indexed by the representation
+  (`avail_ready i x`).
+* **(b) S8** (R16). Chorus finalizes on a valid MVBA `CommitQC`
+  (`on_mvba_commitqc_pos` / `_neg`), as well as on the `fbCommitQC`.
+* **(c) M9/S6** (R15). `MVBASafety` has the `entries` projection, and
+  Agreement and Integrity are stated over it, in the supplement's forms.
+* **(c) S8** (R15, R16). `MVBASafety` has the certificate-level facts the
+  second route needs (`certified_unique`, `certified_decided`,
+  `certified_valid`, `certified_available`, `certified_mono`), and
+  `AvailReady` as an input the caller drives.
 
 ## 5. The items in detail
 
@@ -454,186 +459,345 @@ justifies (F-justice) on `redisseminate_chunk` by Algorithm 5, line 12 (`line:fb
 and Algorithm 5, line 39 (`line:fb-commit-wait`), both main-body rules that hold at the target.
 **Class (d).**
 
-## 6. Paper-side findings at the target
+### 5.10 What remains different, and why
 
-For the paper's authors. Each item quotes the target `48cac9a` and names
-anchors. P1–P4 are inconsistencies between the main body and the supplement,
-or within one of them. P5–P6 are carried from earlier reviews and
-re-checked. P7–P11 are smaller. P12 (found in R16) is a module-boundary
-issue between the main body's abstract MVBA and the supplement's concrete
-one.
+The re-check of R17 walked §§3–4 once more against the realigned models.
+Every (b) and (c) item is modelled (the list at the end of §4 says where).
+Every remaining difference between a model and the target is one of the
+following: below the model's abstraction, with its argument, or a finding
+of §6. None needs a model change.
 
-**P1. Module 3 (`mod:mvba`) Integrity was not revised with Agreement.** The supplement
-(Supplement, Section 1.2 (`subsec:mvba-protocol`), "Agreement and Integrity over entries"): "*Integrity:* all decision outputs
-of a correct validator carry the same entry vector, and redelivery of a
-decision with that entry vector, for instance after a restart, is permitted
-… The abstract module in the main paper should be revised to these forms".
-Module 3 (`mod:mvba`): "*Integrity:* Every correct validator
-decides at most once." `d598c5a` revised Agreement only. The main body
-uses the at-most-once form in Proposition 1 (`prop:agreement-entries`): "A correct validator
-sends a single fallback commit vote — one per MVBA decision …, and the MVBA
-decides at most once by its integrity property". Under the supplement's
-Integrity, a redelivery could trigger a second fallback commit vote, so the
-argument should say that all of a correct validator's fallback commit votes
-carry the same entries. That is true under the revised Integrity, and it is
-what the argument uses.
+| Difference | Model | Why it is sound, or the finding |
+|---|---|---|
+| No signature tags, slot checks, TIBE operations or decryption shares (M1, M4, M6, M7) | Chorus | Each message type is its own relation; one model is one slot's instance; hiding is not a Veil property; shares are not modelled individually (§3). |
+| The representation leaves out negative entries' certificate kinds and the `FBCert` | Chorus, Mvba | No rule of either document reads them, and whether they verify is part of `Valid` (§8.1 (a)). |
+| `Recover` is a choice among valid representations | Mvba | It includes the supplement's choice, so the model has every run of the supplement and more; the liveness proofs use only what the supplement's `Recover` guarantees (§8.1 (c)). |
+| No crashes and no persistence | Mvba, Chorus | With the state persisted before each send and reloaded atomically, a crash and restart is, to every other validator, a pause, and the model's runs pause. Termination under crashes (Supplement, Corollary 1 (`cor:mvba-recovery-termination`)) is not claimed. |
+| `propose` enters the first view, not the view of the highest retained timeout certificate | Mvba | The faithful rule needs a negative read of the network, which the monotone-network contract forbids. The model's rule adds runs, which is sound for safety, and no liveness argument uses them ([MvbaPlan.md](MvbaPlan.md) §11.3, C7). |
+| `SyncView` is its own step; the view timer is a phase marker; one action covers the timer and the `f+1` echo timeout | Mvba | The same reachable states in two steps, or a guard that only removes behaviours (the [Mvba.lean](../Cadence/Mvba.lean) header, "Abstractions"). |
+| The `CommitQC` re-broadcast is folded into the handoff | Chorus | A certificate is transferable and stays valid (`certified_mono`), so its existence is its availability to every validator (§8.2 (a)). |
+| An `upon` handler runs once | Chorus | The target states no convention: P6. |
+| A redelivered decision casts the vote once, after the wait under the `B′` it is cast for | Chorus | The target does not say: P11. Safe under each reading (§8.1 (d)). |
+| `AvailReady` is an input that Chorus drives; two liveness premises read the MVBA's accepted value | Chorus, Mvba | P12. |
+| Termination's abandon condition and the timed claims' start condition are contract antecedents | Interfaces | P13. |
+| Both fallback finalization routes are modelled | Chorus | The target specifies both (§5.7); P2. |
+| The `EquivCert` rule is Algorithm 5's, not Part II's | FallbackReceipt, Chorus | The main body's rule is the specified protocol (§5.9); P3. |
+| Part II's implementation variants; the practical Conductor | — | Outside the verified surface (§2, §7, §9). |
 
-**P2. The main body's proofs argue from a common `B′` and from one fallback
-commitment proof.**
-* Proposition 5 (`prop:chorus-finalization-time`): "by the MVBA's agreement and external
-  validity, they all decide the same valid meta-block `B′`". Since
-  `d598c5a`, Module 3 (`mod:mvba`)'s Agreement gives only `entries(B) = entries(B′)`.
-  The proof goes on to use one `B′` for all validators: "each holds its
-  assigned chunk for every positive `FallbackQC` of `B′`", and "for every
-  `FastQC` entry of `B′` …; for every positive `FallbackQC` entry, the `f+1`
-  correct commit voters' re-broadcast chunks arrive by `T`". When
-  representations differ, a root can be `FastQC`-backed for one validator
-  and `FallbackQC`-backed for another. The conclusion still holds: a
-  `FastQC` puts the chunks of `f+1` correct voters on the network, and
-  under a `FallbackQC` the waiting validators re-broadcast. But the proof as
-  written relies on the Agreement the module no longer states.
-* Proposition 1 (`prop:agreement-entries`) enumerates two kinds of commitment proof, the
-  fast `commitQC` and the `fbCommitQC`. At the target, supplement Part I
-  adds a third: a valid MVBA `CommitQC`, on which a correct validator
-  finalizes (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"). Its agreement with the fast
-  path and with the `fbCommitQC` is argued only as "a fallback decision
-  agrees with a fast-path commitment whenever the two certify the same entry
-  vector" (Supplement, Section 1.2 (`subsec:mvba-protocol`)). That sentence is conditional, and it is
-  not the fast-path argument the main body gives for its second case.
-  Either the main body takes the route in (Module 3 (`mod:mvba`)'s `decide` with a
-  certificate, a finalize rule in Algorithm 5 (`alg:fallback`), a third case in
-  Proposition 1 (`prop:agreement-entries`)), or Part I presents it as an implementation
-  variant, as Part II does. As written, the specified protocol has a
-  finalization route the paper's agreement proof does not cover. §5.7 has
-  the model side.
+**No rule of the target is unmodellable.** Every protocol rule of the main
+body and of Part I's MVBA can be modelled faithfully within the
+monotone-network contract, with the one exception in the table: the MVBA's
+"enter the view of the highest retained timeout certificate", which the
+model over-approximates.
+
+## 6. Findings for the paper's authors
+
+*This section can be sent to the authors as it stands. It lists what the
+machine-checked development found on the paper side, at the paper
+repository's revision `48cac9a` (§0): the main body and the internal
+supplement. Each finding quotes the paper and cites it as the rendered PDF
+shows it, with the LaTeX label in parentheses; a citation that starts with
+"Supplement" is to the supplement, every other one to the main body. Each
+finding then says why it matters for a claim, and gives its status: open
+for the authors, and how the formal development handles it. "The model" is
+the Lean development of this repository.*
+
+| # | Finding | Kind | Status |
+|---|---|---|---|
+| P1 | Module 3's Integrity was not revised with its Agreement | main body vs supplement | open |
+| P2 | Two proofs argue from a common `B′` and from two commitment proofs | proof gap | open; the model proves the claims without either |
+| P3 | The supplement contradicts itself on `EquivCert` construction | supplement, internal | open; the model follows the main body |
+| P4 | A Part I obligation cites a Part II argument | supplement, internal | open |
+| P5 | Lemma 11 claims `5Δ + ℓ_MVBA`; its proof gives `4Δ + ℓ_MVBA` | statement vs proof | open; the model states the paper's bound |
+| P6 | No convention says how often an `upon` handler runs | missing convention | open; the model reads "once" |
+| P7 | A stale backup of the supplement is in the tree | source hygiene | open |
+| P8 | A stub still lists a backoff policy for the MVBA timeout | stale text | open |
+| P9 | The practical Conductor assumes `2 ≤ p ≤ W−1` without saying so | unstated assumption | open; outside the verified surface |
+| P10 | arXiv v2's Algorithm 6 and Algorithm 2 hash chunks differently | fixed at `48cac9a` | for the next public version |
+| P11 | What Chorus does with a redelivered MVBA decision is not stated | missing rule | open; the model is safe under every reading |
+| P12 | The MVBA's availability crosses Module 3's interface | module interface | open; the model states the dependency |
+| P13 | Module 1 states Termination without the conditions Chorus needs | module interface | open; the model states the conditions |
+
+P1–P4 are inconsistencies between the main body and the supplement, or
+within the supplement. P5 and P6 date from the review of arXiv v2 and hold
+at `48cac9a`. P7–P11 are smaller. P12 and P13 are about module
+boundaries: a claim takes from a module something the module's interface
+does not state. §6.1 checks every module boundary the development's claims
+cross.
+
+**P1. Module 3 (`mod:mvba`) Integrity was not revised with Agreement.**
+* *Quote.* The supplement (Supplement, Section 1.2
+  (`subsec:mvba-protocol`), "Agreement and Integrity over entries"):
+  "*Integrity:* all decision outputs of a correct validator carry the same
+  entry vector, and redelivery of a decision with that entry vector, for
+  instance after a restart, is permitted … The abstract module in the main
+  paper should be revised to these forms". Module 3 (`mod:mvba`):
+  "*Integrity:* Every correct validator decides at most once." Agreement
+  was revised (paper commit `d598c5a`); Integrity was not. Proposition 1
+  (`prop:agreement-entries`) uses the old form: "A correct validator sends
+  a single fallback commit vote — one per MVBA decision …, and the MVBA
+  decides at most once by its integrity property".
+* *Why it matters.* Under the supplement's Integrity a redelivered
+  decision could trigger a second fallback commit vote, so the agreement
+  argument of Proposition 1 (`prop:agreement-entries`) should rest on "all
+  of a correct validator's fallback commit votes carry the same entries".
+  That holds under the revised Integrity, and it is what the argument uses.
+* *Status.* Open. The model states Integrity in the supplement's form
+  (over entries), and nothing in it relies on "decides at most once".
+
+**P2. The main body's proofs argue from a common `B′` and from two
+commitment proofs.**
+* *Quote.* Proposition 5 (`prop:chorus-finalization-time`): "by the MVBA's
+  agreement and external validity, they all decide the same valid
+  meta-block `B′`", then "each holds its assigned chunk for every positive
+  `FallbackQC` of `B′`". Since `d598c5a`, Module 3 (`mod:mvba`)'s Agreement
+  gives only `entries(B) = entries(B′)`. Proposition 1
+  (`prop:agreement-entries`) enumerates two commitment proofs, the fast
+  `commitQC` and the `fbCommitQC`, while the supplement adds a third: "A
+  correct validator that receives a valid such certificate re-broadcasts it
+  and finalizes the certified outcome" (Supplement, Section 1.2
+  (`subsec:mvba-protocol`), "Decision output and handoff"). Its agreement
+  with the other two is argued only as "a fallback decision agrees with a
+  fast-path commitment whenever the two certify the same entry vector".
+* *Why it matters.* Two correct validators may decide representations of
+  one entry vector with different certificates, so a root can be
+  `FastQC`-backed for one and `FallbackQC`-backed for the other. The
+  conclusion of Proposition 5 (`prop:chorus-finalization-time`) still
+  holds — a `FastQC` puts the chunks of `f+1` correct voters on the network,
+  and under a `FallbackQC` the waiting validators re-broadcast — but the
+  proof relies on an Agreement the module no longer states. The third
+  commitment proof is a finalization route that the paper's agreement
+  proof does not cover: the supplement's sentence is conditional, and it
+  is not the fast-path argument the main body gives for its second case.
+  Either the main body takes the route in (a certificate in Module 3
+  (`mod:mvba`)'s `decide`, a finalize rule in Algorithm 5 (`alg:fallback`),
+  a third case in Proposition 1 (`prop:agreement-entries`)), or Part I
+  presents it as an implementation variant, as Part II does.
+* *Status.* Open. The model has both routes (§5.7), assumes no common
+  `B′`, and proves the third route's agreement by the main body's
+  fast-path argument (vote-quorum intersection, and the `FBCert`/commit
+  intersection). Termination is proven per validator, each on its own
+  `B′`.
 
 **P3. `EquivCert` construction, contradicted within the supplement.**
-Supplement, Section 7.4 (`sec:fallback-transition`) (item 2): "the two validated witness chunks
-themselves provide the conflicting proposer-signed roots required to
-construct an `EquivCert`; two conflicting positive fallback entries are not
-required." Supplement, Section 7 (`sec:implementationnotes`), "Record equivocation evidence even without
-slashing": "the
-`EquivCert` rarely becomes public, since `EquivCert`s are assembled only when
-an MVBA input is built from two conflicting positive fallback entries". The
-second sentence matches the main body (Algorithm 5, line 29 (`line:fb-build-equiv`)), and the
-first replaces it. Unchanged since the 2026-09-03 review. Relatedly, the
-main body's "one of the three cases always applies, by counting"
-(Algorithm 5, line 26 (`line:fb-build-entry`)) is argued over the first `2f+1` fallback votes. The
-supplement's replacement argument (Supplement, Section 7.4
-(`sec:fallback-transition`), "Fallback-entry certifiability") needs
-entries evaluated continuously over all votes, and witness chunks. The two
-certifiability arguments are for two different rules.
+* *Quote.* Supplement, Section 7.4 (`sec:fallback-transition`) (item 2):
+  "the two validated witness chunks themselves provide the conflicting
+  proposer-signed roots required to construct an `EquivCert`; two
+  conflicting positive fallback entries are not required." Supplement,
+  Section 7 (`sec:implementationnotes`), "Record equivocation evidence even
+  without slashing": "the `EquivCert` rarely becomes public, since
+  `EquivCert`s are assembled only when an MVBA input is built from two
+  conflicting positive fallback entries". The second matches the main body
+  (Algorithm 5, line 29 (`line:fb-build-equiv`)).
+* *Why it matters.* The two certifiability arguments are for two different
+  rules. The main body's "one of the three cases always applies, by
+  counting" (Algorithm 5, line 26 (`line:fb-build-entry`)) is argued over
+  the first `2f+1` fallback votes; the supplement's replacement
+  (Supplement, Section 7.4 (`sec:fallback-transition`),
+  "Fallback-entry certifiability") needs entries evaluated continuously
+  over all votes, and witness chunks. Agreement and honest-proposer
+  inclusion do not depend on the choice; a Byzantine proposer's fate and
+  certifiability do.
+* *Status.* Open. The model follows the main body's rule, which is the
+  specified protocol (§5.9).
 
-**P4. Part I relies on a Part II argument.** Supplement, Section 1.2 (`subsec:mvba-protocol`)
-(Part I): "`propose(B_i)` requires `B_i` to be a valid meta-block for `s`;
-the composing Chorus fallback transition establishes that every correct
-validator eventually holds one (Supplement, Section 7.4 (`sec:fallback-transition`))". The cited
-section is Part II's implementation variant (P3). For the main body's
-protocol, the precondition is established by Algorithm 5 (`alg:fallback`)'s counting
-argument (Algorithm 5, line 26 (`line:fb-build-entry`)) instead.
+**P4. Part I relies on a Part II argument.**
+* *Quote.* Supplement, Section 1.2 (`subsec:mvba-protocol`) (Part I):
+  "`propose(B_i)` requires `B_i` to be a valid meta-block for `s`; the
+  composing Chorus fallback transition establishes that every correct
+  validator eventually holds one (Supplement, Section 7.4
+  (`sec:fallback-transition`))".
+* *Why it matters.* The cited section is Part II's implementation variant
+  (P3). For the main body's protocol the precondition is established by
+  Algorithm 5 (`alg:fallback`)'s counting argument (Algorithm 5, line 26
+  (`line:fb-build-entry`)).
+* *Status.* Open. The model proves the main body's form
+  (`Chorus.build_totality_of_reachable`).
 
-**P5 (F4, carried). Lemma 11 (`lemma:chorus-termination`) claims `5Δ + ℓ_MVBA` where its
-proof gives `4Δ + ℓ_MVBA`.** Re-checked at the target: the lemma is
-byte-identical to v2. It splits at `T₀ = max(t, GST) + 4Δ + ℓ_MVBA` and adds
-totality's `Δ` in the first case. The inner split of
-Proposition 5 (`prop:chorus-finalization-time`) at `T₀ − Δ` already handles early
-finalizers, so a single split gives `M + 4Δ + ℓ_MVBA`. A commented-out
-draft next to the lemma states that bound. The model-side decision is S4's
-([Bounds.md](Bounds.md) §6.4.3). The claim is stated at the paper's `5Δ`,
-which follows by monotonicity, and the sharper bound is a named lemma.
+**P5. Lemma 11 (`lemma:chorus-termination`) claims `5Δ + ℓ_MVBA` where its
+proof gives `4Δ + ℓ_MVBA`.**
+* *Quote.* Lemma 11 (`lemma:chorus-termination`): "satisfies
+  `ℓ`-termination with `ℓ = 5Δ + ℓ_MVBA`". Its proof sets "`T₀ =
+  max(t, GST) + 4Δ + ℓ_MVBA`" and adds totality's `Δ` in the first case.
+* *Why it matters.* The inner split of Proposition 5
+  (`prop:chorus-finalization-time`) at `T₀ − Δ` already handles early
+  finalizers, so a single split gives `max(t, GST) + 4Δ + ℓ_MVBA`. A
+  commented-out draft next to the lemma states that bound. The Conductor's
+  timing (`Φ_oc = ℓ_chorus + d_tot`) inherits the extra `Δ`.
+* *Status.* Open; the lemma is unchanged since arXiv v2. The model states
+  the paper's `5Δ` (it follows by monotonicity) and is to prove the
+  sharper bound as a named lemma in the bounds leg
+  ([Bounds.md](Bounds.md) §6.4.3).
 
-**P6 (carried). When does an `upon` handler run?** Algorithm 4 (`alg:fast-path-certification`)'s
-Algorithm 4, line 18 (`line:fast-formqc`) and Algorithm 4, line 31 (`line:fast-collect-commit`) are `upon` rules without
-"first time", and only the fast meta-block rule says "first time". Neither
-document states a convention for `upon`. Re-checked at the target:
-the source of Algorithm 4 (`alg:fast-path-certification`) is byte-identical to v2. The supplement's execution-model
-paragraph covers MVBA handlers only. The model reads an `upon` handler as
-running once, when its condition becomes true ([Bounds.md](Bounds.md)
-§6.4.7; the "Fired-once records" of [Chorus.lean](../Cadence/Chorus.lean)).
-The MVBA's rules say so explicitly ("has not already formed …", "upon first
-collecting …"). A one-line convention in the main body would settle it.
+**P6. When does an `upon` handler run?**
+* *Quote.* Algorithm 4, line 18 (`line:fast-formqc`) and Algorithm 4,
+  line 31 (`line:fast-collect-commit`) are `upon` rules without "first
+  time"; only the fast meta-block rule says "first time". Neither document
+  states a convention for `upon`. The supplement's execution model covers
+  MVBA handlers only, and the MVBA's own rules say it explicitly ("has not
+  already formed …", "upon first collecting …").
+* *Why it matters.* Liveness arguments and message counts depend on it.
+  Read as "every time", a handler whose condition stays true re-sends its
+  message indefinitely, and a fairness assumption is met by repeating it;
+  read as "once", it is one step that a fair scheduler must take.
+* *Status.* Open; Algorithm 4 (`alg:fast-path-certification`) is unchanged
+  since arXiv v2. The model reads an `upon` handler as running once, when
+  its condition becomes true ([Bounds.md](Bounds.md) §6.4.7). A one-line
+  convention in the main body would settle it.
 
-**P7. `supplementary-internal-bkp.tex` is still in the tree.** It
-duplicates labels and misleads any grep-based anchor audit (§1).
+**P7. `supplementary-internal-bkp.tex` is still in the tree.**
+* *Where.* The repository root, beside `supplementary-internal.tex`.
+* *Why it matters.* It duplicates the supplement's labels, so any
+  grep-based anchor audit finds two definitions of each.
+* *Status.* Open. The development's label map is built from the rendered
+  documents, which do not include it (§1).
 
-**P8. The Supplement, Section 10.1 (`sec:timing-constants`) stub still lists "the MVBA view timeout and
-its backoff policy"**, while Supplement, Section 1.2 (`subsec:mvba-protocol`) fixes the timeout at
-`T := Δ_R + 4Δ + max{Δ, Δ_sync}` and Supplement, Theorem 2 (`thm:termination`) counts with it.
+**P8. A stub still lists a backoff policy for the MVBA view timeout.**
+* *Quote.* Supplement, Section 10.1 (`sec:timing-constants`), a stub,
+  lists among the constants to tabulate "the MVBA view timeout and its
+  backoff policy". Supplement, Section 1.2 (`subsec:mvba-protocol`) fixes
+  the timeout at `T := Δ_R + 4Δ + max{Δ, Δ_sync}`, and Supplement,
+  Theorem 2 (`thm:termination`) counts with it.
+* *Why it matters.* A backoff would contradict the fixed `ℓ_MVBA` of
+  Supplement, Theorem 2 (`thm:termination`).
+* *Status.* Open. The model uses the fixed `T`.
 
-**P9. The practical Conductor's parameter range.** The relation lemmas of
-the practical Conductor (Supplement, Section 3 (`sec:practical-conductor`),
-"Relation to the Cadence Proofs") use "Since
-`2 ≤ p ≤ W−1`" twice. The main body's Conductor has `p ∈ {0, …, W−1}`
-(Appendix D (`section:conductor-formal`), Algorithm 7 (`algorithm:conductor`)). The restriction is not
-stated as an assumption of the practical Conductor, so its relation to
-Algorithm 7 (`algorithm:conductor`) covers only `p ≥ 2`, and it does not say so.
+**P9. The practical Conductor's parameter range.**
+* *Quote.* Supplement, Section 3 (`sec:practical-conductor`), "Relation to
+  the Cadence Proofs": "Since `2 ≤ p ≤ W−1`, the threshold …", and later
+  "The denominators are positive because `2 ≤ p ≤ W−1`". The main body's
+  Conductor allows `p ∈ {0, …, W−1}` (Appendix D
+  (`section:conductor-formal`), Algorithm 7 (`algorithm:conductor`)).
+* *Why it matters.* The restriction is not stated as an assumption of the
+  practical Conductor, so its relation to Algorithm 7
+  (`algorithm:conductor`) covers only `p ≥ 2`, without saying so.
+* *Status.* Open. Outside the verified surface: the development verifies
+  Algorithm 7 (`algorithm:conductor`) (§9).
 
-**P10. Algorithm 6 (`alg:da`)'s re-encode check and the proposer's encoding.** At the
-target both use positional leaf hashes. That makes v2's Algorithm 6 (`alg:da`)
-inconsistent with v2's Algorithm 2 (`alg:proposer-dissemination`), an inconsistency the
-target fixes. It is recorded because v2 is the public version: a v3 would
-carry the fix.
+**P10. arXiv v2's Algorithm 6 and Algorithm 2 hash chunks differently.**
+* *Quote.* At `48cac9a` Algorithm 6 (`alg:da`) checks a chunk with
+  `VerifyMerkle(ρ, r, H(r, d_r), π_r)`, the positional leaf hash Algorithm
+  2 (`alg:proposer-dissemination`) commits to
+  (`MerkleRoot(H(1, d_1), …, H(n, d_n))`). In arXiv v2, Algorithm 6
+  (`alg:da`) checked `VerifyMerkle(ρ, d_r, π_r)`.
+* *Why it matters.* In v2 the receiver's check did not match what the
+  proposer commits to.
+* *Status.* Fixed at `48cac9a`. Recorded because v2 is the public version:
+  the next public version carries the fix. The model's chunks are
+  positional, so it is unaffected (§5.2).
 
-**P11. What Chorus does with a redelivered decision is not stated.** The
-supplement's Integrity permits it: "all decision outputs of a correct
-validator carry the same entry vector, and redelivery of a decision with
-that entry vector, for instance after a restart, is permitted"
-(Supplement, Section 1.2 (`subsec:mvba-protocol`), "Agreement and Integrity
-over entries"). Two valid representations may carry different
-certificates, so a redelivered output can name a different `B′`. The
-consumer's rule is "upon `MVBA[s].decide(B′)`: for each `FallbackQC` in
-`B′` with a positive entry …: wait until …" (Algorithm 5, line 37
-(`line:fb-mvba-decide`) to Algorithm 5, line 39 (`line:fb-commit-wait`)),
-written against Module 3 (`mod:mvba`)'s "decides at most once". Neither
-document says whether a second output re-runs the handler, is ignored, or
-replaces the first `B′`, and neither states a convention for `upon` (P6).
-All three readings cast the same `FallbackCommitVote`, since its content is
-`entries(B′)`, so agreement does not depend on the choice. The data the
-vote attests does: the chunks waited for are those of the `B′` the handler
-ran on. §8.1 (d) gives the model's reading, which is safe under each of the
-three.
+**P11. What Chorus does with a redelivered decision is not stated.**
+* *Quote.* The supplement's Integrity permits redelivery: "all decision
+  outputs of a correct validator carry the same entry vector, and
+  redelivery of a decision with that entry vector, for instance after a
+  restart, is permitted" (Supplement, Section 1.2 (`subsec:mvba-protocol`),
+  "Agreement and Integrity over entries"). The consumer's rule is "upon
+  `MVBA[s].decide(B′)`: for each `FallbackQC` in `B′` with a positive entry
+  …: wait until …" (Algorithm 5, line 37 (`line:fb-mvba-decide`) to
+  Algorithm 5, line 39 (`line:fb-commit-wait`)), written against Module 3
+  (`mod:mvba`)'s "decides at most once".
+* *Why it matters.* Two valid representations may carry different
+  certificates, so a redelivered output can name a different `B′`. Neither
+  document says whether a second output re-runs the handler, is ignored,
+  or replaces the first `B′`. Agreement does not depend on the choice,
+  since the vote's content is `entries(B′)`. The data the vote attests
+  does: the chunks waited for are those of the `B′` the handler ran on.
+* *Status.* Open. The model casts the vote once, after the wait under the
+  `B′` it is cast for, which is safe under all three readings (§8.1 (d)).
 
 **P12. The MVBA's availability couples it to the dissemination layer
-through state the abstract module does not expose.** Module 3
-(`mod:mvba`) has the interface `propose(B)`, `abandon()` and `decide(B)`,
-and no other observable. The supplement's concrete MVBA adds two
-dependencies on its caller, both stated over the concrete protocol's
-state:
-* its `Commit` waits on `AvailReady_i(x)`, which holds "if, for every
-  positive entry `⟨s, j, ρ⟩` of `x` that is certified by a `FallbackQC`,
-  validator `p_i` holds its assigned availability share for `ρ`"
-  (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit availability
-  condition"). That is a predicate on the dissemination layer's state;
-* its termination needs the caller to deliver those shares: "whenever a
+through state Module 3 (`mod:mvba`) does not expose.**
+* *Quote.* Module 3 (`mod:mvba`) has the interface `propose(B)`,
+  `abandon()` and `decide(B)`, and no other observable. The supplement's
+  MVBA waits, before its `Commit`, on `AvailReady_i(x)`, which holds "if,
+  for every positive entry `⟨s, j, ρ⟩` of `x` that is certified by a
+  `FallbackQC`, validator `p_i` holds its assigned availability share for
+  `ρ`" (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit
+  availability condition"), and its termination assumes: "whenever a
   correct validator `p_i` holds a valid meta-block `x`, all availability
   shares required for `AvailReady_i(x)` that it does not already hold
-  become available to `p_i` within at most `Δ_sync`" ("Availability-
-  synchronization assumption"). The trigger, "holds a valid meta-block
-  `x`", is the MVBA's internal accepted value `x_v`.
+  become available to `p_i` within at most `Δ_sync`"
+  ("Availability-synchronization assumption").
+* *Why it matters.* `AvailReady` is a predicate on the dissemination
+  layer's state, and the trigger of the assumption, "holds a valid
+  meta-block `x`", is the MVBA's internal accepted value `x_v`. So the
+  concrete MVBA's `ℓ_MVBA`-Termination is conditional on a service of the
+  composing layer, owed on an event internal to the MVBA. Lemma 11
+  (`lemma:chorus-termination`) uses `ℓ_MVBA`-Termination through Module 3
+  (`mod:mvba`) as if the MVBA were self-contained. The composition is
+  sound, since Chorus provides the service, but the module boundary the
+  main body claims does not carry it. Either the module states the
+  dependency (an `AvailReady` input and a "holds `x`" observable, or an
+  `ℓ_MVBA` conditional on the caller's `Δ_sync`), or the supplement states
+  its assumption over an event the module exposes.
+* *Status.* Open. The model takes the first reading. `AvailReady` is an
+  input of the MVBA contract that Chorus drives, with its chunk wait as
+  the guard. The untimed availability premise is derived from Chorus's
+  fairness. The two premises that need the trigger read the MVBA's
+  internal accepted value at the system's instance, the honest form: the
+  fairness owed to the availability report, and the validity bridge at a
+  held value. The timed form of the assumption, (Δ-avail), is still assumed
+  in the timed MVBA premise of the timed Chorus claim; it is to be derived
+  from Chorus's own timed rows in the bounds leg (S4). Safety does not
+  depend on any of this.
 
-So the concrete MVBA's `ℓ_MVBA`-Termination is conditional on a service
-of the composing layer, and that service is owed on an event internal to
-the MVBA. Lemma 11 (`lemma:chorus-termination`) uses
-`ℓ_MVBA`-Termination through Module 3 (`mod:mvba`) as if the MVBA were
-self-contained. The composition is still sound: Chorus provides the
-service. But the module boundary the main body claims does not carry it.
-Either the module states the dependency (an `AvailReady` input and a
-"holds `x`" observable, or an `ℓ_MVBA` conditional on the caller's
-`Δ_sync`), or the supplement states its assumption over an event the
-module exposes. The model takes the first reading: `AvailReady` is a
-contract input that Chorus drives (`mvba_avail_ready`). The two premises
-that need the trigger read the MVBA's internal `accepted` at the system's
-instance, which is the honest form: the fairness owed to the availability
-report (`availOwed`), and the bridge's completeness at an accepted value
-(`ValidBridge`'s third clause). §8.2 has the interface check item by item.
+**P13. Module 1 (`mod:slotconsensus`) states Termination without the
+conditions Chorus needs.**
+* *Quote.* Module 1 (`mod:slotconsensus`): "*Termination:* If every
+  correct validator starts participating, then every correct validator
+  eventually finalizes a proposal vector." Its block "Assumed behavior of
+  correct validators", with "No correct validator starts participating
+  before `s.deadline − Δ`" and "A correct validator stops participating
+  only after having previously started participating and finalized a
+  block", is commented out of the source. Lemma 11
+  (`lemma:chorus-termination`) is conditional: "When run within Cadence,
+  and provided participation is `Δ`-synchronized, Chorus … satisfies
+  `ℓ`-termination", and its proof begins "Within Cadence a correct
+  validator invokes `abandon()` only after it has finalized (Algorithm 1,
+  line 23 (`line:abandon`))". Proposition 4 (`prop:chorus-totality`) uses
+  the same fact.
+* *Why it matters.* Chorus does not satisfy Module 1's Termination as
+  stated: if a correct validator abandons before finalizing, the others
+  can be left one correct vote short of every quorum. The composition is
+  sound, because Algorithm 1 (`algorithm:cadence`) abandons only after
+  finalizing and Module 2 (`mod:orchestrator_2`)'s Integrity says "no
+  correct validator opens slot `s` before time `s.deadline − Δ`". But the
+  module boundary does not carry the conditions, while Module 3
+  (`mod:mvba`) ("no correct validator abandons before …") and Module 4
+  (`mod:acs`) ("*Assumptions:* … *No premature abandonment*") state
+  theirs. Restoring the block as Module 1's assumptions, in the form Module
+  4 (`mod:acs`) uses, would settle it. Module 2 (`mod:orchestrator_2`)'s
+  assumed-behaviour block (the open-to-complete delay `Φ_oc`) is commented
+  out the same way.
+* *Status.* Open. The model's contract states both conditions as
+  antecedents. `SlotConsensusTemporal.termination` requires that no
+  correct validator abandons before finalizing, and `Chorus.termination`
+  takes it as a caller's premise (`NoAbandonBeforeFinalizing`), which the
+  glue meets. The timed claims take the start condition, which the
+  composition discharges from the Orchestrator's Integrity
+  (`OrchestratorSafety.integrity_timing`). No result proven here relies
+  on Module 2 (`mod:orchestrator_2`)'s commented-out block.
 
-**No item of the target is unmodellable.** Every protocol rule of the main
-body and of Part I's MVBA can be modelled faithfully within the
-monotone-network contract, with one exception that predates this review:
-the MVBA's "enter the view of the highest retained timeout certificate"
-(C7 of [MvbaPlan.md](MvbaPlan.md) §11.3) needs a negative network read, and
-the model over-approximates it, which is sound for safety and unused by
-liveness.
+### 6.1 The interface check
+
+Every claimed result takes facts from module contracts. This table lists
+each fact that is not plainly a property of the paper's module, what uses
+it, and whether the target's module interface provides it. A "no" is a
+finding, unless the fact is the development's own stated bridge.
+
+| Fact the development uses | Used by | Provided by the target's module? | Finding |
+|---|---|---|---|
+| The MVBA's commit certificate: `certifies`, `decided_certified`, `accept` and its effect, `certified_mono`, `certified_unique`, `certified_decided`, `certified_valid` | the `CommitQC` finalization route (Chorus safety); the decision handoff (`Chorus.termination`) | not by Module 3 (`mod:mvba`), whose `decide` outputs the meta-block alone; by the supplement's Part I ("`decide(x, CommitQC)`", a transferable certificate the MVBA accepts from any view) | P2 |
+| `availReady`, the input `markAvail`, their frames; `certified_available` | Chorus's availability report; the MVBA's termination | no: the supplement states `AvailReady` over the dissemination layer's state | P12 |
+| `availOwed` and the validity bridge at a held value, both reading the MVBA's accepted value | `Chorus.termination` (premises `FJustice`, `ValidBridge`) | no: neither document exposes `x_v` | P12 |
+| (Δ-avail), in the timed MVBA premise | the timed Chorus claim (stated; its proof is S4's) | no: the supplement's assumption is triggered by `x_v` | P12; to be derived from Chorus's timed rows in S4 |
+| No correct validator abandons before finalizing | `Chorus.termination`, `Chorus.totality` | not by Module 1 (`mod:slotconsensus`) (commented out); the composition meets it (Algorithm 1, line 23 (`line:abandon`)) | P13 |
+| No correct validator starts before `s.deadline − Δ` | the timed Chorus claims (stated) | not by Module 1 (`mod:slotconsensus`) (commented out); by Module 2 (`mod:orchestrator_2`)'s Integrity | P13 |
+| The validity bridge: a valid meta-block's certificates verify against the network, and genuine certificates make it valid | Chorus safety at the decision handlers and the `CommitQC` route; `Chorus.termination` | `Valid` is "publicly verifiable" in both documents; the bridge says what that means for a network of relations | none: the development's one stated bridge ([Architecture.md](Architecture.md) §4) |
+| The MVBA's abandon antecedent and Quiescence | `Chorus.termination` (through `Mvba.termination`) | yes, Module 3 (`mod:mvba`) | — |
+| ACS Agreement, Validity (genuine pairs), Integrity | `Conductor ⊨ OrchestratorSafety` | yes, Module 4 (`mod:acs`) | — |
+| Open-prefix agreement of the Orchestrator | the glue's safety | derived: the safety residue of Module 2 (`mod:orchestrator_2`)'s Totality and Monotonicity | — |
+| "A correct validator decides only after proposing", for the MVBA | nothing since R16 (the two helper invariants that needed it were deleted) | not by Module 3 (`mod:mvba`); Module 4 (`mod:acs`)'s Integrity states it for the ACS | none: no claim uses it |
 
 ## 7. Implementation variants the models cover
 
@@ -1564,3 +1728,8 @@ and `#veil_status FallbackReceipt` 220, both warm.
   Conductor at the interface level, the `OrchestratorSafety` contract, is
   on [TODO.md](TODO.md). If the two are compatible there, the simpler
   main-body Conductor stays the verified one.
+* **Paper commits after the target.** At R17 (2026-10-02) the paper
+  repository's `master` was `48cac9a` itself, after a fetch: there is no
+  later commit for the next cycle to read yet. A later commit is listed
+  here, with a one-line summary, by the session that finds it; it does not
+  move the target (§0).
