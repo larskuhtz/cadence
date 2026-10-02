@@ -9,6 +9,7 @@ import Cadence.Chorus.Counting
 import Cadence.Chorus.Progress
 import Cadence.Chorus.Termination
 import Cadence.Chorus.Timeline
+import Cadence.Chorus.TimedTermination
 import Cadence.Chorus.Witness
 
 -- The orchestration / pipelining leg, and the composed system.
@@ -168,8 +169,31 @@ Each entry is the result, the file its statement lives in, and what it says.
   proposed to the MVBA by `M + 3Δ + 3δ` (`Chorus.within_all_input`); and a
   correct proposer's chunk
   delivered and recorded (`Chorus.within_proposal_recorded`). Stage S3 of
-  [Bounds.md](docs/Bounds.md) §6.4.6; the MVBA tail and the assembly into
-  `TimedTerminationClaim` are S4
+  [Bounds.md](docs/Bounds.md) §6.4.6
+* **`Chorus.timed_termination`** ([Chorus/TimedTermination.lean](Cadence/Chorus/TimedTermination.lean)) —
+  **Chorus's ℓ-termination** (Lemma 11 (`lemma:chorus-termination`)), the second
+  timed claim of [Chorus/Schedule.lean](Cadence/Chorus/Schedule.lean)
+  (`TimedTerminationClaim`), proven at the paper's bound: if every correct
+  validator participates by `t`, every correct validator finalizes by
+  `max(t, GST) + 5Δ + ℓ_MVBA + 9δ`, the paper's `5Δ + ℓ_MVBA` at `δ = 0`.
+  The premises: the timing model (`TimedJustice`, `PhasePunctual`, and the
+  MVBA contract's own `Admissible` on the projected run), the certificate
+  bridge, and the caller's four conditions (participation by `t`,
+  Δ-synchronized participation, no start before `D − Δ`, no abandonment
+  before finalizing). Hypotheses: the concrete family at every
+  `n = 3f + 1`, the system's configurations, and an MVBA contract whose
+  latency is non-negative; **`Chorus.timed_termination_atMvba`** is the
+  claim at the system's MVBA, with that hypothesis discharged. The MVBA tail
+  is `T.termination` on the projection (`Chorus.within_all_decided`), and
+  the fallback commit round is a chain of milestones, each a lemma with its
+  deadline, to `T₀ = M + 4Δ + ℓ_MVBA + 7δ` (`Chorus.within_finalized_late`)
+* **`Chorus.timed_termination_tight`** ([Chorus/TimedTermination.lean](Cadence/Chorus/TimedTermination.lean)) —
+  **the same premises give `max(t, GST) + 4Δ + ℓ_MVBA + 8δ`**, one `Δ`
+  inside the paper's bound (finding F4, confirmed): a single split at the
+  fallback commit votes' deadline suffices, where the paper splits again at
+  `T₀`. `Chorus.timed_termination` follows from it
+  (`Chorus.Ltight_le_Lchorus`); **`Chorus.timed_termination_tight_atMvba`**
+  is the bound at the system's MVBA
 * **`Chorus.termination_premises_satisfiable`,
   `Chorus.timedTermination_premises_satisfiable`,
   `Chorus.totality_premises_satisfiable`**
@@ -179,9 +203,9 @@ Each entry is the result, the file its statement lives in, and what it says.
   one run, in which everyone finalizes on the fast path and then abandons,
   meet every premise of `Chorus.termination` at once, every premise of the
   timed `TimedTerminationClaim` at the system's MVBA, and every premise of
-  `TotalityClaim` together with its antecedent (`Chorus.totality` proves
-  that claim; the timed termination claim is stated in
-  [Chorus/Schedule.lean](Cadence/Chorus/Schedule.lean) and not yet proven).
+  `TotalityClaim` together with its antecedent. All three claims are
+  proven (`Chorus.termination`, `Chorus.timed_termination_atMvba`,
+  `Chorus.totality`), and the run is checked to be an instance of each.
   [Bounds.md](docs/Bounds.md) §6.4.5 is the premise-by-premise ledger
 * **`Conductor.orchestratorSafety`** ([Composition.lean](Cadence/Composition.lean)) — Conductor
   ⊨ `OrchestratorSafety` — the state-level fragment of the paper's
@@ -442,6 +466,42 @@ info: 'Chorus.within_all_input' depends on axioms: [propext, Classical.choice, Q
 -/
 #guard_msgs in
 #print axioms Chorus.within_all_input
+
+/--
+info: 'Chorus.within_all_decided' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_all_decided
+
+/--
+info: 'Chorus.within_finalized_late' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_finalized_late
+
+/--
+info: 'Chorus.timed_termination' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.timed_termination
+
+/--
+info: 'Chorus.timed_termination_atMvba' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.timed_termination_atMvba
+
+/--
+info: 'Chorus.timed_termination_tight' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.timed_termination_tight
+
+/--
+info: 'Chorus.timed_termination_tight_atMvba' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.timed_termination_tight_atMvba
 
 /--
 info: 'Chorus.within_input_of_fast' depends on axioms: [propext, Classical.choice, Quot.sound]

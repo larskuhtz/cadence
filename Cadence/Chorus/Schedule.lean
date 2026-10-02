@@ -80,7 +80,9 @@ phase markers (`hop_isSome_iff`), the markers are exactly the three
 landmarks' (`markerLabel_iff`), the two constants are the paper's at `δ = 0`
 (`Lchorus_paper`, `Ltot_paper`), and the MVBA premise unfolds at the
 system's instance. The proofs are stages S3 and S4 of
-[Bounds.md](../../docs/Bounds.md) §6.4.6. -/
+[Bounds.md](../../docs/Bounds.md) §6.4.6: `TotalityClaim` is `Chorus.totality`
+([Totality.lean](Totality.lean)), `TimedTerminationClaim` is
+`Chorus.timed_termination` ([TimedTermination.lean](TimedTermination.lean)). -/
 
 namespace Chorus
 
@@ -238,9 +240,11 @@ timeline from `M := max(t, GST)`, with the paper's outer case split at
   the chain above finalizes everyone by `T₀`.
 
 R7 fixed the count at `8` before any proof; S3's milestones put the case-(a)
-proposals one `δ` later (F9), so it is `9`. S4 confirms the rest or restates
-it before the instance, as `Mvba.Lcert` was. F4 (the bound looks loose by one `Δ`) is
-open and does not change this statement: a sharper lemma would imply it. -/
+proposals one `δ` later (F9), so it is `9`. S4 confirmed the rest: the
+milestones as proven reach `T₀` with `7δ`, and the outer split adds `2δ`
+(`Chorus.timed_termination`). F4 (the bound is loose by one `Δ`) is
+confirmed and does not change this statement: `Chorus.timed_termination_tight`
+proves `4Δ + ℓ_MVBA + 8δ` from the same premises, and implies it. -/
 def Lchorus (Δ δ ℓM : time) : time :=
   5 • Δ + ℓM + 9 • δ
 
@@ -455,8 +459,12 @@ the MVBA's handoff premise is derived from (`relayed_of_timedJustice`). The
 availability report is one family per validator and value, a `δ`-row with
 no gate: once `i` holds `v`, it reports `AvailReady_i(v)` within `δ` of
 its chunk wait being met. With the re-dissemination rows it is what the
-MVBA's (Δ-avail) is to be derived from; until then (Δ-avail) is assumed
-inside `TimedMvbaAdmissible` (S4, [TODO.md](../../docs/TODO.md) § Liveness).
+MVBA's (Δ-avail) is to be derived from. It cannot be yet: the model's
+re-dissemination is gated on its sender's participation at delivery, where
+the paper sends inside the fallback-entry rule (F15,
+[Bounds.md](../../docs/Bounds.md) §6.4.2), so (Δ-avail) stays assumed
+inside `TimedMvbaAdmissible` until the model fix (R19,
+[TODO.md](../../docs/TODO.md) § Liveness).
 
 Each window is measured from `max(clk N, gst)` (`TLRun.ref`), so an
 obligation pending at GST is due `Δ` (or `δ`) after it. Stated over plain

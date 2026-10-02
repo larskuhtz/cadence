@@ -1,4 +1,4 @@
-import Cadence.Chorus.Totality
+import Cadence.Chorus.TimedTermination
 import Mathlib.Tactic.IntervalCases
 
 /-! # Chorus.Witness — the premises of the Chorus liveness claims are jointly satisfiable
@@ -1060,9 +1060,11 @@ theorem finalizes : (run.at' 32).local_committed 0 = true := by
 /-! ## The proven claims apply
 
 Not needed for non-vacuity: these check that the run is an instance of what
-`Chorus.termination` and `Chorus.totality` quantify over, at their own
-instance regime, with nothing re-bundled. The timed termination claim is not
-proven yet (stage S4). -/
+`Chorus.termination`, `Chorus.totality` and `Chorus.timed_termination_atMvba`
+quantify over, at their own instance regime, with nothing re-bundled. The
+last one is the check that the witness's premise set is the proven timed
+claim's: `sync`, `validBridge` and the caller's four, at the system's MVBA,
+and nothing else. -/
 
 example : Terminates run.toLRun :=
   termination 4 1 rfl isByz hbyz natViewOrderEnum run.toLRun fJustice mvbaAdmissible validBridge
@@ -1073,6 +1075,12 @@ example (j : Fin 4) (hj : ¬ nsetC.is_byz j = true) :
       (run.at' m).local_committed j = true :=
   totality schC schC.Δ run timedJustice (syncParticipationWithin _) noAbandonBeforeFinalizing
     32 0 (by decide) finalizes j hj
+
+example (j : Fin 4) (hj : ¬ nsetC.is_byz j = true) :
+    ∃ n, run.clk n ≤ max 0 run.gst + schC.ℓ (Mvba.mvbaTemporal thM hqeC schC.mvba natViewOrderEnum rotation).ℓ ∧
+      (run.at' n).local_committed j = true :=
+  timed_termination_atMvba 4 1 rfl isByz hbyz schC hqeC natViewOrderEnum rotation run sync validBridge
+    (syncParticipationWithin _) noAbandonBeforeFinalizing noEarlyStart 0 allParticipateBy j hj
 
 end Witness
 

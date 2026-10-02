@@ -470,7 +470,8 @@ The re-check of R17 walked §§3–4 once more against the realigned models.
 Every (b) and (c) item is modelled (the list at the end of §4 says where).
 Every remaining difference between a model and the target is one of the
 following: below the model's abstraction, with its argument, or a finding
-of §6. None needs a model change.
+of §6. One needs a model change, F15, found by R18 after the re-check (the
+last row); the others do not.
 
 | Difference | Model | Why it is sound, or the finding |
 |---|---|---|
@@ -488,6 +489,7 @@ of §6. None needs a model change.
 | Both fallback finalization routes are modelled | Chorus | The target specifies both (§5.7); P2. |
 | The `EquivCert` rule is Algorithm 5's, not Part II's | FallbackReceipt, Chorus | The main body's rule is the specified protocol (§5.9); P3. |
 | Part II's implementation variants; the practical Conductor | — | Outside the verified surface (§2, §7, §9). |
+| **F15**: the fallback signer's chunk is a separate step, gated on the signer's participation at delivery, where the paper sends it inside the fallback-entry rule (Algorithm 5, line 12 (`line:fb-redisseminate`)) | Chorus | **Our divergence, open; closed in R19** (a model change and a cold Chorus re-solve). An abandonment between signing and delivery drops a message the paper has already sent, so the MVBA's (Δ-avail) cannot be derived from the rows and stays assumed in the timed MVBA premise. Safety is unaffected (fewer deliveries), and `Chorus.timed_termination` does not meet it. The counterexample and R19's two designs: [Bounds.md](Bounds.md) §6.4.2, "F15". |
 
 **No rule of the target is unmodellable.** Every protocol rule of the main
 body and of Part I's MVBA can be modelled faithfully within the
@@ -513,7 +515,7 @@ the Lean development of this repository.*
 | P2 | Two proofs argue from a common `B′` and from two commitment proofs | proof gap | open; the model proves the claims without either |
 | P3 | The supplement contradicts itself on `EquivCert` construction | supplement, internal | open; the model follows the main body |
 | P4 | A Part I obligation cites a Part II argument | supplement, internal | open |
-| P5 | Lemma 11 claims `5Δ + ℓ_MVBA`; its proof gives `4Δ + ℓ_MVBA` | statement vs proof | open; the model states the paper's bound |
+| P5 | Lemma 11 claims `5Δ + ℓ_MVBA`; its proof gives `4Δ + ℓ_MVBA` | statement vs proof | open; **confirmed by proof**: the model proves the paper's bound and the sharper one |
 | P6 | No convention says how often an `upon` handler runs | missing convention | open; the model reads "once" |
 | P7 | A stale backup of the supplement is in the tree | source hygiene | open |
 | P8 | A stub still lists a backoff policy for the MVBA timeout | stale text | open |
@@ -629,10 +631,20 @@ proof gives `4Δ + ℓ_MVBA`.**
   finalizers, so a single split gives `max(t, GST) + 4Δ + ℓ_MVBA`. A
   commented-out draft next to the lemma states that bound. The Conductor's
   timing (`Φ_oc = ℓ_chorus + d_tot`) inherits the extra `Δ`.
-* *Status.* Open; the lemma is unchanged since arXiv v2. The model states
-  the paper's `5Δ` (it follows by monotonicity) and is to prove the
-  sharper bound as a named lemma in the bounds leg
-  ([Bounds.md](Bounds.md) §6.4.3).
+* *Status.* Open for the authors; the lemma is unchanged since arXiv v2.
+  **Confirmed by proof** (R18, 2026-10-02). The model proves the lemma as
+  stated, `ℓ = 5Δ + ℓ_MVBA` plus the local steps (`Chorus.timed_termination`,
+  `5Δ + ℓ_MVBA + 9δ`), and from the same premises the sharper bound
+  `4Δ + ℓ_MVBA` plus local steps (`Chorus.timed_termination_tight`,
+  `4Δ + ℓ_MVBA + 8δ`), which implies it. The single split is at the
+  fallback commit votes' deadline `max(t, GST) + 3Δ + ℓ_MVBA` (plus `6δ`):
+  an earlier finalizer gives everyone totality's `Δ`, and otherwise nobody
+  has abandoned before the votes, so Proposition 5
+  (`prop:chorus-finalization-time`)'s chain finalizes everyone by
+  `T₀ = max(t, GST) + 4Δ + ℓ_MVBA`. No step of the proof uses the outer
+  split. **Suggested correction:** state Lemma 11 with
+  `ℓ = 4Δ + ℓ_MVBA`, the bound of the commented-out draft, and split once,
+  at `T₀ − Δ`; `Φ_oc = ℓ_chorus + d_tot` then loses its extra `Δ`.
 
 **P6. When does an `upon` handler run?**
 * *Quote.* Algorithm 4, line 18 (`line:fast-formqc`) and Algorithm 4,
@@ -742,9 +754,12 @@ through state Module 3 (`mod:mvba`) does not expose.**
   internal accepted value at the system's instance, the honest form: the
   fairness owed to the availability report, and the validity bridge at a
   held value. The timed form of the assumption, (Δ-avail), is still assumed
-  in the timed MVBA premise of the timed Chorus claim; it is to be derived
-  from Chorus's own timed rows in the bounds leg (S4). Safety does not
-  depend on any of this.
+  in the timed MVBA premise of the proven timed Chorus claim
+  (`Chorus.timed_termination`). The paper's Chorus does provide it, but
+  the model cannot derive it from Chorus's own timed rows yet: the model's
+  re-dissemination diverges from the paper's (F15, our divergence, §5.10),
+  and R19 fixes the model and derives it. Safety does not depend on any of
+  this.
 
 **P13. Module 1 (`mod:slotconsensus`) states Termination without the
 conditions Chorus needs.**
@@ -795,7 +810,7 @@ finding, unless the fact is the development's own stated bridge.
 | The MVBA's commit certificate: `certifies`, `decided_certified`, `accept` and its effect, `certified_mono`, `certified_unique`, `certified_decided`, `certified_valid` | the `CommitQC` finalization route (Chorus safety); the decision handoff (`Chorus.termination`) | not by Module 3 (`mod:mvba`), whose `decide` outputs the meta-block alone; by the supplement's Part I ("`decide(x, CommitQC)`", a transferable certificate the MVBA accepts from any view) | P2 |
 | `availReady`, the input `markAvail`, their frames; `certified_available` | Chorus's availability report; the MVBA's termination | no: the supplement states `AvailReady` over the dissemination layer's state | P12 |
 | `availOwed` and the validity bridge at a held value, both reading the MVBA's accepted value | `Chorus.termination` (premises `FJustice`, `ValidBridge`) | no: neither document exposes `x_v` | P12 |
-| (Δ-avail), in the timed MVBA premise | the timed Chorus claim (stated; its proof is S4's) | no: the supplement's assumption is triggered by `x_v` | P12; to be derived from Chorus's timed rows in S4 |
+| (Δ-avail), in the timed MVBA premise | the timed Chorus claim (`Chorus.timed_termination`, through `T.Admissible`) | no: the supplement's assumption is triggered by `x_v` | P12; still assumed: the derivation from Chorus's timed rows is blocked by F15, our divergence (§5.10), and is R19's |
 | No correct validator abandons before finalizing | `Chorus.termination`, `Chorus.totality` | not by Module 1 (`mod:slotconsensus`) (commented out); the composition meets it (Algorithm 1, line 23 (`line:abandon`)) | P13 |
 | No correct validator starts before `s.deadline − Δ` | the timed Chorus claims (stated) | not by Module 1 (`mod:slotconsensus`) (commented out); by Module 2 (`mod:orchestrator_2`)'s Integrity | P13 |
 | The validity bridge: a valid meta-block's certificates verify against the network, and genuine certificates make it valid | Chorus safety at the decision handlers and the `CommitQC` route; `Chorus.termination` | `Valid` is "publicly verifiable" in both documents; the bridge says what that means for a network of relations | none: the development's one stated bridge ([Architecture.md](Architecture.md) §4) |
@@ -1049,6 +1064,9 @@ stopped ([Bounds.md](Bounds.md) §6.4.6):
 * **S4: the MVBA tail and the assembly.** `T.termination` through the
   projection, the fallback commit round (rows over the validator's own
   `B′`), the case split, and the bound. **F4 is decided here** (P5).
+  **Done in R18** (2026-10-02): `Chorus.timed_termination` and
+  `Chorus.timed_termination_tight`; F4 and P5 confirmed. (Δ-avail) was not
+  derived: F15 (§5.10) needs a model change, R19.
 * **S5: the contract instances.** `SlotConsensusTemporal` at the new
   fragment (Quiescence, `admissible_exists`, Termination as the unbounded
   corollary), then `SlotConsensusWithTotality` and the `…_of_temporal` join
