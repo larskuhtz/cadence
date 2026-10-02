@@ -187,7 +187,7 @@ in [Cadence.lean](Cadence.lean).
 | **`Conductor ⊨ OrchestratorSafety`**, **`Chorus ⊨ SlotConsensusSafety`** — the state-level fragments of the paper's module contracts, every field proven (including the two-state fields: monotonicity of the observables, frames, the paper's Monotonicity) | [Cadence/Composition.lean](Cadence/Composition.lean) (`Conductor.orchestratorSafety`), [Cadence/Chorus/Compose.lean](Cadence/Chorus/Compose.lean) (`Chorus.slotConsensusSafety`) | composition, over persisted VC theorems and Veil's transition bodies |
 | **The joins toward the full contracts** — given an `OrchestratorTemporal` instance at the proven fragment (Totality, `B`-Boundedness, `R`-Recovery, the execution model) the Conductor is a full `Orchestrator`; given a `SlotConsensusTemporal` one (the participation interface, Termination, Quiescence, the clock) Chorus is a full `SlotConsensus`. This development supplies neither, and that is precisely the claim about what is unproven. Integrity's timing half and Hiding's protocol half are first-order and *are* proven — they sit in the fragments | `orchestrator_of_temporal`, `slotConsensus_of_temporal` | plain Lean; what is unproven is a hypothesis, never an axiom |
 | **Fallback meta-block "valid by construction"**, including the counting argument, for **every** `n = 3f+1` | [Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) + [Cadence/FallbackReceipt/Totality.lean](Cadence/FallbackReceipt/Totality.lean) | sweep + composition |
-| **MVBA agreement, integrity and external validity** — the three safety properties of Module 3 (`mod:mvba`), for the leader-based instantiation of the paper repository's *internal supplement* (views, timeouts, timeout certificates, the lock; the referent is pinned to a paper-repository commit in the model's header and is not yet part of the published paper) | [Cadence/Mvba.lean](Cadence/Mvba.lean) (`agreement`, `integrity`, `external_validity`) → `Mvba.mvbaSafety` | sweep + composition |
+| **MVBA agreement, integrity and external validity** — the three safety properties of Module 3 (`mod:mvba`), for the leader-based instantiation of the paper repository's *internal supplement* (views, timeouts, timeout certificates, the lock; the supplement is part of the paper target) | [Cadence/Mvba.lean](Cadence/Mvba.lean) (`agreement`, `integrity`, `external_validity`) → `Mvba.mvbaSafety` | sweep + composition |
 | **`Mvba ⊨ MVBASafety`** — the state-level fragment of the paper's MVBA contract, every field proven, including the two inputs, their observables and **Quiescence**; given an `MVBATemporal` instance (the clock, the admissible-run model, `ℓ_MVBA`-Termination — four fields, nothing safety-shaped) the instantiation is a full `MVBA`. Chorus consumes the class as a constraint and [Cadence/System.lean](Cadence/System.lean) fills it with this instance | [Cadence/Mvba/Compose.lean](Cadence/Mvba/Compose.lean) (`Mvba.mvbaSafety`, `mvba_of_temporal`) | composition, over persisted VC theorems and Veil's transition bodies |
 | **`Mvba ⊨ MVBATemporal`, and so a full `MVBA`**, the one the composed system runs: **`ℓ_MVBA`-Termination with an explicit `ℓ`**, the supplement's `O(fΔ)` at `k = f + 1`. Every correct validator decides by `max(t, GST) + ℓ` once all have proposed valid values by `t` and none abandons early, in every admissible run. Admissible means bounded fairness after GST under the supplement's network (a message sent at or after GST by a correct validator and retained is consumed within `Δ`, a retransmitted one within `Δ + ρ`, a local step within `δ`), a punctual view timer, and availability within `Δ_sync`, and such runs exist. The hypotheses are finitely many validators, the honest-quorum and view-order classes, a correct leader in every `k` consecutive views, a capped timeout that eventually exceeds the chain's latency, and a cancellative, Archimedean time monoid. | [Cadence/Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean) (`Mvba.mvbaTemporal`, `Mvba.mvbaFull`), from [Cadence/Mvba/BoundedTermination.lean](Cadence/Mvba/BoundedTermination.lean) (`Mvba.bounded_termination`) | plain Lean over timed runs of the generated transition system; premises are hypotheses, never axioms ([docs/Bounds.md](docs/Bounds.md) §6.2) |
 | **The MVBA's lock check is load-bearing** — with the `Pre-Prepare` handler's lock check removed, two correct validators decide different vectors: the mutation test showing the instantiation's invariants are needed, not merely true | [Cadence/Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean) | exhaustive model check of a restriction of the mutant (every run of which is a run of the mutant); the counterexample trace is pinned in the build |
@@ -465,7 +465,7 @@ Cadence/
                                    the receipt layer's proof-file family (axiom-pinned)
   FallbackReceipt/Totality.lean    build totality for every n = 3f+1 (axiom-pinned)
   Mvba.lean                        leader-based MVBA MODEL — the internal supplement's
-                                    instantiation, referent pinned in the header; no sweep,
+                                    instantiation (the supplement at the paper target); no sweep,
                                     VC registry, three sat trace witnesses
   Mvba/Proofs/, Mvba/Certify.lean  the MVBA family's proof files (26; manual cells counted in docs/Architecture.md) and
                                     certificate (axiom- and audit-pinned)
@@ -609,27 +609,22 @@ current state.
 > **Cadence: Extreme Pipelining with Multiple Concurrent Proposers.**
 > arXiv:[2607.02275](https://arxiv.org/abs/2607.02275) \[cs.DC].
 
-**The target.** The development targets one revision of the paper
-repository: **`48cac9a`** (`48cac9a41efac2fb58f32f61ff21fd89db7c7d98`,
-committed 2026-10-02). The target is the revision as a whole: the main body,
-whose public versions are on arXiv, and the internal supplement, whose
-Part I specifies the leader-based MVBA that
+**The target.** The development **corresponds to paper revision
+`48cac9a` (main body plus internal supplement)**: one revision of the paper
+repository, whose main body has its public versions on arXiv and whose
+internal supplement's Part I specifies the leader-based MVBA that
 [Cadence/Mvba.lean](Cadence/Mvba.lean) models. Claims are about that
-revision, and a protocol bug found here is a bug in it.
-
-**Status: realignment in progress.** The models do not correspond to
-`48cac9a` yet. Their current state is the earlier, mixed target marked by
-the tag `paper-target/arxiv-v2`: arXiv v2 for Chorus, the Conductor, the
-glue and the receipt layer, and the supplement at `eb1bb51` for the MVBA.
-[docs/PaperAlignment.md](docs/PaperAlignment.md) has the review against the
-target, what it found on the paper side, and the realignment plan (§8).
-The plan's last session creates the tag `paper-target/48cac9a` and changes
-this paragraph to "corresponds". Earlier revisions and how the development
-moved between them: [docs/History.md](docs/History.md) § "Paper alignment
-before the single target", and the tags.
+revision, and a protocol bug found here is a bug in it. The target's one
+home, with its full hash, the mechanical re-check and the review behind
+"corresponds", is [docs/PaperAlignment.md](docs/PaperAlignment.md) §0; its
+§6 is the page of findings for the paper's authors. The commit from which
+the development corresponds is tagged `paper-target/48cac9a`; the previous
+target is tagged `paper-target/arxiv-v2`, and how the development moved
+between targets is [docs/History.md](docs/History.md) § "Paper alignment
+before the single target".
 
 **Access to the target.** Auditors are assumed to have, or to be able to
-obtain, the paper sources at `48cac9a`, the internal supplement included.
+obtain, the paper sources at the target, the internal supplement included.
 All of it is to be made public, and the supplement's MVBA is a standard
 leader-based BFT primitive.
 

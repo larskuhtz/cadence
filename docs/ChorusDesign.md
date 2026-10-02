@@ -12,10 +12,8 @@ abstractions impose on the kind of properties that can be proven.
 
 ## 1. Scope
 
-Chorus is the inner *per-slot one-shot* BFT consensus layer of Cadence. The
-model was built against the Cadence paper, `arXiv:2607.02275v2`, and is
-being realigned to the target revision `48cac9a`
-([PaperAlignment.md](PaperAlignment.md) §0). Citations name what the
+Chorus is the inner *per-slot one-shot* BFT consensus layer of Cadence.
+Paper target: [PaperAlignment.md](PaperAlignment.md) §0. Citations name what the
 target's rendered PDF shows, with the label in parentheses; the root
 [README.md](../README.md) says how to resolve them. The Chorus
 chapter is Appendix C (`section:slot_agreement`), with pseudocode in Algorithm 2

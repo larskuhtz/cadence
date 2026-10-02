@@ -20,18 +20,23 @@ supplement (`supplementary-internal.tex` with
 `src/supplementary-internal/`). Claims are stated about that revision, and
 a protocol bug found here is a bug in that revision.
 
-**Status: realignment in progress.** The models do not yet correspond to the
-target. Chorus, the Conductor, the glue and the receipt layer were built
-against arXiv v2, and the MVBA against the supplement at `eb1bb51`. That
-earlier target is marked by the tag `paper-target/arxiv-v2`. §§3–5
-classify every difference between it and `48cac9a`. Four items need model
-changes, two need contract changes, and the rest need nothing or only
-documentation. §8 is the plan that closes them. Its last session makes the
-tag `paper-target/48cac9a` and changes this paragraph to "corresponds".
+**Status: the development corresponds to paper revision `48cac9a` (main
+body plus internal supplement).** Every item of the review (§§3–4) is
+modelled, below the model's abstraction with its argument, or
+documentation (§5.10). What the paper side should look at is §6. The tag
+`paper-target/48cac9a` marks the commit from which this holds. The previous
+target, arXiv v2 with the MVBA from the supplement at `eb1bb51`, is tagged
+`paper-target/arxiv-v2`.
+
+This section is the one home of the target revision. Model headers point
+here and name no revision, so a later re-pin edits this section, the label
+map, and the status sentence of the README and of
+[Cadence.lean](../Cadence.lean), and no model file.
 
 The target does not follow the paper repository's `master`. A later paper
 commit is a new target only when a session moves it, by running §1 against
-the new commit and planning the difference as §8 does.
+the new commit and planning the difference as §8 did. §9 lists the paper
+commits after the target that the next cycle has to read.
 
 ## 1. The verified surface, and how to re-check it
 

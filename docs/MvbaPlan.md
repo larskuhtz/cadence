@@ -6,8 +6,9 @@ specification the model is read against and how that reference is pinned
 (§0), why the contract's value is instantiated at the entry vector (§1.2),
 what the liveness step must not design out (§3), and how non-vacuity is
 established (§4). Each step of §8 carries a note saying whether and how it
-landed. §11 is new: the review of the newer supplement revision `eb1bb51`
-against the pin, and the plan for moving the pin to it.*
+landed. §11 is the review of the supplement revision `eb1bb51` that moved
+the model's earlier pin; the paper target since then is
+[PaperAlignment.md](PaperAlignment.md) §0.*
 
 **Where to read what.** The MVBA model's own design rationale — types,
 state, actions, abstractions and the safety argument — is the header of
@@ -26,7 +27,7 @@ correctness section, which is what this model formalises.
 
 ## 0. The specification, and the commit to pin it to
 
-Everything verified so far is checkable against `arXiv:2607.02275v2`. The
+Everything verified so far is checkable against the public paper, `arXiv:2607.02275`. The
 MVBA algorithm is not in it: it lives in the paper repository's **internal
 supplement**, which is not yet part of the published
 paper ([PaperAlignment.md](PaperAlignment.md) §2, §9). That is stated,
@@ -38,18 +39,15 @@ the supplement is the theorem `Mvba ⊨ MVBASafety` against the public
 contract; what needs the supplement is the model's fidelity to the
 algorithm. The implementation in code is out of scope and is not cited.
 
-**The referent is a paper-repository commit, recorded for our own future
-iterations.** The paper has arXiv versions, and [README.md](../README.md)
-maps each to the unique paper-repo commit that reproduces it. The
-supplement has neither tags nor versions, and its MVBA algorithm,
-Supplement, Algorithm 1 (`alg:mvba`–`alg:mvba-cont3`), is the most-churned
-part of the repository — some twenty commits since July, the latest on 2026-09-03 — so
-the model pins the **commit SHA of the paper repository it was read
-against**, and any later change to that algorithm or to
-Supplement, Section 1.3 (`subsec:mvba-correctness`) is the trigger to re-read the model against the
-new commit and move the pin. For this plan, and for the model's first
-version, the referent was paper-repo commit **`026dc8b`** (2026-09-03);
-since step 5b (§11.5 stage 2) it is **`eb1bb51`** (2026-09-28).
+**The referent is the paper target.** The supplement has neither tags nor
+versions, so the referent is a paper-repository commit. Since R13 it is
+the development's one target, named in
+[PaperAlignment.md](PaperAlignment.md) §0, and the model's header points
+there instead of pinning a commit of its own. The model's earlier pins,
+`026dc8b` and then `eb1bb51`, are recorded in [History.md](History.md)
+§ "Paper alignment before the single target"; §11 below is the review
+that moved the second.
+
 The anchors to cite from it: Supplement, Section 1 (`sec:mvba-instantiation`),
 Supplement, Section 1.1 (`subsec:mvba-datatypes`), Supplement, Section 1.2 (`subsec:mvba-protocol`), the four algorithm blocks
 Supplement, Algorithm 1 (`alg:mvba`), Supplement, Algorithm 1 (`alg:mvba-cont`), Supplement, Algorithm 1 (`alg:mvba-cont2`), Supplement, Algorithm 1 (`alg:mvba-cont3`) (the fourth
@@ -59,12 +57,9 @@ Supplement, Remark 3 (`rem:lock-monotonicity`), Supplement, Lemma 3 (`lem:cert-u
 Supplement, Lemma 5 (`lem:avail-progress`), Supplement, Lemma 6 (`lem:commit-availability`), Supplement, Lemma 7 (`lem:timeout-closes-view`),
 Supplement, Lemma 8 (`lem:lock-persistence`), Supplement, Theorem 1 (`thm:agreement`), Supplement, Lemma 9 (`lem:external-validity`),
 Supplement, Lemma 10 (`lem:reproposal`), Supplement, Lemma 11 (`lem:lock-availability`), Supplement, Lemma 12 (`lem:proposability`),
-Supplement, Theorem 2 (`thm:termination`), Supplement, Corollary 1 (`cor:mvba-recovery-termination`). (All seventeen still
-resolve at `eb1bb51`, the current pin; §11.1 lists the anchors it removes
-and the ones it adds.) This is a new
-convention here — everywhere else the citation discipline rests on stable
-anchors in an immutable document — but it is cheap and it is the only honest
-option while the supplement stays untagged.
+Supplement, Theorem 2 (`thm:termination`), Supplement, Corollary 1 (`cor:mvba-recovery-termination`). (All seventeen
+resolve at the target; [paper-labels.tsv](paper-labels.tsv) is the
+authority.)
 
 **What moved between the first draft and `026dc8b`**, because each item
 changes the model:

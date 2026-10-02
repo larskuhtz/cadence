@@ -35,15 +35,11 @@ import Cadence.Mvba.NoLock
 
 This module is the entry point for auditing the formal verification of the
 **Cadence** BFT consensus protocol (<https://www.category.xyz/cadence>;
-`arXiv:2607.02275`). The paper target is one revision of the paper
-repository, `48cac9a` (2026-10-02): the main body together with the internal
-supplement, whose MVBA [Mvba.lean](Cadence/Mvba.lean) models. The
-realignment of the models to that revision is in progress: the results below
-are proven against the earlier target marked by the tag
-`paper-target/arxiv-v2` (arXiv v2, with the MVBA from the supplement at
-`eb1bb51`), and
-[docs/PaperAlignment.md](docs/PaperAlignment.md) §8 is the plan that brings
-them onto `48cac9a`. It imports every finished result of the
+`arXiv:2607.02275`). The development **corresponds to paper revision
+`48cac9a` (main body plus internal supplement)**; the supplement's MVBA is
+what [Mvba.lean](Cadence/Mvba.lean) models. The target, how to re-check it,
+and what the review found on the paper side are
+[docs/PaperAlignment.md](docs/PaperAlignment.md) §0, §1 and §6. It imports every finished result of the
 development and, for each one, re-derives its **axiom footprint** as a
 build-checked pin. If any end theorem ever came to depend on an extra axiom
 — a `sorry` (`sorryAx`), a trusted solver verdict standing in as an axiom, a
@@ -220,9 +216,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   build a *valid* fallback meta-block, for **every** `n = 3f+1`
 * **`Mvba.invariants_of_reachable`** ([Mvba/Certify.lean](Cadence/Mvba/Certify.lean)) — every
   reachable state of the leader-based MVBA instantiation ([Mvba.lean](Cadence/Mvba.lean)
-  — the protocol of the paper repository's *internal supplement*, pinned to a
-  paper-repository commit in the model's header, not yet part of the published
-  paper) satisfies all its declared safety properties and invariants
+  — the protocol of the paper repository's *internal supplement*, part of
+  the paper target) satisfies all its declared safety properties and invariants
 * **`Mvba.reachable_agreement`, `Mvba.reachable_integrity`,
   `Mvba.reachable_external_validity`** ([Mvba/Certify.lean](Cadence/Mvba/Certify.lean)) — the
   three safety properties of Module 3 (`mod:mvba`) at every reachable state — Supplement, Theorem 1 (`thm:agreement`) at the entries level, integrity (a correct

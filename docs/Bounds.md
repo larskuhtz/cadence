@@ -488,7 +488,7 @@ rather than fixed known bounds, the timeout is eventually increased beyond
 this value."* Supplement, Theorem 2 (`thm:termination`)'s proof then counted with a fixed timeout —
 *"the view timeout is itself `O(Δ)`"* — to reach `O(fΔ)`.
 
-At the current pin `eb1bb51` the sentence reads (Supplement, Section 1.2 (`subsec:mvba-protocol`),
+At the paper target the sentence reads (Supplement, Section 1.2 (`subsec:mvba-protocol`),
 "Views, leaders, and timing parameters"): *"The view timeout is the fixed,
 known value `T := Δ_R + 4Δ + max{Δ, Δ_sync}`"*, and the termination setting
 says the view timeout is the fixed `T`. The backoff sentence is gone. The
@@ -572,7 +572,7 @@ convenience.
 
 **The network clauses** (step 5b, 2026-09-29; [MvbaPlan.md](MvbaPlan.md)
 §11.3 C16 and §11.5 stage 3). A network label's bound depends on its
-messages' history, as the supplement's network at `eb1bb51` does. The
+messages' history, as the supplement's network at the paper target does. The
 model's network relations hold from a message's first delivery to a
 correct validator, so "sent at" is the first index at which the relation
 holds.
@@ -612,7 +612,7 @@ certificate and another, which accepted the same proposal, never does
 admissible: the timed claim held that second validator to adopting within
 `δ`. Since R3 the model does what the supplement does
 ([Mvba.lean](../Cadence/Mvba.lean), `adopt_prepqc`, the supplement's
-`TryFormPrepQC` at `eb1bb51`):
+`TryFormPrepQC` at the paper target):
 
 * the step takes the supermajority `q` of `Prepare`s as a parameter, as
   `form_prepqc v e q` does, and requires each member's `Prepare` on
@@ -821,7 +821,7 @@ delivers its certificate to everyone within `Δ + ρ`
 which is `O(kΔ)` when every constant is `O(Δ)` and the ramp is empty — the
 supplement's `O(fΔ)` at `k = f + 1`.
 
-**Against the supplement's own bound** (Supplement, Theorem 2 (`thm:termination`) at `eb1bb51`,
+**Against the supplement's own bound** (Supplement, Theorem 2 (`thm:termination`) at the paper target,
 at `δ = Δ_R = 0`, the fixed `T`, `Δ_sync ≤ Δ`, an empty ramp, so
 `|below v_L| = 1`, and `k = f + 1`): the supplement learns a certificate by
 `t₀ + ρ + 4Δ + max{T, ρ} + T + f(2Δ + T) + T` and decides within a further
@@ -1428,7 +1428,7 @@ from Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`), and the restart p
 MVBA sending and stops `W`", and the timeout fires only "upon `W` reaches
 the view timeout and no decision in view `v`" (Supplement, Algorithm 1, line 36 (`line:mvba:timeout-send`)).
 That was so at the revision pinned then, `026dc8b`, and is so at the
-current pin `eb1bb51`, whose termination proof now relies on it
+paper target, whose termination proof relies on it
 ([MvbaPlan.md](MvbaPlan.md) §11.3, C11).
 The difference was not harmless for the timed claim: read as a model run, a
 supplement run in which a validator decides and stops early abandons it
@@ -3015,7 +3015,7 @@ from**.
 * **Mvba: the anonymous assemblies** `form_prepqc`, `form_commitqc`,
   `form_tc_lock` and `form_tc_nolock`. They have no validator, and a quorum
   parameter `q`, so once the certificate exists every `q`-variant stays
-  enabled without effect. In the supplement (`eb1bb51`) each is a step of
+  enabled without effect. In the supplement (at the paper target) each is a step of
   one validator with a local condition:
   * `TryFormPrepQC`: pᵢ forms `prepareQC` if it "has not already formed a
     prepare certificate in the current view". This is `adopt_prepqc` since

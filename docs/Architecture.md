@@ -16,9 +16,9 @@ composition-layer models.*
 
 ## 1. What is being verified
 
-[Cadence](https://www.category.xyz/cadence) (`arXiv:2607.02275v2`; see the
-root [README.md](../README.md) for the citation and how to resolve the label
-names used here) is a BFT consensus design with three layers, and the
+[Cadence](https://www.category.xyz/cadence) (`arXiv:2607.02275`; the
+paper target is [PaperAlignment.md](PaperAlignment.md) §0, and the root
+[README.md](../README.md) says how to resolve the label names used here) is a BFT consensus design with three layers, and the
 formalisation mirrors that decomposition one-to-one:
 
 * **Chorus** (Appendix C (`section:slot_agreement`)) — the per-slot one-shot
@@ -383,8 +383,7 @@ relations, and it takes a human to confirm each use is positive.
    ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) instantiates
    its state-level fragment from the leader-based protocol of the paper
    repository's internal supplement ([Cadence/Mvba.lean](../Cadence/Mvba.lean);
-   the referent is pinned in that header and is not yet part of the
-   published paper), every field proven, and `Mvba.mvba_of_temporal` leaves
+   the referent is the paper target), every field proven, and `Mvba.mvba_of_temporal` leaves
    only the timed fields (item 4); Chorus *consumes* the class as a
    constraint (`instantiate mvba : MVBASafety …`) with
    [Cadence/System.lean](../Cadence/System.lean) filling it with that instance, so no MVBA
