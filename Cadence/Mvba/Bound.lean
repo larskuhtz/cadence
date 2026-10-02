@@ -157,15 +157,15 @@ local macro "mvba_effect_at" h:ident : tactic =>
 
 section Local
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
-  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+  {th : Theory node nodeset value evec view}
+  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
 
 /-- `expire_timer i' v'` sets the marker of `(i', v')` and no other. -/
 theorem expire_timer_sets {i i' : node} {v v' : view}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.expire_timer i' v') st')
     (h0 : ¬ st.timer_expired i v = true) (h1 : st'.timer_expired i v = true) :
     i' = i ∧ v' = v := by
@@ -179,8 +179,8 @@ on is `expire_timer i v`. Every other action leaves the relation untouched,
 which is Veil's generated frame lemma for that action; the case split is over
 the model's own label type, so an added action is a missing case, not a
 silent gap. -/
-theorem timer_set_label {l : Mvba.Label node nodeset value view} {i : node} {v : view}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+theorem timer_set_label {l : Mvba.Label node nodeset value evec view} {i : node} {v : view}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (h0 : ¬ st.timer_expired i v = true) (h1 : st'.timer_expired i v = true) :
     l = .expire_timer i v := by
   cases l
@@ -309,9 +309,9 @@ step that turns `msg_preprepare L V e` on for a correct `L` is one of the
 three leader actions, each guarded on `in_view L V`. Every other action
 leaves the relation untouched (Veil's generated frame lemmas), and
 `byz_preprepare` requires a Byzantine sender. -/
-theorem preprepare_set_entered {l : Mvba.Label node nodeset value view} {L : node} {V : view}
+theorem preprepare_set_entered {l : Mvba.Label node nodeset value evec view} {L : node} {V : view}
     {e : value} (hL : ¬ nset.is_byz L = true)
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (h0 : ¬ st.msg_preprepare L V e = true) (h1 : st'.msg_preprepare L V e = true) :
     st.entered L V = true := by
   cases l
@@ -324,7 +324,7 @@ theorem preprepare_set_entered {l : Mvba.Label node nodeset value view} {L : nod
     · exact absurd h1 h0
   case leader_repropose l' pv' v' w' e' =>
     mvba_tr htr
-    obtain ⟨-, -, -, -, -, -, hent, -, -, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, -, -, hent, -, -, -, -, rfl⟩ := htr
     mvba_effect_at h1
     rcases h1 with ⟨rfl, rfl, rfl⟩ | h1
     · exact hent
@@ -433,10 +433,10 @@ end Local
 
 section Prefix
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedAddMonoid time]
 
 /-- **No correct validator times out in `W` before its budget runs out**,
@@ -491,31 +491,31 @@ view starts. -/
 
 section Links
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
   {time : Type} [LinearOrder time] [AddCommMonoid time]
   {sch : Schedule view time} {r : TMvbaRun th time}
 
 /-- **One timed link, for a network clause.** `withinFrom_of_boundedFair`
 for `BoundedFairWhile`: the clause's window condition `C` is owed wherever
 the goal does not yet hold. -/
-theorem withinFrom_of_boundedFairWhile {D : time} {l : Mvba.Label node nodeset value view}
-    {C : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop}
+theorem withinFrom_of_boundedFairWhile {D : time} {l : Mvba.Label node nodeset value evec view}
+    {C : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop}
     (hbf : BoundedFairWhile r D l C) {N : Nat} {B : time} (hB : r.ref N + D ≤ B)
-    {P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop}
-    (heff : ∀ st st', (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st' →
+    {P : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop}
+    (heff : ∀ st st', (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st' →
       P st')
     (hen : ∀ n, N ≤ n → r.clk n ≤ B → ¬ P (r.at' n) →
-      Enabled (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l ∧
+      Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th (r.at' n) l ∧
         C (r.at' n)) :
     r.WithinFrom N B P := by
   by_cases hf : r.FiresWithin N D l
   · obtain ⟨n, hn, hl, hclk⟩ := hf
     exact ⟨n + 1, Nat.le_succ_of_le hn, le_trans hclk hB, heff _ _ (hl ▸ r.steps n)⟩
   · have hex : ∃ n, N ≤ n ∧ r.clk n ≤ r.ref N + D ∧
-        ¬ (Enabled (Mvba.relationalTransitionSystem node nodeset value view) th
+        ¬ (Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th
           (r.at' n) l ∧ C (r.at' n)) := by
       by_contra hc
       push Not at hc
@@ -584,13 +584,16 @@ theorem within_preprepare_of_leader (hbj : BoundedJustice sch r)
       ¬ (r.at' n).proposed_in L W = true := fun n hnot hp =>
     hnot (Mvba.reachable_proposed_in_backed (r.reachable n) L W hL hp)
   rcases hjust with ⟨w, e, hw⟩ | hnl
-  · refine r.withinFrom_of_boundedFair (hbj.local_ (.leader_repropose L PV W w e) rfl)
-      (ref_add_le hgst hB) (fun _ _ h => ⟨e, leader_repropose_effect h⟩) ?_
+  · -- `Recover(lock(J))`: a valid representation of the lock's entries.
+    obtain ⟨x, hxv, hxe⟩ := Mvba.reachable_prepqc_valid (r.reachable N) w e
+      (Mvba.reachable_tc_lock_backed (r.reachable N) PV w e hw).1
+    refine r.withinFrom_of_boundedFair (hbj.local_ (.leader_repropose L PV W w x) rfl)
+      (ref_add_le hgst hB) (fun _ _ h => ⟨x, leader_repropose_effect h⟩) ?_
     intro n hn hclk hnot
     obtain ⟨hab, hview⟩ := hwin n hn hclk
     exact enabled_leader_repropose hL ⟨E₀, hin' n hn⟩ hab hnext hlead hview
-      (r.mono (P := fun s => s.tc_lock PV w e = true)
-        (fun m hm => Mvba.tc_lock.mono (r.steps m) PV w e hm) hw n hn) (hnp n hnot)
+      (hxe ▸ r.mono (P := fun s => s.tc_lock PV w e = true)
+        (fun m hm => Mvba.tc_lock.mono (r.steps m) PV w e hm) hw n hn) hxv (hnp n hnot)
   · refine r.withinFrom_of_boundedFair (hbj.local_ (.leader_propose_fresh L PV W E₀) rfl)
       (ref_add_le hgst hB) (fun _ _ h => ⟨E₀, leader_propose_fresh_effect h⟩) ?_
     intro n hn hclk hnot
@@ -611,7 +614,7 @@ theorem within_accepted (hbj : BoundedJustice sch r)
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.Δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hpp : (r.at' N).msg_preprepare L W e = true)
-    (hjust : (∃ w, (r.at' N).tc_lock PV w e = true) ∨ (r.at' N).tc_nolock PV = true)
+    (hjust : (∃ w, (r.at' N).tc_lock PV w (th.ent e) = true) ∨ (r.at' N).tc_nolock PV = true)
     (hsince : SinceGst r (fun s => s.msg_preprepare L W e = true))
     (hret : RetainedBy r i W (fun s => s.msg_preprepare L W e = true))
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → AllActive (r.at' n) ∧
@@ -629,8 +632,8 @@ theorem within_accepted (hbj : BoundedJustice sch r)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩
     (hall i hi) hview hnext hlead hpp' hvalid ?_ ?_, hall⟩
   · rcases hjust with ⟨w, hw⟩ | hnl
-    · exact Or.inl ⟨w, r.mono (P := fun s => s.tc_lock PV w e = true)
-        (fun m hm => Mvba.tc_lock.mono (r.steps m) PV w e hm) hw n hn⟩
+    · exact Or.inl ⟨w, r.mono (P := fun s => s.tc_lock PV w (th.ent e) = true)
+        (fun m hm => Mvba.tc_lock.mono (r.steps m) PV w (th.ent e) hm) hw n hn⟩
     · exact Or.inr (r.mono (P := fun s => s.tc_nolock PV = true)
         (fun m hm => Mvba.tc_nolock.mono (r.steps m) PV hm) hnl n hn)
   · by_contra hlapse
@@ -650,21 +653,21 @@ theorem within_local_prepqc (hbj : BoundedJustice sch r)
     {i : node} (hi : ¬ nset.is_byz i = true)
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.Δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p W e = true)
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p W (th.ent e) = true)
     (hacc : (r.at' N).accepted i W e = true)
-    (hsince : SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p W e = true))
-    (hret : RetainedBy r i W (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p W e = true))
+    (hsince : SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p W (th.ent e) = true))
+    (hret : RetainedBy r i W (fun s => ∃ p, nset.member p q = true ∧ s.msg_prepare p W (th.ent e) = true))
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → AllActive (r.at' n) ∧ Active (r.at' n) i ∧
       InView (r.at' n) i W ∧ ¬ (r.at' n).timed_out i W = true) :
-    r.WithinFrom N B (fun s => s.local_prepqc i W e = true) := by
+    r.WithinFrom N B (fun s => s.local_prepqc i W (th.ent e) = true) := by
   refine withinFrom_of_boundedFairWhile
     (hbj.first (.adopt_prepqc i W e q) rfl ⟨hQ, hsince, hret⟩)
     (ref_add_le hgst hB) (fun _ _ h => adopt_prepqc_effect h) ?_
   intro n hn hclk hnot
   obtain ⟨hallA, hab, hview, hnto⟩ := hwin n hn hclk
-  have hall' : ∀ p, nset.member p q = true → (r.at' n).msg_prepare p W e = true :=
-    fun p hp => r.mono (P := fun s => s.msg_prepare p W e = true)
-      (fun m hm => Mvba.msg_prepare.mono (r.steps m) p W e hm) (hall p hp) n hn
+  have hall' : ∀ p, nset.member p q = true → (r.at' n).msg_prepare p W (th.ent e) = true :=
+    fun p hp => r.mono (P := fun s => s.msg_prepare p W (th.ent e) = true)
+      (fun m hm => Mvba.msg_prepare.mono (r.steps m) p W (th.ent e) hm) (hall p hp) n hn
   refine ⟨enabled_adopt_prepqc hi
     ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩ hab hview hsm hall'
@@ -680,11 +683,11 @@ theorem within_msg_commit (hbj : BoundedJustice sch r)
     {i : node} (hi : ¬ nset.is_byz i = true) {W : view} {e : value}
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    (hacc : (r.at' N).accepted i W e = true) (hloc : (r.at' N).local_prepqc i W e = true)
+    (hacc : (r.at' N).accepted i W e = true) (hloc : (r.at' N).local_prepqc i W (th.ent e) = true)
     (hav : (r.at' N).avail_ready i e = true)
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → Active (r.at' n) i ∧
       InView (r.at' n) i W ∧ ¬ (r.at' n).timed_out i W = true) :
-    r.WithinFrom N B (fun s => s.msg_commit i W e = true) := by
+    r.WithinFrom N B (fun s => s.msg_commit i W (th.ent e) = true) := by
   refine r.withinFrom_of_boundedFair (hbj.local_ (.send_commit i W e) rfl)
     (ref_add_le hgst hB) (fun _ _ h => (send_commit_effect h).2) ?_
   intro n hn hclk hnot
@@ -694,8 +697,8 @@ theorem within_msg_commit (hbj : BoundedJustice sch r)
   exact enabled_send_commit hi
     ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩ hab hview hacc'
-    (r.mono (P := fun s => s.local_prepqc i W e = true)
-      (fun m hm => Mvba.local_prepqc.mono (r.steps m) i W e hm) hloc n hn) hnto
+    (r.mono (P := fun s => s.local_prepqc i W (th.ent e) = true)
+      (fun m hm => Mvba.local_prepqc.mono (r.steps m) i W (th.ent e) hm) hloc n hn) hnto
     (fun hcs => hnot (Mvba.reachable_commit_sent_backed (r.reachable n) i W e hi hcs hacc'))
     (r.mono (P := fun s => s.avail_ready i e = true)
       (fun m hm => Mvba.avail_ready.mono (r.steps m) i e hm) hav n hn)
@@ -706,15 +709,15 @@ quorum's `Commit`s sent at or after GST that it retained, while it is in
 the view (the supplement's `TryFormCommitQC` and `Decide`). Its guard
 `DecidedQC_i = ⊥` is the window's `AllActive`. -/
 theorem within_commitqc (hbj : BoundedJustice sch r)
-    {W : view} {e : value} {q : nodeset} (hsm : nset.supermajority q)
+    {W : view} {e : value} (hval : th.valid e = true) {q : nodeset} (hsm : nset.supermajority q)
     (hQ : CorrectQuorum (node := node) q) {i : node} (hi : ¬ nset.is_byz i = true)
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.Δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_commit p W e = true)
-    (hsince : SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p W e = true))
-    (hret : RetainedBy r i W (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p W e = true))
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_commit p W (th.ent e) = true)
+    (hsince : SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p W (th.ent e) = true))
+    (hret : RetainedBy r i W (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p W (th.ent e) = true))
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → AllActive (r.at' n) ∧ InView (r.at' n) i W) :
-    r.WithinFrom N B (fun s => s.decided i e = true ∧ s.msg_commitqc W e = true) := by
+    r.WithinFrom N B (fun s => s.decided i e = true ∧ s.msg_commitqc W (th.ent e) = true) := by
   refine withinFrom_of_boundedFairWhile
     (hbj.first (.form_own_commitqc i W e q) rfl ⟨hQ, hsince, hret⟩)
     (ref_add_le hgst hB)
@@ -724,8 +727,8 @@ theorem within_commitqc (hbj : BoundedJustice sch r)
   exact ⟨enabled_form_own_commitqc hi
     ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩ (hallA i hi) hview hsm
-    (fun p hp => r.mono (P := fun s => s.msg_commit p W e = true)
-      (fun m hm => Mvba.msg_commit.mono (r.steps m) p W e hm) (hall p hp) n hn), hallA⟩
+    (fun p hp => r.mono (P := fun s => s.msg_commit p W (th.ent e) = true)
+      (fun m hm => Mvba.msg_commit.mono (r.steps m) p W (th.ent e) hm) (hall p hp) n hn) hval, hallA⟩
 
 /-- **Link 8 by transfer, `decide` (`Δ + ρ`, the caller's): a correct
 validator decides** within `Δ + ρ` of the reference time `ref N`, once some
@@ -739,17 +742,18 @@ theorem within_decided_ref (hrel : Relayed sch r)
     {j : node} (hj : ¬ nset.is_byz j = true)
     {N : Nat} {B : time} (hB : r.ref N + (sch.Δ + sch.ρ) ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    (hqc : (r.at' N).msg_commitqc W e = true) (hdec : (r.at' N).decided j e = true)
+    (hqc : (r.at' N).msg_commitqc W (th.ent e) = true) (hdec : (r.at' N).decided j e = true)
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true) :
     r.WithinFrom N B (fun s => ∃ E, s.decided i E = true) := by
+  have hval := Mvba.reachable_external_validity (r.reachable N) j e hj hdec
   refine withinFrom_of_boundedFairWhile (hrel i j W e hj)
     hB (fun _ _ h => ⟨e, decide_effect h⟩) ?_
   intro n hn hclk hnot
   exact ⟨enabled_decide hi
     ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩ (hwin n hn hclk)
-    (r.mono (P := fun s => s.msg_commitqc W e = true)
-      (fun m hm => Mvba.msg_commitqc.mono (r.steps m) W e hm) hqc n hn)
+    (r.mono (P := fun s => s.msg_commitqc W (th.ent e) = true)
+      (fun m hm => Mvba.msg_commitqc.mono (r.steps m) W (th.ent e) hm) hqc n hn) hval
     (fun E hE => hnot ⟨E, hE⟩),
     r.mono (P := fun s => s.decided j e = true)
       (fun m hm => Mvba.decided.mono (r.steps m) j e hm) hdec n hn⟩
@@ -760,10 +764,10 @@ end Links
 
 section GoodView
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
   {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedCancelAddMonoid time]
 
 /-- **The good-view lemma** ([Bounds.md](../../docs/Bounds.md) §6.2.6, the
@@ -890,10 +894,10 @@ theorem good_view_decides
   /- The network clauses' conditions. Every message the chain waits for was
   sent from inside `W`, so after `N₀`: at or after GST, and when every
   correct validator had reached `W − 1` (`hret`). -/
-  have hsinceP : ∀ P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop,
+  have hsinceP : ∀ P : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop,
       (∀ n, P (r.at' n) → N₀ ≤ n) → SinceGst r P := fun P hP n hn =>
     le_trans hgst (r.clk_le_of_le (hP n hn))
-  have hretP : ∀ P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop,
+  have hretP : ∀ P : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop,
       (∀ n, P (r.at' n) → N₀ ≤ n) → ∀ p, ¬ nset.is_byz p = true → RetainedBy r p W P :=
     fun P hP p hp n hn => by
       obtain ⟨V, hV, hVW⟩ := hret p hp
@@ -903,14 +907,14 @@ theorem good_view_decides
       (r.at' n).voted p W = true → N₀ ≤ n := fun p n hp hv =>
     let ⟨V, hWV, hV⟩ := entered_ge_of_voted r.toLRun hp hnext hv
     hfirstAbove n p V hp hWV hV
-  have hprepN : ∀ (e : value) n, (∃ p, nset.member p hqe.honestQuorum = true ∧
+  have hprepN : ∀ (e : evec) n, (∃ p, nset.member p hqe.honestQuorum = true ∧
       (r.at' n).msg_prepare p W e = true) → N₀ ≤ n := fun e n ⟨p, hp, hpr⟩ =>
-    hvoted p n (hQc p hp) (Mvba.reachable_accepted_implies_voted (r.reachable n) p W e (hQc p hp)
-      (Mvba.reachable_honest_prepare_accepted (r.reachable n) p W e (hQc p hp) hpr))
-  have hcommitN : ∀ (p : node) (e : value) n, ¬ nset.is_byz p = true →
+    let ⟨X, hX, _⟩ := Mvba.reachable_honest_prepare_accepted (r.reachable n) p W e (hQc p hp) hpr
+    hvoted p n (hQc p hp) (Mvba.reachable_accepted_implies_voted (r.reachable n) p W X (hQc p hp) hX)
+  have hcommitN : ∀ (p : node) (e : evec) n, ¬ nset.is_byz p = true →
       (r.at' n).msg_commit p W e = true → N₀ ≤ n := fun p e n hp hc =>
-    hvoted p n hp (Mvba.reachable_accepted_implies_voted (r.reachable n) p W e hp
-      (Mvba.reachable_honest_commit_accepted (r.reachable n) p W e hp hc).1)
+    let ⟨X, _, hX, _⟩ := (Mvba.reachable_honest_commit_accepted (r.reachable n) p W e hp hc).2
+    hvoted p n hp (Mvba.reachable_accepted_implies_voted (r.reachable n) p W X hp hX)
   /- Settled in `W` on the prefix, once entered. -/
   have hset : ∀ (p : node), ¬ nset.is_byz p = true → ∀ N, (r.at' N).entered p W = true →
       ∀ n, N ≤ n → r.clk n ≤ T → Active (r.at' n) p ∧
@@ -986,8 +990,8 @@ theorem good_view_decides
   /- (4)–(6) Each member forms its own prepare certificate from the honest
   quorum's `Prepare`s by `t₄`, has its shares, and commits by `t₆`. -/
   obtain ⟨N₆, hN₆, hc₆, hall₆⟩ :=
-    r.withinFrom_forall (fun p s => s.msg_commit p W e = true)
-      (fun p m hm => Mvba.msg_commit.mono (r.steps m) p W e hm) N₃ t₆
+    r.withinFrom_forall (fun p s => s.msg_commit p W (th.ent e) = true)
+      (fun p m hm => Mvba.msg_commit.mono (r.steps m) p W (th.ent e) hm) N₃ t₆
       (le_trans hc₃ (le_trans h₃₄ (le_trans h₄₅' h₅₆)))
       (enum.members hqe.honestQuorum) (fun p hp => by
         have hpq := hmemQ p hp
@@ -1002,7 +1006,7 @@ theorem good_view_decides
             hE
             (fun p' hp' => Mvba.reachable_accepted_implies_prepare (r.reachable N₃) p' W e
               (hQc p' hp') (hacc₃ p' hp'))
-            (hacc₃ p hpq) (hsinceP _ (hprepN e)) (hretP _ (hprepN e) p hpc)
+            (hacc₃ p hpq) (hsinceP _ (hprepN (th.ent e))) (hretP _ (hprepN (th.ent e)) p hpc)
             (fun n hn h => ⟨hall' n (le_trans h (le_trans h₄₅' h₅T)),
               hwin n hn (le_trans h (le_trans h₄₅' h₅T))⟩)
         have hca' : r.clk a ≤ t₅ := le_trans hca h₄₅'
@@ -1021,8 +1025,8 @@ theorem good_view_decides
               (fun m hm => Mvba.input.mono (r.steps m) p E hm) hE _ hNc)
             (r.mono (P := fun s => s.accepted p W e = true)
               (fun m hm => Mvba.accepted.mono (r.steps m) p W e hm) (hacc₃ p hpq) _ hNc)
-            (r.mono (P := fun s => s.local_prepqc p W e = true)
-              (fun m hm => Mvba.local_prepqc.mono (r.steps m) p W e hm) hloc _
+            (r.mono (P := fun s => s.local_prepqc p W (th.ent e) = true)
+              (fun m hm => Mvba.local_prepqc.mono (r.steps m) p W (th.ent e) hm) hloc _
               (Nat.le_max_left _ _))
             (r.mono (P := fun s => s.avail_ready p e = true)
               (fun m hm => Mvba.avail_ready.mono (r.steps m) p e hm) hsh _
@@ -1034,10 +1038,10 @@ theorem good_view_decides
   honest quorum's `Commit`s and decides, by `T = E₀ + Lcert`. -/
   obtain ⟨E₆, hE₆⟩ := hinN i₀ hi₀ N₆ hN₆'
   obtain ⟨n₇, hn₇, hc₇, hdec₇, -⟩ :=
-    within_commitqc hbj hQs hQc hi₀ (hgstN N₆ hN₆') (hT ▸ add_le_add hc₆ le_rfl) hE₆
+    within_commitqc hbj hvalid hQs hQc hi₀ (hgstN N₆ hN₆') (hT ▸ add_le_add hc₆ le_rfl) hE₆
       (fun p hp => hall₆ p ((enum.mem_members p _).mp hp))
-      (hsinceP _ (fun n ⟨p, hp, hc⟩ => hcommitN p e n (hQc p hp) hc))
-      (hretP _ (fun n ⟨p, hp, hc⟩ => hcommitN p e n (hQc p hp) hc) i₀ hi₀)
+      (hsinceP _ (fun n ⟨p, hp, hc⟩ => hcommitN p (th.ent e) n (hQc p hp) hc))
+      (hretP _ (fun n ⟨p, hp, hc⟩ => hcommitN p (th.ent e) n (hQc p hp) hc) i₀ hi₀)
       (fun n hn h => ⟨hall' n h, (hset i₀ hi₀ N₀ hent₀ n (Nat.le_trans hN₆' hn) h).2.1⟩)
   exact ⟨i₀, hi₀, n₇, Nat.le_trans hN₆' hn₇, hTL ▸ hc₇, e, hdec₇⟩
 

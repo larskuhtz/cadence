@@ -125,12 +125,12 @@ classifying it needs neither the quorum interface nor the view order. -/
 
 section Labels
 
-variable {node nodeset value view : Type}
+variable {node nodeset value evec view : Type}
 
 /-- **(F-byz).** The labels the adversary controls. No definition in this
 file requires anything of them, which *is* the assumption: progress never
 relies on adversarial help. `not_justice_of_byz` pins the disjointness. -/
-def ByzLabel : Mvba.Label node nodeset value view → Prop
+def ByzLabel : Mvba.Label node nodeset value evec view → Prop
   | .byz_preprepare .. => True
   | .byz_prepare .. => True
   | .byz_commit .. => True
@@ -146,7 +146,7 @@ they are not perpetually enabled, and weak fairness on them is sound — see
 the header. What carries no fairness hypothesis is the *marker*, because
 when a timer expires is the one piece of timing an untimed model cannot
 derive. -/
-def TimerLabel : Mvba.Label node nodeset value view → Prop
+def TimerLabel : Mvba.Label node nodeset value evec view → Prop
   | .expire_timer .. => True
   | _ => False
 
@@ -162,7 +162,7 @@ input is: at the label type's size that definition's `match` does not
 reduce outside its own module. The two are tied together by
 `not_justice_of_input` below, through `Label.isInput_cases`, so a drift
 between them is caught rather than silent. -/
-def InputLabel : Mvba.Label node nodeset value view → Prop
+def InputLabel : Mvba.Label node nodeset value evec view → Prop
   | .propose .. => True
   | .abandon .. => True
   | .decide .. => True
@@ -182,7 +182,7 @@ false of the protocol and true only of the model, where availability is a
 one-line environment action. The separate class keeps the dependency in the
 premise list, and is also the weaker premise set: justice over everything
 plus (F-avail) implies it, and not conversely. -/
-def AvailLabel : Mvba.Label node nodeset value view → Prop
+def AvailLabel : Mvba.Label node nodeset value evec view → Prop
   | .become_avail_ready .. => True
   | _ => False
 
@@ -200,7 +200,7 @@ Under fairness an anonymous assembly would also be the kind of label that
 stays enabled after it has fired — one per supermajority `q`, each changing
 nothing once the certificate exists — which is what a per-validator step's
 own record rules out (`enabledMove_of_enabled`). -/
-def AssemblyLabel : Mvba.Label node nodeset value view → Prop
+def AssemblyLabel : Mvba.Label node nodeset value evec view → Prop
   | .form_prepqc .. => True
   | .form_commitqc .. => True
   | .form_tc_lock .. => True
@@ -212,22 +212,22 @@ correct validator's certificate formation, the view changes and the
 timeouts — everything that is neither the adversary's, nor an anonymous
 assembly, nor the timer, nor the availability layer's, nor the caller's
 input. -/
-def JusticeLabel (l : Mvba.Label node nodeset value view) : Prop :=
+def JusticeLabel (l : Mvba.Label node nodeset value evec view) : Prop :=
   ¬ ByzLabel l ∧ ¬ TimerLabel l ∧ ¬ InputLabel l ∧ ¬ AvailLabel l ∧ ¬ AssemblyLabel l
 
 /-- **(F-byz), machine-checked at the only level it can be**: no label the
 adversary controls is subject to a fairness hypothesis. -/
-theorem not_justice_of_byz (l : Mvba.Label node nodeset value view)
+theorem not_justice_of_byz (l : Mvba.Label node nodeset value evec view)
     (h : ByzLabel l) : ¬ JusticeLabel l := fun hj => hj.1 h
 
 /-- Likewise for the timers: (F-justice) does not reach them. -/
-theorem not_justice_of_timer (l : Mvba.Label node nodeset value view)
+theorem not_justice_of_timer (l : Mvba.Label node nodeset value evec view)
     (h : TimerLabel l) : ¬ JusticeLabel l := fun hj => hj.2.1 h
 
 /-- And the caller's inputs are not scheduled here either — stated against
 `Label.isInput` ([Compose.lean](Compose.lean)), which is what ties
 `InputLabel` to the module's own notion of an input. -/
-theorem not_justice_of_input (l : Mvba.Label node nodeset value view)
+theorem not_justice_of_input (l : Mvba.Label node nodeset value evec view)
     (h : Label.isInput l) : ¬ JusticeLabel l := by
   rcases Label.isInput_cases h with ⟨i, e, rfl⟩ | ⟨i, rfl⟩ | ⟨i, v, e, rfl⟩
   · exact fun hj => hj.2.2.1 trivial
@@ -236,12 +236,12 @@ theorem not_justice_of_input (l : Mvba.Label node nodeset value view)
 
 /-- And the availability layer's action is the environment's, so
 (F-justice) does not reach it either (`AvailLabel` says why that matters). -/
-theorem not_justice_of_avail (l : Mvba.Label node nodeset value view)
+theorem not_justice_of_avail (l : Mvba.Label node nodeset value evec view)
     (h : AvailLabel l) : ¬ JusticeLabel l := fun hj => hj.2.2.2.1 h
 
 /-- And no anonymous assembly is under (F-justice): the fairness a
 certificate needs is the forming validator's own (`AssemblyLabel`). -/
-theorem not_justice_of_assembly (l : Mvba.Label node nodeset value view)
+theorem not_justice_of_assembly (l : Mvba.Label node nodeset value evec view)
     (h : AssemblyLabel l) : ¬ JusticeLabel l := fun hj => hj.2.2.2.2 h
 
 /-- The classification is exhaustive: every label falls under one of the five
@@ -253,7 +253,7 @@ nothing about the action list. What does the checking is the two `match`
 definitions above, which are non-exhaustive matches over the model's own
 label type: adding an action and forgetting it lands it in `JusticeLabel`
 silently, and the guard against that is reading them, not this lemma. -/
-theorem label_classified (l : Mvba.Label node nodeset value view) :
+theorem label_classified (l : Mvba.Label node nodeset value evec view) :
     JusticeLabel l ∨ ByzLabel l ∨ TimerLabel l ∨ InputLabel l ∨ AvailLabel l ∨
       AssemblyLabel l := by
   classical
@@ -278,14 +278,14 @@ states, and a state's type is the model's. -/
 
 section Runs
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
 
 /-- A labelled run of the MVBA: the object every premise below is about. -/
-abbrev MvbaRun (th : Theory node nodeset value view) :=
-  LRun (Mvba.relationalTransitionSystem node nodeset value view) th
+abbrev MvbaRun (th : Theory node nodeset value evec view) :=
+  LRun (Mvba.relationalTransitionSystem node nodeset value evec view) th
 
 /-- Every member of `q` is correct. -/
 def CorrectQuorum (q : nodeset) : Prop :=
@@ -300,7 +300,7 @@ Every other fair step is owed unconditionally (`True`): it is local, or it
 consumes a certificate that a correct validator forwards. The timed
 premise's first delivery asks the same of its senders, and more
 (`Delivers`, whose sender part this is: `Mvba.owed_of_delivers`). -/
-def Owed : Mvba.Label node nodeset value view → Prop
+def Owed : Mvba.Label node nodeset value evec view → Prop
   | .handle_preprepare_first _ l _ => ¬ nset.is_byz l = true
   | .handle_preprepare _ l _ _ _ => ¬ nset.is_byz l = true
   | .adopt_prepqc _ _ _ q => CorrectQuorum (node := node) q
@@ -328,7 +328,8 @@ def FJustice (r : MvbaRun th) : Prop :=
 
 /-- **(F-relay)** — the caller hands decided certificates on: once a correct
 validator has decided `e`, a correct validator that can take a transferred
-certificate on `e` eventually does. A decision's certificate is transferred
+certificate for `e`'s entries with the representation `e` eventually does
+(`Recover` can fetch `e` from the validator that decided it). A decision's certificate is transferred
 by the composing layer (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff":
 Chorus broadcasts the `CommitQC` a decision outputs), and taking it is the
 input `decide`. So this is the caller's premise, not the scheduler's, and it
@@ -460,7 +461,7 @@ any quorum machinery: finiteness and
 `ByzNodeSetHonestQuorum` are what a **proof** needs to assemble certificates,
 not part of what is claimed, and they appear as hypotheses of `termination`
 below rather than here. -/
-def TerminationClaim (th : Theory node nodeset value view) : Prop :=
+def TerminationClaim (th : Theory node nodeset value evec view) : Prop :=
   ∀ r : MvbaRun th,
     FJustice r → AViewSync r → FAvail r →
     AllPropose r → NoEarlyAbandon r → FRelay r →
@@ -499,9 +500,10 @@ local macro "mvba_effect" : tactic =>
       Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate,
       Veil.FieldUpdatePat.match, Veil.IteratedArrow.curry,
       Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
-      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id])
+      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id,
+      instIsSubReaderOfRefl.readFrom_id])
 
-variable {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+variable {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
 
 /-- **`decide`'s guards are its enabledness.** Stated in the plain accessor
 spelling the rest of the development uses, so it composes with the generated
@@ -510,19 +512,20 @@ theorem enabled_decide {i : node} {v : view} {e : value}
     (hi : ¬ nset.is_byz i = true)
     (hin : ∃ E, st.input i E = true)
     (hab : ¬ st.abandoned i = true)
-    (hqc : st.msg_commitqc v e = true)
+    (hqc : st.msg_commitqc v (th.ent e) = true)
+    (hval : th.valid e = true)
     (hnd : ∀ E, ¬ st.decided i E = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.decide i v e) := by
   mvba_enabled
-  exact ⟨_, hi, hin, hab, hqc, hnd, rfl⟩
+  exact ⟨_, hi, hin, hab, hqc, hval, hnd, rfl⟩
 
 /-- **`decide`'s effect.** A `decide i v e` step leaves `i` deciding `e`. -/
 theorem decide_effect {i : node} {v : view} {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.decide i v e) st') : st'.decided i e = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
   mvba_effect
 
 /-- **The last link.** A correct validator that has proposed and is never
@@ -550,9 +553,10 @@ theorem eventually_decided_of_decision
   have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
     r.mono (P := fun s => s.input i E₀ = true)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
-  have hqc' : ∀ n, N ≤ n → (r.at' n).msg_commitqc v e = true :=
-    r.mono (P := fun s => s.msg_commitqc v e = true)
-      (fun m hm => Mvba.msg_commitqc.mono (r.steps m) v e hm) hqc
+  have hqc' : ∀ n, N ≤ n → (r.at' n).msg_commitqc v (th.ent e) = true :=
+    r.mono (P := fun s => s.msg_commitqc v (th.ent e) = true)
+      (fun m hm => Mvba.msg_commitqc.mono (r.steps m) v (th.ent e) hm) hqc
+  have hval := Mvba.reachable_external_validity (r.reachable N) j e hj hdj
   have hdj' : ∀ n, N ≤ n → (r.at' n).decided j e = true :=
     r.mono (P := fun s => s.decided j e = true)
       (fun m hm => Mvba.decided.mono (r.steps m) j e hm) hdj
@@ -560,7 +564,7 @@ theorem eventually_decided_of_decision
   obtain ⟨n, hn, hfire⟩ :=
     hrel i v e N
       (fun n hn => ⟨⟨j, hj, hdj' n hn⟩,
-        enabled_decide hi ⟨E₀, hin' n hn⟩ (hab n) (hqc' n hn) (fun E => hcon n E)⟩)
+        enabled_decide hi ⟨E₀, hin' n hn⟩ (hab n) (hqc' n hn) hval (fun E => hcon n E)⟩)
   exact hcon (n + 1) e (decide_effect (hfire ▸ r.steps n))
 
 /-! ## The link before it, and the first use of the rank
@@ -592,7 +596,7 @@ decision paths end in `decide(…); abandon()` (`Decide` in
 Supplement, Algorithm 1 (`alg:mvba-cont3`), reached from Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)), and the model keeps that halt apart from the
 caller's `abandon` ([Mvba.lean](../Mvba.lean), "A decided validator
 halts"). -/
-def Active (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (i : node) : Prop :=
+def Active (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) (i : node) : Prop :=
   ¬ st.abandoned i = true ∧ ∀ E, ¬ st.decided i E = true
 
 /-- `i` is **settled in view `v` from `N` on**: at every index from `N` it is
@@ -620,20 +624,21 @@ theorem enabled_form_own_commitqc {i : node} {v : view} {e : value} {q : nodeset
     (hact : Active st i)
     (hview : InView st i v)
     (hsm : nset.supermajority q)
-    (hall : ∀ p, nset.member p q = true → st.msg_commit p v e = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    (hall : ∀ p, nset.member p q = true → st.msg_commit p v (th.ent e) = true)
+    (hval : th.valid e = true) :
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.form_own_commitqc i v e q) := by
   mvba_enabled
-  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hsm, hall, rfl⟩
+  exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hsm, hall, hval, rfl⟩
 
 /-- **`form_own_commitqc`'s effect**: the certificate is on the network, and
 the validator has decided on it. -/
 theorem form_own_commitqc_effect {i : node} {v : view} {e : value} {q : nodeset}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.form_own_commitqc i v e q) st') :
-    st'.msg_commitqc v e = true ∧ st'.decided i e = true := by
+    st'.msg_commitqc v (th.ent e) = true ∧ st'.decided i e = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   constructor <;> mvba_effect
 
 /-- **The commit-certificate link.** A correct validator settled in view `v`,
@@ -647,24 +652,25 @@ theorem eventually_commitqc_of_settled
     {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {N : Nat}
     (hs : SettledIn r i v N)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    {e : value} {q : nodeset} (hsm : nset.supermajority q) (hQ : CorrectQuorum (node := node) q)
-    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_commit p v e = true) :
-    ∃ n, N ≤ n ∧ (r.at' n).msg_commitqc v e = true ∧ (r.at' n).decided i e = true := by
+    {e : value} (hval : th.valid e = true)
+    {q : nodeset} (hsm : nset.supermajority q) (hQ : CorrectQuorum (node := node) q)
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_commit p v (th.ent e) = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).msg_commitqc v (th.ent e) = true ∧ (r.at' n).decided i e = true := by
   by_contra hcon
   push Not at hcon
   have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
     r.mono (P := fun s => s.input i E₀ = true)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
   have hall' : ∀ n, N ≤ n → ∀ p, nset.member p q = true →
-      (r.at' n).msg_commit p v e = true := by
+      (r.at' n).msg_commit p v (th.ent e) = true := by
     intro n hn p hp
-    exact r.mono (P := fun s => s.msg_commit p v e = true)
-      (fun m hm => Mvba.msg_commit.mono (r.steps m) p v e hm) (hall p hp) n hn
+    exact r.mono (P := fun s => s.msg_commit p v (th.ent e) = true)
+      (fun m hm => Mvba.msg_commit.mono (r.steps m) p v (th.ent e) hm) (hall p hp) n hn
   obtain ⟨n, hn, hfire⟩ :=
     hfj (.form_own_commitqc i v e q)
       (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) hQ N
       (fun n hn => (enabled_form_own_commitqc hi ⟨E₀, hin' n hn⟩ (hs n hn).2.2 (hs n hn).1 hsm
-          (hall' n hn)))
+          (hall' n hn) hval))
   have h := form_own_commitqc_effect (hfire ▸ r.steps n)
   exact hcon (n + 1) (by omega) h.1 h.2
 
@@ -680,14 +686,14 @@ theorem eventually_decided_of_assemblyGap_zero
     (r : MvbaRun th) (hfj : FJustice r) (hna : NoEarlyAbandon r) (hrel : FRelay r)
     (enum : Cadence.ByzNodeSetEnum node nodeset nset)
     {q : nodeset} (hsm : nset.supermajority q) (hQ : CorrectQuorum (node := node) q)
-    {N : Nat} {v : view} {e : value}
-    (hz : assemblyGap enum q v e (r.at' N) = 0)
+    {N : Nat} {v : view} {e : value} (hval : th.valid e = true)
+    (hz : assemblyGap enum q v (th.ent e) (r.at' N) = 0)
     {j : node} (hj : ¬ nset.is_byz j = true) (hsj : SettledIn r j v N)
     {Ej : value} (hinj : (r.at' N).input j Ej = true)
     {i : node} (hi : ¬ nset.is_byz i = true)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true) :
     ∃ (n : Nat) (E : value), (r.at' n).decided i E = true := by
-  obtain ⟨m, hm, -, hdj⟩ := eventually_commitqc_of_settled r hfj hj hsj hinj hsm hQ
+  obtain ⟨m, hm, -, hdj⟩ := eventually_commitqc_of_settled r hfj hj hsj hinj hval hsm hQ
     (fun p hp => commit_quorum_of_assemblyGap_zero hz p hp)
   exact eventually_decided_of_decision r hna hrel hi
     (r.mono (P := fun s => s.input i E₀ = true)
@@ -721,11 +727,11 @@ theorem enabled_send_commit {i : node} {v : view} {e : value}
     (hact : Active st i)
     (hview : InView st i v)
     (hacc : st.accepted i v e = true)
-    (hloc : st.local_prepqc i v e = true)
+    (hloc : st.local_prepqc i v (th.ent e) = true)
     (hnto : ¬ st.timed_out i v = true)
     (hncs : ¬ st.commit_sent i v = true)
     (hav : st.avail_ready i e = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.send_commit i v e) := by
   mvba_enabled
   exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hacc, hloc, hnto, hncs, hav, rfl⟩
@@ -733,9 +739,9 @@ theorem enabled_send_commit {i : node} {v : view} {e : value}
 /-- **`send_commit`'s effect**: the flag is set and the `Commit` is sent, in
 the same step — which is what `commit_sent_backed` lifts to an invariant. -/
 theorem send_commit_effect {i : node} {v : view} {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.send_commit i v e) st') :
-    st'.commit_sent i v = true ∧ st'.msg_commit i v e = true := by
+    st'.commit_sent i v = true ∧ st'.msg_commit i v (th.ent e) = true := by
   mvba_tr htr
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   constructor <;> mvba_effect
@@ -753,9 +759,9 @@ theorem eventually_msg_commit_of_settled
     (hs : SettledIn r i v N)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hacc : (r.at' N).accepted i v e = true)
-    (hloc : (r.at' N).local_prepqc i v e = true)
+    (hloc : (r.at' N).local_prepqc i v (th.ent e) = true)
     (hav : (r.at' N).avail_ready i e = true) :
-    ∃ n, N ≤ n ∧ (r.at' n).msg_commit i v e = true := by
+    ∃ n, N ≤ n ∧ (r.at' n).msg_commit i v (th.ent e) = true := by
   by_contra hcon
   push Not at hcon
   have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
@@ -764,9 +770,9 @@ theorem eventually_msg_commit_of_settled
   have hacc' : ∀ n, N ≤ n → (r.at' n).accepted i v e = true :=
     r.mono (P := fun s => s.accepted i v e = true)
       (fun m hm => Mvba.accepted.mono (r.steps m) i v e hm) hacc
-  have hloc' : ∀ n, N ≤ n → (r.at' n).local_prepqc i v e = true :=
-    r.mono (P := fun s => s.local_prepqc i v e = true)
-      (fun m hm => Mvba.local_prepqc.mono (r.steps m) i v e hm) hloc
+  have hloc' : ∀ n, N ≤ n → (r.at' n).local_prepqc i v (th.ent e) = true :=
+    r.mono (P := fun s => s.local_prepqc i v (th.ent e) = true)
+      (fun m hm => Mvba.local_prepqc.mono (r.steps m) i v (th.ent e) hm) hloc
   have hav' : ∀ n, N ≤ n → (r.at' n).avail_ready i e = true :=
     r.mono (P := fun s => s.avail_ready i e = true)
       (fun m hm => Mvba.avail_ready.mono (r.steps m) i e hm) hav
@@ -813,11 +819,11 @@ theorem enabled_adopt_prepqc {i : node} {v : view} {e : value} {q : nodeset}
     (hact : Active st i)
     (hview : InView st i v)
     (hsm : nset.supermajority q)
-    (hall : ∀ p, nset.member p q = true → st.msg_prepare p v e = true)
+    (hall : ∀ p, nset.member p q = true → st.msg_prepare p v (th.ent e) = true)
     (hacc : st.accepted i v e = true)
     (hlow : ∀ W E, st.local_prepqc i W E = true → vord.lt W v)
     (hnto : ¬ st.timed_out i v = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.adopt_prepqc i v e q) := by
   mvba_enabled
   exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hsm, hall, hacc, hlow, hnto, rfl⟩
@@ -825,17 +831,17 @@ theorem enabled_adopt_prepqc {i : node} {v : view} {e : value} {q : nodeset}
 /-- **`adopt_prepqc`'s effect, in full**: the certificate is held, and it
 exists on the network. -/
 theorem adopt_prepqc_effect' {i : node} {v : view} {e : value} {q : nodeset}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.adopt_prepqc i v e q) st') :
-    st'.local_prepqc i v e = true ∧ st'.msg_prepqc v e = true := by
+    st'.local_prepqc i v (th.ent e) = true ∧ st'.msg_prepqc v (th.ent e) = true := by
   mvba_tr htr
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   constructor <;> mvba_effect
 
 /-- **`adopt_prepqc`'s effect**: the certificate is held. -/
 theorem adopt_prepqc_effect {i : node} {v : view} {e : value} {q : nodeset}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
-      (.adopt_prepqc i v e q) st') : st'.local_prepqc i v e = true :=
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
+      (.adopt_prepqc i v e q) st') : st'.local_prepqc i v (th.ent e) = true :=
   (adopt_prepqc_effect' htr).1
 
 /-- **A prepare certificate and a prepare quorum of one view are on one
@@ -843,16 +849,16 @@ vector.** The supermajority behind a certificate on `E` and a supermajority
 of `Prepare`s on `e` in the same view meet in a correct validator, which
 accepted only one vector there. -/
 theorem prepqc_eq_of_prepare_quorum
-    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
-    {v : view} {e E : value} {q : nodeset} (hsm : nset.supermajority q)
+    (hr : (Mvba.relationalTransitionSystem node nodeset value evec view).reachable th st)
+    {v : view} {e E : evec} {q : nodeset} (hsm : nset.supermajority q)
     (hall : ∀ p, nset.member p q = true → st.msg_prepare p v e = true)
     (hqc : st.msg_prepqc v E = true) : E = e := by
   obtain ⟨q', hsm', hall'⟩ := Mvba.reachable_prepqc_backed hr v E hqc
   obtain ⟨n, hnq, hnq', hn⟩ := nset.supermajorities_intersect_in_honest q q' hsm hsm'
   have hn' : ¬ nset.is_byz n = true := hn
-  exact Mvba.reachable_accepted_unique hr n v E e hn'
-    (Mvba.reachable_honest_prepare_accepted hr n v E hn' (hall' n hnq'))
-    (Mvba.reachable_honest_prepare_accepted hr n v e hn' (hall n hnq))
+  obtain ⟨X, hX, rfl⟩ := Mvba.reachable_honest_prepare_accepted hr n v E hn' (hall' n hnq')
+  obtain ⟨Y, hY, rfl⟩ := Mvba.reachable_honest_prepare_accepted hr n v e hn' (hall n hnq)
+  rw [Mvba.reachable_accepted_unique hr n v X Y hn' hX hY]
 
 /-- **A lapsed lock-view guard is the adoption itself.** At a reachable state
 where `i` is in view `v` and a supermajority has sent its `Prepare` on `e`
@@ -860,8 +866,8 @@ in `v`, the guard `∀ W E, local_prepqc i W E → W < v` can fail only by `i`
 holding the view-`v` certificate on `e`. This is where the four invariants
 are used. -/
 theorem local_prepqc_of_guard_lapsed
-    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
-    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value} {q : nodeset}
+    (hr : (Mvba.relationalTransitionSystem node nodeset value evec view).reachable th st)
+    {i : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : evec} {q : nodeset}
     (hview : InView st i v) (hsm : nset.supermajority q)
     (hall : ∀ p, nset.member p q = true → st.msg_prepare p v e = true)
     (hlapse : ¬ ∀ W E, st.local_prepqc i W E = true → vord.lt W v) :
@@ -895,19 +901,19 @@ theorem eventually_local_prepqc_of_settled
     (hs : SettledIn r i v N)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     {q : nodeset} (hsm : nset.supermajority q) (hQ : CorrectQuorum (node := node) q)
-    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p v e = true)
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p v (th.ent e) = true)
     (hacc : (r.at' N).accepted i v e = true) :
-    ∃ n, N ≤ n ∧ (r.at' n).local_prepqc i v e = true := by
+    ∃ n, N ≤ n ∧ (r.at' n).local_prepqc i v (th.ent e) = true := by
   by_contra hcon
   push Not at hcon
   have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
     r.mono (P := fun s => s.input i E₀ = true)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin
   have hall' : ∀ n, N ≤ n → ∀ p, nset.member p q = true →
-      (r.at' n).msg_prepare p v e = true := by
+      (r.at' n).msg_prepare p v (th.ent e) = true := by
     intro n hn p hp
-    exact r.mono (P := fun s => s.msg_prepare p v e = true)
-      (fun m hm => Mvba.msg_prepare.mono (r.steps m) p v e hm) (hall p hp) n hn
+    exact r.mono (P := fun s => s.msg_prepare p v (th.ent e) = true)
+      (fun m hm => Mvba.msg_prepare.mono (r.steps m) p v (th.ent e) hm) (hall p hp) n hn
   have hacc' : ∀ n, N ≤ n → (r.at' n).accepted i v e = true :=
     r.mono (P := fun s => s.accepted i v e = true)
       (fun m hm => Mvba.accepted.mono (r.steps m) i v e hm) hacc
@@ -952,9 +958,9 @@ theorem eventually_msg_commit_of_prepare_quorum
     (hs : SettledIn r i v N)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     {q : nodeset} (hsm : nset.supermajority q) (hQ : CorrectQuorum (node := node) q)
-    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p v e = true)
+    (hall : ∀ p, nset.member p q = true → (r.at' N).msg_prepare p v (th.ent e) = true)
     (hacc : (r.at' N).accepted i v e = true) :
-    ∃ n, N ≤ n ∧ (r.at' n).msg_commit i v e = true := by
+    ∃ n, N ≤ n ∧ (r.at' n).msg_commit i v (th.ent e) = true := by
   -- Form the certificate.
   obtain ⟨n₁, hn₁, hloc⟩ := eventually_local_prepqc_of_settled r hfj hi hs hin hsm hQ hall hacc
   -- The availability shares arrive, at an index `FAvail` does not order.
@@ -969,8 +975,8 @@ theorem eventually_msg_commit_of_prepare_quorum
         (fun j hj => Mvba.input.mono (r.steps j) i E₀ hj) hin _ hN)
       (r.mono (P := fun s => s.accepted i v e = true)
         (fun j hj => Mvba.accepted.mono (r.steps j) i v e hj) hacc _ hN)
-      (r.mono (P := fun s => s.local_prepqc i v e = true)
-        (fun j hj => Mvba.local_prepqc.mono (r.steps j) i v e hj) hloc _ h₁)
+      (r.mono (P := fun s => s.local_prepqc i v (th.ent e) = true)
+        (fun j hj => Mvba.local_prepqc.mono (r.steps j) i v (th.ent e) hj) hloc _ h₁)
       (r.mono (P := fun s => s.avail_ready i e = true)
         (fun j hj => Mvba.avail_ready.mono (r.steps j) i e hj) hm _ h₂)
   exact ⟨k, Nat.le_trans hN hk, hres⟩
@@ -1007,9 +1013,9 @@ theorem enabled_handle_preprepare {i l : node} {pv v : view} {e : value}
     (hlead : th.leader v l = true)
     (hpp : st.msg_preprepare l v e = true)
     (hvalid : th.valid e = true)
-    (hjust : (∃ w, st.tc_lock pv w e = true) ∨ st.tc_nolock pv = true)
+    (hjust : (∃ w, st.tc_lock pv w (th.ent e) = true) ∨ st.tc_nolock pv = true)
     (hvote : ∀ W, st.voted i W = true → vord.lt W v) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.handle_preprepare i l pv v e) := by
   mvba_enabled
   exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hnext, hlead, hpp, hvalid, hjust, hvote, rfl⟩
@@ -1017,9 +1023,9 @@ theorem enabled_handle_preprepare {i l : node} {pv v : view} {e : value}
 /-- **`handle_preprepare`'s effect**: the vector is accepted and the
 `Prepare` is sent. -/
 theorem handle_preprepare_effect {i l : node} {pv v : view} {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.handle_preprepare i l pv v e) st') :
-    st'.accepted i v e = true ∧ st'.msg_prepare i v e = true := by
+    st'.accepted i v e = true ∧ st'.msg_prepare i v (th.ent e) = true := by
   mvba_tr htr
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   constructor <;> mvba_effect
@@ -1029,7 +1035,7 @@ leader. At a reachable state where `i` is settled in view `v` and the
 honest leader of `v` has proposed `e`, the guard
 `∀ W, voted i W → W < v` can fail only by `i` having accepted `e`. -/
 theorem accepted_of_vote_guard_lapsed
-    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
+    (hr : (Mvba.relationalTransitionSystem node nodeset value evec view).reachable th st)
     {i l : node} (hi : ¬ nset.is_byz i = true) {v : view} {e : value}
     (hview : InView st i v) (hnto : ¬ st.timed_out i v = true)
     (hlead : th.leader v l = true) (hl : ¬ nset.is_byz l = true)
@@ -1061,8 +1067,8 @@ theorem eventually_accepted_of_settled
     (hlead : th.leader v l = true) (hl : ¬ nset.is_byz l = true)
     (hpp : (r.at' N).msg_preprepare l v e = true)
     (hvalid : th.valid e = true)
-    (hjust : (∃ w, (r.at' N).tc_lock pv w e = true) ∨ (r.at' N).tc_nolock pv = true) :
-    ∃ n, N ≤ n ∧ (r.at' n).accepted i v e = true ∧ (r.at' n).msg_prepare i v e = true := by
+    (hjust : (∃ w, (r.at' N).tc_lock pv w (th.ent e) = true) ∨ (r.at' N).tc_nolock pv = true) :
+    ∃ n, N ≤ n ∧ (r.at' n).accepted i v e = true ∧ (r.at' n).msg_prepare i v (th.ent e) = true := by
   by_contra hcon
   push Not at hcon
   have hin' : ∀ n, N ≤ n → (r.at' n).input i E₀ = true :=
@@ -1072,10 +1078,10 @@ theorem eventually_accepted_of_settled
     r.mono (P := fun s => s.msg_preprepare l v e = true)
       (fun m hm => Mvba.msg_preprepare.mono (r.steps m) l v e hm) hpp
   have hjust' : ∀ n, N ≤ n →
-      (∃ w, (r.at' n).tc_lock pv w e = true) ∨ (r.at' n).tc_nolock pv = true := by
+      (∃ w, (r.at' n).tc_lock pv w (th.ent e) = true) ∨ (r.at' n).tc_nolock pv = true := by
     rcases hjust with ⟨w, hw⟩ | hnl
-    · exact fun n hn => Or.inl ⟨w, r.mono (P := fun s => s.tc_lock pv w e = true)
-        (fun m hm => Mvba.tc_lock.mono (r.steps m) pv w e hm) hw n hn⟩
+    · exact fun n hn => Or.inl ⟨w, r.mono (P := fun s => s.tc_lock pv w (th.ent e) = true)
+        (fun m hm => Mvba.tc_lock.mono (r.steps m) pv w (th.ent e) hm) hw n hn⟩
     · exact fun n hn => Or.inr (r.mono (P := fun s => s.tc_nolock pv = true)
         (fun m hm => Mvba.tc_nolock.mono (r.steps m) pv hm) hnl n hn)
   -- The anti-monotone guard: if it lapses, the acceptance has happened, and
@@ -1115,7 +1121,7 @@ below and of nothing else in the development. -/
 /-- **Lift a per-member eventuality to the whole quorum.** -/
 theorem eventually_quorum (enum : Cadence.ByzNodeSetEnum node nodeset nset)
     (r : MvbaRun th) {q : nodeset} {N : Nat}
-    (P : node → Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop)
+    (P : node → Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop)
     (hmono : ∀ p n, P p (r.at' n) → P p (r.at' (n + 1)))
     (h : ∀ p, nset.member p q = true → ∃ n, N ≤ n ∧ P p (r.at' n)) :
     ∃ n, N ≤ n ∧ ∀ p, nset.member p q = true → P p (r.at' n) := by
@@ -1149,7 +1155,7 @@ theorem terminates_of_settled_honest_view
     (hlead : th.leader v l = true)
     (hpp : (r.at' N).msg_preprepare l v e = true)
     (hvalid : th.valid e = true)
-    (hjust : (∃ w, (r.at' N).tc_lock pv w e = true) ∨ (r.at' N).tc_nolock pv = true)
+    (hjust : (∃ w, (r.at' N).tc_lock pv w (th.ent e) = true) ∨ (r.at' N).tc_nolock pv = true)
     (hs : ∀ p, nset.member p hq.honestQuorum = true → SettledIn r p v N) :
     Terminates r := by
   have hcorrect : ∀ p, nset.member p hq.honestQuorum = true → ¬ nset.is_byz p = true :=
@@ -1157,7 +1163,7 @@ theorem terminates_of_settled_honest_view
   -- (1) Every member accepts and prepares — at its own index …
   have hstep1 : ∀ p, nset.member p hq.honestQuorum = true →
       ∃ n, N ≤ n ∧ ((r.at' n).accepted p v e = true ∧
-        (r.at' n).msg_prepare p v e = true) := by
+        (r.at' n).msg_prepare p v (th.ent e) = true) := by
     intro p hp
     obtain ⟨E₀, hE₀⟩ :=
       Mvba.reachable_entered_implies_input (r.reachable N) p v (hcorrect p hp)
@@ -1169,14 +1175,14 @@ theorem terminates_of_settled_honest_view
   -- … and, being finitely many, at one index.
   obtain ⟨n₁, hn₁, hall₁⟩ :=
     eventually_quorum enum r
-      (fun p s => s.accepted p v e = true ∧ s.msg_prepare p v e = true)
+      (fun p s => s.accepted p v e = true ∧ s.msg_prepare p v (th.ent e) = true)
       (fun p m hm => ⟨Mvba.accepted.mono (r.steps m) p v e hm.1,
-        Mvba.msg_prepare.mono (r.steps m) p v e hm.2⟩)
+        Mvba.msg_prepare.mono (r.steps m) p v (th.ent e) hm.2⟩)
       hstep1
   -- (2)–(3) Every member forms its own prepare certificate from those
   -- prepares and commits — again at its own index, then at one.
   have hstep3 : ∀ p, nset.member p hq.honestQuorum = true →
-      ∃ n, n₁ ≤ n ∧ (r.at' n).msg_commit p v e = true := by
+      ∃ n, n₁ ≤ n ∧ (r.at' n).msg_commit p v (th.ent e) = true := by
     intro p hp
     obtain ⟨E₀, hE₀⟩ :=
       Mvba.reachable_entered_implies_input (r.reachable n₁) p v (hcorrect p hp)
@@ -1185,8 +1191,8 @@ theorem terminates_of_settled_honest_view
       ((hs p hp).later hn₁) hE₀ hq.honestQuorum_supermajority hcorrect
       (fun p' hp' => (hall₁ p' hp').2) (hall₁ p hp).1
   obtain ⟨n₃, hn₃, hall₃⟩ :=
-    eventually_quorum enum r (fun p s => s.msg_commit p v e = true)
-      (fun p m hm => Mvba.msg_commit.mono (r.steps m) p v e hm) hstep3
+    eventually_quorum enum r (fun p s => s.msg_commit p v (th.ent e) = true)
+      (fun p m hm => Mvba.msg_commit.mono (r.steps m) p v (th.ent e) hm) hstep3
   -- (4) A member forms the commit certificate from those commits …
   obtain ⟨R₀, hR₀q, hR₀⟩ :=
     nset.greater_than_third_one_honest hq.honestQuorum
@@ -1196,7 +1202,7 @@ theorem terminates_of_settled_honest_view
       ((hs R₀ hR₀q n₃ (Nat.le_trans hn₁ hn₃)).1).1
   obtain ⟨n₄, hn₄, -, hdR⟩ :=
     eventually_commitqc_of_settled r hfj hR₀ ((hs R₀ hR₀q).later (Nat.le_trans hn₁ hn₃))
-      hE₀ hq.honestQuorum_supermajority hcorrect hall₃
+      hE₀ hvalid hq.honestQuorum_supermajority hcorrect hall₃
   -- … and decides, so every correct validator that has proposed decides.
   intro i hi
   obtain ⟨m, E, hm⟩ := hap i hi
@@ -1234,12 +1240,13 @@ theorem enabled_leader_repropose {l : node} {pv v w : view} {e : value}
     (hnext : vord.next pv v)
     (hlead : th.leader v l = true)
     (hview : InView st l v)
-    (hlock : st.tc_lock pv w e = true)
+    (hlock : st.tc_lock pv w (th.ent e) = true)
+    (hval : th.valid e = true)
     (hnp : ¬ st.proposed_in l v = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.leader_repropose l pv v w e) := by
   mvba_enabled
-  exact ⟨_, hl, hin, hact.1, hact.2, hnext, hlead, hview.1, hview.2, hlock, hnp, rfl⟩
+  exact ⟨_, hl, hin, hact.1, hact.2, hnext, hlead, hview.1, hview.2, hlock, hval, hnp, rfl⟩
 
 /-- **`leader_propose_fresh`'s guards are its enabledness.** -/
 theorem enabled_leader_propose_fresh {l : node} {pv v : view} {e : value}
@@ -1251,20 +1258,20 @@ theorem enabled_leader_propose_fresh {l : node} {pv v : view} {e : value}
     (hnl : st.tc_nolock pv = true)
     (hinp : st.input l e = true)
     (hnp : ¬ st.proposed_in l v = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.leader_propose_fresh l pv v e) := by
   mvba_enabled
   exact ⟨_, hl, hact.1, hact.2, hnext, hlead, hview.1, hview.2, hnl, hinp, hnp, rfl⟩
 
 theorem leader_repropose_effect {l : node} {pv v w : view} {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.leader_repropose l pv v w e) st') : st'.msg_preprepare l v e = true := by
   mvba_tr htr
-  obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
   mvba_effect
 
 theorem leader_propose_fresh_effect {l : node} {pv v : view} {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.leader_propose_fresh l pv v e) st') : st'.msg_preprepare l v e = true := by
   mvba_tr htr
   obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
@@ -1298,12 +1305,16 @@ theorem eventually_preprepare_of_settled_leader
   · have hw' : ∀ n, N ≤ n → (r.at' n).tc_lock pv w e = true :=
       r.mono (P := fun s => s.tc_lock pv w e = true)
         (fun m hm => Mvba.tc_lock.mono (r.steps m) pv w e hm) hw
+    -- `Recover(lock(J))`: the lock is a prepare certificate, so a valid
+    -- representation of its entries exists.
+    obtain ⟨x, hxv, hxe⟩ := Mvba.reachable_prepqc_valid (r.reachable N) w e
+      (Mvba.reachable_tc_lock_backed (r.reachable N) pv w e hw).1
     obtain ⟨n, hn, hfire⟩ :=
-      hfj (.leader_repropose l pv v w e)
+      hfj (.leader_repropose l pv v w x)
         (⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩) trivial N
         (fun n hn => (enabled_leader_repropose hl ⟨E₀, hin' n hn⟩ (hs n hn).2.2 hnext hlead
-            (hs n hn).1 (hw' n hn) (hnp n hn)))
-    exact hcon (n + 1) e (by omega) (leader_repropose_effect (hfire ▸ r.steps n))
+            (hs n hn).1 (hxe ▸ hw' n hn) hxv (hnp n hn)))
+    exact hcon (n + 1) x (by omega) (leader_repropose_effect (hfire ▸ r.steps n))
   · have hnl' : ∀ n, N ≤ n → (r.at' n).tc_nolock pv = true :=
       r.mono (P := fun s => s.tc_nolock pv = true)
         (fun m hm => Mvba.tc_nolock.mono (r.steps m) pv hm) hnl
@@ -1342,14 +1353,14 @@ theorem enabled_sync_view {i : node} {pv v : view}
     (hnext : vord.next pv v)
     (htc : st.msg_tc pv = true)
     (hbelow : ∀ V, st.entered i V = true → vord.le V pv) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.sync_view i pv v) := by
   mvba_enabled
   exact ⟨_, hi, hin, hact.1, hact.2, hnext, htc, hbelow, rfl⟩
 
 /-- **`sync_view`'s effect**: the next view is entered. -/
 theorem sync_view_effect {i : node} {pv v : view}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.sync_view i pv v) st') : st'.entered i v = true := by
   mvba_tr htr
   obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
@@ -1411,7 +1422,7 @@ before deciding, and without one no certificate for that view can exist. -/
 
 /-- **A timeout certificate implies a correct validator timed out.** -/
 theorem exists_honest_timed_out_of_tc
-    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
+    (hr : (Mvba.relationalTransitionSystem node nodeset value evec view).reachable th st)
     {V : view} (htc : st.msg_tc V = true) :
     ∃ R, ¬ nset.is_byz R = true ∧ st.timed_out R V = true := by
   -- The certificate is one of the two the assemblies build …
@@ -1436,8 +1447,8 @@ theorem exists_honest_timed_out_of_tc
 /-- The same for a lock-carrying certificate, which `sync_view_adopt` reads
 instead of `msg_tc`. -/
 theorem exists_honest_timed_out_of_tc_lock
-    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
-    {V W : view} {E : value} (hlock : st.tc_lock V W E = true) :
+    (hr : (Mvba.relationalTransitionSystem node nodeset value evec view).reachable th st)
+    {V W : view} {E : evec} (hlock : st.tc_lock V W E = true) :
     ∃ R, ¬ nset.is_byz R = true ∧ st.timed_out R V = true := by
   obtain ⟨-, -, q, hsm, hall⟩ := Mvba.reachable_tc_lock_backed hr V W E hlock
   obtain ⟨R, hRq, -, hRhon⟩ := nset.supermajorities_intersect_in_honest q q hsm hsm
@@ -1468,7 +1479,7 @@ overshoot it, which is the other half and the one (A-viewsync) is for. -/
 
 /-- The initializer enters no view. -/
 theorem init_not_entered
-    (hinit : (Mvba.relationalTransitionSystem node nodeset value view).init th st)
+    (hinit : (Mvba.relationalTransitionSystem node nodeset value evec view).init th st)
     (i : node) (V : view) : ¬ st.entered i V = true := by
   simp only [Mvba.relationalTransitionSystem, Mvba.Init] at hinit
   simp only [Mvba.initializer.ext.tr] at hinit
@@ -1624,10 +1635,10 @@ end Predecessor
 
 section Entry
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
 
 /-- The first moment a view was entered. `entered` is monotone and empty at
 the initial state, so a least index exists and has a predecessor. -/
@@ -1713,7 +1724,7 @@ can only happen finitely often — and nothing about the protocol enters. -/
 /-- **A monotone family over a finite list acquires no new members after
 some point.** -/
 theorem eventually_no_new (r : MvbaRun th) {α : Type}
-    (P : α → Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop)
+    (P : α → Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop)
     (hmono : ∀ a n, P a (r.at' n) → P a (r.at' (n + 1))) (Vs : List α) :
     ∀ N, ∃ n, N ≤ n ∧ ∀ m, n ≤ m → ∀ a, a ∈ Vs → P a (r.at' m) → P a (r.at' n) := by
   classical
@@ -1757,13 +1768,13 @@ theorem enabled_timeout_noqc {i : node} {v : view}
     (htimer : st.timer_expired i v = true)
     (hnto : ¬ st.timed_out i v = true)
     (hno : ∀ W E, ¬ st.local_prepqc i W E = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.timeout_noqc i v) := by
   mvba_enabled
   exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, htimer, hnto, hno, rfl⟩
 
 /-- **`timeout_qc`'s guards are its enabledness.** -/
-theorem enabled_timeout_qc {i : node} {v w : view} {e : value}
+theorem enabled_timeout_qc {i : node} {v w : view} {e : evec}
     (hi : ¬ nset.is_byz i = true)
     (hin : ∃ E, st.input i E = true)
     (hact : Active st i)
@@ -1772,20 +1783,20 @@ theorem enabled_timeout_qc {i : node} {v w : view} {e : value}
     (hnto : ¬ st.timed_out i v = true)
     (hloc : st.local_prepqc i w e = true)
     (hmax : ∀ W E, st.local_prepqc i W E = true → vord.le W w) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.timeout_qc i v w e) := by
   mvba_enabled
   exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, htimer, hnto, hloc, hmax, rfl⟩
 
 theorem timeout_noqc_effect {i : node} {v : view}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.timeout_noqc i v) st') : st'.timed_out i v = true := by
   mvba_tr htr
   obtain ⟨-, -, -, -, -, -, -, -, -, rfl⟩ := htr
   mvba_effect
 
-theorem timeout_qc_effect {i : node} {v w : view} {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+theorem timeout_qc_effect {i : node} {v w : view} {e : evec}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.timeout_qc i v w e) st') : st'.timed_out i v = true := by
   mvba_tr htr
   obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
@@ -1874,17 +1885,17 @@ So the selection is an ordinary fold over a list, using only totality and
 transitivity of the view order, and it needs no invariant and no
 correctness assumption on the members. -/
 
-omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset in
+omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view] nset in
 /-- **Either every member sent the lock-free `Timeout`, or one of them
 carries a certificate that dominates a choice from every other.** An
 induction over the member list; the four cases are the two for the head
 crossed with the two for the tail, and the only order reasoning is
 `le_total` and `le_trans`. -/
 theorem exists_dominating_timeout
-    {st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)} {v : view} :
+    {st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)} {v : view} :
     ∀ (ms : List node), (∀ p ∈ ms, SentTimeout st p v) →
       (∀ p ∈ ms, st.msg_timeout_noqc p v = true) ∨
-      ∃ (r₀ : node) (w : view) (e : value), r₀ ∈ ms ∧
+      ∃ (r₀ : node) (w : view) (e : evec), r₀ ∈ ms ∧
         st.msg_timeout_qc r₀ v w e = true ∧
         ∀ p ∈ ms, st.msg_timeout_noqc p v = true ∨
           ∃ W E, st.msg_timeout_qc p v W E = true ∧ vord.le W w
@@ -1916,7 +1927,7 @@ theorem exists_dominating_timeout
 
 /-- **`form_own_tc_lock`'s guards are its enabledness.** -/
 theorem enabled_form_own_tc_lock {i : node} {v : view} {q : nodeset} {r₀ : node} {w : view}
-    {e : value}
+    {e : evec}
     (hi : ¬ nset.is_byz i = true)
     (hin : ∃ E, st.input i E = true)
     (hact : Active st i)
@@ -1927,14 +1938,14 @@ theorem enabled_form_own_tc_lock {i : node} {v : view} {q : nodeset} {r₀ : nod
     (hpq : st.msg_prepqc w e = true) (hle : vord.le w v)
     (hdom : ∀ p, nset.member p q = true → st.msg_timeout_noqc p v = true ∨
       ∃ W E, st.msg_timeout_qc p v W E = true ∧ vord.le W w) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.form_own_tc_lock i v q r₀ w e) := by
   mvba_enabled
   exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hnf, hsm, hmem, hqc, hpq, hle, hdom, rfl⟩
 
 theorem form_own_tc_lock_effect {i : node} {v : view} {q : nodeset} {r₀ : node} {w : view}
-    {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    {e : evec}
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.form_own_tc_lock i v q r₀ w e) st') : st'.msg_tc v = true := by
   mvba_tr htr
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
@@ -1949,14 +1960,14 @@ theorem enabled_form_own_tc_nolock {i : node} {v : view} {q : nodeset}
     (hnf : ¬ st.tc_formed i v = true)
     (hsm : nset.supermajority q)
     (hall : ∀ p, nset.member p q = true → st.msg_timeout_noqc p v = true) :
-    Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st
+    Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.form_own_tc_nolock i v q) := by
   mvba_enabled
   exact ⟨_, hi, hin, hact.1, hact.2, hview.1, hview.2, hnf, hsm, hall, rfl⟩
 
 /-- **`form_own_tc_nolock`'s effect**: the view is closed by a certificate. -/
 theorem form_own_tc_nolock_effect {i : node} {v : view} {q : nodeset}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.form_own_tc_nolock i v q) st') : st'.msg_tc v = true := by
   mvba_tr htr
   obtain ⟨-, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
@@ -1981,7 +1992,7 @@ theorem eventually_tc_of_timed_out_quorum
     ∃ n, N ≤ n ∧ (r.at' n).msg_tc v = true := by
   by_contra hcon
   push Not at hcon
-  have hmono : ∀ (P : Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop),
+  have hmono : ∀ (P : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop),
       (∀ m, P (r.at' m) → P (r.at' (m + 1))) → P (r.at' N) → ∀ n, N ≤ n → P (r.at' n) :=
     fun P hp hPN n hn => r.mono (P := P) hp hPN n hn
   have hin' := hmono (fun s => s.input i E₀ = true)
@@ -2407,7 +2418,7 @@ theorem terminates_of_good_view_no_timeout
     eventually_preprepare_of_settled_leader r hfj hl hsl hnext hlead hjust
   have hvalid : th.valid E₀ = true :=
     Mvba.reachable_honest_preprepare_valid (r.reachable n₀) l W E₀ hl hpp
-  have hjust₀ : (∃ w, (r.at' n₀).tc_lock pv w E₀ = true) ∨
+  have hjust₀ : (∃ w, (r.at' n₀).tc_lock pv w (th.ent E₀) = true) ∨
       (r.at' n₀).tc_nolock pv = true :=
     Mvba.reachable_honest_preprepare_justified (r.reachable n₀) l W E₀ pv hl hpp hnext
   -- The view decides, which is what this branch's hypothesis denies.
@@ -2515,11 +2526,11 @@ guard is a failing case, not a silent gap. -/
 
 section Acceptance
 
-omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset in
+omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view] nset in
 /-- No view is below itself. -/
 theorem vlt_irrefl (a : view) : ¬ vord.lt a a := fun h => ((vord.le_lt a a).mp h).2 rfl
 
-omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset in
+omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view] nset in
 /-- A view's successor is not at or below it. -/
 theorem not_le_of_next {a b : view} (h : vord.next a b) : ¬ vord.le b a := fun hle =>
   let h' := (vord.le_lt a b).mp ((vord.next_def a b).mp h).1
@@ -2527,10 +2538,10 @@ theorem not_le_of_next {a b : view} (h : vord.next a b) : ¬ vord.le b a := fun 
 
 /-- **Every enabled fair label is move-enabled**, at every state: the
 acceptance criterion of fired-once flags. -/
-theorem enabledMove_of_enabled (l : Mvba.Label node nodeset value view)
+theorem enabledMove_of_enabled (l : Mvba.Label node nodeset value evec view)
     (hj : JusticeLabel l)
-    (hen : Enabled (Mvba.relationalTransitionSystem node nodeset value view) th st l) :
-    EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th st l := by
+    (hen : Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st l) :
+    EnabledMove (Mvba.relationalTransitionSystem node nodeset value evec view) th st l := by
   obtain ⟨st', htr⟩ := hen
   refine ⟨st', htr, fun heq => ?_⟩
   rw [heq] at htr
@@ -2559,9 +2570,9 @@ theorem enabledMove_of_enabled (l : Mvba.Label node nodeset value view)
 /-- The same along a run, the form a fairness argument reads: at every index,
 an enabled fair label is move-enabled. -/
 theorem enabledMove_of_enabled_run (r : MvbaRun th) (n : Nat)
-    (l : Mvba.Label node nodeset value view) (hj : JusticeLabel l)
-    (hen : Enabled (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l) :
-    EnabledMove (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l :=
+    (l : Mvba.Label node nodeset value evec view) (hj : JusticeLabel l)
+    (hen : Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th (r.at' n) l) :
+    EnabledMove (Mvba.relationalTransitionSystem node nodeset value evec view) th (r.at' n) l :=
   enabledMove_of_enabled l hj hen
 
 /-- **The bridge**: for this model, (F-justice) over plain enabledness is the

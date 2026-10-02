@@ -47,7 +47,6 @@ Supplement, Lemma 2 (`lem:commit-provenance`) and Supplement, Remark 3 (`rem:loc
 #prove_vc Mvba form_commitqc commitqc_agree by
   unveil_local
   veil_inv_have h_honest_commit_accepted := honest_commit_accepted
-  veil_inv_have h_accepted_unique := accepted_unique
   veil_inv_have h_local_prepqc_backed := local_prepqc_backed
   veil_inv_have h_local_prepqc_unique := local_prepqc_unique
   veil_inv_have h_commitqc_backed := commitqc_backed
@@ -60,7 +59,7 @@ Supplement, Lemma 2 (`lem:commit-provenance`) and Supplement, Remark 3 (`rem:loc
   -- An honest validator that committed `E0` in `V0` is not blocked there:
   -- its later timeouts carry a view-`≥ V0` lock, and its view-`V0` lock is
   -- on `E0`.
-  have no_block : ∀ (n : node) (V0 : view) (E0 : value),
+  have no_block : ∀ (n : node) (V0 : view) (E0 : evec),
       ByzNodeSet.is_byz n = false → st.msg_commit n V0 E0 = true →
       ((∃ v', TotalOrderWithMinimum.le V0 v' ∧
           (st.msg_timeout_noqc n v' = true ∨
@@ -74,23 +73,23 @@ Supplement, Lemma 2 (`lem:commit-provenance`) and Supplement, Remark 3 (`rem:loc
     · have h := h_commit_later_timeout_carries_lock n V0 v' w E0 x hn hcm hto hle
       have h' := (TotalOrderWithMinimum.le_lt w V0).mp hltw
       exact h'.2 (TotalOrderWithMinimum.le_antisymm _ _ h'.1 h)
-    · have hheld0 := (h_honest_commit_accepted n V0 E0 hn hcm).2
+    · have hheld0 := (h_honest_commit_accepted n V0 E0 hn hcm).1
       exact hne' (h_local_prepqc_unique n V0 e' E0 hn hheld hheld0)
   -- Every commit certificate already on the wire is on the new one's value.
-  have key : ∀ (V0 : view) (E0 : value), st.msg_commitqc V0 E0 = true → E0 = e := by
+  have key : ∀ (V0 : view) (E0 : evec), st.msg_commitqc V0 E0 = true → E0 = e := by
     intro V0 E0 hc0
     by_contra hneq
     obtain ⟨Q0, hQ0_sup, hQ0⟩ := h_commitqc_backed V0 E0 hc0
     by_cases hVeq : V0 = v
     · -- Same view: the two commit quorums share an honest signer, who
-      -- accepted both vectors in that view.
+      -- held a view-`V0` prepare certificate on both vectors.
       subst hVeq
       obtain ⟨b, hbq, hbQ0, hb_hon⟩ :=
         nset.supermajorities_intersect_in_honest q Q0 hsup_q hQ0_sup
       have hb_hon' : ByzNodeSet.is_byz b = false := Bool.eq_false_iff.mpr hb_hon
       have h1 := (h_honest_commit_accepted b V0 e hb_hon' (hq b hbq)).1
       have h2 := (h_honest_commit_accepted b V0 E0 hb_hon' (hQ0 b hbQ0)).1
-      exact hneq (h_accepted_unique b V0 E0 e hb_hon' h2 h1)
+      exact hneq (h_local_prepqc_unique b V0 E0 e hb_hon' h2 h1)
     · rcases TotalOrderWithMinimum.le_total V0 v with hle | hle
       · -- `V0 < v`: the new certificate's honest signers held a view-`v`
         -- prepare certificate on `e`; it blocks `Q0` from committing `E0`
@@ -101,7 +100,7 @@ Supplement, Lemma 2 (`lem:commit-provenance`) and Supplement, Remark 3 (`rem:loc
           nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hsup_q)
         have hc_hon' : ByzNodeSet.is_byz c = false := Bool.eq_false_iff.mpr hc_hon
         have hpq_v : st.msg_prepqc v e = true :=
-          h_local_prepqc_backed c v e hc_hon' (h_honest_commit_accepted c v e hc_hon' (hq c hcq)).2
+          h_local_prepqc_backed c v e hc_hon' (h_honest_commit_accepted c v e hc_hon' (hq c hcq)).1
         obtain ⟨n, hnQ0, hn_hon, hb⟩ := h_blocks v V0 e E0 Q0 hpq_v hlt hneq hQ0_sup
         exact no_block n V0 E0 hn_hon (hQ0 n hnQ0) hb
       · -- `v < V0`: the old certificate's view-`V0` prepare certificate

@@ -15,16 +15,23 @@ of the `Mvba` family that imports `Cadence.Interfaces`, on the pattern of
 **The instance.** Module 3 (`mod:mvba`) is one instance per Chorus slot, and the model
 is one instance, so the contract is instantiated directly: `init`, `step`,
 `trans`, `reachable` are the model's own relations, the state is the
-model's state, `Valid` is the theory's immutable `valid` (the entry vector
-is the value, [MvbaPlan.md](../../docs/MvbaPlan.md) §1.2), `decided` is the relation of that
-name read at the canonical field representation, and `byz` is the
-Byzantine predicate of the module's `ByzNodeSet` instance.
+model's state, the value is the model's meta-block representation and the
+entry vector its `evec`, `Valid` is the theory's immutable `valid` and
+`entries` its `ent`, `decided` is the relation of that name read at the
+canonical field representation, the quorum family is the module's
+`ByzNodeSet` instance, and `byz` is its Byzantine predicate.
 
 Each entry is an `MVBASafety` field and what discharges it.
 
 * **`agreement`, `integrity`, `external_validity`** — `safety [agreement]`,
   `[integrity]`, `[external_validity]`, through the named reachability
-  projections of [Mvba/Certify.lean](Certify.lean)
+  projections of [Mvba/Certify.lean](Certify.lean); `[integrity]` is the
+  stronger "decides at most once", and the field over entries follows
+* **the certificate-level fields** — a certificate is an existing commit
+  certificate; `commitqc_agree` (one certified entry vector),
+  `decided_backed` with it (the decided one), `commitqc_valid` (a valid
+  representation), and `commitqc_backed` with `honest_commit_accepted` (the
+  availability of the correct signers)
 * **`decided_mono`, `init_decided`** — the transition bodies of every
   action, uniformly (`decided_mono_tr`, `init_not_decided` below): `decided`
   is only ever set, and `after_init` clears it
@@ -53,62 +60,70 @@ two levels, which gives the full `MVBA` (`Mvba.mvbaFull`).
 namespace Mvba
 
 /-- What crosses the wire: the contract's `message` type. The five signed
-messages of the protocol, per sender, and the transferable commit
-certificate `commitqc v e` that `decide(x, CommitQC)` outputs and the
+messages of the protocol, per sender — a `Pre-Prepare` carries the proposed
+representation `x`, every vote an entry vector `e` — and the transferable
+commit certificate `commitqc v e` over entries that `decide(x, CommitQC)`
+outputs and the
 composing layer hands to other parties (the supplement's "Decision output
 and handoff"). The certificate rows (`msg_prepqc`, `msg_commitqc`, `msg_tc`,
 `tc_lock`, `tc_nolock`) have no sender — they are assembled from `2f+1`
 signatures — so no party *sends* one within the MVBA (`Sent` is `False` on
 `commitqc`); Chorus carries the commit certificate. -/
-inductive Msg (view value : Type) where
-  | preprepare (v : view) (e : value)
-  | prepare (v : view) (e : value)
-  | commit (v : view) (e : value)
-  | timeout_qc (v w : view) (e : value)
+inductive Msg (view value evec : Type) where
+  | preprepare (v : view) (x : value)
+  | prepare (v : view) (e : evec)
+  | commit (v : view) (e : evec)
+  | timeout_qc (v w : view) (e : evec)
   | timeout_noqc (v : view)
-  | commitqc (v : view) (e : value)
+  | commitqc (v : view) (e : evec)
 
 /-- A consumer that holds the message sort as an opaque parameter needs it
 inhabited (Chorus's `[Inhabited mmsg]`); a view suffices for a witness. -/
-instance {view value : Type} [Inhabited view] : Inhabited (Msg view value) :=
+instance {view value evec : Type} [Inhabited view] : Inhabited (Msg view value evec) :=
   ⟨.timeout_noqc default⟩
 
 open Classical
 
 section Instance
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
 
 /-- The abstract field representation of the Mvba state at the canonical
 `Classical` instances (cf. [Composition.lean](../Composition.lean)'s
 `afr%`). -/
 local macro "afr%" f:ident : term =>
-  `(@Mvba.instAbstractFieldRepresentation node nodeset value view
+  `(@Mvba.instAbstractFieldRepresentation node nodeset value evec view
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
     (fun a b => Classical.propDecidable (a = b)) (fun a b => Classical.propDecidable (a = b))
+    (fun a b => Classical.propDecidable (a = b))
     $f)
 
-/-- `i` has decided `e`: the contract's `decide(v)` output. -/
+/-- `i` has decided the representation `e`: the contract's `decide(v)` output. -/
 noncomputable abbrev Decided
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (i : node) (e : value) : Prop :=
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) (i : node) (e : value) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.decided) st.decided i e = true
 
 /-- `i` has proposed `e` (`input`): the record of the `propose(v)` input. -/
 noncomputable abbrev Proposed
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (i : node) (e : value) : Prop :=
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) (i : node) (e : value) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.input) st.input i e = true
+
+/-- `i` is `AvailReady` for `e` (`avail_ready`). -/
+noncomputable abbrev AvailReady
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) (i : node) (e : value) : Prop :=
+  @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.avail_ready) st.avail_ready i e = true
 
 /-- `i` has abandoned: the record of the `abandon()` input. -/
 noncomputable abbrev Abandoned
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (i : node) : Prop :=
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) (i : node) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.abandoned) st.abandoned i = true
 
 /-- `p` has sent `m`: the message's network row with `p` as its sender. -/
 noncomputable def Sent
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (p : node) :
-    Msg view value → Prop
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) (p : node) :
+    Msg view value evec → Prop
   | .preprepare v e =>
     @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.msg_preprepare) st.msg_preprepare p v e = true
   | .prepare v e =>
@@ -121,14 +136,14 @@ noncomputable def Sent
     @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.msg_timeout_noqc) st.msg_timeout_noqc p v = true
   | .commitqc _ _ => False
 
-/-- `c` is a valid commitment proof for `e`: a commit certificate on `e`,
-of some view, that exists (`msg_commitqc`: `2f+1` `Commit`s were
-aggregated). -/
+/-- `c` is a valid commitment proof for the entry vector `e`: a commit
+certificate on `e`, of some view, that exists (`msg_commitqc`: `2f+1`
+`Commit`s were aggregated). -/
 noncomputable def Certifies
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) :
-    Msg view value → value → Prop
-  | .commitqc w e, v =>
-    v = e ∧ @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.msg_commitqc) st.msg_commitqc w e = true
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) :
+    Msg view value evec → evec → Prop
+  | .commitqc w e, e' =>
+    e' = e ∧ @Veil.FieldRepresentation.get _ _ _ (afr% Mvba.State.Label.msg_commitqc) st.msg_commitqc w e = true
   | _, _ => False
 
 /-- The labels of the module's three inputs: `propose(v)`, `abandon()`,
@@ -137,13 +152,13 @@ and the handoff of a transferred commit certificate, which the model's
 layer delivers the certificate, the MVBA accepts it). Every other label is
 an internal step of the protocol; a party decides on a certificate it
 formed itself by the internal `form_own_commitqc`. -/
-def Label.isInput : Mvba.Label node nodeset value view → Prop
+def Label.isInput : Mvba.Label node nodeset value evec view → Prop
   | .propose _ _ => True
   | .abandon _ => True
   | .decide _ _ _ => True
   | _ => False
 
-omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view] nset vord in
+omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view] nset vord in
 /-- `Label.isInput` names the three input constructors, in a form that
 survives leaving this module.
 
@@ -152,12 +167,12 @@ The definition itself does not: at this many constructors Lean compiles its
 here but do not let `Label.isInput (.decide …)` reduce in an importing file.
 Consumers case on this lemma rather than unfold the definition, as
 [Mvba/Liveness.lean](Liveness.lean) does. -/
-theorem Label.isInput_cases {l : Mvba.Label node nodeset value view}
+theorem Label.isInput_cases {l : Mvba.Label node nodeset value evec view}
     (h : Label.isInput l) :
     (∃ i e, l = .propose i e) ∨ (∃ i, l = .abandon i) ∨ (∃ i v e, l = .decide i v e) := by
   cases l <;> simp_all [Label.isInput]
 
-variable (th : Mvba.Theory node nodeset value view)
+variable (th : Mvba.Theory node nodeset value evec view)
 
 /-! ### Step-level facts, uniformly over every action
 
@@ -184,13 +199,13 @@ local macro "mvba_field_simp" : tactic =>
       instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id] at *)
 
 section StepFacts
-variable {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
-  {l : Mvba.Label node nodeset value view}
+variable {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
+  {l : Mvba.Label node nodeset value evec view}
 
 set_option maxHeartbeats 4000000 in
 /-- `decided` stands across every action. -/
 theorem decided_mono_tr
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (i : node) (e : value) (h : Decided st i e) : Decided st' i e := by
   cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
     mvba_field_simp <;> first | exact h | (right; exact h)
@@ -198,7 +213,7 @@ theorem decided_mono_tr
 set_option maxHeartbeats 4000000 in
 /-- `input` stands across every action. -/
 theorem proposed_mono_tr
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (i : node) (e : value) (h : Proposed st i e) : Proposed st' i e := by
   cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
     mvba_field_simp <;> first | exact h | (right; exact h)
@@ -206,7 +221,7 @@ theorem proposed_mono_tr
 set_option maxHeartbeats 4000000 in
 /-- `abandoned` stands across every action. -/
 theorem abandoned_mono_tr
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (i : node) (h : Abandoned st i) : Abandoned st' i := by
   cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
     mvba_field_simp <;> first | exact h | (right; exact h)
@@ -214,15 +229,15 @@ theorem abandoned_mono_tr
 set_option maxHeartbeats 8000000 in
 /-- Every message row stands across every action (the network is monotone). -/
 theorem sent_mono_tr
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
-    (p : node) (m : Msg view value) (h : Sent st p m) : Sent st' p m := by
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
+    (p : node) (m : Msg view value evec) (h : Sent st p m) : Sent st' p m := by
   cases m <;> cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
     mvba_field_simp <;> first | exact h | (right; exact h)
 
 set_option maxHeartbeats 4000000 in
 /-- Internal steps leave `input` untouched: only `propose` sets it. -/
 theorem proposed_frame_internal (hl : ¬ Label.isInput l)
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (i : node) (e : value) : Proposed st' i e ↔ Proposed st i e := by
   cases l <;> simp [Label.isInput] at hl <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
     mvba_field_simp
@@ -230,14 +245,14 @@ theorem proposed_frame_internal (hl : ¬ Label.isInput l)
 set_option maxHeartbeats 4000000 in
 /-- Internal steps leave `abandoned` untouched: only `abandon` sets it. -/
 theorem abandoned_frame_internal (hl : ¬ Label.isInput l)
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (i : node) : Abandoned st' i ↔ Abandoned st i := by
   cases l <;> simp [Label.isInput] at hl <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
     mvba_field_simp
 
 /-- `propose(e)` at `i` records `input i e`. -/
 theorem propose_effect_tr {i : node} {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.propose i e) st') :
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st (.propose i e) st') :
     Proposed st' i e := by
   mvba_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); mvba_field_simp
 
@@ -245,7 +260,7 @@ theorem propose_effect_tr {i : node} {e : value}
 supplement's precondition on the call ([Mvba.lean](../Mvba.lean)'s
 `propose`). -/
 theorem propose_valid_tr {i : node} {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st
       (.propose i e) st') : th.valid e = true := by
   mvba_tr htr
   obtain ⟨-, -, hv, -⟩ := htr
@@ -253,7 +268,7 @@ theorem propose_valid_tr {i : node} {e : value}
 
 /-- `abandon()` at `i` records `abandoned i`. -/
 theorem abandon_effect_tr {i : node}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.abandon i) st') :
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st (.abandon i) st') :
     Abandoned st' i := by
   mvba_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); mvba_field_simp
 
@@ -264,44 +279,52 @@ one of its honest sends, each of which requires the party to have proposed
 its own. So the sender has proposed at the post-state and had not
 abandoned at the pre-state. -/
 theorem sent_new_tr
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
-    (p : node) (m : Msg view value) (hp : ¬ nset.is_byz p = true)
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
+    (p : node) (m : Msg view value evec) (hp : ¬ nset.is_byz p = true)
     (hnew : Sent st' p m) (hold : ¬ Sent st p m) :
     (∃ v, Proposed st' p v) ∧ ¬ Abandoned st p := by
   cases m <;> cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
     mvba_field_simp <;> simp_all <;> exact ⟨_, by assumption⟩
 
 /-- The handoff input: `p` accepts the transferred certificate `c`, which is
-the model's `decide p w e` for `c = commitqc w e`, and no transition for
-any other message. -/
-def Accept (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (p : node) :
-    Msg view value → Mvba.State (Mvba.FieldAbstractType node nodeset value view) → Prop
-  | .commitqc w e, st' =>
-    (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.decide p w e) st'
+the model's `decide p w x` for `c = commitqc w e` and a representation `x`
+of `e` (`Recover(e)`), and no transition for any other message. -/
+def Accept (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) (p : node) :
+    Msg view value evec → Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) → Prop
+  | .commitqc w e, st' => ∃ x, th.ent x = e ∧
+    (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st (.decide p w x) st'
   | _, _ => False
 
-/-- Accepting a valid certificate for `v` decides `v`. -/
-theorem accept_effect_tr {p : node} {c : Msg view value} {v : value}
-    (htr : Accept th st p c st') (hc : Certifies st c v) : Decided st' p v := by
+/-- Accepting a valid certificate for `e` decides a representation of `e`. -/
+theorem accept_effect_tr {p : node} {c : Msg view value evec} {e : evec}
+    (htr : Accept th st p c st') (hc : Certifies st c e) : ∃ v, th.ent v = e ∧ Decided st' p v := by
   cases c <;> simp only [Accept] at htr
   obtain ⟨rfl, -⟩ := hc
+  obtain ⟨x, hx, htr⟩ := htr
+  refine ⟨x, hx, ?_⟩
   mvba_tr htr; (repeat (obtain ⟨_, htr⟩ := htr)); mvba_field_simp
 
 /-- **A transferred valid certificate is accepted**: a correct party that
 has proposed, is not abandoned and has not decided can take any valid
-certificate — `decide`'s guards, which accept a certificate of any view. -/
-theorem accept_enabled_tr {p : node} {c : Msg view value} {v : value}
-    (hp : ¬ nset.is_byz p = true) (hc : Certifies st c v) (hin : ∃ v', Proposed st p v')
+certificate — `decide`'s guards, which accept a certificate of any view —
+with a valid representation of its entries, which exists
+(`commitqc_valid`). -/
+theorem accept_enabled_tr {p : node} {c : Msg view value evec} {e : evec}
+    (hr : (Mvba.relationalTransitionSystem node nodeset value evec view).reachable th st)
+    (hp : ¬ nset.is_byz p = true) (hc : Certifies st c e) (hin : ∃ v', Proposed st p v')
     (hab : ¬ Abandoned st p) (hnd : ∀ v', ¬ Decided st p v') :
     ∃ st'', Accept th st p c st'' := by
   cases c <;> simp only [Certifies] at hc
   obtain ⟨-, hqc⟩ := hc
+  rename_i w e0
+  obtain ⟨x, hxv, hxe⟩ := Mvba.reachable_commitqc_valid hr w e0 hqc
   simp only [Accept, Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct, trSimp]
-  exact ⟨_, hp, hin, hab, hqc, hnd, rfl⟩
+  refine ⟨_, x, hxe, hp, hin, hab, ?_, hxv, hnd, rfl⟩
+  simpa [instIsSubReaderOfRefl.readFrom_id, instIsSubStateOfRefl.getFrom_id, hxe] using hqc
 
 /-- Initially nobody has decided. -/
 theorem init_not_decided
-    (hinit : (Mvba.relationalTransitionSystem node nodeset value view).init th st)
+    (hinit : (Mvba.relationalTransitionSystem node nodeset value evec view).init th st)
     (i : node) (e : value) : ¬ Decided st i e := by
   simp only [Mvba.relationalTransitionSystem, Mvba.Init] at hinit
   simp only [Mvba.initializer.ext.tr] at hinit
@@ -309,7 +332,7 @@ theorem init_not_decided
 
 /-- Initially nobody has proposed. -/
 theorem init_not_proposed
-    (hinit : (Mvba.relationalTransitionSystem node nodeset value view).init th st)
+    (hinit : (Mvba.relationalTransitionSystem node nodeset value evec view).init th st)
     (i : node) (e : value) : ¬ Proposed st i e := by
   simp only [Mvba.relationalTransitionSystem, Mvba.Init] at hinit
   simp only [Mvba.initializer.ext.tr] at hinit
@@ -317,7 +340,7 @@ theorem init_not_proposed
 
 /-- Initially nobody has abandoned. -/
 theorem init_not_abandoned
-    (hinit : (Mvba.relationalTransitionSystem node nodeset value view).init th st)
+    (hinit : (Mvba.relationalTransitionSystem node nodeset value evec view).init th st)
     (i : node) : ¬ Abandoned st i := by
   simp only [Mvba.relationalTransitionSystem, Mvba.Init] at hinit
   simp only [Mvba.initializer.ext.tr] at hinit
@@ -336,15 +359,16 @@ initial-state relation together with its theory assumption
 theory's `valid`, `decided` the relation of that name. -/
 @[implicit_reducible]
 noncomputable def mvbaSafety :
-    MVBASafety node value (Msg view value) (Mvba.State (Mvba.FieldAbstractType node nodeset value view))
-      (fun i => nset.is_byz i = true) where
+    MVBASafety node value evec (Msg view value evec) (Mvba.State (Mvba.FieldAbstractType node nodeset value evec view))
+      nodeset nset (fun i => nset.is_byz i = true) where
   Valid e := th.valid e = true
-  init st := (Mvba.relationalTransitionSystem node nodeset value view).assumptions th ∧
-    (Mvba.relationalTransitionSystem node nodeset value view).init th st
+  entries := th.ent
+  init st := (Mvba.relationalTransitionSystem node nodeset value evec view).assumptions th ∧
+    (Mvba.relationalTransitionSystem node nodeset value evec view).init th st
   step st st' := ∃ l, ¬ Label.isInput l ∧
-    (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st'
-  trans st st' := (Mvba.relationalTransitionSystem node nodeset value view).next th st st'
-  reachable st := (Mvba.relationalTransitionSystem node nodeset value view).reachable th st
+    (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st'
+  trans st st' := (Mvba.relationalTransitionSystem node nodeset value evec view).next th st st'
+  reachable st := (Mvba.relationalTransitionSystem node nodeset value evec view).reachable th st
   step_trans _ _ h := ⟨h.choose, h.choose_spec.2⟩
   reachable_init st h := Veil.RelationalTransitionSystem.reachable.init st h.1 h.2
   reachable_trans st st' hr hn := Veil.RelationalTransitionSystem.reachable.step st st' hr hn
@@ -353,8 +377,8 @@ noncomputable def mvbaSafety :
   -- facts this model proves — which is why they sit in the fragment rather
   -- than at the temporal level ([Interfaces.lean](../Interfaces.lean), the
   -- placement rule).
-  propose st p v st' := (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.propose p v) st'
-  abandon st p st' := (Mvba.relationalTransitionSystem node nodeset value view).tr th st (.abandon p) st'
+  propose st p v st' := (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st (.propose p v) st'
+  abandon st p st' := (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st (.abandon p) st'
   propose_trans _ _ _ _ h := ⟨_, h⟩
   abandon_trans _ _ _ h := ⟨_, h⟩
   decided := Decided
@@ -373,7 +397,7 @@ noncomputable def mvbaSafety :
   init_proposed _ p v h := init_not_proposed th h.2 p v
   init_abandoned _ p h := init_not_abandoned th h.2 p
   agreement _ hr i j e e' hi hj hdi hdj := reachable_agreement hr i j e e' hi hj hdi hdj
-  integrity _ hr i e e' hi hdi hdi' := reachable_integrity hr i e e' hi hdi hdi'
+  integrity _ hr i e e' hi hdi hdi' := congrArg th.ent (reachable_integrity hr i e e' hi hdi hdi')
   external_validity _ hr i e hi hd := reachable_external_validity hr i e hi hd
   -- **Quiescence**, in the one-step form the contract states: a new
   -- message row of a correct party at a transition comes with the input and
@@ -384,16 +408,43 @@ noncomputable def mvbaSafety :
   -- exists; a decision has one (`decided_backed`, an invariant of the
   -- model); and the handoff is `decide`, which accepts a certificate of any
   -- view.
+  availReady := AvailReady
   certifies := Certifies
   decided_certified _ hr i e hi hd := by
     obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed hr i e hi hd
-    exact ⟨.commitqc V e, rfl, hV⟩
+    exact ⟨.commitqc V (th.ent e), rfl, hV⟩
   accept := Accept th
   accept_trans _ _ c _ h := by
     cases c <;> simp only [Accept] at h
+    obtain ⟨_, -, h⟩ := h
     exact ⟨_, h⟩
   accept_effect _ _ _ _ _ h hc := accept_effect_tr th h hc
-  accept_enabled _ _ _ _ _ hp hc hin hab hnd := accept_enabled_tr th hp hc hin hab hnd
+  accept_enabled _ _ _ _ hr hp hc hin hab hnd := accept_enabled_tr th hr hp hc hin hab hnd
+  -- **What a certificate guarantees.** A certificate is a commit certificate
+  -- on the wire; the model's certificate-level invariants say the rest.
+  certified_unique _ hr c c' e e' hc hc' := by
+    cases c <;> simp only [Certifies] at hc
+    cases c' <;> simp only [Certifies] at hc'
+    obtain ⟨rfl, h⟩ := hc
+    obtain ⟨rfl, h'⟩ := hc'
+    exact Mvba.reachable_commitqc_agree hr _ _ _ _ h h'
+  certified_decided _ hr c e p v hc hp hd := by
+    cases c <;> simp only [Certifies] at hc
+    obtain ⟨rfl, h⟩ := hc
+    obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed hr p v hp hd
+    exact Mvba.reachable_commitqc_agree hr _ _ _ _ hV h
+  certified_valid _ hr c e hc := by
+    cases c <;> simp only [Certifies] at hc
+    obtain ⟨rfl, h⟩ := hc
+    obtain ⟨x, hxv, hxe⟩ := Mvba.reachable_commitqc_valid hr _ _ h
+    exact ⟨x, hxe, hxv⟩
+  certified_available _ hr c e hc := by
+    cases c <;> simp only [Certifies] at hc
+    obtain ⟨rfl, h⟩ := hc
+    obtain ⟨q, hq, hmem⟩ := Mvba.reachable_commitqc_backed hr _ _ h
+    refine ⟨q, hq, fun p hp hpc => ?_⟩
+    obtain ⟨-, x, hxe, hacc, hav⟩ := Mvba.reachable_honest_commit_accepted hr p _ _ hpc (hmem p hp)
+    exact ⟨x, hxe, Mvba.reachable_accepted_valid hr p _ x hpc hacc, hav⟩
 
 /-! ### The join toward the full `MVBA`
 
@@ -409,17 +460,17 @@ Nothing is restated to join them, and the fragment comes back out by
 `rfl`. -/
 @[implicit_reducible]
 noncomputable def mvba_of_temporal {time : Type} [TotalOrder time] [Add time]
-    (h : MVBATemporal node value (Msg view value) (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
-      (fun i => nset.is_byz i = true) (S := mvbaSafety th)) :
-    MVBA node value (Msg view value) (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
-      (fun i => nset.is_byz i = true) :=
+    (h : MVBATemporal node value evec (Msg view value evec) (Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) nodeset time
+      nset (fun i => nset.is_byz i = true) (S := mvbaSafety th)) :
+    MVBA node value evec (Msg view value evec) (Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) nodeset time
+      nset (fun i => nset.is_byz i = true) :=
   { mvbaSafety th, h with }
 
 /-- The fragment the composition consumes is exactly the one that was
 proven. -/
 theorem mvba_of_temporal_toSafety {time : Type} [TotalOrder time] [Add time]
-    (h : MVBATemporal node value (Msg view value) (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
-      (fun i => nset.is_byz i = true) (S := mvbaSafety th)) :
+    (h : MVBATemporal node value evec (Msg view value evec) (Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) nodeset time
+      nset (fun i => nset.is_byz i = true) (S := mvbaSafety th)) :
     (mvba_of_temporal th h).toMVBASafety = mvbaSafety th := rfl
 
 end Instance

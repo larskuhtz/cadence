@@ -46,10 +46,10 @@ open scoped Cadence.Timed
 
 section Witness
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
+  {th : Theory node nodeset value evec view}
 
 /-- Expose an action's transition body in `h`, as in
 [Mvba/Compose.lean](Compose.lean). -/
@@ -66,7 +66,7 @@ preserves it (the generated `<action>.frame_<relation>` lemmas). At a quiet stat
 because each one's guards read one of those records. -/
 
 /-- The records whose absence disables every fair label. -/
-def Quiet (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Prop :=
+def Quiet (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) : Prop :=
   (∀ i E, s.input i E = false) ∧
   (∀ i v, s.entered i v = false) ∧
   (∀ i v e, s.accepted i v e = false) ∧
@@ -75,14 +75,14 @@ def Quiet (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Pr
   (∀ i v w e, s.msg_timeout_qc i v w e = false) ∧
   (∀ i v, s.msg_timeout_noqc i v = false)
 
-theorem quiet_init {s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
-    (h : (Mvba.relationalTransitionSystem node nodeset value view).init th s) : Quiet s :=
+theorem quiet_init {s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
+    (h : (Mvba.relationalTransitionSystem node nodeset value evec view).init th s) : Quiet s :=
   ⟨Mvba.input.init h, Mvba.entered.init h, Mvba.accepted.init h, Mvba.msg_prepare.init h,
     Mvba.msg_commit.init h, Mvba.msg_timeout_qc.init h, Mvba.msg_timeout_noqc.init h⟩
 
-theorem quiet_avail {s s' : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+theorem quiet_avail {s s' : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
     {i : node} {e : value}
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th s
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th s
       (.become_avail_ready i e) s') (h : Quiet s) : Quiet s' := by
   simp only [Quiet, Mvba.become_avail_ready.frame_input htr,
     Mvba.become_avail_ready.frame_entered htr, Mvba.become_avail_ready.frame_accepted htr,
@@ -94,9 +94,9 @@ theorem quiet_avail {s s' : Mvba.State (Mvba.FieldAbstractType node nodeset valu
 /-- **No fair label is enabled at a quiet state.** Every fair label is a
 correct validator's step, and each one's guard reads that validator's
 input. -/
-theorem not_enabled_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
-    (hq : Quiet s) {l : Mvba.Label node nodeset value view} {h : Hop} (hh : hop l = some h) :
-    ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value view) th s l := by
+theorem not_enabled_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
+    (hq : Quiet s) {l : Mvba.Label node nodeset value evec view} {h : Hop} (hh : hop l = some h) :
+    ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th s l := by
   obtain ⟨hin, -, -, -, -, -, -⟩ := hq
   rintro ⟨s', htr⟩
   cases l
@@ -111,9 +111,9 @@ theorem not_enabled_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodese
 
 /-- Nor can anybody take a transferred certificate: `decide` needs the input
 too. -/
-theorem not_enabled_decide_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+theorem not_enabled_decide_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
     (hq : Quiet s) {i : node} {v : view} {e : value} :
-    ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value view) th s (.decide i v e) := by
+    ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th s (.decide i v e) := by
   obtain ⟨hin, -, -, -, -, -, -⟩ := hq
   rintro ⟨s', htr⟩
   mvba_tr htr
@@ -122,26 +122,26 @@ theorem not_enabled_decide_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node
 
 /-- `become_avail_ready` is unguarded, so it has a successor at every
 state. -/
-theorem avail_enabled (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+theorem avail_enabled (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view))
     (i : node) (e : value) :
-    ∃ s', (Mvba.relationalTransitionSystem node nodeset value view).tr th s
+    ∃ s', (Mvba.relationalTransitionSystem node nodeset value evec view).tr th s
       (.become_avail_ready i e) s' := by
   simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct, trSimp]
   exact ⟨_, rfl⟩
 
 /-- The witness run's step: the environment marks `default`'s shares for
 `default` as available. -/
-noncomputable def availStep (th : Theory node nodeset value view)
-    (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) :
-    Mvba.State (Mvba.FieldAbstractType node nodeset value view) :=
+noncomputable def availStep (th : Theory node nodeset value evec view)
+    (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) :
+    Mvba.State (Mvba.FieldAbstractType node nodeset value evec view) :=
   Classical.choose (avail_enabled (th := th) s default default)
 
-theorem availStep_tr (s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) :
-    (Mvba.relationalTransitionSystem node nodeset value view).tr th s
+theorem availStep_tr (s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) :
+    (Mvba.relationalTransitionSystem node nodeset value evec view).tr th s
       (.become_avail_ready default default) (availStep th s) :=
   Classical.choose_spec (avail_enabled (th := th) s default default)
 
-theorem quiet_iterate {s : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
+theorem quiet_iterate {s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
     (h : Quiet s) : ∀ n, Quiet ((availStep th)^[n] s)
   | 0 => h
   | n + 1 => by
@@ -154,8 +154,8 @@ end Witness
 
 section Instance
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
   {time : Type} [LinearOrder time] [AddCommMonoid time]
 
@@ -163,17 +163,17 @@ variable {node nodeset value view : Type}
 environment only marks availability, and the clock reads `n • Δ` at index
 `n`. The Archimedean axiom makes that clock unbounded. -/
 noncomputable def witnessRun [IsOrderedAddMonoid time] [Archimedean time]
-    (th : Theory node nodeset value view)
-    (hth : (Mvba.relationalTransitionSystem node nodeset value view).assumptions th)
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
-    (hst : (Mvba.relationalTransitionSystem node nodeset value view).init th st)
+    (th : Theory node nodeset value evec view)
+    (hth : (Mvba.relationalTransitionSystem node nodeset value evec view).assumptions th)
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view))
+    (hst : (Mvba.relationalTransitionSystem node nodeset value evec view).init th st)
     (Δ : time) (hΔ : 0 < Δ) : TMvbaRun th time where
   at' n := (availStep th)^[n] st
   lbl _ := .become_avail_ready default default
   holds := hth
   starts := hst
   steps n := by
-    show (Mvba.relationalTransitionSystem node nodeset value view).tr th _ _
+    show (Mvba.relationalTransitionSystem node nodeset value evec view).tr th _ _
       ((availStep th)^[n + 1] st)
     rw [Function.iterate_succ_apply']
     exact availStep_tr _
@@ -189,15 +189,15 @@ label the hop table covers is enabled, then every clause of
 its label to be enabled throughout its window. The window lengths are
 the schedule's three, `δ`, `Δ` and `Δ + ρ`, all non-negative. -/
 theorem boundedJustice_of_quiet [IsOrderedAddMonoid time] {sch : Schedule view time}
-    {th : Theory node nodeset value view} {r : TMvbaRun th time}
+    {th : Theory node nodeset value evec view} {r : TMvbaRun th time}
     (hq : ∀ (N : Nat) (D : time), 0 ≤ D → ∃ n, N ≤ n ∧ r.clk n ≤ r.ref N + D ∧
-      ∀ (l : Mvba.Label node nodeset value view) (h : Hop), hop l = some h →
-        ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value view) th (r.at' n) l) :
+      ∀ (l : Mvba.Label node nodeset value evec view) (h : Hop), hop l = some h →
+        ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th (r.at' n) l) :
     BoundedJustice sch r := by
   have hΔ : (0 : time) ≤ sch.Δ := sch.Δ_pos.le
   have hΔρ : (0 : time) ≤ sch.Δ + sch.ρ := add_nonneg hΔ sch.ρ_nonneg
   /- One window antecedent, refuted at the quiet index inside it. -/
-  have hwhile : ∀ (D : time), 0 ≤ D → ∀ (l : Mvba.Label node nodeset value view) (h : Hop),
+  have hwhile : ∀ (D : time), 0 ≤ D → ∀ (l : Mvba.Label node nodeset value evec view) (h : Hop),
       hop l = some h → ∀ C, BoundedFairWhile r D l C := fun D hD l h hh C N hen => by
     obtain ⟨n, hn, hc, hnm⟩ := hq N D hD
     exact absurd (hen n hn hc).1 (hnm l h hh)
@@ -216,10 +216,10 @@ accepts. This covers the three labels no proof uses (the two view-zero
 labels and `sync_view_adopt`, §6.2.8's step-3 reassessment): they are fair
 labels like the rest, and vacuously so. -/
 theorem witnessRun_sync [IsOrderedAddMonoid time] [Archimedean time] (sch : Schedule view time)
-    {th : Theory node nodeset value view}
-    (hth : (Mvba.relationalTransitionSystem node nodeset value view).assumptions th)
-    {st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
-    (hst : (Mvba.relationalTransitionSystem node nodeset value view).init th st) :
+    {th : Theory node nodeset value evec view}
+    (hth : (Mvba.relationalTransitionSystem node nodeset value evec view).assumptions th)
+    {st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
+    (hst : (Mvba.relationalTransitionSystem node nodeset value evec view).init th st) :
     Sync sch (witnessRun th hth st hst sch.Δ sch.Δ_pos) := by
   have hq := quiet_iterate (th := th) (quiet_init hst)
   refine ⟨boundedJustice_of_quiet fun N D hD => ⟨N, le_rfl,
@@ -236,12 +236,12 @@ theorem witnessRun_sync [IsOrderedAddMonoid time] [Archimedean time] (sch : Sche
 /-- **`admissible_exists`** — every initial state starts an admissible run:
 the witness run, labelled by itself. -/
 theorem admissible_exists [IsOrderedAddMonoid time] [Archimedean time] (sch : Schedule view time)
-    {th : Theory node nodeset value view}
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+    {th : Theory node nodeset value evec view}
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view))
     (h : (mvbaSafety th).init st) :
     ∃ tr : TimedMvbaRun th time, Admissible sch th tr ∧ tr.at' 0 = st := by
-  obtain ⟨hth, hst⟩ : (Mvba.relationalTransitionSystem node nodeset value view).assumptions th ∧
-      (Mvba.relationalTransitionSystem node nodeset value view).init th st := h
+  obtain ⟨hth, hst⟩ : (Mvba.relationalTransitionSystem node nodeset value evec view).assumptions th ∧
+      (Mvba.relationalTransitionSystem node nodeset value evec view).init th st := h
   let r := witnessRun th hth st hst sch.Δ sch.Δ_pos
   exact ⟨r.toTimedRun (mvbaSafety th).init (mvbaSafety th).trans ⟨hth, hst⟩
       (fun n => ⟨_, r.steps n⟩),
@@ -257,7 +257,7 @@ needed. -/
 theorem timed_termination [IsOrderedCancelAddMonoid time] [Fintype node]
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
-    {th : Theory node nodeset value view} (hrot : LeaderRotation vfin sch.k th) :
+    {th : Theory node nodeset value evec view} (hrot : LeaderRotation vfin sch.k th) :
     ∀ tr : TimedMvbaRun th time, Admissible sch th tr →
       ∀ t : time,
         (∀ p, ¬ nset.is_byz p = true →
@@ -298,13 +298,13 @@ development's run model (`Schedule.Admissible`), and the class leaves that
 choice to the instance. -/
 @[implicit_reducible]
 noncomputable def mvbaTemporal [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
-    (th : Theory node nodeset value view)
+    (th : Theory node nodeset value evec view)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : LeaderRotation vfin sch.k th) :
-    MVBATemporal node value (Msg view value)
-      (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
-      (fun i => nset.is_byz i = true) (S := mvbaSafety th) :=
+    MVBATemporal node value evec (Msg view value evec)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) nodeset time
+      nset (fun i => nset.is_byz i = true) (S := mvbaSafety th) :=
   -- The constructor with `S` named: a `where` instance would synthesise the
   -- class's `[S : MVBASafety …]` argument by search, which finds none.
   MVBATemporal.mk (S := mvbaSafety th)
@@ -319,18 +319,18 @@ instance [System.lean](../System.lean) plugs into Chorus, so the MVBA the compos
 system runs is this one. -/
 @[implicit_reducible]
 noncomputable def mvbaFull [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
-    (th : Theory node nodeset value view)
+    (th : Theory node nodeset value evec view)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : LeaderRotation vfin sch.k th) :
-    MVBA node value (Msg view value)
-      (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) time
-      (fun i => nset.is_byz i = true) :=
+    MVBA node value evec (Msg view value evec)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) nodeset time
+      nset (fun i => nset.is_byz i = true) :=
   mvba_of_temporal th (mvbaTemporal th hqe sch vfin hrot)
 
 /-- The join hands back exactly the fragment Chorus consumes. -/
 theorem mvbaFull_toSafety [IsOrderedCancelAddMonoid time] [Archimedean time] [Fintype node]
-    (th : Theory node nodeset value view)
+    (th : Theory node nodeset value evec view)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : LeaderRotation vfin sch.k th) :
@@ -371,15 +371,15 @@ def Schedule.fixedNat (view : Type) [vord : TotalOrderWithMinimum view] (k : Nat
 every `k` consecutive views. The class's `TotalOrder ℕ` here is the one
 instance search finds, Veil's own, and it agrees with the bridge the
 instance was built with. -/
-noncomputable example {node nodeset value view : Type} [Fintype node]
-    [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+noncomputable example {node nodeset value evec view : Type} [Fintype node]
+    [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
     [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-    (th : Theory node nodeset value view)
+    (th : Theory node nodeset value evec view)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (vfin : ViewOrderEnum view vord) (k : Nat) (hrot : LeaderRotation vfin k th) :
-    MVBATemporal node value (Msg view value)
-      (Mvba.State (Mvba.FieldAbstractType node nodeset value view)) ℕ
-      (fun i => nset.is_byz i = true) (S := mvbaSafety th) :=
+    MVBATemporal node value evec (Msg view value evec)
+      (Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) nodeset ℕ
+      nset (fun i => nset.is_byz i = true) (S := mvbaSafety th) :=
   mvbaTemporal th hqe (Schedule.fixedNat view k) vfin hrot
 
 end Mvba

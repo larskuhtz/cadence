@@ -291,7 +291,7 @@ end Core
 
 section Defs
 
-variable {node nodeset value view : Type} [nset : ByzNodeSet node nodeset]
+variable {node nodeset value evec view : Type} [nset : ByzNodeSet node nodeset]
 
 /-- `r` has sent *some* `Timeout` for view `v` — with a certificate or
 without one. This is what the two timeout-certificate assemblies have in
@@ -301,7 +301,7 @@ needs every member's `Timeout` to be the lock-free form, and `form_own_tc_lock`
 additionally needs one member's carried certificate to dominate the rest.
 A zero residual here is therefore necessary for a `TC_{s,v}` to form and
 not sufficient. -/
-def SentTimeout (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view))
+def SentTimeout (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view))
     (r : node) (v : view) : Prop :=
   st.msg_timeout_noqc r v = true ∨ ∃ W E, st.msg_timeout_qc r v W E = true
 
@@ -309,7 +309,7 @@ def SentTimeout (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view
 not yet entered. `Vs` is the caller's finite index list — the header says why
 it is a parameter and not a consequence of `leader_honest_cofinal`. -/
 noncomputable def viewGap (Vs : List view)
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) (i : node) : Nat :=
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) (i : node) : Nat :=
   residual Vs (fun v => st.entered i v = true)
 
 /-- **The quorum assemblies**, over the members of `q`: who still owes a
@@ -317,8 +317,8 @@ noncomputable def viewGap (Vs : List view)
 needs `ByzNodeSetEnum` and safety does not: **safety consumes a quorum
 intersection, liveness must assemble a quorum.** -/
 noncomputable def assemblyGap (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (q : nodeset) (v : view) (e : value)
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Nat :=
+    (q : nodeset) (v : view) (e : evec)
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) : Nat :=
   residual (enum.members q) (fun r => st.msg_prepare r v e = true)
     + residual (enum.members q) (fun r => st.msg_commit r v e = true)
     + residual (enum.members q) (fun r => SentTimeout st r v)
@@ -329,20 +329,20 @@ availability shares delivered, or decided. These are honest-only relations,
 which is why the index list is the honest core and not the quorum (the
 header, and `exists_honest_core`). -/
 noncomputable def chainGap (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (hc : nodeset) (v : view) (e : value)
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Nat :=
-  residual (enum.members hc) (fun r => st.accepted r v e = true)
+    (hc : nodeset) (v : view) (x : value) (e : evec)
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) : Nat :=
+  residual (enum.members hc) (fun r => st.accepted r v x = true)
     + residual (enum.members hc) (fun r => st.local_prepqc r v e = true)
-    + residual (enum.members hc) (fun r => st.avail_ready r e = true)
-    + residual (enum.members hc) (fun r => st.decided r e = true)
+    + residual (enum.members hc) (fun r => st.avail_ready r x = true)
+    + residual (enum.members hc) (fun r => st.decided r x = true)
 
 /-- The lexicographic rank of a state, for validator `i` waiting on the views
 `Vs`, on quorum `q`'s assemblies at `(v, e)`, and on the chain at `q`'s
 honest core `hc`. -/
 noncomputable def rank (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value)
-    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)) : Nat × Nat :=
-  (viewGap Vs st i, assemblyGap enum q v e st + chainGap enum hc v e st)
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec)
+    (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) : Nat × Nat :=
+  (viewGap Vs st i, assemblyGap enum q v e st + chainGap enum hc v x e st)
 
 end Defs
 
@@ -353,9 +353,9 @@ Every component has that property, and none of these needs a transition. -/
 
 section Zero
 
-variable {node nodeset value view : Type} [nset : ByzNodeSet node nodeset]
-  {st : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
-  {enum : Cadence.ByzNodeSetEnum node nodeset nset} {q hc : nodeset} {v : view} {e : value}
+variable {node nodeset value evec view : Type} [nset : ByzNodeSet node nodeset]
+  {st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
+  {enum : Cadence.ByzNodeSetEnum node nodeset nset} {q hc : nodeset} {v : view} {x : value} {e : evec}
 
 omit nset in
 /-- View gap `0`: the validator has entered every view of the list — in
@@ -390,15 +390,15 @@ theorem timeout_quorum_of_assemblyGap_zero (h : assemblyGap enum q v e st = 0)
   exact residual_eq_zero_iff.mp hz r ((enum.mem_members r q).mp hr)
 
 /-- Chain residual `0`: every member of the honest core accepted `e` in `v`. -/
-theorem accepted_of_chainGap_zero (h : chainGap enum hc v e st = 0)
-    (r : node) (hr : nset.member r hc = true) : st.accepted r v e = true := by
-  have hz : residual (enum.members hc) (fun r => st.accepted r v e = true) = 0 := by
+theorem accepted_of_chainGap_zero (h : chainGap enum hc v x e st = 0)
+    (r : node) (hr : nset.member r hc = true) : st.accepted r v x = true := by
+  have hz : residual (enum.members hc) (fun r => st.accepted r v x = true) = 0 := by
     simp only [chainGap] at h; omega
   exact residual_eq_zero_iff.mp hz r ((enum.mem_members r hc).mp hr)
 
 /-- Chain residual `0`: every member of the honest core holds the view's
 certificate on `e`. -/
-theorem local_prepqc_of_chainGap_zero (h : chainGap enum hc v e st = 0)
+theorem local_prepqc_of_chainGap_zero (h : chainGap enum hc v x e st = 0)
     (r : node) (hr : nset.member r hc = true) : st.local_prepqc r v e = true := by
   have hz : residual (enum.members hc) (fun r => st.local_prepqc r v e = true) = 0 := by
     simp only [chainGap] at h; omega
@@ -406,17 +406,17 @@ theorem local_prepqc_of_chainGap_zero (h : chainGap enum hc v e st = 0)
 
 /-- Chain residual `0`: every member of the honest core has its availability
 shares for `e` — `send_commit`'s environment precondition. -/
-theorem avail_ready_of_chainGap_zero (h : chainGap enum hc v e st = 0)
-    (r : node) (hr : nset.member r hc = true) : st.avail_ready r e = true := by
-  have hz : residual (enum.members hc) (fun r => st.avail_ready r e = true) = 0 := by
+theorem avail_ready_of_chainGap_zero (h : chainGap enum hc v x e st = 0)
+    (r : node) (hr : nset.member r hc = true) : st.avail_ready r x = true := by
+  have hz : residual (enum.members hc) (fun r => st.avail_ready r x = true) = 0 := by
     simp only [chainGap] at h; omega
   exact residual_eq_zero_iff.mp hz r ((enum.mem_members r hc).mp hr)
 
 /-- Chain residual `0`, the payoff: every member of the honest core has
 decided `e`. -/
-theorem decided_of_chainGap_zero (h : chainGap enum hc v e st = 0)
-    (r : node) (hr : nset.member r hc = true) : st.decided r e = true := by
-  have hz : residual (enum.members hc) (fun r => st.decided r e = true) = 0 := by
+theorem decided_of_chainGap_zero (h : chainGap enum hc v x e st = 0)
+    (r : node) (hr : nset.member r hc = true) : st.decided r x = true := by
+  have hz : residual (enum.members hc) (fun r => st.decided r x = true) = 0 := by
     simp only [chainGap] at h; omega
   exact residual_eq_zero_iff.mp hz r ((enum.mem_members r hc).mp hr)
 
@@ -425,8 +425,8 @@ the encoding: an honest core is `greater_than_third`, hence non-empty of
 honest members, so a zero chain residual exhibits a **correct** validator
 that has decided `e`. -/
 theorem exists_honest_decided_of_chainGap_zero
-    (hgt : nset.greater_than_third hc) (h : chainGap enum hc v e st = 0) :
-    ∃ r, ¬ nset.is_byz r = true ∧ st.decided r e = true := by
+    (hgt : nset.greater_than_third hc) (h : chainGap enum hc v x e st = 0) :
+    ∃ r, ¬ nset.is_byz r = true ∧ st.decided r x = true := by
   obtain ⟨r, hmem, hhon⟩ := nset.greater_than_third_one_honest hc hgt
   exact ⟨r, hhon, decided_of_chainGap_zero h r hmem⟩
 
@@ -443,29 +443,29 @@ down but never up. -/
 
 section Step
 
-variable {node nodeset value view : Type}
-  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited view]
+variable {node nodeset value evec view : Type}
+  [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view]
   [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  {th : Theory node nodeset value view}
-  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value view)}
-  {l : Label node nodeset value view}
+  {th : Theory node nodeset value evec view}
+  {st st' : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
+  {l : Label node nodeset value evec view}
 
 /-- Having sent a `Timeout` is monotone: both disjuncts are. -/
 theorem sentTimeout_mono
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (r : node) (v : view) (h : SentTimeout st r v) : SentTimeout st' r v := by
   rcases h with h | ⟨W, E, h⟩
   · exact Or.inl (Mvba.msg_timeout_noqc.mono htr r v h)
   · exact Or.inr ⟨W, E, Mvba.msg_timeout_qc.mono htr r v W E h⟩
 
 theorem viewGap_le
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (i : node) : viewGap Vs st' i ≤ viewGap Vs st i :=
   residual_le (fun v => Mvba.entered.mono htr i v) Vs
 
 theorem assemblyGap_le
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
-    (enum : Cadence.ByzNodeSetEnum node nodeset nset) (q : nodeset) (v : view) (e : value) :
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset) (q : nodeset) (v : view) (e : evec) :
     assemblyGap enum q v e st' ≤ assemblyGap enum q v e st := by
   have hp := residual_le (fun r => Mvba.msg_prepare.mono htr r v e) (enum.members q)
   have hc := residual_le (fun r => Mvba.msg_commit.mono htr r v e) (enum.members q)
@@ -474,35 +474,35 @@ theorem assemblyGap_le
   omega
 
 theorem chainGap_le
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
-    (enum : Cadence.ByzNodeSetEnum node nodeset nset) (hc : nodeset) (v : view) (e : value) :
-    chainGap enum hc v e st' ≤ chainGap enum hc v e st := by
-  have ha := residual_le (fun r => Mvba.accepted.mono htr r v e) (enum.members hc)
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
+    (enum : Cadence.ByzNodeSetEnum node nodeset nset) (hc : nodeset) (v : view) (x : value) (e : evec) :
+    chainGap enum hc v x e st' ≤ chainGap enum hc v x e st := by
+  have ha := residual_le (fun r => Mvba.accepted.mono htr r v x) (enum.members hc)
   have hl := residual_le (fun r => Mvba.local_prepqc.mono htr r v e) (enum.members hc)
-  have hv := residual_le (fun r => Mvba.avail_ready.mono htr r e) (enum.members hc)
-  have hd := residual_le (fun r => Mvba.decided.mono htr r e) (enum.members hc)
+  have hv := residual_le (fun r => Mvba.avail_ready.mono htr r x) (enum.members hc)
+  have hd := residual_le (fun r => Mvba.decided.mono htr r x) (enum.members hc)
   simp only [chainGap]
   omega
 
 /-- **The rank never increases along a transition** — it either stays put or
 strictly decreases. -/
 theorem rank_noninc
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value) :
-    rank Vs enum i q hc v e st' = rank Vs enum i q hc v e st ∨
-      RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec) :
+    rank Vs enum i q hc v x e st' = rank Vs enum i q hc v x e st ∨
+      RankLt (rank Vs enum i q hc v x e st') (rank Vs enum i q hc v x e st) := by
   have hA := assemblyGap_le htr enum q v e
-  have hC := chainGap_le htr enum hc v e
+  have hC := chainGap_le htr enum hc v x e
   rcases Nat.lt_or_ge (viewGap Vs st' i) (viewGap Vs st i) with h | h
   · exact Or.inr (Prod.Lex.left _ _ h)
   · have heq : viewGap Vs st' i = viewGap Vs st i :=
       Nat.le_antisymm (viewGap_le htr Vs i) h
-    rcases Nat.lt_or_ge (assemblyGap enum q v e st' + chainGap enum hc v e st')
-      (assemblyGap enum q v e st + chainGap enum hc v e st) with h2 | h2
+    rcases Nat.lt_or_ge (assemblyGap enum q v e st' + chainGap enum hc v x e st')
+      (assemblyGap enum q v e st + chainGap enum hc v x e st) with h2 | h2
     · exact Or.inr (by simp only [rank, heq]; exact Prod.Lex.right _ h2)
-    · have h2eq : assemblyGap enum q v e st' + chainGap enum hc v e st'
-          = assemblyGap enum q v e st + chainGap enum hc v e st := by omega
+    · have h2eq : assemblyGap enum q v e st' + chainGap enum hc v x e st'
+          = assemblyGap enum q v e st + chainGap enum hc v x e st := by omega
       exact Or.inl (by simp only [rank, heq, h2eq])
 
 /-! ## The rank strictly decreases
@@ -516,24 +516,24 @@ dropped decides against the six that cannot have grown. -/
 
 /-- Entering a view of the list. -/
 theorem rank_lt_of_entered
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec)
     {u : view} (hu : u ∈ Vs) (h0 : st.entered i u = false) (h1 : st'.entered i u = true) :
-    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) :=
+    RankLt (rank Vs enum i q hc v x e st') (rank Vs enum i q hc v x e st) :=
   Prod.Lex.left _ _
     (residual_lt_of_new (fun w => Mvba.entered.mono htr i w) hu (by simp [h0]) h1)
 
 /-- A quorum member's `Prepare` arriving at `(v, e)`. -/
 theorem rank_lt_of_prepare
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec)
     {r : node} (hr : nset.member r q = true)
     (h0 : st.msg_prepare r v e = false) (h1 : st'.msg_prepare r v e = true) :
-    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+    RankLt (rank Vs enum i q hc v x e st') (rank Vs enum i q hc v x e st) := by
   refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
-  have hC := chainGap_le htr enum hc v e
+  have hC := chainGap_le htr enum hc v x e
   have hlt := residual_lt_of_new (fun r' => Mvba.msg_prepare.mono htr r' v e)
     ((enum.mem_members r q).mp hr) (by simp [h0]) h1
   have hc2 := residual_le (fun r' => Mvba.msg_commit.mono htr r' v e) (enum.members q)
@@ -543,14 +543,14 @@ theorem rank_lt_of_prepare
 
 /-- A quorum member's `Commit` arriving at `(v, e)`. -/
 theorem rank_lt_of_commit
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec)
     {r : node} (hr : nset.member r q = true)
     (h0 : st.msg_commit r v e = false) (h1 : st'.msg_commit r v e = true) :
-    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+    RankLt (rank Vs enum i q hc v x e st') (rank Vs enum i q hc v x e st) := by
   refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
-  have hC := chainGap_le htr enum hc v e
+  have hC := chainGap_le htr enum hc v x e
   have hp := residual_le (fun r' => Mvba.msg_prepare.mono htr r' v e) (enum.members q)
   have hlt := residual_lt_of_new (fun r' => Mvba.msg_commit.mono htr r' v e)
     ((enum.mem_members r q).mp hr) (by simp [h0]) h1
@@ -562,14 +562,14 @@ theorem rank_lt_of_commit
 assembly that closes the view, which is the route by which the *first*
 component advances past view 1. -/
 theorem rank_lt_of_timeout
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec)
     {r : node} (hr : nset.member r q = true)
     (h0 : ¬ SentTimeout st r v) (h1 : SentTimeout st' r v) :
-    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+    RankLt (rank Vs enum i q hc v x e st') (rank Vs enum i q hc v x e st) := by
   refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
-  have hC := chainGap_le htr enum hc v e
+  have hC := chainGap_le htr enum hc v x e
   have hp := residual_le (fun r' => Mvba.msg_prepare.mono htr r' v e) (enum.members q)
   have hc2 := residual_le (fun r' => Mvba.msg_commit.mono htr r' v e) (enum.members q)
   have hlt := residual_lt_of_new (fun r' => sentTimeout_mono htr r' v)
@@ -579,75 +579,75 @@ theorem rank_lt_of_timeout
 
 /-- An honest-core member accepting the proposal (`handle_preprepare`). -/
 theorem rank_lt_of_accepted
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec)
     {r : node} (hr : nset.member r hc = true)
-    (h0 : st.accepted r v e = false) (h1 : st'.accepted r v e = true) :
-    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+    (h0 : st.accepted r v x = false) (h1 : st'.accepted r v x = true) :
+    RankLt (rank Vs enum i q hc v x e st') (rank Vs enum i q hc v x e st) := by
   refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
   have hA := assemblyGap_le htr enum q v e
-  have hlt := residual_lt_of_new (fun r' => Mvba.accepted.mono htr r' v e)
+  have hlt := residual_lt_of_new (fun r' => Mvba.accepted.mono htr r' v x)
     ((enum.mem_members r hc).mp hr) (by simp [h0]) h1
   have hl := residual_le (fun r' => Mvba.local_prepqc.mono htr r' v e) (enum.members hc)
-  have hv := residual_le (fun r' => Mvba.avail_ready.mono htr r' e) (enum.members hc)
-  have hd := residual_le (fun r' => Mvba.decided.mono htr r' e) (enum.members hc)
+  have hv := residual_le (fun r' => Mvba.avail_ready.mono htr r' x) (enum.members hc)
+  have hd := residual_le (fun r' => Mvba.decided.mono htr r' x) (enum.members hc)
   simp only [chainGap]
   omega
 
 /-- An honest-core member adopting the view's certificate (`adopt_prepqc`,
 `sync_view_adopt`). -/
 theorem rank_lt_of_adopt
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec)
     {r : node} (hr : nset.member r hc = true)
     (h0 : st.local_prepqc r v e = false) (h1 : st'.local_prepqc r v e = true) :
-    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+    RankLt (rank Vs enum i q hc v x e st') (rank Vs enum i q hc v x e st) := by
   refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
   have hA := assemblyGap_le htr enum q v e
-  have ha := residual_le (fun r' => Mvba.accepted.mono htr r' v e) (enum.members hc)
+  have ha := residual_le (fun r' => Mvba.accepted.mono htr r' v x) (enum.members hc)
   have hlt := residual_lt_of_new (fun r' => Mvba.local_prepqc.mono htr r' v e)
     ((enum.mem_members r hc).mp hr) (by simp [h0]) h1
-  have hv := residual_le (fun r' => Mvba.avail_ready.mono htr r' e) (enum.members hc)
-  have hd := residual_le (fun r' => Mvba.decided.mono htr r' e) (enum.members hc)
+  have hv := residual_le (fun r' => Mvba.avail_ready.mono htr r' x) (enum.members hc)
+  have hd := residual_le (fun r' => Mvba.decided.mono htr r' x) (enum.members hc)
   simp only [chainGap]
   omega
 
 /-- An honest-core member's availability shares arriving
 (`become_avail_ready`; the (F-avail) hook). -/
 theorem rank_lt_of_avail_ready
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec)
     {r : node} (hr : nset.member r hc = true)
-    (h0 : st.avail_ready r e = false) (h1 : st'.avail_ready r e = true) :
-    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+    (h0 : st.avail_ready r x = false) (h1 : st'.avail_ready r x = true) :
+    RankLt (rank Vs enum i q hc v x e st') (rank Vs enum i q hc v x e st) := by
   refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
   have hA := assemblyGap_le htr enum q v e
-  have ha := residual_le (fun r' => Mvba.accepted.mono htr r' v e) (enum.members hc)
+  have ha := residual_le (fun r' => Mvba.accepted.mono htr r' v x) (enum.members hc)
   have hl := residual_le (fun r' => Mvba.local_prepqc.mono htr r' v e) (enum.members hc)
-  have hlt := residual_lt_of_new (fun r' => Mvba.avail_ready.mono htr r' e)
+  have hlt := residual_lt_of_new (fun r' => Mvba.avail_ready.mono htr r' x)
     ((enum.mem_members r hc).mp hr) (by simp [h0]) h1
-  have hd := residual_le (fun r' => Mvba.decided.mono htr r' e) (enum.members hc)
+  have hd := residual_le (fun r' => Mvba.decided.mono htr r' x) (enum.members hc)
   simp only [chainGap]
   omega
 
 /-- An honest-core member deciding (`decide`) — the last step, and the one the
 whole rank is aimed at. -/
 theorem rank_lt_of_decided
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value)
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec)
     {r : node} (hr : nset.member r hc = true)
-    (h0 : st.decided r e = false) (h1 : st'.decided r e = true) :
-    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+    (h0 : st.decided r x = false) (h1 : st'.decided r x = true) :
+    RankLt (rank Vs enum i q hc v x e st') (rank Vs enum i q hc v x e st) := by
   refine rankLt_of (viewGap_le htr Vs i) (fun _ => ?_)
   have hA := assemblyGap_le htr enum q v e
-  have ha := residual_le (fun r' => Mvba.accepted.mono htr r' v e) (enum.members hc)
+  have ha := residual_le (fun r' => Mvba.accepted.mono htr r' v x) (enum.members hc)
   have hl := residual_le (fun r' => Mvba.local_prepqc.mono htr r' v e) (enum.members hc)
-  have hv := residual_le (fun r' => Mvba.avail_ready.mono htr r' e) (enum.members hc)
-  have hlt := residual_lt_of_new (fun r' => Mvba.decided.mono htr r' e)
+  have hv := residual_le (fun r' => Mvba.avail_ready.mono htr r' x) (enum.members hc)
+  have hlt := residual_lt_of_new (fun r' => Mvba.decided.mono htr r' x)
     ((enum.mem_members r hc).mp hr) (by simp [h0]) h1
   simp only [chainGap]
   omega
@@ -663,7 +663,7 @@ down". -/
 
 /-- The higher view `entered_higher_of_in_view_disabled` produces is fresh. -/
 theorem entered_fresh_above_of_in_view_disabled
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (i : node) (w : view) (h : InView st i w) (h' : ¬ InView st' i w) :
     ∃ W, vord.lt w W ∧ st.entered i W = false ∧ st'.entered i W = true := by
   obtain ⟨W, hW, hlt⟩ := entered_higher_of_in_view_disabled htr i w h h'
@@ -679,14 +679,14 @@ higher view, and then nothing has been gained. That is precisely the hole
 (A-viewsync) fills in the run-level argument, and precisely why it is a
 hypothesis here rather than a silent assumption. -/
 theorem rank_lt_of_leaving_view
-    (htr : (Mvba.relationalTransitionSystem node nodeset value view).tr th st l st')
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
     (Vs : List view) (enum : Cadence.ByzNodeSetEnum node nodeset nset)
-    (i : node) (q hc : nodeset) (v : view) (e : value) (w : view)
+    (i : node) (q hc : nodeset) (v : view) (x : value) (e : evec) (w : view)
     (h : InView st i w) (h' : ¬ InView st' i w)
     (hcover : ∀ W, vord.lt w W → st.entered i W = false → st'.entered i W = true → W ∈ Vs) :
-    RankLt (rank Vs enum i q hc v e st') (rank Vs enum i q hc v e st) := by
+    RankLt (rank Vs enum i q hc v x e st') (rank Vs enum i q hc v x e st) := by
   obtain ⟨W, hlt, h0, h1⟩ := entered_fresh_above_of_in_view_disabled htr i w h h'
-  exact rank_lt_of_entered htr Vs enum i q hc v e (hcover W hlt h0 h1) h0 h1
+  exact rank_lt_of_entered htr Vs enum i q hc v x e (hcover W hlt h0 h1) h0 h1
 
 /-! ## The target view
 
@@ -698,14 +698,14 @@ gap; it does not, and cannot, supply the list of views leading up to it. -/
 one — the model's `leader_honest_cofinal` assumption, read off a theory the
 transition system admits. -/
 theorem exists_honest_leader_above
-    (hasm : (Mvba.relationalTransitionSystem node nodeset value view).assumptions th)
+    (hasm : (Mvba.relationalTransitionSystem node nodeset value evec view).assumptions th)
     (V : view) :
     ∃ (W : view) (L : node), vord.le V W ∧ th.leader W L = true ∧ ¬ nset.is_byz L = true :=
   hasm.2 V
 
 /-- The same at any reachable state: reachability carries the assumptions. -/
 theorem exists_honest_leader_above_of_reachable
-    (hr : (Mvba.relationalTransitionSystem node nodeset value view).reachable th st)
+    (hr : (Mvba.relationalTransitionSystem node nodeset value evec view).reachable th st)
     (V : view) :
     ∃ (W : view) (L : node), vord.le V W ∧ th.leader W L = true ∧ ¬ nset.is_byz L = true :=
   exists_honest_leader_above

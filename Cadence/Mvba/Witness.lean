@@ -98,13 +98,14 @@ def hqeW : ByzNodeSetHonestQuorum (Fin 4) (ByzNSet 4) nsetW where
     decide
 
 /-- Every value is valid; validator 0 leads every view. -/
-def thW : Theory (Fin 4) (ByzNSet 4) Unit ℕ where
+def thW : Theory (Fin 4) (ByzNSet 4) Unit Unit ℕ where
+  ent _ := ()
   valid _ := true
   leader _ l := Decidable.decide (l = 0)
 
-abbrev S := Mvba.State (Mvba.FieldAbstractType (Fin 4) (ByzNSet 4) Unit ℕ)
-noncomputable abbrev sys := Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) Unit ℕ
-abbrev L := Mvba.Label (Fin 4) (ByzNSet 4) Unit ℕ
+abbrev S := Mvba.State (Mvba.FieldAbstractType (Fin 4) (ByzNSet 4) Unit Unit ℕ)
+noncomputable abbrev sys := Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) Unit Unit ℕ
+abbrev L := Mvba.Label (Fin 4) (ByzNSet 4) Unit Unit ℕ
 
 /-! ## The states
 
@@ -577,14 +578,14 @@ It rules out that the bounded Termination claim holds only because no run
 can meet its premises: there is an admissible run in which the caller
 behaves, so the theorem's conclusion is a real constraint on that run. -/
 theorem timedTermination_premises_satisfiable :
-    ∃ (node nodeset value view : Type) (_ : Inhabited node) (_ : Inhabited nodeset)
-      (_ : Inhabited value) (_ : Inhabited view)
+    ∃ (node nodeset value evec view : Type) (_ : Inhabited node) (_ : Inhabited nodeset)
+      (_ : Inhabited value) (_ : Inhabited evec) (_ : Inhabited view)
       (nset : ByzNodeSet node nodeset) (vord : TotalOrderWithMinimum view) (_ : Fintype node)
       (time : Type) (_ : LinearOrder time) (_ : AddCommMonoid time)
       (_ : IsOrderedCancelAddMonoid time) (_ : Archimedean time)
       (_ : ByzNodeSetHonestQuorum node nodeset nset)
       (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
-      (th : Theory node nodeset value view),
+      (th : Theory node nodeset value evec view),
       LeaderRotation vfin sch.k th ∧
       ∃ (tr : TimedMvbaRun th time) (t : time),
         Admissible sch th tr ∧
@@ -597,7 +598,8 @@ theorem timedTermination_premises_satisfiable :
             ∃ u, TotalOrder.le t u ∧ TotalOrder.le tr.gst u ∧
               (∀ u', TotalOrder.le t u' → TotalOrder.le tr.gst u' → TotalOrder.le u u') ∧
               ¬ TotalOrder.le (tr.clk n) (u + sch.ℓ vfin)) :=
-  ⟨Fin 4, ByzNSet 4, Unit, ℕ, inferInstance, inferInstance, inferInstance, inferInstance,
+  ⟨Fin 4, ByzNSet 4, Unit, Unit, ℕ, inferInstance, inferInstance, inferInstance, inferInstance,
+    inferInstance,
     nsetW, natViewOrder, inferInstance, ℕ, inferInstance, inferInstance, inferInstance,
     inferInstance, hqeW, schW, natViewOrderEnum, thW, rotation, trW, 0, admissible,
     proposes_by, valid_inputs, abandons_late⟩
@@ -616,15 +618,16 @@ fairness asks only of enabled labels, and once the run is idle none is;
 nothing in that argument depends on the quorum sort being finite
 (Bounds.md §6.2.4). -/
 theorem termination_premises_satisfiable :
-    ∃ (node nodeset value view : Type) (_ : Inhabited node) (_ : Inhabited nodeset)
-      (_ : Inhabited value) (_ : Inhabited view)
+    ∃ (node nodeset value evec view : Type) (_ : Inhabited node) (_ : Inhabited nodeset)
+      (_ : Inhabited value) (_ : Inhabited evec) (_ : Inhabited view)
       (nset : ByzNodeSet node nodeset) (vord : TotalOrderWithMinimum view) (_ : Fintype node)
       (_ : ByzNodeSetHonestQuorum node nodeset nset) (_ : ViewOrderEnum view vord)
-      (th : Theory node nodeset value view),
-      (Mvba.relationalTransitionSystem node nodeset value view).assumptions th ∧
+      (th : Theory node nodeset value evec view),
+      (Mvba.relationalTransitionSystem node nodeset value evec view).assumptions th ∧
       ∃ r : MvbaRun th,
         FJustice r ∧ AViewSync r ∧ FAvail r ∧ AllPropose r ∧ NoEarlyAbandon r ∧ FRelay r :=
-  ⟨Fin 4, ByzNSet 4, Unit, ℕ, inferInstance, inferInstance, inferInstance, inferInstance,
+  ⟨Fin 4, ByzNSet 4, Unit, Unit, ℕ, inferInstance, inferInstance, inferInstance, inferInstance,
+    inferInstance,
     nsetW, natViewOrder, inferInstance, hqeW, natViewOrderEnum, thW, holds, run.toLRun,
     fJustice, aViewSync, fAvail, allPropose, noEarlyAbandon, fRelay⟩
 
