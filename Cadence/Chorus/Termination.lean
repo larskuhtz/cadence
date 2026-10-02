@@ -2844,10 +2844,20 @@ omit cnt in
 set_option maxHeartbeats 1600000 in
 /-- **Stage 5: Chorus terminates.** [Liveness.lean](Liveness.lean)'s `TerminationClaim`, proven:
 at every `n = 3f+1` with at most `f` Byzantine validators, at the system's
-configuration `Cadence.chorusTheory`, every run satisfying `FJustice`,
-`MvbaAdmissible`, `ValidBridge`, `AllParticipate` and
-`NoAbandonBeforeFinalizing` `Terminates` — every correct validator
+configurations `Cadence.chorusTheory` and `Cadence.mvbaTheory`, every run
+satisfying `FJustice`, `MvbaAdmissible`, `ValidBridge`, `AllParticipate`
+and `NoAbandonBeforeFinalizing` `Terminates` — every correct validator
 finalizes the slot.
+
+**Why the MVBA's configuration is fixed.** At `Cadence.mvbaTheory` a
+meta-block's entry vector is its own entries with the certificates dropped
+(`ent := MetaBlock.entries`), as the paper defines `entries(B)`; the
+validity predicate and the leader schedule stay arbitrary. Termination
+needs it because a validator must be able to propose a certified
+meta-block: under an arbitrary `ent` no representation need have the
+entries the network certifies. It fixes the configuration the composed
+system runs, as `Cadence.chorusTheory` does for Chorus's projections; it is
+not a premise.
 
 The proof splits on an early finalization, as the paper's does
 (Lemma 11 (`lemma:chorus-termination`)):

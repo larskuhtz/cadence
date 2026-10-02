@@ -248,11 +248,9 @@ come first.
   §6.4.2), and R12 fixed F12 in the model. Next: S4, the MVBA tail and the assembly
   ([Bounds.md](Bounds.md) §6.4.6, the reassessment after S3).
 
-  **Open from R12** ([Bounds.md](Bounds.md) §6.4.2, "F12 closed"): F13, a
-  root with both a FastQC and a FallbackQC leaves the model's fallback commit
-  vote without the paper's wait, a timed-premise residual that R15 closes
-  ([PaperAlignment.md](PaperAlignment.md) §5.5). F14 is closed (R14,
-  "F14 closed").
+  F13 is closed (R15, [Bounds.md](Bounds.md) §6.4.2, "F13 closed"): the
+  fallback commit vote waits under the FallbackQC entries of the validator's
+  own `B′`. F14 is closed (R14, "F14 closed").
 
 ## Model hygiene
 
@@ -335,12 +333,17 @@ plan's sessions, in order:
   fragments; F14 closed; the documentation items; citations to the
   rendered PDF, with the label map and its check
   ([PaperAlignment.md](PaperAlignment.md) §8, "R14").
-* **R15**: the MVBA value carries certificate kinds, the contract states
-  Agreement and Integrity over `entries`, and Chorus waits under its own
-  `B′` (closes F13). Mvba and Chorus re-solve cold. The citations of
-  Interfaces.lean and System.lean move to the rendered form.
+* **R15** (done, 2026-10-02): the MVBA value is the meta-block
+  representation, the contract states Agreement and Integrity over
+  `entries` and gains the certificate-level fields, and Chorus waits under
+  its own `B′` (F13 closed); the citations of Interfaces.lean and
+  System.lean are in the rendered form
+  ([PaperAlignment.md](PaperAlignment.md) §8, "R15", and §8.1).
 * **R16**: Chorus finalizes on the MVBA's `CommitQC` as well (Part I's
-  route). Chorus re-solves cold.
+  route). Chorus re-solves cold. It lifts `veil_smt_ignore` on the
+  certificate-level fields its cells read, and decides whether `AvailReady`
+  becomes a contract input Chorus drives or a stated bridge
+  ([PaperAlignment.md](PaperAlignment.md) §8, "R16").
 * **R17**: re-validate, flip the statement to "corresponds", tag
   `paper-target/48cac9a`.
 

@@ -2086,6 +2086,7 @@ Two findings from the fix, both reported, neither acted on:
   R13:* F13 is an artefact of the hybrid target. At `48cac9a` each
   validator's own `B′` carries its certificates, and the realignment closes
   F13 exactly ([PaperAlignment.md](PaperAlignment.md) §5.5, §8 R15).
+  **Closed in R15**, see "F13 closed" below.
 * **F14: re-dissemination's "decided" owed-disjunct was used by no proof,
   and it was stronger than the paper.** `Owed (.redisseminate_chunk k i j
   m)` was `(CorrectChunkQuorum j m ∧ k has decided) ∨ msg_fb_pos_sig k j
@@ -2112,6 +2113,29 @@ signer's own positive entry, and is unchanged up to the disjunction's
 injection. `Chorus.termination`, the timeline milestones, `Chorus.totality`
 and the three witness theorems re-checked in plain Lean, all at
 `[propext, Classical.choice, Quot.sound]`.
+
+**F13 closed** (R15). The MVBA's value is now the meta-block
+representation, each validator decides its own, and the wait runs under
+exactly the FallbackQC entries of the validator's own `B′`
+([PaperAlignment.md](PaperAlignment.md) §8.1 (d)):
+
+| | `cast_fb_commit`'s DA wait |
+|---|---|
+| paper | upon `MVBA[s].decide(B′)`: for each FallbackQC in B′ with a positive entry ⟨s, j, root⟩: wait until p_i has received and validated its assigned chunk for root (Algorithm 5, line 37 (`line:fb-mvba-decide`) to Algorithm 5, line 39 (`line:fb-commit-wait`)) |
+| before | `∀ J M, is_proposer J → mvba_decided_pos J M → vote_quorum_pos J M ∨ msg_chunk_received i J M` |
+| after | `cast_fb_commit i v`: `mvba.decided mvba_st i v` and `∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J → msg_chunk_received i J M` |
+
+A root that is FastQC-certified somewhere but FallbackQC-certified in the
+validator's `B′` is now waited for, as in the paper, so the residual is
+gone. `Owed (.cast_fb_commit i v)` is "`i` decided `v` and no other
+representation" (P11 of [PaperAlignment.md](PaperAlignment.md) §6), and
+the row stays a δ-row: its chunk is delivered by `redisseminate_chunk`'s
+Δ-row from the correct FallbackQC signer, so the premise owes the vote δ
+after the wait is over, when the paper's validator casts it.
+`eventually_fbcommit_sig` reads the FallbackQC entries of the validator's
+own decision; the fallback quorum is `ValidBridge`'s completeness, and the
+correct signer's own signature gives the proposer's root and the decode
+quorum. The `#veil_status Chorus` count is unchanged, `47 · 102 + 46 = 4840`.
 
 **Expected pins, written before the build.** Chorus: one action and one
 state relation, no property: `101 + 46 × (101 + 1) + 47 = 4840` (from
@@ -2388,12 +2412,16 @@ The instance, shared by the three claims:
   MVBA's honest core in `Mvba.termination`). The timed claims hold at any
   instance.
 * **The system's configuration** (`chorusTheory`: its assumption is that the
-  MVBA starts in an initial state): obvious. Model: one proposer,
-  validator 0; every root well-encoded; the MVBA's initial state. *Used
-  in:* `abandoned_of_mvba_abandoned` (the MVBA's abandonments come from
+  MVBA starts in an initial state; and, for `Chorus.termination`,
+  `mvbaTheory`: a meta-block's entry vector is its own entries): obvious.
+  Model: one proposer, validator 0; every root well-encoded; the MVBA's
+  initial state; `ent := MetaBlock.entries`. *Used in:*
+  `abandoned_of_mvba_abandoned` (the MVBA's abandonments come from
   Chorus's, for `all_decided_of_all_input` and the timeline's
-  `within_input_of_*`) and `eventually_mvba_complete` (the MVBA's
-  reachability, hence its agreement).
+  `within_input_of_*`), `eventually_mvba_complete` (the MVBA's
+  reachability, hence its agreement), and `certified_certifiedVector` (the
+  certified meta-block has the certified entries, through `mvbaTheory`'s
+  `ent` and `chorusTheory`'s `mval_fb`).
 * **`ViewOrderEnum`, a correct supermajority (`ByzNodeSetHonestQuorum`)**:
   obvious (§6.3). Model: `ℕ`, and `{0, 1, 2}`. *Used in:*
   `all_decided_of_all_input` (handed to `Mvba.termination`), and the honest
@@ -2464,15 +2492,19 @@ The bridge, a premise of both termination claims:
   against Chorus's network at every index, in both directions (§6.3.3).
   Discharged by `Chorus.termination_premises_satisfiable` and
   `Chorus.timedTermination_premises_satisfiable`. With
-  `valid := (· = v⋆)`, `v⋆` giving the proposer its root and everyone else
-  nothing, soundness holds because `v⋆` is the only vector that passes the
-  certificate check at any index (`Chorus.Witness.certified_eq`). A
-  non-proposer can have no entry. The proposer's entry cannot be negative,
-  since no negative FastQC and no `FBCert` ever exist. Completeness holds
-  because nobody decides in the MVBA. *Used in:* soundness by
-  `eventually_committed_of_mvba_arm` (the certified vector is `Valid`, so
-  `mvba_propose` is enabled), completeness by `eventually_mvba_complete`
-  (the decision passes the handlers' certificate check). The timed claim:
+  `valid := (· = v⋆)`, `v⋆` giving the proposer its root held by a FastQC
+  and everyone else nothing, soundness holds because `v⋆` is the only
+  representation that passes the certificate check at any index
+  (`Chorus.Witness.certified_eq`). A non-proposer can have no entry. The
+  proposer's entry cannot be negative, since no negative FastQC and no
+  `FBCert` ever exist, and for the same reason it cannot be held by a
+  FallbackQC. Completeness holds because nobody decides in the MVBA. *Used
+  in:* soundness by `eventually_committed_of_mvba_arm` (the certified
+  meta-block is `Valid`, so `mvba_propose` is enabled), completeness by
+  `eventually_mvba_complete` (the decision passes the handlers' certificate
+  check) and by `eventually_fbcommit_sig` (a FallbackQC entry of the
+  validator's own decision has its fallback quorum, whose correct signer
+  re-disseminates). The timed claim:
   not yet; the timeline takes the `Valid` input as a hypothesis S4
   supplies.
 
@@ -2865,8 +2897,9 @@ after its step 2.
      `M + 3Δ + 2δ`, before the decision at `t_M + ℓ_MVBA`; that needs the
      one first-flip fact recorded above (a correct validator signs
      fallback entries only before its second-round vote), which is S4's to
-     prove. The residual F13 (a root with both certificates) is outside
-     this bound's runs, because the premise excludes them.
+     prove. F13 is closed (R15): the vote's row is owed under the
+     validator's own `B′`, so a root with both certificates is waited for
+     as in the paper, and no run is outside the premise for it.
    * **The case split, and F4.** From the milestones: the decision by
      `t_M + ℓ_MVBA`, the fallback commit vote `3δ` later (the two decision
      handlers and `mvba_terminate`, then the vote, `δ` each with the

@@ -109,7 +109,9 @@ Each entry is the result, the file its statement lives in, and what it says.
   terminates**: every correct validator finalizes the slot, in every run
   satisfying five premises, for **every** `n = 3f+1`, at the configuration
   the composed system runs (`Cadence.chorusTheory`, with the `Mvba` model
-  as its MVBA). The untimed form of Lemma 11 (`lemma:chorus-termination`), with the
+  as its MVBA at `Cadence.mvbaTheory`, where a meta-block's entry vector is
+  its own entries; the validity predicate and the leader schedule are
+  arbitrary). The untimed form of Lemma 11 (`lemma:chorus-termination`), with the
   `5Δ + ℓ_MVBA` bound erased. The premises, each a named definition in
   [Chorus/Liveness.lean](Cadence/Chorus/Liveness.lean) and none of them an axiom:
   * `FJustice`: correct validators' actions are scheduled fairly, for the

@@ -166,17 +166,26 @@ per proposer, by projection), integrity, monotonicity of decisions, and the
 empty initial state. What stays a bridge: the interpretation of validity, at
 one handler, documented at the action and in [Architecture.md](Architecture.md) §4.
 
-### 1.2 The value is the entry vector
+### 1.2 The value is the meta-block representation
 
-Module 3 (`mod:mvba`) states Agreement as meta-block equality; Supplement, Theorem 1 (`thm:agreement`) proves the entries-level statement and says so
-deliberately — certificates are carried only so validity can be checked
-([PaperAlignment.md](PaperAlignment.md) §5.5). Chorus's oracle
-already works per proposer. So the class is instantiated at
-`value := node → Option merkle_root` (`some m` a positive entry, `none` a
-negative one), in both the MVBA model's instance and Chorus's constraint.
-Two consequences: the MVBA model's `Valid` is an uninterpreted immutable
-relation on entry vectors, and `Recover(e)` is the identity — the leader
-re-proposes the lock's entries directly.
+A meta-block carries, for each proposer, an entry and the certificate that
+makes it valid, and the MVBA votes and decides over its entries
+(Supplement, Section 1.1 (`subsec:mvba-datatypes`)). Agreement and
+Integrity are over entries (Supplement, Section 1.2 (`subsec:mvba-protocol`),
+"Agreement and Integrity over entries"), so two correct validators may
+decide representations whose certificates differ. The class's `value` is
+therefore the representation and its `entries` projection the entry vector;
+the system instantiates them at `MetaBlock node merkle_root` (each
+proposer's entry with, for a positive entry, its certificate kind) and
+`node → Option merkle_root` (`some m` a positive entry, `none` a negative
+one). The model has the two sorts `value` and `evec`, joined by the
+immutable function `ent`: what carries a meta-block carries the
+representation (the input, the `Pre-Prepare`, `x_v`, the decision,
+`AvailReady`), and every vote, certificate and lock the entry vector.
+`Valid` is an uninterpreted immutable relation on representations, and
+`Recover(e)` is a choice among the valid representations of `e`. The
+design, with the contract's signatures, is
+[PaperAlignment.md](PaperAlignment.md) §8.1.
 
 ## 2. The model
 
