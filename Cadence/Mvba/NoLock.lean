@@ -5,8 +5,7 @@ import Cadence.Tooling
 
 Companion to [Mvba.lean](../Mvba.lean) (read its header first): the same
 leader-based MVBA with **one guard deleted** — the `Pre-Prepare` handler's
-lock check `lock_available pv e ∨ tc_nolock pv` (the supplement's
-`line:mvba:pp-guard`: "`entries(x) = lock(J)` whenever `lock(J) ≠ ⊥`"),
+lock check `lock_available pv e ∨ tc_nolock pv` (Supplement, Algorithm 1, line 17 (`line:mvba:pp-guard`): "`entries(x) = lock(J)` whenever `lock(J) ≠ ⊥`"),
 weakened to "a `TC_{s,v-1}` exists". This is the **mutation test** of
 [MvbaPlan.md](../../docs/MvbaPlan.md) §4 item 3: the invariants of
 [Mvba.lean](../Mvba.lean) are proven, but
@@ -14,7 +13,7 @@ a proof shows they are *true*, not that they are *load-bearing*. The model
 checker below explores a concrete instance of the mutant exhaustively and
 **finds a reachable violation of agreement** — two correct validators
 deciding different vectors — which is exactly what the lock check exists to
-prevent (`lem:lock-persistence`, `thm:agreement`). A green build **requires**
+prevent (Supplement, Lemma 8 (`lem:lock-persistence`), Supplement, Theorem 1 (`thm:agreement`)). A green build **requires**
 the violation: if a change makes the checker report success, the mutant has
 been repaired and the test has lost its meaning.
 
@@ -430,7 +429,7 @@ action byz_sign (r : node) (v : view) (e : value) {
   msg_timeout_noqc r v := true
 }
 
-/-! ## The refuted properties — the three of `mod:mvba`, as in [Mvba.lean](../Mvba.lean) -/
+/-! ## The refuted properties — the three of Module 3 (`mod:mvba`), as in [Mvba.lean](../Mvba.lean) -/
 
 safety [agreement]
   ∀ (I J : node) (E E' : value),

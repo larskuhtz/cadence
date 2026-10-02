@@ -9,26 +9,26 @@ Support theory for the Conductor orchestrator model
 and the order-statistics lemma justifying the median-range `require` of the
 Conductor's ACS-decide oracle action. Reference:
 [ConductorDesign.md](../docs/ConductorDesign.md) §3 ("Modelling ingredients
-beyond Chorus's", items 1–2) and `papers/cadence/src/p2_conductor_proofs.tex` (`algorithm:conductor`,
-`line:median-compute`; median range validity is used in
-`prop:acs-nonoverlap` and `prop:window-open-time`).
+beyond Chorus's", items 1–2) and Appendix D (`section:conductor-formal`) (Algorithm 7 (`algorithm:conductor`),
+Algorithm 7, line 48 (`line:median-compute`); median range validity is used in
+Proposition 7 (`prop:acs-nonoverlap`) and Proposition 16 (`prop:window-open-time`)).
 
 ## Why the slot/window theory splits static from dynamic
 
 The window→interval assignment **cannot be static theory** (uninterpreted
 `win_of : slot → window`, `win_first/win_last : window → slot` with Horn
 axioms, the obvious first encoding): a window's first slot is decided *at
-runtime* by `ACS[ω]` (`line:median-compute`), so the assignment is
+runtime* by `ACS[ω]` (Algorithm 7, line 48 (`line:median-compute`)), so the assignment is
 execution-dependent state. The design therefore splits:
 
 * **Static** — only the *index* structures:
   - `slot` gets `TotalOrderWithMinimum` (Veil `Frontend/Std.lean`): a total
     order with strict variant, a least element (the paper's slot 1 — window
     1's first slot), and a derived successor `next` (needed for the
-    `line:sstar-update` guard residue "strictly above the current window's
+    Algorithm 7, line 41 (`line:sstar-update`) guard residue "strictly above the current window's
     last slot"). No `+W` arithmetic enters the SMT layer.
   - `window` gets `TotalOrderWithMinimum` likewise (least element = window
-    1; `next` = the `ω + 1` stepping of `line:window-increment`).
+    1; `next` = the `ω + 1` stepping of Algorithm 7, line 46 (`line:window-increment`)).
   Both classes come with proven `Fin (n+1)` instances in
   `Veil/Frontend/Std.lean`, so the axiom sets are demonstrably satisfiable
   — the instance discipline established for `ByzNodeSet` — and **no new
@@ -37,7 +37,7 @@ execution-dependent state. The design therefore splits:
   readiness boundary, the paper's "first `p` slots of the window") are
   *oracle state* in [Conductor.lean](Conductor.lean): relations populated by the ACS-decide
   oracle action, unique per window by its `require`s (= ACS agreement).
-  Cardinality facts ("exactly `W` slots wide", `prop:open-count-window`)
+  Cardinality facts ("exactly `W` slots wide", Proposition 11 (`prop:open-count-window`))
   stay meta: the model states intervals, never cardinalities.
 
 This also disposes of the one real risk in the encoding ("SMT behavior of
@@ -48,9 +48,9 @@ existing examples (NOPaxos `seq_t`) already exercise.
 
 ## The median lemma
 
-`algorithm:conductor` opens window `ω` at the **median** of the slot
-numbers in the decided ACS set (`line:median-compute`). The paper's
-argument (stated after `lemma:window-entry`): the decided set contains at
+Algorithm 7 (`algorithm:conductor`) opens window `ω` at the **median** of the slot
+numbers in the decided ACS set (Algorithm 7, line 48 (`line:median-compute`)). The paper's
+argument (stated after Proposition 6 (`lemma:window-entry`)): the decided set contains at
 least `2f + 1` pairs of which at most `f` are Byzantine, so the median
 lies between two *correct* proposals. The Conductor model imports the lower
 half of this consequence — the half its safety properties consume — as a
@@ -89,7 +89,7 @@ def IsMedian {α : Type} [LinearOrder α] (m : α) (vals : List α) : Prop :=
   vals.length ≤ 2 * vals.countP (fun x => decide (m ≤ x))
 
 /-- **Median range validity** (the paper's argument at
-`line:median-compute` / `prop:acs-nonoverlap`): if `m` is a median of the
+Algorithm 7, line 48 (`line:median-compute`) / Proposition 7 (`prop:acs-nonoverlap`)): if `m` is a median of the
 values of a list of (validator, value) pairs with at least `2f + 1`
 entries of which at most `f` are Byzantine-attributed, then some correct
 entry has value `≤ m` and some correct entry has value `≥ m`.
@@ -138,7 +138,7 @@ theorem IsMedian.between_correct {node α : Type} [LinearOrder α]
 /-! ## The concrete sorted-middle median -/
 
 /-- The lower median: the element at (0-based) position `⌊(n−1)/2⌋` of the
-sorted list — the value `median(·)` of `line:median-compute` computes for
+sorted list — the value `median(·)` of Algorithm 7, line 48 (`line:median-compute`) computes for
 an odd-sized set, and the smaller of the two middle order statistics for
 an even-sized one. -/
 def lowerMedian {α : Type} [LinearOrder α] (vals : List α) (h : vals ≠ []) : α :=
@@ -230,7 +230,7 @@ theorem lowerMedian_isMedian {α : Type} [LinearOrder α]
 /-- **The packaged median lemma** cited by the ACS-decide oracle action of
 [Conductor.lean](Conductor.lean): the sorted-middle median of the
 values of a decided ACS set (≥ `2f+1` pairs, ≤ `f` Byzantine-attributed —
-the quantitative half of ACS validity, `mod:acs`) is bracketed by two
+the quantitative half of ACS validity, Module 4 (`mod:acs`)) is bracketed by two
 correct entries' values. -/
 theorem lowerMedian_between_correct {node α : Type} [LinearOrder α]
     (is_byz : node → Bool) {l : List (node × α)} {f : Nat}

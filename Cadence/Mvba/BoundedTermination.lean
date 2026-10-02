@@ -682,7 +682,7 @@ theorem within_entered_above_of_fresh_tc (hbj : BoundedJustice sch r)
 
 /-- **`sync_view`, forwarded (`Δ`)**: the same, for the certificate below a
 view `v` into which a correct validator entered at or after GST
-(`line:mvba:sv-forward`). -/
+(Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)). -/
 theorem within_entered_above_of_forwarded (hbj : BoundedJustice sch r)
     {i : node} (hi : ¬ nset.is_byz i = true) {pv v : view} (hnext : vord.next pv v)
     {N : Nat} {B : time} (hB : r.ref N + sch.Δ ≤ B)
@@ -989,7 +989,7 @@ theorem synced_succ_of_hops (enum : ByzNodeSetEnum node nodeset nset)
     (vlt_of_le_of_lt hvpv hlt), hent'⟩
 
 /-- **The burn lemma, for a fresh view**: `Synced (succ v) (X + burn)`, the
-paper's `τ_{w+1} ≤ τ_w + 2Δ + T` (`lem:convergence`). Every timeout and
+paper's `τ_{w+1} ≤ τ_w + 2Δ + T` (Supplement, Lemma 15 (`lem:convergence`)). Every timeout and
 certificate of a view at or above `v` is sent after GST, so both network
 hops are first deliveries, at `Δ`. The timeouts are retained by the first
 member of the honest quorum to send one, which was in `v` when it did. -/
@@ -1045,7 +1045,7 @@ theorem synced_succ (enum : ByzNodeSetEnum node nodeset nset)
 The timeouts and the certificate may predate GST, so both network hops are
 retransmissions, at `Δ + ρ` each — the first view burnt after
 `max(t, gst)`, as the supplement's first view `V` is
-(`lem:convergence`, "Reaching `V`"). -/
+(Supplement, Lemma 15 (`lem:convergence`), "Reaching `V`"). -/
 theorem synced_succ_first (enum : ByzNodeSetEnum node nodeset nset)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset) (vfin : ViewOrderEnum view vord)
     {sch : Schedule view time} {r : TMvbaRun th time} (hsync : Sync sch r)
@@ -1148,7 +1148,7 @@ structure GoodView (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
   burns_le : burns ≤ (vfin.below sch.vL).length + sch.k
   within : r.clk N ≤ u + (sch.Δ + sch.ρ) + 2 • sch.ρ + burns • sch.burn
 
-/-- **The one-view retention** (the model's `lem:convergence`, "Retention"):
+/-- **The one-view retention** (the model's Supplement, Lemma 15 (`lem:convergence`), "Retention"):
 let `PV` be fresh and past the ramp, `N_P` the first index at which a
 correct validator is at or above it, and `N_W` an index at which a correct
 validator is above it. Then every correct validator reached `PV` before
@@ -1215,7 +1215,7 @@ view `M` is burnt at retransmission cost; the views after it are fresh and
 burnt at `burn` each; and the good view `W` is chosen with its predecessor
 `PV` past the ramp and above `M`, so that `PV` is fresh and the one-view
 retention holds at `W`'s first entry — the supplement's charge of views
-`V` and `V + 1` (`lem:good-view` takes `w ≥ V + 2`). -/
+`V` and `V + 1` (Supplement, Lemma 16 (`lem:good-view`) takes `w ≥ V + 2`). -/
 theorem exists_good_view (enum : ByzNodeSetEnum node nodeset nset)
     (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
@@ -1453,7 +1453,7 @@ cases, split at the certificate deadline `C = ℓ − (Δ + ρ)` past
 * a correct validator has decided by then. A decision is certificate-backed
   (`decided_backed`), and the composing layer serves a decided certificate
   to every correct validator within `Δ + ρ` of it (`within_decided_ref`,
-  `lem:decision-propagation`);
+  Supplement, Lemma 13 (`lem:decision-propagation`));
 * none has. Then every correct validator is active up to the deadline, and
   in the good view `exists_good_view` reaches a correct validator forms the
   commit certificate and decides inside the deadline (`good_view_decides`) —

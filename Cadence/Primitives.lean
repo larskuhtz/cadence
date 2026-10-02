@@ -8,7 +8,8 @@ primitives the Chorus sub-protocol depends on. They serve two purposes:
 
 1. Documentation: each class states the *signatures* and *properties* of the
    primitive that Chorus relies on, lifted from the Cadence paper
-   (`arXiv:2607.02275v2`): §Cryptographic Primitives `appendix:crypto`.
+   at the target revision ([README.md](../README.md)): Appendix C.1
+   (`appendix:crypto`), "Cryptographic Primitives".
 2. Targets for instantiation: a concrete implementation of Chorus would
    discharge each class by an actual scheme. For verification we only use the
    algebraic properties stated here.
@@ -205,7 +206,7 @@ class MerkleTree (leaf : Type) (root : Type) (proof : Type) where
 
 /-! ## Where the MVBA contract lives
 
-The MVBA is a *module* contract (`mod:mvba`), not a cryptographic primitive,
+The MVBA is a *module* contract (Module 3 (`mod:mvba`)), not a cryptographic primitive,
 so it is stated with the other module contracts in
 [Interfaces.lean](Interfaces.lean) (`MVBASafety` / `MVBA`) rather than
 here. Chorus consumes `MVBASafety` as a class constraint

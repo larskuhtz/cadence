@@ -1,6 +1,6 @@
 import Cadence.Chorus.Totality
 
-/-! # Chorus/Timeline — the timeline of `prop:chorus-finalization-time` to the MVBA proposals
+/-! # Chorus/Timeline — the timeline of Proposition 5 (`prop:chorus-finalization-time`) to the MVBA proposals
 
 [Bounds.md](../../docs/Bounds.md) §6.4.3, stage S3. The untimed chains of
 [Termination.lean](Termination.lean) re-run with deadlines, from
@@ -739,7 +739,7 @@ theorem within_complete_fast_metablock_by [Fintype node] (sch : Schedule view ti
       rw [show (3 : ℕ) = 2 + 1 from rfl, add_nsmul, one_nsmul]; abel
 
 /-- **Milestone: the MVBA proposal on a correct `FBCert`, by `M + 3Δ + 2δ`**
-(`line:fb-mvba-propose`). From an index `N` by the second-round deadline at
+(Algorithm 5, line 36 (`line:fb-mvba-propose`)). From an index `N` by the second-round deadline at
 which a correct supermajority's fallback votes are on the network, the
 proposal family for `i` and a vector `v` certified from `N` on and `Valid`
 is a `Δ`-row on those votes whose gate — the MVBA arm — opens by
@@ -903,7 +903,7 @@ theorem within_proposal_recorded (sch : Schedule view time)
 /-! ### The case-(a) proposal, and every proposal -/
 
 /-- **Milestone: the MVBA proposal on the proposer's own complete fast
-meta-block, `δ` after it holds one** (`line:fb-mvba-propose-fast`, the
+meta-block, `δ` after it holds one** (Algorithm 5, line 23 (`line:fb-mvba-propose-fast`), the
 `proposeFast` family, F9). From an index `N` at which `i` holds a FastQC for
 every proposer — by `M + 3Δ + 2δ` on the timeline — the proposal is a
 `δ`-row whose gate, the MVBA arm, opens by `D + 2Δ ≤ M + 3Δ`. -/

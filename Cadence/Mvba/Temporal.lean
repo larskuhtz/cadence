@@ -289,7 +289,7 @@ theorem timed_termination [IsOrderedCancelAddMonoid time] [Fintype node]
   unfold TimedRun.byTime
   exact ⟨n, by rw [hclk n]; exact hc, E, by rw [hat n]; exact hd⟩
 
-/-- **`Mvba ⊨ MVBATemporal`.** The temporal level of `mod:mvba` at the
+/-- **`Mvba ⊨ MVBATemporal`.** The temporal level of Module 3 (`mod:mvba`) at the
 fragment Chorus consumes, `mvbaSafety th`, proven from the instance
 hypotheses of §6.2.5: finitely many validators, `ByzNodeSetHonestQuorum`,
 `ViewOrderEnum`, (A-leader-rotation-k), and a cancellative, Archimedean

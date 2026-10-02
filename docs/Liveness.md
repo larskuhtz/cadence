@@ -59,7 +59,7 @@ The first three are about the run; the last two are about the caller, and
 they are exactly the antecedents of the contract's own
 `SlotConsensusTemporal.termination`. Within Cadence the glue meets them: it
 participates when it opens a slot and abandons only once it has finalized
-(`line:participate`, `line:abandon`).
+(Algorithm 1, line 17 (`line:participate`), Algorithm 1, line 23 (`line:abandon`)).
 
 Its other hypotheses fix the setting: validators `Fin n` with `n = 3f+1`
 and at most `f` Byzantine, the system's Chorus configuration
@@ -162,7 +162,7 @@ each.
   on the branch of the proof that needs the MVBA: there no correct
   validator ever finalizes, so by `NoAbandonBeforeFinalizing` none
   abandons, and the MVBA's `abandon()` is invoked only by Chorus's
-  `abandon` (`line:fb-abandon`). The third is (F-justice) on Chorus's
+  `abandon` (Algorithm 5, line 48 (`line:fb-abandon`)). The third is (F-justice) on Chorus's
   handoff `accept_mvba_commitqc` (`Chorus.fRelay_of_fJustice`, since R8;
   the timed twin is `Chorus.relayed_of_timedJustice`). On the other branch
   some correct validator has finalized, and the others finalize from its

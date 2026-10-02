@@ -277,7 +277,7 @@ proposer or re-disseminator sends a given chunk once, and so on. A trace that
 repeats such a line for the same actor is therefore rejected at the repeat.
 The fixtures repeat none and pass unchanged. An emitter must emit each such
 event once per actor, and must not map the certificate *re-broadcast* on
-receipt (`line:fast-rebroadcast-commitqc`) to `broadcast_commitqc_*`: in the
+receipt (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`)) to `broadcast_commitqc_*`: in the
 model that re-broadcast is part of finalizing. The internal steps the monitor
 inserts (`commit_sign_*`, `commit_assign_*`) carry their guards too, so the
 saturation of Stage B still reaches a fixpoint. Single-node mode admits

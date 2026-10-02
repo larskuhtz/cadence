@@ -1106,7 +1106,7 @@ theorem proposer_signed_of_decided_pos (hr : (RTS).reachable th s) {j : node} {m
 
 /-! ### The two guards the MVBA arm is stated with -/
 
-/-- `i`'s **proposal trigger** (`alg:fallback`), `mvba_propose`'s second
+/-- `i`'s **proposal trigger** (Algorithm 5 (`alg:fallback`)), `mvba_propose`'s second
 guard: the fallback trigger (`fbcert`) from the fallback arm on, or the
 case-(a) trigger — a complete fast meta-block of its own — at the MVBA
 arm. -/
@@ -1642,7 +1642,7 @@ theorem eventually_mvbaArm (r : CRun th) (hfj : PerLabel r) :
 /-- **A complete fast meta-block spreads.** If a correct validator that has
 cast its fast commit vote holds a FastQC for every proposer, every correct
 validator eventually does: the rule that cast the vote also broadcast the
-`FastBlock` (`line:fast-metablock`), so adopting each FastQC is owed, and
+`FastBlock` (Algorithm 4, line 20 (`line:fast-metablock`)), so adopting each FastQC is owed, and
 each is backed by a vote quorum on the network (`local_fastqc_*_backed`),
 which keeps `aggregate_fastqc_*` enabled. -/
 theorem eventually_complete_fast_metablock (r : CRun th)
@@ -2379,10 +2379,10 @@ decision is transported and it has decided itself: its DA wait is met under
 every decided-positive root, and no new decided root appears (the records
 are unique per proposer), so `cast_fb_commit` stays enabled, and it is owed.
 
-The wait is the paper's (`line:fb-commit-foreach`): a root is certificate-
+The wait is the paper's (Algorithm 5, line 38 (`line:fb-commit-foreach`)): a root is certificate-
 backed (`mvba_decided_pos_backed`). Under a FastQC there is nothing to wait
 for. Under a FallbackQC one of its `f+1` signers is correct and decoded the
-proposal to sign, so it re-disseminates `i`'s chunk (`line:fb-redisseminate`,
+proposal to sign, so it re-disseminates `i`'s chunk (Algorithm 5, line 12 (`line:fb-redisseminate`),
 F8's disjunct of the owed-condition). -/
 theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
     (hfj : PerLabel r)
@@ -2803,7 +2803,7 @@ configuration `Cadence.chorusTheory`, every run satisfying `FJustice`,
 finalizes the slot.
 
 The proof splits on an early finalization, as the paper's does
-(`lemma:chorus-termination`):
+(Lemma 11 (`lemma:chorus-termination`)):
 
 * **some correct validator finalizes.** Its certificates are on the
   network, so every other correct validator finalizes through the commit

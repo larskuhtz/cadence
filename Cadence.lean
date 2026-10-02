@@ -109,7 +109,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   terminates**: every correct validator finalizes the slot, in every run
   satisfying five premises, for **every** `n = 3f+1`, at the configuration
   the composed system runs (`Cadence.chorusTheory`, with the `Mvba` model
-  as its MVBA). The untimed form of `lemma:chorus-termination`, with the
+  as its MVBA). The untimed form of Lemma 11 (`lemma:chorus-termination`), with the
   `5Δ + ℓ_MVBA` bound erased. The premises, each a named definition in
   [Chorus/Liveness.lean](Cadence/Chorus/Liveness.lean) and none of them an axiom:
   * `FJustice`: correct validators' actions are scheduled fairly, for the
@@ -139,7 +139,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   (`Chorus.fJustice_iff_move`).
   [Liveness.md](docs/Liveness.md) §2 explains each premise in short
 * **`Chorus.totality`** ([Chorus/Totality.lean](Cadence/Chorus/Totality.lean)) — **Chorus's
-  `d_tot`-totality** (`prop:chorus-totality`), the first timed claim of
+  `d_tot`-totality** (Proposition 4 (`prop:chorus-totality`)), the first timed claim of
   [Chorus/Schedule.lean](Cadence/Chorus/Schedule.lean) (`TotalityClaim`), in its
   tolerance-parametric form: if one correct validator finalizes at a clock
   reading `c`, every correct validator finalizes by
@@ -153,7 +153,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   participation, every correct validator finalizes by `max(c, GST) + Δ`,
   so `d_tot = Δ`
 * **The timeline to the MVBA proposals** ([Chorus/Timeline.lean](Cadence/Chorus/Timeline.lean)) —
-  the milestones of `prop:chorus-finalization-time` up to the MVBA's input,
+  the milestones of Proposition 5 (`prop:chorus-finalization-time`) up to the MVBA's input,
   each a lemma with its deadline, from `M = max(t, GST)`, under the timing
   model (`TimedJustice`, `PhasePunctual`) and every correct validator
   participating on the window: first-round votes by `M + Δ + δ`
@@ -221,9 +221,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   paper) satisfies all its declared safety properties and invariants
 * **`Mvba.reachable_agreement`, `Mvba.reachable_integrity`,
   `Mvba.reachable_external_validity`** ([Mvba/Certify.lean](Cadence/Mvba/Certify.lean)) — the
-  three safety properties of `mod:mvba` at every reachable state — the
-  supplement's `thm:agreement` at the entries level, integrity (a correct
-  validator decides at most once), `lem:external-validity`
+  three safety properties of Module 3 (`mod:mvba`) at every reachable state — Supplement, Theorem 1 (`thm:agreement`) at the entries level, integrity (a correct
+  validator decides at most once), Supplement, Lemma 9 (`lem:external-validity`)
 * **`Mvba.mvbaFull`** ([Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean)) — **Mvba ⊨ `MVBA`,
   the whole contract**, and the MVBA the composed system runs: its safety
   fragment is by `rfl` `Mvba.mvbaSafety`, the instance [System.lean](Cadence/System.lean)

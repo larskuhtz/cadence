@@ -7,9 +7,9 @@ import Cadence.Tooling
 -- `lake build Cadence.Cadence`; see [README.md](../README.md),
 -- "Working on the models".
 
-/-! # Cadence — the extreme-pipelining glue (`algorithm:cadence`)
+/-! # Cadence — the extreme-pipelining glue (Algorithm 1 (`algorithm:cadence`))
 
-This module is the paper's `algorithm:cadence`: the thin layer that wires a
+This module is the paper's Algorithm 1 (`algorithm:cadence`): the thin layer that wires a
 single **Orchestrator** instance `O` and one **SlotConsensus** instance
 `S[s]` per slot into the full MCP protocol. It is verified **against the
 module contracts alone**: the two primitives enter as class constraints —
@@ -19,7 +19,7 @@ abstract state types `ostate` and `scstate` that this module holds as its own
 state (`os`, one `sc_state s` per slot) and reads only through the contracts'
 observables. One `sc_state s` per slot is the paper's per-slot dispatch:
 "every message and signed object of Chorus carries its slot … messages for
-other slots go to their own instances" (`subsection:chorus-protocol-overview`),
+other slots go to their own instances" (Appendix C.3 (`subsection:chorus-protocol-overview`)),
 so each slot's instance sees only its own slot's traffic, and one Chorus
 model is one slot's instance. The contract properties are *not* restated here as guards or
 invariants: they are the classes' axioms, which Veil hands to the solver, so
@@ -32,10 +32,10 @@ discharge the constraints independently, and [System.lean](System.lean)
 instantiates the end theorems at those instances. See
 [ConductorDesign.md](../docs/ConductorDesign.md) §2 and §4 for the
 architecture, [CompositionContracts.md](../docs/CompositionContracts.md) for
-this encoding, and
-`papers/cadence/src/p2_framework.tex` for the reference
-(`mod:slotconsensus`, `mod:orchestrator_2`, `algorithm:cadence`,
-`§subsection:correctness_cadence`).
+this encoding, and the paper's Appendix B (`section:framework`) for the
+reference (Module 1 (`mod:slotconsensus`), Module 2 (`mod:orchestrator_2`),
+Algorithm 1 (`algorithm:cadence`), Appendix B.3
+(`subsection:correctness_cadence`)).
 
 ## How the sub-protocols appear
 
@@ -72,13 +72,13 @@ input coincide is the trace-level seam declared out of scope in
 
 ## Property coverage (top-level MCP properties)
 
-The MCP properties (`p2_problem_definition.tex` / the commented preamble of
-`p2_framework.tex`) live here in **slot-indexed** form; the positional-log
+The MCP properties (Appendix A (`section:formal_problem_definition`)) live
+here in **slot-indexed** form; the positional-log
 and wall-clock-parameterised formulations are derived on top at the
 plain-Lean / meta layer ([Composition.lean](Composition.lean)), never inside SMT:
 
-* **Safety** (`def:safety`, prefix consistency of local logs;
-  `lemma:cadence-safety`) — decomposed exactly as the paper's two proof
+* **Safety** (Definition 1 (`def:safety`), prefix consistency of local logs;
+  Lemma 1 (`lemma:cadence-safety`)) — decomposed exactly as the paper's two proof
   cases: `safety [log_agreement]` (same slot: two honest appends for slot
   `s` agree — from `SlotConsensusSafety.agreement`) and
   `safety [skip_agreement]` (different slots: no slot is opened by one
@@ -88,10 +88,10 @@ plain-Lean / meta layer ([Composition.lean](Composition.lean)), never inside SMT
   lists) follows from these two by the paper's own case split — a list
   lemma over the slot-indexed relations, deferred to the composition layer
   because list positions are arithmetic the Veil layer deliberately avoids.
-* **ℓ-Liveness** (`def:liveness`, `lemma:cadence-liveness`) — genuinely
+* **ℓ-Liveness** (Definition 2 (`def:liveness`), Lemma 2 (`lemma:cadence-liveness`)) — genuinely
   temporal (GST, `R`-recovery, ℓ-termination); meta-level, see the
   fair-progress section at the end of this file.
-* **c-Censorship resistance** (`def:censorship-resistance`) — its
+* **c-Censorship resistance** (Definition 3 (`def:censorship-resistance`)) — its
   protocol-level residue is `safety [inclusion_lift]`: every appended
   proposal vector contains the on-time proposal of a correct proposer for
   which the synchrony premise holds — the premise being the contract's
@@ -99,7 +99,7 @@ plain-Lean / meta layer ([Composition.lean](Composition.lean)), never inside SMT
   the contract's `includes`. From `SlotConsensusSafety.proposal_inclusion`.
   The real-time trigger of the premise (`s.deadline − Δ ≥ GST + c`, on-time
   opening via `R`-recovery) is the meta-level half.
-* **Hiding** (`def:hiding`) — the paper's composition lemma is one line
+* **Hiding** (Definition 4 (`def:hiding`)) — the paper's composition lemma is one line
   ("proposal contents are observable only through the per-slot
   instances"); at this abstraction the module has *no other channel* by
   construction — there is no state item carrying proposal contents other
@@ -107,7 +107,7 @@ plain-Lean / meta layer ([Composition.lean](Composition.lean)), never inside SMT
   finalization observable. The protocol-level share-gating theorem stays in
   Chorus (`hiding_until_deadline`, the contract's `hiding_residue`); the
   cryptographic half in [Primitives.lean](Primitives.lean).
-* **B-Bounded concurrency** (`lemma:cadence-bounded-concurrency`) — the
+* **B-Bounded concurrency** (Lemma 5 (`lemma:cadence-bounded-concurrency`)) — the
   paper's proof reduces it to `B`-boundedness of the orchestrator via one
   state-level fact: a validator actively participates in `S[s]` iff it has
   opened `s` and not yet completed it. That reduction is
@@ -147,8 +147,8 @@ pattern is the shared `FaultModel` the two contracts are stated against, so
 "correct" means the same thing in the glue, in the orchestrator and in every
 slot-consensus instance. Consequently this module needs no quorum machinery
 and no `ByzNodeSet` — faithful to the paper's remark that the framework
-imposes no resilience threshold of its own (`p2_framework.tex`, "On the
-generality of the framework"): the `n = 3f+1` arithmetic lives entirely
+imposes no resilience threshold of its own (Appendix B.2
+(`subsection:composition_cadence`), "On the generality of the framework"): the `n = 3f+1` arithmetic lives entirely
 inside the primitives.
 
 ## Slot safety
@@ -229,11 +229,11 @@ function sc_state (s : slot) : scstate
 
 /-! ### (L) Per-validator local state -/
 
-/-- `skipped_i` (`line:var-skipped`): slots `i` recorded as implicitly
-skipped (`line:implicit-skip`). -/
+/-- `skipped_i` (Algorithm 1, line 7 (`line:var-skipped`)): slots `i` recorded as implicitly
+skipped (Algorithm 1, line 16 (`line:implicit-skip`)). -/
 relation skipped (i : node) (s : slot)
 /-- Materialised "slot resolved" marker: `s` is skipped or appended
-(the two disjuncts of `ready_to_append`, `line:func-ready-to-append-return`).
+(the two disjuncts of `ready_to_append`, Algorithm 1, line 11 (`line:func-ready-to-append-return`)).
 Kept as a real relation updated alongside `skipped`/`appended` so the
 append guard is a single positive quantifier-free-per-instance lookup
 instead of a `∀∃` alternation: materialising the marker keeps the deep
@@ -241,17 +241,17 @@ reasoning at the action that establishes it, rather than making every
 consumer re-derive it. -/
 relation resolved (i : node) (s : slot)
 /-- `S[s].finalize(v)` has been *delivered* to `i`'s handler
-(`line:upon-finalize`): `v` entered `pending_i`. The paper's `pending_i`
+(Algorithm 1, line 20 (`line:upon-finalize`)): `v` entered `pending_i`. The paper's `pending_i`
 is the ghost difference `delivered ∧ ¬ appended` (`pending` below) —
 keeping both endpoints monotone avoids the paper's non-monotone
-`pending_i \ {V}` deletion (`line:pending-remove`). -/
+`pending_i \ {V}` deletion (Algorithm 1, line 26 (`line:pending-remove`)). -/
 relation delivered (i : node) (s : slot) (v : pvector)
-/-- `i`'s local log, as a slot-indexed relation (`line:append`). The
+/-- `i`'s local log, as a slot-indexed relation (Algorithm 1, line 25 (`line:append`)). The
 ordered-list view is recovered from slot order at the composition layer. -/
 relation appended (i : node) (s : slot) (v : pvector)
-/-- `i` has invoked `S[s].abandon()` (`line:abandon`). -/
+/-- `i` has invoked `S[s].abandon()` (Algorithm 1, line 23 (`line:abandon`)). -/
 relation sc_abandoned (i : node) (s : slot)
-/-- `i` has invoked `S[s].propose(·)` (`line:propose`). -/
+/-- `i` has invoked `S[s].propose(·)` (Algorithm 1, line 19 (`line:propose`)). -/
 relation proposed (i : node) (s : slot)
 
 #gen_state
@@ -279,30 +279,30 @@ theory ghost relation slot_lt (s s' : slot) := slot_ord.le s s' ∧ s ≠ s'
 
 /-! ## Derived state — the sub-protocols' outputs, read through the contracts -/
 
-/-- `opened_i` (`line:var-opened`): `O` has output `open(s)` at `i`. -/
+/-- `opened_i` (Algorithm 1, line 6 (`line:var-opened`)): `O` has output `open(s)` at `i`. -/
 ghost relation opened (i : node) (s : slot) := orch.opened os i s
-/-- `i` has input `O.complete(s)` (`line:complete`) — the orchestrator's own
+/-- `i` has input `O.complete(s)` (Algorithm 1, line 22 (`line:complete`)) — the orchestrator's own
 record of it. -/
 ghost relation completed (i : node) (s : slot) := orch.completed os i s
 /-- `S[s]` has output `finalize(v)` at `i`. -/
 ghost relation finalized (i : node) (s : slot) (v : pvector) :=
   sc.finalized (sc_state s) i v
-/-- `i` has invoked `S[s].participate()` (`line:participate`) — issued in
+/-- `i` has invoked `S[s].participate()` (Algorithm 1, line 17 (`line:participate`)) — issued in
 the handler of `open(s)`, hence definitionally the opening. -/
 ghost relation sc_started (i : node) (s : slot) := opened i s
 
 /-! ## Derived state — local -/
 
-/-- The paper's `pending_i` (`line:var-pending`). -/
+/-- The paper's `pending_i` (Algorithm 1, line 8 (`line:var-pending`)). -/
 ghost relation pending (i : node) (s : slot) (v : pvector) :=
   delivered i s v ∧ ¬ appended i s v
 
 /-- `i` is actively participating in `S[s]` (started, not yet abandoned) —
-the bounded-concurrency proxy of `subsection:memory`. -/
+the bounded-concurrency proxy of Appendix B.1 (`subsection:memory`). -/
 ghost relation actively_participating (i : node) (s : slot) :=
   sc_started i s ∧ ¬ sc_abandoned i s
 
-/-- `ready_to_append` for slot `s` (`line:func-ready-to-append-return`):
+/-- `ready_to_append` for slot `s` (Algorithm 1, line 11 (`line:func-ready-to-append-return`)):
 every strictly smaller slot is resolved. -/
 ghost relation ready_to_append (i : node) (s : slot) :=
   ∀ s', slot_lt s' s → resolved i s'
@@ -344,7 +344,7 @@ action sc_step (s : slot) (sc_next : scstate) {
 }
 
 /-! ## Handler: a designated proposer submits its proposal
-(`line:proposer-check`–`line:propose`) -/
+(Algorithm 1, lines 18–19 (`line:proposer-check`–`line:propose`)) -/
 
 /-- The `open(s)` handler's proposing half: once `i` has opened `s` and is one
 of its proposers, it invokes `S[s].propose(·)`. Recorded locally
@@ -358,14 +358,14 @@ action on_propose (i : node) (s : slot) {
   proposed i s := true
 }
 
-/-! ## Protocol: record an implicitly skipped slot (`line:implicit-skip`) -/
+/-! ## Protocol: record an implicitly skipped slot (Algorithm 1, line 16 (`line:implicit-skip`)) -/
 
 /-- When `i` has opened a slot `s_wit` and a smaller slot `s` was never opened
 at `i`, the paper records `s` as skipped in the same handler that opened
 `s_wit`. Decomposed here into a per-slot action. The guards make the
 recording sound rather than merely timely: `s` is genuinely below an opened
 slot — so, by the orchestrator's `monotonicity`, it can never be opened at
-`i` any more — and not opened at `i` (`line:implicit-skip`'s set
+`i` any more — and not opened at `i` (Algorithm 1, line 16 (`line:implicit-skip`)'s set
 comprehension). -/
 action record_skip (i : node) (s : slot) (s_wit : slot) {
   require ¬ fm.byz i
@@ -376,14 +376,13 @@ action record_skip (i : node) (s : slot) (s_wit : slot) {
   resolved i s := true
 }
 
-/-! ## Handler: a slot-consensus instance has finalized (`line:upon-finalize`) -/
+/-! ## Handler: a slot-consensus instance has finalized (Algorithm 1, line 20 (`line:upon-finalize`)) -/
 
-/-- The handler of the output `S[s].finalize(v)` at honest validator `i`, lines
-`line:pending-add`–`line:abandon`: buffer `v` as pending (`delivered`),
+/-- The handler of the output `S[s].finalize(v)` at honest validator `i`, Algorithm 1, lines 21–23 (`line:pending-add`–`line:abandon`): buffer `v` as pending (`delivered`),
 notify the orchestrator — `O.complete(s)` is an *input transition* of the
 orchestrator's state, `orch.complete`, whose post-state the action picks —
 and abandon the instance (recorded locally). The handler fires only for
-slots `i` has opened ("early finalizations buffered", `line:upon-finalize`)
+slots `i` has opened ("early finalizations buffered", Algorithm 1, line 20 (`line:upon-finalize`))
 and once per slot. The properties of the finalization itself — agreement,
 inclusion — are the contract's business and appear in no guard here. -/
 action on_finalize (i : node) (s : slot) (v : pvector) (os_next : ostate) {
@@ -401,7 +400,7 @@ action on_finalize (i : node) (s : slot) (v : pvector) (os_next : ostate) {
   sc_abandoned i s := true
 }
 
-/-! ## Protocol: append a pending vector (`line:upon-ready-to-append`) -/
+/-! ## Protocol: append a pending vector (Algorithm 1, line 24 (`line:upon-ready-to-append`)) -/
 
 /-- The only genuine protocol action of the glue: a pending proposal vector is
 appended to the local log once every smaller slot is resolved
@@ -412,7 +411,7 @@ action append (i : node) (s : slot) (v : pvector) {
   -- `v ∈ pending_i` for slot `s` ...
   require delivered i s v
   require ∀ v', ¬ appended i s v'
-  -- ... and `ready_to_append(v)` (`line:func-ready-to-append-return`).
+  -- ... and `ready_to_append(v)` (Algorithm 1, line 11 (`line:func-ready-to-append-return`)).
   require ready_to_append i s
   appended i s v := true
   resolved i s := true
@@ -420,7 +419,7 @@ action append (i : node) (s : slot) (v : pvector) {
 
 /-! ## Safety properties (slot-indexed MCP forms) -/
 
-/-- MCP Safety, same-slot case (`lemma:cadence-safety`, case
+/-- MCP Safety, same-slot case (Lemma 1 (`lemma:cadence-safety`), case
 `V₁.slot = V₂.slot`): two honest validators never append different
 proposal vectors for the same slot. From the slot-consensus contract's
 agreement, through `[appended_delivered]` + `[delivered_finalized]`. -/
@@ -428,7 +427,7 @@ safety [log_agreement]
   ∀ (i j : node) (s : slot) (v v' : pvector),
     ¬ fm.byz i ∧ ¬ fm.byz j ∧ appended i s v ∧ appended j s v' → v = v'
 
-/-- MCP Safety, cross-slot case (`lemma:cadence-safety`, case
+/-- MCP Safety, cross-slot case (Lemma 1 (`lemma:cadence-safety`), case
 `V₁.slot ≠ V₂.slot`): no slot is opened by one honest validator and
 skipped by another — the state-level content of "the two validators
 resolved all preceding slots identically". From the orchestrator contract's
@@ -438,7 +437,7 @@ safety [skip_agreement]
   ∀ (i j : node) (s : slot),
     ¬ fm.byz i ∧ ¬ fm.byz j ∧ opened i s → ¬ skipped j s
 
-/-- Censorship-resistance residue (`def:censorship-resistance`,
+/-- Censorship-resistance residue (Definition 3 (`def:censorship-resistance`),
 slot-indexed): an appended proposal vector contains the on-time proposal
 of every correct proposer for which the synchrony premise holds — both
 sides in the contract's vocabulary. -/
@@ -447,7 +446,7 @@ safety [inclusion_lift]
     ¬ fm.byz i ∧ appended i s v ∧ sc.on_time (sc_state s) j p →
     sc.includes v j p
 
-/-- The state-level reduction of `lemma:cadence-bounded-concurrency`: an
+/-- The state-level reduction of Lemma 5 (`lemma:cadence-bounded-concurrency`): an
 honest validator actively participates in `S[s]` exactly while `s` is
 opened-but-not-completed — `completed` being the *orchestrator's* record of
 the `complete(s)` input, so the orchestrator's `B`-boundedness obligation
@@ -512,7 +511,7 @@ invariant [opened_prefix_agreement]
 /-! ## Invariants — local structure -/
 
 /-- A skipped slot has a higher opened slot behind it (`record_skip`'s
-witness guard — the paper's `line:implicit-skip` fires only inside an
+witness guard — the paper's Algorithm 1, line 16 (`line:implicit-skip`) fires only inside an
 `open` handler). -/
 invariant [skipped_witness]
   ∀ (i : node) (s : slot),
@@ -549,7 +548,7 @@ invariant [appended_prefix_resolved]
   ∀ (i : node) (s s' : slot) (v : pvector),
     ¬ fm.byz i ∧ appended i s v ∧ slot_lt s' s → resolved i s'
 
-/-- Appends come from delivered finalizations (`line:upon-ready-to-append`
+/-- Appends come from delivered finalizations (Algorithm 1, line 24 (`line:upon-ready-to-append`)
 consumes `pending_i`). -/
 invariant [appended_delivered]
   ∀ (i : node) (s : slot) (v : pvector),
@@ -562,13 +561,13 @@ invariant [delivered_finalized]
     ¬ fm.byz i ∧ delivered i s v → finalized i s v
 
 /-- Finalizations are delivered only for opened slots (the
-`line:upon-finalize` guard, persisted). -/
+Algorithm 1, line 20 (`line:upon-finalize`) guard, persisted). -/
 invariant [delivered_opened]
   ∀ (i : node) (s : slot) (v : pvector),
     ¬ fm.byz i ∧ delivered i s v → opened i s
 
 /-- `complete(s)` is input upon delivering `s`'s finalization
-(`line:complete`). The orchestrator's `completed` is frozen across its
+(Algorithm 1, line 22 (`line:complete`)). The orchestrator's `completed` is frozen across its
 internal steps (`completed_step_frame`) and moved only by the glue's
 `complete` inputs. -/
 invariant [delivered_completed]
@@ -581,7 +580,7 @@ invariant [completed_delivered]
   ∀ (i : node) (s : slot),
     ¬ fm.byz i ∧ completed i s → ∃ v, delivered i s v
 
-/-- `abandon()` is invoked exactly upon completing (`line:abandon`): the
+/-- `abandon()` is invoked exactly upon completing (Algorithm 1, line 23 (`line:abandon`)): the
 glue's record and the orchestrator's record move together. -/
 invariant [completed_iff_abandoned]
   ∀ (i : node) (s : slot),
@@ -594,7 +593,7 @@ invariant [abandoned_after_finalize]
     ¬ fm.byz i ∧ sc_abandoned i s → ∃ v, finalized i s v
 
 /-- Proposals are submitted by designated proposers, upon opening
-(`line:proposer-check`–`line:propose`). -/
+(Algorithm 1, lines 18–19 (`line:proposer-check`–`line:propose`)). -/
 invariant [proposed_proposer_opened]
   ∀ (i : node) (s : slot),
     ¬ fm.byz i ∧ proposed i s → is_proposer i s ∧ opened i s
@@ -604,7 +603,7 @@ invariant [proposed_proposer_opened]
 The glue inherits the Chorus liveness doctrine ([ChorusDesign.md](../docs/ChorusDesign.md) §7; McMillan,
 *"Toward Liveness Proofs at Scale"*, CAV 2024): temporal glue as named
 meta-axioms, safety content SMT-discharged. The claim mirrored is
-`lemma:cadence-liveness`:
+Lemma 2 (`lemma:cadence-liveness`):
 
 > **(ℓ-Liveness)** for every slot `s` with `s.deadline − Δ ≥ GST + R`,
 > every honest validator eventually appends a proposal vector for `s`.
@@ -627,7 +626,7 @@ meta-axioms, safety content SMT-discharged. The claim mirrored is
   validator opened, and — from `GST + R` on — every upcoming slot.
   Discharge: unproven for the Conductor (`OrchestratorTemporal`,
   [Composition.lean](Composition.lean)); the paper's
-  `lemma:conductor-totality` and `(2Wτ)`-recovery.
+  Lemma 15 (`lemma:conductor-totality`) and `(2Wτ)`-recovery.
 * **(A-sc-termination)** — `SlotConsensus.termination`: once every honest
   validator participates in `S[s]`, every honest validator's instance
   eventually finalizes. Discharge: unproven for Chorus
@@ -635,7 +634,7 @@ meta-axioms, safety content SMT-discharged. The claim mirrored is
   its untimed form is `Chorus.termination`
   ([Chorus/Termination.lean](Chorus/Termination.lean)).
 
-### The induction (paper's proof of `lemma:cadence-liveness`)
+### The induction (paper's proof of Lemma 2 (`lemma:cadence-liveness`))
 
 By (A-orch-recovery) every honest validator opens `s`; by open-prefix
 agreement + (A-orch-totality), for every `s' ≤ s` either all honest

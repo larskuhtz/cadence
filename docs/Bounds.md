@@ -14,16 +14,16 @@ The paper proves concrete finite bounds end-to-end, parametric in exactly
 two assumed primitive bounds:
 
 * **Chorus**: `ℓ`-termination with `ℓ = 5Δ + ℓ_MVBA`
-  (`lemma:chorus-termination`), via a deterministic post-GST timeline
-  (`prop:chorus-finalization-time`, `prop:chorus-totality`), conditional
+  (Lemma 11 (`lemma:chorus-termination`)), via a deterministic post-GST timeline
+  (Proposition 5 (`prop:chorus-finalization-time`), Proposition 4 (`prop:chorus-totality`)), conditional
   on *Δ-synchronized participation*
-  (`def:delta-synchronized-participation`).
-* **Conductor**: totality with `d_tot = Δ` (`lemma:conductor-totality`),
+  (Definition 5 (`def:delta-synchronized-participation`)).
+* **Conductor**: totality with `d_tot = Δ` (Lemma 15 (`lemma:conductor-totality`)),
   boundedness `𝓑 = 2W − p` and recovery `𝓡 = 2Wτ`
-  (`thm:conductor-correctness`); the composition closes non-circularly
-  (`cor:chorus-correctness-within-cadence`).
-* **The parametric holes**: `ℓ_MVBA` (`mod:mvba`) and the ACS's `ℓ`
-  (`mod:acs`) are *assumed module properties*, stated as deterministic
+  (Theorem 2 (`thm:conductor-correctness`)); the composition closes non-circularly
+  (Corollary 4 (`cor:chorus-correctness-within-cadence`)).
+* **The parametric holes**: `ℓ_MVBA` (Module 3 (`mod:mvba`)) and the ACS's `ℓ`
+  (Module 4 (`mod:acs`)) are *assumed module properties*, stated as deterministic
   bounds — an idealisation, since the randomised constructions satisfy
   them only in expectation / with high probability. The first hole is
   closed in this development: the MVBA instantiation of the paper
@@ -32,7 +32,7 @@ two assumed primitive bounds:
   of `MVBATemporal` ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean)),
   and the instance `Mvba.mvbaTemporal`
   ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) proves the
-  Termination it bounds — the supplement's `thm:termination`, `O(fΔ)` — over
+  Termination it bounds — Supplement, Theorem 2 (`thm:termination`), `O(fΔ)` — over
   timed runs of the untimed model (§6.2).
 
 The model relates to these in three distinct ways:
@@ -98,7 +98,7 @@ Three options, in ascending order of invasiveness; the first is the
 preferred entry point, the last is taken only if the benefit is clear.
 
 **(a) An add-on schedule theorem (no model change).** Mechanise
-`lemma:chorus-termination`'s *proof arithmetic* as a standalone plain-Lean
+Lemma 11 (`lemma:chorus-termination`)'s *proof arithmetic* as a standalone plain-Lean
 theorem over an abstract ordered time (an order plus an abstract
 `+Δ`-successor; no `Real`, no Archimedean axiom — finite schedules need
 neither): parameterise by one named per-seam bound assumption for each
@@ -209,8 +209,8 @@ Lean.
 **Target statement** (Chorus leg): for every timed run satisfying the
 per-seam assumptions in which all correct validators participate by `t`,
 every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA` — the
-statement shape of `lemma:chorus-termination`, with
-`prop:chorus-finalization-time`'s milestone table (`M+2Δ`, `M+3Δ`,
+statement shape of Lemma 11 (`lemma:chorus-termination`), with
+Proposition 5 (`prop:chorus-finalization-time`)'s milestone table (`M+2Δ`, `M+3Δ`,
 `T−Δ`, `T`) as the internal schedule.
 
 **Staging** (reassess after step 2; each step is one focused session,
@@ -227,7 +227,7 @@ give or take):
    (a model change and cold re-solve — a known ~20-minute event).
 4. Conductor: `d_tot = Δ` totality, the window induction, `2W − p`
    boundedness, `2Wτ` recovery.
-5. The composition: `cor:chorus-correctness-within-cadence` and the
+5. The composition: Corollary 4 (`cor:chorus-correctness-within-cadence`) and the
    alternating-window non-circularity — the subtlest statement work and
    the highest-value single piece.
 
@@ -481,14 +481,14 @@ contract's non-Zeno field, not the schedule.
 #### 6.2.3 The schedule, and the first finding
 
 At the pin current when this leg was designed, `026dc8b`, the supplement
-fixed the timer in one sentence (`subsec:mvba-protocol`): *"The view
+fixed the timer in one sentence (Supplement, Section 1.2 (`subsec:mvba-protocol`)): *"The view
 timeout is chosen so that, after GST, it exceeds
 `Δ_R + 3Δ + max{Δ, Δ_sync}`. If the implementation uses timeout backoff
 rather than fixed known bounds, the timeout is eventually increased beyond
-this value."* `thm:termination`'s proof then counted with a fixed timeout —
+this value."* Supplement, Theorem 2 (`thm:termination`)'s proof then counted with a fixed timeout —
 *"the view timeout is itself `O(Δ)`"* — to reach `O(fΔ)`.
 
-At the current pin `eb1bb51` the sentence reads (`subsec:mvba-protocol`,
+At the current pin `eb1bb51` the sentence reads (Supplement, Section 1.2 (`subsec:mvba-protocol`),
 "Views, leaders, and timing parameters"): *"The view timeout is the fixed,
 known value `T := Δ_R + 4Δ + max{Δ, Δ_sync}`"*, and the termination setting
 says the view timeout is the fixed `T`. The backoff sentence is gone. The
@@ -527,7 +527,7 @@ what (S-ramp) and (S-cap) say.
 
 *Resolved upstream at `eb1bb51`* ([MvbaPlan.md](MvbaPlan.md) §11.3, C13):
 the timeout is now the fixed `T`, and the backoff remark is deleted. One
-residue remains: the `sec:timing-constants` stub still lists "the MVBA view
+residue remains: the Supplement, Section 10.1 (`sec:timing-constants`) stub still lists "the MVBA view
 timeout and its backoff policy".
 
 #### 6.2.4 The per-seam statements: what an admissible run satisfies
@@ -551,9 +551,9 @@ from `max(t, gst)`.
 | Clause | Names | Says | Paper |
 |---|---|---|---|
 | (F-byz) | — | nothing of `ByzLabel` | — |
-| (Δ-justice) | `BoundedJustice` | six clauses, each of the form: if `l` is **enabled** at every index `n ≥ N` with `clk n ≤ ref N + D` (and the clause's side condition holds there), then `l` fires within `D` of `N`. A local step at `D = δ`; a network step at `D = Δ` when its messages were sent at or after GST by correct validators and retained, or at `D = Δ + ρ` when they are retransmitted (tables below) | the termination setting before `lem:decision-propagation` (delivery within `Δ` of messages sent at or after GST; retransmission every `ρ`), `sec:reliable-delivery` (one-view retention), `lem:view-sync`, `lem:convergence`, `lem:decision-propagation`; local computation within `δ` (the paper: instantaneous, `δ = 0`) |
+| (Δ-justice) | `BoundedJustice` | six clauses, each of the form: if `l` is **enabled** at every index `n ≥ N` with `clk n ≤ ref N + D` (and the clause's side condition holds there), then `l` fires within `D` of `N`. A local step at `D = δ`; a network step at `D = Δ` when its messages were sent at or after GST by correct validators and retained, or at `D = Δ + ρ` when they are retransmitted (tables below) | the termination setting before Supplement, Lemma 13 (`lem:decision-propagation`) (delivery within `Δ` of messages sent at or after GST; retransmission every `ρ`), Supplement, Section 10.3 (`sec:reliable-delivery`) (one-view retention), Supplement, Lemma 14 (`lem:view-sync`), Supplement, Lemma 15 (`lem:convergence`), Supplement, Lemma 13 (`lem:decision-propagation`); local computation within `δ` (the paper: instantaneous, `δ = 0`) |
 | (T-timer) | `TimerPunctual` | for honest `i`: (T1) `expire_timer i v` fires at `n` only if `clk m + τ v ≤ clk n` for some `m ≤ n` with `entered i v` at `m`; (T2) if `entered i v` at `m`, then `timer_expired i v` at some `n ≥ m` with `clk n ≤ clk m + τ v` | the local view timer, restarted on entry, expiring after exactly `τ v` |
-| (Δ-avail) | `AvailWithin` | for honest `i`: `accepted i v e` at `m` ⇒ `avail_ready i e` within `Δ_sync` of `m` | `lem:avail-progress`'s `Δ_sync` |
+| (Δ-avail) | `AvailWithin` | for honest `i`: `accepted i v e` at `m` ⇒ `avail_ready i e` within `Δ_sync` of `m` | Supplement, Lemma 5 (`lem:avail-progress`)'s `Δ_sync` |
 
 `hop`, the per-label kind, is a classification of the fifteen
 `JusticeLabel`s by what the guard consumes:
@@ -580,10 +580,10 @@ holds.
 | clause | owed within | when | the supplement |
 |---|---|---|---|
 | `first` | `Δ` | the messages are from correct senders (a correct leader; a quorum of correct validators), were first sent at or after GST (`SinceGst`, **N1**), and were retained by the receiver, which had reached the message's view or the one before (`RetainedBy`, **N2**); while every correct validator takes part. That the receiver has not moved past the view (**N2**, lower views discarded) is the receiving step's own `in_view` guard: since R4 every network label is one validator's step, so the clause names no separate receiver | delivery within `Δ` of messages sent at or after GST between correct validators; one-view retention; lower views discarded |
-| `forwarded` | `Δ` | a timeout certificate forwarded, at or after GST, by the first correct validator to enter the view it justifies | `line:mvba:sv-forward`, `lem:view-sync`(b) |
-| `timeouts` | `Δ + ρ` | a correct quorum's timeouts, whenever sent, while their senders are still in the view, formed into a certificate by a correct validator in the view | the `Timeout` retransmission, `lem:convergence` ("Reaching `V`") |
-| `certificates` | `Δ + ρ` | a timeout certificate, whenever formed, while every correct validator takes part | `line:mvba:viewtc-retx` |
-| `decisions` | `Δ + ρ` | a commit certificate some correct validator has decided on (**N3**) | the composing layer's delivery, `lem:decision-propagation` |
+| `forwarded` | `Δ` | a timeout certificate forwarded, at or after GST, by the first correct validator to enter the view it justifies | Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`), Supplement, Lemma 14 (`lem:view-sync`)(b) |
+| `timeouts` | `Δ + ρ` | a correct quorum's timeouts, whenever sent, while their senders are still in the view, formed into a certificate by a correct validator in the view | the `Timeout` retransmission, Supplement, Lemma 15 (`lem:convergence`) ("Reaching `V`") |
+| `certificates` | `Δ + ρ` | a timeout certificate, whenever formed, while every correct validator takes part | Supplement, Algorithm 1, line 40 (`line:mvba:viewtc-retx`) |
+| `decisions` | `Δ + ρ` | a commit certificate some correct validator has decided on (**N3**) | the composing layer's delivery, Supplement, Lemma 13 (`lem:decision-propagation`) |
 
 *Since R8 (§6.4.2, C15) the last row is the caller's, not the MVBA's:
 `decide` on a transferred certificate is the contract's input `accept`, so
@@ -746,7 +746,7 @@ validator has entered some view `≥ v` by time `X ≥ gst`:
 | `Synced (succ v)` | `+ Δ` | `sync_view` enabled for everyone at `≤ v`; a first delivery of a certificate formed after GST |
 
 so `Synced (succ v) (X + C)` with **`C = τ_max + 2δ + 2Δ`** — the
-supplement's `τ_{w+1} ≤ τ_w + 2Δ + T` (`lem:convergence`) at `δ = 0`.
+supplement's `τ_{w+1} ≤ τ_w + 2Δ + T` (Supplement, Lemma 15 (`lem:convergence`)) at `δ = 0`.
 Neither the leader nor the outcome of `v` enters: a view that happens to
 decide is burnt like any other, which is what makes the lemma
 unconditional. Both network rows are first deliveries only if `v` is
@@ -771,7 +771,7 @@ at `E₀ ≥ gst`:
 | `msg_commitqc W e`, and a correct validator decided | `+ Δ` | `form_own_commitqc` at the first correct validator in `W`, which forms the certificate from the correct quorum's `Commit`s and decides on it (`TryFormCommitQC` and `Decide`, since R4) |
 
 so a correct validator has decided by `E₀ + L_cert` with
-**`L_cert = 3Δ + max(Δ, Δ_sync) + 2δ`** — `lem:good-view`'s
+**`L_cert = 3Δ + max(Δ, Δ_sync) + 2δ`** — Supplement, Lemma 16 (`lem:good-view`)'s
 `t*_w − τ_w` at `δ = 0`, `Δ_R = 0`. (Until R4 the certificate was the
 anonymous assembly's at `E₀ + L_cert` and everyone decided on it by
 `E₀ + L_cert + Δ`, a first delivery; since the validator that forms the
@@ -782,7 +782,7 @@ Every network row is a first delivery: each message is sent from inside `W`
 after `E₀ ≥ gst`, by correct validators, and retained, because at `E₀`
 every correct validator is already in `W − 1` or `W`. That last fact is the
 **one-view retention** (`retained_before`, the model's twin of
-`lem:convergence`'s retention clause). It holds when `W − 1` is fresh and
+Supplement, Lemma 15 (`lem:convergence`)'s retention clause). It holds when `W − 1` is fresh and
 past the ramp: the first correct validator in `W − 1` forwarded its
 certificate after GST, so everyone reaches `W − 1` within `Δ`, and nobody
 can be above `W − 1` before its budget `τ(W − 1) > L_cert ≥ Δ` has run
@@ -805,7 +805,7 @@ and (A-leader-rotation-k) places a correct leader fewer than `k` views
 further on, counted from the view *after* that one. The good view `W` is
 thus at least `M + 2`, and its predecessor `W − 1` is fresh (above `M`) and
 past the ramp, which is what the retention needs — the supplement's charge
-of views `V` and `V + 1` as possibly unproductive (`lem:good-view` takes
+of views `V` and `V + 1` as possibly unproductive (Supplement, Lemma 16 (`lem:good-view`) takes
 `w ≥ V + 2`). Then: `Synced M (u + Δ + ρ)` by one retransmitted
 `sync_view` hop, since the certificate below `M` exists at `N₀` but may
 predate GST; `Synced (M + 1)` a further `C + 2ρ` on (the first burn);
@@ -814,14 +814,14 @@ in all; `W`'s first correct entry is after `N₀`, hence `E₀ ≥ u ≥ gst`; a
 the second lemma has a correct validator decided by `E₀ + L_cert`. Whether
 that decision is the good view's or came earlier, the composing layer
 delivers its certificate to everyone within `Δ + ρ`
-(`lem:decision-propagation`). Hence
+(Supplement, Lemma 13 (`lem:decision-propagation`)). Hence
 
   `ℓ = (Δ + ρ) + 2ρ + (|below v_L| + k) • C + L_cert + (Δ + ρ)`,
 
 which is `O(kΔ)` when every constant is `O(Δ)` and the ramp is empty — the
 supplement's `O(fΔ)` at `k = f + 1`.
 
-**Against the supplement's own bound** (`thm:termination` at `eb1bb51`,
+**Against the supplement's own bound** (Supplement, Theorem 2 (`thm:termination`) at `eb1bb51`,
 at `δ = Δ_R = 0`, the fixed `T`, `Δ_sync ≤ Δ`, an empty ramp, so
 `|below v_L| = 1`, and `k = f + 1`): the supplement learns a certificate by
 `t₀ + ρ + 4Δ + max{T, ρ} + T + f(2Δ + T) + T` and decides within a further
@@ -1423,10 +1423,10 @@ claim allows only after `max(t, GST) + ℓ`, and `ℓ` exceeds a view's
 timeout. The first witness therefore passed through five views.
 
 **The supplement does stop.** Both its decision paths end in
-`decide(…); abandon()` (the procedure `Decide` in `alg:mvba-cont3`, reached
-from `line:mvba:qc-decide`, and the restart path), `abandon()` "halts all
+`decide(…); abandon()` (the procedure `Decide` in Supplement, Algorithm 1 (`alg:mvba-cont3`), reached
+from Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`), and the restart path), `abandon()` "halts all
 MVBA sending and stops `W`", and the timeout fires only "upon `W` reaches
-the view timeout and no decision in view `v`" (`line:mvba:timeout-send`).
+the view timeout and no decision in view `v`" (Supplement, Algorithm 1, line 36 (`line:mvba:timeout-send`)).
 That was so at the revision pinned then, `026dc8b`, and is so at the
 current pin `eb1bb51`, whose termination proof now relies on it
 ([MvbaPlan.md](MvbaPlan.md) §11.3, C11).
@@ -1471,15 +1471,15 @@ Lars to take: item 1 above all, and the two class changes it depends on.*
 **In short, for an auditor.** The paper proves two timed properties of
 Chorus:
 
-* **ℓ-termination** (`lemma:chorus-termination`): if every correct
+* **ℓ-termination** (Lemma 11 (`lemma:chorus-termination`)): if every correct
   validator starts participating in the slot by time `t`, every correct
   validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA`;
-* **d_tot-totality** (`prop:chorus-totality`): if one correct validator
+* **d_tot-totality** (Proposition 4 (`prop:chorus-totality`)): if one correct validator
   finalizes at time `t`, every correct validator finalizes by
   `max(t, GST) + Δ`.
 
 Both hold under *Δ-synchronized participation*
-(`def:delta-synchronized-participation`): once one correct validator
+(Definition 5 (`def:delta-synchronized-participation`)): once one correct validator
 starts, every correct validator starts within Δ. Both also hold "when run
 within Cadence". The contract states the two properties as the fields
 `bounded_termination` and `totality` of `SlotConsensusWithTotality`
@@ -1511,12 +1511,12 @@ timed claims are the paper's statements and the contract instances exist.
 
 * **F1: the class's timed fields omit two premises the paper uses.**
   `bounded_termination` and `totality` lack "a correct validator abandons
-  only after finalizing" (`algorithm:cadence`, `line:abandon`). The
+  only after finalizing" (Algorithm 1 (`algorithm:cadence`), Algorithm 1, line 23 (`line:abandon`)). The
   untimed `SlotConsensusTemporal.termination` has that premise.
   `bounded_termination` also lacks "no correct validator starts before
   `D − Δ`", which is the Conductor's integrity
-  (`lemma:conductor-integrity`); the proof of
-  `prop:chorus-finalization-time` uses it in its first step. Without the
+  (Lemma 12 (`lemma:conductor-integrity`)); the proof of
+  Proposition 5 (`prop:chorus-finalization-time`) uses it in its first step. Without the
   first premise, a validator that abandons at once never finalizes.
   Without the second, a slot whose deadline lies far after `t` cannot
   finalize by `max(t, GST) + ℓ`. Either way the field is false for every
@@ -1526,7 +1526,7 @@ timed claims are the paper's statements and the contract instances exist.
   (§6.4.1, "The class change").
 * **F2: the paper's message buffering needs a split hop.** "A message
   whose rule is blocked by this convention is not lost"
-  (`subsection:chorus-protocol-overview`). A rule's network input is
+  (Appendix C.3 (`subsection:chorus-protocol-overview`)). A rule's network input is
   therefore due Δ after it was sent, and its local gate (a phase landmark,
   or participation) is due δ after it opened. Measuring a Δ-hop from the
   later of the two, as §6.2.4's `BoundedFair` does, costs one extra Δ at
@@ -1537,13 +1537,13 @@ timed claims are the paper's statements and the contract instances exist.
   Conductor's window induction closes *because* Chorus's totality
   latency equals the synchronization tolerance its condition grants.
   "Both equal `Δ = d_tot`", in the words of the paragraph before
-  `def:window-synchronized`. With local steps that take time the ratchet
+  Definition 6 (`def:window-synchronized`). With local steps that take time the ratchet
   loses δ per window. This is the Conductor leg's question. §6.4.6 states
   what this leg provides so that it is not blocked.
 * **F4: to be confirmed. The 5Δ bound looks loose by one Δ.**
-  `lemma:chorus-termination` splits at `T₀ = M + 4Δ + ℓ_MVBA` and adds Δ
+  Lemma 11 (`lemma:chorus-termination`) splits at `T₀ = M + 4Δ + ℓ_MVBA` and adds Δ
   for totality (`M = max(t, GST)`). The inner split of
-  `prop:chorus-finalization-time` at `T₀ − Δ` already handles early
+  Proposition 5 (`prop:chorus-finalization-time`) at `T₀ − Δ` already handles early
   finalizers, and the only use of that proposition's premise "no correct
   validator stops before `T`" is covered by "abandon only after
   finalizing". So a single split at `T₀ − Δ` should give `M + 4Δ + ℓ_MVBA`,
@@ -1596,7 +1596,7 @@ input actions:
 
 * `participate i`;
 * `abandon i`, which forwards to the MVBA's `abandon` when the validator
-  has invoked it, as `line:fb-abandon` does. Its successor-state parameter
+  has invoked it, as Algorithm 5, line 48 (`line:fb-abandon`) does. Its successor-state parameter
   is harmless, since inputs carry no fairness.
 
 The existing `propose j m` becomes the contract's `propose(P)`, with
@@ -1604,14 +1604,14 @@ The existing `propose j m` becomes the contract's `propose(P)`, with
 [Chorus/Compose.lean](../Cadence/Chorus/Compose.lean). Then gate every
 rule that sends, with `participating i ∧ ¬ abandoned i`, and exempt the
 rules that only process. That is the standing convention of
-`subsection:chorus-protocol-overview`, rule for rule:
+Appendix C.3 (`subsection:chorus-protocol-overview`), rule for rule:
 
 * **Gated, because they send.** `propose` and `deliver_chunk_assigned`
   (at the proposer), `vote`, `commit_sign_*`, `cast_fast_commit`,
   `fb_sign_*`, `cast_fallback_vote`, `mvba_propose` (the convention names
   it explicitly), `cast_fb_commit`, and `commit_assign_*`/`finalize_commit`.
   The paper's finalization rules re-broadcast the proof
-  (`line:fast-rebroadcast-commitqc`, `line:fb-commit-rebroadcast`), and
+  (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)), and
   its totality proof relies on their being gated. The model's comment at
   "Commit decision" ("finalization on receipt has no active-participation
   precondition") then changes.
@@ -1619,15 +1619,15 @@ rules that only process. That is the standing convention of
   the decision handlers and `mvba_terminate`.
 * **Anonymous capabilities.** `broadcast_commitqc_*` and
   `redisseminate_chunk` have no actor today. In the paper both are sends
-  by a correct validator: the collector (`line:fast-broadcast-commitqc`),
-  and the fallback-entry caster (`line:fb-redisseminate`). The faithful
+  by a correct validator: the collector (Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)),
+  and the fallback-entry caster (Algorithm 5, line 12 (`line:fb-redisseminate`)). The faithful
   form gives each a sender parameter, gated when the sender is correct and
   unconstrained when it is Byzantine. Without that, Quiescence cannot
   attribute those messages. **Recommended**, since the family re-solves
   anyway.
 
 Quiescence is then provable in the paper's own two-part shape
-(`lemma:chorus-quiescence`):
+(Lemma 6 (`lemma:chorus-quiescence`)):
 
 * Chorus's own sends are gated;
 * the MVBA's sends are the MVBA's `sent`, confined by its `quiescence` to
@@ -1687,12 +1687,12 @@ Termination.
   because `init_participating` and the input frames have nothing to bind
   to. Quiescence is false in it: an implicitly participating validator
   votes before any `open`. And it blocks the next leg:
-  `prop:conductor-open-to-complete` applies ℓ-termination at a start time
+  Proposition 14 (`prop:conductor-open-to-complete`) applies ℓ-termination at a start time
   `max(t, GST) + d_tot` set by the Conductor, not at `D − Δ`.
 * *B2, a gated product in Lean.* Wrap the Chorus transition system with
   participation ghosts and gate its labels outside Veil. Safety transfers
   by simulation, and nothing re-solves. The wrapper cannot forward
-  `abandon` to the MVBA (`line:fb-abandon`) without stepping `mvba_st`
+  `abandon` to the MVBA (Algorithm 5, line 48 (`line:fb-abandon`)) without stepping `mvba_st`
   outside Chorus's transitions. That breaks the simulation to Chorus's
   reachable states, on which every invariant rests. Without forwarding,
   Quiescence is false for the MVBA's messages after a fast-path
@@ -1702,7 +1702,7 @@ Termination.
 
 **Option C: change the class.** For example, drop the inputs from the
 Chorus-facing class, or state Termination over "participates from the
-start". Either is unfaithful to `mod:slotconsensus`, whose interface
+start". Either is unfaithful to Module 1 (`mod:slotconsensus`), whose interface
 *is* the three inputs, and whose Quiescence is about them. **Not
 recommended as the resolution.**
 
@@ -1724,7 +1724,7 @@ as antecedents rather than `Admissible` content:
   discharges it from `OrchestratorSafety.integrity_timing` with
   `deadline s = start_time s + Δ`. The paper keeps this datum out of the
   module: its commented-out "assumed behaviour" block in
-  `mod:slotconsensus` lists it, and the lemmas carry it as "within
+  Module 1 (`mod:slotconsensus`) lists it, and the lemmas carry it as "within
   Cadence". That is why it is an antecedent here and not a field of
   `SlotConsensusSafety`.
 
@@ -1742,7 +1742,7 @@ one re-solve.** Three things ride along in the same edit:
 * Chorus.lean's (F-justice) prose list, which should name
   `deliver_chunk_assigned` and `broadcast_commitqc_*`
   ([Liveness.md](Liveness.md) §4.3);
-* PR #44's `mod:mvba` Agreement prose edit in Interfaces.lean.
+* PR #44's Module 3 (`mod:mvba`) Agreement prose edit in Interfaces.lean.
 
 Chorus.lean's header paragraphs on Termination and Quiescence are
 rewritten there too. [FallbackReceipt.lean](../Cadence/FallbackReceipt.lean)'s
@@ -1804,7 +1804,7 @@ The table has three consequences:
 * **`mvba_propose` is two rules** (corrected by S3, F9 below). This
   bullet first said that one Δ-row suffices, because "with the split hop
   that costs nothing". That holds for the case-(b) trigger, others' fallback
-  votes, but not for case (a) (`line:fb-mvba-propose-fast`), whose trigger
+  votes, but not for case (a) (Algorithm 5, line 23 (`line:fb-mvba-propose-fast`)), whose trigger
   is the proposer's own complete fast meta-block: it exists only once the
   FastQCs have arrived, so a Δ-row on it costs a second Δ. The premise
   therefore has the paper's two rules, a Δ-family and a δ-family.
@@ -1858,7 +1858,7 @@ is the MVBA's own `decide` step. Its cost, `Δ + ρ`, is inside `ℓ_MVBA`.
 **Two findings against the table above, both built into the statement.**
 
 * **F5: the paper owes delivery only between correct validators**
-  (`prop:chorus-finalization-time`'s proof: "every message between correct
+  (Proposition 5 (`prop:chorus-finalization-time`)'s proof: "every message between correct
   validators is delivered within Δ"). The model's network relations hold
   from a message's first delivery to anyone, a Byzantine sender's included.
   So a Δ-row that consumes a Byzantine validator's message would owe a
@@ -1872,16 +1872,17 @@ is the MVBA's own `decide` step. Its cost, `Δ + ρ`, is inside `ℓ_MVBA`.
   `Chorus.termination` against them found F7 and F8 (below).
 * **F6: `cast_fb_commit` reads a shared flag.** Its guard is
   `mvba_complete`, which the first validator to decide sets. The paper's
-  rule fires on the voter's own decision (`line:fb-commitvote`). As a δ-row
+  rule fires on the voter's own decision (Algorithm 5, line 41 (`line:fb-commitvote`)). As a δ-row
   with no condition it would owe a vote from a validator whose MVBA has not
   decided. The row is owed once the voter itself has decided.
 
 **The decision handoff (C15): the design** (R8, 2026-09-30, written before
-the build). The supplement's "Decision output and handoff" paragraph says
+the build). The supplement's paragraph "Decision output and handoff" (Supplement,
+Section 1.2 (`subsec:mvba-protocol`)) says
 four things: `decide(x, CommitQC)` outputs the certificate; Chorus broadcasts
 it; a correct validator that receives a valid one re-broadcasts it and
 finalizes; and the MVBA accepts a transferred `CommitQC` of any view
-(`line:mvba:qc-decide`). Until R8 the MVBA's `decide` (its
+(Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)). Until R8 the MVBA's `decide` (its
 transferred-certificate handler) was an *internal* MVBA step, taken by the
 oracle `mvba_step`, so its timing was assumed inside `T.Admissible`
 (`Mvba.BoundedJustice.decisions`). The design makes the transfer the
@@ -1971,16 +1972,16 @@ places where a correct validator forwards what it received:
 
 * **F7: the fast meta-block travels.** `aggregate_fastqc_*` is also owed
   when a correct validator that cast its fast commit vote holds the FastQC:
-  the same rule broadcasts its `FastBlock` (`line:fast-metablock`), and a
+  the same rule broadcasts its `FastBlock` (Algorithm 4, line 20 (`line:fast-metablock`)), and a
   correct validator that receives one adopts its FastQCs. The paper's
   finalization-time proof uses exactly this ("that validator held a fast
   meta-block and broadcast it"). Without it the case-(a) proposals would
   owe nothing whenever the FastQC's quorum had Byzantine voters.
 * **F8: re-dissemination by the decoder.** `redisseminate_chunk k …` is
   also owed when its correct sender `k` signed a positive fallback entry
-  for the root: it decoded the proposal to sign (`line:fb-redisseminate`
+  for the root: it decoded the proposal to sign (Algorithm 5, line 12 (`line:fb-redisseminate`)
   sends every validator its chunk). A `FallbackQC`'s correct signer is the
-  paper's source of the chunks (`prop:chorus-finalization-time`, "by
+  paper's source of the chunks (Proposition 5 (`prop:chorus-finalization-time`), "by
   `M + 3Δ`").
 
 A third consequence is on the MVBA's untimed premise: (A-viewsync)'s second
@@ -2005,8 +2006,8 @@ model session, R12, which closed it). Three are about premises, one about the mo
   because the trigger is the receiver's local state. A Δ-row from there puts
   the proposals at `M + 4Δ + 2δ`, one Δ beyond the paper's `M + 3Δ`. The
   premise now has the paper's two rules (`TimedJustice.propose`,
-  `line:fb-mvba-propose`, a Δ-family owed on a correct `FBCert`; and
-  `TimedJustice.proposeFast`, `line:fb-mvba-propose-fast`, a δ-family owed
+  Algorithm 5, line 36 (`line:fb-mvba-propose`), a Δ-family owed on a correct `FBCert`; and
+  `TimedJustice.proposeFast`, Algorithm 5, line 23 (`line:fb-mvba-propose-fast`), a δ-family owed
   on the own meta-block), and the proposals are by `M + 3Δ + 3δ`
   (`Chorus.within_all_input`). This raises `ℓ`'s δ-multiple from 8 to 9.
 * **F10: a Δ-row costs `max(Δ, δ)`.** With its gate already open
@@ -2022,8 +2023,8 @@ model session, R12, which closed it). Three are about premises, one about the mo
   `CorrectChunkQuorum j m ∨ msg_fb_pos_sig k j m`, with gate `Active k`, so
   every active correct validator owed every validator its chunk within Δ of
   a chunk quorum. The paper re-disseminates in two places only: inside the
-  fallback-entry rule (`line:fb-redisseminate`, F8's disjunct) and after the
-  validator's own MVBA decision (`line:fb-commit-wait`). R10's run: `Δ = 1`,
+  fallback-entry rule (Algorithm 5, line 12 (`line:fb-redisseminate`), F8's disjunct) and after the
+  validator's own MVBA decision (Algorithm 5, line 39 (`line:fb-commit-wait`)). R10's run: `Δ = 1`,
   `δ = 0`, `D = 1`, a fast-path finalization at clock 3, but the row for
   `k = 1` owed and open from clock 0 and due by 1. Both untimed and timed
   premises excluded such paper runs. The chunk-quorum disjunct is now owed
@@ -2034,7 +2035,7 @@ model session, R12, which closed it). Three are about premises, one about the mo
   paper's** (found by R10). The paper waits only under FallbackQC entries:
   "**for each** FallbackQC in B′ with a positive entry ⟨s, j, root⟩: **wait
   until** p_i has received and validated its assigned chunk for root"
-  (`line:fb-commit-foreach`, `line:fb-commit-wait`). The model's
+  (Algorithm 5, line 38 (`line:fb-commit-foreach`), Algorithm 5, line 39 (`line:fb-commit-wait`)). The model's
   `cast_fb_commit` required
   `∀ J M, is_proposer J → mvba_decided_pos J M → msg_chunk_received i J M`,
   under every decided positive root, FastQC-backed ones included. So the
@@ -2091,7 +2092,7 @@ Two findings from the fix, both reported, neither acted on:
   m`. The left disjunct was used only by the old `eventually_fbcommit_sig`,
   for FastQC roots, which no longer need a chunk. The paper's decided
   validator broadcasts only *its own* chunk, and only under FallbackQC
-  entries (`line:fb-commit-wait`). It does not send other validators their
+  entries (Algorithm 5, line 39 (`line:fb-commit-wait`)). It does not send other validators their
   chunks. So the disjunct owed steps that paper runs need not take.
   **Closed in R14**, see "F14 closed" below.
 
@@ -2099,7 +2100,7 @@ Two findings from the fix, both reported, neither acted on:
 
 | | `Owed (.redisseminate_chunk k i j m)` |
 |---|---|
-| paper | the fallback-entry rule re-encodes and sends each validator its assigned chunk (`line:fb-redisseminate`); a decided validator broadcasts only its own chunk (`line:fb-commit-wait`) |
+| paper | the fallback-entry rule re-encodes and sends each validator its assigned chunk (Algorithm 5, line 12 (`line:fb-redisseminate`)); a decided validator broadcasts only its own chunk (Algorithm 5, line 39 (`line:fb-commit-wait`)) |
 | before | `(CorrectChunkQuorum j m ∧ ∃ v, mvba.decided k v) ∨ msg_fb_pos_sig k j m` |
 | after | `msg_fb_pos_sig k j m` |
 
@@ -2197,7 +2198,7 @@ reasons:
 The dichotomy theorems stay in use as the source of the certified vector.
 With `M = max(t, GST)`, the same notation as the paper:
 
-| Paper milestone (`prop:chorus-finalization-time`) | Model links, re-run with deadlines | Rows |
+| Paper milestone (Proposition 5 (`prop:chorus-finalization-time`)) | Model links, re-run with deadlines | Rows |
 |---|---|---|
 | `D ≤ t + Δ` | C2 at each correct start, with (P2) | — |
 | by `M + Δ`: first-round votes | `eventually_voted`, then `eventually_quorum_cast` (`voted_implies_cast`) | `vote` δ |
@@ -2313,7 +2314,7 @@ two things termination's case B does not:
 It needs *less* than the paper's proof in one respect, and that is worth
 stating plainly. The paper's totality proof spends most of its length on
 recovery: chunks and decryption shares arriving in time for
-`recoverProposals` (`line:da-recover-slot`). The model's `finalized`
+`recoverProposals` (Algorithm 6, line 14 (`line:da-recover-slot`)). The model's `finalized`
 is the committed entry vector (`pvector := slot × (node → Option
 merkle_root)`, [Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)), and
 payload recovery is not part of it. So that half of the paper's argument
@@ -2522,7 +2523,7 @@ The caller's conditions, the contract's antecedents:
 
 What the ledger must say besides, so that an auditor comparing proofs does
 not trip on it: the model's `finalized` is the committed entry vector, so
-the paper's payload recovery (`line:da-recover-slot`) has no counterpart in
+the paper's payload recovery (Algorithm 6, line 14 (`line:da-recover-slot`)) has no counterpart in
 any of the claims (§6.4.4).
 
 **The model** ([Chorus/Witness.lean](../Cadence/Chorus/Witness.lean)'s
@@ -2562,8 +2563,8 @@ fallback-path guard, and its row was owed whenever `f+1` correct validators
 held the chunk (`CorrectChunkQuorum`), with only `Active k` as its gate. So
 `TimedJustice` obliged every active correct validator to re-disseminate
 within `Δ`, on the fast path too. The paper re-disseminates only on the
-fallback path: inside the fallback-entry rule (`line:fb-redisseminate`) and
-in the fallback commit round's wait (`line:fb-commit-wait`). **Counterexample**
+fallback path: inside the fallback-entry rule (Algorithm 5, line 12 (`line:fb-redisseminate`)) and
+in the fallback commit round's wait (Algorithm 5, line 39 (`line:fb-commit-wait`)). **Counterexample**
 (`Δ = 1`, `δ = 0`, `D = 1`): a fast-path run whose messages take their full
 `Δ` (FastQCs at 2, finalization and abandonment at 3) leaves the row for
 validator 1 owed, enabled and gated open from clock 0 to clock 1. It must
@@ -2643,7 +2644,7 @@ after its step 2.
    Deviations from the plan, each small:
 
    * **`abandon` forwards every time**, not only "if mvbaInvoked"
-     (`line:fb-abandon`). The difference is unobservable: the MVBA's own
+     (Algorithm 5, line 48 (`line:fb-abandon`)). The difference is unobservable: the MVBA's own
      `abandon()` has no precondition, a party that has not proposed sends
      nothing in the MVBA, and after `abandon` Chorus never proposes to it.
      The conditional form would have needed a negative read of the MVBA's
@@ -2735,7 +2736,7 @@ after its step 2.
    * **F5 on the untimed premises**: both `FJustice`s, Chorus's and the
      MVBA's, owed steps enabled by Byzantine senders' messages.
    * **C15**: the MVBA decision certificate's delivery is Chorus's protocol
-     step (the supplement's "Decision output and handoff"), which the
+     step (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"), which the
      model did not have.
 
    **Both closed in R8** (2026-09-30, §6.4.2 "The decision handoff (C15):
@@ -2906,24 +2907,24 @@ front, before any Lean.
 **What the Conductor's timed claims need from this leg.** The
 Conductor's Totality, `B`-Boundedness and `R`-Recovery
 (`OrchestratorTemporal`) consume Chorus's claims in
-`prop:window-synchronization` (totality), `prop:conductor-open-to-complete`
+Proposition 13 (`prop:window-synchronization`) (totality), Proposition 14 (`prop:conductor-open-to-complete`)
 (ℓ-termination), and the recovery chain through `Φ_oc = ℓ_chorus + d_tot`
-and the parameter assumptions of `algorithm:conductor`. For those proofs
+and the parameter assumptions of Algorithm 7 (`algorithm:conductor`). For those proofs
 to go through, this leg must hand over the following.
 
 * **Premises the composition can discharge.** Each of Chorus's caller
   conditions has to be one a composed run proves:
   * participation by `t`: the glue invokes `participate` at `open`
-    (`line:participate`);
+    (Algorithm 1, line 17 (`line:participate`));
   * Δ-synchronized participation: the Conductor's own opening totality
-    (`lemma:conductor-totality`);
+    (Lemma 15 (`lemma:conductor-totality`));
   * C2: `integrity_timing`, with `deadline s = start_time s + Δ`;
-  * C1: the glue abandons only after finalizing (`line:abandon`).
+  * C1: the glue abandons only after finalizing (Algorithm 1, line 23 (`line:abandon`)).
 
   C1/C2 are phrased with that in mind, as antecedents over the class's
   own observables.
 * **`ℓ` and `d_tot` as data, with closed values.** They appear in
-  assumptions (1)–(4) of `algorithm:conductor`. They are fields already;
+  assumptions (1)–(4) of Algorithm 7 (`algorithm:conductor`). They are fields already;
   the instance pins them.
 * **Totality in the tolerance-parametric form of §6.4.4.** This is F3.
   The ratchet needs Chorus's latency not to exceed the tolerance the
@@ -2932,7 +2933,7 @@ to go through, this leg must hand over the following.
   leg has to choose. It can work at δ = 0, the paper's instantaneous
   local computation. It can find a δ-robust statement, for instance by
   re-synchronizing on the absolute start times, as
-  `line:conductor-wait-for-open` does once the windows are ahead of the
+  Algorithm 7, line 27 (`line:conductor-wait-for-open`) does once the windows are ahead of the
   clock. Or it can record the degradation as a finding. **Proposal (C3,
   to the Conductor leg):** leave `syncParticipation_def`'s tolerance at Δ
   for now. The parametric lemma means this leg's statement does not
@@ -2948,7 +2949,7 @@ to go through, this leg must hand over the following.
     composition leg gives the glue its `participate` / `propose` /
     `abandon` actions. The glue's safety theorem is unaffected: it is
     generic, and inertness only removes behaviours.
-  * `cor:chorus-correctness-within-cadence` then closes the loop, which
+  * Corollary 4 (`cor:chorus-correctness-within-cadence`) then closes the loop, which
     is §6 step 5.
 
 #### 6.4.7 Fired-once flags: fairness over plain enabledness
@@ -2991,10 +2992,10 @@ from**.
     `DecidedQC_i`;
   * the timeout certificate: "upon first collecting 2f+1 valid timeout
     messages", pᵢ forms `TC_{s,v}` and processes it through `SyncView`
-    (`line:mvba:ht-advance`).
-* **Chorus:** `aggregate_fastqc_pos/neg i j …` (`line:fast-formqc`) and
-  `broadcast_commitqc_pos/neg c j …` (`line:fast-collect-commit`,
-  `line:fast-broadcast-commitqc`). Each has an actor and no fired-once
+    (Supplement, Algorithm 1, line 85 (`line:mvba:ht-advance`)).
+* **Chorus:** `aggregate_fastqc_pos/neg i j …` (Algorithm 4, line 18 (`line:fast-formqc`)) and
+  `broadcast_commitqc_pos/neg c j …` (Algorithm 4, line 31 (`line:fast-collect-commit`),
+  Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)). Each has an actor and no fired-once
   guard. **An assumption to confirm:** the published paper writes these as
   `upon` handlers of an event-driven protocol, without "first time" (only
   the fast meta-block rule says it). The plan reads an `upon` handler as

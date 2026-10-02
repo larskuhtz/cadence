@@ -25,10 +25,10 @@ clock reading — to a guard, a local record or the network's own facts.
   `Δ`-row, a local step a `δ`-row, and the bound is split (Timed.lean's
   `BufferedFair`): the message part is due `Δ` after it was sent, the rule
   fires `δ` after its local gate opened. The paper's buffering sentence,
-  `subsection:chorus-protocol-overview`. A row is owed only for messages
+  Appendix C.3 (`subsection:chorus-protocol-overview`). A row is owed only for messages
   from **correct** senders (`Owed`), as the paper's network promises
   delivery only "between correct validators"
-  (`prop:chorus-finalization-time`'s proof).
+  (Proposition 5 (`prop:chorus-finalization-time`)'s proof).
 * **(P-phase)** — `PhasePunctual`: the three phase markers fire at the
   slot's landmarks `D`, `D + Δ`, `D + 2Δ`, not earlier and not later.
 * **The MVBA's timing** — `TimedMvbaAdmissible`: the MVBA's steps inside the
@@ -113,12 +113,12 @@ the three phase markers ((P-phase) times them).
 * `Δ`: the proposer's chunk (`deliver_chunk_assigned`), others' votes
   (`aggregate_fastqc_*`, `fb_sign_*`), others' commit votes
   (`broadcast_commitqc_*`), others' fallback votes (the `mvba_propose`
-  family on its `FBCert` trigger, `line:fb-mvba-propose`), the caster's chunk (`redisseminate_chunk`), a
+  family on its `FBCert` trigger, Algorithm 5, line 36 (`line:fb-mvba-propose`)), the caster's chunk (`redisseminate_chunk`), a
   certificate someone else sent (`commit_assign_*`), a decided MVBA
   certificate (the handoff `accept_mvba_commitqc`);
 * `δ`: `record_chunk`, `vote`, `commit_sign_*`, `cast_fast_commit`,
   `cast_fallback_vote`, the `mvba_propose` family on its case-(a) trigger
-  (`line:fb-mvba-propose-fast`: the proposer's own complete fast meta-block,
+  (Algorithm 5, line 23 (`line:fb-mvba-propose-fast`): the proposer's own complete fast meta-block,
   local state), the decision handlers `on_mvba_decide_*` and
   `mvba_terminate`, `cast_fb_commit`, `finalize_commit`.
 
@@ -208,7 +208,7 @@ variable {time : Type} [LinearOrder time] [AddCommMonoid time]
 
 /-- **The termination latency** `ℓ`, over the network bound `Δ`, the local
 bound `δ` and the MVBA's `ℓ_MVBA`: the paper's `5Δ + ℓ_MVBA`
-(`lemma:chorus-termination`) plus the local steps the timeline counts.
+(Lemma 11 (`lemma:chorus-termination`)) plus the local steps the timeline counts.
 
 The `δ`-count is `9`, along [Bounds.md](../../docs/Bounds.md) §6.4.3's
 timeline from `M := max(t, GST)`, with the paper's outer case split at
@@ -253,7 +253,7 @@ def Ltot (Δ δ d : time) : time :=
   max Δ d + 2 • δ
 
 /-- At `δ = 0` and the paper's tolerance `d = Δ`, the latency is the paper's
-`d_tot = Δ` (`prop:chorus-totality`). -/
+`d_tot = Δ` (Proposition 4 (`prop:chorus-totality`)). -/
 theorem Ltot_paper (Δ : time) : Ltot Δ 0 Δ = Δ := by
   simp [Ltot]
 
@@ -288,7 +288,7 @@ end Schedule
 
 /-- **The slot's three landmarks.** The deadline `D`, the fallback arm
 `D + Δ`, the MVBA arm `D + 2Δ` (the paper's arm times, stated in the network
-bound; `alg:fallback`). -/
+bound; Algorithm 5 (`alg:fallback`)). -/
 inductive Landmark where
   | deadline
   | fbArm
@@ -385,14 +385,14 @@ participation) and the phase: the header's checklist. -/
 /-- The MVBA proposal's gate: the proposer actively participates, and the MVBA
 arm `D + 2Δ` has opened. The paper's fallback trigger may fire from the
 fallback arm on; the gate is the later arm because the case-(a) trigger
-(`line:fb-mvba-propose-fast`) waits for it, and [Bounds.md](../../docs/Bounds.md)
+(Algorithm 5, line 23 (`line:fb-mvba-propose-fast`)) waits for it, and [Bounds.md](../../docs/Bounds.md)
 §6.4.3's timeline reaches the proposals only after it. -/
 def proposeGate (i : node) (s : StateAtMvba slot node nodeset merkle_root view Phase PathChoice) :
     Prop :=
   Active s i ∧ s.phase = Phase_EnumClass.post_mvba_arm
 
 /-- **The gates.** A sending rule is gated on its sender's active participation
-(`subsection:chorus-protocol-overview`), and a rule that waits for a landmark
+(Appendix C.3 (`subsection:chorus-protocol-overview`)), and a rule that waits for a landmark
 on the landmark's phase. The processing rules (`record_chunk`,
 `aggregate_fastqc_*`, and the decision handlers apart from their phase) have
 no participation gate, as in the model. -/
@@ -440,8 +440,8 @@ as in `FJustice`: if `i` can propose `v` throughout the window, with its
 trigger owed and its gate open, `i` proposes `v` (for some MVBA successor
 state) within it. The paper has two proposal rules, and so does the premise
 (F9): on the fallback votes of a correct supermajority
-(`line:fb-mvba-propose`, a `Δ`-family, `propose`), and on the proposer's own
-complete fast meta-block (`line:fb-mvba-propose-fast`, a `δ`-family,
+(Algorithm 5, line 36 (`line:fb-mvba-propose`), a `Δ`-family, `propose`), and on the proposer's own
+complete fast meta-block (Algorithm 5, line 23 (`line:fb-mvba-propose-fast`), a `δ`-family,
 `proposeFast`: the FastQCs it reads are local once adopted). The handoff is one family per receiver, a `Δ`-row with no
 gate (it processes a message): once a correct validator has decided, whose
 decision output is the certificate's broadcast, `i` takes a transferred
@@ -510,7 +510,7 @@ when the MVBA is stepped infinitely often.
 **The handoff is derived (C15, R8).** At the system's MVBA, `T.Admissible`
 includes `Mvba.Relayed`: the MVBA's caller hands a decided commit
 certificate to every undecided correct validator within `Δ + ρ`, which the
-supplement asks of the *composing* layer (`lem:decision-propagation`). In
+supplement asks of the *composing* layer (Supplement, Lemma 13 (`lem:decision-propagation`)). In
 the composed system that caller is Chorus, whose handoff row (`TimedJustice`'s
 `relay`) delivers it: `relayed_of_timedJustice` derives the clause for every
 projection, at every schedule with `δ ≤ Δ + ρ`, and
@@ -537,17 +537,17 @@ def Sync (sch : Schedule view time)
 The antecedents of `SlotConsensusWithTotality.bounded_termination` and
 `totality`, over the model's own observables. Within Cadence the
 composition discharges each: the glue participates at `open`
-(`line:participate`), the Conductor's opening totality synchronizes the
-starts (`lemma:conductor-totality`), its integrity keeps them after `D − Δ`
-(`lemma:conductor-integrity`), and the glue abandons only after finalizing
-(`line:abandon`). C1 is [Liveness.lean](Liveness.lean)'s
+(Algorithm 1, line 17 (`line:participate`)), the Conductor's opening totality synchronizes the
+starts (Lemma 15 (`lemma:conductor-totality`)), its integrity keeps them after `D − Δ`
+(Lemma 12 (`lemma:conductor-integrity`)), and the glue abandons only after finalizing
+(Algorithm 1, line 23 (`line:abandon`)). C1 is [Liveness.lean](Liveness.lean)'s
 `NoAbandonBeforeFinalizing`, used as it is. -/
 
 /-- **Every correct validator participates by `t`.** -/
 def AllParticipateBy (t : time) (r : TChorusRun thS thM time) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ n, r.clk n ≤ t ∧ (r.at' n).participating i = true
 
-/-- **Participation synchronized within `d`** (`def:delta-synchronized-participation`
+/-- **Participation synchronized within `d`** (Definition 5 (`def:delta-synchronized-participation`)
 at tolerance `d`): once a correct validator participates at clock `c`, every
 correct validator participates by `max(c, GST) + d`. The contract's
 `SyncParticipation` is the case `d = Δ` (`syncParticipation_def`, with
@@ -570,7 +570,7 @@ statement in the model's vocabulary: `finalized` is `local_committed`,
 `participating` and `abandoned` the model's own relations, `byGstBound`'s
 least upper bound written as `max`. -/
 
-/-- **ℓ-termination, the target** (`lemma:chorus-termination`). Under the
+/-- **ℓ-termination, the target** (Lemma 11 (`lemma:chorus-termination`)). Under the
 timing model at a schedule `sch` and an MVBA contract `T`, the bridge, and
 the caller's conditions — participation synchronized within `Δ`, no
 abandonment before finalizing (C1), no start before `D − Δ` (C2) — if every
@@ -594,7 +594,7 @@ def TimedTerminationClaim (sch : Schedule view time)
       ∀ j, ¬ nset.is_byz j = true →
         ∃ n, r.clk n ≤ max t r.gst + sch.ℓ T.ℓ ∧ (r.at' n).local_committed j = true
 
-/-- **d_tot-totality, the target** (`prop:chorus-totality`), at a
+/-- **d_tot-totality, the target** (Proposition 4 (`prop:chorus-totality`)), at a
 participation tolerance `d` (F3). Under (Δδ-justice), participation
 synchronized within `d` and no abandonment before finalizing (C1), if a
 correct validator finalizes at an index with clock `c`, every correct

@@ -255,7 +255,7 @@ Two generalisations of `BoundedFair`, both for the Chorus leg
 the timed twin of `WeaklyFairFamily`: one of an action's parameters is a
 result rather than a choice. A **buffered hop** splits a step's bound in
 two, as the paper's message buffering does: "a message whose rule is
-blocked by this convention is not lost" (`subsection:chorus-protocol-overview`).
+blocked by this convention is not lost" (Appendix C.3 (`subsection:chorus-protocol-overview`)).
 The message part is due `D` after it was sent, and the rule fires `δ` after
 its local gate opened. Measuring one hop from the later of the two, as
 `BoundedFair` would, costs an extra `D` wherever the gate opens last. -/

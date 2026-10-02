@@ -12,7 +12,7 @@ within `d`, and no abandonment before finalizing (C1), if a correct
 validator finalizes at an index whose clock reads `c`, every correct
 validator finalizes by `max(c, GST) + max(Δ, d) + 2δ` (`Ltot`).
 
-**`Chorus.totality_paper`** — the paper's `prop:chorus-totality` read off
+**`Chorus.totality_paper`** — the paper's Proposition 4 (`prop:chorus-totality`) read off
 it: at `δ = 0` and the paper's tolerance `d = Δ`, every correct validator
 finalizes by `max(c, GST) + Δ`, which is `d_tot = Δ`. The `δ > 0`
 degradation stays parametric; what the Conductor makes of it is that leg's
@@ -37,7 +37,7 @@ finalization re-broadcast the proof). For another correct validator `j`:
 
 The proof never needs `δ ≤ Δ`, the phase timers, the MVBA or the bridge,
 which is why `TotalityClaim` does not take them. Payload recovery
-(`line:da-recover-slot`), half of the paper's proof, has no counterpart: the
+(Algorithm 6, line 14 (`line:da-recover-slot`)), half of the paper's proof, has no counterpart: the
 model's `finalized` is the committed entry vector ([Bounds.md](../../docs/Bounds.md) §6.4.4).
 
 ## How it is built
@@ -328,7 +328,7 @@ theorem within_finalized (sch : Schedule view time) {r : TChorusRun thS thM time
         (fun k hk => Chorus.participating.mono (r.steps k) j hk) hP n (by omega),
       fun h => hnot (hab j hj n h)⟩)
 
-/-- **`d_tot`-totality** (`prop:chorus-totality`), in the tolerance-parametric
+/-- **`d_tot`-totality** (Proposition 4 (`prop:chorus-totality`)), in the tolerance-parametric
 form: `TotalityClaim sch d` at every schedule and every tolerance `d`, over a
 finite validator set. If a correct validator `i` finalizes at index `n`,
 every correct validator `j` finalizes by `max(clk n, GST) + max(Δ, d) + 2δ`.
@@ -392,7 +392,7 @@ theorem totality [Fintype node] (sch : Schedule view time) (d : time) :
       (r.bufWindow_le (by gcongr) (by gcongr))
     exact ⟨k, by rw [← hbound]; exact hck, hk⟩
 
-/-- **The paper's `d_tot = Δ`** (`prop:chorus-totality`): at `δ = 0` and the
+/-- **The paper's `d_tot = Δ`** (Proposition 4 (`prop:chorus-totality`)): at `δ = 0` and the
 paper's tolerance `d = Δ` (Δ-synchronized participation), once a correct
 validator finalizes at clock `c`, every correct validator finalizes by
 `max(c, GST) + Δ`. `totality` at `d = Δ`, read through `Ltot_paper`. -/

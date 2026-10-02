@@ -17,7 +17,7 @@ the model proves and what it still owes is
 proven overall is [../README.md](../README.md) and
 [../Cadence.lean](../Cadence.lean).
 
-`mod:mvba` in the published paper is an interface and five properties with no
+Module 3 (`mod:mvba`) in the published paper is an interface and five properties with no
 algorithm, which is why `ℓ_MVBA` is a parametric hole of the paper
 ([Bounds.md](Bounds.md) §1); for this instantiation it is proven
 (`Mvba.mvbaTemporal`, [Bounds.md](Bounds.md) §6.2). The paper repository's internal
@@ -28,12 +28,11 @@ correctness section, which is what this model formalises.
 
 Everything verified so far is checkable against `arXiv:2607.02275v2`. The
 MVBA algorithm is not in it: it lives in the paper repository's **internal
-supplement** (`supplementary-internal.tex` and
-`src/supplementary-internal/`), which is not yet part of the published
+supplement**, which is not yet part of the published
 paper ([PaperAlignment.md](PaperAlignment.md) §2, §9). That is stated,
 not worked around: the model's header, and every document that names the
 model, say that its specification is the internal supplement, not yet part
-of the published paper, and that `mod:mvba` — the contract the model is
+of the published paper, and that Module 3 (`mod:mvba`) — the contract the model is
 proven to satisfy — is the public part. What an auditor can check without
 the supplement is the theorem `Mvba ⊨ MVBASafety` against the public
 contract; what needs the supplement is the model's fidelity to the
@@ -42,25 +41,25 @@ algorithm. The implementation in code is out of scope and is not cited.
 **The referent is a paper-repository commit, recorded for our own future
 iterations.** The paper has arXiv versions, and [README.md](../README.md)
 maps each to the unique paper-repo commit that reproduces it. The
-supplement has neither tags nor versions, and
-`src/supplementary-internal/alg_mvba.tex` is the most-churned file in the
-repository — some twenty commits since July, the latest on 2026-09-03 — so
+supplement has neither tags nor versions, and its MVBA algorithm,
+Supplement, Algorithm 1 (`alg:mvba`–`alg:mvba-cont3`), is the most-churned
+part of the repository — some twenty commits since July, the latest on 2026-09-03 — so
 the model pins the **commit SHA of the paper repository it was read
-against**, and any later change to `alg_mvba.tex` or to
-`subsec:mvba-correctness` is the trigger to re-read the model against the
+against**, and any later change to that algorithm or to
+Supplement, Section 1.3 (`subsec:mvba-correctness`) is the trigger to re-read the model against the
 new commit and move the pin. For this plan, and for the model's first
 version, the referent was paper-repo commit **`026dc8b`** (2026-09-03);
 since step 5b (§11.5 stage 2) it is **`eb1bb51`** (2026-09-28).
-The anchors to cite from it: `sec:mvba-instantiation`,
-`subsec:mvba-datatypes`, `subsec:mvba-protocol`, the four algorithm blocks
-`alg:mvba`, `alg:mvba-cont`, `alg:mvba-cont2`, `alg:mvba-cont3` (the fourth
-new at `eb1bb51`) with their `line:mvba:*` labels, and the correctness section `subsec:mvba-correctness` with
-`rem:signature-separation`, `lem:vote-uniqueness`, `lem:commit-provenance`,
-`rem:lock-monotonicity`, `lem:cert-uniqueness`, `lem:lock-formation`,
-`lem:avail-progress`, `lem:commit-availability`, `lem:timeout-closes-view`,
-`lem:lock-persistence`, `thm:agreement`, `lem:external-validity`,
-`lem:reproposal`, `lem:lock-availability`, `lem:proposability`,
-`thm:termination`, `cor:mvba-recovery-termination`. (All seventeen still
+The anchors to cite from it: Supplement, Section 1 (`sec:mvba-instantiation`),
+Supplement, Section 1.1 (`subsec:mvba-datatypes`), Supplement, Section 1.2 (`subsec:mvba-protocol`), the four algorithm blocks
+Supplement, Algorithm 1 (`alg:mvba`), Supplement, Algorithm 1 (`alg:mvba-cont`), Supplement, Algorithm 1 (`alg:mvba-cont2`), Supplement, Algorithm 1 (`alg:mvba-cont3`) (the fourth
+new at `eb1bb51`) with their `line:mvba:*` labels, and the correctness section Supplement, Section 1.3 (`subsec:mvba-correctness`) with
+Supplement, Remark 1 (`rem:signature-separation`), Supplement, Lemma 1 (`lem:vote-uniqueness`), Supplement, Lemma 2 (`lem:commit-provenance`),
+Supplement, Remark 3 (`rem:lock-monotonicity`), Supplement, Lemma 3 (`lem:cert-uniqueness`), Supplement, Lemma 4 (`lem:lock-formation`),
+Supplement, Lemma 5 (`lem:avail-progress`), Supplement, Lemma 6 (`lem:commit-availability`), Supplement, Lemma 7 (`lem:timeout-closes-view`),
+Supplement, Lemma 8 (`lem:lock-persistence`), Supplement, Theorem 1 (`thm:agreement`), Supplement, Lemma 9 (`lem:external-validity`),
+Supplement, Lemma 10 (`lem:reproposal`), Supplement, Lemma 11 (`lem:lock-availability`), Supplement, Lemma 12 (`lem:proposability`),
+Supplement, Theorem 2 (`thm:termination`), Supplement, Corollary 1 (`cor:mvba-recovery-termination`). (All seventeen still
 resolve at `eb1bb51`, the current pin; §11.1 lists the anchors it removes
 and the ones it adds.) This is a new
 convention here — everywhere else the citation discipline rests on stable
@@ -71,7 +70,7 @@ option while the supplement stays untagged.
 changes the model:
 
 * `decide` now outputs the certificate too: `decide(x, CommitQC)`. The
-  public `mod:mvba` has `decide(B)` and no certificate output; the class
+  public Module 3 (`mod:mvba`) has `decide(B)` and no certificate output; the class
   follows the public paper. The certificate is an implementation extra —
   Chorus's fallback commit round forms its own `fbCommitQC` — and is *not*
   a contract field.
@@ -169,8 +168,7 @@ one handler, documented at the action and in [Architecture.md](Architecture.md) 
 
 ### 1.2 The value is the entry vector
 
-`mod:mvba` states Agreement as meta-block equality; the supplement's
-`thm:agreement` proves the entries-level statement and says so
+Module 3 (`mod:mvba`) states Agreement as meta-block equality; Supplement, Theorem 1 (`thm:agreement`) proves the entries-level statement and says so
 deliberately — certificates are carried only so validity can be checked
 ([PaperAlignment.md](PaperAlignment.md) §5.5). Chorus's oracle
 already works per proposer. So the class is instantiated at
@@ -231,26 +229,26 @@ environment relation `avail_ready i e` (`AvailReady_i`).
 
 ### 2.4 Actions
 
-Honest, roughly one per handler or procedure of `alg:mvba`–`alg:mvba-cont2`:
+Honest, roughly one per handler or procedure of Supplement, Algorithm 1 (`alg:mvba`–`alg:mvba-cont2`):
 `propose i e` (sets the input, enters view 1); `leader_propose l v e` (the
 view-entry rule: own input in view 1, else the lock of `TC_{v-1}` if any,
-else own input); `handle_preprepare i v e` (`line:mvba:pp-guard`: current
+else own input); `handle_preprepare i v e` (Supplement, Algorithm 1, line 17 (`line:mvba:pp-guard`): current
 view, leader, `valid e`, `msg_tc (prev v)` for `v > 1`, `e` equals the lock
 when there is one, no vote at or above `v`; records `accepted`, `voted`,
 sends `Prepare`); `form_prepqc v e q` (assembly, `2f+1` prepares);
-`adopt_prepqc i v e q` (`TryFormPrepQC`: `line:mvba:tfp-guard`,
-`line:mvba:tfp-store`; since R3 from a supermajority `q` of `Prepare`s the
+`adopt_prepqc i v e q` (`TryFormPrepQC`: Supplement, Algorithm 1, line 63 (`line:mvba:tfp-guard`),
+Supplement, Algorithm 1, line 65 (`line:mvba:tfp-store`); since R3 from a supermajority `q` of `Prepare`s the
 validator received, before that its local half on a certificate formed
 anywhere);
-`send_commit i v e` (`TrySendCommit`, `line:mvba:commit-send`, including
+`send_commit i v e` (`TrySendCommit`, Supplement, Algorithm 1, line 90 (`line:mvba:commit-send`), including
 `avail_ready i e`); `form_commitqc v e q`; `decide i v e` (on `msg_commitqc
-v e`, once — `Decide` (`alg:mvba-cont3`), reached from `TryFormCommitQC`
-and from the transferred-certificate handler (`line:mvba:qc-decide`), is
+v e`, once — `Decide` (Supplement, Algorithm 1 (`alg:mvba-cont3`)), reached from `TryFormCommitQC`
+and from the transferred-certificate handler (Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)), is
 one action, since `Recover` is the identity);
 `timeout i v` (the timer, abstracted: enabled once `entered i v` and not
-decided); `echo_timeout i v` (the `f+1` rule, `line:mvba:ht-send`);
+decided); `echo_timeout i v` (the `f+1` rule, Supplement, Algorithm 1, line 83 (`line:mvba:ht-send`));
 `form_tc v q w e` / `form_tc_nolock v q` (assembly with the lock witness);
-`sync_view i v` (`SyncView`, `line:mvba:sv`: enter `v+1`, adopt the carried
+`sync_view i v` (`SyncView`, Supplement, Algorithm 1, line 91 (`line:mvba:sv`): enter `v+1`, adopt the carried
 certificate if higher); `abandon i`. Byzantine: `byz_preprepare`,
 `byz_prepare`, `byz_commit`, `byz_timeout` — arbitrary messages attributed
 to Byzantine signers, subject to network validity (a Byzantine timeout can
@@ -264,8 +262,8 @@ actions; parameter lists stay well under ten.
   need no exception category — worth stating, since they look like negative
   reads at first glance.
 * **No persistence, no crash.** `persist state` and the atomic reload
-  (`line:mvba:reload`) are implementation obligations, recorded as an
-  obligation-table row; `cor:mvba-recovery-termination` stays a paper
+  (Supplement, Algorithm 1, line 42 (`line:mvba:reload`)) are implementation obligations, recorded as an
+  obligation-table row; Supplement, Corollary 1 (`cor:mvba-recovery-termination`) stays a paper
   result. The model's local state is exactly the crash-free execution's.
 * **`AvailReady` is an environment relation.** `become_avail_ready i e` is
   an unguarded honest action setting `avail_ready i e`; `send_commit` reads
@@ -286,18 +284,18 @@ table is the working list, not a promise about count.
 
 | Supplement | Invariant(s) |
 |---|---|
-| `lem:vote-uniqueness` | an honest `msg_prepare r v e` ⇒ `accepted r v e`, unique per view; an honest `msg_commit r v e` ⇒ the same `e` |
-| `lem:commit-provenance` | honest `msg_commit r v e` ⇒ `local_prepqc r v e ∧ accepted r v e`; and an honest commit in view `v` together with an honest timeout in a view `v' ≥ v` carries a certificate of view at least `v` |
-| `rem:lock-monotonicity` | `local_prepqc i w e ∧ entered i v ⇒ w ≤ v`; held certificates are network certificates |
-| `lem:cert-uniqueness` | `msg_prepqc v e ∧ msg_prepqc v e' ⇒ e = e'`, and for `msg_commitqc` — the two-supermajority intersection; expect these to be **manual cells**, as Chorus's quorum-intersection cells are |
-| `lem:timeout-closes-view` | honest `msg_timeout_* r v` ⇒ no later `accepted r v _`; `timed_out r v ⇒ voted r v` |
-| `lem:lock-persistence` | **not an invariant** (see the correction below): the clump carries the inductive form `prepqc_blocks_lower_commits` — `msg_prepqc w e' ∧ v < w ∧ e ≠ e' ⇒` every supermajority has a correct member that left `v` without a view-`≥ v` lock or holds a view-`v` lock on another value; (i) `msg_commitqc v e ∧ v ≤ v' ∧ tc_lock v' e' ⇒ e' = e`, `¬ tc_nolock v'` and (ii) `msg_commitqc v e ∧ v ≤ w ∧ msg_prepqc w e' ⇒ e' = e` are corollaries, and `commitqc_agree` (agreement at the certificate level, across views) is the one the safety property uses |
-| `thm:agreement` | `safety [agreement]`: `decided i e ∧ decided j e' ∧ ¬ byz i ∧ ¬ byz j ⇒ e = e'` — from (ii) and certificate uniqueness |
+| Supplement, Lemma 1 (`lem:vote-uniqueness`) | an honest `msg_prepare r v e` ⇒ `accepted r v e`, unique per view; an honest `msg_commit r v e` ⇒ the same `e` |
+| Supplement, Lemma 2 (`lem:commit-provenance`) | honest `msg_commit r v e` ⇒ `local_prepqc r v e ∧ accepted r v e`; and an honest commit in view `v` together with an honest timeout in a view `v' ≥ v` carries a certificate of view at least `v` |
+| Supplement, Remark 3 (`rem:lock-monotonicity`) | `local_prepqc i w e ∧ entered i v ⇒ w ≤ v`; held certificates are network certificates |
+| Supplement, Lemma 3 (`lem:cert-uniqueness`) | `msg_prepqc v e ∧ msg_prepqc v e' ⇒ e = e'`, and for `msg_commitqc` — the two-supermajority intersection; expect these to be **manual cells**, as Chorus's quorum-intersection cells are |
+| Supplement, Lemma 7 (`lem:timeout-closes-view`) | honest `msg_timeout_* r v` ⇒ no later `accepted r v _`; `timed_out r v ⇒ voted r v` |
+| Supplement, Lemma 8 (`lem:lock-persistence`) | **not an invariant** (see the correction below): the clump carries the inductive form `prepqc_blocks_lower_commits` — `msg_prepqc w e' ∧ v < w ∧ e ≠ e' ⇒` every supermajority has a correct member that left `v` without a view-`≥ v` lock or holds a view-`v` lock on another value; (i) `msg_commitqc v e ∧ v ≤ v' ∧ tc_lock v' e' ⇒ e' = e`, `¬ tc_nolock v'` and (ii) `msg_commitqc v e ∧ v ≤ w ∧ msg_prepqc w e' ⇒ e' = e` are corollaries, and `commitqc_agree` (agreement at the certificate level, across views) is the one the safety property uses |
+| Supplement, Theorem 1 (`thm:agreement`) | `safety [agreement]`: `decided i e ∧ decided j e' ∧ ¬ byz i ∧ ¬ byz j ⇒ e = e'` — from (ii) and certificate uniqueness |
 | Integrity | `safety [integrity]` — by construction, lifted |
-| `lem:external-validity` | `safety [external_validity]`: `decided i e ⇒ valid e`, via honest `accepted _ _ e ⇒ valid e` and an honest preparer in every prepare quorum |
+| Supplement, Lemma 9 (`lem:external-validity`) | `safety [external_validity]`: `decided i e ⇒ valid e`, via honest `accepted _ _ e ⇒ valid e` and an honest preparer in every prepare quorum |
 
 **A correction to the first draft's risk assessment.** The paper's
-`lem:lock-formation` counts "at least `f+1` correct signers" of a commit
+Supplement, Lemma 4 (`lem:lock-formation`) counts "at least `f+1` correct signers" of a commit
 certificate, which *would* fall outside `ByzNodeSet`'s first-order language
 (the wall Chorus hit, resolved in [Chorus/Counting.lean](../Cadence/Chorus/Counting.lean) and [Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)).
 The model does not need that form. Lock persistence's inductive step
@@ -313,7 +311,7 @@ usual one: e-matching divergence at the intersection cells, cured by manual
 cells, not a language gap.
 
 **A second correction, found while building the full model (2026-09-08).**
-`lem:lock-persistence` as stated is *not an inductive invariant*, and the
+Supplement, Lemma 8 (`lem:lock-persistence`) as stated is *not an inductive invariant*, and the
 table's original rows (i)/(ii) could not have been proven cell by cell. The
 supplement proves it by induction on the view `v'`; the model has no such
 step. When a commit certificate of view `v` forms, timeout and prepare
@@ -336,7 +334,7 @@ and (ii). The model header of [Cadence/Mvba.lean](../Cadence/Mvba.lean) carries 
 
 ## 3. Liveness
 
-**Target.** Not `thm:termination`'s `O(fΔ)` — the models are untimed and
+**Target.** Not Supplement, Theorem 2 (`thm:termination`)'s `O(fΔ)` — the models are untimed and
 no artefact here claims a latency bound. The target is its bound-erased
 skeleton, "every correct validator eventually decides", in the form Chorus
 already uses: fair-progress invariants inside the sweep, the state-level
@@ -442,7 +440,7 @@ governed by (A-viewsync)'s two clauses; **availability** for
 `become_avail_ready` alone, governed by (F-avail); and the two contract
 inputs `propose` / `abandon`, which are the *caller's* and carry no fairness
 at all — that every correct validator proposes is a premise of the claim, as
-it is in `thm:termination`. Five classes, and the two environment ones are
+it is in Supplement, Theorem 2 (`thm:termination`). Five classes, and the two environment ones are
 separate from the scheduler's on purpose: each names a different party that
 has to deliver something.
 
@@ -457,7 +455,7 @@ fairness adds nothing at this level — an instance enabled only finitely
 often fails strong fairness's premise as well. The missing power is not a
 fairness class: it is the premise that *some* view's window is long enough
 for the prepare → commit → decide chain to close. That is (A-viewsync)
-below, the untimed stand-in for `thm:termination`'s after-GST Δ-synchrony.
+below, the untimed stand-in for Supplement, Theorem 2 (`thm:termination`)'s after-GST Δ-synchrony.
 Given it, the guards in that window are stable and plain weak fairness
 closes the chain inside it. So the *weak-fairness* class stays as in
 Chorus, and only the justification for its sufficiency differs — quarantine
@@ -484,8 +482,8 @@ assumption [leader_honest_cofinal]
 ```
 
 **It is not invented here.** The supplement states the property outright at
-`subsec:mvba-protocol` — "The leader schedule guarantees that every `f+1`
-consecutive views contain a correct leader" — and `thm:termination`'s proof
+Supplement, Section 1.2 (`subsec:mvba-protocol`) — "The leader schedule guarantees that every `f+1`
+consecutive views contain a correct leader" — and Supplement, Theorem 2 (`thm:termination`)'s proof
 counts with it ("at most `f` faulty-leader views can precede a correct-leader
 view"), which is where the `O(fΔ)` comes from. The algorithm block says only
 that `\Leader` is "a deterministic public function", so the coverage property
@@ -587,7 +585,7 @@ the interval up to the target is an obligation of the run-level theorem
   the whole family `n ≥ 3f+1`, where a quorum *is* a sorted list; the file
   carries a concrete witness at `n = 4` beside the existing instantiation
   checks. Here the bound is the committee size times the view distance —
-  the protocol's own parameter, and the shape of `thm:termination`'s
+  the protocol's own parameter, and the shape of Supplement, Theorem 2 (`thm:termination`)'s
   `O(fΔ)` — and a proof-of-stake committee is finite in the strict sense,
   since such systems do not scale in committee size. So this one carries
   operational content rather than being a finiteness trick.
@@ -785,7 +783,7 @@ absent.
    non-timeout vote into an acceptance, and
    `voted_implies_leader_proposed`, `honest_preprepare_unique`,
    `honest_preprepare_proposed` to make that inductive. The last two are the
-   formal content of `thm:termination`'s "the correct leader broadcasts a
+   formal content of Supplement, Theorem 2 (`thm:termination`)'s "the correct leader broadcasts a
    single valid proposal". A sixth, `accepted_implies_prepare`, is the one
    that is not about a guard: the analysis yields `accepted` and the prepare
    quorum needs `msg_prepare`, which the handlers set in the same step.
@@ -807,7 +805,7 @@ absent.
    `terminates_of_settled_honest_view` is the payoff: **a view with an
    honest leader decides**, given that its correct quorum is settled there
    and the leader has proposed. Bound erased, this is the whole of
-   `thm:termination`'s correct-leader-view paragraph — every member of the
+   Supplement, Theorem 2 (`thm:termination`)'s correct-leader-view paragraph — every member of the
    honest quorum accepts and prepares, the prepare certificate forms, each
    adopts and commits, the commit certificate forms, and then *every*
    correct validator that has proposed decides, not only the quorum's
@@ -839,13 +837,13 @@ absent.
    leader can propose an invalid vector, no correct validator will accept
    it, and its view is wasted. Termination therefore needs a caller premise
    that correct validators propose valid vectors, alongside `AllPropose` and
-   `NoEarlyAbandon`; `mod:mvba`'s external validity is where it comes from.
+   `NoEarlyAbandon`; Module 3 (`mod:mvba`)'s external validity is where it comes from.
    It is recorded here rather than assumed silently, and will join the
    premise list when the composition needs it.
 
    **The validity premise, checked against the specification
    (2026-09-14).** The supplement is clear and Cadence satisfies it. `propose`
-   has a validity precondition, `thm:termination` relies on it in as many
+   has a validity precondition, Supplement, Theorem 2 (`thm:termination`) relies on it in as many
    words ("the leader proposes its input `B_l`, which is a valid \metablock
    by the precondition of `propose`"), [Interfaces.lean](../Cadence/Interfaces.lean) documents it on
    `MVBASafety.propose`, and Chorus's `mvba_propose` enforces it with three
@@ -1107,8 +1105,8 @@ absent.
    `MVBASafety.propose_valid` in [Interfaces.lean](../Cadence/Interfaces.lean)
    — the formal contract between Chorus and the MVBA — discharged by a
    `require valid e` on `Mvba.propose`. That is what the supplement does
-   (`subsec:mvba-protocol` gives the call a validity precondition and
-   `thm:termination` cites it) and what the composition already enforced on
+   (Supplement, Section 1.2 (`subsec:mvba-protocol`) gives the call a validity precondition and
+   Supplement, Theorem 2 (`thm:termination`) cites it) and what the composition already enforced on
    the consumer's side, Chorus's `mvba_propose` establishing `Valid B_i`
    with three `require` clauses. `input_valid` is the invariant that makes
    it available inside the model, and it holds of Byzantine callers too,
@@ -1185,10 +1183,10 @@ and neither may be traded away for a safety-side simplification.
 The named assumptions, fixed now even though the ranking is unfinished:
 (F-justice) on the message handlers and assembly actions; (F-byz) for the
 adversary; **(A-viewsync)**, the view-synchronisation assumption standing in
-for after-GST Δ-synchrony (`thm:termination`'s "all correct validators enter
+for after-GST Δ-synchrony (Supplement, Theorem 2 (`thm:termination`)'s "all correct validators enter
 view `v+1` within Δ of one another"), whose role §3.2 makes precise; and
 **(F-avail)**, new with `026dc8b`, standing in for `Δ_sync`: `avail_ready i
-e` eventually holds for every accepted `e` (`lem:avail-progress`). Then the
+e` eventually holds for every accepted `e` (Supplement, Lemma 5 (`lem:avail-progress`)). Then the
 liveness work is additive rather than a re-encoding — and once it exists,
 Chorus's (A-mvba) decomposes into these plus the MVBA's own fair-progress
 theorems.
@@ -1250,7 +1248,7 @@ Chorus's phase markers can be weakly fair while this one cannot, and why the
 MVBA is where the stack's one unavoidable liveness assumption surfaces — is
 [Liveness.md](Liveness.md) §2.1. [Chorus.lean](../Cadence/Chorus.lean)'s
 `all_honest_recorded` is, in its own comment, "the protocol-level shadow of
-the paper's proposal-inclusion premise (`prop:honest-positive-entry`)": the
+the paper's proposal-inclusion premise (Proposition 3 (`prop:honest-positive-entry`))": the
 paper's synchrony hypothesis `s.deadline − Δ ≥ GST` is replaced by the
 protocol-level consequence it is there to deliver, and that consequence is
 assumed. No Cadence model carries a GST marker; GST appears only in
@@ -1524,10 +1522,10 @@ fifth of Chorus (the pinned counts are in [Mvba/Certify.lean](../Cadence/Mvba/Ce
 Volume is not the risk.
 
 The risk is concentrated in **lock persistence across views**
-(`lem:lock-persistence`, `lem:cert-uniqueness`), the standard PBFT
+(Supplement, Lemma 8 (`lem:lock-persistence`), Supplement, Lemma 3 (`lem:cert-uniqueness`)), the standard PBFT
 view-change argument: several quorum-intersection cells that may diverge
 under e-matching and become manual cells (§2.6). The single-view spike (§8
-step 2) exercises `lem:cert-uniqueness` in isolation before the view-change
+step 2) exercises Supplement, Lemma 3 (`lem:cert-uniqueness`) in isolation before the view-change
 machinery is added, which is where the first manual cells will appear.
 
 ## 8. Proposed order
@@ -1535,7 +1533,7 @@ machinery is added, which is where the first manual cells will appear.
 Each step names its exit criterion and what it costs to rebuild.
 
 1. **Contract review — no class change expected.** `MVBASafety`/`MVBA`
-   are `mod:mvba` and the plan instantiates them as they stand; the
+   are Module 3 (`mod:mvba`) and the plan instantiates them as they stand; the
    supplement's certificate output is not a field (§0). The one edit is
    the discharge part of the obligation list and the "out of scope" entry
    of the module list, once the instance exists — a comment in
@@ -1693,20 +1691,20 @@ everything the model rests on, and §7 of PaperAlignment repeats that check.
 Six of the 29 commits touch the MVBA.
 
 **How much changed.** The algorithm file was rewritten: it gained a fourth
-block, `alg:mvba-cont3`, and `TryDecide` was folded into a new `Decide`
-procedure. The protocol and correctness prose of `sec:mvba-instantiation`
+block, Supplement, Algorithm 1 (`alg:mvba-cont3`), and `TryDecide` was folded into a new `Decide`
+procedure. The protocol and correctness prose of Supplement, Section 1 (`sec:mvba-instantiation`)
 was rewritten as well. The protocol the model mirrors is the same in every
 respect that matters to it: the same messages, certificates, guards, lock
-and view change. Every safety lemma, and `thm:agreement`, keeps its
+and view change. Every safety lemma, and Supplement, Theorem 1 (`thm:agreement`), keeps its
 statement up to whitespace. Three things changed in substance.
 
-* **The termination argument.** `thm:termination` is now proven from four
+* **The termination argument.** Supplement, Theorem 2 (`thm:termination`) is now proven from four
   new lemmas. They rest on a network model that is now written out: which
   messages are delivered after GST, which are retransmitted, and which a
   validator may discard.
 * **The timeout.** It is now a fixed value `T`. The backoff remark behind
   this repository's first bounds finding has been removed.
-* **The published contract.** In the main body, `mod:mvba`'s Agreement now
+* **The published contract.** In the main body, Module 3 (`mod:mvba`)'s Agreement now
   reads `entries(B) = entries(B')`. That is exactly what this development
   already instantiates.
 
@@ -1735,9 +1733,9 @@ criterion that makes it a leg (§11.4).
 
 ### 11.1 Anchors: renamed, removed, new
 
-The check was mechanical, over two ranges: `src/supplementary-internal/alg_mvba.tex`,
-and the part of `supplementary-internal.tex` from `sec:mvba-instantiation`
-to the end of `subsec:mvba-correctness` ([PaperAlignment.md](PaperAlignment.md)
+The check was mechanical, over two ranges: the MVBA algorithm's source,
+and the supplement from Supplement, Section 1 (`sec:mvba-instantiation`)
+to the end of Supplement, Section 1.3 (`subsec:mvba-correctness`) ([PaperAlignment.md](PaperAlignment.md)
 §7 has the method).
 
 * **Removed.**
@@ -1748,24 +1746,24 @@ to the end of `subsec:mvba-correctness` ([PaperAlignment.md](PaperAlignment.md)
 
   No correctness anchor was removed: all seventeen listed in §0 still
   resolve.
-* **Renamed.** None. `cor:mvba-recovery-termination` keeps its label,
+* **Renamed.** None. Supplement, Corollary 1 (`cor:mvba-recovery-termination`) keeps its label,
   gains a new title ("Eventual termination under recovery") and has a
   sharper statement (C18).
 * **New.**
-  * The block `alg:mvba-cont3`.
-  * The line labels `line:mvba:leader-guard`, `line:mvba:decide-guard`,
-    `line:mvba:restart-guard`, `line:mvba:viewtc-retx` and
-    `line:mvba:sv-forward`.
-  * The results `rem:execution-model`, `lem:decision-propagation`,
-    `lem:view-sync`, `lem:convergence` and `lem:good-view`.
-  * Outside the section, `sec:reliable-delivery` now contains protocol
+  * The block Supplement, Algorithm 1 (`alg:mvba-cont3`).
+  * The line labels Supplement, Algorithm 1, line 12 (`line:mvba:leader-guard`), Supplement, Algorithm 1, line 79 (`line:mvba:decide-guard`),
+    Supplement, Algorithm 1, line 49 (`line:mvba:restart-guard`), Supplement, Algorithm 1, line 40 (`line:mvba:viewtc-retx`) and
+    Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`).
+  * The results Supplement, Remark 2 (`rem:execution-model`), Supplement, Lemma 13 (`lem:decision-propagation`),
+    Supplement, Lemma 14 (`lem:view-sync`), Supplement, Lemma 15 (`lem:convergence`) and Supplement, Lemma 16 (`lem:good-view`).
+  * Outside the section, Supplement, Section 10.3 (`sec:reliable-delivery`) now contains protocol
     text: a "Future-view message retention" paragraph, which the MVBA
     liveness argument cites. Before, it only pointed to an external design
     note.
 * **Moved between blocks.** `HandleTimeout`, `TryFormCommitQC`,
-  `TrySendCommit` and `SyncView` are now in `alg:mvba-cont3`. The timeout
+  `TrySendCommit` and `SyncView` are now in Supplement, Algorithm 1 (`alg:mvba-cont3`). The timeout
   and restart rules, `HandleProposal` and `TryFormPrepQC` are in
-  `alg:mvba-cont2`. The model cites `line:mvba:*` labels without their
+  Supplement, Algorithm 1 (`alg:mvba-cont2`). The model cites `line:mvba:*` labels without their
   block, so those citations survive. What goes stale is the model header's
   "three algorithm blocks".
 
@@ -1790,7 +1788,7 @@ The classes are the task's five:
 * **protocol** — guards, updates, messages, the view or timer discipline,
   the lock;
 * **argument** — a lemma or constant the proofs mirror;
-* **interface** — `mod:mvba`, which reaches the Chorus family through
+* **interface** — Module 3 (`mod:mvba`), which reaches the Chorus family through
   Interfaces.lean.
 
 "No re-solve" means no VC statement moves: the Veil families replay warm,
@@ -1801,8 +1799,8 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
 
 **Interface (the main body)**
 
-* **C1. `mod:mvba` Agreement now reads `entries(B) = entries(B')`**
-  (`src/p2_mvba.tex`, paper commit `d598c5a`; arXiv v2 reads `B = B'`).
+* **C1. Module 3 (`mod:mvba`) Agreement now reads `entries(B) = entries(B')`**
+  (paper commit `d598c5a`; arXiv v2 reads `B = B'`).
   *Class: interface, with no statement change.*
   `MVBASafety.agreement` says `v = v'` over the class's `value`, and the
   one instance sets `value` to the entry vector (§1.2). So at that
@@ -1811,7 +1809,7 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
   [PaperAlignment.md](PaperAlignment.md) §4 item 3 argued that the gap was
   sound.
 
-  *Consequence:* the `agreement` docstring and the `mod:mvba` block in
+  *Consequence:* the `agreement` docstring and the Module 3 (`mod:mvba`) block in
   [Interfaces.lean](../Cadence/Interfaces.lean) should say this. The edit
   is prose only, but the Chorus family imports the file, so the family
   rebuilds warm; no Chorus VC changes. The (A-mvba) clean-up from
@@ -1820,7 +1818,7 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
   version.
 
   The supplement's new paragraph "Agreement and Integrity over entries"
-  also restates **Integrity**: "all decision outputs of a correct validator
+  (Supplement, Section 1.2 (`subsec:mvba-protocol`)) also restates **Integrity**: "all decision outputs of a correct validator
   carry the same entry vector, and redelivery … is permitted". It says the
   main-body module "should be revised to these forms", but only Agreement
   was. Nothing follows for the model. At the entry-vector instance, and
@@ -1829,22 +1827,22 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
 
 **Anchors and editorial**
 
-* **C2. `TryDecide` is merged into `Decide`** (`alg:mvba-cont3`). `Decide`
+* **C2. `TryDecide` is merged into `Decide`** (Supplement, Algorithm 1 (`alg:mvba-cont3`)). `Decide`
   is reached from `TryFormCommitQC` and from the transferred-certificate
-  handler (`line:mvba:qc-decide`). Its one `Recover` continuation
+  handler (Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)). Its one `Recover` continuation
   re-checks only that the instance has not been abandoned
-  (`line:mvba:decide-guard`). `line:mvba:td-decide` is gone.
+  (Supplement, Algorithm 1, line 79 (`line:mvba:decide-guard`)). `line:mvba:td-decide` is gone.
   *Class: anchor.*
   The semantics are the same for the model. A certificate of any view is
   accepted, the validator decides once, and `Recover` is the identity. So
   the model's single `decide` action still stands for every path.
 
   *Consequence:* in the places listed in §11.1, re-cite
-  `line:mvba:td-decide` as "`Decide` (`alg:mvba-cont3`), reached from
-  `line:mvba:qc-decide`". `Decide`'s last line, `decide(x, CommitQC);
+  `line:mvba:td-decide` as "`Decide` (Supplement, Algorithm 1 (`alg:mvba-cont3`)), reached from
+  Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)". `Decide`'s last line, `decide(x, CommitQC);
   abandon()`, has no label, so cite the procedure.
 * **C3. `Pool` is gone.** Accepted meta-blocks go to a durable set
-  `Accepted_i`, registered at `line:mvba:hp-record` before the `Prepare`
+  `Accepted_i`, registered at Supplement, Algorithm 1, line 57 (`line:mvba:hp-record`) before the `Prepare`
   is sent. A new stated invariant says that a `Prepare` on `e` implies
   `Accepted_i` holds a valid `x` with `entries(x) = e`.
   *Class: editorial*, since the model has neither.
@@ -1854,16 +1852,16 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
   invariant is the supplement's counterpart of the model's
   `honest_prepare_accepted` with `accepted_valid`, and the header may cite
   it.
-* **C4. A fourth algorithm block, `alg:mvba-cont3`**, with the procedures
+* **C4. A fourth algorithm block, Supplement, Algorithm 1 (`alg:mvba-cont3`)**, with the procedures
   redistributed as §11.1 describes. *Class: anchor.*
 
   *Consequence:* "three algorithm blocks" becomes four in three places:
   the Mvba.lean header, §0 above, and PaperAlignment §4.
-* **C5. `rem:execution-model` and the execution-model paragraph.** Handler
+* **C5. Supplement, Remark 2 (`rem:execution-model`) and the execution-model paragraph.** Handler
   segments run without interleaving. `Recover` is the only suspension
   point, and each of its three continuations re-checks a guard
-  (`line:mvba:leader-guard`, `line:mvba:decide-guard`,
-  `line:mvba:restart-guard`). *Class: editorial*: with `Recover` the
+  (Supplement, Algorithm 1, line 12 (`line:mvba:leader-guard`), Supplement, Algorithm 1, line 79 (`line:mvba:decide-guard`),
+  Supplement, Algorithm 1, line 49 (`line:mvba:restart-guard`)). *Class: editorial*: with `Recover` the
   identity, every continuation guard is vacuous in the model.
 
   It is still worth citing. It is the supplement's own justification for
@@ -1887,7 +1885,7 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
 
 * **C7. `propose` enters the view justified by the highest retained
   timeout certificate**, and does not first run a view-1 leader action
-  (the Interface line of `alg:mvba`; `subsec:mvba-protocol`, first
+  (the Interface line of Supplement, Algorithm 1 (`alg:mvba`); Supplement, Section 1.2 (`subsec:mvba-protocol`), first
   paragraph). *Class: protocol.*
   The model's `propose` enters `vord.zero`, and `sync_view` advances in a
   separate step. The faithful rule would need "no higher certificate is
@@ -1900,7 +1898,7 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
 
   *Consequence:* one header sentence. Not a model change.
 * **C8. A self-formed timeout certificate now goes through `SyncView`.**
-  `line:mvba:ht-advance` reads: "`≥ 2f+1`, and `TC` not already formed;
+  Supplement, Algorithm 1, line 85 (`line:mvba:ht-advance`) reads: "`≥ 2f+1`, and `TC` not already formed;
   form it; `SyncView(TC)`". At the pin the advance was inline and did not
   adopt the certificate's `highPrepQC`. Now the forming validator adopts
   and forwards like any receiver. *Class: protocol*, already covered.
@@ -1911,9 +1909,9 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
   *Consequence:* none beyond re-reading that header sentence.
 * **C9. Forwarding and retransmission.** *Class: protocol.* The new rules:
   * `SyncView` forwards the certificate it processes
-    (`line:mvba:sv-forward`);
+    (Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`));
   * while in a view `v > 1` and not abandoned, a validator re-broadcasts
-    `ViewTC_i` every `ρ` (`line:mvba:viewtc-retx`);
+    `ViewTC_i` every `ρ` (Supplement, Algorithm 1, line 40 (`line:mvba:viewtc-retx`));
   * a timed-out validator re-broadcasts its `Timeout` every `ρ` until it
     advances;
   * a view-advancing certificate is processed on arrival.
@@ -1922,8 +1920,8 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
   monotone network already keeps every sent message available. For
   liveness, these rules are what implement the model's delivery premise
   for timeouts and certificates. *Consequence:* C16 (N1).
-* **C10. One-view retention** (the Convention of `alg:mvba`;
-  `sec:reliable-delivery`, "Future-view message retention"). Messages of a
+* **C10. One-view retention** (the Convention of Supplement, Algorithm 1 (`alg:mvba`);
+  Supplement, Section 10.3 (`sec:reliable-delivery`), "Future-view message retention"). Messages of a
   lower view are discarded. Messages of the next view are retained.
   Messages of farther views *may* be discarded: retaining them is an
   optional implementation choice. *Class: protocol.*
@@ -1934,12 +1932,12 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
   effect.* The halt is visible in four places:
   * `Decide` and the restart path both end in `decide(…); abandon()`;
   * the timeout still fires only when there is "no decision in view `v`"
-    (`line:mvba:timeout-send`);
+    (Supplement, Algorithm 1, line 36 (`line:mvba:timeout-send`));
   * the `ViewTC_i` retransmission runs only while the instance is not
     abandoned;
   * the termination proof limits its synchronisation lemmas to the prefix
     before any correct validator learns a commit certificate ("no correct
-    validator has decided or abandoned"), and `lem:decision-propagation`
+    validator has decided or abandoned"), and Supplement, Lemma 13 (`lem:decision-propagation`)
     takes over after that.
 
   This **confirms** PR #42's halting rule against the newer revision.
@@ -1948,19 +1946,20 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
 **Correctness argument and constants**
 
 * **C12. The safety lemmas keep their statements.** These twelve are
-  unchanged up to whitespace: `rem:signature-separation`,
-  `lem:vote-uniqueness`, `lem:commit-provenance`, `lem:cert-uniqueness`,
-  `lem:lock-formation`, `lem:commit-availability`,
-  `lem:timeout-closes-view`, `lem:lock-persistence`, `thm:agreement`,
-  `lem:external-validity`, `lem:reproposal` and `lem:lock-availability`.
-  `rem:lock-monotonicity` adds "if `p_i` is in view `v`, the view of
+  unchanged up to whitespace: Supplement, Remark 1 (`rem:signature-separation`),
+  Supplement, Lemma 1 (`lem:vote-uniqueness`), Supplement, Lemma 2 (`lem:commit-provenance`), Supplement, Lemma 3 (`lem:cert-uniqueness`),
+  Supplement, Lemma 4 (`lem:lock-formation`), Supplement, Lemma 6 (`lem:commit-availability`),
+  Supplement, Lemma 7 (`lem:timeout-closes-view`), Supplement, Lemma 8 (`lem:lock-persistence`), Supplement, Theorem 1 (`thm:agreement`),
+  Supplement, Lemma 9 (`lem:external-validity`), Supplement, Lemma 10 (`lem:reproposal`) and Supplement, Lemma 11 (`lem:lock-availability`).
+  Supplement, Remark 3 (`rem:lock-monotonicity`) adds "if `p_i` is in view `v`, the view of
   `PrepQC_i` is at most `v`", which is the model's
   `local_prepqc_within_entered`. The proofs gained crash-recovery cases,
   and the model does not model crashes. *Class: editorial* for the model.
 
   *Consequence:* none. §2.6's table stands.
 * **C13. The view timeout is fixed: `T := Δ_R + 4Δ + max{Δ, Δ_sync}`**
-  ("Views, leaders, and timing parameters"). The termination setting says
+  (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Views, leaders, and
+  timing parameters"). The termination setting says
   "the view timeout is the fixed `T`", and the backoff sentence is
   deleted. *Class: argument.*
   At the pin, the text said the timeout "exceeds
@@ -1973,7 +1972,7 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
 
   **Resolves** the capped-backoff finding upstream
   ([Bounds.md](Bounds.md) §6.2.3 Finding 1; PaperAlignment §6), with one
-  residue: the `sec:timing-constants` stub still lists "the MVBA view
+  residue: the Supplement, Section 10.1 (`sec:timing-constants`) stub still lists "the MVBA view
   timeout and its backoff policy".
 
   *Consequence:* (S-cap) and (S-ramp) stay. They are strictly more
@@ -1984,7 +1983,7 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
   generalisation. No Lean statement changes. The module docstring of
   Schedule.lean says the backoff remark "is incompatible"; that moves to
   the past tense.
-* **C14. `thm:termination` is restructured** into a *termination
+* **C14. Supplement, Theorem 2 (`thm:termination`) is restructured** into a *termination
   setting* and four lemmas. *Class: argument.*
 
   The termination setting assumes:
@@ -1998,21 +1997,21 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
     validator within `ρ + Δ`.
 
   The four lemmas:
-  * `lem:decision-propagation` (C15);
-  * `lem:view-sync`: views first entered after `t₀` are synchronised
+  * Supplement, Lemma 13 (`lem:decision-propagation`) (C15);
+  * Supplement, Lemma 14 (`lem:view-sync`): views first entered after `t₀` are synchronised
     within `Δ`, and nobody leaves them before `T`;
-  * `lem:convergence`: the hop bound `τ_{w+1} ≤ τ_w + 2Δ + T`, plus a
+  * Supplement, Lemma 15 (`lem:convergence`): the hop bound `τ_{w+1} ≤ τ_w + 2Δ + T`, plus a
     retention clause from view `V + 2` on;
-  * `lem:good-view`.
+  * Supplement, Lemma 16 (`lem:good-view`).
 
-  `lem:proposability` becomes quantitative, in `Δ_R`. The bound, in closed
+  Supplement, Lemma 12 (`lem:proposability`) becomes quantitative, in `Δ_R`. The bound, in closed
   form, is a decision by
   `t₀ + ρ + 4Δ + max{T, ρ} + T + f(2Δ + T) + T`, plus the decision
   propagation `ρ + Δ + 2Δ_R`.
 
   Compared milestone by milestone with [Bounds.md](Bounds.md) §6.2.6, at
   `δ = 0` and `Δ_R = 0`:
-  * **The good view.** `lem:good-view` gives
+  * **The good view.** Supplement, Lemma 16 (`lem:good-view`) gives
     `t*_w − τ_w = Δ_R + 3Δ + max{Δ, Δ_sync}`. That is `Lcert`, so
     `Mvba.Lcert_paper` still holds, and it now has a named lemma to cite.
   * **A burnt view.** `τ_{w+1} ≤ τ_w + 2Δ + T` is `Schedule.burn`.
@@ -2022,15 +2021,15 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
     others learned. The model pays one `Δ` hop at the start, may use
     `V + 1` as its good view, and pays `δ` for the final `decide`.
 
-  The *statement* of `thm:termination` changes only in its framing:
+  The *statement* of Supplement, Theorem 2 (`thm:termination`) changes only in its framing:
   "within `O(fΔ)` of `t₀`", where `t₀ = max(t_last, GST)` is the model's
   `max(t, gst)`.
 
   *Consequence:* the good-view and burnt-view constants, and
-  `Mvba.Lcert_paper`, are cited against `lem:good-view` and
-  `lem:convergence` instead of the old proof prose. The rest is C16.
+  `Mvba.Lcert_paper`, are cited against Supplement, Lemma 16 (`lem:good-view`) and
+  Supplement, Lemma 15 (`lem:convergence`) instead of the old proof prose. The rest is C16.
 * **C15. Decision propagation is now a lemma with its own cost**
-  (`lem:decision-propagation`; "Decision output and handoff").
+  (Supplement, Lemma 13 (`lem:decision-propagation`); Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff").
   *Class: argument.* A validator that learns a `CommitQC` decides within
   `Δ_R`. Every other validator decides within `2Δ_R + Δ`, or by
   `t₀ + ρ + Δ + 2Δ_R` if the certificate was learned before `t₀`. The
@@ -2071,7 +2070,7 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
     model, `handle_preprepare` becomes enabled once the validator catches
     up, and the clause then demands that it fire. The supplement copes by
     giving up views `V` and `V + 1`: its retention clause
-    (`lem:convergence`) holds only from `V + 2`. The model's assembly may
+    (Supplement, Lemma 15 (`lem:convergence`)) holds only from `V + 2`. The model's assembly may
     instead pick `M + 1` as its good view.
   * **(N3) The transfer of a decision.** *(Superseded in R8: `decide` is
     the caller's input and its timing the caller's clause `Relayed`, see
@@ -2095,8 +2094,8 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
   travel.
 
   **None of the three is a misreading of the pinned text.** At `026dc8b`:
-  * `sec:reliable-delivery` was a pointer to an external design note;
-  * the only discard rule was for *lower* views (`line:mvba:ht-advance`);
+  * Supplement, Section 10.3 (`sec:reliable-delivery`) was a pointer to an external design note;
+  * the only discard rule was for *lower* views (Supplement, Algorithm 1, line 85 (`line:mvba:ht-advance`));
   * the termination proof argued only the good view.
 
   The new text is what makes the three differences visible.
@@ -2123,12 +2122,12 @@ the cheap rung closes the frame cells, and neither `#veil_status Mvba` nor
     restart;
   * `Recover` is bounded by `Δ_R` "for calls initiated after that point
     and calls already outstanding at it";
-  * there is a restart guard, `line:mvba:restart-guard`.
+  * there is a restart guard, Supplement, Algorithm 1, line 49 (`line:mvba:restart-guard`).
 
-  The availability paragraphs are reworded, but `lem:avail-progress` and
+  The availability paragraphs are reworded, but Supplement, Lemma 5 (`lem:avail-progress`) and
   (Δ-avail) are unchanged. *Class: editorial* for the model, which models
   neither crashes nor `Recover`.
-* **C18. `cor:mvba-recovery-termination`** now requires that every correct
+* **C18. Supplement, Corollary 1 (`cor:mvba-recovery-termination`)** now requires that every correct
   validator invokes `propose` and that none is abandoned by its caller
   before deciding. It also says "no latency bound is claimed in this
   setting". *Class: editorial.* The header still lists it as not modelled.
@@ -2201,9 +2200,9 @@ work. Stage 5 records the result.
 
 1. **Done** (2026-09-29, folded into the Chorus participation edit,
    [Bounds.md](Bounds.md) §6.4.6 S1, as that plan asked: one Interfaces.lean
-   edit and one Chorus-family re-solve). The `mod:mvba` block and the
+   edit and one Chorus-family re-solve). The Module 3 (`mod:mvba`) block and the
    `agreement` docstring say the three things below. The
-   `mod:slotconsensus` `termination` row names `Chorus.termination` and its
+   Module 1 (`mod:slotconsensus`) `termination` row names `Chorus.termination` and its
    five premises, with the timed field still open. The (A-mvba) mentions in
    Chorus.lean's liveness section and in FallbackReceipt.lean's header are
    aligned. The check changed with the bundling: the Chorus family re-solved
@@ -2212,7 +2211,7 @@ work. Stage 5 records the result.
    move. The original plan follows.
 
    **Contract prose: one edit of [Interfaces.lean](../Cadence/Interfaces.lean).**
-   The `mod:mvba` block and the `agreement` docstring should say three
+   The Module 3 (`mod:mvba`) block and the `agreement` docstring should say three
    things:
    * the paper's module now states Agreement over `entries` (paper commit
      `d598c5a`, which is after v2);
@@ -2221,7 +2220,7 @@ work. Stage 5 records the result.
 
    Bundle into the same edit the (A-mvba) prose that
    [TODO.md](TODO.md) § Liveness leaves for this file. That is the
-   `termination` row of the `mod:slotconsensus` obligation table, which
+   `termination` row of the Module 1 (`mod:slotconsensus`) obligation table, which
    still reads "**not proven**: Chorus's fair-progress layer +
    (F-justice)/(F-byz)/(A-mvba)". It becomes `Chorus.termination` and its
    three premises, with the timed field still open. If it can be arranged,
@@ -2240,7 +2239,7 @@ work. Stage 5 records the result.
    * four algorithm blocks instead of three;
    * `Decide` in place of `TryDecide` and `line:mvba:td-decide`;
    * `Accepted_i` in place of `Pool`;
-   * a sentence on `rem:execution-model` (C5) and one on the
+   * a sentence on Supplement, Remark 2 (`rem:execution-model`) (C5) and one on the
      over-approximation of C7.
 
    Elsewhere in the Lean files: the `decide` docstring, `Mvba.Active`'s
@@ -2291,7 +2290,7 @@ work. Stage 5 records the result.
    as Lean definitions and compared. The per-view form ("a view-`w` label
    is held to `Δ` once `w − 1` is fresh") assumes a *consequence* of the
    protocol: that nobody is two views behind when a fresh view's messages
-   arrive. The supplement derives that in `lem:convergence` from `T > Δ`,
+   arrive. The supplement derives that in Supplement, Lemma 15 (`lem:convergence`) from `T > Δ`,
    and the model's schedule allows views below the ramp whose budget is
    not above `Δ`, so there the per-view premise would assume what the
    paper's network does not give. It also cannot say who sent a message,
@@ -2344,7 +2343,7 @@ work. Stage 5 records the result.
      [Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean),
      choose it at or above `M + 2`, which is what the supplement charges.
      This needs the model's analogue of the retention clause of
-     `lem:convergence`: at `w`'s first entry, every correct validator is
+     Supplement, Lemma 15 (`lem:convergence`): at `w`'s first entry, every correct validator is
      in `w − 1` or `w`. It follows from the existing `Synced` hop and
      `Mvba.entered_le_of_no_timeout`, provided view `w − 1`'s budget
      exceeds `Δ`. Check whether the ramp must then start one view earlier.
@@ -2382,9 +2381,9 @@ work. Stage 5 records the result.
    staged re-validation at the end.
 5. **Record the result.**
    * [Bounds.md](Bounds.md) §6.2:
-     * the "Paper" column of the per-seam table cites `lem:view-sync`,
-       `lem:convergence`, `lem:decision-propagation` and
-       `sec:reliable-delivery`;
+     * the "Paper" column of the per-seam table cites Supplement, Lemma 14 (`lem:view-sync`),
+       Supplement, Lemma 15 (`lem:convergence`), Supplement, Lemma 13 (`lem:decision-propagation`) and
+       Supplement, Section 10.3 (`sec:reliable-delivery`);
      * §6.2.6 gets the new milestones;
      * §6.3's ledger gets the admissibility line.
    * [PaperAlignment.md](PaperAlignment.md) §4 and §6.

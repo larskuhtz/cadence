@@ -8,19 +8,17 @@ import Cadence.Tooling
 -- `lake build Cadence.Conductor`; see [README.md](../README.md),
 -- "Working on the models".
 
-/-! # Conductor — the window-based orchestrator (`algorithm:conductor`)
+/-! # Conductor — the window-based orchestrator (Algorithm 7 (`algorithm:conductor`))
 
 Veil model of the Conductor, the orchestrator instantiation of the Cadence
-extreme-pipelining framework. Reference:
-`papers/cadence/src/p2_conductor_proofs.tex` `§section:conductor-formal` — the
-**ACS-based formal version** (windows over `mod:acs`), which is the one the
-paper proves. The rendered overview (`p1_informal.tex`
-`§section:conductor-overview`) uses the same ACS + median mechanism; its
+extreme-pipelining framework. Reference: Appendix D
+(`section:conductor-formal`) — the **ACS-based formal version** (windows over Module 4 (`mod:acs`)), which is the one the
+paper proves. The overview, Section 5 (`section:conductor-overview`), uses the same ACS + median mechanism; its
 one deliberate difference — agreeing on the first slot's *deadline* rather
 than on the first *slot* over read-only deadlines — is the deadline↔slot
 equivalence of [ConductorDesign.md](../docs/ConductorDesign.md) §1. (The
-source tree's `p2_conductor*.tex` deadline-MVBA files are unrendered drafts,
-not the paper — see that section's source-tree note.) Design:
+paper repository's deadline-MVBA Conductor is an unrendered draft, not the
+paper — see that section's source-tree note.) Design:
 [ConductorDesign.md](../docs/ConductorDesign.md) §3; contracts:
 [Interfaces.lean](Interfaces.lean) — this module *implements* `Orchestrator`
 (its state-level fragment is proven in [Composition.lean](Composition.lean),
@@ -28,49 +26,50 @@ not the paper — see that section's source-tree note.) Design:
 (`instantiate acs : ACSSafety …` below, one abstract instance state per
 window); support theory: [Windows.lean](Windows.lean).
 
-## Protocol summary (`algorithm:conductor`)
+## Protocol summary (Algorithm 7 (`algorithm:conductor`))
 
 Slots are scheduled in *windows* of `W` consecutive slots. Every validator
 starts in window 1 (slots `1..W`, opened at their starting times). Once a
 validator has completed all scheduled slots up to the current window's
-readiness boundary (its `p`-th slot — `line:ready-check`), it proposes a
+readiness boundary (its `p`-th slot — Algorithm 7, line 23 (`line:ready-check`)), it proposes a
 first slot for the next window to that window's ACS instance
-(`line:acs-propose`), choosing a slot strictly beyond the current window's
-last (`line:sstar-guard`–`line:sstar-update`). When ACS decides, the next
+(Algorithm 7, line 42 (`line:acs-propose`)), choosing a slot strictly beyond the current window's
+last (Algorithm 7, lines 40–41 (`line:sstar-guard`–`line:sstar-update`)). When ACS decides, the next
 window's first slot is the **median** of the decided proposals
-(`line:median-compute`), and the validator enters the window and schedules
-its `W` slots (`line:open-foreach`), each opening at its starting time
-(`line:conductor-wait-for-open`).
+(Algorithm 7, line 48 (`line:median-compute`)), and the validator enters the window and schedules
+its `W` slots (Algorithm 7, line 49 (`line:open-foreach`)), each opening at its starting time
+(Algorithm 7, line 27 (`line:conductor-wait-for-open`)).
 
 ## What is modelled vs. meta (per [ConductorDesign.md](../docs/ConductorDesign.md) §3)
 
 SMT-checked here (the safety-shaped content):
-* window-entry order (`lemma:window-entry`) — `[entered_prefix]`;
-* cross-window slot monotonicity (`prop:acs-nonoverlap`) —
+* window-entry order (Proposition 6 (`lemma:window-entry`)) — `[entered_prefix]`;
+* cross-window slot monotonicity (Proposition 7 (`prop:acs-nonoverlap`)) —
   `safety [win_separation]` (+ the transitive `[win_bounds_ordered]`);
-* window-assignment agreement (`prop:window-agreement`) —
+* window-assignment agreement (Proposition 9 (`prop:window-agreement`)) —
   `safety [window_assignment_agreement]` (structural: intervals are global
   oracle state, unique per window);
-* opened-set structure (interval form of `prop:acs-fate-range` /
-  `prop:open-count-window`) — `[opened_win_contained]`,
+* opened-set structure (interval form of Proposition 8 (`prop:acs-fate-range`) /
+  Proposition 11 (`prop:open-count-window`)) — `[opened_win_contained]`,
   `[open_local_order]`;
 * open-prefix agreement — `safety [open_prefix_agreement]`, discharging
   the `OrchestratorSafety.open_prefix_agreement` contract field, which the
   `Cadence` glue module consumes through its `orch` class constraint;
-* boundedness as interval inclusion (`lem:boundedness`, interval form) —
+* boundedness as interval inclusion (Lemma 14 (`lem:boundedness`), interval form) —
   `safety [bounded_tail]`: every scheduled-but-uncompleted slot lies
   strictly above the *previous* window's readiness boundary. The numeric
   `(2W − p)` bound is the one-line meta corollary: the region above
   `boundary(ω−1)` within scheduled intervals is the last `W − p` slots of
   window `ω−1` plus the `W` slots of window `ω`;
 * integrity's clock half ("no open before the slot's starting time",
-  `line:conductor-wait-for-open`) — `safety [opened_after_start]`, via the
+  Algorithm 7, line 27 (`line:conductor-wait-for-open`)) — `safety [opened_after_start]`, via the
   abstract monotone clock.
 
 Meta (documented; genuinely temporal — see the Liveness section):
-* totality (`lemma:conductor-totality`, `d_tot`-totality) and
+* totality (Lemma 15 (`lemma:conductor-totality`), `d_tot`-totality) and
   `(2Wτ)`-recovery — the paper's per-window induction;
-* the four parameter assumptions (`line:assumption-one..four`);
+* the four parameter assumptions (Algorithm 7, lines 7–10
+  (`line:assumption-one`–`line:assumption-four`));
 * `ℓ`-termination / `Δ`-totality of ACS — **(A-acs-termination)** /
   **(A-acs-totality)** ([Interfaces.lean](Interfaces.lean) `ACS.termination`,
   `ACS.totality` — the upper level of the contract this module's `acs`
@@ -80,17 +79,17 @@ Meta (documented; genuinely temporal — see the Liveness section):
 
 ## The eager `opened_i` variable vs. the `open(s)` output
 
-`algorithm:conductor` adds all `W` slots to the *variable* `opened_i`
-eagerly upon window entry (`line:acs-opened-update`), while the `open(s)`
+Algorithm 7 (`algorithm:conductor`) adds all `W` slots to the *variable* `opened_i`
+eagerly upon window entry (Algorithm 7, line 51 (`line:acs-opened-update`)), while the `open(s)`
 *outputs* fire later, each at its slot's starting time
-(`line:conductor-wait-for-open`). The model keeps the two apart:
+(Algorithm 7, line 27 (`line:conductor-wait-for-open`)). The model keeps the two apart:
 
 * the eager variable is the **ghost** `slot_scheduled` — the union of the
   entered windows' intervals (no state, no bulk updates);
-* the relation `opened` records the **outputs** (what `mod:orchestrator_2`
+* the relation `opened` records the **outputs** (what Module 2 (`mod:orchestrator_2`)
   specifies and the glue reads as the contract's `orch.opened`).
 
-The readiness check (`line:ready-check`, "all but the last `W − p` of
+The readiness check (Algorithm 7, line 23 (`line:ready-check`), "all but the last `W − p` of
 `opened_i` complete" ⟺ every slot of the earlier windows and the first
 `p` of the current one is complete) is stated over the *eager* set
 (`ready_next`), exactly as the paper computes it.
@@ -106,7 +105,7 @@ opening may stay unfired while the clock advances. Two consequences:
   under arbitrary delay, **except** where the paper's argument leans on
   punctual firing — those places are gated structurally instead:
   `open_slot` requires all smaller scheduled slots already opened
-  (`prop:fate-order`'s conclusion: with synchronized clocks and punctual
+  (Proposition 10 (`prop:fate-order`)'s conclusion: with synchronized clocks and punctual
   triggers, openings occur in slot order). This converts the paper's
   timing argument into an explicit scheduling assumption of the model,
   documented here; it is the Conductor analogue of Chorus's `Phase`
@@ -170,7 +169,7 @@ and a derived successor. No `+W` arithmetic
 beyond Chorus's", item 1). -/
 type slot
 /-- Window indices (the paper's `ω ∈ ℕ≥1`): least window = window 1,
-`next` = the `ω + 1` of `line:window-increment`. -/
+`next` = the `ω + 1` of Algorithm 7, line 46 (`line:window-increment`). -/
 type window
 /-- Abstract clock values. -/
 type time
@@ -197,13 +196,13 @@ instantiate acs : ACSSafety node slot acsstate fm.byz
 
 /-! ## Immutable configuration -/
 
-/-- The slot's starting time `s.deadline − Δ` (`line:conductor-wait-for-open`). -/
+/-- The slot's starting time `s.deadline − Δ` (Algorithm 7, line 27 (`line:conductor-wait-for-open`)). -/
 immutable function start_time : slot → time
 /-- Window 1's readiness boundary: the paper's slot `p` of window 1
-(`line:startup-last`). Later windows' bounds are ACS-decided state. -/
+(Algorithm 7, line 34 (`line:startup-last`)). Later windows' bounds are ACS-decided state. -/
 immutable individual genesis_boundary : slot
 /-- Window 1's last slot: its interval is `[slot 1, genesis_last]`, the
-paper's slot `W` (`line:startup-last`). -/
+paper's slot `W` (Algorithm 7, line 34 (`line:startup-last`)). -/
 immutable individual genesis_last : slot
 /-- Initial clock value. -/
 immutable individual genesis_time : time
@@ -214,37 +213,37 @@ immutable function acs_init_state : window → acsstate
 /-! ## Mutable state -/
 
 /-- The abstract global clock (synchronized clocks are a protocol
-assumption — `algorithm:conductor` preamble "recall that validators'
+assumption — Algorithm 7 (`algorithm:conductor`) preamble "recall that validators'
 clocks are synchronized"). -/
 individual now : time
 
 /-! ### (A) The ACS instances -/
 
-/-- The ACS instances' states, per window `ACS[w]` (`line:acs-instances`).
+/-- The ACS instances' states, per window `ACS[w]` (Algorithm 7, line 12 (`line:acs-instances`)).
 Honest proposals are this module's `propose` inputs (`acs_propose`);
 Byzantine proposals and the decision itself are the instance's own
 internal steps (`acs_step`), constrained only by the contract. -/
 function acs_state (w : window) : acsstate
 /-- The decided window interval: first slot (the extracted median,
-`line:median-compute`), readiness-boundary slot (the window's `p`-th
-slot) and last slot (`line:last-update`). Computed from the decided set
+Algorithm 7, line 48 (`line:median-compute`)), readiness-boundary slot (the window's `p`-th
+slot) and last slot (Algorithm 7, line 52 (`line:last-update`)). Computed from the decided set
 (`acs_decide`), global because ACS agreement makes every correct
 validator compute the same interval. Unique per window. -/
 relation acs_decided (w : window) (first : slot) (boundary : slot) (last : slot)
 
 /-! ### (L) Per-validator local state
 
-The paper's `proposed_i` set (`line:proposed-update`) is the ACS state's own
+The paper's `proposed_i` set (Algorithm 7, line 43 (`line:proposed-update`)) is the ACS state's own
 record of `i`'s input — `acs.proposed (acs_state w) i s` — and needs no local
 copy. -/
 
-/-- `i` has entered window `w` (`line:enter_window_1`, `line:enter_window_omega`). -/
+/-- `i` has entered window `w` (Algorithm 7, line 30 (`line:enter_window_1`), Algorithm 7, line 47 (`line:enter_window_omega`)). -/
 relation entered (i : node) (w : window)
-/-- The `open(s)` *output* has fired at `i` (`line:trigger-open`). -/
+/-- The `open(s)` *output* has fired at `i` (Algorithm 7, line 28 (`line:trigger-open`)). -/
 relation opened (i : node) (s : slot)
 /-- The window `i` opened `s` under (proof bookkeeping). -/
 relation opened_win (i : node) (s : slot) (w : window)
-/-- `i` has received the `completed(s)` input (`line:upon-completed`;
+/-- `i` has received the `completed(s)` input (Algorithm 7, line 35 (`line:upon-completed`);
 within Cadence: `i` finalized `S[s]`). -/
 relation completed (i : node) (s : slot)
 
@@ -259,7 +258,7 @@ assumption [genesis_shape]
   slot_ord.le slot_ord.zero genesis_boundary ∧
   slot_ord.le genesis_boundary genesis_last
 /-- Starting times are monotone in slot order (`τ`-spaced deadlines,
-`subsection:mcp-preliminaries`). Not consumed by any invariant below —
+Appendix A.1 (`subsection:mcp-preliminaries`)). Not consumed by any invariant below —
 recorded for model faithfulness (it constrains reachability traces). -/
 assumption [start_time_mono]
   ∀ (s s' : slot), slot_ord.lt s s' →
@@ -274,19 +273,19 @@ ghost relation win_bounds (w : window) (f : slot) (b : slot) (l : slot) :=
   (w = win_ord.zero ∧ f = slot_ord.zero ∧ b = genesis_boundary ∧ l = genesis_last) ∨
   acs_decided w f b l
 
-/-- The paper's eager `opened_i` variable (`line:startup-opened-update`,
-`line:acs-opened-update`): the union of the entered windows' intervals. -/
+/-- The paper's eager `opened_i` variable (Algorithm 7, line 33 (`line:startup-opened-update`),
+Algorithm 7, line 51 (`line:acs-opened-update`)): the union of the entered windows' intervals. -/
 ghost relation slot_scheduled (i : node) (s : slot) :=
   ∃ w f b l, entered i w ∧ win_bounds w f b l ∧
     slot_ord.le f s ∧ slot_ord.le s l
 
 /-- `i` is *in* window `w`: entered it, not yet entered its successor
-(the `current_window_i` variable, `line:current_window_init` /
-`line:window-increment`; negative observation of own local state only). -/
+(the `current_window_i` variable, Algorithm 7, line 14 (`line:current_window_init`) /
+Algorithm 7, line 46 (`line:window-increment`); negative observation of own local state only). -/
 ghost relation in_window (i : node) (w : window) :=
   entered i w ∧ ∀ w', win_ord.next w w' → ¬ entered i w'
 
-/-- `ready_for_next_window()` (`line:ready-check`) while in window `w`:
+/-- `ready_for_next_window()` (Algorithm 7, line 23 (`line:ready-check`)) while in window `w`:
 every scheduled slot up to `w`'s readiness boundary is completed
 (equivalently, per the paper: all but the last `W − p` of the eager
 `opened_i` are complete). -/
@@ -297,7 +296,7 @@ ghost relation ready_next (i : node) (w : window) :=
       slot_ord.le f0 s → slot_ord.le s l0 → slot_ord.le s b →
       completed i s
 
-/-- Every validator starts in window 1 (`line:enter_window_1`), with nothing
+/-- Every validator starts in window 1 (Algorithm 7, line 30 (`line:enter_window_1`)), with nothing
 opened or completed and no window beyond 1 decided. -/
 after_init {
   now := genesis_time
@@ -306,7 +305,7 @@ after_init {
   -- also resolves to a Mathlib declaration, which Veil warns about.
   acs_state V := acs_init_state V
   acs_decided V F B L := false
-  -- Every validator enters window 1 at startup (`line:enter_window_1`).
+  -- Every validator enters window 1 at startup (Algorithm 7, line 30 (`line:enter_window_1`)).
   entered I V := V == win_ord.zero
   opened I S := false
   opened_win I S V := false
@@ -322,11 +321,11 @@ action tick (t : time) {
   now := t
 }
 
-/-! ## ACS proposal (`line:ready`–`line:proposed-update`) -/
+/-! ## ACS proposal (Algorithm 7, lines 37–43 (`line:ready`–`line:proposed-update`)) -/
 
 /-- An honest validator in window `w`, once ready, proposes a first slot for
 the successor window `w'`, at most once. The `require` on `s_star` is the
-state residue of `line:sstar-compute`–`line:sstar-update`: the proposed
+state residue of Algorithm 7, lines 39–41 (`line:sstar-compute`–`line:sstar-update`): the proposed
 slot lies strictly beyond the current window's last slot. (The other half
 of the paper's computation — `s_star` is the *earliest* slot whose
 starting time has not passed — is quantitative timing and feeds only the
@@ -336,10 +335,10 @@ action acs_propose (i : node) (w : window) (w' : window) (s_star : slot)
   require ¬ fm.byz i
   require in_window i w
   require win_ord.next w w'
-  -- At most once per window (`proposed_i`, `line:proposed-update`).
+  -- At most once per window (`proposed_i`, Algorithm 7, line 43 (`line:proposed-update`)).
   require ∀ (s : slot), ¬ acs.proposed (acs_state w') i s
   require ready_next i w
-  -- `line:sstar-guard`/`line:sstar-update`: strictly beyond the current
+  -- Algorithm 7, line 40 (`line:sstar-guard`)/Algorithm 7, line 41 (`line:sstar-update`): strictly beyond the current
   -- window (stated over `w'`'s predecessor's bounds — `w` is that
   -- predecessor; bounds are global and unique).
   require ∀ (w0 : window) (f0 b0 l0 : slot),
@@ -362,8 +361,8 @@ action acs_step (w : window) (acs_next : acsstate) {
   acs_state w := acs_next
 }
 
-/-! ## ACS decision (oracle; `line:acs-decide`–`line:median-compute` +
-`line:last-update`) -/
+/-! ## ACS decision (oracle; Algorithm 7, lines 44–48 (`line:acs-decide`–`line:median-compute`) +
+Algorithm 7, line 52 (`line:last-update`)) -/
 
 /-- The handler of the output "`ACS[w]` decides": median extraction yields the
 window interval `[first, last]` with readiness boundary `boundary`. The
@@ -389,7 +388,7 @@ contract and the median computation:
   *upper* half of the bracket (`median ≤` some correct proposal — also
   provided by the median lemma) is deliberately not modelled: no safety
   property consumes it — it feeds only the recovery timing argument
-  (`prop:first-post-gst-window-time`), which is meta;
+  (Proposition 19 (`prop:first-post-gst-window-time`)), which is meta;
 * *sequencing* — the predecessor window `w0` and its bounds are witnesses
   too: a decision presupposes correct proposals, whose proposers had
   entered `w0` (which therefore has bounds). This is what keeps window
@@ -429,12 +428,12 @@ action acs_decide (w0 : window) (w : window)
   acs_decided w first boundary last := true
 }
 
-/-! ## Window entry (`line:acs-decide` handler:
-`line:window-increment`–`line:enter_window_omega`) -/
+/-! ## Window entry (Algorithm 7, line 44 (`line:acs-decide`) handler:
+Algorithm 7, lines 46–47 (`line:window-increment`–`line:enter_window_omega`)) -/
 
 /-- An honest validator in window `w` enters the successor `w'` once `ACS[w']`
 has decided and the readiness condition holds (the two activation
-conditions of `line:acs-decide`). Entry *schedules* the window's slots
+conditions of Algorithm 7, line 44 (`line:acs-decide`)). Entry *schedules* the window's slots
 (the eager `opened_i` update — here the ghost `slot_scheduled` grows by
 the decided interval); the `open` outputs fire later via `open_slot`. -/
 action enter_window (i : node) (w : window) (w' : window)
@@ -448,16 +447,16 @@ action enter_window (i : node) (w : window) (w' : window)
 }
 
 /-! ## Opening a slot (`schedule_opening` trigger,
-`line:conductor-wait-for-open`–`line:trigger-open`) -/
+Algorithm 7, lines 27–28 (`line:conductor-wait-for-open`–`line:trigger-open`)) -/
 
 /-- The `open(s)` output fires at honest validator `i` for a slot of an
 entered window's interval, guarded by:
 
 * integrity — not opened before, and not before the slot's starting time
-  (the clock guard; `mod:orchestrator_2` Integrity, second half);
+  (the clock guard; Module 2 (`mod:orchestrator_2`) Integrity, second half);
 * in-order firing — every smaller scheduled slot has already been opened.
   This is the structural rendering of the paper's timing argument
-  (`prop:fate-order` + `lemma:conductor-monotonicity`): with synchronized
+  (Proposition 10 (`prop:fate-order`) + Lemma 13 (`lemma:conductor-monotonicity`)): with synchronized
   clocks, triggers fire at `max(entry, start)`, which is monotone in the
   slot number across entered windows. See "Timing relaxation" in the
   module header. -/
@@ -478,7 +477,7 @@ action open_slot (i : node) (s : slot) (w : window)
   opened_win i s w := true
 }
 
-/-! ## Completion input (`line:upon-completed`) -/
+/-! ## Completion input (Algorithm 7, line 35 (`line:upon-completed`)) -/
 
 /-- The `completed(s)` callback — within Cadence, `i`'s finalization of
 `S[s]`: the glue module's `on_finalize` handler drives this action as the
@@ -496,7 +495,7 @@ action complete_slot (i : node) (s : slot) {
 
 /-! ## Safety properties -/
 
-/-- Window-assignment agreement (`prop:window-agreement`, and the
+/-- Window-assignment agreement (Proposition 9 (`prop:window-agreement`), and the
 Conductor-module "Safety"): the window intervals are agreed — one decided
 interval per window. (The per-validator statement of the paper collapses
 to this because the model globalizes the ACS decision, which its
@@ -507,7 +506,7 @@ safety [window_assignment_agreement]
     acs_decided w f b l ∧ acs_decided w f' b' l' →
     f = f' ∧ b = b' ∧ l = l'
 
-/-- Cross-window slot monotonicity (`prop:acs-nonoverlap`): a decided
+/-- Cross-window slot monotonicity (Proposition 7 (`prop:acs-nonoverlap`)): a decided
 window's interval lies strictly above its predecessor's (the paper's
 `s.number ≥ s'.number + W`, in interval form). -/
 safety [win_separation]
@@ -527,14 +526,14 @@ safety [open_prefix_agreement]
     ¬ fm.byz i ∧ ¬ fm.byz j ∧ opened i s' ∧ opened j s ∧ slot_ord.lt s' s →
     opened j s'
 
-/-- Integrity, clock half (`mod:orchestrator_2` Integrity; the
-`line:conductor-wait-for-open` guard persisted): no slot is opened before
+/-- Integrity, clock half (Module 2 (`mod:orchestrator_2`) Integrity; the
+Algorithm 7, line 27 (`line:conductor-wait-for-open`) guard persisted): no slot is opened before
 its starting time. -/
 safety [opened_after_start]
   ∀ (i : node) (s : slot),
     ¬ fm.byz i ∧ opened i s → time_ord.le (start_time s) now
 
-/-- Boundedness, interval form (`lem:boundedness`), stated as the
+/-- Boundedness, interval form (Lemma 14 (`lem:boundedness`)), stated as the
 persisted readiness residue: once a validator has entered window `w'`,
 every scheduled slot up to the readiness boundary of `w'`'s predecessor
 is completed. Contrapositive reading for the *current* window `ω`: every
@@ -557,14 +556,14 @@ safety [bounded_tail]
 
 /-! ## Invariants — window structure -/
 
-/-- Windows are entered in order, prefix-closed (`lemma:window-entry`):
+/-- Windows are entered in order, prefix-closed (Proposition 6 (`lemma:window-entry`)):
 whoever is in window `w` has entered every window below. ("At most once"
 needs no statement — `entered` is a set.) -/
 invariant [entered_prefix]
   ∀ (i : node) (w w' : window),
     ¬ fm.byz i ∧ entered i w' ∧ win_ord.lt w w' → entered i w
 
-/-- Everyone starts in window 1 (`line:enter_window_1`). -/
+/-- Everyone starts in window 1 (Algorithm 7, line 30 (`line:enter_window_1`)). -/
 invariant [entered_zero]
   ∀ (i : node), entered i win_ord.zero
 
@@ -580,13 +579,13 @@ invariant [bounds_shape]
 
 /-- Decisions are sequential: every nonzero window below a decided window
 is decided (the ACS instances are driven one window at a time —
-`lemma:window-entry` + the activation chain). -/
+Proposition 6 (`lemma:window-entry`) + the activation chain). -/
 invariant [decided_downward_closed]
   ∀ (w w' : window) (f' b' l' : slot),
     acs_decided w' f' b' l' ∧ win_ord.lt w w' ∧ ¬ w = win_ord.zero →
     ∃ f b l, acs_decided w f b l
 
-/-- Transitive interval ordering (`prop:acs-fate-range`'s "later windows
+/-- Transitive interval ordering (Proposition 8 (`prop:acs-fate-range`)'s "later windows
 cover slots of strictly larger number", closed under the window order):
 the intervals of any two bounded windows are strictly separated. -/
 invariant [win_bounds_ordered]
@@ -597,7 +596,7 @@ invariant [win_bounds_ordered]
 /-! ## Invariants — ACS proposals -/
 
 /-- An honest ACS proposal for window `w'` is strictly beyond the
-predecessor window's interval (`line:sstar-guard`/`line:sstar-update`
+predecessor window's interval (Algorithm 7, line 40 (`line:sstar-guard`)/Algorithm 7, line 41 (`line:sstar-update`)
 persisted; feeds `[win_separation]` through the median witnesses). -/
 invariant [acs_proposal_above_prev]
   ∀ (r : node) (w' : window) (s : slot) (w0 : window) (f0 b0 l0 : slot),
@@ -606,7 +605,7 @@ invariant [acs_proposal_above_prev]
     slot_ord.lt l0 s
 
 /-- An honest proposal to `ACS[w']` presupposes having entered the
-predecessor window (the `line:ready` activation context). -/
+predecessor window (the Algorithm 7, line 37 (`line:ready`) activation context). -/
 invariant [proposal_prev_entered]
   ∀ (r : node) (w' : window) (s : slot),
     ¬ fm.byz r ∧ acs.proposed (acs_state w') r s →
@@ -631,14 +630,14 @@ invariant [opened_win_entered]
     ¬ fm.byz i ∧ opened_win i s w → entered i w
 
 /-- The opened slot lies in its recorded window's interval
-(`prop:acs-fate-range`, interval form; bounds are unique, so the
+(Proposition 8 (`prop:acs-fate-range`), interval form; bounds are unique, so the
 ∀-formulation is exact). -/
 invariant [opened_win_contained]
   ∀ (i : node) (s : slot) (w : window) (f b l : slot),
     ¬ fm.byz i ∧ opened_win i s w ∧ win_bounds w f b l →
     slot_ord.le f s ∧ slot_ord.le s l
 
-/-- In-order openings (`prop:fate-order` + `lemma:conductor-monotonicity`,
+/-- In-order openings (Proposition 10 (`prop:fate-order`) + Lemma 13 (`lemma:conductor-monotonicity`),
 per-validator): below an opened slot, every scheduled slot is opened. -/
 invariant [open_local_order]
   ∀ (i : node) (s s' : slot) (w0 : window) (f0 b0 l0 : slot),
@@ -647,7 +646,7 @@ invariant [open_local_order]
     slot_ord.le f0 s' ∧ slot_ord.le s' l0 ∧ slot_ord.lt s' s →
     opened i s'
 
-/-- Completions are of opened slots (`mod:orchestrator_2` assumed
+/-- Completions are of opened slots (Module 2 (`mod:orchestrator_2`) assumed
 behaviour (i), enforced by the guard). -/
 invariant [completed_opened]
   ∀ (i : node) (s : slot),
@@ -668,7 +667,7 @@ invariant [acs_reachable]
 
 Totality and `(2Wτ)`-recovery are genuinely temporal: the paper proves
 them **only for Conductor run within Cadence** (they hinge on slots
-actually completing — `lemma:conductor-totality` intro), by an intricate
+actually completing — Lemma 15 (`lemma:conductor-totality`) intro), by an intricate
 per-window induction. Following the Chorus doctrine
 ([ChorusDesign.md](../docs/ChorusDesign.md) §7), the temporal glue lives here
 as named meta-axioms over the composed system, and the state-level content
@@ -683,21 +682,21 @@ they need is exactly the invariant set above.
   monotone because `completed` only grows and the scheduled set grows
   only with entry, which preserves readiness of *past* windows —
   boundaries of later windows lie above, `[win_bounds_ordered]`).
-* **(A-acs-termination)** (`mod:acs` ℓ-Termination) — once every honest
+* **(A-acs-termination)** (Module 4 (`mod:acs`) ℓ-Termination) — once every honest
   validator has proposed to `ACS[w]`, the `acs_decide w` oracle
   eventually fires (with witnesses supplied by the median lemma,
   [Windows.lean](Windows.lean) `lowerMedian_between_correct`).
-* **(A-acs-totality)** (`mod:acs` Δ-Totality) — the decision is global
+* **(A-acs-totality)** (Module 4 (`mod:acs`) Δ-Totality) — the decision is global
   state here, so its propagation is immediate by encoding; the paper's
   `Δ` materialises in the timing bounds only.
 * **(A-sc-totality)**, **(A-sc-termination)** — completions propagate:
   within Cadence, `completed` is Chorus finalization, which is
-  `d_tot`-total (`prop:chorus-totality`) and `ℓ_chorus`-terminating.
+  `d_tot`-total (Proposition 4 (`prop:chorus-totality`)) and `ℓ_chorus`-terminating.
   These enter through `complete_slot`'s occurrence, not its guard.
 
 ### The paper's induction, mirrored
 
-`prop:enters-every-window` (every correct validator enters every window):
+Proposition 15 (`prop:enters-every-window`) (every correct validator enters every window):
 induction over windows. In window `w`, either some correct validator
 decides `ACS[w+1]` — global here, so all see it — or none does, in which
 case every correct validator stays in `w`, eventually opens every slot of
@@ -707,16 +706,17 @@ glue), becomes ready, proposes ((F-justice) on `acs_propose`), and
 (A-acs-termination) decides — then `enter_window` is enabled at every
 correct validator and (F-justice) fires it.
 
-`(2Wτ)`-recovery (`prop:window-open-time` → `prop:smooth-windows` →
-`prop:first-post-gst-window-time`) additionally tracks *when*: it needs
-the four parameter assumptions (`line:assumption-one..four`)
+`(2Wτ)`-recovery (Proposition 16 (`prop:window-open-time`) → Proposition 18 (`prop:smooth-windows`) →
+Proposition 19 (`prop:first-post-gst-window-time`)) additionally tracks *when*: it needs
+the four parameter assumptions (Algorithm 7, lines 7–10
+(`line:assumption-one`–`line:assumption-four`))
 
 1. `(p−1)τ + Φ_oc + ℓ ≤ Wτ`
 2. `(p−1)τ + Φ_oc ≤ (W−1)τ`
 3. `Δ < ℓ`
 4. `d_tot + ℓ ≤ (p−1)τ`
 
-with `Φ_oc = ℓ_chorus + d_tot` (`prop:conductor-open-to-complete`).
+with `Φ_oc = ℓ_chorus + d_tot` (Proposition 14 (`prop:conductor-open-to-complete`)).
 These are arithmetic side conditions on real-time constants that do not
 exist at this abstraction; they are recorded here as the assumptions the
 meta-argument consumes. The quantitative conclusions (`d_tot`-totality of
@@ -770,7 +770,7 @@ guard. -/
 step_property [opened_mono] { opened I S → opened' I S }
 /-- `completed` is only ever set. -/
 step_property [completed_mono] { completed I S → completed' I S }
-/-- The paper's Monotonicity (`lemma:conductor-monotonicity`): a slot below
+/-- The paper's Monotonicity (Lemma 13 (`lemma:conductor-monotonicity`)): a slot below
 one an honest validator has opened, and not opened itself, is never opened
 afterwards. -/
 step_property [monotonicity] {
