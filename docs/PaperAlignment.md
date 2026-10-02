@@ -821,7 +821,7 @@ the plan is done:
 * MVBA entry postponed until the slot's ticket is held: not covered.
   "Ticket" exists only in the supplement.
 
-## 8. The realignment plan
+## 8. The realignment
 
 Sessions in order. Each is one PR off `master`, and the next starts after
 the last one merges. "Cold" means the Veil family re-solves from scratch,
@@ -1015,14 +1015,33 @@ build decided are §8.2.
   agreement and DA are covered by the existing invariants, restated over
   the widened ties. The one new invariant is `avail_ready_chunks`.
 
-**R17 · Close the realignment.**
-* A full re-validation, and the four markers counted.
-* The [Cadence.lean](../Cadence.lean) header, the README paper section
-  and §0 here change from "in progress" to "corresponds to `48cac9a`".
-* Anchors and references re-checked by §1 (the map regenerated, the
-  citation check clean). Each model header's paper pin becomes
-  `48cac9a`, with [Mvba.lean](../Cadence/Mvba.lean) moving from `eb1bb51`.
-* Create and push the tag `paper-target/48cac9a`, with Lars's approval.
+**R17 · Close the realignment. Done** (2026-10-02; the build is
+[History.md](History.md)'s R17 row).
+* **Re-check by §1.** The map regenerated from `48cac9a` is byte-identical,
+  and the citation check is clean. Paper `master` has not moved (§9).
+* **The classification walked once more** against the realigned models:
+  every (b) and (c) item is modelled (§4), and every remaining difference
+  is an abstraction with its argument or a finding (§5.10). None needs a
+  model change.
+* **The interface check** (§6.1): one new finding, P13. Module 1's
+  Termination is stated without the abandon and start conditions Chorus
+  needs; the contract already states both as antecedents.
+* **§6 is the findings page for the authors**, P1–P13.
+* **Status flipped.** §0, the README's paper section and the
+  [Cadence.lean](../Cadence.lean) header say "corresponds to paper
+  revision `48cac9a` (main body plus internal supplement)", and §0 is the
+  one home of the target. Every model header has one pointer to §0 in
+  place of its paper pin. The edit is comment-only, but it rebuilt every
+  family, warm.
+* **Verification.** A full warm re-validation: lake exit 0, ✅ 6 209 /
+  ❌ 0 / 💥 0 / ⏱ 0 / ♻ 1 082, no warnings. Every pin is unchanged, and
+  the three monitor suites pass.
+* **The tag** `paper-target/48cac9a` is on the merge commit of this
+  session's PR.
+
+*Plan change made in R17:* the plan had each model header's pin become
+`48cac9a`. Instead, every model header points to §0 and names no
+revision, so a later re-pin edits no model file and rebuilds no family.
 
 **After the realignment: the Chorus bounds leg resumes** at the stage it
 stopped ([Bounds.md](Bounds.md) §6.4.6):
