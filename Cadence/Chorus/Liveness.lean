@@ -955,14 +955,6 @@ def CorrectFbCommitQC
   ∃ q, nset.supermajority q ∧ Mvba.CorrectQuorum (node := node) q ∧
     ∀ r, nset.member r q = true → s.msg_fbcommit_sig r = true
 
-/-- `f+1` correct validators hold their chunk under `(j, m)`: the data is
-decodable from correct holders. -/
-def CorrectChunkQuorum (j : node) (m : merkle_root)
-    (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mmsg Phase PathChoice)) :
-    Prop :=
-  ∃ q, nset.greater_than_third q ∧ Mvba.CorrectQuorum (node := node) q ∧
-    ∀ r, nset.member r q = true → s.msg_chunk_received r j m = true
-
 /-- The MVBA proposal is owed when its trigger came from correct senders:
 `FBCert` from a correct supermajority, or the proposer's own complete fast
 meta-block, which is local. The certificates of a particular value need no
@@ -992,12 +984,12 @@ environment owes the step at all.
 * `fb_sign_pos`: also the `2f+1` votes its guard counts, from correct voters;
 * the proposal: its trigger from correct senders (`proposeOwed`);
 * the handoff: a correct validator has decided (`relayOwed`);
-* `redisseminate_chunk k …`: only where the paper re-disseminates (F11):
-  either the sender `k` signed a positive fallback entry for the root, which
-  it could only do after decoding (`line:fb-redisseminate`), or `k` has
-  itself decided in the MVBA — its fallback commit round has started
-  (`line:fb-commit-wait`) — and the data is decodable from correct holders.
-  A correct validator on the fast path re-disseminates nothing;
+* `redisseminate_chunk k …`: only where the paper sends other validators
+  their chunks (F11, F14): the sender `k` signed a positive fallback entry
+  for the root, which it could only do after decoding, and the same rule
+  re-encodes and sends each validator its chunk (`line:fb-redisseminate`).
+  A decided validator broadcasts only its own chunk (`line:fb-commit-wait`),
+  and a correct validator on the fast path re-disseminates nothing;
 * `commit_assign_*`: a commitment proof a correct validator sent — a correct
   validator's finalization re-broadcasts its proof
   (`line:fast-rebroadcast-commitqc`, `line:fb-commit-rebroadcast`), and the
@@ -1024,8 +1016,7 @@ def Owed (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mmsg Ph
   | .fb_sign_neg _ _ qv => fun _ => Mvba.CorrectQuorum (node := node) qv
   | .mvba_propose i .. => proposeOwed th i
   | .accept_mvba_commitqc .. => relayOwed
-  | .redisseminate_chunk k _ j m => fun s =>
-      (CorrectChunkQuorum j m s ∧ ∃ v, mvba.decided s.mvba_st k v) ∨ s.msg_fb_pos_sig k j m = true
+  | .redisseminate_chunk k _ j m => fun s => s.msg_fb_pos_sig k j m = true
   | .commit_assign_pos _ j m => fun s =>
       (∃ k, ¬ nset.is_byz k = true ∧ s.local_committed k = true ∧
         s.local_committed_pos k j m = true) ∨

@@ -2084,20 +2084,32 @@ Two findings from the fix, both reported, neither acted on:
   R13:* F13 is an artefact of the hybrid target. At `48cac9a` each
   validator's own `B′` carries its certificates, and the realignment closes
   F13 exactly ([PaperAlignment.md](PaperAlignment.md) §5.5, §8 R15).
-* **F14: re-dissemination's "decided" owed-disjunct is now used by no
-  proof, and it is stronger than the paper.** `Owed (.redisseminate_chunk
-  k i j m)` is `(CorrectChunkQuorum j m ∧ k has decided) ∨ msg_fb_pos_sig
-  k j m`. The left disjunct was used only by the old
-  `eventually_fbcommit_sig`, for FastQC roots, which no longer need a chunk.
-  The paper's decided validator broadcasts only *its own* chunk, and only
-  under FallbackQC entries (`line:fb-commit-wait`). It does not send other
-  validators their chunks. So the disjunct owes steps that paper runs
-  need not take. Dropping it weakens `FJustice` and `TimedJustice` (fewer
-  obligations) and needs no proof change (the witness never used either
-  owed-condition, and nothing else mentions `CorrectChunkQuorum`).
-  **Proposal:** drop it in the next statement session. *Kept by R13:*
-  still stronger than the target; dropped in R14
-  ([PaperAlignment.md](PaperAlignment.md) §5.6, §8).
+* **F14: re-dissemination's "decided" owed-disjunct was used by no proof,
+  and it was stronger than the paper.** `Owed (.redisseminate_chunk k i j
+  m)` was `(CorrectChunkQuorum j m ∧ k has decided) ∨ msg_fb_pos_sig k j
+  m`. The left disjunct was used only by the old `eventually_fbcommit_sig`,
+  for FastQC roots, which no longer need a chunk. The paper's decided
+  validator broadcasts only *its own* chunk, and only under FallbackQC
+  entries (`line:fb-commit-wait`). It does not send other validators their
+  chunks. So the disjunct owed steps that paper runs need not take.
+  **Closed in R14**, see "F14 closed" below.
+
+**F14 closed** (R14). The row now owes exactly what the paper sends:
+
+| | `Owed (.redisseminate_chunk k i j m)` |
+|---|---|
+| paper | the fallback-entry rule re-encodes and sends each validator its assigned chunk (`line:fb-redisseminate`); a decided validator broadcasts only its own chunk (`line:fb-commit-wait`) |
+| before | `(CorrectChunkQuorum j m ∧ ∃ v, mvba.decided k v) ∨ msg_fb_pos_sig k j m` |
+| after | `msg_fb_pos_sig k j m` |
+
+`FJustice` and `TimedJustice` are weaker (fewer obligations), and
+`CorrectChunkQuorum`, which only the dropped disjunct used, is gone. No Veil
+statement moved: `Owed` is a premise of the run-level theorems, not part of
+the model. `eventually_fbcommit_sig` used only F8's disjunct, the FallbackQC
+signer's own positive entry, and is unchanged up to the disjunction's
+injection. `Chorus.termination`, the timeline milestones, `Chorus.totality`
+and the three witness theorems re-checked in plain Lean, all at
+`[propext, Classical.choice, Quot.sound]`.
 
 **Expected pins, written before the build.** Chorus: one action and one
 state relation, no property: `101 + 46 × (101 + 1) + 47 = 4840` (from
@@ -2475,7 +2487,9 @@ The untimed fairness, a premise of `Chorus.termination`:
   `eventually_saturated`, `eventually_mvba_complete`,
   `eventually_fbcommit_sig`, `eventually_committed_of_assignable`, …); the
   proposal family by `eventually_input`; the handoff family by
-  `fRelay_of_fJustice`.
+  `fRelay_of_fJustice`. Re-dissemination's row, owed only on the sender's
+  own positive fallback entry (F11, F14), is used by
+  `eventually_fbcommit_sig`, for the FallbackQC signer's chunk.
 * **`MvbaAdmissible`**: the MVBA's own three premises on a projection.
   Jointly not obvious, as the timed form is. Discharged by
   `Chorus.termination_premises_satisfiable` (its caller premises are

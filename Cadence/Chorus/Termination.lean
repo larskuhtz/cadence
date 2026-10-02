@@ -2426,7 +2426,7 @@ theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
             obtain ⟨n, hn, h⟩ := eventually_of_weaklyFairWhen
               (hfj (.redisseminate_chunk k i J M0) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
               (P := fun st => st.msg_chunk_received i J M0 = true) (N := max T A)
-              (fun n hn => Or.inr (hown n (by omega)))
+              (fun n hn => hown n (by omega))
               (fun _ _ h => redisseminate_chunk_effect h)
               (fun n hn hnr => enabled_redisseminate_chunk hk (hact n (by omega) k hk) hJ
                 (r.mono (P := fun st => st.msg_proposer_signed J M0 = true)

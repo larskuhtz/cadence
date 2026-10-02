@@ -319,16 +319,15 @@ finding. The main body's own proofs still argue from a common `B′`
 
 ### 5.6 F14
 
-`Owed (.redisseminate_chunk k i j m)` is `(CorrectChunkQuorum j m ∧ k has
+`Owed (.redisseminate_chunk k i j m)` was `(CorrectChunkQuorum j m ∧ k has
 decided) ∨ msg_fb_pos_sig k j m` ([Bounds.md](Bounds.md) §6.4.2). The left
-disjunct owes chunks to other validators after a decision. At the target,
+disjunct owed chunks to other validators after a decision. At the target,
 a decided validator broadcasts only *its own* chunk, and only under
 `FallbackQC` entries of its `B′` (`line:fb-commit-wait`, unchanged). A
 correct MVBA `Commit` signer does the same under `AvailReady`. Neither
-re-encodes for others. So the disjunct is still stronger than the paper,
-and still used by no proof. **F14 stands as it is.** Dropping the disjunct
-weakens `FJustice` and `TimedJustice` and needs no Veil re-solve (§8,
-R14).
+re-encodes for others. **Closed in R14:** the row is `msg_fb_pos_sig k j m`,
+the fallback-entry rule's re-dissemination (`line:fb-redisseminate`), and
+nothing else. No Veil statement moved.
 
 ### 5.7 How the fallback path ends
 
