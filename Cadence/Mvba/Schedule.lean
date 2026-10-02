@@ -66,9 +66,9 @@ leader in every `k` consecutive views (`LeaderRotation`, the supplement's
 `leader_honest_cofinal` is its `k`-free shadow), and the schedule's three
 hypotheses (`Schedule`): the timeout is bounded, eventually exceeds the
 chain's latency, and the constants are non-negative (`ρ` among them). Why the timeout *must*
-be bounded for a fixed `ℓ` to exist — the backoff remark of the supplement at
-`026dc8b` was incompatible with its `O(fΔ)` theorem, and `eb1bb51` replaced
-it by the fixed `T := Δ_R + 4Δ + max{Δ, Δ_sync}` — is
+be bounded for a fixed `ℓ` to exist — a backoff remark of an earlier
+supplement revision was incompatible with its `O(fΔ)` theorem, and the
+supplement now fixes `T := Δ_R + 4Δ + max{Δ, Δ_sync}` — is
 [Bounds.md](../../docs/Bounds.md) §6.2.3. The paper's fixed `T` is the
 special case `vL = vord.zero`, `τ` constant.
 
@@ -306,7 +306,7 @@ abbrev TMvbaRun (th : Theory node nodeset value evec view) (time : Type) [Linear
 
 /-! ### (Δ-justice): the supplement's network, clause by clause
 
-The termination setting of `eb1bb51` (Supplement, Section 1.3 (`subsec:mvba-correctness`), before
+The supplement's termination setting (Supplement, Section 1.3 (`subsec:mvba-correctness`), before
 Supplement, Lemma 13 (`lem:decision-propagation`)) and Supplement, Section 10.3 (`sec:reliable-delivery`) say what the network
 guarantees. Messages between correct validators **sent at or after GST**
 are delivered within `Δ`. **Timeouts, `ViewTC_i` and a decided `CommitQC`

@@ -12,27 +12,17 @@ sweep** — the proofs live in the per-action files under
 
 ## What this models, and where its specification lives
 
-Module 3 (`mod:mvba`) in the published paper (`arXiv:2607.02275v2`) is an interface and
+Module 3 (`mod:mvba`) in the main body is an interface and
 five properties with no algorithm. The algorithm modelled here is the
 leader-based protocol of the paper repository's **internal supplement** —
 Supplement, Section 1 (`sec:mvba-instantiation`), with the data types
 in Supplement, Section 1.1 (`subsec:mvba-datatypes`), the protocol in Supplement, Section 1.2 (`subsec:mvba-protocol`)
 (Supplement, Algorithm 1 (`alg:mvba`–`alg:mvba-cont3`), in four blocks) and its correctness argument in
-Supplement, Section 1.3 (`subsec:mvba-correctness`). **The supplement is not yet part of the
-published paper.** It has neither tags nor versions, so this model pins the
-**paper-repository commit it was read against: `eb1bb51` (2026-09-28)**; a
-later change to Supplement, Algorithm 1 (`alg:mvba`–`alg:mvba-cont3`) or to Supplement, Section 1.3 (`subsec:mvba-correctness`) is the
-trigger to re-read the model against the new commit and move this pin
-([MvbaPlan.md](../docs/MvbaPlan.md) §0). The pin moved from `026dc8b`
-(2026-09-03) to `eb1bb51` after the review of
-[MvbaPlan.md](../docs/MvbaPlan.md) §11: the protocol the model mirrors is
-the same (same messages, certificates, guards, lock and view change), and
-every safety lemma keeps its statement; what changed is the termination
-argument and its network model, which the timed claim follows
-([Mvba/Schedule.lean](Mvba/Schedule.lean)). Paper-repository `b838e17`,
-the revision re-checked before that, was byte-identical to `026dc8b` in
-Supplement, Algorithm 1 (`alg:mvba`–`alg:mvba-cont3`) and all of Supplement, Section 1
-(`sec:mvba-instantiation`). What an auditor can
+Supplement, Section 1.3 (`subsec:mvba-correctness`).
+
+Paper target: [docs/PaperAlignment.md](../docs/PaperAlignment.md) §0.
+
+What an auditor can
 check without the supplement is the contract the model is proven against —
 `safety [agreement]`, `[integrity]`, `[external_validity]` are the three
 safety properties of Module 3 (`mod:mvba`); what needs the supplement is the model's
@@ -145,8 +135,8 @@ entered, `in_view`); `voted i v` (`lastVotedView_i` was raised to `v`, so
 `accepted i v x` (`x_v`); `local_prepqc i w e` (`PrepQC_i` has been the
 certificate `(w, e)`; the current one is the highest held); `timed_out i v`
 (`timedOut_i`); `commit_sent i v` (`commitSent_i`); `proposed_in l v` (the
-leader's `Pre-Prepare` in `v` was sent); `decided i x`; `abandoned i`; and
-the environment relation `avail_ready i x` (`AvailReady_i(x)`); and
+leader's `Pre-Prepare` in `v` was sent); `decided i x`; `abandoned i`;
+`avail_ready i x` (`AvailReady_i(x)`, set by the caller's input); and
 `tc_formed i v` (`i` has formed `TC_{s,v}`, the flag of
 Supplement, Algorithm 1, line 85 (`line:mvba:ht-advance`)). `DecidedQC_i` needs no relation of its own: it is
 set exactly when `i` decides, so `∀ E, ¬ decided i E` is `DecidedQC_i = ⊥`.
@@ -187,8 +177,13 @@ set exactly when `i` decides, so `∀ E, ¬ decided i E` is `DecidedQC_i = ⊥`.
   (Supplement, Algorithm 1, line 36 (`line:mvba:timeout-send`), Supplement, Algorithm 1, line 83 (`line:mvba:ht-send`)): both send the same
   message under the same local update; the rule that *enables* the second
   matters only for liveness and is left to the liveness step.
-* **`AvailReady` is an environment relation**: `become_avail_ready` is an
-  unguarded environment action, `send_commit` reads it positively.
+* **`AvailReady` is the caller's input**: `become_avail_ready` is
+  unguarded, and `send_commit` reads `avail_ready` positively. The
+  contract instance classifies it as the input `markAvail`
+  ([Mvba/Compose.lean](Mvba/Compose.lean)), which Chorus drives with its
+  chunk wait as the guard. The supplement states `AvailReady` over the
+  dissemination layer's state, which Module 3 (`mod:mvba`) does not expose
+  (finding P12, [PaperAlignment.md](../docs/PaperAlignment.md) §6).
   Safety-neutral, and the hook for the supplement's `Δ_sync` assumption.
 * **`abandon` is modelled** as a monotone flag every honest send requires
   unset, and `propose` is the `input` record. `abandoned` is the *caller's*
@@ -241,7 +236,13 @@ set exactly when `i` decides, so `∀ E, ¬ decided i E` is `DecidedQC_i = ⊥`.
   Supplement, Algorithm 1, line 57 (`line:mvba:hp-record`); the model's counterpart of the supplement's
   invariant that a `Prepare` on `e` has a valid accepted `x` with
   `entries(x) = e` is `honest_prepare_accepted` with `accepted_valid`), the
-  availability shares. The certificate `decide(x, CommitQC)` returns is
+  availability shares. Why that is sound for safety: with the state
+  persisted before each send and reloaded atomically, a crash and restart
+  is, to every other validator, a pause, and the model's runs already
+  pause; persistence is the implementation's obligation, and termination
+  under crashes is Supplement, Corollary 1
+  (`cor:mvba-recovery-termination`), which nothing here claims. The
+  shares belong to Chorus, which drives `AvailReady` from them. The certificate `decide(x, CommitQC)` returns is
   the network's `msg_commitqc`, which the instance exports as the
   contract's `certifies` ([Mvba/Compose.lean](Mvba/Compose.lean)).
 
@@ -567,7 +568,7 @@ timed out. It forms `prepareQC_{s,v}` itself and stores it as `PrepQC_i`.
 
 Prepare certificates do not travel: a validator holds one only from the
 prepares it received itself, never from another validator's certificate
-(the supplement at `eb1bb51`). So the guard reads the prepares, not
+(the supplement). So the guard reads the prepares, not
 `msg_prepqc`, and the step also records the certificate it formed on the
 network, since from then on it exists and `i`'s timeouts carry it.
 `form_prepqc` above stays as the anonymous assembly: whoever holds the

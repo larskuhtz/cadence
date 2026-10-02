@@ -34,9 +34,8 @@ retained only as a placeholder for a possible multi-slot extension — see the
 `is_proposer` TODO, which also notes that cross-slot independence is not
 guaranteed in practice.
 
-The model was built against the Cadence paper, `arXiv:2607.02275v2`, and is
-being realigned to the target revision `48cac9a`
-([PaperAlignment.md](../docs/PaperAlignment.md) §0). Citations name what the
+Paper target: [docs/PaperAlignment.md](../docs/PaperAlignment.md) §0.
+Citations name what the
 target's rendered PDF shows, with the LaTeX label in parentheses; the root
 [README.md](../README.md) says how to resolve them (e.g. Algorithm 5, line 7 (`line:fb-pathvote-guard`)). The Chorus
 chapter is Appendix C (`section:slot_agreement`), with pseudocode in Algorithm 2

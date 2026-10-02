@@ -429,8 +429,7 @@ class SlotConsensus (slot validator proposal pvector state time message : Type)
 
 /-! ### Slot consensus with the Chorus timing strengthenings
 
-`d_tot`-**totality** (Proposition 4 (`prop:chorus-totality`); `d_tot = Δ` since the
-v2 revision) and `ℓ`-**termination** (Lemma 11 (`lemma:chorus-termination`),
+`d_tot`-**totality** (Proposition 4 (`prop:chorus-totality`); `d_tot = Δ`) and `ℓ`-**termination** (Lemma 11 (`lemma:chorus-termination`),
 `ℓ = 5Δ + ℓ_MVBA`) are not part of Module 1 (`mod:slotconsensus`): they are properties of
 Chorus that the Conductor's totality and recovery proofs consume
 (Lemma 15 (`lemma:conductor-totality`), through `Φ_oc = ℓ_chorus + d_tot`). Both are
@@ -811,8 +810,8 @@ Supplement, Section 1.2 (`subsec:mvba-protocol`), "Agreement and Integrity
 over entries". The system instantiates `value` at `MetaBlock` below.
 
 The implementation is `Mvba` ([Mvba.lean](Mvba.lean)) — the leader-based
-protocol of the paper repository's internal supplement, pinned to a
-paper-repository commit in that file's header; [MvbaPlan.md](../docs/MvbaPlan.md) §0 says
+protocol of the paper repository's internal supplement, at the paper
+target ([PaperAlignment.md](../docs/PaperAlignment.md) §0); [MvbaPlan.md](../docs/MvbaPlan.md) §0 says
 what that referent is and is not — with `Valid` the model's immutable
 `valid` and `entries` its immutable `ent`. The instance is `Mvba.mvbaSafety`
 ([Mvba/Compose.lean](Mvba/Compose.lean)), every field of the fragment

@@ -10,6 +10,8 @@ import Cadence.Tooling
 
 /-! # Conductor — the window-based orchestrator (Algorithm 7 (`algorithm:conductor`))
 
+Paper target: [docs/PaperAlignment.md](../docs/PaperAlignment.md) §0.
+
 Veil model of the Conductor, the orchestrator instantiation of the Cadence
 extreme-pipelining framework. Reference: Appendix D
 (`section:conductor-formal`) — the **ACS-based formal version** (windows over Module 4 (`mod:acs`)), which is the one the
