@@ -150,6 +150,9 @@ fields, not substitutes for them.
   deadline (the Conductor-module "Safety").
 * **Opened-set structure** — `opened_i` is a union of per-window
   intervals of width W; windows' intervals are disjoint and increasing.
+  The width is the invariant `[win_bounds_shift]`: a window's boundary and
+  last slot are the shifts `win_boundary` and `win_last` of its first
+  (ingredient 1 below).
   This replaces the paper's cardinality statement ("exactly ω·W slots")
   with an interval formulation that stays in relational logic.
 * **Boundedness as interval inclusion** — from the `ready_for_next_window`
@@ -191,13 +194,26 @@ The split is the same as in Chorus.
    (`TotalOrderWithMinimum` on `slot` and `window`, no `+W` arithmetic in
    the SMT layer), with the intervals themselves as oracle state in the
    Conductor. That split introduces **no new axioms**; the details are in
-   [Cadence/Windows.lean](../Cadence/Windows.lean).
+   [Cadence/Windows.lean](../Cadence/Windows.lean). What *is* static is a
+   window's width: the immutable shift functions `win_last` and
+   `win_boundary` (the `+ (W − 1)` of Algorithm 7, line 52
+   (`line:last-update`), and the `+ p` of Algorithm 7, line 23
+   (`line:ready-check`): the first slot readiness does not ask to be
+   complete) map a window's first slot to its last slot and readiness
+   boundary.
+   `acs_decide` records exactly that interval, and window 1 is the shifts
+   of slot 1 (`[genesis_window]`). The solver sees them as uninterpreted
+   functions with `s ≤ win_boundary s ≤ win_last s`, which is the paper's
+   `0 ≤ p ≤ W − 1`; the instance at
+   `slot := ℕ` fixes the arithmetic.
 2. **Median / range validity.** The median of the decided ACS set lies
    between two correct proposals (≤ f faulty among ≥ 2f+1) — order-statistics
    counting, of the same species as the `ByzNodeSet` counting axioms. The
-   model uses the lower half: `acs_decide` requires a correct witness pair
-   `(r1, s1)` from a correct decider's decided set with `s1 ≤ first`.
-   That the median meets it is a Lean theorem from the ACS contract,
+   model uses both halves: `acs_decide` requires two correct witness
+   pairs from a correct decider's decided set, `(r1, s1)` with
+   `s1 ≤ first` (which separates the windows) and `(r2, s2)` with
+   `first ≤ s2` (which recovery's timing reads). That the median meets
+   them is a Lean theorem from the ACS contract,
    `Cadence.acs_median_bracket` ([Cadence/AcsMedian.lean](../Cadence/AcsMedian.lean)),
    through the median lemma of [Cadence/Windows.lean](../Cadence/Windows.lean)
    and the contract's one-slot-per-validator field. This is one of the two
@@ -206,7 +222,14 @@ The split is the same as in Chorus.
    a nondeterministic tick action) with guards such as
    `require start_time s ≤ now` on `open`. Timing *properties* stay meta; the
    clock exists only to make guards like "not before the starting time" and
-   "propose on time vs late" expressible. Clock synchronization across
+   "propose on time vs late" expressible. The second is `acs_propose`'s
+   `s*` rule (Algorithm 7, lines 39–41
+   (`line:sstar-compute`–`line:sstar-update`)): the earliest slot whose
+   starting time has not passed at `now`, or the first slot beyond the
+   current window if that one lies within it. Starting times strictly
+   increase (`[start_time_strict]`, the τ-spacing of Appendix A.1
+   (`subsection:mcp-preliminaries`), whose arithmetic the instance at
+   `slot := ℕ` fixes), and the clock starts at slot 1's starting time. Clock synchronization across
    validators — which the paper assumes — is therefore an explicit modelling
    assumption of the threat model. This is the Conductor analogue of Chorus's
    `Phase` enum, shared across slots rather than per-slot.

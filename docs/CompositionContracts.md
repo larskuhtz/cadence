@@ -384,8 +384,9 @@ down.
 over timed runs of the Conductor with the admissible-execution model as
 data. `clock_agrees` ties a run's clock to the Conductor's own `now`. The
 interval form of boundedness *is* proven, as `safety [bounded_tail]`; what
-stays temporal is the numeric count `2W − p`, which needs widths the model
-keeps meta. Integrity's timing half is first-order and the Conductor proves
+stays temporal is the numeric count `2W − p`, which adds the window
+widths (`[win_bounds_shift]`, over the model's shift functions) and their
+arithmetic at the instance at `slot := ℕ`. Integrity's timing half is first-order and the Conductor proves
 it, so it sits in `OrchestratorSafety` (`integrity_timing`, from `safety
 [opened_after_start]`) — which is why that fragment carries `time`.
 

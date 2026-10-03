@@ -475,7 +475,11 @@ Every (b) and (c) item is modelled (the list at the end of §4 says where).
 Every remaining difference between a model and the target is one of the
 following: below the model's abstraction, with its argument, or a finding
 of §6. None needs a model change. F15, found by R18 after the re-check, was
-one, and R19 removed it.
+one, and R19 removed it. R26 added the two Conductor rows when it
+completed the model's timing (F21, [ConductorBounds.md](ConductorBounds.md)
+§7); the first was a difference since the model's start, unlisted until
+then. R26 also found and removed one: the model covered only `p ≥ 1` of
+the main body's `p ∈ {0, …, W − 1}` (F25, closed there).
 
 | Difference | Model | Why it is sound, or the finding |
 |---|---|---|
@@ -495,6 +499,8 @@ one, and R19 removed it.
 | Chorus's contract instance assumes the slot's proposer set is non-empty | Chorus | The target allows an empty set: P14. Used only for `admissible_exists`; proposers may all stay silent. |
 | Both fallback finalization routes are modelled | Chorus | The target specifies both (§5.7); P2. |
 | The `EquivCert` rule is Algorithm 5's, not Part II's | FallbackReceipt, Chorus | The main body's rule is the specified protocol (§5.9); P3. |
+| An `open(s)` may fire later than the slot's starting time, and openings fire in slot order ("Timing relaxation" in the model's header) | Conductor | An over-approximation. The paper fires each opening at the later of its scheduling and its starting time (Algorithm 7, line 27 (`line:conductor-wait-for-open`)), and those openings come in slot order (Proposition 10 (`prop:fate-order`)), so the paper's runs are among the model's. The timed claims close the freedom with `open_slot`'s punctual row ([ConductorBounds.md](ConductorBounds.md) §6.4). |
+| Window widths and slot spacing are uninterpreted: `win_last`, `win_boundary` and `start_time` are functions constrained only by order facts (`[shift_shape]`, `[start_time_strict]`) | Conductor | The paper's `+ (W − 1)`, `+ (p − 1)` and τ-spaced starting times (Appendix A.1 (`subsection:mcp-preliminaries`)) are one interpretation, so every paper run is a model run. The timed claims fix the arithmetic at the instance at `slot := ℕ` ([ConductorBounds.md](ConductorBounds.md) §6.3). |
 | Part II's implementation variants; the practical Conductor | — | Outside the verified surface (§2, §7, §9). |
 | ~~**F15**: the fallback signer's chunk is a separate step, gated on the signer's participation at delivery, where the paper sends it inside the fallback-entry rule (Algorithm 5, line 12 (`line:fb-redisseminate`)); the proposer's chunks the same (Algorithm 2 (`alg:proposer-dissemination`))~~ | Chorus | **Removed in R19.** `fb_sign_pos` sends every validator its chunk in the same step, and `redisseminate_chunk` is gone. A proposer's chunk is delivered whatever the proposer does after `propose`. (Δ-avail) is derived from the rows (`availWithin_of_timedJustice`). The design, the counterexample and the record: [Bounds.md](Bounds.md) §6.4.2, "F15: the design" and "F15 closed". |
 

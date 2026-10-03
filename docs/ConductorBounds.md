@@ -6,7 +6,8 @@ composition that closes the Cadence loop. [Bounds.md](Bounds.md) §6.4 (the
 Chorus leg) set the shape, and §6.2 (the MVBA leg) the timing machinery
 this leg reuses. Decisions are recorded with their reasons. The three
 questions put to Lars are **decided (2026-10-03)**, each as recommended.
-K1, the untimed composition edit, is **done** (2026-10-03, R25; §9).*
+K1, the untimed composition edit, is **done** (2026-10-03, R25; §9), and so
+is K2, the model's timing completion (2026-10-03, R26; F21 closed).*
 
 ## 1. In short, for an auditor
 
@@ -85,16 +86,17 @@ the composed claims.
    MVBA's theorems keep their δ-general forms, and F3 records the
    degradation at δ > 0.
 
-**Nine findings about statements (§7, F16–F24) and three for the paper's
-authors (P15–P17, [PaperAlignment.md](PaperAlignment.md) §6).** One of them
-reaches the existing safety claims. **F18 / P16:** Module 4's Validity
+**Ten findings about statements (§7, F16–F25) and three for the paper's
+authors (P15–P17, [PaperAlignment.md](PaperAlignment.md) §6).** Two of them
+reach the existing safety claims. **F18 / P16:** Module 4's Validity
 bounds the size of the decided set but not the number of pairs per
 validator. The median argument behind Proposition 7 (`prop:acs-nonoverlap`),
 and the model's stated bridge at `acs_decide`, need at most `f`
 Byzantine-attributed pairs. With the module as stated, a decided set could
 consist entirely of one Byzantine validator's pairs. The fix is one
-first-order field, and every natural ACS satisfies it. The other findings
-concern the timed statements and the model's timing freedoms.
+first-order field, and every natural ACS satisfies it. **F25:** the model covered only `p ≥ 1` of the paper's `p ∈ {0, …, W − 1}`,
+closed by R26. The other findings concern the timed statements and the
+model's timing freedoms.
 
 **Decisions in one place.**
 
@@ -522,11 +524,15 @@ The timed claims are stated at an instance where slots are numbers. The
 Veil model keeps `slot` an abstract order, and the claims fix:
 
 * `slot := ℕ`, slot 1 at the run's start: `start_time 1 = clk 0`, the
-  paper's "every correct validator enters window 1 at time 0 = `T₁(1)`";
+  paper's "every correct validator enters window 1 at time 0 = `T₁(1)`"
+  (the model's `[genesis_window]` already ties its initial clock to slot
+  1's starting time, so this is `clk 0 = now (r.at' 0)`, `clock_agrees`);
 * `start_time s = start_time 1 + (s − 1) • τ`, the τ-spaced deadlines of
-  Appendix A.1 (`subsection:mcp-preliminaries`), with `0 < τ`;
+  Appendix A.1 (`subsection:mcp-preliminaries`), with `0 < τ` (the model
+  states only that starting times strictly increase, `[start_time_strict]`);
 * window widths and readiness boundaries from the model's shift functions
-  (§7, F21), at `W` and `p`.
+  (§7, F21): `win_last s = s + (W − 1)` and `win_boundary s = s + p`, the first slot
+  that readiness does not ask to be complete (F25).
 
 The schedule record, `ConductorSchedule`, extends Chorus's `FamilySchedule`
 with `W p : ℕ`, `τ`, the ACS's `ℓ`, and these fields, each named after its
@@ -659,11 +665,45 @@ paper's module.
     its row (§6.4) closes that in the timed premise.
 
   **Proposal (K2):** immutable shift functions `win_last`, `win_boundary`
-  (the `+ (W − 1)` and `+ (p − 1)` of a window's first slot), required by
+  (the `+ (W − 1)` and `+ (p − 1)` of a window's first slot; R26 made the
+  boundary `+ p`, F25), required by
   `acs_decide` and the genesis assumption; the full `s*` rule over `now` in
   `acs_propose`; the upper bracket as a second witness pair; and
   `start_time` strictly increasing. All are first-order, and the instance
   at `ℕ` fixes the arithmetic.
+  **Closed (R26):** in [Conductor.lean](../Cadence/Conductor.lean), each a
+  constraint the paper's protocol satisfies, so the model loses only runs
+  the paper does not have:
+  * `win_last` and `win_boundary` (Algorithm 7, line 52
+    (`line:last-update`); Algorithm 7, line 23 (`line:ready-check`)):
+    `acs_decide` records `[first, win_last first]` with boundary
+    `win_boundary first` (Algorithm 7, lines 49–52
+    (`line:open-foreach`–`line:last-update`)), and `[genesis_window]` makes
+    window 1 the shifts of slot 1 (Algorithm 7, lines 31–34
+    (`line:startup-foreach`–`line:startup-last`)). The paper's window is
+    exactly that interval. The invariant `[win_bounds_shift]` states the
+    width for every window;
+  * the `s*` rule (Algorithm 7, lines 38–41
+    (`line:ready-time`–`line:sstar-update`)) as three `require`s over
+    `now`: beyond the window's last slot `l0`, not yet started, and every
+    slot strictly between `l0` and `s*` already started. The paper's `s*`
+    is `max(earliest not passed, l0 + 1)`, which meets all three; with
+    strictly increasing starting times nothing else does;
+  * the upper bracket: a second correct witness pair `(r2, s2)` with
+    `first ≤ s2`. The paper's median is between two correct estimates
+    (the paragraph before Algorithm 7 (`algorithm:conductor`)), proven from
+    the contract by `Cadence.acs_median_bracket` (R25);
+  * `[start_time_strict]` (Appendix A.1 (`subsection:mcp-preliminaries`):
+    `τ > 0`), and `[genesis_window]` starts the clock at slot 1's starting
+    time (the proof of Proposition 16 (`prop:window-open-time`): "every
+    correct validator enters window 1 at time `0 = T₁(1)`"). The spacing
+    itself, `+ (s − 1)τ`, is K3's, at the instance.
+
+  The `open_slot` freedom stays in the model, as planned: it is an
+  over-approximation (the paper's punctual openings are among the model's
+  runs), and the row closes it in the timed premise
+  ([PaperAlignment.md](PaperAlignment.md) §5.10). Every safety property
+  and `Conductor ⊨ OrchestratorSafety` re-proved unchanged.
 * **F22: `enter_window` reads the first correct decision anywhere, not the
   validator's own.** Its guard is the global `acs_decided`, which
   `acs_decide` sets on some correct validator's decision. Algorithm 7, line
@@ -793,6 +833,26 @@ paper's module.
     with a consumer action that re-issues `abandon`: the lift gets the same
     stutters without a model edit, and without an action the paper does
     not have.
+* **F25: the model's readiness boundary was a slot it asked to be
+  complete, so the model covered only `p ≥ 1`.** The main body allows
+  `p ∈ {0, …, W − 1}` (Algorithm 7 (`algorithm:conductor`)). Its readiness
+  check, Algorithm 7, line 23 (`line:ready-check`), "return `k − j ≤ W − p`"
+  over the opened slots `s_1 < … < s_k` with `s_1, …, s_j` complete, asks
+  in window `ω` for every slot of the earlier windows and the window's
+  first `p`; at `p = 0` for the earlier windows only, and in window 1 for
+  nothing. The paper is precise here. The model's boundary was the
+  window's `p`-th slot with readiness asking for the slots *up to* it, so
+  `first ≤ boundary` (from the first model on: `genesis_shape` and
+  `acs_decide`'s interval shape) excluded `p = 0`, and the Conductor's
+  safety theorems said nothing about that configuration. Found by R26.
+  **Closed (R26)**, at the coordinator's request, in the same cold sweep:
+  the boundary is the window's `(p + 1)`-th slot (`win_boundary s = s + p`),
+  readiness asks for the scheduled slots *strictly below* it, and
+  `[shift_shape]`'s `s ≤ win_boundary s ≤ win_last s` is then exactly
+  `0 ≤ p ≤ W − 1`. `[bounded_tail]` reads the boundary with `<`: at
+  `p ≥ 1` it states what it stated before, at `p = 0` the paper's content.
+  No new state, every property kept, the sweep green. The timed claims
+  need `p ≥ 2` anyway (§6.3, P9's note).
 
 ## 8. Premises and non-vacuity from the start
 
@@ -952,6 +1012,30 @@ parallel with K1. Everything else is in order.
   Conductor's sweep, plus
   [Composition.lean](../Cadence/Composition.lean). Can be bundled with K1's
   Conductor edit if K1 stays reviewable.
+  * **Done (2026-10-03, R26).** As planned (F21's record), with these
+    differences:
+    * `acs_decide` takes `first` only: `boundary` and `last` are the shifts
+      of it, which keeps the action at 10 parameters with the second
+      witness pair;
+    * one new invariant, `[win_bounds_shift]` (every window's bounds are the
+      shifts of its first slot), so K4 reads the widths off a reachable
+      state instead of re-deriving them from the transitions;
+    * `[genesis_window]` also ties `genesis_time` to slot 1's starting time
+      (the fourth bullet of F21), and `[shift_shape]` replaces
+      `genesis_shape`, which it implies at slot 1;
+    * F25 found and closed: the boundary is the window's `(p + 1)`-th slot
+      and readiness asks for the slots strictly below it, so the model
+      covers the paper's `p = 0` (one further commit, re-solved cold);
+    * two comments still say the model keeps the widths meta:
+      [Interfaces.lean](../Cadence/Interfaces.lean)'s boundedness field
+      (K3's file) and [Composition.lean](../Cadence/Composition.lean)'s
+      boundedness note (a shared file). They are left for K3 and K4, which
+      touch both;
+    * the sweep, cold: the Conductor 197 → 205 cells, all green; the slowest
+      cell at 19 s of the 180 s budget on this machine.
+      [Composition.lean](../Cadence/Composition.lean) and
+      [System.lean](../Cadence/System.lean) re-proved without an edit; no
+      VC outside the Conductor changed.
 * **K3: scaffolding and statements.** C4 and C5 (one
   [Interfaces.lean](../Cadence/Interfaces.lean) edit, warm), timed Conductor
   runs, `ConductorSchedule`, the rows, the per-window ACS projection, the
@@ -992,5 +1076,5 @@ families cold.** K0 settled F24 without a `TransitionSystemSafety` change.
 * the premise-presentation pass (R21) owns the premises page and
   [Architecture.md](Architecture.md) §4 until it lands.
 
-As in the Chorus leg, the dominant risk is statement churn. F16–F24 are the
+As in the Chorus leg, the dominant risk is statement churn. F16–F25 are the
 churn this record tries to absorb before any Lean.
