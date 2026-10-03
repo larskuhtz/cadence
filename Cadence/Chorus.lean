@@ -439,7 +439,7 @@ relation local_fb_neg_qv (i : node) (j : node) (qv : nodeset)
 /-! ## Fired-once records
 
 The paper's handlers run once: a validator sends its commit vote, its
-fallback vote, its re-disseminated chunk or its fallback commit vote once,
+fallback vote or its fallback commit vote once,
 and handles its MVBA decision once. The model splits several of those
 handlers into per-proposer steps (the Veil idiom for a `for each` loop),
 and the effect of such a step is a network tuple or a shared record, which
@@ -452,9 +452,11 @@ remove no reachable network state; what they buy is that no fair action
 stays enabled after it has fired ([Bounds.md](../docs/Bounds.md) §6.4.7,
 `Chorus.justice_enabledMove`). -/
 
-/-- Sender `k` has sent validator `i` its assigned chunk under proposer `j`'s
-root `m`: the proposer's own dissemination (`deliver_chunk_assigned`, `k =
-j`) or a re-dissemination (`redisseminate_chunk`, Algorithm 5, line 12 (`line:fb-redisseminate`)). -/
+/-- Validator `i` has received sender `k`'s chunk for it under proposer `j`'s
+root `m`: the delivery of the proposer's own send (`deliver_chunk_assigned`,
+`k = j`, the step's fired-once record), or the re-dissemination inside the
+fallback-entry rule, which sends and delivers at once (`fb_sign_pos`, `k`
+the signer, Algorithm 5, line 12 (`line:fb-redisseminate`)). -/
 relation local_chunk_sent (k : node) (i : node) (j : node) (m : merkle_root)
 /-- Validator `i` has signed its fast commit vote's entry for proposer `j`
 (`commit_sign_pos` / `commit_sign_neg`): the commit vote carries one entry
@@ -756,26 +758,28 @@ proposer's `propose j m` below.
 **The gate.** Every rule that sends a message requires the acting validator
 to be actively participating, `participating i ∧ ¬ abandoned i`. These are:
 
-* `propose` and `deliver_chunk_assigned` (at the proposer);
+* `propose` (at the proposer; it sends every chunk);
 * `vote`;
 * `commit_sign_*` and `cast_fast_commit`;
 * `broadcast_commitqc_*` (at the collector);
-* `fb_sign_*` and `cast_fallback_vote`;
+* `fb_sign_*` (`fb_sign_pos` also sends every validator its chunk) and
+  `cast_fallback_vote`;
 * `mvba_propose`, which the convention names explicitly;
-* `redisseminate_chunk` (at the re-disseminating sender);
 * `cast_fb_commit`;
 * `commit_assign_*` and `finalize_commit`, because the paper's
   finalization rules re-broadcast the commitment proof
   (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)).
 
-The rules that only process a received message are exempt: `record_chunk`,
+The rules that only process a received message are exempt: the delivery
+of a proposer's chunk `deliver_chunk_assigned` (a delivery of a send that
+`propose` made, so not a send of its own), `record_chunk`,
 `aggregate_fastqc_*`, the decision handlers `on_mvba_decide_*` and
 `mvba_terminate`, the certificate handlers `on_mvba_commitqc_*`, and the
 availability report `mvba_avail_ready`. So are the phase markers and the MVBA's oracle step,
-which are not a validator's rules. `broadcast_commitqc_*` and
-`redisseminate_chunk` take their correct sender as a parameter; the same
-capabilities in Byzantine hands are the unconstrained actions
-`byz_broadcast_commitqc_*` and `byz_redisseminate_chunk`. The
+which are not a validator's rules. `broadcast_commitqc_*` takes its correct
+sender as a parameter; the same capability in Byzantine hands is the
+unconstrained `byz_broadcast_commitqc_*`, and the re-dissemination a
+Byzantine holder of `f+1` chunks can do is `byz_redisseminate_chunk`. The
 gates read only the acting validator's own local state, so they add no
 network read in any position (ChorusDesign.md §3.1.1).
 
@@ -816,9 +820,14 @@ per-recipient nature of chunk delivery:
   `∀ m2, msg_proposer_signed j m2 → m2 = m`; Byzantine proposers can
   equivocate via `byz_sign_proposer` / `byz_deliver_chunk`.
 * `deliver_chunk_assigned i j m` — the chunk assigned to validator `i` under
-  root `m` is delivered to `i`. For honest `j`, the proposer must have
-  committed to `m` (`require msg_proposer_signed j m`), so honest delivery
-  cannot fabricate chunks. Byzantine proposer delivery is covered by the
+  root `m` is delivered to `i`. The paper sends every chunk in the proposing
+  step itself, in the `send` of Algorithm 2 (`alg:proposer-dissemination`)'s
+  "for each validator `p_r`" loop. So the send is `propose`, and its record
+  is `msg_proposer_signed j m`: for honest `j` the delivery requires it, so
+  honest delivery cannot fabricate chunks, and it requires nothing else of
+  the proposer. A chunk in flight is delivered whatever the proposer does
+  after proposing; in particular after it abandons (a delivery of an
+  earlier send is not a new send). Byzantine proposer delivery is covered by the
   separate `byz_deliver_chunk` action (which lifts the
   `msg_proposer_signed` requirement, modelling chunk equivocation; see §5
   of [ChorusDesign.md](../docs/ChorusDesign.md)).
@@ -844,10 +853,9 @@ action propose (j : node) (m : merkle_root) {
 
 action deliver_chunk_assigned (i : node) (j : node) (m : merkle_root) {
   require ¬ is_byz j
-  require participating j
-  require ¬ abandoned j
+  -- The send: `j`'s proposal (Algorithm 2 (`alg:proposer-dissemination`)).
   require msg_proposer_signed j m
-  -- Fired once: `j` has not sent `i` this chunk yet.
+  -- Fired once: `j`'s chunk for `i` has not been delivered yet.
   require ¬ local_chunk_sent j i j m
   msg_chunk_received i j m := true
   local_chunk_sent j i j m := true
@@ -1072,7 +1080,19 @@ Note that (c) is implied by (b) at the network level (invariant
 `vote_pos_quorum_implies_decodable`): every *valid* positive vote carries
 its chunk, so f+1 positive votes put f+1 chunks on the network. We keep (c)
 as an explicit precondition because `isDecoded` is a real check the
-protocol performs. -/
+protocol performs.
+
+**The rule re-disseminates in the same step** (Algorithm 5, line 12
+(`line:fb-redisseminate`)): having decoded the proposal, the signer
+re-encodes it and sends every validator its assigned chunk under `m`. The
+paper's rule does both at once, so the model does too: two bulk updates,
+the deliveries `msg_chunk_received I j m` and the signer's record
+`local_chunk_sent i I j m`. The sends happen while `i` actively
+participates, inside this gated step, and never after it abandons. A
+relation holds from the send, as every broadcast relation of the model
+does; the rules that read a re-disseminated chunk time its delivery in
+their own rows ([Bounds.md](../docs/Bounds.md) §6.4.2, "F15: the
+design"). -/
 action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q qc : nodeset) {
   require ¬ is_byz i
   require participating i
@@ -1096,6 +1116,10 @@ action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q qc : nodeset) {
   require ¬ local_fb_entry i j
   msg_fb_pos_sig i j m := true
   local_fb_entry i j := true
+  -- Re-encode, and send every validator its assigned chunk under `m`
+  -- (Algorithm 5, line 12 (`line:fb-redisseminate`)).
+  msg_chunk_received I j m := true
+  local_chunk_sent i I j m := true
 }
 
 /-- Per-proposer fallback signing, negative case. The paper's validator signs
@@ -1450,22 +1474,18 @@ Algorithm 5, line 43 (`line:fb-formcommitqc`)), and finalization happens on `fbC
 
 Modelling notes:
 
-* **Chunk re-dissemination is its own action** (`redisseminate_chunk`):
-  once `f+1` chunks for `(j, m)` are on the network (`chunk_quorum` —
-  the erasure-decode threshold, the model's `isDecoded` of Algorithm 6
-  (`alg:da`)), any
-  holder of the reconstruction can re-encode the proposal and send
-  validator `i` its assigned chunk. This is the protocol content of
-  Algorithm 5, line 12 (`line:fb-redisseminate`) and of the chunk re-broadcast in
-  Algorithm 5, line 39 (`line:fb-commit-wait`). Without it the DA wait below could starve for a
-  *Byzantine* proposer's decided root: honest `deliver_chunk_assigned`
-  requires an honest proposer, and `byz_deliver_chunk` is unfair
-  ((F-byz)). Like `deliver_chunk_assigned` it is unguarded by `phase`.
-  Its correct sender `k` is a parameter, as the collector is for
-  `broadcast_commitqc_*`: it must be actively participating, and it sends
-  a given chunk once (`local_chunk_sent`). Beyond that, its precondition
-  is the network-level capability itself. A Byzantine sender has the same
-  capability, unconstrained and unfair, as `byz_redisseminate_chunk`.
+* **Chunk re-dissemination happens inside the fallback-entry rule**
+  (`fb_sign_pos`, Algorithm 5, line 12 (`line:fb-redisseminate`)): a
+  correct signer of a positive entry has decoded the proposal, and in the
+  same step it re-encodes it and sends every validator its assigned chunk.
+  Without it the DA wait below could starve for a *Byzantine* proposer's
+  decided root: honest `deliver_chunk_assigned` requires an honest proposer,
+  and `byz_deliver_chunk` is unfair ((F-byz)). The re-broadcast of
+  Algorithm 5, line 39 (`line:fb-commit-wait`) sends the validator's *own*
+  chunk, which `msg_chunk_received` already records as on the network and
+  `chunk_quorum` already counts, so it changes no relation and has no step.
+  A Byzantine holder of `f+1` chunks can re-disseminate at any time, unfairly,
+  as `byz_redisseminate_chunk`.
 * **The DA wait is the paper's, under the `FallbackQC` entries of the
   validator's own `B′`** (Algorithm 5, line 38 (`line:fb-commit-foreach`)). Correct validators agree
   on entries but may decide representations whose certificates differ, so
@@ -1486,31 +1506,8 @@ Modelling notes:
 * **Participation gating** (the paper's standing convention that every
   message-sending rule requires active participation,
   Appendix C.3 (`subsection:chorus-protocol-overview`)) is modelled directly:
-  `redisseminate_chunk` and `cast_fb_commit` require their sender to be
-  actively participating, like every other sending rule ("Participation
-  inputs" above). -/
-
-/-- Chunk re-dissemination (Algorithm 5, line 12 (`line:fb-redisseminate`)): once the data for
-`(j, m)` is decodable from the network, the sender `k` re-encodes it and
-sends validator `i` its assigned chunk under `m`, once, and only while
-actively participating. -/
-action redisseminate_chunk (k : node) (i : node) (j : node) (m : merkle_root) {
-  require ¬ is_byz k
-  require participating k
-  require ¬ abandoned k
-  -- Algorithm 6 (`alg:da`) ingests chunks only for the slot's proposers.
-  require is_proposer j
-  -- Chunk validation: the chunk header must verify against the
-  -- proposer's signed root.
-  require msg_proposer_signed j m
-  -- Reconstructability (`isDecoded`, Algorithm 6 (`alg:da`)): f+1 chunks for `(j, m)`
-  -- delivered on the network, from which `k` re-encodes `i`'s chunk.
-  require chunk_quorum j m
-  -- Fired once: `k` has not sent `i` this chunk yet.
-  require ¬ local_chunk_sent k i j m
-  msg_chunk_received i j m := true
-  local_chunk_sent k i j m := true
-}
+  `cast_fb_commit` requires its sender to be actively participating, like
+  every other sending rule ("Participation inputs" above). -/
 
 /-- Validator `i` casts its fallback commit vote over the decided entries
 (Algorithm 5, line 41 (`line:fb-commitvote`)), after the DA wait under the
@@ -1682,8 +1679,9 @@ action byz_deliver_chunk (i : node) (j : node) (m : merkle_root) {
   msg_chunk_received i j m := true
 }
 
-/- A Byzantine sender re-disseminates a decodable chunk (the capability of
-`redisseminate_chunk`, which any holder of `f+1` chunks has). -/
+/- A Byzantine sender re-disseminates a decodable chunk (the capability any
+holder of `f+1` chunks has; the correct signer's re-dissemination is part of
+`fb_sign_pos`). -/
 action byz_redisseminate_chunk (r : node) (i : node) (j : node) (m : merkle_root) {
   require is_byz r
   require is_proposer j
@@ -2480,8 +2478,7 @@ model, indexed by the action's category:
 
 * **(F-justice)** — every phase-advancement action (`advance_to_*`), every
   delivery, aggregation and observation action (`deliver_chunk_assigned`,
-  `aggregate_fastqc_*`, `broadcast_commitqc_*`, `record_chunk`,
-  `redisseminate_chunk`), and every per-validator honest action (`vote`,
+  `aggregate_fastqc_*`, `broadcast_commitqc_*`, `record_chunk`), and every per-validator honest action (`vote`,
   `fb_sign_*`, `cast_fallback_vote`, `commit_sign_*`, `cast_fast_commit`,
   `mvba_propose`, the handoff `accept_mvba_commitqc`, the handlers
   `on_mvba_decide_*`, `mvba_terminate`, `cast_fb_commit`,
@@ -2506,13 +2503,10 @@ model, indexed by the action's category:
   by the MVBA's own admissible-execution model, which the claim assumes of
   the run's MVBA projection (`Chorus.MvbaAdmissible`). The Byzantine
   actions are (F-byz) below.
-  Fairness on `redisseminate_chunk` is the model form of "re-disseminated
-  chunks are eventually delivered"; its paper backing is that the
-  re-encode-and-send is performed by *honest* parties
-  (Algorithm 5, line 12 (`line:fb-redisseminate`) by every honest positive fallback signer,
-  Algorithm 5, line 39 (`line:fb-commit-wait`) by every honest decider), so under the
-  conditioned-termination premises some honest holder keeps every
-  assignee's chunk in flight.
+  Re-disseminated chunks need no fairness of their own: an honest positive
+  fallback signer sends every validator its chunk inside its signing step
+  (Algorithm 5, line 12 (`line:fb-redisseminate`)), so the fairness of
+  `fb_sign_pos` covers them.
 * **(F-compassion)** — strong fairness is part of the modelling vocabulary
   for the underlying implementation (whose per-validator local state is
   not monotone), but it is **not invoked** here: in Veil's
@@ -2623,8 +2617,9 @@ finalize from them through the commit route (`Chorus.termination`).
   propose (`mvba_propose`), and the MVBA's own termination
   (`Mvba.termination`) delivers the complete decision vector, which the
   handlers transport; the *fallback commit round* then carries the
-  decisions to finalization — (F-justice) on `redisseminate_chunk` and
-  `cast_fb_commit` forms `fbcommitqc`, enabling `commit_assign_*` — see
+  decisions to finalization — (F-justice) on `cast_fb_commit`, whose DA
+  wait the correct FallbackQC signers' re-dissemination meets, forms
+  `fbcommitqc`, enabling `commit_assign_*` — see
   the fair-progress notes at the "Fallback commit round" invariant block.
 * **`x = 0` (fallback).** All `≥ 2f+1` honest validators eventually cast
   fallback votes (per-proposer fallback signing is always enabled one way
@@ -2758,13 +2753,12 @@ Algorithm 5, line 47 (`line:fb-finalize`)).
 
 The fair-progress leg for the round needs no dedicated `progress_*`
 case-analysis invariant: once `mvba_complete` holds, `cast_fb_commit i`'s
-only non-derived precondition is the DA wait, and its satisfiability is
-materialised by three enabledness facts for `redisseminate_chunk` —
-`mvba_decided_is_proposer`, `mvba_decided_pos_chunks_decodable` (both
-above) and `mvba_decided_pos_proposer_signed` (below). The round has no
+only non-derived precondition is the DA wait, which a correct signer of
+each FallbackQC entry met when it signed: `fb_sign_pos` sends every
+validator its chunk (Algorithm 5, line 12 (`line:fb-redisseminate`)). The round has no
 phase gate: the paper's handler is "upon `MVBA[s].decide(B′)`"
-(Algorithm 5, line 37 (`line:fb-mvba-decide`)). (F-justice) on `redisseminate_chunk`
-and `cast_fb_commit` then yields `2f+1` honest commit votes, i.e.
+(Algorithm 5, line 37 (`line:fb-mvba-decide`)). (F-justice) on `cast_fb_commit`
+then yields `2f+1` honest commit votes, i.e.
 `fbcommitqc` (the counting is `fbcommitqc_of_honest_commit_votes`,
 [Chorus/Counting.lean](Chorus/Counting.lean)); `fbcommitqc_implies_mvba_complete` +
 `mvba_complete_per_proposer` hand the per-proposer `commit_assign_*`
@@ -2784,9 +2778,8 @@ votes contain an honest one (`supermajority_greater_than_third` +
 invariant [fbcommitqc_implies_mvba_complete]
   fbcommitqc → mvba_complete
 
-/-- Every decided-positive root is proposer-signed: the chunk-validation
-leg of `redisseminate_chunk`'s enabledness (its other leg is
-`mvba_decided_pos_chunks_decodable`). Derivable on the fly — a decision
+/-- Every decided-positive root is proposer-signed: chunk validation for a
+decided root. Derivable on the fly — a decision
 is backed by a vote or fallback quorum whose honest member's entry pins
 the proposer signature — but materialised so downstream VCs need not
 re-derive it (the `msg_commitqc_*` / `local_fb_neg_qv` pattern). -/
