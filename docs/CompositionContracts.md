@@ -531,7 +531,11 @@ the proven fragments.
    the decided set brackets the first slot from below is justified by
    `ACS.validity_quantitative` through [Windows.lean](../Cadence/Windows.lean)'s median lemma, not
    derived from the class: cardinality is upper-level. It is one `require`,
-   documented at the action.
+   documented at the action. The justification has a gap: the median lemma
+   needs at most `f` Byzantine-attributed pairs, and the contract, like
+   Module 4 (`mod:acs`), bounds only the set's size. A Byzantine validator
+   could contribute several pairs. [ConductorBounds.md](ConductorBounds.md)
+   §3.4 (F18, C6) proposes the missing first-order field.
 4. **`Admissible` is implementation-defined data**, so a future full instance
    could be vacuous if it defined it as `False`; `admissible_exists` forbids
    that, and the definition is one line to audit.

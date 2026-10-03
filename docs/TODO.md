@@ -24,7 +24,11 @@ order worth taking:
   of ACS validity (`ACS.validity_quantitative`, upper level) through
   [Windows.lean](../Cadence/Windows.lean)'s median lemma; cardinality is outside the first-order
   fragment. A Lean theorem deriving the `require` from the upper-level field
-  plus the median lemma would turn that bridge into a proof.
+  plus the median lemma would turn that bridge into a proof. It needs one more
+  field first: the contract bounds the size of the decided set, not the pairs
+  per validator, so the median lemma's "at most `f` Byzantine-attributed
+  entries" does not follow from it (F18 and P16,
+  [ConductorBounds.md](ConductorBounds.md) §3.4, C6).
 * **The MVBA certificate bridge.** The completeness direction — that a
   decided entry's certificate is visible on Chorus's network — is what
   enables the decision handlers, and is what the liveness argument has to
@@ -266,7 +270,9 @@ come first.
   2. the Conductor's timed claims (`OrchestratorTemporal`: Totality,
      `B`-Boundedness, `R`-Recovery), with F3, the totality tolerance at
      `δ > 0` ([Bounds.md](Bounds.md) §6.4.6, "What the Conductor's timed
-     claims need from this leg").
+     claims need from this leg"). The kick-off record is
+     [ConductorBounds.md](ConductorBounds.md) (R22): open decisions in its
+     §1, staging K0–K8 in its §9.
 
   F13 is closed (R15, [Bounds.md](Bounds.md) §6.4.2, "F13 closed"): the
   fallback commit vote waits under the FallbackQC entries of the validator's

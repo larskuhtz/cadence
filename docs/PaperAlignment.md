@@ -434,7 +434,9 @@ the target (S10, S11). Neither is modelled, so the target's practical
 Conductor is outside the verified surface. Its relation lemmas assume
 `2 ≤ p ≤ W−1` where the main body allows `p ∈ {0, …, W−1}` (§6, P9).
 The development verifies the main body's Conductor and not the practical
-one (§9).
+one (§9). The Conductor leg's kick-off record (R22,
+[ConductorBounds.md](ConductorBounds.md)) found P15–P17 at the module
+interfaces the main-body Conductor uses.
 
 ### 5.9 The `EquivCert` rule
 
@@ -529,13 +531,19 @@ the Lean development of this repository.*
 | P12 | The MVBA's availability crosses Module 3's interface | module interface | open; the model states the dependency |
 | P13 | Module 1 states Termination without the conditions Chorus needs | module interface | open; the model's contract carries the conditions as antecedents, and Chorus's instance proves the fields under them |
 | P14 | A slot's proposer set may be empty | unstated assumption | open; the model's instance assumes a non-empty proposer set |
+| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the plan states them as antecedents (C4, C5) |
+| P16 | Module 4's Validity does not bound the pairs per validator, and the median argument needs it | module interface, proof gap | open; the plan adds the field (C6); the model's safety bridge assumes it today |
+| P17 | The ACS the Conductor uses is unspecified | missing instantiation | open; the plan keeps the ACS as an assumed module |
 
 P1–P4 are inconsistencies between the main body and the supplement, or
 within the supplement. P5 and P6 date from the review of arXiv v2 and hold
-at `48cac9a`. P7–P11 and P14 are smaller. P12 and P13 are about module
-boundaries: a claim takes from a module something the module's interface
-does not state. §6.1 checks every module boundary the development's claims
-cross.
+at `48cac9a`. P7–P11 and P14 are smaller. P12, P13, P15 and P16 are about
+module boundaries: a claim takes from a module something the module's
+interface does not state. §6.1 checks every module boundary the
+development's claims cross. P17 is about a module the target does not
+instantiate. P15–P17 come from the Conductor leg's kick-off record
+([ConductorBounds.md](ConductorBounds.md)), written before any Lean: they
+are findings about statements and proofs, not yet machine-checked.
 
 **P1. Module 3 (`mod:mvba`) Integrity was not revised with Agreement.**
 * *Quote.* The supplement (Supplement, Section 1.2
@@ -694,7 +702,12 @@ proof gives `4Δ + ℓ_MVBA`.**
   practical Conductor, so its relation to Algorithm 7
   (`algorithm:conductor`) covers only `p ≥ 2`, without saying so.
 * *Status.* Open. Outside the verified surface: the development verifies
-  Algorithm 7 (`algorithm:conductor`) (§9).
+  Algorithm 7 (`algorithm:conductor`) (§9). One note from R22: the main
+  body's own recovery assumptions force `p ≥ 2` too. Assumption (4),
+  Algorithm 7, line 10 (`line:assumption-four`), `d_tot + ℓ ≤ (p − 1)τ`, has
+  a positive left side, because assumption (3) makes `ℓ > Δ`. So the wider
+  range only matters for the safety properties
+  ([ConductorBounds.md](ConductorBounds.md) §6.3).
 
 **P10. arXiv v2's Algorithm 6 and Algorithm 2 hash chunks differently.**
 * *Quote.* At `48cac9a` Algorithm 6 (`alg:da`) checks a chunk with
@@ -827,6 +840,83 @@ conditions Chorus needs.**
   Stating `s.proposers ≠ ∅` in Appendix A.1
   (`subsection:mcp-preliminaries`) would settle it.
 
+**P15. Module 2 (`mod:orchestrator_2`)'s Totality and Recovery rest on
+conditions the module does not state.**
+* *Quote.* Module 2 (`mod:orchestrator_2`): "*Totality:* If some correct
+  validator opens any slot `s`, then every correct validator eventually
+  opens `s`", and `𝓡`-Recovery, both stated unconditionally. Its "Assumed
+  behavior of correct validators" block, "(ii) … if a correct validator
+  opens `s` at time `t`, it completes `s` by time `max(t, GST) + Φ_oc`", is
+  commented out of the source. Appendix D.2 (`subsection:conductor-proof`):
+  "We therefore establish totality and recovery only for Conductor run
+  *within Cadence*". Lemma 15 (`lemma:conductor-totality`) proves "more
+  specifically" a `d_tot` bound, and Corollary 4
+  (`cor:chorus-correctness-within-cadence`) consumes that bound.
+* *Why it matters.* There are two gaps at the module boundary.
+  * The Conductor does not satisfy Module 2 as stated: a caller that never
+    completes a slot leaves it in window 1. P13 found the same pattern for
+    Module 1 (`mod:slotconsensus`).
+  * Restoring the commented-out block would not repair it. The proofs use
+    two *conditional* facts about the caller: completions of a slot are
+    `d_tot`-total if its openings are synchronized, and all complete within
+    `ℓ_chorus` if all open. An unconditional `Φ_oc` bound is itself a
+    consequence of the Conductor's totality (Proposition 14
+    (`prop:conductor-open-to-complete`)), so stating it as a module
+    assumption would assume part of the conclusion.
+
+  The `d_tot` form Corollary 4 needs is a property of the Conductor, not of
+  Module 2, as `d_tot`-totality is of Chorus and not of Module 1.
+* *Status.* Open. The plan states the two conditional facts as antecedents
+  of the contract's Totality and Recovery, and adds a Conductor-specific
+  level for the `d_tot` form ([ConductorBounds.md](ConductorBounds.md)
+  §2.3, F16, F17).
+
+**P16. Module 4 (`mod:acs`)'s Validity does not bound the pairs per
+validator, and the median argument needs it.**
+* *Quote.* Module 4 (`mod:acs`): "*Validity:* If a correct validator decides
+  a set `set`, then `|set| ≥ 2f + 1`, and for every validator-slot pair
+  `(p_i, s_i) ∈ set` such that `p_i` is a correct validator, `p_i` proposed
+  slot `s_i`." The interface's output is `Set(Validator × Slot)`. Appendix
+  D.2 (`subsection:conductor-proof`), before Proposition 7
+  (`prop:acs-nonoverlap`): "the slot number of `s` lies between the minimum
+  and maximum slot numbers proposed by correct validators (since the decided
+  vector contains at least `f + 1` pairs contributed by correct
+  validators)".
+* *Why it matters.* Nothing in the module stops a Byzantine validator from
+  contributing several pairs. A set of `2f + 1` pairs, all from one Byzantine
+  validator, meets Validity as stated, and its median is the adversary's
+  choice. The next window could then overlap the previous one, and the
+  proofs of Integrity (Lemma 12 (`lemma:conductor-integrity`)) and
+  Monotonicity (Lemma 13 (`lemma:conductor-monotonicity`)), through
+  Proposition 7 (`prop:acs-nonoverlap`) and Proposition 8
+  (`prop:acs-fate-range`), would not go through. The proof's word "vector"
+  shows the intended reading. Any ACS that collects one signed proposal per
+  validator meets it. Stating "at most one pair per validator" in Validity
+  would settle it.
+* *Status.* Open. The model's safety theorems hold: the median bracket is a
+  stated bridge (a `require` on `acs_decide`). But its justification, that
+  it removes no behaviour of a correct ACS, needs this property, and the
+  contract does not state it. The plan adds it as a first-order field of
+  `ACSSafety` (C6, [ConductorBounds.md](ConductorBounds.md) §3.4, F18).
+
+**P17. The ACS the Conductor uses is unspecified.**
+* *Quote.* The supplement's Section 2, "Concrete Instantiation of ACS", has
+  no text at `48cac9a`, only two margin notes: the MVBA "seems like a good
+  candidate", and a multi-shot consensus is an alternative. Algorithm 7
+  (`algorithm:conductor`)'s "Uses" line names "ACS (`ℓ`-termination)"
+  (Algorithm 7, line 12 (`line:acs-instances`)), while the proofs also use
+  its `Δ`-Totality (Proposition 13 (`prop:window-synchronization`),
+  Proposition 17 (`prop:window-progression`)).
+* *Why it matters.* The Conductor's `𝓡 = 2Wτ` depends on the ACS's `ℓ`
+  through assumptions (1), (3) and (4). Neither document says which ACS
+  achieves the module, or with which `ℓ`. As with the MVBA before the
+  supplement's instantiation, the module is an idealisation with a
+  deterministic bound ([Bounds.md](Bounds.md) §1).
+* *Status.* Open. The plan keeps the ACS as an assumed module: the timed
+  claims are relative to an instance of its contract, and a plain-Lean ideal
+  ACS shows that the premises are consistent
+  ([ConductorBounds.md](ConductorBounds.md) §3).
+
 ### 6.1 The interface check
 
 Every claimed result takes facts from module contracts. This table lists
@@ -846,6 +936,9 @@ finding, unless the fact is the development's own stated bridge.
 | The validity bridge: a valid meta-block's certificates verify against the network, and genuine certificates make it valid | Chorus safety at the decision handlers and the `CommitQC` route; `Chorus.termination` | `Valid` is "publicly verifiable" in both documents; the bridge says what that means for a network of relations | none: the development's one stated bridge ([Architecture.md](Architecture.md) §4) |
 | The MVBA's abandon antecedent and Quiescence | `Chorus.termination` (through `Mvba.termination`) | yes, Module 3 (`mod:mvba`) | — |
 | ACS Agreement, Validity (genuine pairs), Integrity | `Conductor ⊨ OrchestratorSafety` | yes, Module 4 (`mod:acs`) | — |
+| At most `f` Byzantine-attributed pairs in a decided ACS set | the justification of the median bridge at `acs_decide` (Conductor safety); the recovery bounds (planned) | no: Module 4 (`mod:acs`) bounds the set's size, not the pairs per validator | P16 |
+| The Orchestrator's `d_tot`-Totality of openings | Corollary 4 (`cor:chorus-correctness-within-cadence`); the Conductor's recovery (planned) | not by Module 2 (`mod:orchestrator_2`), whose Totality is eventual; Lemma 15 (`lemma:conductor-totality`) proves it of the Conductor within Cadence | P15 |
+| The conditional completion guarantees of the Orchestrator's caller | the Conductor's Totality and Recovery (planned) | no: Module 2 (`mod:orchestrator_2`)'s assumed-behaviour block is commented out, and is unconditional | P15 |
 | Open-prefix agreement of the Orchestrator | the glue's safety | derived: the safety residue of Module 2 (`mod:orchestrator_2`)'s Totality and Monotonicity | — |
 | "A correct validator decides only after proposing", for the MVBA | nothing since R16 (the two helper invariants that needed it were deleted) | not by Module 3 (`mod:mvba`); Module 4 (`mod:acs`)'s Integrity states it for the ACS | none: no claim uses it |
 

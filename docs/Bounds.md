@@ -3876,3 +3876,13 @@ Deviations from the plan, each small:
   `sequential := true`, and it reports the same pinned witness, in about a
   minute instead of 24 on one core. The Conductor's in-file sweep already
   had a 180 s budget; #51 read its two slowest cells against 60 s.
+
+### 6.5 The Conductor leg: the kick-off record
+
+*Written 2026-10-02 (R22), before any Lean.* The plan for the Conductor's
+timed claims (`OrchestratorTemporal`: Totality, `𝓑`-Boundedness,
+`𝓡`-Recovery) and for the composition that closes the Cadence loop
+(Corollary 4 (`cor:chorus-correctness-within-cadence`)) is its own page,
+[ConductorBounds.md](ConductorBounds.md). It takes up the hand-over list of
+§6.4.6 ("What the Conductor's timed claims need from this leg"). It answers
+F3 and C3 (its §5), and records the findings F16–F24 and the staging K0–K8.
