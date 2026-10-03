@@ -178,10 +178,12 @@ never write one by hand.
   pattern), or record witnesses in auxiliary history relations (the
   `local_fb_neg_qv` pattern).
 * One cell (`vote × fastqc_complete_implies_mvba_evidence`) turns
-  `veil.smt.foldBoolAtoms` off file-locally in
-  [Proofs/Vote.lean](../../../Cadence/Chorus/Proofs/Vote.lean). The
-  reasoning is in that file's header; the option is tactic-side, so statements
-  and cache keys are unaffected.
+  `veil.smt.foldBoolAtoms` off, for that cell only: its `#prove_vc` line in
+  [Proofs/Vote.lean](../../../Cadence/Chorus/Proofs/Vote.lean) runs the
+  automatic `veil_solve_wp` under `set_option … in`. The reasoning is in the
+  comment at that line; the option is tactic-side, so statements and cache
+  keys are unaffected. A file-wide `set_option` there would cost every other
+  cell of `vote` the fold (twice the file's cold build time and memory).
 
 ### Cadence and Conductor
 

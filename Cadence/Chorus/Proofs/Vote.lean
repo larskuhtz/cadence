@@ -25,14 +25,6 @@ open Veil Chorus
 set_option veil.smt.trust false
 veil_proof_options
 veil_large_clump_budgets
--- The Bool-atom fold is on by default and halves stored proof size, which is
--- what keeps re-validation affordable. This one file turns it off: under the
--- folded query shape, `vote`'s `fastqc_complete_implies_mvba_evidence` sends
--- cvc5's e-matching into a loop that no budget fixes, while the unfolded
--- shape solves in under 40 s. The fold is tactic-side only — VC statements
--- and cache keys are unchanged — so the cost is confined to this action's
--- cells being larger. Revisit if lean-smt or cvc5 changes its e-matching.
-set_option veil.smt.foldBoolAtoms false
 
 namespace Chorus.Proofs
 
@@ -112,6 +104,19 @@ after a statement check. -/
   refine ⟨a, ha_x, ?_⟩
   rw [if_neg hai]
   simp [ha_sig_false]
+
+-- The Bool-atom fold is on by default and halves stored proof size, which is
+-- what keeps re-validation affordable. This one cell turns it off: under the
+-- folded query shape, `fastqc_complete_implies_mvba_evidence` sends cvc5's
+-- e-matching into a loop that no budget fixes, while the unfolded shape
+-- solves in seconds. The tactic is the automatic discharger's solver step,
+-- unchanged; only the option differs, and `set_option … in` scopes it to this
+-- one command, so the other cells of `vote` keep the fold. The fold is
+-- tactic-side only — VC statements and cache keys are unchanged. Revisit if
+-- lean-smt or cvc5 changes its e-matching.
+set_option veil.smt.foldBoolAtoms false in
+#prove_vc Chorus vote fastqc_complete_implies_mvba_evidence by
+  veil_solve_wp
 
 #prove_action Chorus vote
 
