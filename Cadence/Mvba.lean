@@ -1405,3 +1405,6 @@ sat trace {
 }
 
 end Mvba
+
+/-- X6 probe: a harmless declaration that changes the olean, reverted in the next commit. -/
+def x6Probe : Nat := 0
