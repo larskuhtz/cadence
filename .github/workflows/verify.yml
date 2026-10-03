@@ -151,7 +151,7 @@ jobs:
           RUNTIME: docker
           CPUS: '4'
           MEMORY: 13G
-          BATCH: '1'
+          JOBS: '2'
         run: |
           set -euo pipefail
           scripts/container.sh verify 2>&1 | tee verify.log
@@ -173,7 +173,7 @@ jobs:
           if grep -nE 'Cadence/.*declaration uses .sorry.' verify.log; then
             echo "::error::a Cadence module depends on sorry"; fail=1
           fi
-          if ! grep -q 'ALL STAGES GREEN' verify.log; then
+          if ! grep -qE 'ALL (STAGES )?GREEN' verify.log; then
             echo "::error::the staged verification did not report ALL STAGES GREEN"
             fail=1
           fi

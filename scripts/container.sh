@@ -228,6 +228,7 @@ run_in_container() {
     # Proof-file batch width for scripts/revalidate.sh (see its header);
     # BATCH=1 avoids spurious discharger-contention timeouts on few cores.
     [ -n "${BATCH:-}" ] && printf 'export BATCH=%q\n' "$BATCH"
+    [ -n "${JOBS:-}" ] && printf 'export JOBS=%q\n' "$JOBS"
     # Where the site links a file it does not render (scripts/site-links.sh):
     # the sources reach the container without their history, so the commit
     # is read here, on the host.
