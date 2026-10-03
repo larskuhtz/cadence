@@ -266,9 +266,16 @@ come first.
      and Recovery are in rely form with the `d_tot` level on top (C4, C5),
      and the three claims are stated with their premises
      ([Cadence/Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean),
-     the draft ledger in [Premises.md](Premises.md) §9). Next is K4, the
-     window induction. F26, found in K3 (the ACS's input-enabledness), is
-     closed by two `ACSTemporal` fields.
+     the draft ledger in [Premises.md](Premises.md) §9). F26, found in K3
+     (the ACS's input-enabledness), is closed by two `ACSTemporal` fields.
+     K4 is done (R28): `(2W − p)`-Boundedness (`Conductor.boundedness`) and
+     `d_tot`-Totality (`Conductor.totality`, by the window induction,
+     Proposition 13 and Corollaries 1–3) are proven, after three statement
+     fixes F27–F29 (an ordered time, unbounded starting times, no fault
+     bound for Totality). Next is K5, Recovery; F28 says `RecoveryClaim`
+     needs `StartsUnbounded` too, a statement edit for K5 to put to Lars.
+     The model header of [Conductor.lean](../Cadence/Conductor.lean) still
+     lists `B`-Boundedness as unproven; K6 rewrites that status text.
 
   F13 is closed (R15, [Bounds.md](Bounds.md) §6.4.2, "F13 closed"): the
   fallback commit vote waits under the FallbackQC entries of the validator's

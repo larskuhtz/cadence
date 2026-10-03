@@ -408,14 +408,15 @@ MVBA and Chorus; nothing about the caller enters it. Within Cadence the
 composition (K7) discharges both from `Chorus.chorusWithTotality`'s
 `totality` and `bounded_termination` through the glue, and each side is a
 conditional statement about one slot, so the composition is not circular.
-The statements the Conductor's proofs (K4, K5) are to meet are
+The statements the Conductor's proofs (K4, K5) meet are
 `Conductor.TotalityClaim`, `Conductor.BoundednessClaim` and
 `Conductor.RecoveryClaim` ([Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean)),
-whose conclusions are these fields at the Conductor's fragment. The
-interval form of boundedness *is* proven, as `safety [bounded_tail]`; what
-stays temporal is the numeric count `2W − p`, which adds the window
-widths (`[win_bounds_shift]`, over the model's shift functions) and their
-arithmetic at the instance at `slot := ℕ`. Integrity's timing half is first-order and the Conductor proves
+whose conclusions are these fields at the Conductor's fragment. Two are
+proven (K4): the count `2W − p`, from the interval form
+`safety [bounded_tail]` and the window widths (`[win_bounds_shift]`, over
+the model's shift functions) at the instance at `slot := ℕ`
+(`Conductor.boundedness`), and `d_tot`-Totality by the window induction
+(`Conductor.totality`). Recovery is K5's. Integrity's timing half is first-order and the Conductor proves
 it, so it sits in `OrchestratorSafety` (`integrity_timing`, from `safety
 [opened_after_start]`) — which is why that fragment carries `time`.
 
