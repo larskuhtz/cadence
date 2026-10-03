@@ -21,10 +21,11 @@ order worth taking:
   Chorus's MVBA constraint with a stub that never decides, so no fallback-path
   trace can be checked ([Monitor.md](Monitor.md) §8).
 
-Two smaller items fall out of the same work: **stating `Admissible`** (each
-`…Temporal` class's admissible-execution model) for the Conductor and Chorus
-in Lean — today it is an unsupplied class field whose intended content is the
-(F-justice)/(A-acs-*) prose of the models' liveness sections; and a
+Two smaller items fall out of the same work: **defining the Conductor's
+`Admissible`** from the premises K3 stated
+([Cadence/Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean),
+`Conductor.Sync`) when K6 builds the instance (Chorus's is
+`Chorus.Admissible`); and a
 **composed bounded-concurrency corollary** — from the glue's
 `bounded_concurrency_interval` and `OrchestratorTemporal.boundedness`,
 "at most `B` slots actively participated in", which needs a finite
@@ -260,8 +261,21 @@ come first.
      `B`-Boundedness, `R`-Recovery), with F3, the totality tolerance at
      `δ > 0` ([Bounds.md](Bounds.md) §6.4.6, "What the Conductor's timed
      claims need from this leg"). The kick-off record is
-     [ConductorBounds.md](ConductorBounds.md) (R22): open decisions in its
-     §1, staging K0–K8 in its §9.
+     [ConductorBounds.md](ConductorBounds.md) (R22): decisions in its
+     §1, staging K0–K8 in its §9. K0–K3 are done: the contract's Totality
+     and Recovery are in rely form with the `d_tot` level on top (C4, C5),
+     and the three claims are stated with their premises
+     ([Cadence/Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean),
+     the draft ledger in [Premises.md](Premises.md) §9). F26, found in K3
+     (the ACS's input-enabledness), is closed by two `ACSTemporal` fields.
+     K4 is done (R28): `(2W − p)`-Boundedness (`Conductor.boundedness`) and
+     `d_tot`-Totality (`Conductor.totality`, by the window induction,
+     Proposition 13 and Corollaries 1–3) are proven, after three statement
+     fixes F27–F29 (an ordered time, unbounded starting times, no fault
+     bound for Totality). Next is K5, Recovery; F28 says `RecoveryClaim`
+     needs `StartsUnbounded` too, a statement edit for K5 to put to Lars.
+     The model header of [Conductor.lean](../Cadence/Conductor.lean) still
+     lists `B`-Boundedness as unproven; K6 rewrites that status text.
 
   F13 is closed (R15, [Bounds.md](Bounds.md) §6.4.2, "F13 closed"): the
   fallback commit vote waits under the FallbackQC entries of the validator's

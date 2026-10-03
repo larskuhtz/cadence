@@ -7,7 +7,10 @@ Chorus leg) set the shape, and §6.2 (the MVBA leg) the timing machinery
 this leg reuses. Decisions are recorded with their reasons. The three
 questions put to Lars are **decided (2026-10-03)**, each as recommended.
 K1, the untimed composition edit, is **done** (2026-10-03, R25; §9), and so
-is K2, the model's timing completion (2026-10-03, R26; F21 closed).*
+are K2, the model's timing completion (2026-10-03, R26; F21 closed), K3,
+the contract edit and the claims stated (2026-10-03, R27; §9), and K4, the
+window induction with Boundedness and Totality proven (2026-10-03, R28;
+§9).*
 
 ## 1. In short, for an auditor
 
@@ -44,10 +47,17 @@ claims (`ℓ = 5Δ + ℓ_MVBA`, `d_tot = Δ`; [Bounds.md](Bounds.md) §6.4) hold
 unconditionally in the composed system.
 
 **What the development has today.** The contract states the three properties
-as fields of `OrchestratorTemporal`
-([Interfaces.lean](../Cadence/Interfaces.lean)), and nothing instantiates
-them. The interval form of boundedness is proven (`safety [bounded_tail]` in
-[Conductor.lean](../Cadence/Conductor.lean)). The safety half of the
+as fields of `OrchestratorTemporal`, Totality and Recovery in rely form, with
+the `d_tot` form on top in `OrchestratorWithTotality`
+([Interfaces.lean](../Cadence/Interfaces.lean); C4, C5, since K3), and
+nothing instantiates them. The three claims are stated, with their premises,
+in [Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean). Two are
+proven (K4): Boundedness at the paper's `2W − p`, from the interval form
+`safety [bounded_tail]` of [Conductor.lean](../Cadence/Conductor.lean) and
+the window widths (`Conductor.boundedness`), and `d_tot`-Totality, by the
+window induction (`Conductor.totality`, with Proposition 13 and its three
+corollaries; [Conductor/Induction.lean](../Cadence/Conductor/Induction.lean)).
+Recovery is K5's. The safety half of the
 composition is proven (`Cadence.system_positional_log_safety`,
 [System.lean](../Cadence/System.lean)), and since K1 the glue drives
 Chorus's `participate`, `propose` and `abandon` inputs through the contract,
@@ -86,8 +96,9 @@ the composed claims.
    MVBA's theorems keep their δ-general forms, and F3 records the
    degradation at δ > 0.
 
-**Ten findings about statements (§7, F16–F25) and three for the paper's
-authors (P15–P17, [PaperAlignment.md](PaperAlignment.md) §6).** Two of them
+**Fourteen findings about statements (§7, F16–F29) and three for the
+paper's authors (P15–P17, [PaperAlignment.md](PaperAlignment.md) §6).** Two
+of them
 reach the existing safety claims. **F18 / P16:** Module 4's Validity
 bounds the size of the decided set but not the number of pairs per
 validator. The median argument behind Proposition 7 (`prop:acs-nonoverlap`),
@@ -854,12 +865,85 @@ paper's module.
   No new state, every property kept, the sweep green. The timed claims
   need `p ≥ 2` anyway (§6.3, P9's note).
 
+* **F26: the ACS contract does not say that its inputs are accepted.**
+  Found by K3. `ACSSafety` states `propose`'s and `abandon`'s effects and
+  frames, but not that a correct validator can give them: a contract whose
+  `propose` relation is empty meets every field. The Conductor's handlers
+  `acs_propose` and `enter_window` give these inputs, so their rows are
+  owed only where the ACS accepts them, and with an ACS that refuses a
+  correct validator's proposal no later window is ever entered: Recovery
+  fails, and Totality can fail when it refuses some validators only.
+  Module 4 (`mod:acs`) has the two inputs in its interface, and an input is
+  the caller's to give, so every ACS meets it. The MVBA's contract states
+  its one caller-driven input this way (`MVBASafety.accept_enabled`, rely
+  form). **Closed (R27, decided by Lars 2026-10-03):** two first-order
+  fields in that rely form, `propose_enabled` (a correct validator that has
+  neither abandoned nor proposed can propose any slot) and
+  `abandon_enabled` (a correct validator can abandon; window entry gives
+  this input), in **`ACSTemporal`**. They were first placed in `ACSSafety`,
+  withheld from the solver with `veil_smt_ignore`. The Conductor's in-file
+  sweep then failed: `open_slot × open_prefix_agreement` went from about 5 s
+  to over the 180 s budget on both attempts, reproducibly in isolation,
+  with the fields in the middle of the class or at its end, and other
+  cells slowed severalfold. Without the fields the sweep is green in 44 s.
+  So withholding did not leave the solver's queries as they were (the
+  cause is not diagnosed; a question for the Veil fork). Only a
+  consumer's timed claims need the two fields, and no Veil module
+  instantiates `ACSTemporal`, so no VC moves. The ideal ACS proves both
+  (`Cadence.IdealAcs.acsTemporal`), and the claims lost the premise they
+  carried in between. Not a paper issue: Module 4's inputs are
+  invocations by the caller, and the module formalism has no refusal
+  ([PaperAlignment.md](PaperAlignment.md) §6's table of facts used).
+
+* **F27: the claims' time had no ordered addition.** Found by K4.
+  [Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean)'s claims
+  were stated over a `time` with a linear order and an additive monoid, but
+  no axiom tying the two. Then `max(t, GST) + Δ` is not monotone in `t`, an
+  opening at `t` need not be before `t + Δ`, and Totality is unprovable as
+  stated. The time theory of §6.2 is ordered, and Chorus's and the MVBA's
+  timed claims assume it. **Closed (R28, decided by Lars 2026-10-03):**
+  `TotalityClaim` and `RecoveryClaim` take `[IsOrderedAddMonoid time]`;
+  `BoundednessClaim`, a state property, needs no time theory. Not a paper
+  issue: the paper's time is the real line.
+* **F28: Totality needs a slot whose starting time has not passed.** Found
+  by K4. `acs_propose`'s `s*` is the first slot beyond the window whose
+  starting time has not passed (Algorithm 7, lines 38–41
+  (`line:ready-time`–`line:sstar-update`)), and `TotalityClaim` assumed
+  nothing of the starting times beyond `[start_time_strict]`, so they could
+  be bounded. Once the clock passes them all, no correct validator can
+  propose to the next ACS. A validator that becomes ready only then never
+  proposes, the ACS's synchronized-proposals assumption fails, and nothing
+  makes it decide or enter a window that an earlier-ready correct validator
+  entered: the claim is false in such runs. The paper's slots are
+  infinitely many and τ-spaced on the real line (Appendix A.1
+  (`subsection:mcp-preliminaries`)), so its `s*` always exists. **Closed
+  (R28, decided by Lars 2026-10-03):** a plain premise,
+  `StartsUnbounded th` ("whatever the time, some slot has not started
+  yet"), used only to pick `s*` (`Conductor.sstar_exists`). `StartTimes`
+  does not imply it, even with an Archimedean time: with
+  `start₀ = (−1, 0)` and `τ = (0, 1)` in the lexicographic monoid
+  `{(a, b) : a < 0, or a = 0 ∧ b ≥ 0}`, every starting time stays below
+  `(0, 0)`. Deriving it would need `0 ≤ start₀` or a group. *For K5:*
+  `RecoveryClaim` proposes too, so it needs `StartsUnbounded` as well, or
+  `StartTimes` together with `[Archimedean time]` and `0 ≤ start₀`. Not a
+  paper issue.
+* **F29: Totality's fault-bound premise was unused.** Found by K4. K3 gave
+  `TotalityClaim` the premise "at most the ACS's `fault_bound` validators
+  are Byzantine", for the decided interval's row (its correct median
+  witnesses). The window induction never needs that row: a validator
+  enters a window only after a correct validator has, and by then the
+  interval is recorded. **Closed (R28, decided by Lars 2026-10-03):** the
+  premise is dropped from `TotalityClaim`. The decided interval's row and
+  the fault bound remain premises of `RecoveryClaim`, where Propositions 15
+  and 16 need the interval to be recorded.
+
 ## 8. Premises and non-vacuity from the start
 
 ### 8.1 The draft ledger
 
-In the premise-ledger form of [Bounds.md](Bounds.md) §6.4.5, which R21 is
-moving to a page of its own; this list moves there when K8 lands. Each line
+In the premise-ledger form of [Bounds.md](Bounds.md) §6.4.5. Superseded by
+the draft K3 wrote on the premises page, [Premises.md](Premises.md) §9, over
+the premises as stated in Lean; the list below is the plan it started from. Each line
 gives the premise, why it is plausible, and the planned use. "Composed"
 marks premises of the composed claims only.
 
@@ -1040,9 +1124,103 @@ parallel with K1. Everything else is in order.
   [Interfaces.lean](../Cadence/Interfaces.lean) edit, warm), timed Conductor
   runs, `ConductorSchedule`, the rows, the per-window ACS projection, the
   ideal ACS, and the claims stated in rely form. Plain Lean, no re-solve.
+  * **Done (2026-10-03, R27).** As planned, with these differences:
+    * **C5's tolerance is one constant.** (R-tot) is "openings synchronized
+      within `d` ⇒ completions synchronized within `d`", at the caller's
+      latency `caller_d_tot`: the paper's induction closes because Chorus's
+      totality latency equals the tolerance its condition grants ("both
+      equal `Δ = d_tot`"). (R-term) takes the same tolerance and
+      `caller_ℓ`. Both latencies are data of `OrchestratorTemporal`, since
+      Recovery's `2Wτ` holds only at the instance's constants;
+      `OrchestratorWithTotality` adds only `d_tot` and the bounded
+      Totality. Eventual Totality takes (R-tot) only, as the paper's proof
+      uses no termination for it;
+    * the generic half of the K0 spike is a new file,
+      [PartProjection.lean](../Cadence/PartProjection.lean), next to
+      [Timed.lean](../Cadence/Timed.lean) rather than inside it (a shared
+      file), with the two field lemmas updated for R25's moves
+      (`abandoned` and `participating` are fragment fields now);
+    * slots are `ℕ` from `0`: `s : ℕ` is the paper's slot `s + 1`, so
+      starting times are `start₀ + s • τ` with no truncated subtraction;
+    * the claims' conclusions are the contract's fields read at the
+      Conductor's fragment (`orchestratorSafety th`), the caller's
+      conditions likewise, through `contractRun`; K6 consumes them as
+      stated;
+    * the rows are the Conductor's three handlers and the punctual opening;
+      the glue's rows of §6.4 time the caller's side and are K7's, over the
+      glue's own runs;
+    * Boundedness is a state property at bound `2W − p`, with
+      `WindowShifts` its only premise; it is exactly what Lemma 5 needs
+      (K7), so no separate Lemma-5 statement is made;
+    * F26 found (§7) and closed in the same PR, by Lars's decision: the
+      ACS contract states that its two inputs are accepted
+      (`ACSTemporal.propose_enabled`, `abandon_enabled`, a second
+      [Interfaces.lean](../Cadence/Interfaces.lean) edit, in the upper class
+      because in `ACSSafety` they diverged a Conductor cell even when
+      withheld from the solver, §7 F26). No VC moved;
+    * the fault bound (at most `TA.fault_bound` Byzantine) is a premise of
+      Totality too, not only of Recovery: the decided interval's row needs
+      a correct pair in the decided set;
+    * of the two stale "widths kept meta" comments R26 listed, the
+      [Interfaces.lean](../Cadence/Interfaces.lean) one is fixed; the
+      [Composition.lean](../Cadence/Composition.lean) one stays for K4
+      (a shared file K3 does not edit).
 * **K4: the window induction.** Proposition 13, Lemma 15, Corollaries 1–3,
   and the count `2W − p` (Proposition 11, Lemma 14) from `[bounded_tail]`
   and the widths. Plain Lean.
+  * **Done (2026-10-03, R28).** Two new files, every theorem pinned at the
+    standard trio, and the three claims' statements edited once (F27–F29,
+    each decided by Lars in the session). What is proven, each item at the
+    paper's deadline, with no slack:
+
+    | the paper | Lean | deadline |
+    |---|---|---|
+    | Proposition 11 (`prop:open-count-window`), interval form | `Conductor.opened_above` | — (a state fact) |
+    | Lemma 14 (`lem:boundedness`) | `Conductor.boundedness` (`BoundednessClaim`) | `2W − p` opened, uncompleted slots, exactly |
+    | Definition 6 (`def:window-synchronized`) | `EntrySync`, `OpenSync`, `CompSync`, `PropSync`, `WindowSynchronized` | — |
+    | Proposition 12 (`prop:acs-no-premature-abandonment`) | the model's `[acs_abandoned_decided]` (K1), consumed as the ACS's `NoPrematureAbandon` | — |
+    | Proposition 13 (`prop:window-synchronization`) | `Conductor.window_synchronized` | `max(t, GST) + Δ`, all four conditions |
+    | Corollary 1 (`cor:entry-synchronization`) | `Conductor.entry_sync` | `max(t, GST) + Δ` |
+    | Corollary 2 (`cor:proposal-synchronization`) | `Conductor.prop_sync` | `max(t, GST) + Δ` |
+    | Lemma 15 (`lemma:conductor-totality`) | `Conductor.open_sync`, and `Conductor.totality` (`TotalityClaim`) | `max(t, GST) + d_tot`, `d_tot = Δ` |
+    | Corollary 3 (`cor:completion-totality`) | `Conductor.comp_sync` | `max(t, GST) + Δ` |
+
+    Totality closes here, as planned, not in K5. Differences from the plan:
+    * **the induction runs over first slots, not windows**
+      (`Conductor.window_induction`). The window order is abstract and not
+      known to be well-founded. A window is named by its first slot, and the
+      entry into a window depends only on smaller slots: its predecessor's
+      entry, the completions below the predecessor's boundary, and the
+      proposals to its ACS. The paper's four per-window steps are the lemmas
+      `entry_step`, `open_step` and `prop_step`, with (R-tot) for the
+      completions (`comp_of_open`);
+    * **Boundedness needs no successor window in the order**: the one
+      window above `s`'s that can hold an opened slot is found from that
+      slot's own window, through its entered predecessor. That is a new
+      plain-Lean reachability induction, `Conductor.entered_pred`, since the
+      model records the predecessor only in a guard. It lives with the
+      other model facts in
+      [Conductor/Boundedness.lean](../Cadence/Conductor/Boundedness.lean);
+    * **three statement changes**, each found by the proof and decided by
+      Lars (F27, F28, F29): an ordered time, unbounded starting times, and
+      no fault bound for Totality. K3's note that the fault bound was "a
+      premise of Totality too" is superseded by F29;
+    * the ACS is consumed through its contract only: Δ-Totality on the
+      window's part of the run (`Cadence.acs_totality_in` under
+      `AcsAdmissible`), `integrity`, `propose_enabled` and
+      `abandon_enabled`. Its termination, its fault bound and the median
+      bracket are not used. Chorus enters only through (R-tot). The
+      decided interval's row (`TimedRows.decide`) is not used by Totality;
+      it is Recovery's;
+    * the two rows are consumed in their diagonal form
+      (`BufferedFairFamily.diag`), at `δ = 0`: a gate open from an index
+      whose clock is within the deadline fires its row by that deadline;
+    * [Composition.lean](../Cadence/Composition.lean)'s stale note about the
+      widths is fixed (comment only). The model header of
+      [Conductor.lean](../Cadence/Conductor.lean) still lists
+      `B`-Boundedness as unproven in its discharge map. It is a model
+      file, so editing it re-runs the sweep; it is left for K6, which
+      rewrites the status text.
 * **K5: Recovery.** Propositions 14–19 and Lemma 16. Plain Lean; the
   schedule arithmetic is where F4-style slack would show.
 * **K6: the contract instances.** `OrchestratorTemporal` and

@@ -30,8 +30,9 @@
 #   RUNTIME=podman scripts/container.sh verify
 #
 # Resources:  CPUS (default 12)   MEMORY (default 20G)
-#             BATCH (proof-file batch width for verify's revalidate.sh; use
-#             BATCH=1 on few cores — see scripts/revalidate.sh)
+#             JOBS (concurrent `lean` processes for verify's revalidate.sh;
+#             JOBS=2 on 4 cores) or BATCH (selects its staged build) — see
+#             scripts/revalidate.sh
 # Images:     pulled from ${IMAGE_REPO}-<name>:latest (default
 #             ghcr.io/larskuhtz/cadence); PULL=never disables pulling.
 # Persistence: a named volume ($VOLUME, default cadence-lake-<image>) holds
@@ -225,8 +226,9 @@ run_in_container() {
     printf '%s\n' 'set -uo pipefail'
     printf 'WORKSPACE=%q\n' "$WORKSPACE"
     [ -n "${LEAN_NUM_THREADS:-}" ] && printf 'export LEAN_NUM_THREADS=%q\n' "$LEAN_NUM_THREADS"
-    # Proof-file batch width for scripts/revalidate.sh (see its header);
-    # BATCH=1 avoids spurious discharger-contention timeouts on few cores.
+    # Concurrency for scripts/revalidate.sh (see its header): JOBS caps the
+    # `lean` processes of its single build, BATCH selects the staged build.
+    [ -n "${JOBS:-}" ] && printf 'export JOBS=%q\n' "$JOBS"
     [ -n "${BATCH:-}" ] && printf 'export BATCH=%q\n' "$BATCH"
     # Where the site links a file it does not render (scripts/site-links.sh):
     # the sources reach the container without their history, so the commit

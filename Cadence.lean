@@ -17,6 +17,8 @@ import Cadence.Chorus.Witness
 import Cadence.Composition
 import Cadence.System
 import Cadence.AcsMedian
+import Cadence.Conductor.Boundedness
+import Cadence.Conductor.Induction
 
 -- The fallback receipt/propose leg: the shipped design, verified.
 import Cadence.FallbackReceipt.Totality
@@ -248,6 +250,26 @@ Each entry is the result, the file its statement lives in, and what it says.
   and that is the statement of what is *not* proven about the Conductor as an
   orchestrator. Integrity's timing half is first-order and is proven in the
   fragment
+* **`Conductor.boundedness`** ([Conductor/Boundedness.lean](Cadence/Conductor/Boundedness.lean)) —
+  **`(2W − p)`-Boundedness**, Lemma 14 (`lem:boundedness`): at every
+  reachable state, an opened, uncompleted slot of a correct validator has
+  fewer than `2W − p` opened slots above it — the contract's `boundedness`
+  field at the Conductor's fragment (`BoundednessClaim`), the paper's bound
+  exactly. Its one premise is the window widths (`WindowShifts`); a state
+  property of the Conductor alone
+* **`Conductor.totality`** ([Conductor/Induction.lean](Cadence/Conductor/Induction.lean)) —
+  **`d_tot`-Totality**, Lemma 15 (`lemma:conductor-totality`)
+  (`TotalityClaim`): once a correct validator opens slot `s` at `t`, every
+  correct validator opens it by `max(t, GST) + d_tot`, `d_tot = Δ` at
+  `δ = 0`. The premises: the timing model (`Sync`: the Conductor's rows,
+  punctual openings, one clock, and each started window's ACS admissible for
+  its contract), unbounded starting times, the ACS's `Δ` the system's, and
+  the caller's (R-tot); over an ordered time. The ACS is an assumed module
+  (P17). The proof is the window induction, Proposition 13
+  (`prop:window-synchronization`), **`Conductor.window_synchronized`**, with
+  its corollaries `Conductor.entry_sync`, `Conductor.prop_sync` and
+  `Conductor.comp_sync`, each at `max(t, GST) + Δ`. No
+  `OrchestratorTemporal` instance packages these yet (stage K6)
 * **`Cadence.acs_median_bracket`** ([AcsMedian.lean](Cadence/AcsMedian.lean)) — the
   justification of the Conductor's one stated bridge: for every ACS meeting
   the contract and at most `f` Byzantine validators, the median of a
@@ -644,6 +666,24 @@ info: 'Conductor.orchestrator_of_temporal' depends on axioms: [propext, Classica
 -/
 #guard_msgs in
 #print axioms Conductor.orchestrator_of_temporal
+
+/--
+info: 'Conductor.boundedness' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.boundedness
+
+/--
+info: 'Conductor.window_synchronized' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.window_synchronized
+
+/--
+info: 'Conductor.totality' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.totality
 
 /--
 info: 'Cadence.acs_median_bracket' depends on axioms: [propext, Classical.choice, Quot.sound]

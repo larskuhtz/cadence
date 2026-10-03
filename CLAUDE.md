@@ -138,8 +138,8 @@ History: [docs/History.md](./docs/History.md).
   in 36 GB. So use `scripts/revalidate.sh`: one `lake build` capped at `JOBS`
   (default derived from available memory, 8 here), which roughly halves the
   full-suite wall time against the old staged batches. `BATCH=N` selects the
-  staged build, which CI and the images use. The measurements are in the
-  script's header.
+  staged build, which the image build uses; CI's verify job runs `JOBS=2`.
+  The measurements are in the script's header.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
   only, ~2 min), `Cadence.Chorus.Proofs.Vote` (one action's ~102 cells, ~16 s
   warm), `Cadence.Chorus.Certify` (composition + the `#veil_status` audit pin,
@@ -175,7 +175,7 @@ History: [docs/History.md](./docs/History.md).
   files set `veil.smt.timeout 180` (`veil_proof_options` in
   `Cadence/ProofPrelude.lean`) against Veil's 60 s default, because the
   budget has to hold on the slowest machine that runs the family *cold* —
-  a 4-core CI runner at `BATCH=1`, where cells run 3–8× slower than here.
+  a 4-core CI runner at `JOBS=2`, where cells run 3–8× slower than here.
   CI's `verify` job starts from the published proof cache (and, on a pull
   request, from what that pull request's earlier runs solved), so there a
   cell is solved cold exactly when its statement is new; a manual run with

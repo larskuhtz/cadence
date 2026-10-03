@@ -538,7 +538,7 @@ the Lean development of this repository.*
 | P12 | The MVBA's availability crosses Module 3's interface | module interface | open; the model states the dependency |
 | P13 | Module 1 states Termination without the conditions Chorus needs | module interface | open; the model's contract carries the conditions as antecedents, and Chorus's instance proves the fields under them |
 | P14 | A slot's proposer set may be empty | unstated assumption | open; the model's instance assumes a non-empty proposer set |
-| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the plan states them as antecedents (C4, C5) |
+| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the contract states them as antecedents (C4, C5, R27) |
 | P16 | Module 4's Validity lacks the per-validator bound the median argument needs | module interface, proof gap | open for the paper; the contract carries the bound since R25 (C6), and the median bridge's justification is a theorem from it |
 | P17 | The ACS the Conductor uses is unspecified | missing instantiation | open; the plan keeps the ACS as an assumed module |
 
@@ -873,10 +873,12 @@ conditions the module does not state.**
 
   The `d_tot` form Corollary 4 needs is a property of the Conductor, not of
   Module 2, as `d_tot`-totality is of Chorus and not of Module 1.
-* *Status.* Open. The plan states the two conditional facts as antecedents
-  of the contract's Totality and Recovery, and adds a Conductor-specific
-  level for the `d_tot` form ([ConductorBounds.md](ConductorBounds.md)
-  §2.3, F16, F17).
+* *Status.* Open for the paper. The contract states the two conditional
+  facts as antecedents of its Totality and Recovery
+  (`OrchestratorSafety.CallerTotality`, `CallerTermination`), and a
+  Conductor-specific level, `OrchestratorWithTotality`, carries the `d_tot`
+  form ([Interfaces.lean](../Cadence/Interfaces.lean), R27;
+  [ConductorBounds.md](ConductorBounds.md) §2.3, F16, F17).
 
 **P16. Module 4 (`mod:acs`)'s Validity lacks the per-validator bound the
 median argument needs.**
@@ -950,8 +952,10 @@ finding, unless the fact is the development's own stated bridge.
 | The MVBA's abandon antecedent and Quiescence | `Chorus.termination` (through `Mvba.termination`) | yes, Module 3 (`mod:mvba`) | — |
 | ACS Agreement, Validity (genuine pairs), Integrity | `Conductor ⊨ OrchestratorSafety` | yes, Module 4 (`mod:acs`) | — |
 | At most `f` Byzantine-attributed pairs in a decided ACS set | the justification of the median bridge at `acs_decide` (`Cadence.acs_median_bracket`); the recovery bounds (planned) | no: Module 4 (`mod:acs`) bounds the set's size, not the pairs per validator; the contract adds the bound (`decided_unique`) | P16 |
-| The Orchestrator's `d_tot`-Totality of openings | Corollary 4 (`cor:chorus-correctness-within-cadence`); the Conductor's recovery (planned) | not by Module 2 (`mod:orchestrator_2`), whose Totality is eventual; Lemma 15 (`lemma:conductor-totality`) proves it of the Conductor within Cadence | P15 |
-| The conditional completion guarantees of the Orchestrator's caller | the Conductor's Totality and Recovery (planned) | no: Module 2 (`mod:orchestrator_2`)'s assumed-behaviour block is commented out, and is unconditional | P15 |
+| The Orchestrator's `d_tot`-Totality of openings | Corollary 4 (`cor:chorus-correctness-within-cadence`); the Conductor's recovery (planned) | not by Module 2 (`mod:orchestrator_2`), whose Totality is eventual; Lemma 15 (`lemma:conductor-totality`) proves it of the Conductor within Cadence, as does `Conductor.totality` (R28) | P15 |
+| The conditional completion guarantees of the Orchestrator's caller | the Conductor's Totality (`Conductor.totality`, through (R-tot)) and Recovery (planned) | no: Module 2 (`mod:orchestrator_2`)'s assumed-behaviour block is commented out, and is unconditional | P15 |
+| Unbounded starting times: whatever the time, some slot has not started (`StartsUnbounded`) | `Conductor.totality`, for the ACS proposal's `s*`; Recovery (planned) | yes, implicitly: the slots are infinitely many and τ-spaced on the real line (Appendix A.1 (`subsection:mcp-preliminaries`)), and Algorithm 7, line 39 (`line:sstar-compute`)'s `s*` presumes one | none: the development's statement lacked it (F28, R28) |
+| The ACS accepts its two inputs (`ACSTemporal.propose_enabled`, `abandon_enabled`) | the Conductor's timed claims, through its handlers' rows (`Conductor.totality`) | yes, implicitly: Module 4 (`mod:acs`)'s interface makes `propose(s)` and `abandon()` inputs, which the caller invokes, and the module formalism has no refusal; the proofs (Proposition 15 (`prop:enters-every-window`): "`p_j` proposes to `ACS[ω]`") rely on exactly that | none: the module convention states it, the contract spells it out (F26, R27) |
 | Open-prefix agreement of the Orchestrator | the glue's safety | derived: the safety residue of Module 2 (`mod:orchestrator_2`)'s Totality and Monotonicity | — |
 | "A correct validator decides only after proposing", for the MVBA | nothing since R16 (the two helper invariants that needed it were deleted) | not by Module 3 (`mod:mvba`); Module 4 (`mod:acs`)'s Integrity states it for the ACS | none: no claim uses it |
 

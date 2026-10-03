@@ -63,7 +63,7 @@
 # Each run says which mode it used, in the log and the job summary, with the
 # proof-cache hits and stores of the modules it re-elaborated.
 #
-# The job timeout and BATCH=1 below are sized for a cold run; after merging one,
+# The job timeout and JOBS=2 below are sized for a cold run; after merging one,
 # `publish-images.yml` brings the published oleans up to date and the gate is
 # cheap again.
 #
@@ -255,17 +255,19 @@ jobs:
       # CPUS/MEMORY must fit the runner: the script's defaults (12 CPUs, 20 GB)
       # are sized for a workstation. Memory is set below physical so the
       # container hits its own limit rather than the kernel OOM killer.
-      # BATCH=1 because this is a 4-core machine: at the default batch of 6,
-      # concurrent dischargers contend for wall-clock and near-limit VCs time
-      # out spuriously (measured — see scripts/revalidate.sh's header), and
-      # the marker assertion below rightly treats any ⏱ as a failure.
+      # JOBS=2 because this is a 4-core machine: one `lake build` with two
+      # `lean` processes of two threads each. Wider settings make concurrent
+      # dischargers contend for wall-clock and near-limit VCs time out spuriously, which
+      # the marker assertion below rightly treats as a failure. JOBS=2 beat
+      # the staged BATCH=1 and BATCH=2 on a cold Chorus run with a lower
+      # slowest cell (measured — see scripts/revalidate.sh's header).
       - name: Re-verify against these sources
         env:
           RUNTIME: docker
           IMAGE: cadence-${{ steps.mode.outputs.image }}
           CPUS: '4'
           MEMORY: 13G
-          BATCH: '1'
+          JOBS: '2'
         run: |
           set -euo pipefail
           scripts/container.sh verify 2>&1 | tee verify.log

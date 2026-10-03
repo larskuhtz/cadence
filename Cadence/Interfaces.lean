@@ -564,9 +564,9 @@ output `open(s)`; a slot never opened is *skipped*.
 Each entry is the class field, the paper's name for it, the level it sits at,
 and where it is discharged.
 
-* **`totality`** — Totality; *temporal*. **not proven**:
-  Lemma 15 (`lemma:conductor-totality`), a per-window induction the untimed model does
-  not carry
+* **`totality`** — Totality; *temporal*, in rely form (see "Within
+  Cadence" below). **not proven**: Lemma 15 (`lemma:conductor-totality`),
+  a per-window induction over timed runs
 * **`opened_mono`** — Integrity, "at most once"; *safety*. The `opened`
   observable is monotone, so an open event (`¬ opened st ∧ opened st'`)
   happens at most once per `(i, s)` — `Conductor.orchestratorSafety`
@@ -581,11 +581,45 @@ and where it is discharged.
   `Conductor.orchestratorSafety`
 * **`boundedness`, `bound`** — `B`-Boundedness; *temporal (quantifies over
   `Fin bound → slot`)*. **not proven**: the interval form is Conductor `safety
-  [bounded_tail]`; the count `B = 2W − p` needs window widths, which the model
-  keeps meta
-* **`recovery`, `recovery_time`** — `R`-Recovery; *temporal*. **not proven**:
-  Proposition 18 (`prop:smooth-windows`), Proposition 19 (`prop:first-post-gst-window-time`), the four parameter
-  assumptions
+  [bounded_tail]`; the count `B = 2W − p` adds the window widths, which the
+  model states (`[win_bounds_shift]`) and the instance at `slot := ℕ` fixes
+* **`recovery`, `recovery_time`** — `R`-Recovery; *temporal*, in rely form.
+  **not proven**: Lemma 16 (`lemma:conductor-recovery`), through
+  Proposition 18 (`prop:smooth-windows`) and Proposition 19
+  (`prop:first-post-gst-window-time`), under the four parameter assumptions
+* **`OrchestratorWithTotality`** — the `d_tot` form of Totality that
+  Lemma 15 (`lemma:conductor-totality`) proves "more specifically"; a
+  Conductor-level strengthening, not part of Module 2. **not proven**
+
+### Within Cadence: the caller's two conditions
+
+Totality and Recovery do not hold of the Conductor alone: a caller that
+never completes a slot leaves every correct validator in window 1. The paper
+proves both only "when run within Cadence" (Appendix D.2
+(`subsection:conductor-proof`)), and its proofs use exactly two facts about
+the caller's completions, each conditional on the openings (P15,
+[PaperAlignment.md](../docs/PaperAlignment.md) §6):
+
+* **(R-tot)** `CallerTotality` — for every slot whose openings are
+  synchronized within `d`, the completions are synchronized within `d`
+  too (Chorus's totality, Proposition 4 (`prop:chorus-totality`), read
+  through the glue: opening is starting to participate, finalizing is
+  completing);
+* **(R-term)** `CallerTermination` — for every slot whose openings are
+  synchronized within `d`, if every correct validator opens it by `t`, every
+  correct validator completes it by `max(t, GST) + ℓ` (Chorus's
+  termination, Lemma 11 (`lemma:chorus-termination`)).
+
+They are the antecedents of `totality` and `recovery`, stated over the
+fragment's own observables, as `SlotConsensusWithTotality`'s caller
+conditions are. `Admissible` stays the implementation's scheduler, network
+and timers, and says nothing about the caller. One tolerance serves both
+sides of (R-tot) because the paper's induction closes on it: Chorus's
+totality latency equals the tolerance its condition grants ("both equal
+`Δ = d_tot`", before Definition 6 (`def:window-synchronized`)). An
+unconditional open-to-complete bound, Module 2's commented-out assumed
+behaviour, would assume part of the conclusion (Proposition 14
+(`prop:conductor-open-to-complete`) derives it from Totality).
 
 ### `open_prefix_agreement` — the safety residue of Totality + Monotonicity
 
@@ -656,6 +690,51 @@ class OrchestratorSafety (validator slot state time : Type) [ord : TotalOrder sl
     ¬ byz i → ¬ byz j → opened st i s' → opened st j s → ord.le s' s → s' ≠ s →
     opened st j s'
 
+namespace OrchestratorSafety
+
+variable {validator slot state time : Type} {ord : TotalOrder slot} [tord : TotalOrder time]
+  [Add time] {byz : validator → Prop}
+
+/-- **Openings of `s` synchronized within `d`**: once a correct validator
+has opened `s`, at index `n`, every correct validator opens `s` by
+`max(clk n, GST) + d`. The form of Definition 6
+(`def:window-synchronized`)'s second condition, for one slot. -/
+def OpeningsSyncWithin (S : @OrchestratorSafety validator slot state time ord tord byz)
+    (r : TimedRun state time S.init S.trans) (s : slot) (d : time) : Prop :=
+  ∀ n i, ¬ byz i → S.opened (r.at' n) i s →
+    ∀ j, ¬ byz j → r.byGstBound (r.clk n) d (fun st => S.opened st j s)
+
+/-- **Completions of `s` synchronized within `d`**: once a correct
+validator has completed `s`, at index `n`, every correct validator completes
+`s` by `max(clk n, GST) + d`. Definition 6 (`def:window-synchronized`)'s
+third condition, for one slot. -/
+def CompletionsSyncWithin (S : @OrchestratorSafety validator slot state time ord tord byz)
+    (r : TimedRun state time S.init S.trans) (s : slot) (d : time) : Prop :=
+  ∀ n i, ¬ byz i → S.completed (r.at' n) i s →
+    ∀ j, ¬ byz j → r.byGstBound (r.clk n) d (fun st => S.completed st j s)
+
+/-- **(R-tot), the caller's totality at tolerance `d`**: for every slot
+whose openings are synchronized within `d`, the completions are
+synchronized within `d` too. Within Cadence it is Chorus's `d_tot`-totality
+(Proposition 4 (`prop:chorus-totality`)) read through the glue, at
+`d = d_tot = Δ`. -/
+def CallerTotality (S : @OrchestratorSafety validator slot state time ord tord byz)
+    (r : TimedRun state time S.init S.trans) (d : time) : Prop :=
+  ∀ s, S.OpeningsSyncWithin r s d → S.CompletionsSyncWithin r s d
+
+/-- **(R-term), the caller's termination at tolerance `d` and latency `ℓ`**:
+for every slot whose openings are synchronized within `d`, if every correct
+validator opens it by `t`, every correct validator completes it by
+`max(t, GST) + ℓ`. Within Cadence it is Chorus's `ℓ`-termination (Lemma 11
+(`lemma:chorus-termination`)) read through the glue. -/
+def CallerTermination (S : @OrchestratorSafety validator slot state time ord tord byz)
+    (r : TimedRun state time S.init S.trans) (d ℓ : time) : Prop :=
+  ∀ s, S.OpeningsSyncWithin r s d →
+    ∀ t, (∀ i, ¬ byz i → r.byTime t (fun st => S.opened st i s)) →
+      ∀ j, ¬ byz j → r.byGstBound t ℓ (fun st => S.completed st j s)
+
+end OrchestratorSafety
+
 /-- The temporal level of Module 2 (`mod:orchestrator_2`), over a safety instance `S`. -/
 class OrchestratorTemporal (validator slot state time : Type) [ord : TotalOrder slot]
     [TotalOrder time] [Add time] (byz : validator → Prop)
@@ -671,9 +750,21 @@ class OrchestratorTemporal (validator slot state time : Type) [ord : TotalOrder 
   clock_agrees : ∀ (r : TimedRun state time S.init S.trans), Admissible r →
     ∀ n, r.clk n = S.clock (r.at' n)
 
-  /-- **Totality** — if some correct validator opens `s`, every correct
-      validator eventually opens `s`. -/
+  /-- The caller's totality latency, which is also the tolerance its
+      condition grants: (R-tot) is assumed at it. Within Cadence, Chorus's
+      `d_tot = Δ` (Proposition 4 (`prop:chorus-totality`)). -/
+  caller_d_tot : time
+  /-- The caller's termination latency: (R-term) is assumed at it. Within
+      Cadence, Chorus's `ℓ_chorus` (Lemma 11 (`lemma:chorus-termination`)). -/
+  caller_ℓ : time
+
+  /-- **Totality**, in rely form — if the caller's completions are total
+      ((R-tot), `CallerTotality`) and some correct validator opens `s`,
+      every correct validator eventually opens `s`. Module 2's Totality,
+      with the condition under which the paper proves it ("when run within
+      Cadence", Lemma 15 (`lemma:conductor-totality`)) as its antecedent. -/
   totality : ∀ (r : TimedRun state time S.init S.trans), Admissible r →
+    S.CallerTotality r caller_d_tot →
     ∀ i j s, ¬ byz i → ¬ byz j →
       r.eventually (fun st => S.opened st i s) → r.eventually (fun st => S.opened st j s)
   /-- The bound `B` (`2W − p` for Conductor). -/
@@ -688,10 +779,14 @@ class OrchestratorTemporal (validator slot state time : Type) [ord : TotalOrder 
       ∀ k, S.opened st i (f k) ∧ ord.le s (f k) ∧ s ≠ f k
   /-- The recovery time `R` (`2Wτ` for Conductor). -/
   recovery_time : time
-  /-- **`R`-Recovery** — every slot whose starting time is at least `R` after
-      `gst` is opened by every correct validator, and no later than its
-      starting time (with `integrity_timing`: exactly then). -/
+  /-- **`R`-Recovery**, in rely form — if the caller's completions are total
+      ((R-tot)) and terminate ((R-term)), every slot whose starting time is
+      at least `R` after `gst` is opened by every correct validator, and no
+      later than its starting time (with `integrity_timing`: exactly then).
+      Lemma 16 (`lemma:conductor-recovery`) proves it "when run within
+      Cadence". -/
   recovery : ∀ (r : TimedRun state time S.init S.trans), Admissible r →
+    S.CallerTotality r caller_d_tot → S.CallerTermination r caller_d_tot caller_ℓ →
     ∀ s, TotalOrder.le (r.gst + recovery_time) (S.start_time s) →
     ∀ i, ¬ byz i → r.byTime (S.start_time s) (fun st => S.opened st i s)
 
@@ -700,6 +795,35 @@ class Orchestrator (validator slot state time : Type) [ord : TotalOrder slot]
     [TotalOrder time] [Add time] (byz : validator → Prop) extends
     OrchestratorSafety validator slot state time byz,
     OrchestratorTemporal validator slot state time byz
+
+/-! ### The orchestrator with `d_tot`-totality
+
+Module 2's Totality is eventual. Lemma 15 (`lemma:conductor-totality`)
+proves "more specifically" that an opening at `t` reaches every correct
+validator by `max(t, GST) + d_tot`, and Corollary 4
+(`cor:chorus-correctness-within-cadence`) consumes exactly that bound: it is
+Chorus's Δ-synchronized participation. So the bound is a property of the
+Conductor, not of Module 2, as `d_tot`-totality is of Chorus and not of
+Module 1 (`SlotConsensusWithTotality`), and it sits one level up, over the
+temporal instance, in the same rely form (P15,
+[PaperAlignment.md](../docs/PaperAlignment.md) §6). -/
+
+/-- The `d_tot` strengthening of the orchestrator's Totality, over a safety
+instance `S` and a temporal instance `T`. -/
+class OrchestratorWithTotality (validator slot state time : Type) [ord : TotalOrder slot]
+    [TotalOrder time] [Add time] (byz : validator → Prop)
+    [S : OrchestratorSafety validator slot state time byz]
+    [T : OrchestratorTemporal validator slot state time byz] where
+  /-- The orchestrator's totality latency (`d_tot = Δ` for the Conductor
+      within Cadence). -/
+  d_tot : time
+  /-- **`d_tot`-Totality**, in rely form — if the caller's completions are
+      total ((R-tot)), then for every slot, an opening by a correct validator
+      at `t` is followed by every correct validator's by `max(t, GST) +
+      d_tot`. -/
+  totality : ∀ (r : TimedRun state time S.init S.trans), T.Admissible r →
+    S.CallerTotality r T.caller_d_tot →
+    ∀ s, S.OpeningsSyncWithin r s d_tot
 
 /-! ## Agreement on a Core Set, Module 4 (`mod:acs`)
 
@@ -760,6 +884,10 @@ at.
 * **`abandon`, `abandoned`** and their frames — the interface's second
   input; *safety (first-order)*
 * **`integrity`** — Integrity; *safety*
+* **`propose_enabled`, `abandon_enabled`** — the module accepts its two
+  inputs (F26, [ConductorBounds.md](../docs/ConductorBounds.md) §7);
+  *upper, first-order*: only a consumer's timed claims need them, and at the
+  fragment they would perturb the Conductor's solver queries
 * **`termination`, `ℓ`** — `ℓ`-Termination; *temporal (under the module's two
   assumptions)*
 * **`totality`, `Δ`** — `Δ`-Totality; *temporal (under the module's two
@@ -846,6 +974,18 @@ class ACSTemporal (validator slot state time message : Type)
   Admissible : TimedRun state time S.init S.trans → Prop
   admissible_exists : ∀ st, S.init st →
     ∃ r : TimedRun state time S.init S.trans, Admissible r ∧ r.at' 0 = st
+
+  /-- **The module accepts a proposal** — in the rely form: a correct
+      validator that has neither abandoned nor proposed in this instance can
+      give the `propose(s)` input, for any slot. Module 4 (`mod:acs`)'s
+      interface makes `propose(s)` an input, which the caller invokes; the
+      module cannot refuse it. First-order, and kept at this level because
+      only the timed properties of a consumer need it (F26). -/
+  propose_enabled : ∀ st i s, S.reachable st → ¬ byz i → ¬ S.abandoned st i →
+    (∀ s', ¬ S.proposed st i s') → ∃ st', S.propose st i s st'
+  /-- **The module accepts an abandonment**: a correct validator can always
+      give the `abandon()` input, Module 4 (`mod:acs`)'s second input. -/
+  abandon_enabled : ∀ st i, S.reachable st → ¬ byz i → ∃ st', S.abandon st i st'
 
   /-- The resilience parameter `f` (at most `f` Byzantine validators). -/
   fault_bound : Nat
