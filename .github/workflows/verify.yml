@@ -215,9 +215,12 @@ jobs:
       # Create the volume now rather than in container.sh, so the delta can go
       # in before the verification starts. Its first mount initialises it from
       # the image's `.lake` — the oleans, the dependency tree, and the image's
-      # cache — exactly as container.sh's own first mount would. `cp -n`: an
-      # entry the image already holds is the same proof (entries are keyed by
-      # statement).
+      # cache — exactly as container.sh's own first mount would. A delta entry
+      # replaces an image entry of the same name: the file name is only the
+      # statement's hash, and a run that re-solved a cell under an existing
+      # name (the first PR run measured 290 such stores and no new names) holds
+      # the proof this pull request needs. The stamp marks the priming time for
+      # the export below.
       - name: Prime the proof cache
         if: steps.mode.outputs.mode == 'primed'
         env:
@@ -234,10 +237,10 @@ jobs:
               c=/workspaces/cadence/.lake/build/veilcache
               mkdir -p "$c"
               img=$(find "$c" -name "*.vpc" | wc -l)
-              cp -np /delta/*.vpc "$c"/ 2>/dev/null || true
-              all=$(find "$c" -name "*.vpc" | wc -l)
+              cp -p /delta/*.vpc "$c"/ 2>/dev/null || true
+              touch /workspaces/cadence/.lake/build/veilcache-primed.stamp
               echo "image=$img"
-              echo "delta=$((all - img))"
+              echo "delta=$(find /delta -name "*.vpc" | wc -l)"
               echo "size=$(du -sh "$c" | cut -f1)"' | tee prime.txt
           img=$(sed -n 's/^image=//p' prime.txt)
           delta=$(sed -n 's/^delta=//p' prime.txt)
@@ -339,11 +342,12 @@ jobs:
 
       # Save what this run solved beyond the image's cache, for this pull
       # request's next run — also after a failed verification, whose solved
-      # cells are exactly what the next push wants. The delta is the volume's
-      # entries minus the image's own (the image's directory is visible at its
-      # usual path because the volume is mounted elsewhere), so it carries the
-      # restored entries forward too. Saved only when it grew: Actions cache
-      # entries are immutable, and an unchanged delta is already stored.
+      # cells are exactly what the next push wants. The delta is every volume
+      # entry the image does not hold under that name (the image's directory is
+      # visible at its usual path because the volume is mounted elsewhere) or
+      # that was written after priming, so it carries the restored entries
+      # forward too. Saved only when it changed: Actions cache entries are
+      # immutable, and an unchanged delta is already stored.
       - name: Export this pull request's proof-cache delta
         id: delta
         if: >-
@@ -363,11 +367,17 @@ jobs:
               set -euo pipefail
               shopt -s nullglob
               cd /vol/build/veilcache
+              new=0
               for f in *.vpc; do
-                [ -e "/workspaces/cadence/.lake/build/veilcache/$f" ] || cp -p "$f" /out/
-              done'
+                if [ "$f" -nt /vol/build/veilcache-primed.stamp ]; then
+                  cp -p "$f" /out/; new=$((new + 1))
+                elif [ ! -e "/workspaces/cadence/.lake/build/veilcache/$f" ]; then
+                  cp -p "$f" /out/
+                fi
+              done
+              echo "new=$new"' | tee export.txt
           n=$(find "$OUT" -name '*.vpc' | wc -l)
-          new=$(comm -23 <(cd "$OUT" && ls | sort) <(cd "$DELTA" && ls | sort) | wc -l)
+          new=$(sed -n 's/^new=//p' export.txt)
           echo "delta: $n entries ($(du -sh "$OUT" | cut -f1)), $new new in this run"
           # Save from the restore path: the Actions cache versions an entry by
           # its path, so a save from anywhere else would never be restored.
