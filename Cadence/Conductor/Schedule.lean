@@ -33,10 +33,14 @@ prints the whole list.
   [ConductorBounds.md](../../docs/ConductorBounds.md) §5). `Φ_oc` and
   `d_tot` are not new constants: they are the Chorus instance's own
   `Lchorus …` and `Ltot …` (`Φ_oc_eq_chorus`).
-* **The configuration** (`StartTimes`, `WindowShifts`): the Conductor's
-  theory has the τ-spaced starting times of Appendix A.1
-  (`subsection:mcp-preliminaries`), and the shift functions of K2 are
-  `+ (W − 1)` and `+ p`.
+* **The configuration** (`StartTimes`, `WindowShifts`, `StartsUnbounded`):
+  the Conductor's theory has the τ-spaced starting times of Appendix A.1
+  (`subsection:mcp-preliminaries`), the shift functions of K2 are
+  `+ (W − 1)` and `+ p`, and some slot has always not yet started (F28).
+* **Time** is linearly ordered with an ordered addition
+  (`IsOrderedAddMonoid`, F27), the time theory of
+  [ConductorBounds.md](../../docs/ConductorBounds.md) §6.2; the timed claims
+  take it as an instance argument.
 * **The ACS** is an arbitrary instance of its contract, `ACSSafety` and
   `ACSTemporal` ([Interfaces.lean](../Interfaces.lean)), an **assumed
   module** (P17): the target leaves it unspecified. Its constants are the
@@ -274,6 +278,19 @@ F21, F25). -/
 def WindowShifts (sch : ConductorSchedule view time vfin)
     (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
   (∀ s, th.win_last s = s + (sch.W - 1)) ∧ ∀ s, th.win_boundary s = s + sch.p
+
+/-- **The starting times are unbounded**: whatever the time, some slot has
+not started yet. The paper's slots are infinitely many and τ-spaced on the
+real line (Appendix A.1 (`subsection:mcp-preliminaries`)), so a validator
+that becomes ready can always pick the first slot `s*` of the next window
+whose starting time has not passed (Algorithm 7, lines 38–41
+(`line:ready-time`–`line:sstar-update`)). Without it the model's
+`acs_propose` can stay disabled forever once the clock has passed every
+starting time ([ConductorBounds.md](../../docs/ConductorBounds.md) F28).
+`StartTimes` alone does not give it: an ordered, cancellative, Archimedean
+time can still have `start₀ + s • τ` bounded when `start₀` is negative. -/
+def StartsUnbounded (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
+  ∀ t, ∃ s, t ≤ th.start_time s
 
 end Configuration
 
@@ -631,17 +648,17 @@ variable {window node acsstate : Type} [Inhabited window] [Inhabited node] [Inha
   [Fintype node] [DecidablePred fm.byz]
 
 /-- **`d_tot`-Totality, the target** (Lemma 15 (`lemma:conductor-totality`)).
-Under the timing model, with the ACS's `Δ` the system's, at most its fault
-bound Byzantine, and if the caller's completions are total ((R-tot) at
-`d_tot`): for every slot, once a correct validator has
-opened it at clock `c`, every correct validator opens it by
-`max(c, GST) + d_tot`, with `d_tot = Δ` at the schedule's `δ = 0`
+Over an ordered time (F27), under the timing model, with unbounded starting
+times (`StartsUnbounded`, F28) and the ACS's `Δ` the system's, and if the
+caller's completions are total ((R-tot) at `d_tot`): for every slot, once a
+correct validator has opened it at clock `c`, every correct validator opens
+it by `max(c, GST) + d_tot`, with `d_tot = Δ` at the schedule's `δ = 0`
 (`ConductorSchedule.d_tot_paper`). The proof is the window induction of
 Proposition 13 (`prop:window-synchronization`), stage K4. -/
-def TotalityClaim {msg : Type} (sch : ConductorSchedule view time vfin)
+def TotalityClaim [IsOrderedAddMonoid time] {msg : Type} (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz)
     (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
-  TA.Δ = sch.Δ → (Finset.univ.filter fm.byz).card ≤ TA.fault_bound →
+  StartsUnbounded th → TA.Δ = sch.Δ →
   ∀ r : TConductorRun th, Sync sch TA r →
     (orchestratorSafety th).CallerTotality (contractRun r) sch.d_tot →
     ∀ s, (orchestratorSafety th).OpeningsSyncWithin (contractRun r) s sch.d_tot
@@ -669,15 +686,16 @@ def BoundednessClaim (sch : ConductorSchedule view time vfin)
     ¬ ∃ g : Fin sch.bound → ℕ, Function.Injective g ∧ ∀ k, Opened st i (g k) ∧ s ≤ g k ∧ s ≠ g k
 
 /-- **`(2Wτ)`-Recovery, the target** (Lemma 16 (`lemma:conductor-recovery`)).
-Under the timing model at τ-spaced starting times and windows of the
-schedule's shape, with the ACS's `Δ` and `ℓ` the system's, at most its fault
+Over an ordered time (F27), under the timing model at τ-spaced starting
+times and windows of the schedule's shape, with the ACS's `Δ` and `ℓ` the
+system's, at most its fault
 bound Byzantine, and if the caller's completions are total ((R-tot) at
 `d_tot`) and terminate ((R-term) at `d_tot` and
 `ℓ_chorus`): every slot whose starting time is at least `GST + 2Wτ` is
 opened by every correct validator by its starting time — with Integrity's
 timing half, exactly then. The proof is Propositions 14–19, stage K5; the
 four parameter assumptions are the schedule's fields. -/
-def RecoveryClaim {msg : Type} (sch : ConductorSchedule view time vfin)
+def RecoveryClaim [IsOrderedAddMonoid time] {msg : Type} (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz)
     (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
   StartTimes sch th → WindowShifts sch th →
