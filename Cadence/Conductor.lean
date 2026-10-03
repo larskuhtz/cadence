@@ -32,8 +32,9 @@ window); support theory: [Windows.lean](Windows.lean).
 
 Slots are scheduled in *windows* of `W` consecutive slots. Every validator
 starts in window 1 (slots `1..W`, opened at their starting times). Once a
-validator has completed all scheduled slots up to the current window's
-readiness boundary (its `p`-th slot — Algorithm 7, line 23 (`line:ready-check`)), it proposes a
+validator has completed all scheduled slots below the current window's
+readiness boundary (its `(p + 1)`-th slot: every earlier window and the
+window's first `p` slots — Algorithm 7, line 23 (`line:ready-check`)), it proposes a
 first slot for the next window to that window's ACS instance
 (Algorithm 7, line 42 (`line:acs-propose`)): the earliest slot whose starting time has not
 passed, or the first slot beyond the current window if that one lies within
@@ -59,10 +60,10 @@ SMT-checked here (the safety-shaped content):
   the `OrchestratorSafety.open_prefix_agreement` contract field, which the
   `Cadence` glue module consumes through its `orch` class constraint;
 * boundedness as interval inclusion (Lemma 14 (`lem:boundedness`), interval form) —
-  `safety [bounded_tail]`: every scheduled-but-uncompleted slot lies
-  strictly above the *previous* window's readiness boundary. The numeric
-  `(2W − p)` bound is the one-line meta corollary: the region above
-  `boundary(ω−1)` within scheduled intervals is the last `W − p` slots of
+  `safety [bounded_tail]`: every scheduled-but-uncompleted slot lies at
+  or above the *previous* window's readiness boundary. The numeric
+  `(2W − p)` bound is the one-line meta corollary: the region from
+  `boundary(ω−1)` on within scheduled intervals is the last `W − p` slots of
   window `ω−1` plus the `W` slots of window `ω`;
 * integrity's clock half ("no open before the slot's starting time",
   Algorithm 7, line 27 (`line:conductor-wait-for-open`)) — `safety [opened_after_start]`, via the
@@ -210,12 +211,16 @@ of Algorithm 7, line 52 (`line:last-update`) ("the slot whose number is
 window 1. The model's slot order has no arithmetic, so the shift is an
 immutable function; the instance at `slot := ℕ` fixes it to `s + (W − 1)`. -/
 immutable function win_last : slot → slot
-/-- A window's readiness boundary, its `p`-th slot, as a function of its
-first: the shift `+ (p − 1)`, the slot up to which Algorithm 7, line 23
-(`line:ready-check`) asks for completion ("all but the last `W − p`"). Fixed
-to `s + (p − 1)` at the instance at `slot := ℕ`, as `win_last`. -/
+/-- A window's readiness boundary, its `(p + 1)`-th slot, as a function of
+its first: the shift `+ p`. Algorithm 7, line 23 (`line:ready-check`) asks
+for completion of "all but the last `W − p`" opened slots, which in window
+`ω` are every slot of the earlier windows and the window's first `p`: the
+scheduled slots *strictly below* the boundary (`ready_next`). At `p = 0`
+the boundary is the window's first slot, and readiness asks for the
+earlier windows only. Fixed to `s + p` at the instance at `slot := ℕ`, as
+`win_last`. -/
 immutable function win_boundary : slot → slot
-/-- Window 1's readiness boundary: the paper's slot `p` of window 1
+/-- Window 1's readiness boundary: the paper's slot `p + 1` of window 1
 (Algorithm 7, line 34 (`line:startup-last`)), `win_boundary` of slot 1
 (`[genesis_window]`). Later windows' bounds are ACS-decided state. -/
 immutable individual genesis_boundary : slot
@@ -244,7 +249,7 @@ Byzantine proposals and the decision itself are the instance's own
 internal steps (`acs_step`), constrained only by the contract. -/
 function acs_state (w : window) : acsstate
 /-- The decided window interval: first slot (the extracted median,
-Algorithm 7, line 48 (`line:median-compute`)), readiness-boundary slot (the window's `p`-th
+Algorithm 7, line 48 (`line:median-compute`)), readiness-boundary slot (the window's `(p + 1)`-th
 slot) and last slot (Algorithm 7, line 52 (`line:last-update`)). Computed from the decided set
 (`acs_decide`), global because ACS agreement makes every correct
 validator compute the same interval. Unique per window. -/
@@ -272,10 +277,8 @@ relation completed (i : node) (s : slot)
 assumption [acs_init]
   ∀ (w : window), acs.init (acs_init_state w)
 /-- A window's first slot, readiness boundary and last slot are in order:
-`s ≤ s + (p − 1) ≤ s + (W − 1)`, which is `1 ≤ p ≤ W`. The main body allows
-`p = 0` as well (Algorithm 7 (`algorithm:conductor`)'s `p ∈ {0, …, W − 1}`);
-the model's boundary is a slot of the window, so it covers `p ≥ 1`
-([ConductorBounds.md](../docs/ConductorBounds.md) §7, F25). -/
+`s ≤ s + p ≤ s + (W − 1)`, which is `0 ≤ p ≤ W − 1`, the parameter range
+of Algorithm 7 (`algorithm:conductor`). -/
 assumption [shift_shape]
   ∀ (s : slot), slot_ord.le s (win_boundary s) ∧
     slot_ord.le (win_boundary s) (win_last s)
@@ -323,14 +326,16 @@ ghost relation in_window (i : node) (w : window) :=
   entered i w ∧ ∀ w', win_ord.next w w' → ¬ entered i w'
 
 /-- `ready_for_next_window()` (Algorithm 7, line 23 (`line:ready-check`)) while in window `w`:
-every scheduled slot up to `w`'s readiness boundary is completed
-(equivalently, per the paper: all but the last `W − p` of the eager
-`opened_i` are complete). -/
+every scheduled slot strictly below `w`'s readiness boundary is completed:
+every slot of the earlier windows and the first `p` of `w` (equivalently,
+per the paper: all but the last `W − p` of the eager `opened_i` are
+complete). At `p = 0` this is the earlier windows only, and in window 1
+it holds from the start, as `k − j ≤ W − 0` does there. -/
 ghost relation ready_next (i : node) (w : window) :=
   ∀ (f b l : slot), win_bounds w f b l →
     ∀ (s : slot) (w0 : window) (f0 b0 l0 : slot),
       entered i w0 → win_bounds w0 f0 b0 l0 →
-      slot_ord.le f0 s → slot_ord.le s l0 → slot_ord.le s b →
+      slot_ord.le f0 s → slot_ord.le s l0 → slot_ord.lt s b →
       completed i s
 
 /-- Every validator starts in window 1 (Algorithm 7, line 30 (`line:enter_window_1`)), with nothing
@@ -453,7 +458,7 @@ contract and the median computation:
   decisions sequential, and it gives the ordering invariants their ground
   terms;
 * *interval width* — the recorded interval is the window's `W` slots from
-  `first`, with the boundary at its `p`-th slot: `[first, win_last first]`
+  `first`, with the boundary at its `(p + 1)`-th slot: `[first, win_last first]`
   and `win_boundary first`, the decided interval of Algorithm 7, lines
   49–52 (`line:open-foreach`–`line:last-update`). The widths are the shift
   functions' and are fixed at the instance at `slot := ℕ`; no safety
@@ -483,7 +488,7 @@ action acs_decide (w0 : window) (w : window) (first : slot)
   require ¬ fm.byz r2
   require ∃ (i : node), ¬ fm.byz i ∧ acs.decided (acs_state w) i r2 s2
   require slot_ord.le first s2
-  -- The window's `W` slots from `first`, boundary at the `p`-th
+  -- The window's `W` slots from `first`, boundary at the `(p + 1)`-th
   -- (Algorithm 7, lines 49–52).
   acs_decided w first (win_boundary first) (win_last first) := true
 }
@@ -604,9 +609,9 @@ safety [opened_after_start]
 
 /-- Boundedness, interval form (Lemma 14 (`lem:boundedness`)), stated as the
 persisted readiness residue: once a validator has entered window `w'`,
-every scheduled slot up to the readiness boundary of `w'`'s predecessor
-is completed. Contrapositive reading for the *current* window `ω`: every
-scheduled-but-uncompleted slot lies strictly above `boundary(ω−1)` —
+every scheduled slot strictly below the readiness boundary of `w'`'s
+predecessor is completed. Contrapositive reading for the *current* window
+`ω`: every scheduled-but-uncompleted slot lies at or above `boundary(ω−1)` —
 within the scheduled intervals that region is the last `W − p` slots of
 window `ω−1` plus the (at most `W`) slots of window `ω`, so at most
 `2W − p` slots are open-but-uncompleted; the numeric bound is that
@@ -618,9 +623,9 @@ safety [bounded_tail]
     ¬ fm.byz i ∧
     -- i has entered w', whose predecessor w has boundary b
     entered i w' ∧ win_ord.next w w' ∧ win_bounds w f b l ∧
-    -- s is scheduled (in entered window ws's interval), at or below b
+    -- s is scheduled (in entered window ws's interval), strictly below b
     entered i ws ∧ win_bounds ws fs bs ls ∧
-    slot_ord.le fs s ∧ slot_ord.le s ls ∧ slot_ord.le s b →
+    slot_ord.le fs s ∧ slot_ord.le s ls ∧ slot_ord.lt s b →
     completed i s
 
 /-! ## Invariants — window structure -/
@@ -648,7 +653,7 @@ invariant [bounds_shape]
 
 /-- Window width: every window's boundary and last slot are the shifts of
 its first slot, so every window holds the `W` slots from its first, with
-its boundary at the `p`-th (Algorithm 7, lines 31–34
+its boundary at the `(p + 1)`-th (Algorithm 7, lines 31–34
 (`line:startup-foreach`–`line:startup-last`) and Algorithm 7, lines 49–52
 (`line:open-foreach`–`line:last-update`)). -/
 invariant [win_bounds_shift]
