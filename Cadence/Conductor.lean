@@ -289,12 +289,17 @@ assumption [genesis_window]
   genesis_boundary = win_boundary slot_ord.zero ∧
   genesis_last = win_last slot_ord.zero ∧
   genesis_time = start_time slot_ord.zero
-/-- Starting times are monotone in slot order (`τ`-spaced deadlines,
-Appendix A.1 (`subsection:mcp-preliminaries`)). Not consumed by any invariant below —
-recorded for model faithfulness (it constrains reachability traces). -/
-assumption [start_time_mono]
+/-- Starting times strictly increase in slot order. Appendix A.1
+(`subsection:mcp-preliminaries`) spaces consecutive deadlines a fixed
+`τ > 0` apart within the extreme-pipelining framework, so later slots start
+strictly later. The spacing itself, `start_time s = start_time 1 + (s − 1)τ`,
+is arithmetic and is fixed at the instance at `slot := ℕ`
+([ConductorBounds.md](../docs/ConductorBounds.md) §6.3). Under it,
+`acs_propose`'s `require`s on `s_star` determine the paper's `s*`; no safety
+property reads it. -/
+assumption [start_time_strict]
   ∀ (s s' : slot), slot_ord.lt s s' →
-    time_ord.le (start_time s) (start_time s')
+    time_ord.le (start_time s) (start_time s') ∧ start_time s ≠ start_time s'
 
 /-! ## Derived state -/
 
