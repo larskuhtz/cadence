@@ -538,10 +538,14 @@ execution model they are stated for — (A-orch-totality),
 ((F-justice), (A-acs-termination), (A-acs-totality), (A-sc-termination) in
 [Conductor.lean](Conductor.lean)'s liveness section).
 
-Why they are not proven: the untimed model does not carry the per-window
-induction the paper's proofs run ([Conductor.lean](Conductor.lean),
-"Liveness"), and the
-count `2W − p` needs window widths that the interval encoding keeps meta.
+Where they stand: Boundedness at `B = 2W − p` and `d_tot`-Totality are
+proven, in plain Lean over the model's reachable states and timed runs, as
+the targets stated in [Conductor/Schedule.lean](Conductor/Schedule.lean):
+`Conductor.boundedness` ([Conductor/Boundedness.lean](Conductor/Boundedness.lean)),
+from `[bounded_tail]` and the window widths `[win_bounds_shift]`, and
+`Conductor.totality` ([Conductor/Induction.lean](Conductor/Induction.lean)),
+the paper's window induction. Recovery is stage K5, and the instance that
+packages the three is stage K6 ([ConductorBounds.md](../docs/ConductorBounds.md) §9).
 
 Integrity's timing half is proven: it is a first-order fact about a
 reachable state, so it sits in the fragment above (`integrity_timing`, from
