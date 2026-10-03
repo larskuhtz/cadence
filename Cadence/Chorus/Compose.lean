@@ -69,16 +69,14 @@ which is the composition leg's work. Glue safety is unaffected: the glue's
 theorems are generic in the fragment, and inertness only removes
 behaviours.
 
-**What stays unproven.** Chorus models no time and has no message type at
-the interface. So the upper level's inputs and observables as contract
-fields, the clock, the admissible-run model, Termination over timed runs
-and Quiescence are the fields of `SlotConsensusTemporal`, of which this
-development has no instance yet ([Bounds.md](../../docs/Bounds.md) §6.4.6, S5) —
-`slotConsensus_of_temporal` proves that, given one, Chorus is a full
-`SlotConsensus`, discharging on the way the one upper-level field Chorus
-*does* prove: the protocol half of Hiding (`safety [hiding_until_deadline]`,
-the contract's `hiding_residue`). The residual is the formal statement of
-[Architecture.md](../../docs/Architecture.md) §4 item 4 for this module.
+**The upper level.** The inputs and observables as contract fields, the
+admissible-run model, Termination over timed runs and Quiescence are the
+fields of `SlotConsensusTemporal`. `slotConsensus_of_temporal` joins any
+instance of it with the fragment into a full `SlotConsensus`, and
+[Chorus/Temporal.lean](Temporal.lean) proves one at the system's
+configuration (`Chorus.chorusTemporal`, joined as `Chorus.slotConsensusFull`).
+This file holds the message type and Quiescence's first half
+(`own_sent_new`), which need nothing of the MVBA.
 
 Trust base: `[propext, Classical.choice, Quot.sound]` — the standard Lean
 trio, nothing else — pinned by the `#guard_msgs` axiom checks at the end of
@@ -399,24 +397,15 @@ noncomputable def slotConsensusSafety :
     (χ := Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) th p.2
   hiding_residue _ hr hk := reachable_hiding_until_deadline hr hk
 
-/-! ### What the full `SlotConsensus` still owes
+/-! ### The join with the temporal level
 
-Chorus has no clock and no message type at the contract's level of
-abstraction. What stands between the fragment above and the full
-`SlotConsensus` is therefore an instance of
-**`SlotConsensusTemporal … (S := slotConsensusSafety th)`** — and there is
-none yet. Its fields are the participation interface as contract fields
-(`participate`, `abandon`, `propose` with their observables and frames,
-which the model now has as actions and state), together with the clock,
-the admissible-run model, Termination ((A-sc-termination) of
-[Architecture.md](../../docs/Architecture.md) §4 item 4, proven untimed as
-`Chorus.termination`) and Quiescence, whose one-step statement over the
-model's participation gates is still to be proven.
-
-Because every one of those fields is already stated over
+What stands between the fragment above and the full `SlotConsensus` is an
+instance of **`SlotConsensusTemporal … (S := slotConsensusSafety th)`**: the
+participation interface as contract fields, the admissible-run model,
+Termination and Quiescence. Every one of those fields is stated over
 `(slotConsensusSafety th)`'s own `init`, `trans`, `reachable` and
-`finalized`, none of them is restated here: the gap is a missing instance,
-not a structure. -/
+`finalized`, so none is restated here. [Chorus/Temporal.lean](Temporal.lean)
+proves the instance at the system's configuration and joins it here. -/
 
 /-- Given a temporal level **at this fragment**, Chorus is a full
 `SlotConsensus`. Nothing is restated to join them, and the fragment comes
@@ -440,6 +429,270 @@ theorem slotConsensus_of_temporal_toSafety {time message : Type} [TotalOrder tim
     (slotConsensus_of_temporal th h).toSlotConsensusSafety = slotConsensusSafety th := rfl
 
 end Instance
+
+/-! ## Quiescence, Chorus's own half
+
+Lemma 6 (`lemma:chorus-quiescence`) has two parts, and so does its proof
+here. A correct validator's **own** messages are sent only by rules gated on
+active participation, `participating i ∧ ¬ abandoned i`
+([Chorus.lean](../Chorus.lean), "Participation inputs"): one step, read
+from the transition bodies, below (`own_sent_new`). The **MVBA's** messages
+are confined by the MVBA's own quiescence to the window between `i`'s MVBA
+proposal, which Chorus makes only while participating, and its MVBA
+abandonment, which Chorus forwards from its own `abandon`. That needs both
+facts to hold along the run, so it is proven at the system's MVBA, with the
+instance ([Chorus/Temporal.lean](Temporal.lean)).
+
+`Message` is the module's protocol-message type: one constructor per
+network relation of the model that records its **sender**, and the MVBA's
+messages. The two network relations without a sender, a delivered chunk
+and a broadcast commit certificate, are attributed to nobody. Each travels
+with an attributed send: a chunk with its proposer's signed root or a
+signer's positive fallback entry, a commit certificate with the commit
+votes it aggregates. -/
+
+section Quiescence
+
+variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
+  [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root]
+  [Inhabited mstate] [Inhabited mvalue] [Inhabited mentries] [Inhabited mmsg]
+  [Inhabited Phase] [Inhabited PathChoice]
+  [nset : ByzNodeSet node nodeset]
+  [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
+  [mvba : MVBASafety node mvalue mentries mmsg mstate nodeset nset (fun i => nset.is_byz i = true)]
+  [Phase_Enum : Chorus.Phase_EnumClass Phase]
+  [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
+  {th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice}
+  {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
+
+/-- **A protocol message of one Chorus instance**, by what it says; its
+sender is `Sent`'s second argument. -/
+inductive Message (node merkle_root mmsg : Type) where
+  /-- Proposer `i`'s signed root `m` (Algorithm 2 (`alg:proposer-dissemination`)), with every chunk. -/
+  | proposal (m : merkle_root)
+  /-- A positive vote entry for `(j, m)`. -/
+  | votePos (j : node) (m : merkle_root)
+  /-- A negative vote entry for `j`. -/
+  | voteNeg (j : node)
+  /-- The proposal vote (Algorithm 3, line 14 (`line:vote-broadcast`)). -/
+  | voteCast
+  /-- A positive fallback entry for `(j, m)`, with the re-disseminated chunks. -/
+  | fbPos (j : node) (m : merkle_root)
+  /-- A negative fallback entry for `j`. -/
+  | fbNeg (j : node)
+  /-- The fallback vote. -/
+  | fallback
+  /-- A positive fast commit entry for `(j, m)`. -/
+  | commitPos (j : node) (m : merkle_root)
+  /-- A negative fast commit entry for `j`. -/
+  | commitNeg (j : node)
+  /-- The fast commit vote (Algorithm 4, line 24 (`line:fast-commitvote`)). -/
+  | commitCast
+  /-- The decryption share, released with the vote. -/
+  | decryptShare
+  /-- The fallback commit vote (Algorithm 5, line 41 (`line:fb-commitvote`)). -/
+  | fbCommit
+  /-- A message of the slot's MVBA instance. -/
+  | mvba (m : mmsg)
+
+/-- `i` has sent `msg`: the message's network row with `i` as its sender,
+or, for an MVBA message, the MVBA contract's `sent`. -/
+def Sent
+    (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
+    (i : node) : Message node merkle_root mmsg → Prop
+  | .proposal m => st.msg_proposer_signed i m = true
+  | .votePos j m => st.msg_vote_pos_sig i j m = true
+  | .voteNeg j => st.msg_vote_neg_sig i j = true
+  | .voteCast => st.msg_vote_cast i = true
+  | .fbPos j m => st.msg_fb_pos_sig i j m = true
+  | .fbNeg j => st.msg_fb_neg_sig i j = true
+  | .fallback => st.msg_fallback_sig i = true
+  | .commitPos j m => st.msg_commit_pos_sig i j m = true
+  | .commitNeg j => st.msg_commit_neg_sig i j = true
+  | .commitCast => st.msg_commit_cast i = true
+  | .decryptShare => st.msg_decrypt_share i = true
+  | .fbCommit => st.msg_fbcommit_sig i = true
+  | .mvba m => mvba.sent st.mvba_st i m
+
+/-- Expose an action's transition body. -/
+local macro "chorus_tr" h:ident : tactic =>
+  `(tactic| (simp only [Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct] at $h:ident
+             simp only [trSimp] at $h:ident))
+
+/-- Evaluate the field-representation `get`/`set` pair. -/
+local macro "chorus_field_simp" : tactic =>
+  `(tactic| simp +unfoldPartialApp [
+      Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
+      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
+      Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
+      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id,
+      instIsSubReaderOfRefl.readFrom_id] at *)
+
+set_option hygiene false in
+/-- A writer of the row: expose its body. The new row is the acting
+validator's, so its guards include the participation gate, or a Byzantine
+signer's, which `i` is not. -/
+local macro "own_close" : tactic =>
+  `(tactic| (chorus_tr htr; chorus_field_simp; repeat (obtain ⟨_, htr⟩ := htr)
+             simp only at hnew; (try split_ifs at hnew) <;> simp_all))
+
+open Lean in
+/-- One `case` per action: the generated frame lemma for the row where the
+action has one (it does not write the row), else `own_close`. -/
+local macro "own_frame " htr:ident fld:ident "[" acts:ident,* "]" "=>" tac:tacticSeq : tactic => do
+  let mut acc ← `(tactic| skip)
+  for a in acts.getElems do
+    let lem := mkIdent (`Chorus ++ a.getId ++ Name.mkSimple ("frame_" ++ fld.getId.toString))
+    acc ← `(tactic| ($acc; case $a:ident => first
+      | (have hfr := $lem:ident $htr; simp only [hfr] at *; contradiction)
+      | ($tac)))
+  return acc
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_proposer_signed` row of a correct sender comes from a gated rule. -/
+theorem msg_proposer_signed_new {l} {i : node} {m : merkle_root}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_proposer_signed i m = true)
+    (hold : ¬ s.msg_proposer_signed i m = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_proposer_signed [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_vote_pos_sig` row of a correct sender comes from a gated rule. -/
+theorem msg_vote_pos_sig_new {l} {i : node} {j : node} {m : merkle_root}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_vote_pos_sig i j m = true)
+    (hold : ¬ s.msg_vote_pos_sig i j m = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_vote_pos_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_vote_neg_sig` row of a correct sender comes from a gated rule. -/
+theorem msg_vote_neg_sig_new {l} {i : node} {j : node}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_vote_neg_sig i j = true)
+    (hold : ¬ s.msg_vote_neg_sig i j = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_vote_neg_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_vote_cast` row of a correct sender comes from a gated rule. -/
+theorem msg_vote_cast_new {l} {i : node} 
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_vote_cast i  = true)
+    (hold : ¬ s.msg_vote_cast i  = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_vote_cast [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_fb_pos_sig` row of a correct sender comes from a gated rule. -/
+theorem msg_fb_pos_sig_new {l} {i : node} {j : node} {m : merkle_root}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_fb_pos_sig i j m = true)
+    (hold : ¬ s.msg_fb_pos_sig i j m = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_fb_pos_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_fb_neg_sig` row of a correct sender comes from a gated rule. -/
+theorem msg_fb_neg_sig_new {l} {i : node} {j : node}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_fb_neg_sig i j = true)
+    (hold : ¬ s.msg_fb_neg_sig i j = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_fb_neg_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_fallback_sig` row of a correct sender comes from a gated rule. -/
+theorem msg_fallback_sig_new {l} {i : node} 
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_fallback_sig i  = true)
+    (hold : ¬ s.msg_fallback_sig i  = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_fallback_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_commit_pos_sig` row of a correct sender comes from a gated rule. -/
+theorem msg_commit_pos_sig_new {l} {i : node} {j : node} {m : merkle_root}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_commit_pos_sig i j m = true)
+    (hold : ¬ s.msg_commit_pos_sig i j m = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_commit_pos_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_commit_neg_sig` row of a correct sender comes from a gated rule. -/
+theorem msg_commit_neg_sig_new {l} {i : node} {j : node}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_commit_neg_sig i j = true)
+    (hold : ¬ s.msg_commit_neg_sig i j = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_commit_neg_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_commit_cast` row of a correct sender comes from a gated rule. -/
+theorem msg_commit_cast_new {l} {i : node} 
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_commit_cast i  = true)
+    (hold : ¬ s.msg_commit_cast i  = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_commit_cast [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_decrypt_share` row of a correct sender comes from a gated rule. -/
+theorem msg_decrypt_share_new {l} {i : node} 
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_decrypt_share i  = true)
+    (hold : ¬ s.msg_decrypt_share i  = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_decrypt_share [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_fbcommit_sig` row of a correct sender comes from a gated rule. -/
+theorem msg_fbcommit_sig_new {l} {i : node} 
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_fbcommit_sig i  = true)
+    (hold : ¬ s.msg_fbcommit_sig i  = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_fbcommit_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+
+/-- **Quiescence, Chorus's own half**: a correct validator's new message of
+its own (every constructor but `mvba`) is sent by a rule whose guard is the
+participation gate, so the sender is actively participating in the
+pre-state. One step, read from the transition bodies, with no invariant. -/
+theorem own_sent_new {l} {i : node} {msg : Message node merkle_root mmsg}
+    (hm : ∀ c, msg ≠ .mvba c)
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : Sent s' i msg) (hold : ¬ Sent s i msg) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases msg with
+  | proposal m => exact msg_proposer_signed_new htr hi hnew hold
+  | votePos j m => exact msg_vote_pos_sig_new htr hi hnew hold
+  | voteNeg j => exact msg_vote_neg_sig_new htr hi hnew hold
+  | voteCast => exact msg_vote_cast_new htr hi hnew hold
+  | fbPos j m => exact msg_fb_pos_sig_new htr hi hnew hold
+  | fbNeg j => exact msg_fb_neg_sig_new htr hi hnew hold
+  | fallback => exact msg_fallback_sig_new htr hi hnew hold
+  | commitPos j m => exact msg_commit_pos_sig_new htr hi hnew hold
+  | commitNeg j => exact msg_commit_neg_sig_new htr hi hnew hold
+  | commitCast => exact msg_commit_cast_new htr hi hnew hold
+  | decryptShare => exact msg_decrypt_share_new htr hi hnew hold
+  | fbCommit => exact msg_fbcommit_sig_new htr hi hnew hold
+  | mvba c => exact absurd rfl (hm c)
+
+end Quiescence
 end Chorus
 
 /-! ## The pinned trust base
@@ -475,3 +728,9 @@ info: 'Chorus.certified_available_chunks' depends on axioms: [propext, Classical
 -/
 #guard_msgs in
 #print axioms Chorus.certified_available_chunks
+
+/--
+info: 'Chorus.own_sent_new' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.own_sent_new

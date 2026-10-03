@@ -10,6 +10,7 @@ import Cadence.Chorus.Progress
 import Cadence.Chorus.Termination
 import Cadence.Chorus.Timeline
 import Cadence.Chorus.TimedTermination
+import Cadence.Chorus.Temporal
 import Cadence.Chorus.Witness
 
 -- The orchestration / pipelining leg, and the composed system.
@@ -68,13 +69,27 @@ Each entry is the result, the file its statement lives in, and what it says.
   the object the glue consumes as its `sc` constraint
 * **`Chorus.slotConsensus_of_temporal`** ([Chorus/Compose.lean](Cadence/Chorus/Compose.lean)) —
   given an instance of `SlotConsensusTemporal` **at the proven fragment** —
-  the participation interface as contract fields (the model has it as
-  actions and state), the admissible-run model, Termination and
-  Quiescence — Chorus is a full `SlotConsensus`. This development has no such
-  instance, and that is the statement of what is *not* proven about Chorus as
-  a slot consensus: the class's own fields, over Chorus's own transition
-  system, restated nowhere. Hiding's protocol half is first-order and is
-  proven in the fragment
+  the participation interface as contract fields, the admissible-run model,
+  Termination and Quiescence — Chorus is a full `SlotConsensus`. Hiding's
+  protocol half is first-order and is proven in the fragment
+* **`Chorus.slotConsensusFull`** ([Chorus/Temporal.lean](Cadence/Chorus/Temporal.lean)) —
+  **Chorus ⊨ `SlotConsensus`, the whole contract**, at the system's
+  configuration (`Cadence.chorusTheory`, `Cadence.mvbaTheory`, the quorum
+  family `n = 3f+1`): the proven temporal level `Chorus.chorusTemporal`
+  joined with the fragment, which comes back out by `rfl`
+  (`Chorus.slotConsensusFull_toSafety`). Every field of
+  `SlotConsensusTemporal` is proven: Termination from `Chorus.termination`,
+  Quiescence (Lemma 6 (`lemma:chorus-quiescence`)) in its two parts
+  (`Chorus.own_sent_new`, `Chorus.mvba_sent_new`), and the participation
+  interface from the transition bodies. Its `Admissible` is the premises of
+  `Chorus.termination` and of the timed claims, by name; `admissible_exists`
+  is a run in which every proposer stays silent. **`Chorus.chorusWithTotality`**
+  adds the two timing strengthenings: `bounded_termination` at
+  `ℓ = 5Δ + ℓ_MVBA + 9δ` and `totality` at `d_tot = Δ + 2δ`, pinned by `rfl`
+  (`Chorus.chorusWithTotality_ℓ`, `Chorus.chorusWithTotality_d_tot`) and the
+  paper's `5Δ + ℓ_MVBA` and `Δ` at `δ = 0`. Hypotheses: the MVBA instance's
+  (`ViewOrderEnum`, (A-leader-rotation-k), the time theory), and the slot's
+  proposer set is non-empty
 * **`Chorus.evidence_pigeonhole_of_reachable`**
   ([Chorus/Pigeonhole.lean](Cadence/Chorus/Pigeonhole.lean)) — `2f+1` honest fallback entries always
   yield certified per-proposer evidence, for **every** `n = 3f+1` (the
@@ -513,6 +528,60 @@ info: 'Chorus.timed_termination_tight_atMvba' depends on axioms: [propext, Class
 -/
 #guard_msgs in
 #print axioms Chorus.timed_termination_tight_atMvba
+
+/--
+info: 'Chorus.own_sent_new' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.own_sent_new
+
+/--
+info: 'Chorus.sent_new' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.sent_new
+
+/--
+info: 'Chorus.admissible_exists' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.admissible_exists
+
+/--
+info: 'Chorus.chorusTemporal' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.chorusTemporal
+
+/--
+info: 'Chorus.chorusWithTotality' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.chorusWithTotality
+
+/--
+info: 'Chorus.slotConsensusFull' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.slotConsensusFull
+
+/--
+info: 'Chorus.slotConsensusFull_toSafety' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.slotConsensusFull_toSafety
+
+/--
+info: 'Chorus.chorusWithTotality_ℓ' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.chorusWithTotality_ℓ
+
+/--
+info: 'Chorus.chorusWithTotality_d_tot' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.chorusWithTotality_d_tot
 
 /--
 info: 'Chorus.within_input_of_fast' depends on axioms: [propext, Classical.choice, Quot.sound]

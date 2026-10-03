@@ -1312,8 +1312,8 @@ def NoAbandonBeforeFinalizing (r : ChorusRun thS thM) : Prop :=
 /-- **Termination**: every correct validator finalizes the slot —
 `finalize_commit` fires for it, which is `local_committed`. The single-slot
 form of Lemma 11 (`lemma:chorus-termination`), with the `5Δ + ℓ_MVBA` bound erased, and
-the untimed sibling of `SlotConsensusTemporal.termination`, whose timed form
-this development still has no instance of. -/
+the untimed sibling of `SlotConsensusTemporal.termination`, which
+`Chorus.chorusTemporal` proves from it ([Temporal.lean](Temporal.lean)). -/
 def Terminates (r : ChorusRun thS thM) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).local_committed i = true
 

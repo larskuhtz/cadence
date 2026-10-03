@@ -449,20 +449,28 @@ relations, and it takes a human to confirm each use is positive.
    `SlotConsensusWithTotality`, `ACS`, `MVBA` in
    [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), stated over timed
    runs with an implementation-defined admissible-execution model. For the
-   Conductor and Chorus the exact unproven subset is the field list of a
-   class that has **no instance** at the fragment they proved:
-   `OrchestratorTemporal` ([Cadence/Composition.lean](../Cadence/Composition.lean);
-   Totality, `B`-Boundedness, `R`-Recovery, the execution model) and
-   `SlotConsensusTemporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean);
-   the participation interface as contract fields, the clock, Termination,
-   Quiescence — the model has the participation window as actions, state
-   and gates, and Termination is proven untimed as `Chorus.termination`;
-   the timed claims are proven as theorems, `Chorus.timed_termination` and
-   `Chorus.totality`, but not yet as the class's fields).
-   The meta-axiom names
-   ((A-orch-totality), (A-orch-boundedness), (A-orch-recovery),
-   (A-sc-termination), (A-sc-totality), (A-acs-termination),
-   (A-acs-totality)) are those fields' docstrings.
+   Conductor the exact unproven subset is the field list of a class that
+   has **no instance** at the fragment it proved: `OrchestratorTemporal`
+   ([Cadence/Composition.lean](../Cadence/Composition.lean); Totality,
+   `B`-Boundedness, `R`-Recovery, the execution model). The meta-axiom
+   names ((A-orch-totality), (A-orch-boundedness), (A-orch-recovery),
+   (A-acs-termination), (A-acs-totality)) are those fields' docstrings and
+   the `ACS` contract's; they stay assumed.
+   **(A-sc-termination) and (A-sc-totality) are discharged.**
+   `SlotConsensusTemporal` and `SlotConsensusWithTotality` have instances,
+   `Chorus.chorusTemporal` and `Chorus.chorusWithTotality`
+   ([Cadence/Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean)), at
+   `Chorus.slotConsensusSafety` and the system's configuration, joined into
+   the full `SlotConsensus` as `Chorus.slotConsensusFull`. Every field is
+   proven: Termination from `Chorus.termination`, the timed fields from
+   `Chorus.timed_termination_atMvba` and `Chorus.totality`, Quiescence in
+   Lemma 6 (`lemma:chorus-quiescence`)'s two parts. Its `Admissible` is the
+   claims' premises by name: `FJustice`, `MvbaAdmissible`, `ValidBridge`
+   and the timing model `SyncAtMvba` ([Bounds.md](Bounds.md) §6.4.5). Its
+   hypotheses are the MVBA instance's (below, less `ByzNodeSetHonestQuorum`,
+   which the concrete family has) and one about the configuration: the
+   slot's proposer set is non-empty. A proposer need not propose; that
+   case is the run `admissible_exists` exhibits.
    **`MVBATemporal` has an instance**, `Mvba.mvbaTemporal`
    ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), at
    `Mvba.mvbaSafety`, the fragment [Cadence/System.lean](../Cadence/System.lean) plugs into
