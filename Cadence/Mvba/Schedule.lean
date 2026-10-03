@@ -117,26 +117,18 @@ consequence: at `δ = 0` the good view's latency is the paper's constant.
 `decide` is not in the table. It takes a commit certificate that a
 validator did not form itself, which reaches it only by transfer
 (Supplement, Lemma 13 (`lem:decision-propagation`)): the supplement's `CommitQC` travels by
-Chorus's broadcast. Since R8 taking it is the contract's input `accept`
+Chorus's broadcast. Taking it is the contract's input `accept`
 ([Compose.lean](Compose.lean)), and its timing is the caller's, `Relayed`.
-At the pin `026dc8b` the table classed it as local, which the good view
-could not catch, since there every correct validator forms the certificate
-itself ([MvbaPlan.md](../../docs/MvbaPlan.md) §11.3, C16 (N3)); from step 5b
-to R8 it was a network hop, whose delivery clause stood in for the
-composing layer.
 
-`adopt_prepqc` is a network hop too: a validator forms its prepare
-certificate from the `Prepare`s it received itself, since prepare
-certificates do not travel (the supplement's `TryFormPrepQC`; the model's
-guard reads the prepares since R3, [Bounds.md](../../docs/Bounds.md)
-§6.2.4, (N4)). Until then it was a local step that consumed a certificate
-formed anywhere.
+`adopt_prepqc` is a network hop: a validator forms its prepare certificate
+from the `Prepare`s it received itself, since prepare certificates do not
+travel (the supplement's `TryFormPrepQC`; [Bounds.md](../../docs/Bounds.md)
+§6.2.4, (N4)).
 
 The commit and timeout certificates are network hops at the validator
 that forms them, `form_own_commitqc` and `form_own_tc_*` (the supplement's
-`TryFormCommitQC` and `HandleTimeout`), since R4. Before, the table timed
-the anonymous assemblies, which are the adversary's and carry no bound
-([Bounds.md](../../docs/Bounds.md) §6.4.7). -/
+`TryFormCommitQC` and `HandleTimeout`). The anonymous assemblies are the
+adversary's and carry no bound ([Bounds.md](../../docs/Bounds.md) §6.4.7). -/
 
 section Hops
 

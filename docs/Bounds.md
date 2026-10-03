@@ -480,21 +480,13 @@ contract's non-Zeno field, not the schedule.
 
 #### 6.2.3 The schedule, and the first finding
 
-At the pin current when this leg was designed, `026dc8b`, the supplement
-fixed the timer in one sentence (Supplement, Section 1.2 (`subsec:mvba-protocol`)): *"The view
-timeout is chosen so that, after GST, it exceeds
-`Δ_R + 3Δ + max{Δ, Δ_sync}`. If the implementation uses timeout backoff
-rather than fixed known bounds, the timeout is eventually increased beyond
-this value."* Supplement, Theorem 2 (`thm:termination`)'s proof then counted with a fixed timeout —
-*"the view timeout is itself `O(Δ)`"* — to reach `O(fΔ)`.
-
-At the paper target the sentence reads (Supplement, Section 1.2 (`subsec:mvba-protocol`),
-"Views, leaders, and timing parameters"): *"The view timeout is the fixed,
-known value `T := Δ_R + 4Δ + max{Δ, Δ_sync}`"*, and the termination setting
-says the view timeout is the fixed `T`. The backoff sentence is gone. The
-model's schedule is then the supplement's fixed `T` plus a harmless
+The supplement fixes the view timeout (Supplement, Section 1.2
+(`subsec:mvba-protocol`), "Views, leaders, and timing parameters"): *"The
+view timeout is the fixed, known value `T := Δ_R + 4Δ + max{Δ, Δ_sync}`"*,
+and the termination setting says the view timeout is the fixed `T`. The
+model's schedule is the supplement's fixed `T` plus a harmless
 generalisation: `τ` constant and `v_L = zero` is the paper's case, and
-(S-cap)/(S-ramp) below still describe capped backoff should an
+(S-cap)/(S-ramp) below also describe capped backoff should an
 implementation want it.
 
 The model's schedule is `τ : view → time`, with three hypotheses:
@@ -515,20 +507,17 @@ single element of `time`, and `termination` promises every decision by
 consider runs whose proposals happen ever earlier before `gst`: pre-GST
 asynchrony can burn arbitrarily many views, so the view current at `gst`
 — and with it the budget `τ` of the next view to be burnt — is unbounded
-across runs, and no `ℓ` covers them all. So the supplement's backoff remark
-is compatible with *eventual* termination but not with its `O(fΔ)`
-theorem as stated; the theorem is a fixed-timeout (or capped-backoff)
-result, and a real implementation with exponential backoff satisfies it
-only if the backoff is capped at `O(Δ)`. Recorded, and resolved upstream at
-`eb1bb51`, in [History.md](History.md) § "Paper alignment before the single target". §6.1's "a sequence `Δ_v`
-unbounded relative to a fixed bound" was therefore the wrong requirement:
-the sequence must be *eventually above* `L_cert` and *bounded*, which is
-what (S-ramp) and (S-cap) say.
-
-*Resolved upstream at `eb1bb51`* ([MvbaPlan.md](MvbaPlan.md) §11.3, C13):
-the timeout is now the fixed `T`, and the backoff remark is deleted. One
-residue remains: the Supplement, Section 10.1 (`sec:timing-constants`) stub still lists "the MVBA view
-timeout and its backoff policy".
+across runs, and no `ℓ` covers them all. So an `O(fΔ)` theorem is a
+fixed-timeout (or capped-backoff) result, and an implementation with
+exponential backoff satisfies it only if the backoff is capped at `O(Δ)`.
+§6.1's "a sequence `Δ_v` unbounded relative to a fixed bound" was
+therefore the wrong requirement: the sequence must be *eventually above*
+`L_cert` and *bounded*, which is what (S-ramp) and (S-cap) say. The
+supplement's earlier backoff remark, which this finding concerned, and its
+removal are in [History.md](History.md) § "Paper alignment before the
+single target". One residue remains in the paper: the Supplement, Section
+10.1 (`sec:timing-constants`) stub still lists "the MVBA view timeout and
+its backoff policy" (P8, [PaperAlignment.md](PaperAlignment.md) §6).
 
 #### 6.2.4 The per-seam statements: what an admissible run satisfies
 
@@ -570,8 +559,8 @@ With `δ = 0` the good view's latency is the paper's constant (§6.2.6),
 which is the check that the classification is the paper's and not a
 convenience.
 
-**The network clauses** (step 5b, 2026-09-29; [MvbaPlan.md](MvbaPlan.md)
-§11.3 C16 and §11.5 stage 3). A network label's bound depends on its
+**The network clauses** (step 5b, 2026-09-29; the finding C16 in
+[History.md](History.md) § "The supplement at `eb1bb51`, reviewed against the pin `026dc8b`"). A network label's bound depends on its
 messages' history, as the supplement's network at the paper target does. The
 model's network relations hold from a message's first delivery to a
 correct validator, so "sent at" is the first index at which the relation
@@ -1427,9 +1416,8 @@ timeout. The first witness therefore passed through five views.
 from Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`), and the restart path), `abandon()` "halts all
 MVBA sending and stops `W`", and the timeout fires only "upon `W` reaches
 the view timeout and no decision in view `v`" (Supplement, Algorithm 1, line 36 (`line:mvba:timeout-send`)).
-That was so at the revision pinned then, `026dc8b`, and is so at the
-paper target, whose termination proof relies on it
-([MvbaPlan.md](MvbaPlan.md) §11.3, C11).
+The paper target's termination proof relies on it
+([History.md](History.md) § "The supplement at `eb1bb51`, reviewed against the pin `026dc8b`", C11).
 The difference was not harmless for the timed claim: read as a model run, a
 supplement run in which a validator decides and stops early abandons it
 before `max(t, GST) + ℓ`, which the claim's caller condition excludes, so
