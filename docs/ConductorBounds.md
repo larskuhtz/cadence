@@ -116,6 +116,11 @@ concern the timed statements and the model's timing freedoms.
   (§6.1).
 * One schedule record extends Chorus's `FamilySchedule` with the windows and
   the four parameter assumptions as fields, in the `δ_le_Δ` style (§6.3).
+* F24 (a part that stops stepping): **settled by K0 (R24, 2026-10-03)**. The
+  composed run is relabelled so that a part's stutters, where its own
+  `trans` allows them, count as its steps, and the per-part premise applies
+  only once a correct validator has started the part. No class edit, no new
+  field, and `TransitionSystemSafety` unchanged (§7 F24, §9 K0).
 * Order: the glue's untimed composition edit first (K1), then the model's
   timing completion (K2), then the timed Conductor claims (K3–K6), then
   Corollary 4 and the composed claims (K7), then non-vacuity (K8) (§9).
@@ -683,15 +688,111 @@ paper's module.
   admissible run from each initial state, not one with the inputs this
   consumer gives, so the Conductor cannot build its own admissible runs
   from it (the "vacuity does not compose" point of
-  [CompositionContracts.md](CompositionContracts.md) §7). **Proposal:** a
-  spike (K0) before the scaffolding. Two candidates:
-  * a stutter-closed run for parts, which touches the run structure, not a
-    class;
-  * a named premise "the ACS can stay idle admissibly", met by the ideal
-    ACS.
+  [CompositionContracts.md](CompositionContracts.md) §7). **Decided by the
+  K0 spike (R24, 2026-10-03): a stutter lift at the projection, and a
+  per-part premise that applies once a correct validator has started the
+  part. No class changes, `TransitionSystemSafety` included.**
+  [spikes/14_part_projection.lean](../spikes/14_part_projection.lean)
+  builds it over the contracts as they are; §9 K0 has what K3 takes from
+  it.
 
-  A `TransitionSystemSafety` change would re-solve all four Veil families
-  cold, and is the last resort.
+  **How a part that stops is projected.** The composed run is relabelled
+  (`liftRun`): a composed step counts as a step of the part whenever it is
+  a transition of the part's own contract. That covers a real step, and also
+  a step in which the part stays where it is, provided the contract's `trans`
+  allows that stutter. The relabelled run has the same states, clock and
+  `gst`, so [Timed.lean](../Cadence/Timed.lean)'s
+  `Component.Projection.timed` applies to it unchanged, over the contract
+  read as a one-label transition system (`contractRTS`). The part's run,
+  `partRun p`, is then a `TimedRun` of exactly the class's `init` and
+  `trans`. A part stepped only finitely often is scheduled exactly when its
+  final state can stutter (`lift_scheduled_of_finite`). A part already
+  scheduled stays scheduled (`lift_scheduled_of_scheduled`). The consumer
+  needs no stutter action: its own steps that leave the part alone (a
+  `tick`, say) serve as the part's stutters. This is the paper's picture: a
+  silent instance whose time goes on passing.
+
+  The stutter is tested against `trans`, not `step`, and that matters.
+  Chorus has no internal step that stays enabled once every correct
+  validator has abandoned the slot: its honest actions fire once, and its
+  phase markers end. What it has is the input `abandon`, re-issued to a
+  validator that has already abandoned. Chorus's `abandon` only sets
+  `abandoned i` and forwards to the MVBA's, which only sets the same flag,
+  so the re-issue leaves the state unchanged. A finished slot can therefore
+  stutter in `trans`, and in an all-correct run nothing else would keep its
+  projection going.
+
+  **Meaning is kept.** Every shape a contract field uses ("at every index",
+  "eventually", "by time `t`", "by `max(t, GST) + d`", and "from index `n`,
+  by `max(clk n, GST) + d`") reads the same on `partRun p` and on the
+  composed run, with the part's state read off each composed state
+  (`partRun_forall_iff`, `partRun_eventually_iff`, `partRun_byTime_iff`,
+  `partRun_byGstBound_iff`, `partRun_byGst_at`, `composed_byGst_of_cover`).
+  With these, `ACSTemporal.termination`, `ACSTemporal.totality` and
+  `SlotConsensusTemporal.termination` are restated wholly in the composed
+  run's vocabulary and proven from the fields (`acs_termination_in`,
+  `acs_totality_in`, `sc_termination_in`).
+
+  **The premise, and the ACS's idle admissibility.** The consumer's
+  `Admissible` asks for a part's run only once a correct validator has
+  started the part. For window `w`'s ACS, in the spike's form:
+
+  ```lean
+  ∀ w, (∃ n i s, ¬ byz i ∧ A.proposed ((r.at' n).acs w) i s) →
+    ∃ p : (stutterComp (acsComp w)).Projection (liftRun (acsComp w) r).toLRun,
+      TA.Admissible (partRun p)
+  ```
+
+  The slot form is the same, over "a correct validator participates in
+  slot `s`". The guard loses nothing. Every use of an ACS field at window
+  `w` has a correct proposal there: Termination's antecedent says so
+  outright, and Totality's antecedent, a correct decision, implies one by
+  `integrity`. Likewise every use of a slot field has a correct participant.
+
+  The Conductor cannot build its admissible runs from
+  `ACSTemporal.admissible_exists`, whatever inputs it gives, for three
+  reasons:
+
+  * the run that field provides has its own clock and `gst`, while a part's
+    run carries the composed ones;
+  * its steps may be inputs, or proposals, that the Conductor's guards do
+    not give;
+  * it is one run per instance, while the Conductor interleaves infinitely
+    many instances on one clock.
+
+  The guard makes that unnecessary. The Conductor's idle run moves only the
+  clock (and fires `open_slot` at the starting times). No correct validator
+  ever proposes, since readiness needs a completion and the idle run gives
+  none. The premise therefore holds vacuously, by the fragment's
+  `init_proposed` alone. `toy_admissible_exists` proves this for a consumer
+  of the Conductor's shape, at every ACS, using no `ACSTemporal` field.
+  **No new ACS field is needed.** The ACS then only has to be a module
+  whose admissible runs exist (the class already says so) and whose
+  finished instances can stutter. That second condition is part of the
+  premise: a composed run in which a started instance deadlocks has no
+  admissible part run, so it is not admissible. Module 4 (`mod:acs`) gives
+  the ACS an `abandon()` input, as Module 1 gives Chorus one. In Chorus and
+  the MVBA, re-issuing that input is the stutter, and the ideal ACS (§3.3
+  (c1)) will have the same by construction. Whether a deadlock is
+  plausible is the auditor's judgement, on the premises page.
+
+  **The other candidates, and why not.**
+  * *A stutter-closed run in the contracts* (`TimedRun` steps by `trans` or
+    equality, or a reflexivity field in `TransitionSystemSafety`): the
+    first would re-prove the MVBA and Chorus temporal instances, whose
+    `Admissible` is over labelled runs. The second would re-solve all four
+    families cold, and is false of every Veil model without a no-op action,
+    Chorus's initial state included.
+  * *A contract field for an always-enabled step*: needless for the
+    consumer's claims, since the lift reads stutters off `trans`. As an
+    internal step it is false of Chorus in an all-correct run, so it
+    would also constrain (a).
+  * *A finite-run `Admissible`*: changes all four temporal classes and
+    their two proven instances.
+  * *`scheduled` through repeated inputs* (the Chorus idle run's device),
+    with a consumer action that re-issues `abandon`: the lift gets the same
+    stutters without a model edit, and without an action the paper does
+    not have.
 
 ## 8. Premises and non-vacuity from the start
 
@@ -727,12 +828,13 @@ marks premises of the composed claims only.
 * **The Conductor's and the glue's rows** (§6.4): the paper's
   instantaneous handlers and timers, as bounded fairness. *Used in:* every
   "fires by" step.
-* **Each window's ACS projection is `T_acs`-admissible**: what "the ACS
-  meets its module" means for one run. *Used in:* every use of the ACS's
-  timed fields.
-* **Each opened slot's Chorus projection is `Chorus.Admissible`**
-  (composed): the Chorus leg's premises, per slot. *Used in:* (R-tot) and
-  (R-term).
+* **Each started window's ACS projection is `T_acs`-admissible**: what "the
+  ACS meets its module" means for one run. The projection is F24's stutter
+  lift, and the premise applies once a correct validator has proposed to
+  the window. *Used in:* every use of the ACS's timed fields.
+* **Each started slot's Chorus projection is `Chorus.Admissible`**
+  (composed): the Chorus leg's premises, per slot, over the same lift, once
+  a correct validator participates. *Used in:* (R-tot) and (R-term).
 * **`clock_agrees`**: definitional (§6.1).
 
 *The assumed module:*
@@ -762,6 +864,10 @@ One witness for the composed claims, in the style of
   in time and by `W` in slot number. In each slot Chorus takes the fast
   path, as in the Chorus witness.
 
+Every finished part must be able to stutter (F24): a finished slot does,
+by `abandon` re-issued to a validator that has already abandoned, and the
+ideal ACS does by construction.
+
 The run must be infinite and keep every row honest, so its construction is a
 generic "periodic extension" lemma plus one period checked by hand. This is
 the largest single piece of the leg, and the first non-vacuity witness of
@@ -774,9 +880,30 @@ compose").
 Each stage is one R-session, numbered when it is scheduled. K0 can run in
 parallel with K1. Everything else is in order.
 
-* **K0: the projection spike (F24).** Settle how a part that stops stepping
-  is projected, and the ACS's idle admissibility. A scratch file, no model
-  or class edit. Output: a decision recorded here.
+* **K0: the projection spike (F24). Done (R24, 2026-10-03).** Decision: the
+  stutter lift plus the per-part premise guarded by a start (F24). No class
+  or model edit, and no field implied. The evidence is
+  [spikes/14_part_projection.lean](../spikes/14_part_projection.lean). What
+  the later stages take from it:
+  * **K3** moves the spike's generic half into the library, next to the
+    timed projection in [Timed.lean](../Cadence/Timed.lean), with axiom
+    pins: `contractRTS`, `stutterSys`, `stutterComp`, `liftRun`, the two
+    scheduling lemmas, `partRun` and its transfer lemmas. It builds the
+    Conductor's per-window component, `acsComponent w`, whose frame and
+    step come from the generated frame lemmas of `acs_state`, as
+    `Chorus.mvbaComponent`'s do. It also states the guarded ACS clause of
+    the Conductor's `Admissible` in the form quoted in F24.
+  * **K6** proves `admissible_exists` by the idle run, which moves only the
+    clock and fires `open_slot`. It shows that the rows `acs_propose` and
+    `enter_window` are disabled there (no completion, so no readiness), as
+    `Chorus.not_enabled_of_idle` does for Chorus. The ACS clause then holds
+    by `init_proposed`.
+  * **K7** builds the glue's per-slot component, `scComponent s`, with the
+    same guarded clause over a correct participant.
+  * **K8** shows that the witness's finished parts can stutter: a finished
+    slot by re-issuing `abandon` (Chorus's and the MVBA's `abandon` only set
+    the flag), and the ideal ACS by construction. It also shows that the
+    part's `Admissible` accepts the inserted stutters.
 * **K1: the composition edit, untimed.**
   * [Interfaces.lean](../Cadence/Interfaces.lean): C6, C7, C8 with the
     cross-frames.
@@ -855,7 +982,7 @@ parallel with K1. Everything else is in order.
   ledger moved to the premises page. Probably two sessions.
 
 **Total:** nine to eleven sessions. **No stage re-solves the Chorus or Mvba
-families cold**, unless K0 forces a `TransitionSystemSafety` change (F24).
+families cold.** K0 settled F24 without a `TransitionSystemSafety` change.
 
 **Constraints:**
 
