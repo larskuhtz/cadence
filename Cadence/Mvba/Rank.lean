@@ -75,11 +75,9 @@ types here.
   never an instance, so a liveness result carries it as a visible hypothesis
   and nothing on the safety side acquires a cardinality assumption it does
   not need. One `ByzNodeSetEnum` serves both index lists, as above.
-* **The view dimension needs finiteness too, and `leader_honest_cofinal`
-  does not supply it.** Cofinality gives a *target* — above
-  any view there is an honest-led one (`exists_honest_leader_above` below,
-  the assumption's one consequence here) — but says nothing about how many
-  views lie in between, and `TotalOrderWithMinimum` does not either: its
+* **The view dimension needs finiteness too.** A correct-led view gives
+  a *target*, but says nothing about how many views lie in between, and
+  `TotalOrderWithMinimum` does not either: its
   order may have an infinite ascending chain below a bound, and then no
   measure on views is well-founded. So the views to be counted are an
   **explicit `List view` parameter** `Vs`, exactly as the quorum's members
@@ -96,9 +94,8 @@ No scheduling assumption, and no run. A rank that never increases and
 strictly decreases on progress is a statement about single transitions; that
 fair firings eventually drive it to `0` needs (F-justice), (A-viewsync) and
 (F-avail), which are explicit hypotheses of the run-level theorem
-([Liveness.lean](Liveness.lean)). The one thing consumed beyond the model's transitions and its quorum
-interface is `leader_honest_cofinal`, and only in
-`exists_honest_leader_above`.
+([Liveness.lean](Liveness.lean)). Nothing is consumed beyond the model's
+transitions and its quorum interface.
 
 **Sign convention.** The rank is a residual — *what is left to do* — so
 progress makes it **decrease**. -/
@@ -307,7 +304,7 @@ def SentTimeout (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec
 
 /-- **The view component.** How many of the views `Vs` the validator `i` has
 not yet entered. `Vs` is the caller's finite index list — the header says why
-it is a parameter and not a consequence of `leader_honest_cofinal`. -/
+it is a parameter. -/
 noncomputable def viewGap (Vs : List view)
     (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) (i : node) : Nat :=
   residual Vs (fun v => st.entered i v = true)
@@ -688,38 +685,14 @@ theorem rank_lt_of_leaving_view
   obtain ⟨W, hlt, h0, h1⟩ := entered_fresh_above_of_in_view_disabled htr i w h h'
   exact rank_lt_of_entered htr Vs enum i q hc v x e (hcover W hlt h0 h1) h0 h1
 
-/-! ## The target view
-
-`leader_honest_cofinal`'s single consequence, and the only place in this file
-where the model's assumptions are used. It supplies the *target* of the view
-gap; it does not, and cannot, supply the list of views leading up to it. -/
-
-/-- **Honest leaders are cofinal.** Above any view there is an honest-led
-one — the model's `leader_honest_cofinal` assumption, read off a theory the
-transition system admits. -/
-theorem exists_honest_leader_above
-    (hasm : (Mvba.relationalTransitionSystem node nodeset value evec view).assumptions th)
-    (V : view) :
-    ∃ (W : view) (L : node), vord.le V W ∧ th.leader W L = true ∧ ¬ nset.is_byz L = true :=
-  hasm.2 V
-
-/-- The same at any reachable state: reachability carries the assumptions. -/
-theorem exists_honest_leader_above_of_reachable
-    (hr : (Mvba.relationalTransitionSystem node nodeset value evec view).reachable th st)
-    (V : view) :
-    ∃ (W : view) (L : node), vord.le V W ∧ th.leader W L = true ∧ ¬ nset.is_byz L = true :=
-  exists_honest_leader_above
-    (Veil.RelationalTransitionSystem.reachable_assumptions _ th _ hr) V
-
 end Step
 
 end Mvba
 
 /-! ## The pinned trust base
 
-Plain Lean over the model's generated monotonicity lemmas, the quorum
-interface, and — in the last theorem only — one model assumption: the
-standard trio and nothing else, no `sorryAx`, no solver.
+Plain Lean over the model's generated monotonicity lemmas and the quorum
+interface: the standard trio and nothing else, no `sorryAx`, no solver.
 
 One pin reads differently on purpose. `exists_honest_core` is a direct
 projection of a `ByzNodeSetCounting` field, so it depends on **no** axioms at all —
@@ -759,9 +732,3 @@ info: 'Mvba.exists_honest_decided_of_chainGap_zero' depends on axioms: [propext,
 -/
 #guard_msgs in
 #print axioms Mvba.exists_honest_decided_of_chainGap_zero
-
-/--
-info: 'Mvba.exists_honest_leader_above_of_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Mvba.exists_honest_leader_above_of_reachable

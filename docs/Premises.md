@@ -140,8 +140,7 @@ satisfying `ByzNodeSet`'s axioms over finitely many validators
 `Chorus.lean`'s `mvba_init` (the MVBA starts in an initial state),
 `mval_pos_functional` and `mval_pos_neg_excl` (theorems at the system's
 configuration, `chorusTheory_assumptions`); `Mvba.lean`'s
-`leader_functional` (one leader per view) and `leader_honest_cofinal`
-(above every view there is a correct-led one). The system's configurations
+`leader_functional` (one leader per view). The system's configurations
 fix the rest: `Cadence.chorusTheory`, and `Cadence.mvbaTheory`, whose
 entry vector of a meta-block is its own entries (`ent :=
 MetaBlock.entries`); the validity predicate and the leader schedule stay
@@ -156,8 +155,9 @@ arbitrary.
 * **Used in:** `abandoned_of_mvba_abandoned` and `eventually_mvba_complete`
   (`mvba_init`: the MVBA's records start empty and its reachability holds),
   `certified_certifiedVector` (`ent`), and the MVBA's safety invariants
-  (`leader_functional`: one `Pre-Prepare` per view's leader).
-  `leader_honest_cofinal` is used by no claim's proof (§7).
+  (`leader_functional`: one `Pre-Prepare` per view's leader). The MVBA
+  model asks nothing more of the leader schedule; a correct leader is a
+  liveness premise, `LeaderRotation` (§2.5).
 * **Paper:** Supplement, Section 1.2 (`subsec:mvba-protocol`) (the leader
   schedule); `ent` is the paper's `entries(B)`. These are Veil model
   `assumption`s: their comments are in [Chorus.lean](../Cadence/Chorus.lean)
@@ -584,9 +584,9 @@ it can miss an unused premise but not invent one. It finds the one
 antecedent a proof discards by name (the first exception below), and the
 proof steps named in the "Used in" lines were read besides.
 
-**Result (R21).** Every premise of every claim in §1 is used, with three
-exceptions, none of them removed here (removing a premise changes a
-claim's statement):
+**Result (R21, acted on in R23).** Every premise of every claim in §1 is
+used, with three exceptions. One is kept by decision, and the other two
+are gone from the claims' statements:
 
 * **Unused: the timed MVBA claim's `Valid` antecedent.**
   `Mvba.timed_termination` (and so `Mvba.mvbaTemporal`'s `termination`)
@@ -601,20 +601,15 @@ claim's statement):
   and `Chorus.timed_termination_tight_atMvba` took it as a hypothesis,
   but at the family they are stated at it is a theorem (`Chorus.hqeFin`).
   The two theorems derive it inside and no longer take it (R23).
-* **Unused and implied: the model assumption `leader_honest_cofinal`**
-  (§2.4). No proof of a claim in §1 reads it: its one reader,
-  `Mvba.exists_honest_leader_above` in
-  [Mvba/Rank.lean](../Cadence/Mvba/Rank.lean), is used nowhere, and the
-  liveness claims take their correct-led view from (A-viewsync) or from
-  `LeaderRotation`, which implies it. As a model `assumption` it is a
-  conjunct of every reachable state's premises, so the MVBA's safety
-  claims are stated for leader schedules with cofinally many correct
-  leaders rather than for every schedule
-  ([Architecture.md](Architecture.md) §4 item 2). *Proposal:* remove it
-  from [Mvba.lean](../Cadence/Mvba.lean), with the unused lemma; that
-  widens the MVBA's safety claims to every leader schedule. It is a model
-  change: every Mvba VC statement changes and the family re-solves cold
-  (the cell counts do not move).
+* **Unused and implied, and now removed: the model assumption
+  `leader_honest_cofinal`** ("above every view there is a correct-led
+  one"). No proof of a claim in §1 read it, and `LeaderRotation` (§2.5)
+  implies it. As a model `assumption` it was a conjunct of every reachable
+  state's premises, so the MVBA's safety claims were stated for leader
+  schedules with cofinally many correct leaders. R23 removed it from
+  [Mvba.lean](../Cadence/Mvba.lean), together with its one reader
+  (`Mvba.exists_honest_leader_above`, itself unused): the MVBA's safety
+  claims now hold for every leader schedule.
 
 Where a premise is a conjunction, the analysis sees the whole. The parts
 are accounted for in the "Used in" lines; the one part no termination

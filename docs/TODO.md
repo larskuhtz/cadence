@@ -166,7 +166,7 @@ come first.
   the argument. The one clock-free alternative worth trying is a *priority*:
   the timer for a view fires only when no honest non-input action of that
   view is enabled. It is W-free and certificate-free, it would let the marker
-  be weakly fair, and the good view would come from (A-leader-rotation)
+  be weakly fair, and the good view would come from (A-leader-rotation-k)
   alone. §3.7 also lists the three obstacles — availability is not
   view-indexed, a label-to-view projection is needed, and widening a
   scheduling premise until the proof goes through is how one re-assumes the

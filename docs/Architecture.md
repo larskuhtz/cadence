@@ -270,7 +270,7 @@ in [Cadence.lean](../Cadence.lean)).
 The list is meant to be *checkable for completeness* rather than taken on
 trust. Every assumption below has a **name**, and the named fairness and
 oracle axioms — (F-justice), (F-byz), (A-sc-termination),
-(A-sc-totality), (A-leader-rotation) — appear verbatim in the Lean sources at the points where
+(A-sc-totality), (A-leader-rotation-k) — appear verbatim in the Lean sources at the points where
 they are consumed, so `grep -rn '(A-' Cadence/` enumerates the consumers
 and would expose an axiom that had crept in without being listed here. The
 network contract (item 1) is the exception and the reason item 1 comes
@@ -300,7 +300,7 @@ relations, and it takes a human to confirm each use is positive.
    and so is the temporal argument over runs. What has to be believed is
    that the premises describe the executions that matter. The tagged names
    a `grep` finds are on that page: (F-justice), (A-viewsync), (F-avail),
-   (F-relay) and their timed forms, and (A-leader-rotation-k). Three need
+   (F-relay) and their timed forms, and (A-leader-rotation-k). Two need
    a word here:
    * **(F-byz)** is the absence of a premise: no fairness is asked of the
      `byz_*` labels, so no progress relies on adversarial help.
@@ -309,14 +309,6 @@ relations, and it takes a human to confirm each use is positive.
      and derive that theorem's caller premises. The Lean sources name it
      only as retired ([Cadence/Chorus.lean](../Cadence/Chorus.lean)'s
      liveness section).
-   * **(A-leader-rotation)** — [Mvba.lean](../Cadence/Mvba.lean)'s
-     `assumption [leader_honest_cofinal]`, that above every view there is
-     a correct-led one. As a model `assumption` it is a conjunct of
-     `assumptions th`, hence of `Mvba.mvbaSafety`'s `init`: the MVBA's
-     three **safety** results are claimed for leader schedules with
-     cofinally many correct leaders rather than for every schedule. No
-     proof of a headline claim uses it, and `LeaderRotation` implies it;
-     [Premises.md](Premises.md) §7 proposes removing it.
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive;
    [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS`

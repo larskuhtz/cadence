@@ -461,6 +461,12 @@ assumption [leader_honest_cofinal]
     vord.le V W ∧ leader W L ∧ ¬ is_byz L
 ```
 
+**Removed (R23, 2026-10-03).** No claim's proof came to use it: the
+untimed liveness theorem takes its good view from (A-viewsync), and the
+timed one from (A-leader-rotation-k), `LeaderRotation`, which implies it.
+[Premises.md](Premises.md) §7 records the removal; the rest of this
+section is the record of why it was added.
+
 **It is not invented here.** The supplement states the property outright at
 Supplement, Section 1.2 (`subsec:mvba-protocol`) — "The leader schedule guarantees that every `f+1`
 consecutive views contain a correct leader" — and Supplement, Theorem 2 (`thm:termination`)'s proof
@@ -621,7 +627,7 @@ none of the work below blocks on the fork's liveness branch.
 |---|---|---|
 | "guard held, then failed ⇒ the rank strictly decreased" (the rank is a residual, so progress *lowers* it; this row said "increased" before the measure existed) | plain Lean — **landed**, [Mvba/Progress.lean](../Cadence/Mvba/Progress.lean) | Proven from the model alone; **no scheduling assumption enters**. The machine-checked replacement for §3.1(a)'s Chorus prose. It needed no `step_property` and adds no verification conditions: every `Mvba` relation is written only `true`, so M13's generated `<rel>.mono` covers the growth, and of the six guards only `in_view` needs the transition at all — the other five hold of any pair of states. `#veil_status Mvba` is unchanged |
 | Fair-progress invariants | sweep cells | Mirroring Chorus's "Fair progress" invariants |
-| `leader_honest_cofinal` | model `assumption` — **landed** | The one new axiom (§3.3), inventory name (A-leader-rotation). Changed every VC statement; the family re-solved green and `#veil_status Mvba` stayed at 725 (an assumption changes statements, not cells) |
+| `leader_honest_cofinal` | model `assumption` — **landed** | The one new axiom (§3.3), inventory name (A-leader-rotation). Changed every VC statement; the family re-solved green and `#veil_status Mvba` stayed at 725 (an assumption changes statements, not cells). **Removed in R23**, unused (§3.3) |
 | The ranking and its decrease | plain Lean — **landed**, [Mvba/Rank.lean](../Cadence/Mvba/Rank.lean) | `rank` = (view gap, view-local residual) in `Prod.Lex`, the second component a sum of seven counts of one shape — three quorum assemblies over `q`, four chain steps over `q`'s honest core. `rank_noninc` over *every* transition (Byzantine included), one strict-decrease theorem per kind of progress, and a "rank zero is exactly the guard" lemma per count, down to "some correct validator has decided". No scheduling assumption enters |
 | "Every correct validator eventually decides" | plain-Lean theorem over a labelled run — **stated**, [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) | `TerminationClaim`, a `Prop`-valued *definition*: the target and its six premises are type-checked and citable before the proof exists. Bound-erased sibling of `MVBATemporal.termination`. The fairness vocabulary it is built from is [Fairness.lean](../Cadence/Fairness.lean) |
 

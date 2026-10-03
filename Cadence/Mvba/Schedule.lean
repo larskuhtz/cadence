@@ -62,8 +62,7 @@ that statement, and `Mvba.aViewSync_of_sync` proves it.
 
 Two things a run predicate cannot say: the leader schedule has a correct
 leader in every `k` consecutive views (`LeaderRotation`, the supplement's
-"every `f+1` consecutive views" with `k = f+1`; the model's own
-`leader_honest_cofinal` is its `k`-free shadow), and the schedule's three
+"every `f+1` consecutive views" with `k = f+1`), and the schedule's three
 hypotheses (`Schedule`): the timeout is bounded, eventually exceeds the
 chain's latency, and the constants are non-negative (`ρ` among them). Why the timeout *must*
 be bounded for a fixed `ℓ` to exist — a backoff remark of an earlier
@@ -564,8 +563,7 @@ def Sync (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
 one with a correct leader ([Premises.md](../../docs/Premises.md) §2.5).
 
 The supplement's "every `f+1` consecutive views contain a correct leader"
-(Supplement, Section 1.2 (`subsec:mvba-protocol`)), with `k = f+1`. The
-model's assumption `leader_honest_cofinal` is the `k`-free consequence. A
+(Supplement, Section 1.2 (`subsec:mvba-protocol`)), with `k = f+1`. A
 hypothesis of the *instance*, since it constrains the theory, not the
 run. -/
 def LeaderRotation (vfin : ViewOrderEnum view vord) (k : Nat)

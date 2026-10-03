@@ -62,22 +62,7 @@ mutant, hence of [Mvba.lean](../Mvba.lean) with the lock check deleted. The rest
    decides on it and halts). (The three honest leader actions are
    kept verbatim; the theory makes the Byzantine node the leader of every
    view, so they are simply never enabled.)
-4. **The dropped assumption `leader_honest_cofinal`**, and this one is
-   *not* of the same kind: 1–3 and 5 remove behaviours, whereas omitting an
-   assumption **admits more theories**, and the theory below is one of
-   them — node 0 is Byzantine and leads both views, so honest leaders are
-   not cofinal in `Fin 2`. What is refuted here is therefore the mutant
-   *without* that assumption. The refutation carries to the mutant with
-   it, because the assumption constrains only the immutable leader
-   schedule at views this run never enters: replay the same 25
-   transitions at `view := Fin 3` with an honest leader at view 2 and
-   every step is a step of the assumption-carrying mutant. That larger
-   instance is not checked — a third view multiplies the search — so the
-   embedding is an argument on this page rather than a machine-checked
-   one. It is an argument about the *mutation test*: [Mvba.lean](../Mvba.lean)'s safety
-   is proven, never model-checked, and nothing about it rests on this
-   file.
-5. **A fixed schedule for the environment and the timeouts** (since R6,
+4. **A fixed schedule for the environment and the timeouts** (since R6,
    for the search's cost): the shares are supplied before any proposal is
    accepted; the correct validators' common input is the vector the
    adversary's plan names for the first view; the adversary signs in a view
@@ -94,7 +79,7 @@ mutant, hence of [Mvba.lean](../Mvba.lean) with the lock check deleted. The rest
 Everything else — the honest protocol steps with their halt after a
 decision, the certificate assemblies with their `2f+1` guards, the view
 change — is verbatim from [Mvba.lean](../Mvba.lean)
-(with the mutation, the timer folded as item 1 says, and item 5's
+(with the mutation, the timer folded as item 1 says, and item 4's
 guards), and the model
 checks the same three safety properties,
 of which `agreement` is the one violated.
@@ -208,7 +193,7 @@ after_init {
 
 /-- `propose` for every validator at once, on one vector — four `propose`
 steps of the mutant (header, item 1) — and the vector is the one the
-adversary's plan names for the first view (header, item 5). -/
+adversary's plan names for the first view (header, item 4). -/
 action propose_all (e : value) {
   require ∀ I E, ¬ input I E
   require ∀ I, ¬ abandoned I
@@ -313,7 +298,7 @@ action adopt_prepqc (i : node) (v : view) (x : value) (q : nodeset) {
 
 /-- The environment supplies every validator's shares for `e` at once — four
 `become_avail_ready` steps of the mutant (header, item 1) — before any
-proposal is accepted (header, item 5). -/
+proposal is accepted (header, item 4). -/
 action become_avail_ready_all (e : value) {
   require ∀ I V E, ¬ accepted I V E
   avail_ready I e := true
@@ -336,7 +321,7 @@ action send_commit (i : node) (v : view) (x : value) {
 }
 
 /-- The adversary's aggregation of a commit certificate, while no correct
-validator has decided (header, item 5). -/
+validator has decided (header, item 4). -/
 action form_commitqc (v : view) (e : evec) (q : nodeset) {
   require ∀ I E, ¬ decided I E
   require nset.supermajority q
@@ -377,7 +362,7 @@ action timeout_qc (i : node) (v : view) (w : view) (e : evec) {
   require ∀ E, ¬ decided i E
   require in_view i v
   require ¬ timed_out i v
-  -- A correct validator times out only after its commit (header, item 5).
+  -- A correct validator times out only after its commit (header, item 4).
   require commit_sent i v
   require local_prepqc i w e
   require ∀ W E, local_prepqc i W E → vord.le W w
@@ -423,7 +408,7 @@ action sync_view (i : node) (pv : view) (v : view) {
 `Timeout` for `v` in one step — `byz_preprepare`, `byz_prepare`,
 `byz_commit`, `byz_timeout_noqc` of the mutant — on the vector its plan
 names for the view, once every correct participant has entered it (header,
-item 5). -/
+item 4). -/
 action byz_sign (r : node) (v : view) (e : value) {
   require is_byz r
   require byz_plan v e
@@ -459,9 +444,8 @@ Exhaustive exploration at `n = 4`, `f = 1` (node 0 Byzantine — the default
 `ByzNodeSet` instance for `Fin (3 * f + 1)` makes the first `f` nodes
 Byzantine — and, by the theory below, the leader of every view), two
 values, two views; the theory is the one the checker is given (it
-enumerates no others), and it satisfies `leader_functional` — but not
-[Mvba.lean](../Mvba.lean)'s `leader_honest_cofinal`, which this model does not declare
-(header, restriction 4). Expected
+enumerates no others), and it satisfies `leader_functional`, the one
+assumption this model and [Mvba.lean](../Mvba.lean) both declare. Expected
 outcome: **violation** of `agreement`, with the trace described in the
 header. The same run is impossible in [Mvba.lean](../Mvba.lean): its
 `handle_preprepare` rejects the view-2 proposal against the lock, and

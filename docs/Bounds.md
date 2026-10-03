@@ -265,7 +265,7 @@ one. (A-viewsync) is the strongest premise of the liveness result and the
 only one not derivable in an untimed model ([MvbaPlan.md](MvbaPlan.md)
 §3.7); with a clock both of its clauses become theorems — bounded post-GST
 delivery gives the decision chain a finite latency, timeout growth makes some
-view's budget exceed it, and (A-leader-rotation) supplies the honest leader.
+view's budget exceed it, and (A-leader-rotation-k) supplies the honest leader.
 That in turn is what `MVBATemporal.termination` needs, and it is the formal
 version of the trust-base move [Liveness.md](Liveness.md) §2.1 describes informally.
 
@@ -708,8 +708,7 @@ the sorts; what the argument needs of those is a hypothesis of the
 
 * **(A-leader-rotation-k)** — `∀ v, ∃ j < k, ` the leader of `succ^j v` is
   correct. The supplement's *"every `f+1` consecutive views contain a
-  correct leader"* with `k = f+1`; the model's `leader_honest_cofinal` is
-  its `k`-free shadow and is implied by it. The bound needs `k` because
+  correct leader"* with `k = f+1`. The bound needs `k` because
   the number of Byzantine-led views burnt is what `O(fΔ)` counts.
 * The three enumeration/quorum classes above, unchanged.
 * The time theory of §6.2.2, and the schedule hypotheses of §6.2.3.
