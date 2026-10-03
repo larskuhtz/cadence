@@ -563,7 +563,8 @@ not abandoned before `max(t, GST) + ℓ_MVBA`.
   `eventually_entered_good` (timed: `exists_good_view`); `NoEarlyAbandon`
   by `settledIn_of_no_decision` and `eventually_decided_of_decision`;
   (F-relay) by `eventually_decided_of_decision`. The timed `Valid`
-  antecedent is not used (§7).
+  antecedent is the paper's caller condition; not used by this instance's
+  proof (§7).
 * **Paper:** Supplement, Theorem 2 (`thm:termination`): "once every
   correct validator has invoked propose", "if no correct validator is
   externally abandoned before deciding"; Supplement, Lemma 13
@@ -592,9 +593,9 @@ claim's statement):
   does not use "every correct validator proposes a `Valid` value": the
   model's `propose` checks validity itself. The antecedent is part of the
   contract field `MVBATemporal.termination`, Module 3 (`mod:mvba`)'s
-  caller condition, which another implementation may need. *Proposal:*
-  keep it in the contract; this page records that the instance does not
-  use it.
+  caller condition, which another implementation may need. *Kept*
+  (decided 2026-10-03): it is the paper's caller condition; not used by
+  this instance's proof.
 * **Implied: `ByzNodeSetHonestQuorum` in the timed Chorus claims at the
   system's MVBA.** `Chorus.timed_termination_atMvba` and
   `Chorus.timed_termination_tight_atMvba` take it as a hypothesis (`hqe`)
