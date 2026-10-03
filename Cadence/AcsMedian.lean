@@ -15,9 +15,10 @@ largest honest estimate" (the paragraph before Algorithm 7
 
 The Conductor model does not compute the median, and cardinality is outside
 the first-order fragment its solver sees. So `acs_decide` takes the
-consequence as a `require` with an explicit witness pair `(r1, s1)`, a
-correct validator's pair of a correct decider's set at or below the decided
-first slot ([Conductor.lean](Conductor.lean)). That `require` is a **stated
+consequence as a `require` with two explicit witness pairs, correct
+validators' pairs of a correct decider's set: `(r1, s1)` at or below the
+decided first slot and `(r2, s2)` at or above it
+([Conductor.lean](Conductor.lean)). That `require` is a **stated
 bridge**: it is not derived inside the model. This file proves the other
 half of a bridge, that it removes no behaviour of a correct ACS:
 
@@ -79,8 +80,8 @@ correct validator's decided set without repetition. If at most
 median lies between the slots of two pairs of correct validators in it:
 one at or below, one at or above.
 
-The lower half is what `acs_decide`'s `require` asks of its witnesses
-`(r1, s1)` when the decided first slot is the median. -/
+The two halves are what `acs_decide`'s `require`s ask of its witnesses
+`(r1, s1)` and `(r2, s2)` when the decided first slot is the median. -/
 theorem acs_median_bracket [Fintype validator] [DecidablePred byz]
     (hfault : (Finset.univ.filter byz).card ≤ T.fault_bound)
     {st : state} (hr : S.reachable st) {i : validator} (hi : ¬ byz i)

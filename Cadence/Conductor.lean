@@ -127,9 +127,9 @@ local `completed(s)` callbacks and ACS decisions. Byzantine influence enters
 as (i) Byzantine validators' own ACS proposals — internal steps of the ACS
 instance (`acs_step`), which the contract leaves unconstrained for Byzantine
 validators — and (ii) up to `f` Byzantine pairs inside the decided core
-set, captured by the median-range `require` of `acs_decide` (a *correct*
-pair of the decided set bracketing the median from below, as an explicit
-witness), justified from the contract by `Cadence.acs_median_bracket`
+set, captured by the median-range `require` of `acs_decide` (two
+*correct* pairs of the decided set bracketing the median from below and
+from above, as explicit witnesses), justified from the contract by `Cadence.acs_median_bracket`
 ([AcsMedian.lean](AcsMedian.lean)). No quorum machinery and no `ByzNodeSet`
 are needed; the fault pattern is the `FaultModel` the ACS contract is stated
 against, otherwise unconstrained, and the resilience arithmetic (`≤ f`
@@ -423,24 +423,25 @@ contract and the median computation:
 * *the decision has happened* — some correct validator has decided
   (`acs.decided (acs_state w) i r1 s1` for the witness pair below implies
   `has_decided`);
-* *median range validity, lower half* — the decided first slot is at
-  least the slot of some correct pair in the decided set (`r1/s1`, passed
-  as **explicit witnesses** — witnesses at the assembly action, not
-  `∃`-ghosts in consumers). The model does not compute the median, and
-  cardinality is outside the first-order fragment, so this is the **one
-  stated bridge** between the contract and the model, a `require` and not
-  a derivation. That it removes no behaviour of a correct ACS is a theorem
-  from the contract: the median of a correct decider's set is bracketed by
-  two of its correct pairs (`Cadence.acs_median_bracket`,
-  [AcsMedian.lean](AcsMedian.lean), from `decided_unique`,
-  `validity_quantitative` and the system's fault bound, through
-  [Windows.lean](Windows.lean)'s `lowerMedian_between_correct`). That the
-  witness *is* a genuine correct proposal is the contract's
-  `validity_genuine`. The
-  *upper* half of the bracket (`median ≤` some correct proposal — also
-  provided by the median lemma) is deliberately not modelled: no safety
-  property consumes it — it feeds only the recovery timing argument
-  (Proposition 19 (`prop:first-post-gst-window-time`)), which is meta;
+* *median range validity* — the decided first slot lies between the
+  slots of two correct pairs in the decided set: at least `s1` (of `r1`)
+  and at most `s2` (of `r2`), passed as **explicit witnesses** —
+  witnesses at the assembly action, not `∃`-ghosts in consumers. The
+  model does not compute the median, and cardinality is outside the
+  first-order fragment, so this is the **one stated bridge** between the
+  contract and the model, a `require` and not a derivation. That it
+  removes no behaviour of a correct ACS is a theorem from the contract:
+  the median of a correct decider's set is bracketed by two of its
+  correct pairs, one at or below and one at or above
+  (`Cadence.acs_median_bracket`, [AcsMedian.lean](AcsMedian.lean), from
+  `decided_unique`, `validity_quantitative` and the system's fault bound,
+  through [Windows.lean](Windows.lean)'s `lowerMedian_between_correct`).
+  That the witnesses *are* genuine correct proposals is the contract's
+  `validity_genuine`. The lower half separates the windows
+  (`[win_separation]`); the upper half bounds the first slot by a
+  correct estimate, which recovery's timing reads (Proposition 17
+  (`prop:window-progression`), point 1, and Proposition 19
+  (`prop:first-post-gst-window-time`));
 * *sequencing* — the predecessor window `w0` and its bounds are witnesses
   too: a decision presupposes correct proposals, whose proposers had
   entered `w0` (which therefore has bounds). This is what keeps window
@@ -454,7 +455,7 @@ contract and the median computation:
   property below depends on them. -/
 action acs_decide (w0 : window) (w : window) (first : slot)
     (f0 : slot) (b0 : slot) (l0 : slot)
-    (r1 : node) (s1 : slot) {
+    (r1 : node) (s1 : slot) (r2 : node) (s2 : slot) {
   -- Window 1 is never ACS-decided.
   require ¬ w = win_ord.zero
   -- One interval per window (from the contract's agreement).
@@ -468,11 +469,15 @@ action acs_decide (w0 : window) (w : window) (first : slot)
   -- Predecessor window and its (already fixed) bounds.
   require win_ord.next w0 w
   require win_bounds w0 f0 b0 l0
-  -- Median range validity (lower half), with an explicit correct witness
-  -- pair `(r1, s1)` from a correct decider's decided set.
+  -- Median range validity, with explicit correct witness pairs from a
+  -- correct decider's decided set: `(r1, s1)` at or below the first slot,
+  -- `(r2, s2)` at or above it.
   require ¬ fm.byz r1
   require ∃ (i : node), ¬ fm.byz i ∧ acs.decided (acs_state w) i r1 s1
   require slot_ord.le s1 first
+  require ¬ fm.byz r2
+  require ∃ (i : node), ¬ fm.byz i ∧ acs.decided (acs_state w) i r2 s2
+  require slot_ord.le first s2
   -- The window's `W` slots from `first`, boundary at the `p`-th
   -- (Algorithm 7, lines 49–52).
   acs_decided w first (win_boundary first) (win_last first) := true
@@ -805,7 +810,7 @@ openings, on-time opening from the second post-GST window) are theorems
 *about the timed system*, out of scope for the untimed model by design. -/
 
 /- The `Enumeration`/`FinEncodable` derivation over the action `Label`
-sum must traverse `acs_decide`'s 12-nested parameter sigma, which exceeds
+sum must traverse `acs_decide`'s 10-nested parameter sigma, which exceeds
 the default instance-search budgets. The scaffolding cannot be disabled —
 the `sat trace` queries below need the generated `ActionTag_EnumClass` — so
 the budgets are raised instead. -/
