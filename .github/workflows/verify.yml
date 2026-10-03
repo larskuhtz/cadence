@@ -36,12 +36,14 @@
 #            restores, from the Actions cache, the entries its own earlier
 #            runs solved, and saves the new ones afterwards (scoped to that
 #            pull request; the default branch never reads or writes the
-#            Actions cache). A cell whose statement is unchanged replays its
-#            stored proof: a comment edit, a Veil re-pin, an action edit
-#            outside that action's cells, a second push to a pull request. A
-#            cell whose statement changed — every cell of a family after an
-#            invariant or contract change — misses and is solved cold, here
-#            as anywhere.
+#            Actions cache). A cell whose statement and the definitions it
+#            names are unchanged replays its stored proof: a comment edit, a
+#            Veil re-pin on the same toolchain, an action edit outside that
+#            action's cells, a second push to a pull request. A cell whose
+#            statement or definitions changed — every cell of a family after
+#            an invariant, assumption or contract change — misses (its stored
+#            proof fails the re-check, or there is none) and is solved cold,
+#            here as anywhere; so does every cell after a toolchain bump.
 #   cold   — `workflow_dispatch` with `proof_cache: cold`: the `verified`
 #            image, which ships no cache, so every re-elaborated cell is
 #            solved by cvc5 (or the cheap rung) from scratch.
@@ -216,11 +218,14 @@ jobs:
       # in before the verification starts. Its first mount initialises it from
       # the image's `.lake` — the oleans, the dependency tree, and the image's
       # cache — exactly as container.sh's own first mount would. A delta entry
-      # replaces an image entry of the same name: the file name is only the
-      # statement's hash, and a run that re-solved a cell under an existing
-      # name (the first PR run measured 290 such stores and no new names) holds
-      # the proof this pull request needs. The stamp marks the priming time for
-      # the export below.
+      # replaces an image entry of the same name. The name is the statement's
+      # hash, and a statement names the model's definitions (`Invariants`,
+      # `Assumptions`) rather than spelling them out, so a model edit keeps the
+      # name while the stored proof stops checking: the hit's re-check fails,
+      # the cell is solved again and stored under the old name (the first PR
+      # run, after an Mvba assumption was removed: 290 such stores, no new
+      # names). That re-solved entry is the one this pull request needs. The
+      # stamp marks the priming time for the export below.
       - name: Prime the proof cache
         if: steps.mode.outputs.mode == 'primed'
         env:
