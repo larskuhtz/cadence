@@ -175,9 +175,14 @@ History: [docs/History.md](./docs/History.md).
   files set `veil.smt.timeout 180` (`veil_proof_options` in
   `Cadence/ProofPrelude.lean`) against Veil's 60 s default, because the
   budget has to hold on the slowest machine that runs the family *cold* —
-  a 4-core CI runner at `BATCH=1` with no proof cache, where cells run 3–8×
-  slower than here. A local green run is therefore **not** evidence that a
-  near-limit cell fits its budget: the cache replays the old cells and the
+  a 4-core CI runner at `BATCH=1`, where cells run 3–8× slower than here.
+  CI's `verify` job starts from the published proof cache (and, on a pull
+  request, from what that pull request's earlier runs solved), so there a
+  cell is solved cold exactly when its statement is new; a manual run with
+  `proof_cache: cold` solves every re-elaborated cell
+  ([verify.yml](./.github/workflows/verify.yml)'s header has the policy).
+  A local green run is therefore **not** evidence that a near-limit cell
+  fits its budget: the cache replays the old cells and the
   hardware is faster. When a change adds solver work to a proof file, read
   CI's "Slowest discharge attempts" list. It prints seconds, not shares:
   divide by **180 s**, the budget on both paths. The two small models'
@@ -221,7 +226,8 @@ History: [docs/History.md](./docs/History.md).
   solve the affected cells cold once — a scratch run with `set_option
   veil.cache.proofs false`, or delete their entries — before trusting the
   script. Statement-changing edits need no discipline: they miss the cache
-  by construction.
+  by construction. CI's `verify` job is primed too, so its green run is no
+  such test either; dispatch it with `proof_cache: cold` for one.
 * Scratch iteration (the fast loop): put `#prove_vc Chorus <action>
   <property> by <tac>` cells in a scratch file importing `Cadence.Chorus` and
   run **`scripts/scratch.sh <file>`**. Seconds per cell once the model is

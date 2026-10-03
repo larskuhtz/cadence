@@ -2,12 +2,14 @@
 #
 # Two independent jobs, run in parallel on separate runners:
 #
-#   verify — pulls the published `cadence-verified` image and re-runs the
-#            staged verification against the checked-out sources (tier 2a of
-#            the audit ladder, docs/Container.md §4), then the conformance
-#            monitor. This is the cheap per-commit gate: it does NOT build
-#            the world.
-#   check  — kernel-replays every proof STORED in that same image through
+#   verify — pulls the published `cadence-verified-cache` image (the
+#            `verified` image plus its proof cache; `verified` itself in a
+#            cold run) and re-runs the staged verification against the
+#            checked-out sources (tier 2a of the audit ladder,
+#            docs/Container.md §4), then the conformance monitor. This is the
+#            cheap per-commit gate: it does NOT build the world.
+#   check  — kernel-replays every proof STORED in the `verified` image (whose
+#            oleans `verified-cache` shares) through
 #            `leanchecker` (tier 1). Off the critical path: `verify` is
 #            always the longer job, so this adds no wall time.
 #
@@ -25,14 +27,43 @@
 #
 # Cheap for the common commit because the image's oleans already match the
 # sources and nothing re-elaborates. A commit that touches a model or a proof
-# file re-solves the affected VCs COLD — the `verified` image deliberately
-# ships no proof cache — and that is a feature, not an omission: it
-# re-exercises the whole derivation path, including the manual `#prove_vc`
-# tactics that a warm cache would consume without elaborating (the
-# cache-discipline rule in CLAUDE.md § Build). The job timeout and BATCH=1
-# below are sized for those rare cold runs; after merging one, run
-# `publish-images.yml` so the published oleans catch up and the gate is cheap
-# again.
+# file re-elaborates the affected modules, and how their VCs are discharged
+# depends on the proof-cache mode:
+#
+#   primed (the default) — this job publishes nothing, so it runs against
+#            `cadence-verified-cache`: the `verified` image plus the Veil proof
+#            cache its own publish build produced. A pull request also
+#            restores, from the Actions cache, the entries its own earlier
+#            runs solved, and saves the new ones afterwards (scoped to that
+#            pull request; the default branch never reads or writes the
+#            Actions cache). A cell whose statement is unchanged replays its
+#            stored proof: a comment edit, a Veil re-pin, an action edit
+#            outside that action's cells, a second push to a pull request. A
+#            cell whose statement changed — every cell of a family after an
+#            invariant or contract change — misses and is solved cold, here
+#            as anywhere.
+#   cold   — `workflow_dispatch` with `proof_cache: cold`: the `verified`
+#            image, which ships no cache, so every re-elaborated cell is
+#            solved by cvc5 (or the cheap rung) from scratch.
+#
+# Priming changes no claim: every cache hit is re-checked by the kernel
+# against the live goal before anything depends on it (CLAUDE.md § Build). What
+# a primed run gives up is re-exercising the proof SEARCH, including the manual
+# `#prove_vc` tactics a hit consumes without elaborating — the derivation drift
+# that the cache-discipline rule in CLAUDE.md § Build warns about. That risk is
+# accepted here (Lars, 2026-10-03) because the image publish keeps exercising
+# search: publish-images.yml never reads the Actions cache, and its seed is
+# only the previous publish build's own cache, whose entries Veil deletes 14
+# days after they were solved (hits do not refresh them; the sweep runs at a
+# build's first store) — so a stored proof is re-searched about that often,
+# and a primed run never sees an entry a pull request made. Dispatch a
+# cold run to exercise a statement-preserving edit's derivation on demand.
+# Each run says which mode it used, in the log and the job summary, with the
+# proof-cache hits and stores of the modules it re-elaborated.
+#
+# The job timeout and BATCH=1 below are sized for a cold run; after merging one,
+# `publish-images.yml` brings the published oleans up to date and the gate is
+# cheap again.
 #
 # Requires the images to exist: run `publish-images.yml` once (with
 # `rebuild_deps: true`) before this workflow can pass. See docs/Images.md.
@@ -45,10 +76,19 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
+    inputs:
+      proof_cache:
+        description: 'primed: start from the published proof cache; cold: solve every re-elaborated cell'
+        type: choice
+        options: [primed, cold]
+        default: primed
 
-# Least privilege: read the repository, read the published image. Nothing here
-# writes anything. A pull request from a fork gets a read-only token, which is
-# sufficient, and no secret is needed at all while the packages are public.
+# Least privilege: read the repository, read the published image. The token
+# writes nothing; the one thing a run writes is a pull request's proof-cache
+# delta to the Actions cache, which needs no token permission and is visible
+# only to that pull request's own runs. A pull request from a fork gets a
+# read-only token, which is sufficient, and no secret is needed at all while
+# the packages are public.
 permissions:
   contents: read
   packages: read
@@ -86,7 +126,8 @@ jobs:
     steps:
       # The runner ships with ~14 GB free and this job needs roughly 25 GB: the
       # image (13.1 GB on disk) plus the named volume, which the runtime
-      # initialises with a copy of the image's `.lake`. Reclaim the preinstalled
+      # initialises with a copy of the image's `.lake` — ~10 GB more in a primed
+      # run, whose image and volume both carry the proof cache. Reclaim the preinstalled
       # toolchains inline rather than via a third-party action — it is a handful
       # of paths, and it keeps the supply chain to first-party actions only.
       - name: Reclaim disk space
@@ -119,25 +160,89 @@ jobs:
           printenv REGISTRY_TOKEN \
             | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
 
+      # The proof-cache mode (header). Event data is read through the
+      # environment, never interpolated into the script body.
+      - name: Choose the proof-cache mode
+        id: mode
+        env:
+          REQUESTED: ${{ inputs.proof_cache }}
+        run: |
+          set -euo pipefail
+          if [ "${REQUESTED:-primed}" = cold ]; then
+            echo 'mode=cold'            >> "$GITHUB_OUTPUT"
+            echo 'image=verified'       >> "$GITHUB_OUTPUT"
+          else
+            echo 'mode=primed'          >> "$GITHUB_OUTPUT"
+            echo 'image=verified-cache' >> "$GITHUB_OUTPUT"
+          fi
+
       # `scripts/container.sh` resolves the image by its local tag and derives
       # the volume name from it, so retag rather than pointing IMAGE at a
       # registry path — that contains `/` and `:`, which is not a legal volume
-      # name.
-      - name: Pull the verified image
+      # name. `verified-cache` is `verified` plus one layer holding the proof
+      # cache (Containerfile), built in the same publish run, so its oleans are
+      # the `verified` image's; the extra layer is ~1.9 GB compressed.
+      - name: Pull the image
+        env:
+          IMG: ${{ steps.mode.outputs.image }}
         run: |
           set -euo pipefail
-          if ! docker pull "${IMAGE_BASE}-verified:latest"; then
+          if ! docker pull "${IMAGE_BASE}-${IMG}:latest"; then
             # Deliberately fatal rather than skipped: a verification gate that
             # passes when it could not verify anything is worse than a red run.
-            echo "::error::cannot pull ${IMAGE_BASE}-verified:latest — run the" \
+            echo "::error::cannot pull ${IMAGE_BASE}-${IMG}:latest — run the" \
                  "publish-images workflow first (its images are what this job" \
                  "verifies against), and check the package is readable by this" \
                  "repository."
             exit 1
           fi
-          docker tag "${IMAGE_BASE}-verified:latest" cadence-verified
-          docker image inspect cadence-verified \
+          docker tag "${IMAGE_BASE}-${IMG}:latest" "cadence-${IMG}"
+          docker image inspect "cadence-${IMG}" \
             --format 'pulled {{index .RepoDigests 0}}'
+
+      # A pull request's own earlier runs: the entries they solved that the
+      # image does not hold. The key never matches exactly (it names this run),
+      # so the restore takes the newest entry for this pull request. Caches made
+      # on a pull request's ref are visible to that pull request only.
+      - name: Restore this pull request's proof-cache delta
+        if: steps.mode.outputs.mode == 'primed' && github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/veilcache-delta
+          key: veilcache-pr${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: veilcache-pr${{ github.event.pull_request.number }}-
+
+      # Create the volume now rather than in container.sh, so the delta can go
+      # in before the verification starts. Its first mount initialises it from
+      # the image's `.lake` — the oleans, the dependency tree, and the image's
+      # cache — exactly as container.sh's own first mount would. `cp -n`: an
+      # entry the image already holds is the same proof (entries are keyed by
+      # statement).
+      - name: Prime the proof cache
+        if: steps.mode.outputs.mode == 'primed'
+        env:
+          DELTA: ${{ runner.temp }}/veilcache-delta
+        run: |
+          set -euo pipefail
+          mkdir -p "$DELTA"
+          docker volume create cadence-lake-verified-cache >/dev/null
+          docker run --rm \
+            -v cadence-lake-verified-cache:/workspaces/cadence/.lake \
+            -v "$DELTA":/delta:ro \
+            cadence-verified-cache bash -c '
+              set -euo pipefail
+              c=/workspaces/cadence/.lake/build/veilcache
+              mkdir -p "$c"
+              img=$(find "$c" -name "*.vpc" | wc -l)
+              cp -np /delta/*.vpc "$c"/ 2>/dev/null || true
+              all=$(find "$c" -name "*.vpc" | wc -l)
+              echo "image=$img"
+              echo "delta=$((all - img))"
+              echo "size=$(du -sh "$c" | cut -f1)"' | tee prime.txt
+          img=$(sed -n 's/^image=//p' prime.txt)
+          delta=$(sed -n 's/^delta=//p' prime.txt)
+          echo "proof cache: PRIMED — ${img} entries from the image, ${delta} from" \
+               "this pull request's earlier runs ($(sed -n 's/^size=//p' prime.txt))"
 
       # CPUS/MEMORY must fit the runner: the script's defaults (12 CPUs, 20 GB)
       # are sized for a workstation. Memory is set below physical so the
@@ -149,6 +254,7 @@ jobs:
       - name: Re-verify against these sources
         env:
           RUNTIME: docker
+          IMAGE: cadence-${{ steps.mode.outputs.image }}
           CPUS: '4'
           MEMORY: 13G
           BATCH: '1'
@@ -182,6 +288,39 @@ jobs:
             "$(grep -c -- '♻'  verify.log || true)"
           exit "$fail"
 
+      # Which mode this run used, and what the cache did for it. Counted over
+      # the modules this run BUILT: lake also replays the stored log of every
+      # module the image already had, and those carry their own (old) ♻
+      # summaries, so a whole-log count says nothing about this run. Each
+      # built module that touched the cache prints one line, "♻ proof cache
+      # (…): N hits (…), M stored."
+      - name: Report the proof-cache mode
+        if: always()
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: |
+          set -euo pipefail
+          [ -f verify.log ] || exit 0
+          read -r built hits stored < <(awk '
+            /\] Built /    { s = 1; b++ }
+            /\] Replayed / { s = 0 }
+            /=== STAGE/    { s = 0 }
+            /♻ proof cache \(/ && s {
+              for (i = 2; i <= NF; i++) {
+                if ($i == "hits")    h += $(i-1)
+                if ($i == "stored.") t += $(i-1)
+              } }
+            END { printf "%d %d %d\n", b, h, t }' verify.log)
+          line="proof cache: ${MODE^^} — ${built} modules built, ${hits} hits, ${stored} solved and stored"
+          if [ "$MODE" = primed ] && [ -f prime.txt ]; then
+            img=$(sed -n 's/^image=//p' prime.txt)
+            delta=$(sed -n 's/^delta=//p' prime.txt)
+            line="$line (primed with ${img} image + ${delta} pull-request entries)"
+          fi
+          echo "$line"
+          echo "::notice title=proof cache::$line"
+          echo "$line" >> "$GITHUB_STEP_SUMMARY"
+
       # The model-conformance monitor (docs/Monitor.md). Not part of any
       # theorem's trust base — but the fixture run doubles as the build's
       # non-vacuity witness for Chorus, which cannot carry an in-build
@@ -191,11 +330,56 @@ jobs:
       - name: Run the model-conformance monitor
         env:
           RUNTIME: docker
+          IMAGE: cadence-${{ steps.mode.outputs.image }}
           CPUS: '4'
           MEMORY: 13G
         run: |
           set -euo pipefail
           scripts/container.sh monitor 2>&1 | tee monitor.log
+
+      # Save what this run solved beyond the image's cache, for this pull
+      # request's next run — also after a failed verification, whose solved
+      # cells are exactly what the next push wants. The delta is the volume's
+      # entries minus the image's own (the image's directory is visible at its
+      # usual path because the volume is mounted elsewhere), so it carries the
+      # restored entries forward too. Saved only when it grew: Actions cache
+      # entries are immutable, and an unchanged delta is already stored.
+      - name: Export this pull request's proof-cache delta
+        id: delta
+        if: >-
+          !cancelled()
+          && steps.mode.outputs.mode == 'primed'
+          && github.event_name == 'pull_request'
+        env:
+          OUT: ${{ runner.temp }}/veilcache-out
+          DELTA: ${{ runner.temp }}/veilcache-delta
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUT"
+          docker run --rm \
+            -v cadence-lake-verified-cache:/vol:ro \
+            -v "$OUT":/out \
+            cadence-verified-cache bash -c '
+              set -euo pipefail
+              shopt -s nullglob
+              cd /vol/build/veilcache
+              for f in *.vpc; do
+                [ -e "/workspaces/cadence/.lake/build/veilcache/$f" ] || cp -p "$f" /out/
+              done'
+          n=$(find "$OUT" -name '*.vpc' | wc -l)
+          new=$(comm -23 <(cd "$OUT" && ls | sort) <(cd "$DELTA" && ls | sort) | wc -l)
+          echo "delta: $n entries ($(du -sh "$OUT" | cut -f1)), $new new in this run"
+          # Save from the restore path: the Actions cache versions an entry by
+          # its path, so a save from anywhere else would never be restored.
+          rm -rf "$DELTA" && mv "$OUT" "$DELTA"
+          [ "$new" -gt 0 ] && echo 'save=true' >> "$GITHUB_OUTPUT" || true
+
+      - name: Save this pull request's proof-cache delta
+        if: steps.delta.outputs.save == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/veilcache-delta
+          key: veilcache-pr${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload the verification logs
         if: always()

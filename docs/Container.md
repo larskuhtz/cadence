@@ -153,7 +153,12 @@ CI runs tiers 1 and 2a on every commit, as parallel jobs of the same workflow:
 kernel-replays every proof that image stores. The header of
 [.github/workflows/verify.yml](../.github/workflows/verify.yml) has the
 argument for why the two jobs compose — including what happens to a module
-added after the image was published.
+added after the image was published. The `verify` job pulls `verified-cache`
+rather than `verified`: a commit that edits a model or a proof file
+re-elaborates it, and with the cache every cell whose statement is unchanged
+replays its stored proof, kernel-checked, instead of being solved again. That
+leaves the claim unchanged and skips only the proof search; the workflow's
+header says when CI still searches, and how to ask for a cold run.
 
 Tier 2 comes in two strengths, and the difference is worth understanding.
 `verify` on unmodified sources completes in about a minute with every stage
