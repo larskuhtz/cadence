@@ -104,7 +104,14 @@ emitter which *reconstructed* the schedule would have masked: see the
 | [Cadence/Monitor/TraceMutate.lean](../Cadence/Monitor/TraceMutate.lean) | the trace-mutation tool: corrupt a valid trace in a way that models a class of implementation bug. |
 
 The monitor runs on the Lean **interpreter** (`lean --run`); it needs no
-compiled binary.
+compiled binary. It runs from the **built** modules: `lake build` builds
+everything under [Cadence/Monitor](../Cadence/Monitor) with the rest of the
+library, and each one with a `main` has a driver under
+[scripts/monitor](../scripts/monitor) that only imports it, so a run loads
+the olean instead of elaborating the monitor's source. The scripts below
+`lake build` the module before running it
+([scripts/monitor/env.sh](../scripts/monitor/env.sh)), a no-op when it is
+current, so after a source edit they rebuild it rather than run stale code.
 
 ## 5. Usage
 
@@ -114,7 +121,7 @@ scripts/run-chorus-monitor.sh < traces/fast_path_negative.jsonl
 #   → ACCEPTED — 18 step(s) simulated by the model ✓        (exit 0)
 
 # Run the #gen_monitor-generated variant instead of the hand-written oracle:
-CHORUS_MONITOR=Cadence/Monitor/ChorusMonitorGen.lean \
+CHORUS_MONITOR=ChorusMonitorGen \
   scripts/run-chorus-monitor.sh < traces/fast_path_negative.jsonl
 ```
 
@@ -190,7 +197,9 @@ scripts/test-single-node-monitor.sh  # the single-node projection mode of §7
 
 All three run on every commit via `scripts/container.sh monitor` (the
 `verify` workflow's monitor step) — against the `verified` image, over
-oleans the verification stage has just rebuilt from the same sources.
+oleans the verification stage has just rebuilt from the same sources. Each
+suite checks its modules' oleans once and then runs every trace against
+them.
 
 ## 7. Single-node projection mode (`--node i`)
 

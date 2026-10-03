@@ -207,8 +207,8 @@ TC="$HOME/.elan/toolchains/<toolchain>"
 export LD_LIBRARY_PATH="$TC/lib/lean:$TC/lib:${LD_LIBRARY_PATH:-}"
 ```
 
-before `lake build` (this is exactly what [scripts/run-chorus-monitor.sh](../scripts/run-chorus-monitor.sh)
-does for the interpreter). The published images and the devcontainer do
+before `lake build` (this is exactly what [scripts/monitor/env.sh](../scripts/monitor/env.sh)
+does for the monitor scripts). The published images and the devcontainer do
 not need this. Reported by the 2026-08 external audit.
 
 ## 5. Why a container at all

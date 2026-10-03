@@ -340,9 +340,10 @@ PAYLOAD
     # fixture through both the hand-written and the generated monitor (they
     # must agree with the expectation and each other), then the divergence
     # harness (every TraceMutate mutation must be rejected). The monitor runs
-    # on the interpreter over the project's OWN oleans, so this needs the
-    # `verified` image — and, after an edit, a `verify` run first so the
-    # oleans in the volume match the sources.
+    # the project's OWN built monitor modules on the interpreter, so this
+    # wants the `verified` image. The suites `lake build` those modules
+    # first (scripts/monitor/env.sh): after a `verify` run that is a no-op,
+    # and after an edit without one it rebuilds what changed.
     IMAGE="${IMAGE:-cadence-verified}"
     run_in_container <<'PAYLOAD' ;;
 fail=0

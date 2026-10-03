@@ -10,6 +10,11 @@ RUN="$HERE/run-chorus-monitor.sh"
 T="$HERE/../traces/fast_path_negative.jsonl"
 fail=0
 
+# Bring the monitors' oleans up to date once, so the runner's per-run check is
+# skipped (scripts/monitor/env.sh).
+( . "$HERE/monitor/env.sh" && monitor_build ChorusMonitor ChorusMonitorGen ) || exit 2
+export CADENCE_MONITOR_BUILT=1
+
 check() { # name  input-cmd  node  want_substr  want_exit
   local name="$1" incmd="$2" node="$3" want="$4" wantrc="$5" out rc
   out="$(eval "$incmd" | "$RUN" --node "$node" 2>/dev/null)"; rc=$?
