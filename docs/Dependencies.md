@@ -137,6 +137,22 @@ consequence of it.
   conjunct-count check that fails loudly rather than projecting the wrong
   one. [Cadence/ProofPrelude.lean](../Cadence/ProofPrelude.lean) carries only this project's two option
   blocks.
+  The rung's closer also matches goals whose invariant variables Veil has
+  already introduced (a guard-free action such as `participate` produces
+  only those), with a metavariable telescope over the conjunct's binders
+  whose hypotheses are filled from the context — still a projection, no
+  search; without it `participate`'s file fell to the solver on 90 of its
+  101 cells. The fork's
+  [`docs/DSL-Reference.md`](https://github.com/larskuhtz/veil/blob/port/integration/docs/DSL-Reference.md)
+  describes both matchers.
+  The rung's frame cells also share their setup (`veil.vc.frameBridge`, on
+  by default). Every frame cell of an action began with the same local-WP
+  bridge, so `#prove_action` now proves that bridge once per action, as a
+  kernel-checked theorem over an abstract postcondition, and each cell
+  instantiates it and closes by projection without simp. This roughly halves
+  the cold CPU time of the proof families (measured in
+  [History.md](History.md), X7); the option's docstring in the fork's
+  `Veil/Base.lean` has the mechanism.
 * **A cheap first rung for `step_property` cells too**, under the same
   option. A step cell's route (`veil_solve_step`) simplifies the whole
   invariant clump before it reaches the solver, and on Chorus that made the
