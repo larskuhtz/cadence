@@ -207,12 +207,15 @@ theorem Lcert_paper (Δ Δsync : time) : Lcert Δ 0 Δsync = 3 • Δ + max Δ �
 
 end Constants
 
-/-- **The timing model's data and its three hypotheses.** The hop bounds,
-the retransmission interval, the availability bound, the view timeout as a
-function of the view, and
-what is assumed of them: non-negativity, the cap (S-cap), and the ramp
-(S-ramp) — from `vL` on, every view's budget exceeds the chain's latency.
-`k` is the leader-rotation window (`LeaderRotation`). -/
+/-- **The MVBA's schedule** — the constants the bound is stated in, and a
+view timeout long enough for a view to decide
+([Premises.md](../../docs/Premises.md) §2.7).
+
+The hop bounds, the retransmission interval, the availability bound, the
+view timeout as a function of the view, and what is assumed of them:
+non-negativity, the cap (S-cap), and the ramp (S-ramp) — from `vL` on,
+every view's budget exceeds the chain's latency. `k` is the
+leader-rotation window (`LeaderRotation`). -/
 structure Schedule (view time : Type) [vord : TotalOrderWithMinimum view]
     [LinearOrder time] [AddCommMonoid time] where
   /-- The network hop bound after GST. -/
@@ -435,9 +438,11 @@ def SomeEntered (v : view) (s : Mvba.State (Mvba.FieldAbstractType node nodeset 
     Prop :=
   ∃ j, ¬ nset.is_byz j = true ∧ s.entered j v = true
 
-/-- **(Δ-justice)** — the supplement's network, as five clauses. The timed
-form of `FJustice`: a fair label that is enabled throughout its window
-fires within it — the same plain enabledness, with a deadline in place of
+/-- **(Δ-justice)** — each owed MVBA step happens within its bound after GST
+([Premises.md](../../docs/Premises.md) §4.4).
+
+The supplement's network, as five clauses. The timed form of `FJustice`:
+a fair label that is enabled throughout its window fires within it — the same plain enabledness, with a deadline in place of
 "eventually". Every clause is a `BoundedFair` or `BoundedFairWhile` of a
 fair label, and for a fair label either one over plain enabledness is the
 same premise as over state-changing steps (`boundedFair_iff_move`,
@@ -478,9 +483,12 @@ structure BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Pro
     BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view i pv v) AllActive ∧
     ∀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view_adopt i pv v w e) AllActive
 
-/-- **(Δ-relay)** — the caller hands decided certificates on: once a correct
-validator `j` has decided `e`, a correct validator that can take a
-transferred certificate on `e` does so within `Δ + ρ`, measured from
+/-- **(Δ-relay)** — a decided commit certificate reaches every undecided
+correct validator within `Δ + ρ`
+([Premises.md](../../docs/Premises.md) §4.7).
+
+Once a correct validator `j` has decided `e`, a correct validator that can
+take a transferred certificate on `e` does so within `Δ + ρ`, measured from
 `max(clk N, gst)`. The supplement's termination setting asks this of the
 composing layer (Supplement, Lemma 13 (`lem:decision-propagation`): Chorus broadcasts the
 `CommitQC` a decision outputs, and serves it again every `ρ` to whoever is
@@ -514,8 +522,10 @@ theorem boundedFairWhile_iff_move {r : TMvbaRun th time} {D : time}
    fun h N hen => h N fun n hn hc =>
      ⟨enabledMove_of_enabled l hj (hen n hn hc).1, (hen n hn hc).2⟩⟩
 
-/-- **(T-timer)** — the view timer is punctual. For a correct validator `i`
-and a view `v`:
+/-- **(T-timer)** — a view timer fires exactly when the clock reaches entry
+plus timeout ([Premises.md](../../docs/Premises.md) §4.5).
+
+For a correct validator `i` and a view `v`:
 
 * **(T1) not early** — `expire_timer i v` fires at `n` only if `i` entered
   `v` at some `m ≤ n` with `clk m + τ v ≤ clk n`;
@@ -534,8 +544,11 @@ def TimerPunctual (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
     (r.at' m).entered i v = true →
       ∃ n, m ≤ n ∧ (r.at' n).timer_expired i v = true ∧ r.clk n ≤ r.clk m + sch.τ v)
 
-/-- **(Δ-avail)** — the availability shares arrive within `Δsync` of
-accepting a vector, after GST. The timed form of `FAvail`. -/
+/-- **(Δ-avail)** — a correct validator holding a value has its availability
+shares within `Δ_sync` ([Premises.md](../../docs/Premises.md) §4.6).
+
+Measured from accepting the vector, after GST. The timed form of
+`FAvail`. -/
 def AvailWithin (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
   ∀ (m : Nat) (i : node) (v : view) (e : value), ¬ nset.is_byz i = true →
     (r.at' m).accepted i v e = true →
@@ -548,8 +561,10 @@ def Sync (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
   BoundedJustice sch r ∧ TimerPunctual sch r ∧ AvailWithin sch r ∧ Relayed sch r
 
 /-- **(A-leader-rotation-k)** — among any `k` consecutive views there is
-one with a correct leader. The supplement's "every `f+1` consecutive views
-contain a correct leader" (Supplement, Section 1.2 (`subsec:mvba-protocol`)), with `k = f+1`. The
+one with a correct leader ([Premises.md](../../docs/Premises.md) §2.5).
+
+The supplement's "every `f+1` consecutive views contain a correct leader"
+(Supplement, Section 1.2 (`subsec:mvba-protocol`)), with `k = f+1`. The
 model's assumption `leader_honest_cofinal` is the `k`-free consequence. A
 hypothesis of the *instance*, since it constrains the theory, not the
 run. -/

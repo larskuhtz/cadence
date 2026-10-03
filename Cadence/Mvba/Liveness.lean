@@ -106,7 +106,7 @@ to assemble certificates and to count, not part of what is being claimed.
 The six premises, together with the theorem's hypotheses and the model's
 assumptions, are jointly satisfiable: `Mvba.termination_premises_satisfiable`
 ([Witness.lean](Witness.lean)) exhibits one instance and one run meeting all
-of them, and [Bounds.md](../../docs/Bounds.md) §6.3 is the ledger. In that
+of them, and [Premises.md](../../docs/Premises.md) lists them. In that
 run every correct validator decides in the first view and then halts, as
 the supplement's `decide(…); abandon()` does; nobody is abandoned by the
 caller. -/
@@ -316,13 +316,16 @@ def Owed : Mvba.Label node nodeset value evec view → Prop
   | .form_own_tc_nolock _ _ q => CorrectQuorum (node := node) q
   | _ => True
 
-/-- **(F-justice)** — weak fairness of every honest, non-timer, non-input
-action, for the messages of correct senders: if from some point on a correct
-validator's action is enabled at every point, and the messages it consumes
-came from correct validators (`Owed`), it eventually fires. The premise asks
-nothing of a step on a Byzantine leader's proposal or on a quorum with
-Byzantine members: those messages may never arrive. The one scheduling
-assumption of the ordinary kind.
+/-- **(F-justice)** — a correct validator's enabled MVBA step happens, for a
+correct leader's proposal and correct quorums' votes
+([Premises.md](../../docs/Premises.md) §3.3).
+
+Weak fairness of every honest, non-timer, non-input action: if from some
+point on a correct validator's action is enabled at every point, and the
+messages it consumes came from correct validators (`Owed`), it eventually
+fires. The premise asks nothing of a step on a Byzantine leader's proposal
+or on a quorum with Byzantine members: those messages may never arrive. The
+one scheduling assumption of the ordinary kind.
 
 Every such action disables itself once it has fired — each correct
 validator's certificate formation included, for every quorum `q` it could
@@ -333,26 +336,32 @@ state-changing steps, TLA+'s `WF_v` (`fJustice_iff_move`). -/
 def FJustice (r : MvbaRun th) : Prop :=
   ∀ l, JusticeLabel l → Owed l → WeaklyFair r l
 
-/-- **(F-relay)** — the caller hands decided certificates on: once a correct
-validator has decided `e`, a correct validator that can take a transferred
-certificate for `e`'s entries with the representation `e` eventually does
-(`Recover` can fetch `e` from the validator that decided it). A decision's certificate is transferred
-by the composing layer (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff":
-Chorus broadcasts the `CommitQC` a decision outputs), and taking it is the
-input `decide`. So this is the caller's premise, not the scheduler's, and it
-is owed only for a correct validator's decision: a certificate the adversary
-assembled reaches only whom it chooses. Within Cadence, Chorus's
-`accept_mvba_commitqc` is the handoff and the premise is derived
-(`Chorus.fRelay_of_fJustice`). -/
+/-- **(F-relay)** — the caller hands a correct validator's decided
+certificate on ([Premises.md](../../docs/Premises.md) §6.5).
+
+Once a correct validator has decided `e`, a correct validator that can take
+a transferred certificate for `e`'s entries with the representation `e`
+eventually does (`Recover` can fetch `e` from the validator that decided
+it). A decision's certificate is transferred by the composing layer
+(Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and
+handoff": Chorus broadcasts the `CommitQC` a decision outputs), and taking
+it is the input `decide`. So this is the caller's premise, not the
+scheduler's, and it is owed only for a correct validator's decision: a
+certificate the adversary assembled reaches only whom it chooses. Within
+Cadence, Chorus's `accept_mvba_commitqc` is the handoff and the premise is
+derived (`Chorus.fRelay_of_fJustice`). -/
 def FRelay (r : MvbaRun th) : Prop :=
   ∀ (i : node) (v : view) (e : value),
     WeaklyFairWhen r (fun s => ∃ j, ¬ nset.is_byz j = true ∧ s.decided j e = true)
       (.decide i v e)
 
-/-- **(A-viewsync)** — *the view timer, as ordering constraints.* The model
-has a view timer but no clock, so nothing in it says when a timer fires.
-This premise replaces the timer's durations by two orderings. There is an
-honest-led view `W`, above the first, such that
+/-- **(A-viewsync)** — the view timer, as ordering constraints: timers below
+some correct-led view do fire, and that view's timer waits for a correct
+validator's decision ([Premises.md](../../docs/Premises.md) §3.4).
+
+The model has a view timer but no clock, so nothing in it says when a timer
+fires. This premise replaces the timer's durations by two orderings. There
+is an honest-led view `W`, above the first, such that
 
 * **not too late**: in every view **below** `W`, a correct validator's timer
   eventually runs out, so correct validators move on;
@@ -420,10 +429,13 @@ def AViewSync (r : MvbaRun th) : Prop :=
       (r.at' n).timer_expired i W = true →
         ∃ (j : node) (E : value), ¬ nset.is_byz j = true ∧ (r.at' n).decided j E = true)
 
-/-- **(F-avail)** — the availability shares arrive. A correct validator that
-accepted a vector eventually has `avail_ready` for it, which is
-`send_commit`'s environment precondition. The supplement's `Δ_sync`
-(Supplement, Lemma 5 (`lem:avail-progress`)), with the bound erased.
+/-- **(F-avail)** — a correct validator that accepted a value eventually has
+the value's availability shares ([Premises.md](../../docs/Premises.md) §3.5).
+
+A correct validator that accepted a vector eventually has `avail_ready` for
+it, which is `send_commit`'s environment precondition. The supplement's
+`Δ_sync` (Supplement, Lemma 5 (`lem:avail-progress`)), with the bound
+erased.
 
 It is a premise and not a consequence of (F-justice) because `AvailLabel` is
 its own fairness class — see there for why, since the model makes the
@@ -432,16 +444,20 @@ def FAvail (r : MvbaRun th) : Prop :=
   ∀ (i : node) (n : Nat) (V : view) (E : value), ¬ nset.is_byz i = true →
     (r.at' n).accepted i V E = true → ∃ m, (r.at' m).avail_ready i E = true
 
-/-- **The caller's premise**, not a fairness assumption: every correct
-validator invokes `propose`. Supplement, Theorem 2 (`thm:termination`) says "once every correct
-validator has invoked propose", and this is that. -/
+/-- **The caller's premise** — every correct validator invokes `propose`
+([Premises.md](../../docs/Premises.md) §6.5).
+
+Not a fairness assumption. Supplement, Theorem 2 (`thm:termination`) says
+"once every correct validator has invoked propose", and this is that. -/
 def AllPropose (r : MvbaRun th) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ (n : Nat) (E : value), (r.at' n).input i E = true
 
-/-- **The caller's second premise**: no correct validator is abandoned before
-it decides. Supplement, Theorem 2 (`thm:termination`)'s "if no correct validator is externally
-abandoned before deciding"; `abandon` is a contract *input*, so this is a
-condition on the consumer, not on the scheduler. -/
+/-- **The caller's second premise** — no correct validator is abandoned
+before it decides ([Premises.md](../../docs/Premises.md) §6.5).
+
+Supplement, Theorem 2 (`thm:termination`)'s "if no correct validator is
+externally abandoned before deciding"; `abandon` is a contract *input*, so
+this is a condition on the consumer, not on the scheduler. -/
 def NoEarlyAbandon (r : MvbaRun th) : Prop :=
   ∀ (i : node) (n : Nat), ¬ nset.is_byz i = true →
     (r.at' n).abandoned i = true → ∃ E, (r.at' n).decided i E = true
