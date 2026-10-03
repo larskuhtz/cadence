@@ -119,7 +119,7 @@ Two GitHub Actions workflows do this, in
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| [verify.yml](../.github/workflows/verify.yml) | every push to the default branch, every pull request | pulls the published `verified` image and re-runs the staged verification against the commit's sources — the per-commit gate. It builds no images |
+| [verify.yml](../.github/workflows/verify.yml) | every push to the default branch, every pull request; manual | pulls the published `verified-cache` image and re-runs the staged verification against the commit's sources — the per-commit gate. It builds no images. Its proof cache is primed: the image's cache, plus, on a pull request, the entries that pull request's earlier runs solved (Actions cache, scoped to the pull request). A manual run with `proof_cache: cold` uses `verified` and solves every re-elaborated cell from scratch |
 | [publish-images.yml](../.github/workflows/publish-images.yml) | push to the default branch; manual | rebuilds and publishes `verified` + `verified-cache` for both architectures and combines the `:latest` manifest lists. `deps`/`dev` are rebuilt only when [lakefile.lean](../lakefile.lean), [lake-manifest.json](../lake-manifest.json), `lean-toolchain` or the [Containerfile](../Containerfile) changes, or on request |
 
 The split matters because the two halves cost very different amounts: `deps` is
@@ -145,7 +145,10 @@ stage refuses to build with an empty cache, and the workflow's seed step skips
 an empty candidate in favour of the other architecture's, since the cache is
 architecture-portable. So the cache sustains and refreshes itself without
 depending on the Actions cache, whose 10 GB budget and weekly eviction suit it
-poorly. If one architecture's cold leg fails during bootstrap, re-run the
+poorly. It also never reads it: the Actions cache holds only the pull-request
+deltas [verify.yml](../.github/workflows/verify.yml) writes, so nothing a pull
+request solved reaches a published image, and the published cache is only ever
+what publish builds solved on the default branch. If one architecture's cold leg fails during bootstrap, re-run the
 failed jobs once the other's cache is published — the re-run seeds across
 architectures and runs warm.
 

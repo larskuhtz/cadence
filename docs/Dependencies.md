@@ -126,7 +126,9 @@ consequence of it.
   instead of replaying a stored term. So a warm build's output reads mostly
   ✅ rather than ♻, at a comparable per-cell cost (the rung's ~0.1 s against
   a folded cell's ~79 ms of replay), and the saving is concentrated on the
-  **cold** path — the one CI runs.
+  **cold** path — the one CI runs for every cell whose statement changed
+  (its `verify` job starts from the published proof cache, so unchanged
+  statements replay; [verify.yml](../.github/workflows/verify.yml)'s header).
   The rung's two halves are also what this project's manual cells are written
   with: **`unveil_local`**, the goal-only
   counterpart of `unveil` that leaves the ~100-conjunct invariant clump
