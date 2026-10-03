@@ -9,19 +9,17 @@
 # Usage:  scripts/test-monitor-divergence.sh [base-trace.jsonl]
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO="$(cd "$HERE/.." && pwd)"
-export PATH="$HOME/.elan/bin:$PATH"
-cd "$REPO"
-# Toolchain-root resolution as in run-chorus-monitor.sh: host elan or the
-# container image's plain toolchain (docs/Container.md §4).
-TC="$(lean --print-prefix 2>/dev/null || true)"
-[ -n "$TC" ] || TC="$HOME/.elan/toolchains/leanprover--lean4---v4.28.0"
-export LD_LIBRARY_PATH="$TC/lib/lean:$TC/lib:${LD_LIBRARY_PATH:-}"
+# Toolchain, repository root and the build-then-run helpers
+# (scripts/monitor/env.sh).
+. "$HERE/monitor/env.sh"
+RUN="$HERE/run-chorus-monitor.sh"   # honours CHORUS_MONITOR
 
 BASE="${1:-traces/fast_path_negative.jsonl}"
-MUT=Cadence/Monitor/TraceMutate.lean
-MON="${CHORUS_MONITOR:-Cadence/Monitor/ChorusMonitor.lean}"
 fail=0
+
+# Bring the oleans up to date once, so the runner's per-run check is skipped.
+monitor_build ChorusMonitor ChorusMonitorGen TraceMutate || exit 2
+export CADENCE_MONITOR_BUILT=1
 
 # Mutation → the implementation-bug class it models (for the report).
 declare -A WHAT=(
@@ -35,7 +33,7 @@ declare -A WHAT=(
 )
 
 # Sanity: the base trace must be ACCEPTED.
-base_out=$(lake env lean --run "$MON" < "$BASE" 2>/dev/null); base_rc=$?
+base_out=$("$RUN" < "$BASE" 2>/dev/null); base_rc=$?
 if [[ "$base_out" == *ACCEPTED* && "$base_rc" == 0 ]]; then
   echo "BASE  $(basename "$BASE") → $base_out"
 else
@@ -45,8 +43,8 @@ echo
 
 reject() { # mutation
   local mut="$1" out rc
-  out=$(MUTATION="$mut" lake env lean --run "$MUT" < "$BASE" 2>/dev/null \
-          | lake env lean --run "$MON" 2>/dev/null); rc=$?
+  out=$(MUTATION="$mut" monitor_run TraceMutate < "$BASE" 2>/dev/null \
+          | "$RUN" 2>/dev/null); rc=$?
   if [[ "$out" == *"NOT ACCEPTED"* && "$rc" != 0 ]]; then
     printf "PASS  %-14s (%s)\n" "$mut" "${WHAT[$mut]}"
     echo "        → $out"
