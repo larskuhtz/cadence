@@ -35,8 +35,9 @@ starts in window 1 (slots `1..W`, opened at their starting times). Once a
 validator has completed all scheduled slots up to the current window's
 readiness boundary (its `p`-th slot — Algorithm 7, line 23 (`line:ready-check`)), it proposes a
 first slot for the next window to that window's ACS instance
-(Algorithm 7, line 42 (`line:acs-propose`)), choosing a slot strictly beyond the current window's
-last (Algorithm 7, lines 40–41 (`line:sstar-guard`–`line:sstar-update`)). When ACS decides, the next
+(Algorithm 7, line 42 (`line:acs-propose`)): the earliest slot whose starting time has not
+passed, or the first slot beyond the current window if that one lies within
+it (Algorithm 7, lines 39–41 (`line:sstar-compute`–`line:sstar-update`)). When ACS decides, the next
 window's first slot is the **median** of the decided proposals
 (Algorithm 7, line 48 (`line:median-compute`)), and the validator enters the window and schedules
 its `W` slots (Algorithm 7, line 49 (`line:open-foreach`)), each opening at its starting time
@@ -355,12 +356,20 @@ action tick (t : time) {
 /-! ## ACS proposal (Algorithm 7, lines 37–43 (`line:ready`–`line:proposed-update`)) -/
 
 /-- An honest validator in window `w`, once ready, proposes a first slot for
-the successor window `w'`, at most once. The `require` on `s_star` is the
-state residue of Algorithm 7, lines 39–41 (`line:sstar-compute`–`line:sstar-update`): the proposed
-slot lies strictly beyond the current window's last slot. (The other half
-of the paper's computation — `s_star` is the *earliest* slot whose
-starting time has not passed — is quantitative timing and feeds only the
-recovery argument; meta.) -/
+the successor window `w'`, at most once. The `require`s on `s_star` are
+Algorithm 7, lines 38–41 (`line:ready-time`–`line:sstar-update`), read at
+the current time `now`: `s_star` is the earliest slot whose starting time
+has not passed, moved to the first slot beyond the current window if that
+one lies within it. With `l0` the current window's last slot, that is
+`max(earliest not passed, l0 + 1)`, and the three `require`s say exactly
+this: `s_star` lies beyond `l0`, its starting time has not passed, and every
+slot strictly between `l0` and `s_star` has started. (If the earliest slot
+not passed lies within the window, `s_star` is `l0`'s successor, whose
+starting time is later still because starting times strictly increase; the
+third `require` is then vacuous. Otherwise `s_star` is that earliest slot.)
+Recovery's timing (Proposition 17 (`prop:window-progression`) and
+Proposition 19 (`prop:first-post-gst-window-time`)) reads the second and
+third. -/
 action acs_propose (i : node) (w : window) (w' : window) (s_star : slot)
     (acs_next : acsstate) {
   require ¬ fm.byz i
@@ -374,6 +383,14 @@ action acs_propose (i : node) (w : window) (w' : window) (s_star : slot)
   -- predecessor; bounds are global and unique).
   require ∀ (w0 : window) (f0 b0 l0 : slot),
     win_ord.next w0 w' → win_bounds w0 f0 b0 l0 → slot_ord.lt l0 s_star
+  -- Algorithm 7, line 39 (`line:sstar-compute`): `s_star`'s starting time
+  -- has not passed ...
+  require time_ord.le now (start_time s_star)
+  -- ... and it is the earliest such slot beyond the current window.
+  require ∀ (s : slot) (w0 : window) (f0 b0 l0 : slot),
+    win_ord.next w0 w' → win_bounds w0 f0 b0 l0 →
+    slot_ord.lt l0 s → slot_ord.lt s s_star →
+    ¬ time_ord.le now (start_time s)
   -- `ACS[w'].propose(s_star)`: an input transition of the instance's state.
   require acs.propose (acs_state w') i s_star acs_next
   acs_state w' := acs_next
