@@ -151,7 +151,7 @@ jobs:
           RUNTIME: docker
           CPUS: '4'
           MEMORY: 13G
-          BATCH: '1'
+          BATCH: '2'
         run: |
           set -euo pipefail
           scripts/container.sh verify 2>&1 | tee verify.log
