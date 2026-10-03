@@ -384,15 +384,8 @@ tracked there. The one measurement worth carrying forward here is recorded in
 [Architecture.md](Architecture.md) §7. What landed and when is
 [History.md](History.md).
 
-Two items remain open on this side:
+One item remains open on this side:
 
 * **The (M-frame) syntactic audit** above. Veil's generated step lemmas
   already supply the positive-position half of the contract as kernel-checked
   facts; what is missing is the classifier over action syntax.
-* **One proof file opts out of the Bool-atom fold.**
-  [Cadence/Chorus/Proofs/Vote.lean](../Cadence/Chorus/Proofs/Vote.lean) sets `veil.smt.foldBoolAtoms false`
-  because its `fastqc_complete_implies_mvba_evidence` cell diverges under the
-  folded query shape. That costs about 28 s of every warm re-validation (its
-  batch runs 42 s against 13–15 s for the others) and leaves one ~30 MB
-  olean. Worth revisiting if the cell can be made tractable in the folded
-  shape, for instance as a manual cell.
