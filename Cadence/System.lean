@@ -79,8 +79,11 @@ of scope throughout ([CompositionContracts.md](../docs/CompositionContracts.md)
 Conductor and Chorus *implements* the glue's oracle steps — trace-level
 refinement. Here the glue's `orch_step`/`sc_step` are the modules' own
 transitions, and Chorus's `mvba_step` is the `Mvba` model's own internal
-transition, which is as close as a state-based composition comes; the
-remaining seam is named in [Cadence.lean](Cadence.lean)'s header. -/
+transition, which is as close as a state-based composition comes. The
+glue's handlers give their inputs through the modules' own input
+transitions (`complete_slot`; Chorus's `participate`, `propose` and
+`abandon`), so the composed system's Chorus participates, proposes and
+abandons exactly when the glue calls it to. -/
 
 namespace Cadence
 open Classical Conductor

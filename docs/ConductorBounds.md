@@ -5,7 +5,8 @@ or modelled: it is the plan for the Conductor's timed claims and for the
 composition that closes the Cadence loop. [Bounds.md](Bounds.md) §6.4 (the
 Chorus leg) set the shape, and §6.2 (the MVBA leg) the timing machinery
 this leg reuses. Decisions are recorded with their reasons. The three
-questions put to Lars are **decided (2026-10-03)**, each as recommended.*
+questions put to Lars are **decided (2026-10-03)**, each as recommended.
+K1, the untimed composition edit, is **done** (2026-10-03, R25; §9).*
 
 ## 1. In short, for an auditor
 
@@ -47,9 +48,10 @@ as fields of `OrchestratorTemporal`
 them. The interval form of boundedness is proven (`safety [bounded_tail]` in
 [Conductor.lean](../Cadence/Conductor.lean)). The safety half of the
 composition is proven (`Cadence.system_positional_log_safety`,
-[System.lean](../Cadence/System.lean)), but since S1 its Chorus is inert:
-the glue cannot drive Chorus's `participate`, `propose` and `abandon` inputs
-([CompositionContracts.md](CompositionContracts.md) §5).
+[System.lean](../Cadence/System.lean)), and since K1 the glue drives
+Chorus's `participate`, `propose` and `abandon` inputs through the contract,
+so the composed system's Chorus is not inert
+([CompositionContracts.md](CompositionContracts.md) §3, §7 item 2).
 
 **What the timed claims would assume.** The same timing model as the MVBA and
 Chorus claims: one clock, one time theory and one Δ for the whole system.
@@ -100,12 +102,12 @@ concern the timed statements and the model's timing freedoms.
   ACS, as the consistency witness (§3.3).
 * C4 (an `OrchestratorWithTotality` level) and C5 (rely antecedents for
   Totality and Recovery): **decided (2026-10-03), jointly** (§2.3).
-* C6 (one pair per validator in a decided ACS set): **recommended**, and
+* C6 (one pair per validator in a decided ACS set): **done (R25)**, and
   independent of the timed leg, because it repairs the justification of a
   safety bridge (F18).
 * C7 (the ACS's `abandon` moves into `ACSSafety`) and C8 (Slot Consensus's
   inputs move into `SlotConsensusSafety`), each with the cross-frames:
-  **recommended**. They are the composition leg's prerequisites (§4, F19,
+  **done (R25)**. They are the composition leg's prerequisites (§4, F19,
   F20).
 * δ = 0 for the Conductor's and the composed claims, as a plain schedule
   premise: **decided (2026-10-03)** (§5).
@@ -321,13 +323,16 @@ assumption with a proof, along the path the MVBA took.
   With the system's fault bound (at most `f` Byzantine validators), the
   median lemma's hypothesis (`IsMedian.between_correct`'s "at most `f`
   Byzantine-attributed entries", [Windows.lean](../Cadence/Windows.lean))
-  then follows from the contract. Today it does not.
+  then follows from the contract. **Done (R25):** `ACSSafety.decided_unique`,
+  and `Cadence.acs_median_bracket` ([AcsMedian.lean](../Cadence/AcsMedian.lean))
+  proves the link.
 * **C7: the ACS's `abandon` in the fragment (F19).** Move `abandon`,
   `abandoned` and their frames from `ACSTemporal` into `ACSSafety`, as
   `MVBASafety` has them. Add the cross-frames: `propose` leaves `abandoned`
   unchanged, and `abandon` leaves `proposed` unchanged. Then model Algorithm
   7, line 45 (`line:acs-abandon`) in `enter_window`, so that Proposition 12
-  is a fact of the model and not a reading of the paper.
+  is a fact of the model and not a reading of the paper. **Done (R25):** the
+  model's invariant `[acs_abandoned_decided]`.
 
 Both are [Interfaces.lean](../Cadence/Interfaces.lean) edits that change the
 Conductor's VCs (one in-file sweep, about a minute cold) and nothing in the
@@ -606,17 +611,29 @@ paper's module.
   fails is the bridge's justification, that it removes no behaviour of a
   correct ACS. Any ACS that collects one signed proposal per validator meets
   the stronger property. **Proposal:** C6 (§3.4). Paper side: P16.
+  **Closed (R25):** C6 is in the contract, and the bridge's justification
+  is a theorem, `Cadence.acs_median_bracket`: with at most `f` Byzantine
+  validators, the median of a correct decider's set lies between two of its
+  correct pairs. The `require` itself stays, a stated bridge: the model
+  computes no median, and cardinality is outside the solver's fragment.
 * **F19: the ACS's `abandon` is outside the fragment the Conductor
   instantiates, and nothing frames it against `propose`.** Algorithm 7,
   line 45 (`line:acs-abandon`) is therefore not modelled, and Proposition 12
   cannot be derived even in the weak form "the Conductor never abandons",
   since no field says that a `propose` leaves `abandoned` unchanged.
-  **Proposal:** C7 (§3.4).
+  **Proposal:** C7 (§3.4). **Closed (R25):** `abandon`, `abandoned` and
+  their frames are in `ACSSafety` with both cross-frames, `enter_window`
+  abandons the instance, and Proposition 12 is the invariant
+  `[acs_abandoned_decided]`.
 * **F20: Slot Consensus's inputs are outside the fragment the glue
   instantiates, and the inputs have no cross-frames.** The same gap as F19
   for Chorus. The glue cannot drive Algorithm 1, line 17 (`line:participate`),
   Algorithm 1, line 19 (`line:propose`) or Algorithm 1, line 23
   (`line:abandon`), and even if it could, C1 would not follow at the contract level. **Proposal:** C8 (§4.1).
+  **Closed (R25):** the three inputs are in `SlotConsensusSafety` with the
+  per-input cross-frames and the per-validator frames; the glue's
+  `on_open`, `on_propose` and `on_finalize` drive them, and C1 and C2 hold
+  in state form (`[abandoned_after_finalize]`, `[participating_opened]`).
 * **F21: the Conductor model leaves free what the timed claims fix.** Each
   freedom is sound for safety and makes a timed claim false of the model:
   * the decided interval's width is unconstrained (Conductor.lean,
@@ -650,7 +667,8 @@ paper's module.
   the paper's protocol cannot do; ACS's Δ-Totality would then go unused,
   and the bound would come out tighter than the paper's for the wrong
   reason. **Proposal (K1):** add `require acs.has_decided (acs_state w') i`
-  (the F6 pattern of [Bounds.md](Bounds.md) §6.4.2).
+  (the F6 pattern of [Bounds.md](Bounds.md) §6.4.2). **Closed (R25)**, as
+  proposed.
 * **F23: the classes allow several Δs, and the paper uses one.** See §6.2.
   **Proposal:** schedule ties, not class edits.
 * **F24: a part that stops stepping has no timed run.** A contract's
@@ -777,6 +795,31 @@ parallel with K1. Everything else is in order.
   * Pins: the end-theorem axiom pins re-stated. No `#veil_status` count
     changes. Closes [CompositionContracts.md](CompositionContracts.md) §7
     seam 2, and repairs F18's justification.
+  * **Done (2026-10-03, R25).** As planned, with these differences:
+    * the glue's record relations `sc_abandoned` and `proposed` are gone;
+      `participating`, `abandoned` and `proposed` are ghosts reading the
+      instance's own records, so no glue-side copy of a call remains;
+    * `on_propose` also requires `participating i s`, the order of
+      Algorithm 1, lines 17–19 (`line:participate`–`line:propose`);
+    * `[bounded_concurrency_interval]` now states one direction, "an
+      active instance is opened and not completed", which is what Lemma 5
+      (`lemma:cadence-bounded-concurrency`)'s bound needs. The converse,
+      which the paper's proof also states, holds only when `participate()`
+      is atomic with `open(s)`; with `on_open` a separate handler, a
+      validator that has opened `s` and not yet run it has one active
+      instance fewer. Classified as an abstraction with its argument
+      ([PaperAlignment.md](PaperAlignment.md) §5.10): the separate
+      handlers over-approximate the paper's atomic ones, and the paper's
+      runs are among the model's;
+    * the Conductor gains the invariant `[acs_abandoned_decided]`
+      (Proposition 12 (`prop:acs-no-premature-abandonment`) in state form),
+      so the paper's reading is a fact of the model;
+    * F18's link is the new [AcsMedian.lean](../Cadence/AcsMedian.lean)
+      (`Cadence.acs_median_bracket`, both brackets, so K2's upper bracket
+      has its justification already); the `require` stays a stated bridge;
+    * sweeps, cold: the glue 182 → 216 cells, the Conductor 189 → 197, both
+      green; the slowest cell, `enter_window × bounded_tail`, at 24 s of the
+      180 s budget on this machine. K2 is not bundled.
 * **K2: the Conductor's timing completion (F21).** Conductor.lean only:
   shift functions, the `s*` rule, the upper bracket, τ-spacing. Re-solves the
   Conductor's sweep, plus
@@ -802,7 +845,12 @@ parallel with K1. Everything else is in order.
   projections, C1/C2/participation/synchronized participation discharged,
   (R-tot)/(R-term) from Chorus, **Corollary 4 as a theorem**, and the timed
   `𝓡`-Liveness and censorship resistance at `𝓡 = 2Wτ`. Plain Lean.
-  Possibly two sessions.
+  Also **Lemma 5 (`lemma:cadence-bounded-concurrency`)'s bound** as a
+  theorem: at most `𝓑` instances actively participated in, from the glue's
+  `[bounded_concurrency_interval]` (an active instance is opened and not
+  completed) and `OrchestratorTemporal.boundedness` at the instance K6
+  provides (take the least of `𝓑 + 1` active slots: the other `𝓑` are
+  opened above an opened, uncompleted slot). Possibly two sessions.
 * **K8: non-vacuity.** The periodic composed witness (§8.2), and the
   ledger moved to the premises page. Probably two sessions.
 

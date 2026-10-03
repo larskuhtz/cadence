@@ -49,6 +49,10 @@ Each entry is a `SlotConsensusSafety` field and what discharges it.
   cells rather than the generated lemmas
 * **`step_trans`, `reachable_init`, `reachable_trans`** — the reachability
   constructors
+* **the three inputs** (`participate`, `abandon`, `propose`), their records
+  (`participating`, `abandoned`, the proposer's signed root), effects,
+  frames and initial values — the actions' bodies, read once each in "The
+  participation interface" below, and Veil's generated lemmas
 
 all consumed through the named reachability projections of
 [Chorus/Certify.lean](Certify.lean) (emitted by `#gen_composition` from
@@ -58,20 +62,16 @@ the proof-file family's preservation lemmas).
 inputs as actions (`participate`, `abandon`, and the proposer's `propose`),
 so the instance separates them: `trans` is every transition, and `step`,
 the contract's internal steps, is every transition whose label is not an
-input (`Label.isInput`). That split is what the upper level's frames need
-("internal steps do not change a correct validator's inputs").
+input (`Label.isInput`). That split is what the frames need ("internal
+steps do not change a correct validator's inputs"). The glue drives the
+three inputs through the contract's `participate`, `propose` and `abandon`
+fields, and its oracle step `sc_step` takes only `step`, so in the composed
+system ([System.lean](../System.lean)) every Chorus transition is either one of Chorus's
+own steps or an input the glue gave.
 
-It has a consequence for the composed system ([CompositionContracts.md](../../docs/CompositionContracts.md)
-§5). The glue's oracle step `sc_step` requires `sc.step`, so it can no
-longer take an input transition. The composed system's Chorus is therefore
-inert until the glue drives `participate`, `propose` and `abandon` itself,
-which is the composition leg's work. Glue safety is unaffected: the glue's
-theorems are generic in the fragment, and inertness only removes
-behaviours.
-
-**The upper level.** The inputs and observables as contract fields, the
-admissible-run model, Termination over timed runs and Quiescence are the
-fields of `SlotConsensusTemporal`. `slotConsensus_of_temporal` joins any
+**The upper level.** The message type with `sent`, the admissible-run
+model, Termination over timed runs and Quiescence are the fields of
+`SlotConsensusTemporal`. `slotConsensus_of_temporal` joins any
 instance of it with the fragment into a full `SlotConsensus`, and
 [Chorus/Temporal.lean](Temporal.lean) proves one at the system's
 configuration (`Chorus.chorusTemporal`, joined as `Chorus.slotConsensusFull`).
@@ -93,6 +93,30 @@ inside Veil. -/
 
 namespace Chorus
 open Classical ByzNodeSet
+
+/-- Expose an action's transition body. -/
+local macro "chorus_tr" h:ident : tactic =>
+  `(tactic| (simp only [Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct] at $h:ident
+             simp only [trSimp] at $h:ident))
+
+/-- Evaluate the field-representation `get`/`set` pair. -/
+local macro "chorus_field_simp" : tactic =>
+  `(tactic| simp +unfoldPartialApp [
+      Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
+      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
+      Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
+      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id,
+      instIsSubReaderOfRefl.readFrom_id] at *)
+
+open Lean in
+/-- One `case` per listed action: rewrite with its generated frame lemma for
+`fld`. -/
+local macro "frame_iff " htr:ident fld:ident "[" acts:ident,* "]" : tactic => do
+  let mut acc ← `(tactic| skip)
+  for a in acts.getElems do
+    let lem := mkIdent (`Chorus ++ a.getId ++ Name.mkSimple ("frame_" ++ fld.getId.toString))
+    acc ← `(tactic| ($acc; case $a:ident => rw [$lem:ident $htr]))
+  return acc
 
 section Inputs
 
@@ -297,6 +321,111 @@ theorem certified_available_chunks {st : Chorus.State (Chorus.FieldAbstractType 
   subst hv
   exact Chorus.reachable_avail_ready_chunks hr p v J M ⟨hpc, hav⟩ hM hfb
 
+/-! ### The participation interface, from the transition bodies
+
+Module 1 (`mod:slotconsensus`)'s three inputs are Chorus actions, and each
+records itself in one relation: `participate i` sets `participating i`,
+`abandon i` sets `abandoned i` (and forwards the abandonment to the MVBA),
+and `propose j m` sets the proposer's signed root `msg_proposer_signed j m`.
+The contract's facts about them come from two sources: Veil's generated
+lemmas (each relation's monotonicity and initial value, and the frame of
+every action that does not write it) and the three bodies, each read once
+for its effect and for the rows it leaves alone. -/
+
+section Interface
+variable {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
+
+set_option maxHeartbeats 1000000 in
+/-- `participate i` records `participating i`. -/
+theorem participate_effect_tr {i : node} (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s (.participate i) s') :
+    s'.participating i = true := by
+  chorus_tr htr
+  subst htr
+  chorus_field_simp
+
+set_option maxHeartbeats 1000000 in
+/-- `participate i` records nobody else's participation. -/
+theorem participate_frame_tr {i j : node} (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s (.participate i) s') (hne : j ≠ i) :
+    s'.participating j = s.participating j := by
+  chorus_tr htr
+  subst htr
+  chorus_field_simp
+  intro h; exact absurd h.symm hne
+
+set_option maxHeartbeats 1000000 in
+/-- `abandon i` records `abandoned i`. -/
+theorem abandon_effect_tr {i : node} {mn : mstate} (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s (.abandon i mn) s') :
+    s'.abandoned i = true := by
+  chorus_tr htr
+  obtain ⟨-, rfl⟩ := htr
+  chorus_field_simp
+
+set_option maxHeartbeats 1000000 in
+/-- `abandon i` records nobody else's abandonment. -/
+theorem abandon_frame_tr {i j : node} {mn : mstate} (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s (.abandon i mn) s') (hne : j ≠ i) :
+    s'.abandoned j = s.abandoned j := by
+  chorus_tr htr
+  obtain ⟨-, rfl⟩ := htr
+  chorus_field_simp
+  intro h; exact absurd h.symm hne
+
+set_option maxHeartbeats 1000000 in
+/-- `propose j m` records the proposer's signed root. -/
+theorem propose_effect_tr {j : node} {m : merkle_root} (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s (.propose j m) s') :
+    s'.msg_proposer_signed j m = true := by
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  chorus_field_simp
+
+set_option maxHeartbeats 1000000 in
+/-- `propose j m` records no other signed root. -/
+theorem propose_frame_tr {j k : node} {m m' : merkle_root} (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s (.propose j m) s')
+    (hne : k ≠ j ∨ m' ≠ m) : s'.msg_proposer_signed k m' = s.msg_proposer_signed k m' := by
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  chorus_field_simp
+  intro hk hm; subst hk; subst hm
+  rcases hne with h | h <;> exact absurd rfl h
+
+set_option maxHeartbeats 1000000 in
+/-- A Byzantine proposer's signature is its own. -/
+theorem byz_sign_proposer_frame {j k : node} {m m' : merkle_root}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s (.byz_sign_proposer j m) s') (hk : ¬ nset.is_byz k = true) :
+    s'.msg_proposer_signed k m' = s.msg_proposer_signed k m' := by
+  chorus_tr htr
+  obtain ⟨hj, rfl⟩ := htr
+  chorus_field_simp
+  intro h; subst h; simp_all
+
+/-- **Internal steps do not change participation**: only the input
+`participate` writes it. -/
+theorem participating_internal {l} (hl : ¬ Label.isInput l) (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s') (i : node) :
+    s'.participating i = s.participating i := by
+  cases l
+  case participate => exact absurd trivial hl
+  frame_iff htr participating [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share]
+
+/-- **Internal steps do not change abandonment**: only the input `abandon`
+writes it. -/
+theorem abandoned_internal {l} (hl : ¬ Label.isInput l) (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s') (i : node) :
+    s'.abandoned i = s.abandoned i := by
+  cases l
+  case abandon => exact absurd trivial hl
+  frame_iff htr abandoned [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share]
+
+/-- **Internal steps do not change a correct proposer's proposal**: only the
+input `propose` writes a correct proposer's signed root; the adversary's
+`byz_sign_proposer` writes only a Byzantine one's. -/
+theorem proposed_internal {l} (hl : ¬ Label.isInput l) (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s') {k : node}
+    (hk : ¬ nset.is_byz k = true) (m : merkle_root) :
+    s'.msg_proposer_signed k m = s.msg_proposer_signed k m := by
+  cases l
+  case propose => exact absurd trivial hl
+  case byz_sign_proposer => exact byz_sign_proposer_frame th htr hk
+  frame_iff htr msg_proposer_signed [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share]
+
+end Interface
+
 set_option maxHeartbeats 1000000 in
 /-- **`Chorus ⊨ SlotConsensusSafety`** — for every Chorus theory `th`, the
 slot-indexed copies of the Chorus transition system are an instance of the
@@ -396,13 +525,51 @@ noncomputable def slotConsensusSafety :
   payload_recoverable p := Chorus.slot_key_released (nset := nset)
     (χ := Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) th p.2
   hiding_residue _ hr hk := reachable_hiding_until_deadline hr hk
+  -- The participation interface: Module 1's three inputs, each a Chorus
+  -- action, and their records.
+  participate p i p' := p.1 = p'.1 ∧ (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th p.2 (.participate i) p'.2
+  abandon p i p' := p.1 = p'.1 ∧ ∃ mn, (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th p.2 (.abandon i mn) p'.2
+  propose p i P p' := p.1 = p'.1 ∧ (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th p.2 (.propose i P) p'.2
+  participate_trans _ _ _ h := ⟨h.1, _, h.2⟩
+  abandon_trans _ _ _ h := ⟨h.1, _, h.2.choose_spec⟩
+  propose_trans _ _ _ _ h := ⟨h.1, _, h.2⟩
+  participating p i := p.2.participating i = true
+  abandoned p i := p.2.abandoned i = true
+  proposed p i P := p.2.msg_proposer_signed i P = true
+  participating_mono _ _ i h hp := Chorus.participating.mono h.2.choose_spec i hp
+  abandoned_mono _ _ i h hp := Chorus.abandoned.mono h.2.choose_spec i hp
+  proposed_mono _ _ i P h hp := Chorus.msg_proposer_signed.mono h.2.choose_spec i P hp
+  participate_effect _ _ _ h := participate_effect_tr th h.2
+  abandon_effect _ _ _ h := abandon_effect_tr th h.2.choose_spec
+  propose_effect _ _ _ _ h := propose_effect_tr th h.2
+  participating_step_frame _ _ i h _ := by
+    obtain ⟨-, l, hl, htr⟩ := h
+    rw [participating_internal th hl htr i]
+  abandoned_step_frame _ _ i h _ := by
+    obtain ⟨-, l, hl, htr⟩ := h
+    rw [abandoned_internal th hl htr i]
+  proposed_step_frame _ _ i P h hi := by
+    obtain ⟨-, l, hl, htr⟩ := h
+    rw [proposed_internal th hl htr hi P]
+  participate_frame _ _ _ j h _ hne := by rw [participate_frame_tr th h.2 hne]
+  abandon_frame _ _ _ j h _ hne := by rw [abandon_frame_tr th h.2.choose_spec hne]
+  propose_frame _ _ _ _ j P' h _ hne := by rw [propose_frame_tr th h.2 hne]
+  participate_abandoned_frame _ _ _ j h _ := by rw [Chorus.participate.frame_abandoned h.2]
+  participate_proposed_frame _ _ _ j P h _ := by rw [Chorus.participate.frame_msg_proposer_signed h.2]
+  abandon_participating_frame _ _ _ j h _ := by rw [Chorus.abandon.frame_participating h.2.choose_spec]
+  abandon_proposed_frame _ _ _ j P h _ := by rw [Chorus.abandon.frame_msg_proposer_signed h.2.choose_spec]
+  propose_participating_frame _ _ _ _ j h _ := by rw [Chorus.propose.frame_participating h.2]
+  propose_abandoned_frame _ _ _ _ j h _ := by rw [Chorus.propose.frame_abandoned h.2]
+  init_participating _ i h hp := by simp [Chorus.participating.init h.2 i] at hp
+  init_abandoned _ i h hp := by simp [Chorus.abandoned.init h.2 i] at hp
+  init_proposed _ i P h hp := by simp [Chorus.msg_proposer_signed.init h.2 i P] at hp
 
 /-! ### The join with the temporal level
 
 What stands between the fragment above and the full `SlotConsensus` is an
 instance of **`SlotConsensusTemporal … (S := slotConsensusSafety th)`**: the
-participation interface as contract fields, the admissible-run model,
-Termination and Quiescence. Every one of those fields is stated over
+message type with `sent`, the admissible-run model, Termination and
+Quiescence. Every one of those fields is stated over
 `(slotConsensusSafety th)`'s own `init`, `trans`, `reachable` and
 `finalized`, so none is restated here. [Chorus/Temporal.lean](Temporal.lean)
 proves the instance at the system's configuration and joins it here. -/
@@ -513,20 +680,6 @@ def Sent
   | .decryptShare => st.msg_decrypt_share i = true
   | .fbCommit => st.msg_fbcommit_sig i = true
   | .mvba m => mvba.sent st.mvba_st i m
-
-/-- Expose an action's transition body. -/
-local macro "chorus_tr" h:ident : tactic =>
-  `(tactic| (simp only [Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct] at $h:ident
-             simp only [trSimp] at $h:ident))
-
-/-- Evaluate the field-representation `get`/`set` pair. -/
-local macro "chorus_field_simp" : tactic =>
-  `(tactic| simp +unfoldPartialApp [
-      Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
-      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
-      Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
-      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id,
-      instIsSubReaderOfRefl.readFrom_id] at *)
 
 set_option hygiene false in
 /-- A writer of the row: expose its body. The new row is the acting

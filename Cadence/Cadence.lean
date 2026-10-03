@@ -47,30 +47,29 @@ Each sub-protocol is a transition system the glue does not see inside:
   state by any internal transition the contract allows — the paper's module
   running "in the background";
 * the glue's **inputs** to a sub-protocol are its input transitions, driven
-  by the glue's handlers (`on_finalize` performs `O.complete(s)` through
-  `orch.complete`);
+  by the glue's handlers: `on_open` performs `S[s].participate()` through
+  `sc.participate`, `on_propose` performs `S[s].propose(P)` through
+  `sc.propose`, and `on_finalize` performs `O.complete(s)` through
+  `orch.complete` and `S[s].abandon()` through `sc.abandon`, in one step;
 * the glue **reads** the sub-protocols' outputs as observables of the
   abstract state (`orch.opened os i s`, `sc.finalized (sc_state s) i v`)
-  and reacts to them in **handlers** (`on_propose`, `on_finalize`, and the
-  bookkeeping actions `record_skip`, `append`).
+  and reacts to them in **handlers** (`on_open`, `on_propose`,
+  `on_finalize`, and the bookkeeping actions `record_skip`, `append`). The
+  records of its own inputs are the instances' (`participating`,
+  `abandoned`, `proposed` below read `sc.participating`, `sc.abandoned`
+  and `sc.proposed`), so there is no glue-side copy that could disagree
+  with what the instance received.
 
 The paper runs each handler atomically *upon* the output event; here the
 event is the oracle step and the handler a later, separate action. That
 admits strictly more behaviours (a handler may run late), so every safety
 property proven here holds a fortiori of the atomic algorithm; what the
 relaxation costs is one liveness obligation ((F-justice) on the handlers,
-liveness section); no safety property had to be weakened for it — see the
-note at `[bounded_concurrency_interval]`. The `participate()` call needs no handler:
-it is issued in the same handler that reacts to `open(s)`, so "`i` has
-started participating in `S[s]`" is *by definition* "`O` has opened `s` at
-`i`" (ghost `sc_started`). Three inputs are not driven into the
-`SlotConsensusSafety` fragment at all — `participate`, `abandon` and
-`propose` are inputs the paper's *safety* properties never refer to, so they
-live in the upper class `SlotConsensus` (temporal level) and the glue keeps
-its own record of having issued them (`sc_abandoned`, `proposed`), exactly as
-the paper's local variables do. That the glue's record and the instance's
-input coincide is the trace-level seam declared out of scope in
-[Composition.lean](Composition.lean)'s header.
+liveness section). One statement had to follow the relaxation:
+`[bounded_concurrency_interval]` is the direction Lemma 5
+(`lemma:cadence-bounded-concurrency`) needs (an active instance is opened
+and not completed), since a validator that has opened `s` and not yet run
+`on_open` is not participating — see the note there.
 
 ## Property coverage (top-level MCP properties)
 
@@ -111,8 +110,8 @@ plain-Lean / meta layer ([Composition.lean](Composition.lean)), never inside SMT
   cryptographic half in [Primitives.lean](Primitives.lean).
 * **B-Bounded concurrency** (Lemma 5 (`lemma:cadence-bounded-concurrency`)) — the
   paper's proof reduces it to `B`-boundedness of the orchestrator via one
-  state-level fact: a validator actively participates in `S[s]` iff it has
-  opened `s` and not yet completed it. That reduction is
+  state-level fact: a validator actively participates in `S[s]` only if it
+  has opened `s` and not yet completed it. That reduction is
   `safety [bounded_concurrency_interval]` here, stated over the
   *orchestrator's own* `completed` observable — so the orchestrator's
   `Orchestrator.boundedness` obligation applies to it directly, with no
@@ -127,12 +126,11 @@ the glue level; **all** cross-validator interaction is inside the two
 sub-protocols. Every state item is either
 
 * **(L) per-validator local state** — `skipped`, `resolved`, `delivered`,
-  `appended`, `sc_abandoned`, `proposed`. Handlers and protocol actions read
-  and write only rows of the acting validator, plus the sub-protocol
-  observables they react to.
+  `appended`. Handlers and protocol actions read and write only rows of the
+  acting validator, plus the sub-protocol observables they react to.
 * **(A) sub-protocol state** — `os` and `sc_state s`, advanced by the oracle
   steps (any contract-legal internal transition) and by the glue's input
-  transitions. Cross-validator facts (agreement, open-prefix agreement) are
+  transitions, each of which is the acting validator's own input. Cross-validator facts (agreement, open-prefix agreement) are
   facts *about* these states, supplied by the contracts' axioms at reachable
   states — never read by a glue action as a guard.
 
@@ -251,11 +249,6 @@ relation delivered (i : node) (s : slot) (v : pvector)
 /-- `i`'s local log, as a slot-indexed relation (Algorithm 1, line 25 (`line:append`)). The
 ordered-list view is recovered from slot order at the composition layer. -/
 relation appended (i : node) (s : slot) (v : pvector)
-/-- `i` has invoked `S[s].abandon()` (Algorithm 1, line 23 (`line:abandon`)). -/
-relation sc_abandoned (i : node) (s : slot)
-/-- `i` has invoked `S[s].propose(·)` (Algorithm 1, line 19 (`line:propose`)). -/
-relation proposed (i : node) (s : slot)
-
 #gen_state
 
 /-- The orchestrator starts in an initial state of its contract. -/
@@ -289,9 +282,15 @@ ghost relation completed (i : node) (s : slot) := orch.completed os i s
 /-- `S[s]` has output `finalize(v)` at `i`. -/
 ghost relation finalized (i : node) (s : slot) (v : pvector) :=
   sc.finalized (sc_state s) i v
-/-- `i` has invoked `S[s].participate()` (Algorithm 1, line 17 (`line:participate`)) — issued in
-the handler of `open(s)`, hence definitionally the opening. -/
-ghost relation sc_started (i : node) (s : slot) := opened i s
+/-- `i` has invoked `S[s].participate()` (Algorithm 1, line 17
+(`line:participate`)): the instance's own record of the input. -/
+ghost relation participating (i : node) (s : slot) := sc.participating (sc_state s) i
+/-- `i` has invoked `S[s].abandon()` (Algorithm 1, line 23 (`line:abandon`)):
+the instance's own record of the input. -/
+ghost relation abandoned (i : node) (s : slot) := sc.abandoned (sc_state s) i
+/-- `i` has invoked `S[s].propose(·)` (Algorithm 1, line 19
+(`line:propose`)): the instance's own record of the input. -/
+ghost relation proposed (i : node) (s : slot) := ∃ (p : proposal), sc.proposed (sc_state s) i p
 
 /-! ## Derived state — local -/
 
@@ -302,7 +301,7 @@ ghost relation pending (i : node) (s : slot) (v : pvector) :=
 /-- `i` is actively participating in `S[s]` (started, not yet abandoned) —
 the bounded-concurrency proxy of Appendix B.1 (`subsection:memory`). -/
 ghost relation actively_participating (i : node) (s : slot) :=
-  sc_started i s ∧ ¬ sc_abandoned i s
+  participating i s ∧ ¬ abandoned i s
 
 /-- `ready_to_append` for slot `s` (Algorithm 1, line 11 (`line:func-ready-to-append-return`)):
 every strictly smaller slot is resolved. -/
@@ -318,8 +317,6 @@ after_init {
   resolved I S := false
   delivered I S V := false
   appended I S V := false
-  sc_abandoned I S := false
-  proposed I S := false
 }
 
 /-! ## Oracle: the orchestrator takes an internal step -/
@@ -345,19 +342,38 @@ action sc_step (s : slot) (sc_next : scstate) {
   sc_state s := sc_next
 }
 
+/-! ## Handler: start participating (Algorithm 1, line 17 (`line:participate`)) -/
+
+/-- The `open(s)` handler's participating half: once `O` has opened `s` at
+`i`, `i` invokes `S[s].participate()`, an *input transition* of the
+instance's state, `sc.participate`, whose post-state the action picks.
+Once per slot, as the handler of the one `open(s)` event. -/
+action on_open (i : node) (s : slot) (sc_next : scstate) {
+  require ¬ fm.byz i
+  require opened i s
+  require ¬ participating i s
+  -- `S[s].participate()`.
+  require sc.participate (sc_state s) i sc_next
+  sc_state s := sc_next
+}
+
 /-! ## Handler: a designated proposer submits its proposal
 (Algorithm 1, lines 18–19 (`line:proposer-check`–`line:propose`)) -/
 
-/-- The `open(s)` handler's proposing half: once `i` has opened `s` and is one
-of its proposers, it invokes `S[s].propose(·)`. Recorded locally
-(`proposed`); the contents are the slot-consensus instance's business
-(`SlotConsensus.propose`, temporal level). -/
-action on_propose (i : node) (s : slot) {
+/-- The `open(s)` handler's proposing half: once `i` has opened `s`, started
+participating in `S[s]` (the line before, Algorithm 1, line 17
+(`line:participate`)), and is one of `s`'s proposers, it invokes
+`S[s].propose(p)` — the input transition `sc.propose`. The proposal `p` is
+`i`'s own business; once per slot. -/
+action on_propose (i : node) (s : slot) (p : proposal) (sc_next : scstate) {
   require ¬ fm.byz i
   require opened i s
+  require participating i s
   require is_proposer i s
   require ¬ proposed i s
-  proposed i s := true
+  -- `S[s].propose(p)`.
+  require sc.propose (sc_state s) i p sc_next
+  sc_state s := sc_next
 }
 
 /-! ## Protocol: record an implicitly skipped slot (Algorithm 1, line 16 (`line:implicit-skip`)) -/
@@ -383,11 +399,12 @@ action record_skip (i : node) (s : slot) (s_wit : slot) {
 /-- The handler of the output `S[s].finalize(v)` at honest validator `i`, Algorithm 1, lines 21–23 (`line:pending-add`–`line:abandon`): buffer `v` as pending (`delivered`),
 notify the orchestrator — `O.complete(s)` is an *input transition* of the
 orchestrator's state, `orch.complete`, whose post-state the action picks —
-and abandon the instance (recorded locally). The handler fires only for
+and abandon the instance — `S[s].abandon()`, the input transition
+`sc.abandon`, in the same step. The handler fires only for
 slots `i` has opened ("early finalizations buffered", Algorithm 1, line 20 (`line:upon-finalize`))
 and once per slot. The properties of the finalization itself — agreement,
 inclusion — are the contract's business and appear in no guard here. -/
-action on_finalize (i : node) (s : slot) (v : pvector) (os_next : ostate) {
+action on_finalize (i : node) (s : slot) (v : pvector) (os_next : ostate) (sc_next : scstate) {
   require ¬ fm.byz i
   -- Handler guard: fires only once `s ∈ opened_i`.
   require opened i s
@@ -397,9 +414,11 @@ action on_finalize (i : node) (s : slot) (v : pvector) (os_next : ostate) {
   require ∀ v', ¬ delivered i s v'
   -- `O.complete(s)`.
   require orch.complete os i s os_next
+  -- `S[s].abandon()`.
+  require sc.abandon (sc_state s) i sc_next
   delivered i s v := true
   os := os_next
-  sc_abandoned i s := true
+  sc_state s := sc_next
 }
 
 /-! ## Protocol: append a pending vector (Algorithm 1, line 24 (`line:upon-ready-to-append`)) -/
@@ -449,18 +468,22 @@ safety [inclusion_lift]
     sc.includes v j p
 
 /-- The state-level reduction of Lemma 5 (`lemma:cadence-bounded-concurrency`): an
-honest validator actively participates in `S[s]` exactly while `s` is
+honest validator actively participates in `S[s]` only while `s` is
 opened-but-not-completed — `completed` being the *orchestrator's* record of
 the `complete(s)` input, so the orchestrator's `B`-boundedness obligation
 (`Orchestrator.boundedness`, temporal level) bounds the participations
-directly. The biconditional survives the handler relaxation because the
-`participate()` call is definitionally the opening (`sc_started`) and
-`abandon()` is issued in the same handler as `complete(s)`
-(`[completed_iff_abandoned]`). -/
+directly. That is the direction the lemma's bound needs. The paper's proof
+states the converse too ("if and only if"), which holds there because
+`participate()` is issued atomically with `open(s)`; with the handler
+relaxation a validator may have opened `s` and not yet run `on_open`, which
+leaves it with one active instance fewer, never more. The separate handlers
+are an over-approximation: the paper's runs, in which each handler fires at
+once with its event, are among the model's, so the safety claims cover them,
+and the converse is simply not a property of the larger model. The two halves are
+`[participating_opened]` and `[completed_iff_abandoned]`. -/
 safety [bounded_concurrency_interval]
   ∀ (i : node) (s : slot),
-    ¬ fm.byz i →
-    (actively_participating i s ↔ (opened i s ∧ ¬ completed i s))
+    ¬ fm.byz i ∧ actively_participating i s → opened i s ∧ ¬ completed i s
 
 /-! ## Invariants — the sub-protocols' states stay reachable
 
@@ -583,16 +606,29 @@ invariant [completed_delivered]
     ¬ fm.byz i ∧ completed i s → ∃ v, delivered i s v
 
 /-- `abandon()` is invoked exactly upon completing (Algorithm 1, line 23 (`line:abandon`)): the
-glue's record and the orchestrator's record move together. -/
+instance's record and the orchestrator's record move together. The
+contract's frames keep each record still under every other input and step. -/
 invariant [completed_iff_abandoned]
   ∀ (i : node) (s : slot),
-    ¬ fm.byz i → (completed i s ↔ sc_abandoned i s)
+    ¬ fm.byz i → (completed i s ↔ abandoned i s)
 
-/-- The Chorus conformance note made structural ([ConductorDesign.md](../docs/ConductorDesign.md) §7):
-the glue abandons a slot-consensus instance only after it finalized. -/
+/-- **No abandonment before finalizing** — the caller condition Chorus's
+termination claims take (C1, [Bounds.md](../docs/Bounds.md) §6.4.6), in state form: a correct
+validator abandons a slot-consensus instance only after it has finalized
+in it (Algorithm 1, line 23 (`line:abandon`) is in the handler of
+`finalize`). Stated over the instance's own `abandoned`. -/
 invariant [abandoned_after_finalize]
   ∀ (i : node) (s : slot),
-    ¬ fm.byz i ∧ sc_abandoned i s → ∃ v, finalized i s v
+    ¬ fm.byz i ∧ abandoned i s → ∃ v, finalized i s v
+
+/-- **Participation only after opening** — a correct validator participates
+in `S[s]` only once `O` has opened `s` at it (Algorithm 1, line 17
+(`line:participate`) is in the handler of `open(s)`). With the
+orchestrator's `integrity_timing` this is the caller condition C2 in state
+form: no participation before `s`'s starting time. -/
+invariant [participating_opened]
+  ∀ (i : node) (s : slot),
+    ¬ fm.byz i ∧ participating i s → opened i s
 
 /-- Proposals are submitted by designated proposers, upon opening
 (Algorithm 1, lines 18–19 (`line:proposer-check`–`line:propose`)). -/
@@ -612,16 +648,21 @@ Lemma 2 (`lemma:cadence-liveness`):
 
 ### Meta-axioms
 
-* **(F-justice)** — the handler and protocol actions `on_finalize`,
-  `on_propose`, `record_skip` and `append`, when continuously enabled, fire
-  eventually (per honest validator). Enabledness is monotone for all of
-  them: their guards are positive observables and local relations, except
-  the once-guards (`¬ delivered`, `¬ proposed`, `¬ opened i s` in
-  `record_skip`), each of which is *stable* — the first two because the
-  action itself is what falsifies them, the last by the orchestrator's
-  `monotonicity` once the witness exists. The handler relaxation (module
-  header) is what puts `on_finalize` on this list; in the paper it is
-  atomic with the output.
+* **(F-justice)** — the handler and protocol actions `on_open`,
+  `on_finalize`, `on_propose`, `record_skip` and `append`, when continuously
+  enabled, fire eventually (per honest validator). Enabledness is monotone
+  for all of them: their guards are positive observables and local
+  relations, except the once-guards (`¬ participating`, `¬ delivered`,
+  `¬ proposed`, `¬ opened i s` in `record_skip`), each of which is *stable*
+  — the first three because the action itself is what falsifies them (the
+  contract's frames keep every other step from doing so), the last by the
+  orchestrator's `monotonicity` once the witness exists. The handlers that
+  drive an input are enabled only when the instance accepts it (a
+  post-state exists): for Chorus, `participate` and `propose` have such a
+  state whenever the glue's own guards hold, and `abandon` whenever the
+  MVBA's `abandon()` has one. The handler relaxation (module header) is
+  what puts the handlers on this list; in the paper they are atomic with
+  the output.
 * **(A-orch-totality)**, **(A-orch-recovery)** — `Orchestrator.totality` and
   `.recovery` ([Interfaces.lean](Interfaces.lean)): the orchestrator
   eventually opens, at every honest validator, every slot any honest
@@ -640,7 +681,7 @@ Lemma 2 (`lemma:cadence-liveness`):
 
 By (A-orch-recovery) every honest validator opens `s`; by open-prefix
 agreement + (A-orch-totality), for every `s' ≤ s` either all honest
-validators open `s'` — then all participate (`sc_started` is the opening)
+validators open `s'` — then all participate ((F-justice) on `on_open`)
 and (A-sc-termination) finalizes it everywhere, (F-justice) delivers it
 (`on_finalize`) — or none does, and each records it skipped once it opens
 anything higher (`record_skip`, enabled from that point on and fired by
@@ -719,25 +760,35 @@ Guards against a vacuous safety claim ([TODO.md](../docs/TODO.md) § "Soundness"
 states the safety properties quantify over are actually reachable *for
 some* pair of sub-protocols satisfying the contracts — the solver
 constructs the abstract states. The first trace exercises the full happy
-path of one slot (the orchestrator opens → the instance finalizes → the
-handler delivers and completes → append); the second reaches a skip (open a
-slot, then record a smaller never-opened slot as skipped). -/
+path of one slot (the orchestrator opens → the validator participates →
+the instance finalizes → the handler delivers, completes and abandons →
+append); the second reaches a skip (open a slot, then record a smaller
+never-opened slot as skipped); the third reaches a participating proposer
+that has proposed. -/
 
 -- No `set_option … in` directly after a trace: see [CLAUDE.md](../CLAUDE.md),
 -- "Hard rules".
 
 sat trace {
   orch_step
+  on_open
   sc_step
   on_finalize
   append
-  assert (∃ i s v, appended i s v)
+  assert (∃ i s v, appended i s v ∧ abandoned i s)
 }
 
 sat trace {
   orch_step
   record_skip
   assert (∃ i s, skipped i s)
+}
+
+sat trace {
+  orch_step
+  on_open
+  on_propose
+  assert (∃ i s, participating i s ∧ proposed i s)
 }
 
 end Cadence
