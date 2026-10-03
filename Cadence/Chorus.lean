@@ -2896,3 +2896,5 @@ time; multiple concurrent check commands contend for the same discharger
 scheduler and slow each other down. -/
 
 end Chorus
+
+-- X3 experiment: forces a cold Chorus family re-solve. DO NOT MERGE.
