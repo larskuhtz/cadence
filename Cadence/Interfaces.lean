@@ -255,25 +255,26 @@ and where it is discharged.
   *safety*. Chorus `safety [proposal_inclusion]`,
   `[proposal_inclusion_no_neg]`; the synchrony premise's state-level form is
   `on_time` = Chorus's `all_honest_recorded`
-* **`termination`** — Termination; *temporal*. Proven untimed as
-  `Chorus.termination` ([Chorus/Termination.lean](Chorus/Termination.lean)).
-  Its premises are named in [Chorus/Liveness.lean](Chorus/Liveness.lean):
-  (F-justice) on Chorus's own honest actions (`FJustice`), the MVBA's
-  scheduling on the run's MVBA projection (`MvbaAdmissible`), the
-  certificate bridge (`ValidBridge`), and this field's two caller
-  antecedents (`AllParticipate`, `NoAbandonBeforeFinalizing`). The field
-  itself, over a `TimedRun` and an implementation-defined `Admissible`, is
-  **not proven**: it needs the `SlotConsensusTemporal` instance, which
-  waits for the timed claims ([Bounds.md](../docs/Bounds.md) §6.4.6)
+* **`termination`** — Termination; *temporal*. `Chorus.chorusTemporal`
+  ([Chorus/Temporal.lean](Chorus/Temporal.lean)), from `Chorus.termination`
+  ([Chorus/Termination.lean](Chorus/Termination.lean)). Its run premises
+  are named in [Chorus/Liveness.lean](Chorus/Liveness.lean) and make up the
+  instance's `Admissible`: (F-justice) on Chorus's own honest actions
+  (`FJustice`), the MVBA's scheduling on the run's MVBA projection
+  (`MvbaAdmissible`) and the certificate bridge (`ValidBridge`); the
+  field's two antecedents are the caller's (`AllParticipate`,
+  `NoAbandonBeforeFinalizing`)
 * **`hiding_residue`** — Hiding (Definition 4 (`def:hiding`), specialised to the instance's
   slot); *safety*. First-order and proven by Chorus (`safety
   [hiding_until_deadline]`), so it sits in the fragment — see the field's
   docstring for what it does and does not say
-* **`quiescence`** — Quiescence; *safety (one-step form)*. **not proven**
-  yet. Chorus models the participation window: every sending rule requires
-  `participating i ∧ ¬ abandoned i`, and `abandon` forwards to the MVBA's
-  `abandon()`. The one-step statement over those gates comes with the
-  `SlotConsensusTemporal` instance ([Bounds.md](../docs/Bounds.md) §6.4.6, S5)
+* **`quiescence`** — Quiescence (Lemma 6 (`lemma:chorus-quiescence`));
+  *safety (one-step form, from a reachable state)*. `Chorus.chorusTemporal`,
+  in the lemma's two parts: Chorus's own sending rules require
+  `participating i ∧ ¬ abandoned i` (`Chorus.own_sent_new`,
+  [Chorus/Compose.lean](Chorus/Compose.lean)), and the MVBA's sends are
+  confined by the MVBA's own `quiescence` to the window between a gated
+  `mvba_propose` and a forwarded `abandon` (`Chorus.mvba_sent_new`)
 
 `d_tot`-totality and `ℓ`-termination are *not* properties of Module 1 (`mod:slotconsensus`)
 — they are Chorus-specific strengthenings the Conductor's proofs consume —
@@ -415,9 +416,11 @@ class SlotConsensusTemporal (slot validator proposal pvector state time message 
   /-- **Quiescence** — a correct validator sends no protocol message before it
       starts participating or after it stops. Stated in one-step form, over a
       transition rather than over a run, as it is in the other three
-      contracts: a send that appears across `trans` finds the sender
-      participating and not yet abandoned. -/
-  quiescence : ∀ st st' i m, S.trans st st' → ¬ byz i →
+      contracts: a send that appears across a transition out of a reachable
+      state finds the sender participating and not yet abandoned. The paper's
+      property is about executions, so the transition starts from a
+      reachable state. -/
+  quiescence : ∀ st st' i m, S.reachable st → S.trans st st' → ¬ byz i →
     sent st' i m → ¬ sent st i m → participating st' i ∧ ¬ abandoned st i
 
 /-- Module 1 (`mod:slotconsensus`) in full: the fragment together with a temporal level
@@ -436,8 +439,10 @@ Chorus that the Conductor's totality and recovery proofs consume
 conditioned on *Δ-synchronized participation*
 (Definition 5 (`def:delta-synchronized-participation`)), which is stated here as a predicate
 on the run. An orchestrator built on a slot consensus without these does not
-achieve the paper's bounds. Neither is proven for Chorus (the models are
-untimed; [Bounds.md](../docs/Bounds.md)).
+achieve the paper's bounds. Both are proven for Chorus at the system's
+configuration (`Chorus.chorusWithTotality`,
+[Chorus/Temporal.lean](Chorus/Temporal.lean)), over timed runs that carry
+their own clock ([Bounds.md](../docs/Bounds.md) §6.4).
 
 Like `SlotConsensusTemporal`, this is a class **over** the safety instance:
 one more level of what the implementation still owes, kept separate because
@@ -779,9 +784,10 @@ class ACSTemporal (validator slot state time message : Type)
     ∀ n i, ¬ byz i → S.has_decided (r.at' n) i →
     ∀ j, ¬ byz j → r.byGstBound (r.clk n) Δ (fun st => S.has_decided st j)
   /-- **Quiescence** — no protocol message before proposing or after
-      abandoning. Stated in one-step form, over a transition, as in the other
-      three contracts. -/
-  quiescence : ∀ st st' i m, S.trans st st' → ¬ byz i →
+      abandoning. Stated in one-step form, over a transition out of a
+      reachable state, as in `SlotConsensusTemporal`: the paper's property is
+      about executions. -/
+  quiescence : ∀ st st' i m, S.reachable st → S.trans st st' → ¬ byz i →
     sent st' i m → ¬ sent st i m →
       (∃ s, S.proposed st' i s) ∧ ¬ abandoned st i
 
