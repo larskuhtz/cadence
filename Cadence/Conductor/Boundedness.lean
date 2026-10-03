@@ -6,7 +6,7 @@ import Cadence.Conductor.Schedule
 proves **`(2W − p)`-Boundedness** (Lemma 14 (`lem:boundedness`)), the
 target `BoundednessClaim` of [Schedule.lean](Schedule.lean), and collects
 the plain-Lean facts about the Conductor model that it and the window
-induction (stage K4's next file) both read.
+induction ([Induction.lean](Induction.lean)) both read.
 
 ## The count
 

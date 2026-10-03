@@ -91,8 +91,8 @@ Prove anything about the protocol. Its theorems are about its own
 definitions: the constants at `δ = 0` are the paper's (`d_tot_paper`,
 `Φ_oc_paper`), they are the Chorus instance's (`Φ_oc_eq_chorus`), and the
 per-window ACS is a component of the Conductor (`acsComponent`). The proofs
-are stages K4 (Totality, and Boundedness in
-[Boundedness.lean](Boundedness.lean)) and K5 (Recovery) of
+are stages K4 (Totality and Boundedness, [Induction.lean](Induction.lean)
+and [Boundedness.lean](Boundedness.lean)) and K5 (Recovery) of
 [ConductorBounds.md](../../docs/ConductorBounds.md) §9; the glue's rows,
 which time the caller's side, are K7's. -/
 
@@ -654,8 +654,9 @@ times (`StartsUnbounded`, F28) and the ACS's `Δ` the system's, and if the
 caller's completions are total ((R-tot) at `d_tot`): for every slot, once a
 correct validator has opened it at clock `c`, every correct validator opens
 it by `max(c, GST) + d_tot`, with `d_tot = Δ` at the schedule's `δ = 0`
-(`ConductorSchedule.d_tot_paper`). The proof is the window induction of
-Proposition 13 (`prop:window-synchronization`), stage K4. -/
+(`ConductorSchedule.d_tot_paper`). Proven in [Induction.lean](Induction.lean)
+(`Conductor.totality`), by the window induction of Proposition 13
+(`prop:window-synchronization`). -/
 def TotalityClaim [IsOrderedAddMonoid time] {msg : Type} (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz)
     (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
