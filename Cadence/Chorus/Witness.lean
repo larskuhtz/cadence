@@ -64,15 +64,12 @@ present at index `n` exactly when the step that sets it comes before `n`. A
 transition is then linear arithmetic over the index.
 
 The clock advances only out of four **plateau ends** (indices 11, 37, 39
-and the idle tail). At 37, 39 and in the tail no row of the hop table is
-enabled. At 11, the end of clock 0, only re-dissemination is: the chunk is
-decodable, and the model's `redisseminate_chunk` has no fallback-path
-guard. The row is not owed there (F11: a correct validator re-disseminates
-only on the fallback path), but the proof does not use that: the row is a
-`Δ`-row, so its window reaches clock 1, where every correct validator has
-abandoned and its gate is closed, whatever the row is owed on. Building this
-witness is what found F11 ([Bounds.md](../../docs/Bounds.md) §6.4.5). So
-every row of `TimedJustice` holds with its antecedent false: the
+and the idle tail). At none of them is a row of the hop table enabled, the
+availability report aside, which nobody owes since nobody holds a
+meta-block. (Re-dissemination happens only inside a positive fallback
+signature since F15, and nobody signs one here; building this witness found
+F11, [Bounds.md](../../docs/Bounds.md) §6.4.5.) So every row of
+`TimedJustice` holds with its antecedent false: the
 run never leaves an obligation pending while time passes. The untimed
 fairness holds for the same reason: in the idle tail no fair label is
 enabled at all. -/
@@ -591,8 +588,7 @@ local macro "wmember" : tactic =>
   `(tactic| (obtain ⟨r, hr⟩ := List.exists_mem_of_length_pos (by omega : 0 < (‹ByzNSet 4›).val.length); simp_all))
 
 -- Refute a row's enabledness at a concrete state of the run: dismiss the
--- labels off the hop table (and re-dissemination, where the statement
--- excludes it, `hr'`), take the handoff to the MVBA's own quiet lemma and the three
+-- labels off the hop table, take the handoff to the MVBA's own quiet lemma and the three
 -- decision-reading labels to `not_decided`, and read every other row's
 -- guards at the state.
 set_option hygiene false in
@@ -601,7 +597,6 @@ local macro "wquiet" : tactic =>
     rintro ⟨s', htr⟩
     cases l
     all_goals first | (simp [hop] at hh; done) | skip
-    all_goals first | exact absurd ⟨_, _, _, _, rfl⟩ hr' | skip
     all_goals first | exact absurd ⟨_, _, _, rfl⟩ ha | skip
     case accept_mvba_commitqc i c mn =>
       obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
@@ -635,16 +630,13 @@ local macro "wquiet" : tactic =>
     all_goals wnorm
     all_goals first | omega | wquorum | wmember))
 
-/-- Re-dissemination: `k` sends validator `i` its chunk under `(j, m)`. -/
-def IsRedissem (l : CL) : Prop := ∃ k i j m, l = .redisseminate_chunk k i j m
-
 /-- The availability report, enabled throughout for a representation with
 no `FallbackQC` entry, and owed nowhere, since nobody holds a meta-block. -/
 def IsAvail (l : CL) : Prop := ∃ i v n, l = .mvba_avail_ready i v n
 
-/-- At 11, the end of clock 0, no row other than re-dissemination and the
-availability report is enabled. -/
-theorem quiet11 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (hr' : ¬ IsRedissem l)
+/-- At 11, the end of clock 0, no row other than the availability report is
+enabled. -/
+theorem quiet11 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd)
     (ha : ¬ IsAvail l) : ¬ Enabled sys thS (st 11) l := by
   wquiet
 
@@ -661,12 +653,11 @@ theorem quiet41 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail
 /-- The indices out of which the clock advances. -/
 def PlateauEnd (n : Nat) : Prop := n = 11 ∨ n = 37 ∨ n = 39 ∨ 41 ≤ n
 
-/-- No row is enabled at a plateau end, re-dissemination aside at 11 and the
-availability report aside throughout. -/
+/-- No row is enabled at a plateau end, the availability report aside. -/
 theorem quiet {n : Nat} (hn : PlateauEnd n) {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd)
-    (hr : n = 11 → ¬ IsRedissem l) (ha : ¬ IsAvail l) : ¬ Enabled sys thS (st n) l := by
+    (ha : ¬ IsAvail l) : ¬ Enabled sys thS (st n) l := by
   rcases hn with rfl | rfl | rfl | hn
-  · exact quiet11 hh (hr rfl) ha
+  · exact quiet11 hh ha
   · exact quiet37 hh ha
   · exact quiet39 hh ha
   · rw [st_stable hn]; exact quiet41 hh ha
@@ -690,11 +681,11 @@ theorem inactive37 (k : Fin 4) : ¬ Active (st 37) k := by
   omega
 
 /-- **A buffered family holds with its antecedent false** on this run, at any
-bounds, if no member is re-dissemination: its window reaches a plateau end
+bounds, if no member is the availability report: its window reaches a plateau end
 after the gate's index `N'` on the same clock reading, where no member is
 enabled. -/
 theorem bufferedFairFamily_of_quiet {D δ : ℕ} {C gate : CS → Prop} {S : CL → Prop}
-    (hS : ∀ l, S l → (∃ h, hop l = some h) ∧ ¬ IsRedissem l ∧ ¬ IsAvail l) :
+    (hS : ∀ l, S l → (∃ h, hop l = some h) ∧ ¬ IsAvail l) :
     BufferedFairFamily run D δ C gate S := by
   intro N N' hNN' h1 h2
   obtain ⟨P, hP, hle, hclk⟩ := plateau_after N'
@@ -704,12 +695,12 @@ theorem bufferedFairFamily_of_quiet {D δ : ℕ} {C gate : CS → Prop} {S : CL 
     exact le_trans (run.clk_le_ref N') (le_trans (Nat.le_add_right _ _) (le_max_right _ _))
   obtain ⟨-, hen⟩ := h1 P (le_trans hNN' hle) hW
   obtain ⟨l, hl, hen⟩ := hen (h2 P hle hW)
-  obtain ⟨⟨h, hh⟩, hr, ha⟩ := hS l hl
-  exact absurd hen (quiet hP hh (fun _ => hr) ha)
+  obtain ⟨⟨h, hh⟩, ha⟩ := hS l hl
+  exact absurd hen (quiet hP hh ha)
 
 theorem bufferedFair_of_quiet {D δ : ℕ} {C gate : CS → Prop} {l : CL} {h : Mvba.Hop}
-    (hh : hop l = some h) (hr : ¬ IsRedissem l) (ha : ¬ IsAvail l) : BufferedFair run D δ C gate l :=
-  bufferedFair_iff_family.mpr (bufferedFairFamily_of_quiet fun _ hl => ⟨⟨h, hl ▸ hh⟩, hl ▸ hr, hl ▸ ha⟩)
+    (hh : hop l = some h) (ha : ¬ IsAvail l) : BufferedFair run D δ C gate l :=
+  bufferedFair_iff_family.mpr (bufferedFairFamily_of_quiet fun _ hl => ⟨⟨h, hl ▸ hh⟩, hl ▸ ha⟩)
 
 /-- **A buffered family holds with its owed-condition false** throughout: the
 window's first index is in it. -/
@@ -721,32 +712,20 @@ theorem bufferedFairFamily_of_not_owed {D δ : ℕ} {C gate : CS → Prop} {S : 
 
 /-! ## The schedule, and the instance's hypotheses -/
 
-/-- The MVBA's fixed-timeout schedule (`Δ = 1`, `δ = 0`, `ρ = 1`), and the
-deadline `D = 1`. A local step is no slower than a hop: `0 ≤ 1`. -/
+/-- The MVBA's fixed-timeout schedule (`Δ = 1`, `δ = 0`, `ρ = 1`) with the
+availability bound of the composed system, `Δ_sync = Δ = 1`, and the
+deadline `D = 1`. A local step is no slower than a hop, `0 ≤ 1`, and the
+availability window covers a hop, `1 ≤ 1`. The MVBA's own fixed schedule
+(`Mvba.Schedule.fixedNat`, `Δ_sync = 0`) is left as it is; the timeout `5`
+still clears the chain's latency, `Lcert 1 0 1 = 4`. -/
 def schC : Chorus.Schedule ℕ ℕ where
-  mvba := Mvba.Schedule.fixedNat ℕ 1
+  mvba := { Mvba.Schedule.fixedNat ℕ 1 with
+    Δsync := 1
+    Δsync_nonneg := Nat.zero_le _
+    τ_ramp := fun _ _ => by simp [Mvba.Lcert, Mvba.Schedule.fixedNat] }
   D := 1
   δ_le_Δ := Nat.zero_le _
-
-/-- Re-dissemination's row, with its antecedent false: its bound is `Δ = 1`,
-so its window reaches clock 1, and at 37, on clock 1, its gate is closed
-(`inactive37`); a gate index after 37 is followed by a quiet plateau end. -/
-theorem redissem_fair (k i j : Fin 4) (m : Unit) {C : CS → Prop} :
-    BufferedFair run (schC.bound .net) schC.δ C (gate (.redisseminate_chunk k i j m))
-      (.redisseminate_chunk k i j m) := by
-  intro N N' hNN' h1 h2
-  by_cases hN' : N' ≤ 37
-  · have hW : run.clk 37 ≤ run.bufWindow N N' (schC.bound .net) schC.δ :=
-      le_trans (show run.clk 37 ≤ 0 + 1 from le_refl _)
-        (le_trans (Nat.add_le_add_right (Nat.zero_le _) _) (le_max_left _ _))
-    exact absurd (h2 37 hN' hW) (inactive37 k)
-  · obtain ⟨P, hP, hle, hclk⟩ := plateau_after N'
-    have hW : run.clk P ≤ run.bufWindow N N' (schC.bound .net) schC.δ := by
-      show clk P ≤ _
-      rw [hclk]
-      exact le_trans (run.clk_le_ref N') (le_trans (Nat.le_add_right _ _) (le_max_right _ _))
-    obtain ⟨-, hen⟩ := h1 P (le_trans hNN' hle) hW
-    exact absurd (hen (h2 P hle hW)) (quiet hP rfl (fun h => absurd h (by omega)) fun ⟨_, _, _, h⟩ => by cases h)
+  Δ_le_Δsync := le_rfl
 
 /-- `ByzNodeSetHonestQuorum` at this instance: the three correct validators. -/
 @[implicit_reducible]
@@ -768,25 +747,23 @@ theorem rotation : Mvba.LeaderRotation natViewOrderEnum schC.mvba.k thM := by
 
 /-! ## (a) The timed premises -/
 
-/-- **(Δδ-justice)**: every row and the three families (the proposal on its
-two triggers, and the handoff) with their antecedents false. -/
+/-- **(Δδ-justice)**: every row, the four families (the proposal on its two
+triggers, the handoff and the availability report) and the fallback commit
+vote, with their antecedents false. Nobody decides in the MVBA, so the vote's
+gate, its own decision, never opens. -/
 theorem timedJustice : TimedJustice schC run := by
   refine ⟨fun l h hh hfam => ?_, fun _ _ => bufferedFairFamily_of_quiet fun _ ⟨_, hl⟩ =>
-      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => (by rw [hl] at h; cases h),
-        fun ⟨_, _, _, h⟩ => (by rw [hl] at h; cases h)⟩,
+      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, h⟩ => (by rw [hl] at h; cases h)⟩,
     fun _ _ => bufferedFairFamily_of_quiet fun _ ⟨_, hl⟩ =>
-      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => (by rw [hl] at h; cases h),
-        fun ⟨_, _, _, h⟩ => (by rw [hl] at h; cases h)⟩,
+      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, h⟩ => (by rw [hl] at h; cases h)⟩,
     fun _ => bufferedFairFamily_of_quiet fun _ ⟨_, _, hl⟩ =>
-      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, _, h⟩ => (by rw [hl] at h; cases h),
-        fun ⟨_, _, _, h⟩ => (by rw [hl] at h; cases h)⟩,
-    fun i v => bufferedFairFamily_of_not_owed fun n ⟨w, hw⟩ => not_accepted n i w v hw⟩
-  have ha : ¬ IsAvail l := fun ⟨_, _, _, h⟩ => hfam (h ▸ trivial)
-  by_cases hr : IsRedissem l
-  · obtain ⟨k, i, j, m, rfl⟩ := hr
-    obtain rfl : h = .net := by simp [hop] at hh; exact hh.symm
-    exact redissem_fair k i j m
-  · exact bufferedFair_of_quiet hh hr ha
+      ⟨⟨.net, by rw [hl]; rfl⟩, fun ⟨_, _, _, h⟩ => (by rw [hl] at h; cases h)⟩,
+    fun i v => bufferedFairFamily_of_not_owed fun n ⟨w, hw⟩ => not_accepted n i w v hw,
+    fun i v N N' _ _ h2 => ?_⟩
+  · exact bufferedFair_of_quiet hh fun ⟨_, _, _, h⟩ => hfam (h ▸ trivial)
+  · obtain ⟨-, hd, -⟩ := h2 N' le_rfl (le_trans (run.clk_le_ref N')
+      (le_trans (Nat.le_add_right _ _) (le_max_right _ _)))
+    exact (not_decided N' i v hd).elim
 
 theorem lbl_deadline {n : Nat} (h : lbl n = .advance_to_deadline) : n = 12 := by
   by_cases hn : n < 41
@@ -873,35 +850,28 @@ theorem proj_at (k : Nat) : proj.run.at' k = mst ((mvbaComponent thS thM).idx ru
 theorem mlbl_ne_expire (n : Nat) (i : Fin 4) (v : ℕ) : mlbl n ≠ .expire_timer i v := by
   simp only [mlbl]; split_ifs <;> simp
 
-/-- **The MVBA's own three timed clauses**, on the timed projection:
+/-- **The MVBA's own two timed clauses**, on the timed projection:
 (Δ-justice) with its antecedent false, since no fair MVBA label is enabled
-at a quiet state; (T-timer), since no timer fires and nobody enters a view;
-(Δ-avail), since nobody accepts. -/
+at a quiet state; (T-timer), since no timer fires and nobody enters a view. -/
 theorem mvbaOwn : Mvba.BoundedJustice schC.mvba proj.timed ∧
-    Mvba.TimerPunctual schC.mvba proj.timed ∧ Mvba.AvailWithin schC.mvba proj.timed := by
+    Mvba.TimerPunctual schC.mvba proj.timed := by
   refine ⟨Mvba.boundedJustice_of_quiet fun N D _ => ⟨N, le_rfl,
       le_trans (proj.timed.clk_le_ref N) (Nat.le_add_right _ _),
       fun _ _ hh => by
         show ¬ Enabled _ _ (proj.run.at' N) _
         rw [proj_at]
         exact Mvba.not_enabled_of_quiet (mquiet _) hh⟩,
-    ⟨fun n i v _ hl => absurd hl (mlbl_ne_expire _ i v), fun m i v _ hent => ?_⟩,
-    fun m i v e _ hacc => ?_⟩
-  · change (proj.run.at' m).entered i v = true at hent
-    rw [proj_at] at hent
-    simp [mst] at hent
-  · change (proj.run.at' m).accepted i v e = true at hacc
-    rw [proj_at] at hacc
-    simp [mst] at hacc
+    ⟨fun n i v _ hl => absurd hl (mlbl_ne_expire _ i v), fun m i v _ hent => ?_⟩⟩
+  change (proj.run.at' m).entered i v = true at hent
+  rw [proj_at] at hent
+  simp [mst] at hent
 
-/-- **The MVBA's timing premise**, its handoff clause derived from the rows
-(`timedMvbaAdmissible_of_rows`, at `δ = 0 ≤ Δ + ρ = 2`). -/
-theorem timedMvbaAdmissible :
-    TimedMvbaAdmissible (Mvba.mvbaTemporal thM hqeC schC.mvba natViewOrderEnum rotation) run :=
-  timedMvbaAdmissible_of_rows hqeC schC natViewOrderEnum rotation (by decide) timedJustice proj mvbaOwn
-
-theorem sync : Sync schC (Mvba.mvbaTemporal thM hqeC schC.mvba natViewOrderEnum rotation) run :=
-  ⟨timedJustice, phasePunctual, timedMvbaAdmissible⟩
+/-- **The timing model at the system's MVBA**: (Δδ-justice), (P-phase) and
+the MVBA's own two clauses on the projection. The MVBA's clauses on its
+caller, the handoff and (Δ-avail), are derived from the rows
+(`sync_of_syncAtMvba`, below, with the bridge). -/
+theorem syncAtMvba : SyncAtMvba schC run :=
+  ⟨timedJustice, phasePunctual, proj, mvbaOwn⟩
 
 /-! ## (b) The untimed premises, on the same run -/
 
@@ -1010,6 +980,12 @@ theorem validBridge : ValidBridge run.toLRun :=
     fun n i v _ hd => absurd hd (not_decided n i v),
     fun n i w v _ hacc => absurd hacc (not_accepted n i w v)⟩
 
+/-- `Sync` at the system's MVBA, its two caller clauses derived
+(`sync_of_syncAtMvba`): the handoff from the handoff row, (Δ-avail) from the
+availability row and `Δ ≤ Δ_sync`. -/
+theorem sync : Sync schC (Mvba.mvbaTemporal thM hqeC schC.mvba natViewOrderEnum rotation) run :=
+  sync_of_syncAtMvba hqeC schC natViewOrderEnum rotation syncAtMvba validBridge
+
 /-! ## The caller's premises -/
 
 theorem allParticipate : AllParticipate run.toLRun := by
@@ -1063,8 +1039,8 @@ Not needed for non-vacuity: these check that the run is an instance of what
 `Chorus.termination`, `Chorus.totality` and `Chorus.timed_termination_atMvba`
 quantify over, at their own instance regime, with nothing re-bundled. The
 last one is the check that the witness's premise set is the proven timed
-claim's: `sync`, `validBridge` and the caller's four, at the system's MVBA,
-and nothing else. -/
+claim's: `syncAtMvba`, `validBridge` and the caller's four, at the system's
+MVBA, and nothing else. -/
 
 example : Terminates run.toLRun :=
   termination 4 1 rfl isByz hbyz natViewOrderEnum run.toLRun fJustice mvbaAdmissible validBridge
@@ -1077,9 +1053,9 @@ example (j : Fin 4) (hj : ¬ nsetC.is_byz j = true) :
     32 0 (by decide) finalizes j hj
 
 example (j : Fin 4) (hj : ¬ nsetC.is_byz j = true) :
-    ∃ n, run.clk n ≤ max 0 run.gst + schC.ℓ (Mvba.mvbaTemporal thM hqeC schC.mvba natViewOrderEnum rotation).ℓ ∧
+    ∃ n, run.clk n ≤ max 0 run.gst + schC.ℓ (schC.mvba.ℓ natViewOrderEnum) ∧
       (run.at' n).local_committed j = true :=
-  timed_termination_atMvba 4 1 rfl isByz hbyz schC hqeC natViewOrderEnum rotation run sync validBridge
+  timed_termination_atMvba 4 1 rfl isByz hbyz schC hqeC natViewOrderEnum rotation run syncAtMvba validBridge
     (syncParticipationWithin _) noAbandonBeforeFinalizing noEarlyStart 0 allParticipateBy j hj
 
 end Witness
@@ -1128,16 +1104,18 @@ theorem termination_premises_satisfiable :
     validBridge, allParticipate, noAbandonBeforeFinalizing⟩
 
 open Witness in
-/-- **The premises of `TimedTerminationClaim` are jointly satisfiable**, at
-the system's MVBA `T := Mvba.mvbaTemporal`. Some instance, schedule and timed
-run meet all of them at once: the instance hypotheses of `Mvba.mvbaTemporal`
-(finitely many validators, a correct supermajority, the view order, a
-correct leader in every `k` views, a cancellative Archimedean time), the
-assumptions of `chorusTheory`, `δ ≤ Δ + ρ` (which the handoff's derivation
-takes), the timing model `Sync` — (Δδ-justice), (P-phase) and the MVBA's
-`Admissible` of the timed projection — the bridge, and the caller's
-conditions: participation synchronized within `Δ`, C1, C2, and everyone
-participating by `t`.
+/-- **The premises of the timed termination claim at the system's MVBA are
+jointly satisfiable** (`TimedTerminationClaimAtMvba`, proven as
+`timed_termination_atMvba`). Some instance, schedule and timed run meet all
+of them at once: the instance hypotheses of `Mvba.mvbaTemporal` (finitely
+many validators, a correct supermajority, the view order, a correct leader
+in every `k` views, a cancellative Archimedean time), the assumptions of
+`chorusTheory`, the schedule (with `δ ≤ Δ` and `Δ ≤ Δ_sync`), the timing
+model `SyncAtMvba` — (Δδ-justice), (P-phase) and the MVBA's own two clauses
+on the timed projection — the bridge, and the caller's conditions:
+participation synchronized within `Δ`, C1, C2, and everyone participating
+by `t`. The MVBA's clauses on its caller are derived, so they are not
+premises.
 
 It rules out that the bounded termination claim holds only because no run
 can meet its premises: there is a run admissible under the timing model in
@@ -1152,23 +1130,21 @@ theorem timedTermination_premises_satisfiable :
       (vfin : Cadence.ViewOrderEnum view vord)
       (time : Type) (_ : LinearOrder time) (_ : AddCommMonoid time)
       (_ : IsOrderedCancelAddMonoid time) (_ : Archimedean time)
-      (hqe : ByzNodeSetHonestQuorum (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz))
+      (_ : ByzNodeSetHonestQuorum (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz))
       (is_proposer : Fin n → Bool) (well_encoded : merkle_root → Bool)
       (mvba_init_state :
         Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view))
       (thM : Mvba.Theory (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view)
       (sch : Chorus.Schedule view time)
-      (hrot : Mvba.LeaderRotation (nset := byzNodeSetFin n f hf is_byz hbyz) vfin sch.mvba.k thM),
+      (_ : Mvba.LeaderRotation (nset := byzNodeSetFin n f hf is_byz hbyz) vfin sch.mvba.k thM),
       (atMvba (nset := byzNodeSetFin n f hf is_byz hbyz) (slot := slot) (Phase := Phase)
         (PathChoice := PathChoice) thM).assumptions
         (Cadence.chorusTheory (slot := slot) (Phase := Phase) (PathChoice := PathChoice)
           is_proposer well_encoded mvba_init_state) ∧
-      sch.δ ≤ sch.Δ + sch.mvba.ρ ∧
       ∃ (r : TChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz)
           (Cadence.chorusTheory (slot := slot) (Phase := Phase) (PathChoice := PathChoice)
             is_proposer well_encoded mvba_init_state) thM time) (t : time),
-        Sync (nset := byzNodeSetFin n f hf is_byz hbyz) sch
-          (Mvba.mvbaTemporal (nset := byzNodeSetFin n f hf is_byz hbyz) thM hqe sch.mvba vfin hrot) r ∧
+        SyncAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz) sch r ∧
         ValidBridge (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun ∧
         SyncParticipationWithin (nset := byzNodeSetFin n f hf is_byz hbyz) sch.Δ r ∧
         NoAbandonBeforeFinalizing (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun ∧
@@ -1177,7 +1153,7 @@ theorem timedTermination_premises_satisfiable :
   ⟨4, 1, rfl, isByz, inferInstance, hbyz, Unit, Unit, ℕ, Ph, PC, inferInstance, inferInstance,
     inferInstance, inferInstance, inferInstance, natViewOrder, inferInstance, inferInstance,
     inferInstance, natViewOrderEnum, ℕ, inferInstance, inferInstance, inferInstance, inferInstance,
-    hqeC, _, _, mst 0, thM, schC, rotation, holds, by decide, run, 0, sync, validBridge,
+    hqeC, _, _, mst 0, thM, schC, rotation, holds, run, 0, syncAtMvba, validBridge,
     syncParticipationWithin _, noAbandonBeforeFinalizing, noEarlyStart, allParticipateBy⟩
 
 open Witness in

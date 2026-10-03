@@ -134,7 +134,7 @@ theorem leave_pre_label {l}
      aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit,
      broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg,
      cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready,
-     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_pos,
      byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback,
      byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk,
@@ -160,17 +160,17 @@ theorem Landmark.reached_step {l} (htr : (RTS).tr th s l s') {L : Landmark}
   · exact phase_mvbaArm_step htr h
 
 theorem enabled_deliver_chunk_assigned {i j : node} {m : merkle_root}
-    (hj : ¬ nset.is_byz j = true) (ha : Active s j) (hs : s.msg_proposer_signed j m = true)
+    (hj : ¬ nset.is_byz j = true) (hs : s.msg_proposer_signed j m = true)
     (hns : ¬ s.local_chunk_sent j i j m = true) :
     Enabled RTS th s (.deliver_chunk_assigned i j m) := by
   chorus_enabled
-  exact ⟨_, hj, ha.1, ha.2, hs, hns, rfl⟩
+  exact ⟨_, hj, hs, hns, rfl⟩
 
 theorem deliver_chunk_assigned_effect {i j : node} {m : merkle_root}
     (htr : (RTS).tr th s (.deliver_chunk_assigned i j m) s') :
     s'.msg_chunk_received i j m = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_record_chunk {i j : node} {m : merkle_root}
@@ -822,14 +822,14 @@ theorem phase_pre_of_lt (sch : Schedule view time) {r : TChorusRun thS thM time}
     exact absurd (lt_of_le_of_lt (le_trans this (r.clk_mono n)) hc) (lt_irrefl _)
 
 /-- **Milestone: a correct proposer's chunk is delivered, `Δ` after it
-signed.** `deliver_chunk_assigned` is a `Δ`-row gated on the proposer's
-participation; its fired-once guard lapses only with the delivery
-(`chunk_sent_received`). -/
+signed.** `deliver_chunk_assigned` is a `Δ`-row with no gate: the proposer
+sent the chunk when it proposed (Algorithm 2 (`alg:proposer-dissemination`)),
+so it is delivered whatever the proposer does next. Its fired-once guard
+lapses only with the delivery (`chunk_sent_received`). -/
 theorem within_chunk_delivered (sch : Schedule view time)
     {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r)
     {j : node} (hj : ¬ nset.is_byz j = true) {m : merkle_root} {Np : Nat}
-    (hs : (r.at' Np).msg_proposer_signed j m = true)
-    (hactj : ∀ n, Np ≤ n → r.clk n ≤ r.ref Np + sch.Δ → Active (r.at' n) j) (i : node) :
+    (hs : (r.at' Np).msg_proposer_signed j m = true) (i : node) :
     r.WithinFrom Np (r.ref Np + sch.Δ) (fun st => st.msg_chunk_received i j m = true) := by
   mvba_inst
   have hδΔ : sch.δ ≤ sch.Δ := sch.δ_le_Δ
@@ -837,11 +837,11 @@ theorem within_chunk_delivered (sch : Schedule view time)
     rw [max_self]; exact r.bufWindow_le le_rfl (add_le_add le_rfl hδΔ)
   refine r.withinFrom_of_bufferedFair (hTJ.rows (.deliver_chunk_assigned i j m) .net rfl (fun h => h))
     (le_max_left _ _) hW (fun _ _ h => deliver_chunk_assigned_effect h)
-    (fun n hn _ hnot => ⟨trivial, fun hg => enabled_deliver_chunk_assigned hj hg
+    (fun n hn _ hnot => ⟨trivial, fun _ => enabled_deliver_chunk_assigned hj
       (r.mono (P := fun st => st.msg_proposer_signed j m = true)
         (fun k hk => Chorus.msg_proposer_signed.mono (r.steps k) j m hk) hs n hn)
       (fun h => hnot (chunk_sent_received r.toLRun n h))⟩)
-    (fun n hn hc _ => hactj n (by omega) hc)
+    (fun _ _ _ _ => trivial)
 
 omit [IsOrderedAddMonoid time] in
 /-- **Milestone: a received chunk is recorded, `δ` later, if that is still
@@ -875,7 +875,7 @@ theorem within_entry_recorded (sch : Schedule view time) {r : TChorusRun thS thM
   exact Chorus.reachable_voted_post_deadline (r.reachable n) i ⟨hi, hv⟩ hpre
 
 /-- **Milestone: the proposal delivered and recorded**: if a correct proposer
-`j` signed its root by `X` and is active over the window, every correct
+`j` signed its root by `X`, every correct
 validator holds a positive entry for `j` by `max(X, GST) + Δ + δ`, provided
 that is before the deadline. -/
 theorem within_proposal_recorded (sch : Schedule view time)
@@ -883,14 +883,12 @@ theorem within_proposal_recorded (sch : Schedule view time)
     {j : node} (hj : ¬ nset.is_byz j = true) (hJ : thS.is_proposer j = true)
     {m : merkle_root} {Np : Nat} {X : time} (hcp : r.clk Np ≤ X)
     (hs : (r.at' Np).msg_proposer_signed j m = true)
-    (hactj : ∀ n, Np ≤ n → r.clk n ≤ max X r.gst + sch.Δ → Active (r.at' n) j)
     (hlt : max X r.gst + sch.Δ + sch.δ < sch.D)
     {i : node} (hi : ¬ nset.is_byz i = true) :
     r.WithinFrom Np (max X r.gst + sch.Δ + sch.δ) (fun st => ∃ m', st.local_entry_pos i j m' = true) := by
   mvba_inst
   have hrefp : r.ref Np ≤ max X r.gst := r.ref_le (le_trans hcp (le_max_left _ _)) (le_max_right _ _)
-  obtain ⟨Nd, hNd, hcd, hd⟩ := within_chunk_delivered sch hTJ hj hs
-    (fun n hn hc => hactj n hn (le_trans hc (add_le_add hrefp le_rfl))) i
+  obtain ⟨Nd, hNd, hcd, hd⟩ := within_chunk_delivered sch hTJ hj hs i
   have hrefd : r.ref Nd ≤ max X r.gst + sch.Δ :=
     r.ref_le (le_trans hcd (add_le_add hrefp le_rfl))
       (le_trans (le_max_right _ _) (le_add_of_nonneg_right sch.mvba.Δ_pos.le))

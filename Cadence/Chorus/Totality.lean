@@ -202,7 +202,7 @@ theorem committed_flip {l} {i : node}
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose,
      accept_mvba_commitqc, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, mvba_terminate,
-     redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     cast_fb_commit, commit_assign_pos, commit_assign_neg,
      byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk,
      byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
      byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
