@@ -345,7 +345,7 @@ relation tc_formed (i : node) (v : view)
 
 /-- `Leader(slot, v)` names one leader per view. -/
 assumption [leader_functional]
-  ∀ (V : view) (L L' : node), leader V L → leader V L' → L = L'
+  ∀ (V : view) (L L' : node), leader V L → leader V L' → L' = L
 
 /-! ## Derived state (ghosts) -/
 
