@@ -443,15 +443,13 @@ The theory meets the model's assumptions, index 0 is initial, and every
 step is a transition: the 41 steps of the active prefix, then the idle tail,
 whose state no longer changes. -/
 
-/-- The MVBA model's assumptions at `thM`: validator 0 leads every view. -/
+/-- The MVBA model's assumption at `thM`: one leader, validator 0, for every view. -/
 theorem mholds : (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V E ℕ).assumptions thM := by
   simp only [Mvba.relationalTransitionSystem, Mvba.Assumptions, Mvba.leader_functional,
-    Mvba.leader_honest_cofinal, thM, instIsSubReaderOfRefl.readFrom_id]
-  refine ⟨fun _ L L' h h' => ?_, fun V => ⟨V, 0, TotalOrderWithMinimum.le_refl V, rfl, ?_⟩⟩
-  · simp only [decide_eq_true_eq] at h h'
-    rw [h, h']
-  · dsimp +instances only [nsetC, byzNodeSetFin]
-    decide
+    thM, instIsSubReaderOfRefl.readFrom_id]
+  intro _ L L' h h'
+  simp only [decide_eq_true_eq] at h h'
+  rw [h, h']
 
 theorem mstarts : (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V E ℕ).init thM (mst 0) := by
   simp only [Mvba.relationalTransitionSystem, Mvba.Init, trSimp]
@@ -1057,7 +1055,7 @@ example (j : Fin 4) (hj : ¬ nsetC.is_byz j = true) :
 example (j : Fin 4) (hj : ¬ nsetC.is_byz j = true) :
     ∃ n, run.clk n ≤ max 0 run.gst + schC.ℓ (schC.mvba.ℓ natViewOrderEnum) ∧
       (run.at' n).local_committed j = true :=
-  timed_termination_atMvba 4 1 rfl isByz hbyz schC hqeC natViewOrderEnum rotation run syncAtMvba validBridge
+  timed_termination_atMvba 4 1 rfl isByz hbyz schC natViewOrderEnum rotation run syncAtMvba validBridge
     (syncParticipationWithin _) noAbandonBeforeFinalizing noEarlyStart 0 allParticipateBy j hj
 
 end Witness

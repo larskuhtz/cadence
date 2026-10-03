@@ -273,18 +273,16 @@ local macro "wlabel" : tactic =>
 
 /-! ## The run is a run of the model
 
-The theory meets the model's two assumptions, index 0 is initial, and every
+The theory meets the model's assumption, index 0 is initial, and every
 step is a transition: the 25 steps of the active prefix, then the idle
 tail, whose state no longer changes. -/
 
 theorem holds : sys.assumptions thW := by
   simp only [sys, Mvba.relationalTransitionSystem, Mvba.Assumptions, Mvba.leader_functional,
-    Mvba.leader_honest_cofinal, thW, instIsSubReaderOfRefl.readFrom_id]
-  refine ⟨fun _ L L' h h' => ?_, fun V => ⟨V, 0, TotalOrderWithMinimum.le_refl V, rfl, ?_⟩⟩
-  · simp only [decide_eq_true_eq] at h h'
-    rw [h, h']
-  · dsimp +instances only [nsetW, byzNodeSetFinGen]
-    decide
+    thW, instIsSubReaderOfRefl.readFrom_id]
+  intro _ L L' h h'
+  simp only [decide_eq_true_eq] at h h'
+  rw [h, h']
 
 theorem starts : sys.init thW (st 0) := by
   simp only [sys, Mvba.relationalTransitionSystem, Mvba.Init, trSimp]

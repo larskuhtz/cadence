@@ -416,8 +416,9 @@ the same restriction in as many words — "View 1 is exceptional because
 validators enter it when their local `propose` call occurs, and those calls
 need not be Δ-synchronized … We therefore analyze below a later view entered
 through a timeout certificate", the exceptional case contributing only a
-further `O(Δ)`. It costs nothing, because (A-leader-rotation) puts an
-honest-led view above *every* view, view 1 included. -/
+further `O(Δ)`. It costs nothing, because a leader schedule with a correct
+leader in every `k` consecutive views (`LeaderRotation`) has an honest-led
+view above *every* view, view 1 included. -/
 def AViewSync (r : MvbaRun th) : Prop :=
   ∃ (W PV : view) (L : node),
     vord.next PV W ∧
@@ -1352,7 +1353,7 @@ theorem eventually_preprepare_of_settled_leader
 
 The other half of liveness, and the one the decision chain cannot supply:
 what carries a run *out of* a view whose leader is silent or faulty, and so
-towards the honest-led view (A-leader-rotation) promises.
+towards the honest-led view (A-viewsync) names.
 
 Three steps. What makes the *first* one fire — a validator's timer running
 out — is not a link but the assumption (A-viewsync)'s first clause, and

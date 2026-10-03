@@ -1177,15 +1177,6 @@ local notation "nsetF" => byzNodeSetFin n f hf is_byz hbyz
 /-- The family's quorum counting facts. -/
 local notation "cntF" => Cadence.byzNodeSetFin_counting n f hf is_byz hbyz
 
-/-- The family has a supermajority of correct validators
-(`honest_quorum_fin`), which is what the MVBA's timed claim takes as
-`ByzNodeSetHonestQuorum`. -/
-@[implicit_reducible]
-noncomputable def hqeFin : ByzNodeSetHonestQuorum (Fin n) (ByzNSet n) nsetF where
-  honestQuorum := (honest_quorum_fin n f hf is_byz hbyz).choose
-  honestQuorum_supermajority := (honest_quorum_fin n f hf is_byz hbyz).choose_spec.1
-  honestQuorum_correct := (honest_quorum_fin n f hf is_byz hbyz).choose_spec.2
-
 omit [Inhabited merkle_root] [Inhabited view] node_inhabited in
 /-- **A view with a correct leader and a predecessor**, from
 (A-leader-rotation-k): among the `k` views after the first, one has a
@@ -1346,7 +1337,7 @@ noncomputable def chorusWithTotality (fs : FamilySchedule slot view time)
     (bounded_termination := fun r hadm hsync hab hC2 t hall j hj => by
       obtain ⟨r', hat, hclk, hgst, -, -, hbr, hsa⟩ := hadm
       obtain ⟨m, hm, hc⟩ := timed_termination_atMvba n f hf is_byz hbyz (fs.at (r.at' 0).1)
-        (hqeFin n f hf is_byz hbyz) vfin hrot r' hsa hbr
+        vfin hrot r' hsa hbr
         (syncWithin_of n f hf is_byz hbyz hat hclk hgst hsync)
         (noAbandon_of n f hf is_byz hbyz hat hab)
         (fun k i hi hp => by

@@ -64,7 +64,7 @@ premise; their hypotheses are §2's and the trust items of
 | Claim | Premises | Witness |
 |---|---|---|
 | `Chorus.termination` — every correct validator finalizes the slot | §2.1, §2.3, §2.4; `FJustice` §3.1, `MvbaAdmissible` §3.2; `ValidBridge` §5.1; `AllParticipate` §6.1, C1 §6.2 | `Chorus.termination_premises_satisfiable` |
-| `Chorus.timed_termination_atMvba`, `…_tight_atMvba` — every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA + 9δ` (tight: `4Δ + ℓ_MVBA + 8δ`) | §2.1–§2.8; `TimedJustice` §4.1, `PhasePunctual` §4.2, `MvbaOwnTiming` §4.3; `ValidBridge` §5.1; `AllParticipateBy t` §6.1, C1 §6.2, C2 §6.3, `SyncParticipationWithin Δ` §6.4 | `Chorus.timedTermination_premises_satisfiable` |
+| `Chorus.timed_termination_atMvba`, `…_tight_atMvba` — every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA + 9δ` (tight: `4Δ + ℓ_MVBA + 8δ`) | §2.1, §2.3–§2.8 (§2.2 is a theorem of the family, `Chorus.hqeFin`); `TimedJustice` §4.1, `PhasePunctual` §4.2, `MvbaOwnTiming` §4.3; `ValidBridge` §5.1; `AllParticipateBy t` §6.1, C1 §6.2, C2 §6.3, `SyncParticipationWithin Δ` §6.4 | `Chorus.timedTermination_premises_satisfiable` |
 | `Chorus.timed_termination`, `…_tight` — the same, for any MVBA contract `T` | as above, with `TimedMvbaAdmissible T` §4.3 in place of `MvbaOwnTiming`, and `0 ≤ ℓ_MVBA` §2.9 in place of the MVBA instance's §2.2 and §2.5–§2.7 | through the row above (at the system's MVBA, `0 ≤ ℓ_MVBA` is a theorem) |
 | `Chorus.totality` — once one correct validator finalizes at `c`, all do by `max(c, GST) + max(Δ, d) + 2δ` | §2.1 (finitely many validators), §2.8; `TimedJustice` §4.1; C1 §6.2, `SyncParticipationWithin d` §6.4 | `Chorus.totality_premises_satisfiable` |
 | `Chorus.chorusTemporal`, `Chorus.chorusWithTotality`, `Chorus.slotConsensusFull` — Chorus ⊨ the full `SlotConsensus` contract | the three rows above (`Admissible` names their run premises), and the non-empty proposer set §2.10 | `Chorus.admissible_exists` (every initial state) |
@@ -114,7 +114,7 @@ satisfying `ByzNodeSet`'s axioms over finitely many validators
   `2f + 1` are such a set.
 * **Satisfiable:** obvious; proven for every `n ≥ 3f + 1`
   ([ByzQuorum.lean](../Cadence/ByzQuorum.lean)), and at the Chorus family
-  it is a theorem (`Chorus.hqeFin`).
+  it is a theorem (`Chorus.hqeFin`), so the Chorus claims do not take it.
 * **Used in:** `Mvba.termination` (`eventually_tc_below_good`,
   `terminates_of_settled_honest_view`), `Mvba.bounded_termination`
   (`within_tc`, `exists_good_view`).
@@ -140,8 +140,7 @@ satisfying `ByzNodeSet`'s axioms over finitely many validators
 `Chorus.lean`'s `mvba_init` (the MVBA starts in an initial state),
 `mval_pos_functional` and `mval_pos_neg_excl` (theorems at the system's
 configuration, `chorusTheory_assumptions`); `Mvba.lean`'s
-`leader_functional` (one leader per view) and `leader_honest_cofinal`
-(above every view there is a correct-led one). The system's configurations
+`leader_functional` (one leader per view). The system's configurations
 fix the rest: `Cadence.chorusTheory`, and `Cadence.mvbaTheory`, whose
 entry vector of a meta-block is its own entries (`ent :=
 MetaBlock.entries`); the validity predicate and the leader schedule stay
@@ -156,8 +155,9 @@ arbitrary.
 * **Used in:** `abandoned_of_mvba_abandoned` and `eventually_mvba_complete`
   (`mvba_init`: the MVBA's records start empty and its reachability holds),
   `certified_certifiedVector` (`ent`), and the MVBA's safety invariants
-  (`leader_functional`: one `Pre-Prepare` per view's leader).
-  `leader_honest_cofinal` is used by no claim's proof (§7).
+  (`leader_functional`: one `Pre-Prepare` per view's leader). The MVBA
+  model asks nothing more of the leader schedule; a correct leader is a
+  liveness premise, `LeaderRotation` (§2.5).
 * **Paper:** Supplement, Section 1.2 (`subsec:mvba-protocol`) (the leader
   schedule); `ent` is the paper's `entries(B)`. These are Veil model
   `assumption`s: their comments are in [Chorus.lean](../Cadence/Chorus.lean)
@@ -572,7 +572,8 @@ not abandoned before `max(t, GST) + ℓ_MVBA`.
   `eventually_entered_good` (timed: `exists_good_view`); `NoEarlyAbandon`
   by `settledIn_of_no_decision` and `eventually_decided_of_decision`;
   (F-relay) by `eventually_decided_of_decision`. The timed `Valid`
-  antecedent is not used (§7).
+  antecedent is the paper's caller condition; not used by this instance's
+  proof (§7).
 * **Paper:** Supplement, Theorem 2 (`thm:termination`): "once every
   correct validator has invoked propose", "if no correct validator is
   externally abandoned before deciding"; Supplement, Lemma 13
@@ -592,41 +593,32 @@ it can miss an unused premise but not invent one. It finds the one
 antecedent a proof discards by name (the first exception below), and the
 proof steps named in the "Used in" lines were read besides.
 
-**Result (R21).** Every premise of every claim in §1 is used, with three
-exceptions, none of them removed here (removing a premise changes a
-claim's statement):
+**Result (R21, acted on in R23).** Every premise of every claim in §1 is
+used, with three exceptions. One is kept by decision, and the other two
+are gone from the claims' statements:
 
 * **Unused: the timed MVBA claim's `Valid` antecedent.**
   `Mvba.timed_termination` (and so `Mvba.mvbaTemporal`'s `termination`)
   does not use "every correct validator proposes a `Valid` value": the
   model's `propose` checks validity itself. The antecedent is part of the
   contract field `MVBATemporal.termination`, Module 3 (`mod:mvba`)'s
-  caller condition, which another implementation may need. *Proposal:*
-  keep it in the contract; this page records that the instance does not
-  use it.
-* **Implied: `ByzNodeSetHonestQuorum` in the timed Chorus claims at the
-  system's MVBA.** `Chorus.timed_termination_atMvba` and
-  `Chorus.timed_termination_tight_atMvba` take it as a hypothesis (`hqe`)
-  and use it, but at the family they are stated at it is a theorem
-  (`Chorus.hqeFin`), which the contract instance already uses. *Proposal:*
-  derive it inside the two theorems and drop the hypothesis (a plain-Lean
-  statement change in
-  [Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)
-  and its two callers).
-* **Unused and implied: the model assumption `leader_honest_cofinal`**
-  (§2.4). No proof of a claim in §1 reads it: its one reader,
-  `Mvba.exists_honest_leader_above` in
-  [Mvba/Rank.lean](../Cadence/Mvba/Rank.lean), is used nowhere, and the
-  liveness claims take their correct-led view from (A-viewsync) or from
-  `LeaderRotation`, which implies it. As a model `assumption` it is a
-  conjunct of every reachable state's premises, so the MVBA's safety
-  claims are stated for leader schedules with cofinally many correct
-  leaders rather than for every schedule
-  ([Architecture.md](Architecture.md) §4 item 2). *Proposal:* remove it
-  from [Mvba.lean](../Cadence/Mvba.lean), with the unused lemma; that
-  widens the MVBA's safety claims to every leader schedule. It is a model
-  change: every Mvba VC statement changes and the family re-solves cold
-  (the cell counts do not move).
+  caller condition, which another implementation may need. *Kept*
+  (decided 2026-10-03): it is the paper's caller condition; not used by
+  this instance's proof.
+* **Implied, and now derived: `ByzNodeSetHonestQuorum` in the timed
+  Chorus claims at the system's MVBA.** `Chorus.timed_termination_atMvba`
+  and `Chorus.timed_termination_tight_atMvba` took it as a hypothesis,
+  but at the family they are stated at it is a theorem (`Chorus.hqeFin`).
+  The two theorems derive it inside and no longer take it (R23).
+* **Unused and implied, and now removed: the model assumption
+  `leader_honest_cofinal`** ("above every view there is a correct-led
+  one"). No proof of a claim in §1 read it, and `LeaderRotation` (§2.5)
+  implies it. As a model `assumption` it was a conjunct of every reachable
+  state's premises, so the MVBA's safety claims were stated for leader
+  schedules with cofinally many correct leaders. R23 removed it from
+  [Mvba.lean](../Cadence/Mvba.lean), together with its one reader
+  (`Mvba.exists_honest_leader_above`, itself unused): the MVBA's safety
+  claims now hold for every leader schedule.
 
 Where a premise is a conjunction, the analysis sees the whole. The parts
 are accounted for in the "Used in" lines; the one part no termination
