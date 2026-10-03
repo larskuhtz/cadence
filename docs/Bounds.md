@@ -2779,6 +2779,7 @@ after its step 2.
      excludes the inputs. The consequence §6.4.6 named holds: the composed
      system's Chorus is inert until the glue drives the inputs, and glue
      safety is unaffected ([CompositionContracts.md](CompositionContracts.md) §5).
+     The glue drives the inputs since R25 ([ConductorBounds.md](ConductorBounds.md) §9, K1).
 
    Deviations from the plan, each small:
 
@@ -3182,7 +3183,8 @@ to go through, this leg must hand over the following.
     participate. The composed system's Chorus is then inert until the
     composition leg gives the glue its `participate` / `propose` /
     `abandon` actions. The glue's safety theorem is unaffected: it is
-    generic, and inertness only removes behaviours.
+    generic, and inertness only removes behaviours. Done in R25
+    ([ConductorBounds.md](ConductorBounds.md) §9, K1).
   * Corollary 4 (`cor:chorus-correctness-within-cadence`) then closes the loop, which
     is §6 step 5.
 

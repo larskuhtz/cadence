@@ -13,22 +13,6 @@ The composition itself is in place and described in
 [CompositionContracts.md](CompositionContracts.md). What remains, in the
 order worth taking:
 
-* **The glue driving Chorus's inputs.** Chorus's whole contract is proven
-  (`Chorus.slotConsensusFull`, R20), and its participation interface is
-  modelled and proven as contract fields. The glue's records of those calls
-  (`sc_abandoned`, `proposed`) stay glue-local: giving the glue its own
-  `participate`/`propose`/`abandon` actions, which drive the contract's
-  inputs, is the composition leg's work, and a change to the glue model.
-* **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
-  the decided set brackets the first slot from below is the quantitative half
-  of ACS validity (`ACS.validity_quantitative`, upper level) through
-  [Windows.lean](../Cadence/Windows.lean)'s median lemma; cardinality is outside the first-order
-  fragment. A Lean theorem deriving the `require` from the upper-level field
-  plus the median lemma would turn that bridge into a proof. It needs one more
-  field first: the contract bounds the size of the decided set, not the pairs
-  per validator, so the median lemma's "at most `f` Byzantine-attributed
-  entries" does not follow from it (F18 and P16,
-  [ConductorBounds.md](ConductorBounds.md) §3.4, C6).
 * **The MVBA certificate bridge.** The completeness direction — that a
   decided entry's certificate is visible on Chorus's network — is what
   enables the decision handlers, and is what the liveness argument has to
@@ -44,7 +28,12 @@ in Lean — today it is an unsupplied class field whose intended content is the
 **composed bounded-concurrency corollary** — from the glue's
 `bounded_concurrency_interval` and `OrchestratorTemporal.boundedness`,
 "at most `B` slots actively participated in", which needs a finite
-minimum-extraction argument over slots that is not written yet.
+minimum-extraction argument over slots that is not written yet. It uses
+only the direction the glue states (an active instance is opened and not
+completed): take the least of `B + 1` active slots; the other `B` are opened
+above an opened, uncompleted slot, which `boundedness` forbids. Planned
+as a deliverable of K7 ([ConductorBounds.md](ConductorBounds.md) §9), once
+K6 provides the `OrchestratorTemporal` instance.
 
 ## Soundness — guarding against vacuous claims
 

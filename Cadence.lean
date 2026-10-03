@@ -16,6 +16,7 @@ import Cadence.Chorus.Witness
 -- The orchestration / pipelining leg, and the composed system.
 import Cadence.Composition
 import Cadence.System
+import Cadence.AcsMedian
 
 -- The fallback receipt/propose leg: the shipped design, verified.
 import Cadence.FallbackReceipt.Totality
@@ -75,9 +76,10 @@ Each entry is the result, the file its statement lives in, and what it says.
   the object the glue consumes as its `sc` constraint
 * **`Chorus.slotConsensus_of_temporal`** ([Chorus/Compose.lean](Cadence/Chorus/Compose.lean)) —
   given an instance of `SlotConsensusTemporal` **at the proven fragment** —
-  the participation interface as contract fields, the admissible-run model,
-  Termination and Quiescence — Chorus is a full `SlotConsensus`. Hiding's
-  protocol half is first-order and is proven in the fragment
+  the message type, the admissible-run model, Termination and Quiescence —
+  Chorus is a full `SlotConsensus`. Hiding's protocol half and the
+  participation interface (the three inputs, their records and frames) are
+  first-order and are proven in the fragment
 * **`Chorus.slotConsensusFull`** ([Chorus/Temporal.lean](Cadence/Chorus/Temporal.lean)) —
   **Chorus ⊨ `SlotConsensus`, the whole contract**, at the system's
   configuration (`Cadence.chorusTheory`, `Cadence.mvbaTheory`, the quorum
@@ -86,8 +88,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   (`Chorus.slotConsensusFull_toSafety`). Every field of
   `SlotConsensusTemporal` is proven: Termination from `Chorus.termination`,
   Quiescence (Lemma 6 (`lemma:chorus-quiescence`)) in its two parts
-  (`Chorus.own_sent_new`, `Chorus.mvba_sent_new`), and the participation
-  interface from the transition bodies. Its `Admissible` is the premises of
+  (`Chorus.own_sent_new`, `Chorus.mvba_sent_new`). Its `Admissible` is the premises of
   `Chorus.termination` and of the timed claims, by name; `admissible_exists`
   is a run in which every proposer stays silent. **`Chorus.chorusWithTotality`**
   adds the two timing strengthenings: `bounded_termination` at
@@ -247,6 +248,11 @@ Each entry is the result, the file its statement lives in, and what it says.
   and that is the statement of what is *not* proven about the Conductor as an
   orchestrator. Integrity's timing half is first-order and is proven in the
   fragment
+* **`Cadence.acs_median_bracket`** ([AcsMedian.lean](Cadence/AcsMedian.lean)) — the
+  justification of the Conductor's one stated bridge: for every ACS meeting
+  the contract and at most `f` Byzantine validators, the median of a
+  correct decider's set lies between two of its correct pairs, so
+  `acs_decide`'s median `require` removes no behaviour of a correct ACS
 * **`Cadence.positional_log_safety`** ([Composition.lean](Cadence/Composition.lean)) — MCP
   Safety in the paper's positional form — two correct validators never
   disagree on the log entry at a given position — for the glue over *any*
@@ -638,6 +644,12 @@ info: 'Conductor.orchestrator_of_temporal' depends on axioms: [propext, Classica
 -/
 #guard_msgs in
 #print axioms Conductor.orchestrator_of_temporal
+
+/--
+info: 'Cadence.acs_median_bracket' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Cadence.acs_median_bracket
 
 /--
 info: 'Cadence.positional_log_safety' depends on axioms: [propext, Classical.choice, Quot.sound]

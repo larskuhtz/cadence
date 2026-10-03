@@ -27,10 +27,10 @@ Each class field and what proves it:
   by its own `quiescence` to the window between a gated `mvba_propose` and a
   forwarded `abandon` (`mvba_sent_new`, through the two invariants
   `participating_of_mvba_proposed` and `mvba_abandoned_of_abandoned`);
-* **the inputs, observables, effects and frames** from the transition
-  bodies (`participate_effect`, `propose_effect`, `participating_internal`,
-  `abandoned_internal`, `proposed_internal`, `sent_mono`) and Veil's
-  generated lemmas;
+* **`sent`** is `Chorus.Sent` ([Compose.lean](Compose.lean)), monotone
+  along every step (`sent_mono`). The three inputs, their records and
+  their frames are fields of the fragment, proven with it
+  (`Chorus.slotConsensusSafety`, [Compose.lean](Compose.lean));
 * **`SlotConsensusWithTotality`**: `bounded_termination` is
   `Chorus.timed_termination_atMvba` at `ℓ = 5Δ + ℓ_MVBA + 9δ`, and `totality`
   is `Chorus.totality` at `d_tot = Δ + 2δ`; at `δ = 0` these are the paper's
@@ -1098,9 +1098,9 @@ theorem admissible_exists (fs : FamilySchedule slot view time)
 
 end Exists
 
-/-! ## The participation interface, from the transition bodies -/
+/-! ## Sent messages stay sent -/
 
-section Interface
+section SentMono
 
 open Classical
 
@@ -1115,84 +1115,6 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
       (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
   {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
   {s s' : StateAtMvba slot node nodeset merkle_root view Phase PathChoice}
-
-local macro "chorus_tr" h:ident : tactic =>
-  `(tactic| (simp only [atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct] at $h:ident
-             simp only [trSimp] at $h:ident))
-
-local macro "chorus_field_simp" : tactic =>
-  `(tactic| simp +unfoldPartialApp [
-      Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
-      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
-      Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
-      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id,
-      instIsSubReaderOfRefl.readFrom_id] at *)
-
-set_option maxHeartbeats 1000000 in
-/-- `participate i` records `participating i`. -/
-theorem participate_effect {i : node} (htr : (atMvba thM).tr thS s (.participate i) s') :
-    s'.participating i = true := by
-  chorus_tr htr
-  subst htr
-  chorus_field_simp
-
-set_option maxHeartbeats 1000000 in
-/-- `propose j m` records the proposer's signed root. -/
-theorem propose_effect {j : node} {m : merkle_root} (htr : (atMvba thM).tr thS s (.propose j m) s') :
-    s'.msg_proposer_signed j m = true := by
-  chorus_tr htr
-  repeat (obtain ⟨_, htr⟩ := htr)
-  chorus_field_simp
-
-set_option maxHeartbeats 1000000 in
-/-- A Byzantine proposer's signature is its own. -/
-theorem byz_sign_proposer_frame {j k : node} {m m' : merkle_root}
-    (htr : (atMvba thM).tr thS s (.byz_sign_proposer j m) s') (hk : ¬ nset.is_byz k = true) :
-    s'.msg_proposer_signed k m' = s.msg_proposer_signed k m' := by
-  chorus_tr htr
-  obtain ⟨hj, rfl⟩ := htr
-  chorus_field_simp
-  intro h; subst h; simp_all
-
-open Lean in
-/-- One `case` per listed action: rewrite with its generated frame lemma for
-`fld`. -/
-local macro "frame_iff " htr:ident fld:ident "[" acts:ident,* "]" : tactic => do
-  let mut acc ← `(tactic| skip)
-  for a in acts.getElems do
-    let lem := mkIdent (`Chorus ++ a.getId ++ Name.mkSimple ("frame_" ++ fld.getId.toString))
-    acc ← `(tactic| ($acc; case $a:ident => rw [$lem:ident $htr]))
-  return acc
-
-/-- **Internal steps do not change participation**: only the input
-`participate` writes it. -/
-theorem participating_internal {l} (hl : ¬ Label.isInput l) (htr : (atMvba thM).tr thS s l s') (i : node) :
-    s'.participating i = s.participating i := by
-  letI := Mvba.mvbaSafety (nset := nset) thM
-  cases l
-  case participate => exact absurd trivial hl
-  frame_iff htr participating [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share]
-
-/-- **Internal steps do not change abandonment**: only the input `abandon`
-writes it. -/
-theorem abandoned_internal {l} (hl : ¬ Label.isInput l) (htr : (atMvba thM).tr thS s l s') (i : node) :
-    s'.abandoned i = s.abandoned i := by
-  letI := Mvba.mvbaSafety (nset := nset) thM
-  cases l
-  case abandon => exact absurd trivial hl
-  frame_iff htr abandoned [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share]
-
-/-- **Internal steps do not change a correct proposer's proposal**: only the
-input `propose` writes a correct proposer's signed root; the adversary's
-`byz_sign_proposer` writes only a Byzantine one's. -/
-theorem proposed_internal {l} (hl : ¬ Label.isInput l) (htr : (atMvba thM).tr thS s l s') {k : node}
-    (hk : ¬ nset.is_byz k = true) (m : merkle_root) :
-    s'.msg_proposer_signed k m = s.msg_proposer_signed k m := by
-  letI := Mvba.mvbaSafety (nset := nset) thM
-  cases l
-  case propose => exact absurd trivial hl
-  case byz_sign_proposer => exact byz_sign_proposer_frame htr hk
-  frame_iff htr msg_proposer_signed [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share]
 
 /-- A message once sent stays sent: Chorus's network rows are monotone,
 and the MVBA's state moves only by its own transitions, whose rows are. -/
@@ -1219,7 +1141,7 @@ theorem sent_mono {l} (htr : (atMvba thM).tr thS s l s') (i : node)
       rw [heq]; exact h
     · exact Mvba.sent_mono_tr thM h' i c h
 
-end Interface
+end SentMono
 
 /-! ## The instance, at the system's configuration -/
 
@@ -1295,8 +1217,7 @@ theorem noAbandon_of {r : TimedRun (SlotState slot (Fin n) (ByzNSet n) merkle_ro
 /-- **`Chorus ⊨ SlotConsensusTemporal`** at the system's configuration.
 Every field is proven, none is weakened:
 
-* the inputs, observables, effects and frames from the transition bodies
-  and Veil's generated lemmas;
+* `sent` is `Chorus.Sent`, monotone (`sent_mono`);
 * `Admissible` is `Chorus.Admissible`, the claims' premises by name;
 * `admissible_exists` from the idle run, in which every proposer stays
   silent;
@@ -1317,41 +1238,8 @@ noncomputable def chorusTemporal (fs : FamilySchedule slot view time)
       (fun i => (nsetF).is_byz i = true) (S := SC) :=
   letI : ByzNodeSet (Fin n) (ByzNSet n) := nsetF
   SlotConsensusTemporal.mk (S := SC)
-    (participate := fun p i p' => p.1 = p'.1 ∧ (atMvba thMC).tr thC p.2 (.participate i) p'.2)
-    (abandon := fun p i p' => p.1 = p'.1 ∧ ∃ mn, (atMvba thMC).tr thC p.2 (.abandon i mn) p'.2)
-    (propose := fun p i P p' => p.1 = p'.1 ∧ (atMvba thMC).tr thC p.2 (.propose i P) p'.2)
-    (participate_trans := fun _ _ _ h => ⟨h.1, _, h.2⟩)
-    (abandon_trans := fun _ _ _ h => ⟨h.1, _, h.2.choose_spec⟩)
-    (propose_trans := fun _ _ _ _ h => ⟨h.1, _, h.2⟩)
-    (participating := fun p i => p.2.participating i = true)
-    (abandoned := fun p i => p.2.abandoned i = true)
-    (proposed := fun p i P => p.2.msg_proposer_signed i P = true)
     (sent := fun p i msg => Sent (mvba := Mvba.mvbaSafety thMC) p.2 i msg)
-    (participating_mono := fun _ _ i h hp =>
-      Chorus.participating.mono (mvba := Mvba.mvbaSafety thMC) h.2.choose_spec i hp)
-    (abandoned_mono := fun _ _ i h hp =>
-      Chorus.abandoned.mono (mvba := Mvba.mvbaSafety thMC) h.2.choose_spec i hp)
-    (proposed_mono := fun _ _ i P h hp =>
-      Chorus.msg_proposer_signed.mono (mvba := Mvba.mvbaSafety thMC) h.2.choose_spec i P hp)
     (sent_mono := fun _ _ i msg h hs => sent_mono h.2.choose_spec i msg hs)
-    (participate_effect := fun _ _ _ h => participate_effect h.2)
-    (abandon_effect := fun _ _ _ h => Chorus.abandon_effect (mvba := Mvba.mvbaSafety thMC) h.2.choose_spec)
-    (propose_effect := fun _ _ _ _ h => propose_effect h.2)
-    (participating_step_frame := fun _ _ i h _ => by
-      obtain ⟨-, l, hl, htr⟩ := h
-      rw [participating_internal hl htr i])
-    (abandoned_step_frame := fun _ _ i h _ => by
-      obtain ⟨-, l, hl, htr⟩ := h
-      rw [abandoned_internal hl htr i])
-    (proposed_step_frame := fun _ _ i P h hi => by
-      obtain ⟨-, l, hl, htr⟩ := h
-      rw [proposed_internal hl htr hi P])
-    (init_participating := fun _ i h hp => by
-      simp [Chorus.participating.init (mvba := Mvba.mvbaSafety thMC) h.2 i] at hp)
-    (init_abandoned := fun _ i h hp => by
-      simp [Chorus.abandoned.init (mvba := Mvba.mvbaSafety thMC) h.2 i] at hp)
-    (init_proposed := fun _ i P h hp => by
-      simp [Chorus.msg_proposer_signed.init (mvba := Mvba.mvbaSafety thMC) h.2 i P] at hp)
     (Admissible := Admissible fs)
     (admissible_exists := admissible_exists fs hprop (goodView_of_rotation n f hf is_byz hbyz vfin hrot))
     (termination := fun r hadm hpart hab j hj => by

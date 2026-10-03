@@ -241,6 +241,25 @@ same slot.
 Interface (Module 1 (`mod:slotconsensus`)): inputs `participate()`, `abandon()`,
 `propose(P)`; output `finalize(V)`.
 
+**The three inputs are in the fragment.** The paper's module lists them as
+its interface ("a validator starts participating", "a validator stops
+participating", "a proposer submits its proposal"), and its prose calls the
+participation signals and the proposals "a validator's *inputs* to the
+instance". The glue gives all three (Algorithm 1, line 17
+(`line:participate`); Algorithm 1, line 19 (`line:propose`); Algorithm 1,
+line 23 (`line:abandon`)), so they are transitions of the fragment the glue
+instantiates, each recorded by an observable (`participating`, `abandoned`,
+`proposed`), with the same first-order facts every other contract states of
+its inputs: the record is monotone, the input sets it, internal steps leave
+a correct validator's records alone, nothing is recorded initially, and an
+input records itself and nothing else (`complete_frame`'s pattern: the
+other validators' records of the same input, and every validator's records
+of the other two inputs, are unchanged). The last is what lets a consumer
+derive a state-level fact about one input from its own calls: without it, a
+`participate` could set `abandoned`, and "the glue abandons only after
+finalizing" would not give Module 1's assumed behaviour at the contract
+level.
+
 ### Obligations
 
 Each entry is the class field, the paper's name for it, the level it sits at,
@@ -268,6 +287,11 @@ and where it is discharged.
   slot); *safety*. First-order and proven by Chorus (`safety
   [hiding_until_deadline]`), so it sits in the fragment — see the field's
   docstring for what it does and does not say
+* **`participate`, `abandon`, `propose`** and their observables, effects,
+  frames and initial conditions — the interface's three inputs; *safety
+  (first-order)*. Chorus, from its `participate`, `abandon` and `propose`
+  actions' bodies and Veil's generated frame lemmas —
+  `Chorus.slotConsensusSafety`
 * **`quiescence`** — Quiescence (Lemma 6 (`lemma:chorus-quiescence`));
   *safety (one-step form, from a reachable state)*. `Chorus.chorusTemporal`,
   in the lemma's two parts: Chorus's own sending rules require
@@ -352,48 +376,77 @@ class SlotConsensusSafety (slot validator proposal pvector state : Type)
       First-order, and proven by Chorus, so it sits in the fragment. -/
   hiding_residue : ∀ st, reachable st → payload_recoverable st → deadline_passed st
 
-/-- The temporal level of Module 1 (`mod:slotconsensus`), over a safety instance `S`:
-the participation interface and every property the fragment cannot state.
-`message` is the module's own protocol-message type (used by Quiescence). -/
-class SlotConsensusTemporal (slot validator proposal pvector state time message : Type)
-    [TotalOrder time] [Add time] (byz : validator → Prop)
-    [S : SlotConsensusSafety slot validator proposal pvector state byz] where
-  /-- Input `participate()` at validator `i`. -/
+  /-- Input `participate()` at validator `i`: "a validator starts
+      participating" (Module 1 (`mod:slotconsensus`), Interface). -/
   participate : state → validator → state → Prop
-  /-- Input `abandon()` at validator `i`. -/
+  /-- Input `abandon()` at validator `i`: "a validator stops participating". -/
   abandon : state → validator → state → Prop
-  /-- Input `propose(P)` by (proposer) `i`. -/
+  /-- Input `propose(P)` by (proposer) `i`: "a proposer submits its proposal
+      `P`". -/
   propose : state → validator → proposal → state → Prop
-  participate_trans : ∀ st i st', participate st i st' → S.trans st st'
-  abandon_trans : ∀ st i st', abandon st i st' → S.trans st st'
-  propose_trans : ∀ st i P st', propose st i P st' → S.trans st st'
+  participate_trans : ∀ st i st', participate st i st' → trans st st'
+  abandon_trans : ∀ st i st', abandon st i st' → trans st st'
+  propose_trans : ∀ st i P st', propose st i P st' → trans st st'
 
-  /-- `i` has started participating. -/
+  /-- Input record: `i` has started participating. -/
   participating : state → validator → Prop
-  /-- `i` has stopped participating. -/
+  /-- Input record: `i` has stopped participating. -/
   abandoned : state → validator → Prop
-  /-- `i` has proposed `P`. -/
+  /-- Input record: `i` has proposed `P`. -/
   proposed : state → validator → proposal → Prop
-  /-- `i` has sent protocol message `m` of this instance. -/
-  sent : state → validator → message → Prop
 
-  participating_mono : ∀ st st' i, S.trans st st' → participating st i → participating st' i
-  abandoned_mono : ∀ st st' i, S.trans st st' → abandoned st i → abandoned st' i
-  proposed_mono : ∀ st st' i P, S.trans st st' → proposed st i P → proposed st' i P
-  sent_mono : ∀ st st' i m, S.trans st st' → sent st i m → sent st' i m
+  participating_mono : ∀ st st' i, trans st st' → participating st i → participating st' i
+  abandoned_mono : ∀ st st' i, trans st st' → abandoned st i → abandoned st' i
+  proposed_mono : ∀ st st' i P, trans st st' → proposed st i P → proposed st' i P
   participate_effect : ∀ st i st', participate st i st' → participating st' i
   abandon_effect : ∀ st i st', abandon st i st' → abandoned st' i
   propose_effect : ∀ st i P st', propose st i P st' → proposed st' i P
   /-- Internal steps do not fabricate a correct validator's inputs. -/
-  participating_step_frame : ∀ st st' i, S.step st st' → ¬ byz i →
+  participating_step_frame : ∀ st st' i, step st st' → ¬ byz i →
     (participating st' i ↔ participating st i)
-  abandoned_step_frame : ∀ st st' i, S.step st st' → ¬ byz i →
+  abandoned_step_frame : ∀ st st' i, step st st' → ¬ byz i →
     (abandoned st' i ↔ abandoned st i)
-  proposed_step_frame : ∀ st st' i P, S.step st st' → ¬ byz i →
+  proposed_step_frame : ∀ st st' i P, step st st' → ¬ byz i →
     (proposed st' i P ↔ proposed st i P)
-  init_participating : ∀ st i, S.init st → ¬ participating st i
-  init_abandoned : ∀ st i, S.init st → ¬ abandoned st i
-  init_proposed : ∀ st i P, S.init st → ¬ proposed st i P
+  /-- An input records itself and nothing else: `participate()` at `i`
+      leaves every other correct validator's participation unchanged… -/
+  participate_frame : ∀ st i st' j, participate st i st' → ¬ byz j → j ≠ i →
+    (participating st' j ↔ participating st j)
+  /-- …`abandon()` at `i` every other correct validator's abandonment… -/
+  abandon_frame : ∀ st i st' j, abandon st i st' → ¬ byz j → j ≠ i →
+    (abandoned st' j ↔ abandoned st j)
+  /-- …and `propose(P)` by `i` every other correct proposal. -/
+  propose_frame : ∀ st i P st' j P', propose st i P st' → ¬ byz j →
+    (j ≠ i ∨ P' ≠ P) → (proposed st' j P' ↔ proposed st j P')
+  /-- No input records another: `participate()` leaves every correct
+      validator's abandonment and proposals unchanged, `abandon()` its
+      participation and proposals, `propose(P)` its participation and
+      abandonment. -/
+  participate_abandoned_frame : ∀ st i st' j, participate st i st' → ¬ byz j →
+    (abandoned st' j ↔ abandoned st j)
+  participate_proposed_frame : ∀ st i st' j P, participate st i st' → ¬ byz j →
+    (proposed st' j P ↔ proposed st j P)
+  abandon_participating_frame : ∀ st i st' j, abandon st i st' → ¬ byz j →
+    (participating st' j ↔ participating st j)
+  abandon_proposed_frame : ∀ st i st' j P, abandon st i st' → ¬ byz j →
+    (proposed st' j P ↔ proposed st j P)
+  propose_participating_frame : ∀ st i P st' j, propose st i P st' → ¬ byz j →
+    (participating st' j ↔ participating st j)
+  propose_abandoned_frame : ∀ st i P st' j, propose st i P st' → ¬ byz j →
+    (abandoned st' j ↔ abandoned st j)
+  init_participating : ∀ st i, init st → ¬ participating st i
+  init_abandoned : ∀ st i, init st → ¬ abandoned st i
+  init_proposed : ∀ st i P, init st → ¬ proposed st i P
+
+/-- The temporal level of Module 1 (`mod:slotconsensus`), over a safety instance `S`:
+every property the fragment cannot state. `message` is the module's own
+protocol-message type (used by Quiescence). -/
+class SlotConsensusTemporal (slot validator proposal pvector state time message : Type)
+    [TotalOrder time] [Add time] (byz : validator → Prop)
+    [S : SlotConsensusSafety slot validator proposal pvector state byz] where
+  /-- `i` has sent protocol message `m` of this instance. -/
+  sent : state → validator → message → Prop
+  sent_mono : ∀ st st' i m, S.trans st st' → sent st i m → sent st' i m
 
   /-- The executions under which the temporal guarantees hold: the
       implementation's fair-scheduling and network assumptions, *defined by
@@ -409,8 +462,8 @@ class SlotConsensusTemporal (slot validator proposal pvector state time message 
       none abandons before finalizing — the paper's assumed behaviour of
       correct validators), then every correct validator eventually finalizes. -/
   termination : ∀ (r : TimedRun state time S.init S.trans), Admissible r →
-    (∀ i, ¬ byz i → r.eventually (fun st => participating st i)) →
-    (∀ i, ¬ byz i → ∀ n, abandoned (r.at' n) i → ∃ V, S.finalized (r.at' n) i V) →
+    (∀ i, ¬ byz i → r.eventually (fun st => S.participating st i)) →
+    (∀ i, ¬ byz i → ∀ n, S.abandoned (r.at' n) i → ∃ V, S.finalized (r.at' n) i V) →
     ∀ j, ¬ byz j → r.eventually (fun st => ∃ V, S.finalized st j V)
 
   /-- **Quiescence** — a correct validator sends no protocol message before it
@@ -421,7 +474,7 @@ class SlotConsensusTemporal (slot validator proposal pvector state time message 
       property is about executions, so the transition starts from a
       reachable state. -/
   quiescence : ∀ st st' i m, S.reachable st → S.trans st st' → ¬ byz i →
-    sent st' i m → ¬ sent st i m → participating st' i ∧ ¬ abandoned st i
+    sent st' i m → ¬ sent st i m → S.participating st' i ∧ ¬ S.abandoned st i
 
 /-- Module 1 (`mod:slotconsensus`) in full: the fragment together with a temporal level
 about it. -/
@@ -466,8 +519,8 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
   SyncParticipation : TimedRun state time S.init S.trans → Prop
   syncParticipation_def : ∀ r : TimedRun state time S.init S.trans,
     SyncParticipation r ↔
-      ∀ n i, ¬ byz i → T.participating (r.at' n) i →
-        ∀ j, ¬ byz j → r.byGstBound (r.clk n) Δ (fun st => T.participating st j)
+      ∀ n i, ¬ byz i → S.participating (r.at' n) i →
+        ∀ j, ¬ byz j → r.byGstBound (r.clk n) Δ (fun st => S.participating st j)
   /-- **ℓ-Termination** — under Δ-synchronized participation, if all correct
       validators participate by `t`, every correct validator finalizes by
       `max(t, GST) + ℓ`.
@@ -485,10 +538,10 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
       cannot finalize by `max(t, GST) + ℓ`. -/
   bounded_termination : ∀ r : TimedRun state time S.init S.trans,
     T.Admissible r → SyncParticipation r →
-    (∀ i, ¬ byz i → ∀ n, T.abandoned (r.at' n) i → ∃ V, S.finalized (r.at' n) i V) →
-    (∀ n i, ¬ byz i → T.participating (r.at' n) i →
+    (∀ i, ¬ byz i → ∀ n, S.abandoned (r.at' n) i → ∃ V, S.finalized (r.at' n) i V) →
+    (∀ n i, ¬ byz i → S.participating (r.at' n) i →
       TotalOrder.le (deadline (S.tag (r.at' n))) (r.clk n + Δ)) →
-    ∀ t, (∀ i, ¬ byz i → r.byTime t (fun st => T.participating st i)) →
+    ∀ t, (∀ i, ¬ byz i → r.byTime t (fun st => S.participating st i)) →
     ∀ j, ¬ byz j → r.byGstBound t ℓ (fun st => ∃ V, S.finalized st j V)
   /-- **d_tot-Totality** — under Δ-synchronized participation, if a correct
       validator finalizes at time `t`, every correct validator finalizes by
@@ -497,7 +550,7 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
       that had abandoned before finalizing would never finalize. -/
   totality : ∀ r : TimedRun state time S.init S.trans,
     T.Admissible r → SyncParticipation r →
-    (∀ i, ¬ byz i → ∀ n, T.abandoned (r.at' n) i → ∃ V, S.finalized (r.at' n) i V) →
+    (∀ i, ¬ byz i → ∀ n, S.abandoned (r.at' n) i → ∃ V, S.finalized (r.at' n) i V) →
     ∀ n i V, ¬ byz i → S.finalized (r.at' n) i V →
     ∀ j, ¬ byz j → r.byGstBound (r.clk n) d_tot (fun st => ∃ V', S.finalized st j V')
 
@@ -657,15 +710,40 @@ participate), `abandon()`; output `decide(set)`, exposed relationally as
 `decided st i p s` ("`i` has decided, with `(p, s)` in its set") plus the
 event marker `has_decided st i`.
 
-No implementation is in scope — ACS is a standard primitive — so no instance
+No implementation is in scope — the target leaves the ACS unspecified
+([ConductorBounds.md](../docs/ConductorBounds.md) §3) — so no instance
 exists here: every field is an assumption of the composition
 ([Architecture.md](../docs/Architecture.md) §4 item 3). What is
 machine-checked is that the Conductor consumes exactly this class
 ([Conductor.lean](Conductor.lean) `instantiate acs`), with one documented
-bridge: the median-range guard of its `acs_decide` action, justified by
-`validity_quantitative` through the median lemma of
-[Windows.lean](Windows.lean) (cardinality is outside the first-order
-fragment, so the bridge is a stated `require`, not a derivation).
+bridge: the median-range guard of its `acs_decide` action. Cardinality is
+outside the first-order fragment, so the bridge is a stated `require`; that
+the median of a decided set meets it is a theorem from this class
+(`Cadence.acs_median_bracket`, [AcsMedian.lean](AcsMedian.lean)), through
+`decided_unique`, `validity_quantitative` and the system's fault bound.
+
+**Both inputs are in the fragment.** The module's interface is `propose(s)`
+("a validator proposes slot `s`, thereby starting to participate") and
+`abandon()` ("a validator stops participating"), and the Conductor gives both
+(Algorithm 7, line 42 (`line:acs-propose`); Algorithm 7, line 45
+(`line:acs-abandon`)). With `abandon` in the fragment, and the two cross-frames
+saying that neither input records the other, the module's second assumption
+(no premature abandonment) is a state invariant of the Conductor rather
+than a reading of the paper (Proposition 12
+(`prop:acs-no-premature-abandonment`)).
+
+**One slot per validator.** Module 4 (`mod:acs`)'s Validity bounds the size
+of a decided set (`|set| ≥ 2f + 1`) but not the number of pairs one
+validator contributes. The median argument behind Proposition 7
+(`prop:acs-nonoverlap`) ("since at most `f` of the `2f + 1` decided values
+are faulty") needs the latter: with Validity as stated, `2f + 1` pairs of a
+single Byzantine validator are a valid decision, and the median is the
+adversary's choice. `decided_unique` states the missing bound, and
+`validity_quantitative` counts distinct validators. Every ACS that collects
+one signed proposal per validator meets both, and the paper's own reading
+of a decided set as "the decided estimates" of the validators presumes
+them. Flagged to the authors as P16
+([PaperAlignment.md](../docs/PaperAlignment.md) §6).
 
 ### Obligations
 
@@ -676,7 +754,11 @@ at.
 * **`validity_genuine`** — Validity, qualitative half (correct pairs genuine);
   *safety*
 * **`validity_quantitative`, `fault_bound`** — Validity, quantitative half
-  (`|set| ≥ 2f + 1`); *upper, state-shaped (cardinality)*
+  (`|set| ≥ 2f + 1`, counted in distinct validators); *upper, state-shaped
+  (cardinality)*
+* **`decided_unique`** — one slot per validator in a decided set (P16); *safety*
+* **`abandon`, `abandoned`** and their frames — the interface's second
+  input; *safety (first-order)*
 * **`integrity`** — Integrity; *safety*
 * **`termination`, `ℓ`** — `ℓ`-Termination; *temporal (under the module's two
   assumptions)*
@@ -688,9 +770,14 @@ at.
 module instantiates. -/
 class ACSSafety (validator slot state : Type) (byz : validator → Prop)
     extends TransitionSystemSafety state where
-  /-- Input `propose(s)` by validator `p`. -/
+  /-- Input `propose(s)` by validator `p`: "a validator proposes slot `s`,
+      thereby starting to participate" (Module 4 (`mod:acs`), Interface). -/
   propose : state → validator → slot → state → Prop
+  /-- Input `abandon()` at validator `i`: "a validator stops
+      participating". -/
+  abandon : state → validator → state → Prop
   propose_trans : ∀ st p s st', propose st p s st' → trans st st'
+  abandon_trans : ∀ st i st', abandon st i st' → trans st st'
 
   /-- `p` has proposed slot `s`. -/
   proposed : state → validator → slot → Prop
@@ -698,21 +785,36 @@ class ACSSafety (validator slot state : Type) (byz : validator → Prop)
   decided : state → validator → validator → slot → Prop
   /-- `i` has decided (some set). -/
   has_decided : state → validator → Prop
+  /-- Input record: `i` has abandoned. -/
+  abandoned : state → validator → Prop
 
   proposed_mono : ∀ st st' p s, trans st st' → proposed st p s → proposed st' p s
   decided_mono : ∀ st st' i p s, trans st st' → decided st i p s → decided st' i p s
   has_decided_mono : ∀ st st' i, trans st st' → has_decided st i → has_decided st' i
+  abandoned_mono : ∀ st st' i, trans st st' → abandoned st i → abandoned st' i
   propose_effect : ∀ st p s st', propose st p s st' → proposed st' p s
+  abandon_effect : ∀ st i st', abandon st i st' → abandoned st' i
   /-- An input records itself and nothing else: `propose(s)` by `p` leaves
-      every other correct validator's proposals unchanged. -/
+      every other correct validator's proposals unchanged… -/
   propose_frame : ∀ st p s st' q s', propose st p s st' → ¬ byz q →
     (q ≠ p ∨ s' ≠ s) → (proposed st' q s' ↔ proposed st q s')
-  /-- Internal steps do not fabricate a correct validator's proposals
+  /-- …`abandon()` at `i` every other correct validator's abandonment… -/
+  abandon_frame : ∀ st i st' j, abandon st i st' → ¬ byz j → j ≠ i →
+    (abandoned st' j ↔ abandoned st j)
+  /-- …and neither input records the other. -/
+  propose_abandoned_frame : ∀ st p s st' j, propose st p s st' → ¬ byz j →
+    (abandoned st' j ↔ abandoned st j)
+  abandon_proposed_frame : ∀ st i st' q s, abandon st i st' → ¬ byz q →
+    (proposed st' q s ↔ proposed st q s)
+  /-- Internal steps do not fabricate a correct validator's inputs
       (Byzantine proposals are unconstrained and may appear at any step). -/
   proposed_step_frame : ∀ st st' p s, step st st' → ¬ byz p →
     (proposed st' p s ↔ proposed st p s)
+  abandoned_step_frame : ∀ st st' i, step st st' → ¬ byz i →
+    (abandoned st' i ↔ abandoned st i)
   init_proposed : ∀ st p s, init st → ¬ proposed st p s
   init_has_decided : ∀ st i, init st → ¬ has_decided st i
+  init_abandoned : ∀ st i, init st → ¬ abandoned st i
 
   decided_has_decided : ∀ st, reachable st → ∀ i p s,
     ¬ byz i → decided st i p s → has_decided st i
@@ -727,22 +829,19 @@ class ACSSafety (validator slot state : Type) (byz : validator → Prop)
   /-- **Integrity** — a correct validator decides only after having proposed. -/
   integrity : ∀ st, reachable st → ∀ i,
     ¬ byz i → has_decided st i → ∃ s, proposed st i s
+  /-- **One slot per validator** — a correct validator's decided set holds at
+      most one pair of each validator. Not in Module 4 (`mod:acs`)'s Validity,
+      and needed by the median argument (P16, the section docstring). -/
+  decided_unique : ∀ st, reachable st → ∀ i p s s',
+    ¬ byz i → decided st i p s → decided st i p s' → s = s'
 
 /-- The temporal level of Module 4 (`mod:acs`), over a safety instance `S`. -/
 class ACSTemporal (validator slot state time message : Type)
     [TotalOrder time] [Add time] (byz : validator → Prop)
     [S : ACSSafety validator slot state byz] where
-  /-- Input `abandon()` at validator `i`. -/
-  abandon : state → validator → state → Prop
-  abandon_trans : ∀ st i st', abandon st i st' → S.trans st st'
-  abandoned : state → validator → Prop
+  /-- `i` has sent protocol message `m` of this instance. -/
   sent : state → validator → message → Prop
-  abandoned_mono : ∀ st st' i, S.trans st st' → abandoned st i → abandoned st' i
   sent_mono : ∀ st st' i m, S.trans st st' → sent st i m → sent st' i m
-  abandon_effect : ∀ st i st', abandon st i st' → abandoned st' i
-  abandoned_step_frame : ∀ st st' i, S.step st st' → ¬ byz i →
-    (abandoned st' i ↔ abandoned st i)
-  init_abandoned : ∀ st i, S.init st → ¬ abandoned st i
 
   Admissible : TimedRun state time S.init S.trans → Prop
   admissible_exists : ∀ st, S.init st →
@@ -751,10 +850,12 @@ class ACSTemporal (validator slot state time message : Type)
   /-- The resilience parameter `f` (at most `f` Byzantine validators). -/
   fault_bound : Nat
   /-- **Validity, quantitative half** — a correct validator's decided set has
-      at least `2f + 1` pairs. -/
+      pairs of at least `2f + 1` distinct validators. With `decided_unique`
+      that is `|set| ≥ 2f + 1`, Module 4 (`mod:acs`)'s count, with each
+      validator counted once. -/
   validity_quantitative : ∀ st, S.reachable st → ∀ i, ¬ byz i → S.has_decided st i →
-    ∃ g : Fin (2 * fault_bound + 1) → validator × slot,
-      Function.Injective g ∧ ∀ k, S.decided st i (g k).1 (g k).2
+    ∃ g : Fin (2 * fault_bound + 1) → validator,
+      Function.Injective g ∧ ∀ k, ∃ s, S.decided st i (g k) s
 
   Δ : time
   ℓ : time
@@ -770,7 +871,7 @@ class ACSTemporal (validator slot state time message : Type)
   NoPrematureAbandon : TimedRun state time S.init S.trans → Prop
   noPrematureAbandon_def : ∀ r : TimedRun state time S.init S.trans,
     NoPrematureAbandon r ↔
-      ∀ n i, ¬ byz i → abandoned (r.at' n) i → S.has_decided (r.at' n) i
+      ∀ n i, ¬ byz i → S.abandoned (r.at' n) i → S.has_decided (r.at' n) i
   /-- **ℓ-Termination** — under the two assumptions: if all correct validators
       propose by `t`, every correct validator decides by `max(t, GST) + ℓ`. -/
   termination : ∀ r : TimedRun state time S.init S.trans,
@@ -789,7 +890,7 @@ class ACSTemporal (validator slot state time message : Type)
       about executions. -/
   quiescence : ∀ st st' i m, S.reachable st → S.trans st st' → ¬ byz i →
     sent st' i m → ¬ sent st i m →
-      (∃ s, S.proposed st' i s) ∧ ¬ abandoned st i
+      (∃ s, S.proposed st' i s) ∧ ¬ S.abandoned st i
 
 /-- Module 4 (`mod:acs`) in full. -/
 class ACS (validator slot state time message : Type) [TotalOrder time] [Add time]

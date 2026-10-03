@@ -143,18 +143,33 @@ cells match on them more readily.
 
 Each sub-protocol contributes an oracle step (`orch_step`, `sc_step`: any
 internal transition the contract allows) plus handlers that react to
-observables (`on_propose`, `on_finalize`). `on_finalize` drives the
-orchestrator's `complete` input, so the glue's `completed` *is* the
-orchestrator's record — which is what lets `bounded_concurrency_interval` be
-stated over the object `Orchestrator.boundedness` speaks about, with no
-bridge between two notions of "completed". The `participate()` call is
-definitionally the opening; the inputs the paper's safety properties never
-mention (`abandon`, `propose`) stay glue-local records, as the paper's own
-local variables are (§7 item 2).
+observables and drive the contracts' inputs, one per line of Algorithm 1
+(`algorithm:cadence`) that gives an input:
+
+| Handler | Paper | Input it drives |
+|---|---|---|
+| `on_open i s` | Algorithm 1, line 17 (`line:participate`) | `sc.participate` |
+| `on_propose i s p` | Algorithm 1, line 19 (`line:propose`) | `sc.propose` |
+| `on_finalize i s v` | Algorithm 1, lines 22–23 (`line:complete`–`line:abandon`) | `orch.complete` and `sc.abandon`, in one step |
+
+So every record the glue reads of its own calls is the receiving instance's:
+`completed` is the orchestrator's, which is what lets
+`bounded_concurrency_interval` be stated over the object
+`Orchestrator.boundedness` speaks about, and `participating`, `abandoned`
+and `proposed` are the slot-consensus instance's. The contract's input
+frames (an input records itself and nothing else) are what carry the glue's
+invariants about them across every other step. Two of those invariants are
+the caller conditions Chorus's termination claims take, in state form:
+`[abandoned_after_finalize]` (C1) and `[participating_opened]` (C2, with the
+orchestrator's `integrity_timing`).
 
 The paper runs a handler atomically upon the output; here it is a later
 action. That admits strictly more behaviours, so every safety property holds
-a fortiori and none had to be weakened. What it costs is an (F-justice)
+a fortiori. One statement follows the relaxation:
+`bounded_concurrency_interval` is "an active instance is opened and not
+completed", the direction Lemma 5 (`lemma:cadence-bounded-concurrency`)
+needs; the converse, which the paper's proof also states, fails while
+`on_open` has not yet run. What the relaxation costs is an (F-justice)
 obligation on the handlers.
 
 ### The Conductor ([Conductor.lean](../Cadence/Conductor.lean))
@@ -164,13 +179,18 @@ obligation on the handlers.
 driving the instance's `propose` input, an `acs_step` oracle action for the
 instance's internal steps (Byzantine proposals appearing, the decision
 itself — the contract constrains only correct validators' proposals), and
-`acs_decide` reading `acs.decided` off the state.
+`acs_decide` reading `acs.decided` off the state, and `enter_window`
+firing on the validator's *own* decision and driving the instance's
+`abandon` input in the same step (Algorithm 7, lines 44–45
+(`line:acs-decide`–`line:acs-abandon`)). The module's no-premature-abandonment
+assumption is then the model's invariant `[acs_abandoned_decided]`
+(Proposition 12 (`prop:acs-no-premature-abandonment`)).
 
 One **stated bridge** remains a `require` rather than a class property: that
 the decided first slot is bracketed from below by a *correct* pair of the
-decided set. That is the quantitative half of ACS validity through the median
-lemma of [Windows.lean](../Cadence/Windows.lean), and cardinality is outside the first-order fragment
-(§7 item 3).
+decided set. Cardinality is outside the first-order fragment, so the model
+cannot derive it; that it removes no behaviour of a correct ACS is a Lean
+theorem from the contract, `Cadence.acs_median_bracket` (§7 item 3).
 
 ### Chorus ([Chorus.lean](../Cadence/Chorus.lean))
 
@@ -377,9 +397,6 @@ system's configuration, with `SlotConsensusWithTotality` on top
 fragment through `slotConsensus_of_temporal`, and its `…_toSafety` lemma is
 `rfl`. Every field is proven, none is weakened:
 
-* the participation interface as contract fields (its observables, effects,
-  frames and initial conditions), from the transition bodies and Veil's
-  generated lemmas;
 * the message type, `Chorus.Message` ([Compose.lean](../Cadence/Chorus/Compose.lean)):
   one constructor per network relation that records its sender, and the
   MVBA's messages;
@@ -411,18 +428,17 @@ other run-level fields do. No consumer reads either. `MVBASafety`'s
 sending rules being gated on its own records, and Chorus's cells consume
 it.
 
-**One consequence for the composed system.** The instance now separates
-internal steps from inputs: its `step` is every transition whose label is
-not an input (`Chorus.Label.isInput`), which is what the upper level's
-frames ("internal steps do not change a correct validator's inputs") need.
-The glue's oracle step `sc_step` requires `sc.step`, so in the composed
-system ([System.lean](../Cadence/System.lean)) the glue can no longer take a Chorus input
-transition, and Chorus stays inert: no correct validator ever participates.
-That lasts until the composition leg gives the glue its own `participate`,
-`propose` and `abandon` actions, driving the contract's inputs the way the
-Conductor's handlers drive the ACS's. The glue's safety theorem is
-unaffected: it is generic in the fragment, and inertness only removes
-behaviours.
+**The participation interface is in the fragment.** Module 1
+(`mod:slotconsensus`)'s three inputs, their records, effects, frames and
+initial conditions are fields of `SlotConsensusSafety`, proven by
+`Chorus.slotConsensusSafety` from the three actions' bodies and Veil's
+generated lemmas. The instance separates internal steps from inputs: its
+`step` is every transition whose label is not an input
+(`Chorus.Label.isInput`), which is what the frames ("internal steps do not
+change a correct validator's inputs") need. The glue's oracle step
+`sc_step` takes only `sc.step`, and its handlers give the inputs (§3), so
+in the composed system ([System.lean](../Cadence/System.lean)) every Chorus transition is
+either Chorus's own step or an input the glue gave.
 
 **`MVBATemporal … (S := Mvba.mvbaSafety th)` is proven**, as
 `Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)):
@@ -518,22 +534,25 @@ the proven fragments.
    §3.5 step 4). The bridge is what makes Chorus's `mvba_propose` enabled at
    the composed instance — the Chorus liveness leg's `Chorus.ValidBridge`
    premise ([Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)).
-2. **The glue does not drive Chorus's inputs.** Chorus models the
-   participation interface, and `Chorus.chorusTemporal` proves it as
-   contract fields (§5). The glue's records of the inputs it does not drive
-   (`sc_abandoned`, `proposed`) are its own, as the paper's local variables
-   are. That the glue's *call* is the instance's input is the trace-level
-   refinement seam declared out of scope in [Composition.lean](../Cadence/Composition.lean)'s
-   header and [ChorusDesign.md](ChorusDesign.md) §10.1.
+2. **The glue drives Chorus's inputs: closed (R25).** The three inputs are
+   fields of `SlotConsensusSafety` and the glue's handlers give them (§3),
+   so the records the glue reads are the instance's own and the composed
+   system's Chorus is not inert. No glue-side copy of a call remains to
+   coincide with the instance's input. What stays out of scope is the
+   general statement of [System.lean](../Cadence/System.lean)'s header: that the modules' runs
+   implement the glue's oracle steps (trace-level refinement).
 3. **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
-   the decided set brackets the first slot from below is justified by
-   `ACS.validity_quantitative` through [Windows.lean](../Cadence/Windows.lean)'s median lemma, not
-   derived from the class: cardinality is upper-level. It is one `require`,
-   documented at the action. The justification has a gap: the median lemma
-   needs at most `f` Byzantine-attributed pairs, and the contract, like
-   Module 4 (`mod:acs`), bounds only the set's size. A Byzantine validator
-   could contribute several pairs. [ConductorBounds.md](ConductorBounds.md)
-   §3.4 (F18, C6) proposes the missing first-order field.
+   the decided set brackets the first slot from below is not derived inside
+   the model: the model does not compute the median, and cardinality is
+   upper-level. It is one `require`, documented at the action. Its
+   justification is a Lean theorem: `Cadence.acs_median_bracket`
+   ([AcsMedian.lean](../Cadence/AcsMedian.lean)) proves, for every ACS meeting the contract and
+   a system with at most `f` Byzantine validators, that the median of a
+   correct decider's set lies between two of its correct pairs. It needs
+   the contract's `decided_unique` (one slot per validator) and the
+   distinct-validator count of `validity_quantitative`, which Module 4
+   (`mod:acs`) does not state ([ConductorBounds.md](ConductorBounds.md)
+   §3.4, F18, C6; P16).
 4. **`Admissible` is implementation-defined data**, so a future full instance
    could be vacuous if it defined it as `False`; `admissible_exists` forbids
    that, and the definition is one line to audit.

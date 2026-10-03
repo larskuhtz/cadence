@@ -412,11 +412,11 @@ relations, and it takes a human to confirm each use is positive.
    erasure-code arithmetic abstracted
    ([ChorusDesign.md](ChorusDesign.md) §3.4, §8), payload bytes not
    modelled.
-6. **Composition seams**: (a) the glue's records of the slot-consensus
-   inputs it does not drive into the contract (`sc_abandoned`, `proposed`)
-   are its own, as the paper's local variables are — that its call *is*
-   the instance's input is trace-level refinement, out of scope
-   ([ChorusDesign.md](ChorusDesign.md) §10.1); (b) the two fault patterns
+6. **Composition seams**: (a) that the modules' runs implement the glue's
+   oracle steps is trace-level refinement, out of scope
+   ([ChorusDesign.md](ChorusDesign.md) §10.1); the glue's own calls are
+   the contracts' input transitions, so no glue-side record of a call
+   remains; (b) the two fault patterns
    — the shared `FaultModel` and Chorus's `ByzNodeSet.is_byz` — meet in the
    hypothesis `hbyz` of `system_positional_log_safety`; (c) an
    implementation's `Admissible` execution model is data it defines

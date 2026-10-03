@@ -196,10 +196,12 @@ The split is the same as in Chorus.
    between two correct proposals (≤ f faulty among ≥ 2f+1) — order-statistics
    counting, of the same species as the `ByzNodeSet` counting axioms. The
    model uses the lower half: `acs_decide` requires a correct witness pair
-   `(r1, s1)` from a correct decider's decided set with `s1 ≤ first`,
-   justified by the
-   Lean-proven median lemma of [Cadence/Windows.lean](../Cadence/Windows.lean)
-   for the concrete instance. This is one of the two stated bridges (§2).
+   `(r1, s1)` from a correct decider's decided set with `s1 ≤ first`.
+   That the median meets it is a Lean theorem from the ACS contract,
+   `Cadence.acs_median_bracket` ([Cadence/AcsMedian.lean](../Cadence/AcsMedian.lean)),
+   through the median lemma of [Cadence/Windows.lean](../Cadence/Windows.lean)
+   and the contract's one-slot-per-validator field. This is one of the two
+   stated bridges (§2).
 3. **Abstract clock.** A monotone global `now` (an ordered type, advanced by
    a nondeterministic tick action) with guards such as
    `require start_time s ≤ now` on `open`. Timing *properties* stay meta; the
@@ -216,9 +218,9 @@ The split is the same as in Chorus.
 
 The Conductor has no Byzantine message surface beyond ACS: its only inputs
 are local `completed(s)` callbacks and ACS decisions. Byzantine influence
-enters in two places — (i) ACS decided sets containing up to f faulty pairs,
-covered by the median-range `require` that the contract's quantitative
-validity justifies, and (ii) Byzantine validators' own ACS proposals, which
+enters in two places — (i) ACS decided sets containing up to f faulty pairs
+(one per Byzantine validator, `ACSSafety.decided_unique`), covered by the
+median-range `require` that `Cadence.acs_median_bracket` justifies, and (ii) Byzantine validators' own ACS proposals, which
 are internal steps of the ACS instance and which the contract leaves
 unconstrained. The module therefore needs no quorum machinery of its own;
 `ByzNodeSet` enters only through the median lemma.
@@ -229,15 +231,17 @@ Algorithm 1 (`algorithm:cadence`) is its own small Veil module:
 
 * State (per validator): `opened`, `skipped`, `pending(s, v)`,
   `appended(s, v)` (the log as a slot-indexed relation — the ordered-list
-  view is recovered from slot order), plus the proposer's `proposed(s)`.
+  view is recovered from slot order).
 * Sub-protocol state and oracle steps: `os : ostate` and
   `sc_state s : scstate`, advanced by `orch_step`/`sc_step` — any internal
   transition the respective `…Safety` contract allows. `opened`,
   `finalized`, `completed` are ghosts reading the contracts' observables.
-* Handlers: `on_finalize(i, s, v)` — reacts to `sc.finalized`, buffers the
-  vector (`delivered`), drives the orchestrator's `complete` input, records
-  the abandon; `on_propose(i, s)` — the proposer's `propose` call. The
-  `participate()` call is definitionally the opening.
+* Handlers: `on_open(i, s)` — reacts to `orch.opened`, drives the
+  slot-consensus instance's `participate` input; `on_propose(i, s, p)` — the
+  proposer's `propose` input; `on_finalize(i, s, v)` — reacts to
+  `sc.finalized`, buffers the vector (`delivered`), and drives the
+  orchestrator's `complete` input and the instance's `abandon` input in one
+  step. The records of the glue's calls are the instances' own.
 * Protocol actions: append when `ready_to_append` (every smaller slot
   skipped-or-appended — expressible relationally), `record_skip`.
 
@@ -256,8 +260,9 @@ Algorithm 1 (`algorithm:cadence`) is its own small Veil module:
   the finalized v contains the correct proposer's proposal — this is
   imported through the SlotConsensus oracle's (conditional) inclusion
   require, instantiated by Chorus's `proposal_inclusion`;
-* bounded concurrency: participation interval = open-to-complete —
-  immediate from the orchestrator boundedness contract (interval form).
+* bounded concurrency: the participation interval lies inside
+  open-to-complete — an active instance is opened and not completed —
+  which the orchestrator boundedness contract bounds (interval form).
 
 **Positional/timed MCP statements, in plain Lean / meta:**
 

@@ -518,6 +518,10 @@ comment edit would rebuild the Chorus family.
   `within_finalized_late`'s MVBA tail.
 * **Paper:** Algorithm 1, line 23 (`line:abandon`); Module 1 does not
   state it, P13 ([PaperAlignment.md](PaperAlignment.md) §6).
+* **Composition:** its state form is the glue's invariant
+  `[abandoned_after_finalize]`, over the instance's own record of the
+  input ([Cadence.lean](../Cadence/Cadence.lean)); the run form follows in
+  the composed run ([ConductorBounds.md](ConductorBounds.md) §4.2, K7).
 
 ### 6.3 `NoEarlyStart`, C2
 
@@ -528,6 +532,11 @@ comment edit would rebuild the Chorus family.
   `within_finalized_late`).
 * **Paper:** Lemma 12 (`lemma:conductor-integrity`); Module 1 does not
   state it, P13.
+* **Composition:** the glue's invariant `[participating_opened]` (a
+  correct validator participates only in an opened slot) with the
+  orchestrator's `integrity_timing` is its state form; the deadline tie
+  `D = start_time + Δ` and the run form come with the composed run
+  ([ConductorBounds.md](ConductorBounds.md) §4.2, K7).
 
 ### 6.4 `SyncParticipationWithin d`
 

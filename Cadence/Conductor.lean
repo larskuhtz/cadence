@@ -126,14 +126,14 @@ instance (`acs_step`), which the contract leaves unconstrained for Byzantine
 validators — and (ii) up to `f` Byzantine pairs inside the decided core
 set, captured by the median-range `require` of `acs_decide` (a *correct*
 pair of the decided set bracketing the median from below, as an explicit
-witness), justified by the quantitative half of ACS validity through the
-median lemma ([Windows.lean](Windows.lean) `lowerMedian_between_correct`).
-No quorum machinery and no `ByzNodeSet` are needed; the fault pattern is the
-`FaultModel` the ACS contract is stated against, otherwise unconstrained,
-and the resilience arithmetic (`n = 3f + 1`, `≤ f` faulty pairs in a
-`2f+1`-sized core set) lives in the ACS contract's quantitative validity
-(`ACS.validity_quantitative`, upper level) and the median lemma's
-hypotheses.
+witness), justified from the contract by `Cadence.acs_median_bracket`
+([AcsMedian.lean](AcsMedian.lean)). No quorum machinery and no `ByzNodeSet`
+are needed; the fault pattern is the `FaultModel` the ACS contract is stated
+against, otherwise unconstrained, and the resilience arithmetic (`≤ f`
+Byzantine validators, one pair each in a core set of `2f + 1` validators)
+lives in the ACS contract (`ACSSafety.decided_unique`,
+`ACSTemporal.validity_quantitative`) and that lemma's fault-bound
+hypothesis.
 
 ## Obligation discharge map (→ [Interfaces.lean](Interfaces.lean) `Orchestrator`)
 
@@ -380,13 +380,17 @@ contract and the median computation:
 * *median range validity, lower half* — the decided first slot is at
   least the slot of some correct pair in the decided set (`r1/s1`, passed
   as **explicit witnesses** — witnesses at the assembly action, not
-  `∃`-ghosts in consumers). That such a pair brackets the median from below
-  is the quantitative half of ACS validity (≥ `2f+1` pairs, ≤ `f`
-  Byzantine) through [Windows.lean](Windows.lean)
-  `lowerMedian_between_correct`; cardinality is outside the first-order
-  fragment, so this is the **one stated bridge** between the contract and
-  the model, and it is a `require`, not a derivation. That the witness *is*
-  a genuine correct proposal is the contract's `validity_genuine`. The
+  `∃`-ghosts in consumers). The model does not compute the median, and
+  cardinality is outside the first-order fragment, so this is the **one
+  stated bridge** between the contract and the model, a `require` and not
+  a derivation. That it removes no behaviour of a correct ACS is a theorem
+  from the contract: the median of a correct decider's set is bracketed by
+  two of its correct pairs (`Cadence.acs_median_bracket`,
+  [AcsMedian.lean](AcsMedian.lean), from `decided_unique`,
+  `validity_quantitative` and the system's fault bound, through
+  [Windows.lean](Windows.lean)'s `lowerMedian_between_correct`). That the
+  witness *is* a genuine correct proposal is the contract's
+  `validity_genuine`. The
   *upper* half of the bracket (`median ≤` some correct proposal — also
   provided by the median lemma) is deliberately not modelled: no safety
   property consumes it — it feeds only the recovery timing argument
@@ -431,20 +435,29 @@ action acs_decide (w0 : window) (w : window)
 }
 
 /-! ## Window entry (Algorithm 7, line 44 (`line:acs-decide`) handler:
-Algorithm 7, lines 46–47 (`line:window-increment`–`line:enter_window_omega`)) -/
+Algorithm 7, lines 45–47 (`line:acs-abandon`–`line:enter_window_omega`)) -/
 
-/-- An honest validator in window `w` enters the successor `w'` once `ACS[w']`
-has decided and the readiness condition holds (the two activation
-conditions of Algorithm 7, line 44 (`line:acs-decide`)). Entry *schedules* the window's slots
-(the eager `opened_i` update — here the ghost `slot_scheduled` grows by
-the decided interval); the `open` outputs fire later via `open_slot`. -/
+/-- An honest validator in window `w` enters the successor `w'` once *its
+own* `ACS[w']` has decided and the readiness condition holds (the two
+activation conditions of Algorithm 7, line 44 (`line:acs-decide`), which
+fires on `p_i`'s own `decide`). It abandons the instance in the same step
+(Algorithm 7, line 45 (`line:acs-abandon`)), which is why abandonment never
+precedes decision (`[acs_abandoned_decided]`). Entry *schedules* the
+window's slots (the eager `opened_i` update — here the ghost
+`slot_scheduled` grows by the decided interval, which `acs_decide` read off
+the decided set); the `open` outputs fire later via `open_slot`. -/
 action enter_window (i : node) (w : window) (w' : window)
-    (f : slot) (b : slot) (l : slot) {
+    (f : slot) (b : slot) (l : slot) (acs_next : acsstate) {
   require ¬ fm.byz i
   require in_window i w
   require win_ord.next w w'
   require acs_decided w' f b l
+  -- `i`'s own `ACS[w']` has decided.
+  require acs.has_decided (acs_state w') i
   require ready_next i w
+  -- `ACS[w'].abandon()`: an input transition of the instance's state.
+  require acs.abandon (acs_state w') i acs_next
+  acs_state w' := acs_next
   entered i w' := true
 }
 
@@ -665,6 +678,15 @@ contract. -/
 invariant [acs_reachable]
   ∀ (w : window), acs.reachable (acs_state w)
 
+/-- **No premature abandonment** (Proposition 12
+(`prop:acs-no-premature-abandonment`)): an honest validator abandons an ACS
+instance only after deciding in it, since its one `abandon` is in the
+handler of its own decision (`enter_window`). This is the second assumption
+of Module 4 (`mod:acs`), in state form, as a fact of the model. -/
+invariant [acs_abandoned_decided]
+  ∀ (i : node) (w : window),
+    ¬ fm.byz i ∧ acs.abandoned (acs_state w) i → acs.has_decided (acs_state w) i
+
 /-! ## Liveness — meta-argument (totality & recovery)
 
 Totality and `(2Wτ)`-recovery are genuinely temporal: the paper proves
@@ -688,9 +710,13 @@ they need is exactly the invariant set above.
   validator has proposed to `ACS[w]`, the `acs_decide w` oracle
   eventually fires (with witnesses supplied by the median lemma,
   [Windows.lean](Windows.lean) `lowerMedian_between_correct`).
-* **(A-acs-totality)** (Module 4 (`mod:acs`) Δ-Totality) — the decision is global
-  state here, so its propagation is immediate by encoding; the paper's
-  `Δ` materialises in the timing bounds only.
+* **(A-acs-totality)** (Module 4 (`mod:acs`) Δ-Totality) — `enter_window`
+  waits for the validator's *own* decision, so every correct validator
+  needs its instance to decide; Δ-Totality bounds when that happens once
+  one correct validator has decided. Its two assumptions are met by the
+  model: no premature abandonment is `[acs_abandoned_decided]`, and
+  Δ-synchronized proposals is a timing fact (Corollary 2
+  (`cor:proposal-synchronization`)).
 * **(A-sc-totality)**, **(A-sc-termination)** — completions propagate:
   within Cadence, `completed` is Chorus finalization, which is
   `d_tot`-total (Proposition 4 (`prop:chorus-totality`)) and `ℓ_chorus`-terminating.
