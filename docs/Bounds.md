@@ -514,8 +514,8 @@ exponential backoff satisfies it only if the backoff is capped at `O(Δ)`.
 therefore the wrong requirement: the sequence must be *eventually above*
 `L_cert` and *bounded*, which is what (S-ramp) and (S-cap) say. The
 supplement's earlier backoff remark, which this finding concerned, and its
-removal are in [History.md](History.md) § "Paper alignment before the
-single target". One residue remains in the paper: the Supplement, Section
+removal are in [History.md](History.md) § "Three notes moved out of the
+living documents (R21)". One residue remains in the paper: the Supplement, Section
 10.1 (`sec:timing-constants`) stub still lists "the MVBA view timeout and
 its backoff policy" (P8, [PaperAlignment.md](PaperAlignment.md) §6).
 
@@ -1253,9 +1253,11 @@ decisions now come last). The questions the task set:
 
 ### 6.3 The premises are jointly satisfiable
 
-*Auditor-first. The list says what each premise of the two MVBA liveness
-theorems is and why it can hold. The model below the list shows that they
-hold **together**. The detail is in §6.3.1–§6.3.3.*
+*The premises of the two MVBA liveness theorems — each one's role, why it
+is plausible, whether it is obviously satisfiable, and where it is used —
+are [Premises.md](Premises.md). This section is the detail behind their
+joint satisfiability: the model (§6.3.1) and what building it found
+(§6.3.2).*
 
 A theorem whose premises can never hold at once proves nothing. For a
 conditional liveness result the check is therefore that every premise can
@@ -1274,96 +1276,15 @@ theorems that say it satisfies them are:
   premise of `Mvba.termination`. The untimed claim is not vacuous. In
   particular, its weak fairness does not contradict the rest.
 
-**The ledger.** "Obvious" means an auditor can see by inspection that the
-premise can hold. "Not obvious" means it needs the model.
-
-Shared by both theorems (the instance):
-
-* **Finitely many validators** (`Fintype node`): obvious, every real
-  deployment has them. Model: `Fin 4`.
-* **The quorum system** (`ByzNodeSet`, its axioms): obvious for
-  `n ≥ 3f + 1`, and machine-checked for the whole family
-  `byzNodeSetFinGen` ([ByzQuorum.lean](../Cadence/ByzQuorum.lean)). Model:
-  `n = 4`, `f = 1`, validator 3 Byzantine.
-* **A supermajority of correct validators** (`ByzNodeSetHonestQuorum`):
-  obvious, since at most `f` validators are Byzantine. Model: `{0, 1, 2}`.
-* **Views have successors, finitely many below each**
-  (`ViewOrderEnum`): obvious for a view counter. Model: `ℕ`
-  (`natViewOrderEnum`).
-* **The model's assumptions** (`leader_functional`,
-  `leader_honest_cofinal`): obvious, a leader schedule is a function and
-  round-robin reaches every validator. Model: validator 0 leads every
-  view.
-
-The timed claim, `Mvba.timed_termination`:
-
-* **The time theory** (a cancellative, Archimedean, linearly ordered
-  monoid): obvious. Model: `ℕ`.
-* **The schedule** (`Schedule`: `0 < Δ`, non-negative constants, a capped
-  timeout that eventually exceeds the chain's latency): obvious. Model:
-  `Schedule.fixedNat`, the paper's fixed timeout.
-* **A correct leader in every `k` consecutive views** (`LeaderRotation`):
-  obvious, round-robin gives `k = f + 1`. Model: `k = 1`.
-* **The run is admissible** (`Sync`: bounded weak fairness after GST, a
-  punctual view timer, availability within `Δ_sync`): **not obvious**
-  together with the next three. `Mvba.admissible_exists` shows admissible
-  runs exist, but its run has nobody proposing. Since step 5b the fairness
-  clause is the supplement's network (§6.2.4, "The network clauses"): a
-  network step is owed within `Δ` only for messages sent at or after GST
-  by correct validators and retained, within `Δ + ρ` when they are
-  retransmitted. Whenever `δ ≤ Δ` (the paper's `δ = 0`) that asks less of
-  every label than before — a longer window only weakens a bounded-fairness
-  clause, and every side condition does too — so admissibility is easier
-  to meet, and the model below meets it for the same reason as
-  before: its clock advances only where no fair label is enabled.
-  The model sends nothing before GST, discards nothing, and every validator
-  forms its prepare and commit certificates itself (since R4 each correct
-  validator's `form_own_commitqc` is also its decision). So its run is admissible under either
-  reading, and the change moves only the value of `ℓ`. Since R8 `Sync` has a
-  fourth clause, the caller's handoff `Relayed` (the former `decisions`
-  clause): **obvious** here, since in the model every correct validator
-  forms its own certificate and nobody is left to hand one to, so `decide`
-  is never enabled at a plateau's end (`Mvba.Witness.relayed`).
-* **Every correct validator proposes by `t`**, **with a valid value**, and
-  **none abandons before `max(t, GST) + ℓ`**: each obvious alone. Together
-  with admissibility they need a run that stops on its own after deciding,
-  since the caller may not stop it early; §6.3.2 says why that was not
-  obvious.
-
-The untimed claim, `Mvba.termination`:
-
-* **(F-justice)**, weak fairness of every honest action for the messages of
-  correct senders — if it is enabled from some point on, and its leader or
-  quorum is correct (`Mvba.Owed`), it fires: **obvious.** The
-  owed-condition (since R8, F5) only removes obligations. A run that does all
-  the work there is to do and then idles meets it, since at the idle state
-  no honest action is enabled: every fair action is one correct
-  validator's step guarded on its own record, so it disables itself by
-  firing (`Mvba.enabledMove_of_enabled`, §6.4.7). The model does exactly
-  that. Nothing depends on the quorum sort being finite. The plain
-  premise is the same as weak fairness over state-changing steps
-  (`Mvba.fJustice_iff_move`). (History: before R4 some fair labels stayed
-  enabled after firing, one per quorum, and under plain enabledness no run
-  satisfied the premise at a `nodeset` sort with infinitely many
-  supermajorities; from R3 to R6 the premise was therefore stated over
-  state-changing steps, §6.2.4.)
-* **(A-viewsync)**, the view timer as ordering constraints: **not
-  obvious** on its face, but it is a corollary of the timed premises
-  (`Mvba.aViewSync_of_sync`), so it inherits their satisfiability. The
-  model checks it directly. Since R8 its second clause waits for a correct
-  validator's decision rather than for a commit certificate (F5: a
-  certificate the adversary assembled need not reach anyone).
-* **(F-avail)**, the availability shares arrive: obvious.
-* **`AllPropose`**, **`NoEarlyAbandon`**: obvious alone, and not
-  obviously compatible with (F-justice) and the timer, for the same reason
-  as in the timed claim.
-* **(F-relay)**, the caller hands a correct validator's decided
-  certificate on (since R8; `decide` is the caller's input): **obvious**, for
-  the reason `Relayed` is (`Mvba.Witness.fRelay`). Inside Cadence it is
-  derived, not assumed (`Chorus.fRelay_of_fJustice`).
-
-**What the model found.** Every premise is satisfiable, and none needed
-a change to its statement. Building the model did change the *model*: it
+Two premises are not obviously compatible with the others, and the model
+is what shows they are. **Admissibility with the caller's conditions**:
+every correct validator proposes and none abandons early, so the run must
+stop on its own after deciding (§6.3.2). **Weak fairness at an idle tail**:
+every fair action is one correct validator's step guarded on its own
+record, so it disables itself by firing (`Mvba.enabledMove_of_enabled`,
+§6.4.7), and a run that does all the work there is to do and then idles
+owes nothing more. **Every premise is satisfiable, and none needed a
+change to its statement.** Building the model did change the *model*: it
 did not halt a validator after deciding, as the supplement does, and now it
 does (§6.3.2).
 
@@ -1432,21 +1353,6 @@ premise is about the caller's `abandon()`, and a validator's own halt
 must not count against it. Had `decide` set `abandoned`, every run deciding
 before `max(t, GST) + ℓ` would violate that premise and the timed theorem
 would be vacuous. The proofs' side is in the reassessment above.
-
-#### 6.3.3 What the Chorus `TerminationClaim` will need
-
-The same two things, after stage 5: a ledger of its premises in this form,
-and one model satisfying all of them. The model can reuse this one for
-the MVBA sub-state: its MVBA halts on its own after deciding, so Chorus,
-which does not drive the MVBA's `abandon` in the single-slot model, needs
-no abandonment for it. The premise that needs thought is **`ValidBridge`**,
-the stated bridge between the MVBA's decision and the network's
-certificates at Chorus's decision handlers. It relates two sub-states,
-and a model must produce certificates that satisfy it, not merely an MVBA
-run that decides. `FJustice` over Chorus's own quorum labels needs no
-finite-sort argument: every fair action fires once
-(`Chorus.justice_enabledMove`, §6.4.7), so at an idle tail no fair label
-is enabled and the tail owes nothing.
 
 ### 6.4 The Chorus leg: the kick-off record
 
@@ -2685,24 +2591,28 @@ is gated (the start of the finalizer's synchronized-participation window).
 
 #### 6.4.5 The premises are jointly satisfiable
 
-*Auditor-first, in §6.3's form. The list says what each premise of the
-three Chorus liveness claims is and why it can hold. The model below the
-list shows that they hold **together**.*
+*The premises of the three Chorus liveness claims and of the contract
+instance — each one's role, why it is plausible, its witness and where it
+is used — are [Premises.md](Premises.md). This section is the detail
+behind their joint satisfiability: the witness theorems, the devices that
+make the premises that are not obviously compatible hold together, and
+the model.*
 
 The claims are `Chorus.termination` (untimed), `TotalityClaim` (proven as
 `Chorus.totality`) and `TimedTerminationClaim` (proven as
 `Chorus.timed_termination`, at the system's MVBA
-`Chorus.timed_termination_atMvba`), all three proven. One model satisfies every premise of all three. It is
-[Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean), and the three
-theorems that say so, each pinned at the standard three axioms, are:
+`Chorus.timed_termination_atMvba`). One model satisfies every premise of
+all three. It is [Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean),
+and the three theorems that say so, each pinned at the standard three
+axioms, are:
 
 * `Chorus.termination_premises_satisfiable`: some instance and run meet
   every premise of `Chorus.termination`. That is its hypotheses, the
   assumptions of the system's configuration `chorusTheory`, `FJustice`
-  with its owed-conditions and its two families, `MvbaAdmissible`,
+  with its owed-conditions and its families, `MvbaAdmissible`,
   `ValidBridge`, and the caller's two.
 * `Chorus.timedTermination_premises_satisfiable`: the same for the timed
-  claim at the system's MVBA, `TimedTerminationClaimAtMvba` (R19). That is
+  claim at the system's MVBA, `TimedTerminationClaimAtMvba`. That is
   `Mvba.mvbaTemporal`'s instance hypotheses, the schedule, `SyncAtMvba`
   (whose MVBA premise is the MVBA's own two clauses), `ValidBridge`, and the
   caller's four. The witness file also applies
@@ -2715,211 +2625,43 @@ theorems that say so, each pinned at the standard three axioms, are:
 Each states the premises only, never a conclusion. All three are stated at
 the family `Chorus.termination` is proven at (`byzNodeSetFin n f`, every
 `n = 3f + 1`) and at `chorusTheory`, so they speak about the instance the
-proofs use.
+proofs use. The contract instance proves more: `Chorus.admissible_exists`
+gives an admissible run from every initial state of every configuration
+meeting the instance's hypotheses — the run in which every proposer stays
+silent, which needs the slot to have a proposer
+([Premises.md](Premises.md) §2.10).
 
-**The ledger.** "Obvious" means an auditor can see by inspection that the
-premise can hold. "Not obvious" means it needs the model, and the line
-names the witness theorem that discharges it. "Used in" names the proof steps that consume the premise, the
-best-effort half of independence: a premise no proof uses could be dropped.
-Every premise of the three claims is used; where only part of a premise
-is, the line says which part.
+**The premises that need the model.** Four are obvious alone and not
+obviously compatible with the rest.
 
-The instance, shared by the three claims:
-
-* **Finitely many validators, `n = 3f + 1`, at most `f` Byzantine**
-  (`Fin n`, `byzNodeSetFin`): obvious. Model: `Fin 4`, validator 3
-  Byzantine and silent. *Used in:* `Chorus.termination` only, through
-  `Chorus.honest_supermajority` (the correct validators are `2f+1`, for
-  `saturation_fin` and `mvba_evidence_of_saturation`) and the counting
-  class (the FallbackQC's correct signer in `eventually_fbcommit_sig`, the
-  MVBA's honest core in `Mvba.termination`). `Chorus.timed_termination`
-  uses it the same way, through `honest_quorum_fin` (`within_all_saturated`,
-  the fbCommitQC) and `mvba_evidence_of_saturation` (the certified vector).
-  `Chorus.totality` holds at any instance.
-* **The system's configuration** (`chorusTheory`: its assumption is that the
-  MVBA starts in an initial state; and, for `Chorus.termination`,
-  `mvbaTheory`: a meta-block's entry vector is its own entries): obvious.
-  Model: one proposer, validator 0; every root well-encoded; the MVBA's
-  initial state; `ent := MetaBlock.entries`. *Used in:*
-  `abandoned_of_mvba_abandoned` (the MVBA's abandonments come from
-  Chorus's, for `all_decided_of_all_input` and the timeline's
-  `within_input_of_*`), `eventually_mvba_complete` (the MVBA's
-  reachability, hence its agreement), and `certified_certifiedVector` (the
-  certified meta-block has the certified entries, through `mvbaTheory`'s
-  `ent` and `chorusTheory`'s `mval_fb`). `Chorus.timed_termination` uses the
-  same three (`within_all_decided`, `within_recorded`,
-  `within_finalized_late`).
-* **`ViewOrderEnum`, a correct supermajority (`ByzNodeSetHonestQuorum`)**:
-  obvious (§6.3). Model: `ℕ`, and `{0, 1, 2}`. *Used in:*
-  `all_decided_of_all_input` (handed to `Mvba.termination`), and the honest
-  quorum in `eventually_committed_of_mvba_arm` and `eventually_fbcommitqc`.
-  The timed claim reaches them only through `T.termination`
-  (`within_all_decided`), and they are hypotheses of
-  `Chorus.timed_termination_atMvba` only, as the MVBA instance's.
-* **The MVBA instance's hypotheses** (`LeaderRotation`, the MVBA's
-  `Schedule`, a cancellative Archimedean time): obvious (§6.3). Model:
-  validator 0 leads every view, `Schedule.fixedNat` over `ℕ`. *Used in:*
-  `Mvba.timed_termination`, which `Chorus.timed_termination_atMvba`
-  consumes as `T.termination`; no Chorus proof uses the rotation or the
-  time classes otherwise. The schedule's `Δ_pos`/`δ_nonneg` are used by
-  `Chorus.totality` and every timeline milestone, `ρ_nonneg` by
-  `relayed_of_timedJustice`, and all of its non-negativity fields by
-  `mvbaSchedule_ℓ_nonneg`.
-* **`0 ≤ ℓ_MVBA`** (`0 ≤ T.ℓ`), a hypothesis of `Chorus.timed_termination`
-  and `Chorus.timed_termination_tight` on the MVBA contract: obvious, a
-  latency. At the system's MVBA it is a theorem (`mvbaSchedule_ℓ_nonneg`),
-  so the `…_atMvba` forms do not take it. *Used in:* `within_finalized_late`
-  (the MVBA's decision deadline `t_M + ℓ_MVBA` is after the proposals' and
-  the chunks', so the vote's window starts at the decision).
-* **The Chorus schedule** (the MVBA's plus the deadline `D`, with
-  `δ ≤ Δ`, F10, and `Δ ≤ Δ_sync`, F15): obvious. The second says that the
-  MVBA's availability window covers one Chorus network hop, true when the
-  two layers share `Δ`. Model: `Δ = 1`, `δ = 0`, `D = 1`, `Δ_sync = 1` (the
-  Chorus witness overrides the MVBA's fixed schedule's `0`). *Used in:*
-  `δ_le_Δ` by the Δ-row milestones (`within_fb_sig`,
-  `within_complete_fast_metablock`, `within_input_of_fbcert`,
-  `within_chunk_delivered`, and the round's `within_finalized_late`), and by
-  the handoff's `δ ≤ Δ + ρ` in `timedMvbaAdmissible_of_rows`;
-  `Δ_le_Δsync` by `availWithin_of_timedJustice`, the (Δ-avail)
-  derivation; `D` by `deadline_le_of_start` and the window arithmetic.
-* **`δ ≤ Δ + ρ`**, a hypothesis of the handoff's derivation
-  (`Chorus.relayed_of_timedJustice`): obvious, it follows from `δ ≤ Δ`.
-  Since R19 no claim and no witness takes it: `timedMvbaAdmissible_of_rows`
-  derives it from `δ_le_Δ` and `0 ≤ ρ`.
-
-The timing model, `Sync`, premises of the timed termination claim
-(`TotalityClaim` takes `TimedJustice` only):
-
-* **(Δδ-justice), `TimedJustice`**: every row of the hop table is
-  `BufferedFair` at its bound, gate and owed-condition; the proposal is two
-  families per `(i, v)`, one per trigger (F9), and the handoff one per
-  receiver. **Each row is obvious alone**: a run in which its label is never
-  enabled with its gate open, or fires at once. The owed-conditions only
-  remove obligations. **Jointly not obvious**: the families quantify over
-  every value, and the rows share one clock, so with `δ = 0` a `δ`-row
-  enabled at `N` must fire before the clock moves. Discharged by
-  `Chorus.timedTermination_premises_satisfiable` and
-  `Chorus.totality_premises_satisfiable`, with §6.3.1's device: the clock
+* **`TimedJustice`.** The families quantify over every value, and the rows
+  share one clock, so with `δ = 0` a `δ`-row enabled at `N` must fire
+  before the clock moves. §6.3.1's device discharges it: the clock
   advances only where no row is enabled, and where one is, its gate closes
-  inside its window. *Used in:* `Chorus.totality` (`commit_assign_*` in
-  `within_assigned`, `finalize_commit` in `within_finalized`) and the
-  timeline (`within_voted`, `within_fb_sig`, `within_cast`,
-  `within_complete_fast_metablock`, `within_chunk_delivered`,
-  `within_entry_recorded`; the two proposal families in
-  `within_input_of_fbcert` / `within_input_of_fast`; the handoff in
-  `relayed_of_timedJustice`) and the round (the decision handlers in
-  `within_recorded`, `mvba_terminate` in `within_complete`, the vote's split
-  row `fbCommit` in `within_fbcommit_sig`, `commit_assign_*` and `finalize_commit` through
-  totality's two links in `within_finalized_late`). Rows no termination
-  proof uses: the fast commit path's (`commit_sign_*`, `cast_fast_commit`,
-  `broadcast_commitqc_*`: the fast vote is counted when it happens, never
-  awaited), the `CommitQC` route's handlers `on_mvba_commitqc_*` (the
-  timed proof takes the main body's fbCommitQC route). The availability
-  report `avail` and the handoff family `relay` are used by the derivations
-  of the MVBA's caller clauses at the system's MVBA,
-  `availWithin_of_timedJustice` and `relayed_of_timedJustice`, which
-  `timed_termination_atMvba` consumes through `sync_of_syncAtMvba`. They stay:
-  the premise is the paper's "every step within its bound", and
-  dropping a row would make a run admissible that the paper's network does
-  not produce.
-* **(P-phase), `PhasePunctual`**: obvious alone, and jointly with the rows
-  obvious by construction. The clock stops at each landmark, and the marker
-  fires there first. Model: the markers fire at clock 1, 2 and 3. *Used
-  in:* (P2) by `reached_within`, behind every milestone that waits for a
-  phase (`within_voted`, `within_fb_sig`, `within_cast`,
-  `within_input_of_*`); (P1) by `phase_pre_of_lt`, for
-  `within_entry_recorded` (`record_chunk` closes at `D`).
-* **The MVBA's timing, `TimedMvbaAdmissible T`** (generic claims), at the
-  system's MVBA **`MvbaOwnTiming`**, the MVBA's own two clauses (Δ-justice)
-  and (T-timer) on a projection: obvious alone (`Mvba.admissible_exists`).
-  **Jointly not obvious**: Chorus's own steps drive the MVBA's inputs (here
-  `abandon`), and the projection needs the MVBA to be stepped infinitely
-  often without any row becoming enabled. Discharged by
-  `Chorus.timedTermination_premises_satisfiable`. The MVBA's two clauses on
-  its caller are derived from the rows: the handoff (C15,
-  `relayed_of_timedJustice`) and (Δ-avail) (F15, R19,
-  `availWithin_of_timedJustice`), joined by `timedMvbaAdmissible_of_rows`.
-  So the claim at the system's MVBA assumes no availability fact Chorus
-  provides. *Used in:* `within_all_decided`, the MVBA tail, through
-  `T.termination`.
-
-The bridge, a premise of both termination claims:
-
-* **`ValidBridge`**: **not obvious**. It fixes the MVBA theory's `valid`
-  against Chorus's network at every index, in both directions (§6.3.3).
-  Discharged by `Chorus.termination_premises_satisfiable` and
-  `Chorus.timedTermination_premises_satisfiable`. With
-  `valid := (· = v⋆)`, `v⋆` giving the proposer its root held by a FastQC
-  and everyone else nothing, soundness holds because `v⋆` is the only
-  representation that passes the certificate check at any index
+  inside its window.
+* **`FJustice`**, for the timed row's reason. In the idle tail no fair
+  label is enabled at all, since every fair action fires once
+  (`Chorus.justice_enabledMove`, §6.4.7).
+* **`MvbaAdmissible`, and the timed `MvbaOwnTiming`.** Chorus's own steps
+  drive the MVBA's inputs (here `abandon`), and the projection needs the
+  MVBA to be stepped infinitely often without any row becoming enabled.
+  The run's MVBA is quiet: its projection is the abandonments plus the
+  environment's availability marks, the quiet run of
+  `Mvba.admissible_exists`.
+* **`ValidBridge`.** It fixes the MVBA theory's `valid` against Chorus's
+  network at every index, in both directions. With `valid := (· = v⋆)`,
+  `v⋆` giving the proposer its root held by a FastQC and everyone else
+  nothing, soundness holds because `v⋆` is the only representation that
+  passes the certificate check at any index
   (`Chorus.Witness.certified_eq`). A non-proposer can have no entry. The
   proposer's entry cannot be negative, since no negative FastQC and no
   `FBCert` ever exist, and for the same reason it cannot be held by a
-  FallbackQC. Completeness holds because nobody decides in the MVBA. *Used
-  in:* soundness by `eventually_committed_of_mvba_arm` (the certified
-  meta-block is `Valid`, so `mvba_propose` is enabled), completeness by
-  `eventually_mvba_complete` (the decision passes the handlers' certificate
-  check) and by `eventually_fbcommit_sig` (a FallbackQC entry of the
-  validator's own decision has its fallback quorum, whose correct signer
-  sent the chunks when it signed). The held-value clause by
-  `fAvail_of_fJustice` and, timed, `availWithin_of_timedJustice` (a held
-  meta-block's FallbackQC entries are certified). The timed claim:
-  soundness by `within_finalized_late` (the certified vector at saturation
-  is `Valid`, the timeline's input), completeness by `within_recorded` (the
-  handlers' check) and `within_finalized_late` (a FallbackQC entry of a
-  correct decision has its correct signer).
+  FallbackQC. Completeness holds because nobody decides in the MVBA.
 
-The untimed fairness, a premise of `Chorus.termination`:
-
-* **`FJustice`**, weak fairness over plain enabledness for correct senders,
-  with the proposal and handoff families: obvious alone, at every quorum
-  sort, since every fair action fires once (`Chorus.justice_enabledMove`,
-  §6.4.7). **Jointly not obvious**, for the timed row's reason: the
-  families quantify over every value. Discharged by
-  `Chorus.termination_premises_satisfiable`: in the idle tail no fair label
-  is enabled at all. *Used in:* its rows by every `eventually_*` step of
-  `Chorus.termination` (`eventually_mvbaArm`, `eventually_voted`,
-  `eventually_saturated`, `eventually_mvba_complete`,
-  `eventually_fbcommit_sig`, `eventually_committed_of_assignable`, …); the
-  proposal family by `eventually_input`; the handoff family by
-  `fRelay_of_fJustice`; the availability family by `fAvail_of_fJustice`.
-  Since R19 (F15) re-dissemination has no row: the FallbackQC signer's
-  chunks come with its `fb_sign_pos` (`fb_pos_sig_chunks`).
-* **`MvbaAdmissible`**: the MVBA's own three premises on a projection.
-  Jointly not obvious, as the timed form is. Discharged by
-  `Chorus.termination_premises_satisfiable` (its caller premises are
-  derived, (F-relay) by `Chorus.fRelay_of_fJustice`). *Used in:*
-  `all_decided_of_all_input`, which hands the projection's three clauses
-  to `Mvba.termination`.
-
-The caller's conditions, the contract's antecedents:
-
-* **`AllParticipate` / `AllParticipateBy t`, `SyncParticipationWithin Δ`,
-  C2 (`NoEarlyStart`), C1 (`NoAbandonBeforeFinalizing`)**: **jointly
-  obvious**. Everyone starts at `D − Δ` and abandons only after finalizing,
-  the Conductor's steady state. With the timing model they agree as well:
-  an abandonment closes the abandoning validator's gates, which removes
-  obligations. *Used in:* `AllParticipate` by
-  `eventually_committed_of_finalized` and `activeFrom_of_never_finalized`;
-  `AllParticipateBy t` by `exists_start` (the timeline's start, in
-  `within_finalized_tight`); `SyncParticipationWithin` by `Chorus.totality`
-  (the finalizer's peers participate within the tolerance; the timed claim
-  uses it through totality only, on the split's early branch); C2 by
-  `deadline_le_of_start` (`D ≤ t + Δ`, in `within_finalized_late`); C1 by
-  `activeFrom_of_never_finalized`, `eventually_committed_of_assignable`,
-  totality's `within_assigned`/`within_finalized`, the timeline's
-  `activeUntil_of_not_finalized` (a validator stays active until it
-  finalizes), and `within_finalized_late`'s MVBA tail (nobody abandons the
-  MVBA before `t_M + ℓ_MVBA`).
-* **Totality's antecedent**, a correct validator finalizes: obvious. Model:
-  all three do, at clock 1. *Used in:* `Chorus.totality`, through
-  `committed_participating` and `proofs_of_finalized` (the finalizer's
-  commitment proofs are on the network).
-
-What the ledger must say besides, so that an auditor comparing proofs does
-not trip on it: the model's `finalized` is the committed entry vector, so
-the paper's payload recovery (Algorithm 6, line 14 (`line:da-recover-slot`)) has no counterpart in
-any of the claims (§6.4.4).
+What an auditor comparing proofs should know besides: the model's
+`finalized` is the committed entry vector, so the paper's payload recovery
+(Algorithm 6, line 14 (`line:da-recover-slot`)) has no counterpart in any
+of the claims (§6.4.4).
 
 **The model** ([Chorus/Witness.lean](../Cadence/Chorus/Witness.lean)'s
 header has the index table). The instance as above; the MVBA's values are
@@ -2987,37 +2729,6 @@ first witness in which `valid := (· = v⋆)` meets an actual decision. **Not do
 votes and the commit certificate of `Mvba.Witness`'s run, driven from
 Chorus's fallback or case-(a) proposals) and the fallback commit round, well
 over the half day it was allowed. Consistency does not depend on it.
-
-**The contract instance's own premises (S5, R20).** `Chorus.chorusTemporal`
-and `Chorus.chorusWithTotality` ([Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean))
-take the premises above as `Admissible`, by name, and prove
-`admissible_exists` from every initial state, of every configuration
-meeting the instance's hypotheses. That is a stronger non-vacuity fact than
-the witness's single model, and it adds one line to the ledger:
-
-* **The slot's proposer set is non-empty** (`∃ J, is_proposer J = true`):
-  obvious, a slot has a proposer. The target does not say so: it defines
-  "a set of proposers `s.proposers`, which is a subset of the entire set of
-  validators" (Appendix A.1 (`subsection:mcp-preliminaries`)), finding P14
-  ([PaperAlignment.md](PaperAlignment.md) §6). A proposer need not propose, so a slot
-  may have no proposal at all: **the slot's proposers may all stay
-  silent**, and `admissible_exists`'s run is exactly that case. *Used in:*
-  `admissible_exists` only, through `not_certified_of_idle`: with a
-  proposer, nothing is certified at a state where nobody has signed, so
-  `ValidBridge` holds with nothing to say. With no proposer at all, the
-  empty meta-block would be certified at every state, and `ValidBridge`'s
-  soundness would make admissibility depend on the MVBA's validity
-  predicate accepting it.
-* **A view after the first with a correct leader**, which the MVBA's
-  (A-viewsync) names: not a new premise. It follows from `LeaderRotation`
-  (`goodView_of_rotation`) and is used by `admissible_exists` only.
-* **`ByzNodeSetHonestQuorum`** is no longer a hypothesis at the concrete
-  family: `hqeFin` builds it from `honest_quorum_fin`.
-
-Nothing in the instance assumes that a proposal is made: `propose` is an
-input with no fairness, the termination fields take participation and C1/C2
-only, and the idle run, in which nobody proposes, meets every premise of
-`Admissible`.
 
 #### 6.4.6 Staging and sizing
 

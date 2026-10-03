@@ -20,8 +20,10 @@ every premise of the three Chorus liveness claims at once:
   together with its antecedent (a correct validator finalizes).
 
 Each proves the premises only, never a conclusion. Because the premises are
-hypotheses, one model suffices. [Bounds.md](../../docs/Bounds.md) §6.4.5 is
-the auditor's ledger, premise by premise; this header describes the model.
+hypotheses, one model suffices. [Premises.md](../../docs/Premises.md) lists
+the premises one by one, and [Bounds.md](../../docs/Bounds.md) §6.4.5 has
+the detail of their joint satisfiability; this header describes the
+model.
 Its template is [Mvba/Witness.lean](../Mvba/Witness.lean).
 
 ## The instance

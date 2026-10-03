@@ -15,8 +15,10 @@ that satisfies every premise of both MVBA liveness theorems at once:
   `Mvba.termination`, the untimed claim, on the same run with its clock
   forgotten.
 
-Because the premises are hypotheses, one model suffices. Bounds.md §6.3 is
-the auditor's ledger, premise by premise; this header describes the model.
+Because the premises are hypotheses, one model suffices.
+[Premises.md](../../docs/Premises.md) lists the premises one by one, and
+Bounds.md §6.3 has the detail of their joint satisfiability; this header
+describes the model.
 
 ## The instance
 
