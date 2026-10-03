@@ -137,6 +137,14 @@ consequence of it.
   conjunct-count check that fails loudly rather than projecting the wrong
   one. [Cadence/ProofPrelude.lean](../Cadence/ProofPrelude.lean) carries only this project's two option
   blocks.
+  The rung's closer also matches goals whose invariant variables Veil has
+  already introduced (a guard-free action such as `participate` produces
+  only those), with a metavariable telescope over the conjunct's binders
+  whose hypotheses are filled from the context — still a projection, no
+  search; without it `participate`'s file fell to the solver on 90 of its
+  101 cells. The fork's
+  [`docs/DSL-Reference.md`](https://github.com/larskuhtz/veil/blob/port/integration/docs/DSL-Reference.md)
+  describes both matchers.
 * **A cheap first rung for `step_property` cells too**, under the same
   option. A step cell's route (`veil_solve_step`) simplifies the whole
   invariant clump before it reaches the solver, and on Chorus that made the
