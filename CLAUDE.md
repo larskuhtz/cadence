@@ -152,6 +152,9 @@ History: [docs/History.md](./docs/History.md).
   `veil.vc.cheapRung` closes 80–91% of a Chorus proof file's cells without
   calling cvc5 at all, because they are frame obligations
   ([docs/Dependencies.md](./docs/Dependencies.md) § 2 has the per-file A/B).
+  `step_property` cells get their own rung under the same option
+  (`veil_solve_step_frame`, closed by `grind`), which takes Chorus's step
+  cell, the slowest cell of nearly every proof file, off the solver.
   So establish which path a slow build is on before optimising it — a
   from-scratch CI run and a local rebuild are now limited by different
   things.

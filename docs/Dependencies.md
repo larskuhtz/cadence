@@ -137,6 +137,35 @@ consequence of it.
   conjunct-count check that fails loudly rather than projecting the wrong
   one. [Cadence/ProofPrelude.lean](../Cadence/ProofPrelude.lean) carries only this project's two option
   blocks.
+* **A cheap first rung for `step_property` cells too**, under the same
+  option. A step cell's route (`veil_solve_step`) simplifies the whole
+  invariant clump before it reaches the solver, and on Chorus that made the
+  step cell `committed_pos_frozen` the slowest cell of nearly every proof
+  file — on CI, 39–53 s a cell. Yet the property is a frame for almost
+  every action: the action does not write `local_committed_pos`, or writes
+  it under a guard that settles the property. So the step cell's
+  discharger term is a ladder as well, `by first | veil_solve_step_frame |
+  veil_solve_step`. The rung runs the same route with the invariant clump
+  and the assumptions cleared and closes each goal with `grind`, Lean's own
+  solver-free procedure, under a heartbeat budget of its own
+  (`veil.vc.stepRungHeartbeats`, deterministic; an overrun is a decline). A
+  cell that needs an invariant declines and the solver route proves it,
+  with everything in scope. Measured here per cell, cold, one scratch file
+  at a time ([scripts/scratch.sh](../scripts/scratch.sh), `veil.cache.proofs false`):
+
+  | step property | closed by the rung | rung | solver route |
+  |---|---|---|---|
+  | Chorus `committed_pos_frozen` | 48/48 | 0.95–1.29 s | 16–17 s |
+  | Mvba `entered_needs_certificate` | 28/28 | 0.54 s mean | 3.9 s mean |
+  | Conductor `opened_mono`, `completed_mono`, `monotonicity` | 20/21 | 0.22 s mean | 1.5 s mean |
+
+  The Conductor cell that declines (`open_slot × monotonicity`) needs an
+  invariant; it declines in 0.3 s. The rung's proof terms are about 20×
+  smaller than the reconstructed solver terms of the same cells. Like
+  `veil_solve_frame` the rung sits outside the proof cache, so a warm build
+  re-runs it; that costs what the replay of a cached solver term of the
+  same cell costs (0.8–1.1 s against the rung's ~1 s, measured the same
+  way), so the saving is all on the cold path.
 * **Proof caching with kernel replay** (`veil.cache.proofs`,
   `veil.cache.kernelReplay`). Reconstructed proof terms are stored on disk
   keyed by the goal statement, and replayed on a later build. The cache never
@@ -325,9 +354,9 @@ without restating it — and what makes a badly-shaped field fatal.
   `veil.cache.proofs false`, two runs each): **10.4 / 9.8 s with every
   axiom, 10.0 / 9.8 s with the twelve withheld** — no effect. The cost is
   the sorts, the class's load-bearing axioms and the larger clump, not the
-  unused fields, so nothing is withheld; if the `vote` step cell ever
-  approaches the budget the remedy is a manual proof of that cell, not
-  the attribute ([CLAUDE.md](../CLAUDE.md) § Build, "slow versus divergent").
+  unused fields, so nothing is withheld. The step cells measured here no
+  longer reach the solver: the step rung of § 2 closes them, with the
+  clump, the class's axioms and the assumptions all cleared.
 * **A readable rejection for an `assumption` over mutable state.** An
   `assumption` is a background axiom and ranges over the immutable part of
   the state only. Naming a mutable component in one fails with a message that
@@ -337,7 +366,7 @@ without restating it — and what makes a badly-shaped field fatal.
 ## The Chorus model's memory
 
 Two fixes in the fork (2026-10-01, PR #54), both merged into
-`port/integration` and pinned here at `461c6832`:
+`port/integration` at `461c6832`:
 
 - **`port/registry-memory`**, stacked on `port/vc-registry`. The VC registry
   elaborates each statement in its own run and hash-conses the stored types.
