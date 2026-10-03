@@ -488,6 +488,8 @@ one, and R19 removed it.
 | A redelivered decision casts the vote once, after the wait under the `B′` it is cast for | Chorus | The target does not say: P11. Safe under each reading (§8.1 (d)). |
 | `AvailReady` is an input that Chorus drives; two liveness premises read the MVBA's accepted value | Chorus, Mvba | P12. |
 | Termination's abandon condition and the timed claims' start condition are contract antecedents | Interfaces | P13. |
+| Quiescence is a one-step statement from a reachable state | Interfaces | The paper's Quiescence is about executions; the contract states it per step, from every state an execution reaches ([CompositionContracts.md](CompositionContracts.md) §5). |
+| Chorus's contract instance assumes the slot's proposer set is non-empty | Chorus | The target allows an empty set: P14. Used only for `admissible_exists`; proposers may all stay silent. |
 | Both fallback finalization routes are modelled | Chorus | The target specifies both (§5.7); P2. |
 | The `EquivCert` rule is Algorithm 5's, not Part II's | FallbackReceipt, Chorus | The main body's rule is the specified protocol (§5.9); P3. |
 | Part II's implementation variants; the practical Conductor | — | Outside the verified surface (§2, §7, §9). |
@@ -525,11 +527,12 @@ the Lean development of this repository.*
 | P10 | arXiv v2's Algorithm 6 and Algorithm 2 hash chunks differently | fixed at `48cac9a` | for the next public version |
 | P11 | What Chorus does with a redelivered MVBA decision is not stated | missing rule | open; the model is safe under every reading |
 | P12 | The MVBA's availability crosses Module 3's interface | module interface | open; the model states the dependency |
-| P13 | Module 1 states Termination without the conditions Chorus needs | module interface | open; the model states the conditions |
+| P13 | Module 1 states Termination without the conditions Chorus needs | module interface | open; the model's contract carries the conditions as antecedents, and Chorus's instance proves the fields under them |
+| P14 | A slot's proposer set may be empty | unstated assumption | open; the model's instance assumes a non-empty proposer set |
 
 P1–P4 are inconsistencies between the main body and the supplement, or
 within the supplement. P5 and P6 date from the review of arXiv v2 and hold
-at `48cac9a`. P7–P11 are smaller. P12 and P13 are about module
+at `48cac9a`. P7–P11 and P14 are smaller. P12 and P13 are about module
 boundaries: a claim takes from a module something the module's interface
 does not state. §6.1 checks every module boundary the development's claims
 cross.
@@ -795,13 +798,34 @@ conditions Chorus needs.**
   assumed-behaviour block (the open-to-complete delay `Φ_oc`) is commented
   out the same way.
 * *Status.* Open. The model's contract states both conditions as
-  antecedents. `SlotConsensusTemporal.termination` requires that no
-  correct validator abandons before finalizing, and `Chorus.termination`
-  takes it as a caller's premise (`NoAbandonBeforeFinalizing`), which the
-  glue meets. The timed claims take the start condition, which the
-  composition discharges from the Orchestrator's Integrity
-  (`OrchestratorSafety.integrity_timing`). No result proven here relies
-  on Module 2 (`mod:orchestrator_2`)'s commented-out block.
+  antecedents, and Chorus's instance proves the fields under them (R20).
+  `SlotConsensusTemporal.termination` requires that no correct validator
+  abandons before finalizing (C1), and `Chorus.chorusTemporal` proves it
+  from `Chorus.termination`, which takes C1 as a caller's premise
+  (`NoAbandonBeforeFinalizing`), met by the glue.
+  `SlotConsensusWithTotality.bounded_termination` takes C1 and the start
+  condition (C2), which the composition discharges from the
+  Orchestrator's Integrity (`OrchestratorSafety.integrity_timing`), and
+  `Chorus.chorusWithTotality` proves it, and `totality` under C1. No
+  result proven here relies on Module 2 (`mod:orchestrator_2`)'s
+  commented-out block.
+
+**P14. A slot's proposer set may be empty.**
+* *Quote.* Appendix A.1 (`subsection:mcp-preliminaries`): each slot has "a
+  set of proposers `s.proposers`, which is a subset of the entire set of
+  validators." Nothing requires the set to be non-empty.
+* *Why it matters.* With no proposer, a meta-block has no entry, the only
+  one a correct validator can build is the empty one, and it carries every
+  certificate it needs vacuously. Whether the slot's MVBA can decide then
+  rests on its validity predicate accepting the empty meta-block, which
+  neither document says. A slot whose proposers all stay silent is a
+  different case and is fine: every entry is then a proposer's explicit
+  absence, certified by a negative FastQC or the `FBCert`.
+* *Status.* Open, and harmless to every claim: `Chorus.chorusTemporal`
+  takes "the slot's proposer set is non-empty" as a hypothesis, used only
+  to show that its admissible runs exist ([Bounds.md](Bounds.md) §6.4.5).
+  Stating `s.proposers ≠ ∅` in Appendix A.1
+  (`subsection:mcp-preliminaries`) would settle it.
 
 ### 6.1 The interface check
 
@@ -817,7 +841,8 @@ finding, unless the fact is the development's own stated bridge.
 | `availOwed` and the validity bridge at a held value, both reading the MVBA's accepted value | `Chorus.termination` (premises `FJustice`, `ValidBridge`) | no: neither document exposes `x_v` | P12 |
 | (Δ-avail), the MVBA's timing premise on its caller | the timed Chorus claim at the system's MVBA (`Chorus.timed_termination_atMvba`), derived there from Chorus's rows (`availWithin_of_timedJustice`) under `Δ ≤ Δ_sync` | no: the supplement's assumption is triggered by `x_v` | P12; derived since R19 (it was blocked by F15, §5.10) |
 | No correct validator abandons before finalizing | `Chorus.termination`, `Chorus.totality` | not by Module 1 (`mod:slotconsensus`) (commented out); the composition meets it (Algorithm 1, line 23 (`line:abandon`)) | P13 |
-| No correct validator starts before `s.deadline − Δ` | the timed Chorus claims (stated) | not by Module 1 (`mod:slotconsensus`) (commented out); by Module 2 (`mod:orchestrator_2`)'s Integrity | P13 |
+| No correct validator starts before `s.deadline − Δ` | the timed Chorus claims and `SlotConsensusWithTotality.bounded_termination` | not by Module 1 (`mod:slotconsensus`) (commented out); by Module 2 (`mod:orchestrator_2`)'s Integrity | P13 |
+| A slot has at least one proposer | `admissible_exists` of Chorus's contract instance | no: `s.proposers` is any subset of the validators | P14 |
 | The validity bridge: a valid meta-block's certificates verify against the network, and genuine certificates make it valid | Chorus safety at the decision handlers and the `CommitQC` route; `Chorus.termination` | `Valid` is "publicly verifiable" in both documents; the bridge says what that means for a network of relations | none: the development's one stated bridge ([Architecture.md](Architecture.md) §4) |
 | The MVBA's abandon antecedent and Quiescence | `Chorus.termination` (through `Mvba.termination`) | yes, Module 3 (`mod:mvba`) | — |
 | ACS Agreement, Validity (genuine pairs), Integrity | `Conductor ⊨ OrchestratorSafety` | yes, Module 4 (`mod:acs`) | — |

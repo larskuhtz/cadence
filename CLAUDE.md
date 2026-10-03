@@ -458,17 +458,30 @@ is a change to what this project *claims*, not a refactor.
   * **Conditional joins**, given an instance of the matching `…Temporal`
     class at the proven fragment: `Conductor.orchestrator_of_temporal`,
     `Chorus.slotConsensus_of_temporal`, `Mvba.mvba_of_temporal`. There is no
-    `OrchestratorTemporal` or `SlotConsensusTemporal` instance, and that
-    absence *is* the statement of what is unproven: the class's fields,
-    stated over the fragment's own relations, restated nowhere.
-  * **One proven temporal instance**: `Mvba.mvbaTemporal`, at
-    `Mvba.mvbaSafety`, joined by `mvba_of_temporal` into `Mvba.mvbaFull`.
-    It is proven from named hypotheses, never from an axiom: finitely many
-    validators (`Fintype node`), the honest-quorum and view-order classes,
-    `LeaderRotation`, a `Schedule` that carries its own hypotheses, and the
-    time theory's classes. A new temporal instance takes the same form, with
-    its hypotheses listed in `Cadence.lean`'s row, and its `Admissible` is a
-    run model defined before its proof.
+    `OrchestratorTemporal` instance, and that absence *is* the statement of
+    what is unproven for the Conductor: the class's fields, stated over the
+    fragment's own relations, restated nowhere. `Orchestrator` therefore
+    exists only through `orchestrator_of_temporal`.
+  * **Two proven temporal instances**, each from named hypotheses, never
+    from an axiom:
+    * `Mvba.mvbaTemporal`, at `Mvba.mvbaSafety`, joined by
+      `mvba_of_temporal` into `Mvba.mvbaFull`: finitely many validators
+      (`Fintype node`), the honest-quorum and view-order classes,
+      `LeaderRotation`, a `Schedule` that carries its own hypotheses, and
+      the time theory's classes;
+    * `Chorus.chorusTemporal` (with `Chorus.chorusWithTotality` on top), at
+      `Chorus.slotConsensusSafety` and the system's configuration, joined
+      by `slotConsensus_of_temporal` into `Chorus.slotConsensusFull`: the
+      MVBA's hypotheses at the concrete quorum family, and a non-empty
+      proposer set.
+
+    A new temporal instance takes the same form, with its hypotheses listed
+    in `Cadence.lean`'s row, and its `Admissible` is a run model defined
+    before its proof. One contract statement was corrected on the way, not
+    weakened to fit: `SlotConsensusTemporal.quiescence` (and
+    `ACSTemporal.quiescence`) quantified over unreachable states, which was
+    our mis-statement of a property about executions
+    ([CompositionContracts.md](docs/CompositionContracts.md) §5).
 
   Proving a field means one of two things. Either move it from `XTemporal`
   to `XSafety` (if it is first-order and every implementation proves it) and

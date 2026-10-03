@@ -349,8 +349,8 @@ Every declaration added by the composition is axiom-pinned at
 
 Each implementation proves its `XSafety` fragment. What it still owes is an
 instance of the matching `XTemporal` class **at that fragment**. The MVBA
-owes nothing: its temporal level is proven (the last paragraph of this
-section). The Conductor and Chorus still owe theirs. Because those classes
+and Chorus owe nothing: their temporal levels are proven (the last two
+paragraphs of this section). The Conductor still owes its. Because those classes
 are stated over the fragment's own `init` / `trans` / `reachable` /
 observables, the list below is a list of *class fields*, not of
 restatements: there is no second place where these obligations are written
@@ -369,20 +369,47 @@ keeps meta. Integrity's timing half is first-order and the Conductor proves
 it, so it sits in `OrchestratorSafety` (`integrity_timing`, from `safety
 [opened_after_start]`) — which is why that fragment carries `time`.
 
-**`SlotConsensusTemporal … (S := Chorus.slotConsensusSafety th)`** — the
-largest of the three. Since the participation edit
-([Bounds.md](Bounds.md) §6.4.6, S1) Chorus models Module 1 (`mod:slotconsensus`)'s
-participation interface: `participate` and `abandon` are input actions over
-per-validator `participating`/`abandoned` state, `propose` is the third
-input, and every sending rule is gated on active participation. What is
-owed is that interface *as contract fields* (its observables, effects,
-frames and initial conditions), the clock and the admissible-run model, a
-message type, Termination over timed runs (proven untimed as
-`Chorus.termination`, whose two caller premises are exactly
-`termination`'s antecedents), and Quiescence in one-step form over the
-gates. Hiding's protocol half is first-order and Chorus proves it, so
+**`SlotConsensusTemporal … (S := Chorus.slotConsensusSafety th)` is
+proven**, as `Chorus.chorusTemporal`
+([Cadence/Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean)), at the
+system's configuration, with `SlotConsensusWithTotality` on top
+(`Chorus.chorusWithTotality`). `Chorus.slotConsensusFull` joins it with the
+fragment through `slotConsensus_of_temporal`, and its `…_toSafety` lemma is
+`rfl`. Every field is proven, none is weakened:
+
+* the participation interface as contract fields (its observables, effects,
+  frames and initial conditions), from the transition bodies and Veil's
+  generated lemmas;
+* the message type, `Chorus.Message` ([Compose.lean](../Cadence/Chorus/Compose.lean)):
+  one constructor per network relation that records its sender, and the
+  MVBA's messages;
+* `Admissible`, the claims' premises by name (`FJustice`,
+  `MvbaAdmissible`, `ValidBridge`, `SyncAtMvba`), and `admissible_exists`,
+  a run in which every proposer stays silent;
+* Termination, from `Chorus.termination`; `bounded_termination` and
+  `totality`, from `Chorus.timed_termination_atMvba` and `Chorus.totality`;
+* Quiescence, in Lemma 6 (`lemma:chorus-quiescence`)'s two parts: Chorus's own
+  sending rules are gated on active participation, and the MVBA's sends are
+  confined by the MVBA's own `quiescence` to the window between a gated
+  `mvba_propose` and a forwarded `abandon`.
+
+The instance's hypotheses are the MVBA instance's, and one about the
+configuration: the slot's proposer set is non-empty ([Bounds.md](Bounds.md)
+§6.4.5). Hiding's protocol half is first-order and Chorus proves it, so
 `deadline_passed`, `payload_recoverable` and `hiding_residue` sit in
 `SlotConsensusSafety`.
+
+**Quiescence is stated from a reachable state.** The contract's
+`quiescence` in `SlotConsensusTemporal` and in `ACSTemporal` quantified
+over every transition, reachable or not. That was our mis-statement of the
+paper's property, which is about executions: Chorus's MVBA half needs two
+facts that hold along the run (an MVBA proposal is made only while
+participating; an abandonment is forwarded), and at an unreachable state
+neither holds. Both fields now take `S.reachable st`, as the fragments'
+other run-level fields do. No consumer reads either. `MVBASafety`'s
+`quiescence` keeps the stronger form: the `Mvba` model proves it, its
+sending rules being gated on its own records, and Chorus's cells consume
+it.
 
 **One consequence for the composed system.** The instance now separates
 internal steps from inputs: its `step` is every transition whose label is
@@ -412,7 +439,8 @@ what lets an untimed model's fragment carry a timed contract.
 
 [Architecture.md](Architecture.md) §4 item 4 points at these field lists
 by name; the meta-axiom names (A-orch-totality), (A-orch-boundedness),
-(A-orch-recovery), (A-sc-termination) are the fields' docstrings.
+(A-orch-recovery) are the fields' docstrings, and (A-sc-termination) is
+discharged by `Chorus.chorusTemporal`.
 
 ## 6. The composed system
 
@@ -492,13 +520,13 @@ the proven fragments.
    §3.5 step 4). The bridge is what makes Chorus's `mvba_propose` enabled at
    the composed instance — the Chorus liveness leg's `Chorus.ValidBridge`
    premise ([Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)).
-2. **Chorus has no participation interface**, so `SlotConsensusTemporal`
-   carries the whole of it; and the glue's records of the inputs it does not
-   drive (`sc_abandoned`, `proposed`) are its own, as the paper's local
-   variables are. That the glue's *call* is the instance's input is the
-   trace-level refinement seam declared out of scope in [Composition.lean](../Cadence/Composition.lean)'s
-   header and [ChorusDesign.md](ChorusDesign.md) §10.1. Adding `participate`/`abandon` to the
-   Chorus model would let the glue drive them and shrink what is owed.
+2. **The glue does not drive Chorus's inputs.** Chorus models the
+   participation interface, and `Chorus.chorusTemporal` proves it as
+   contract fields (§5). The glue's records of the inputs it does not drive
+   (`sc_abandoned`, `proposed`) are its own, as the paper's local variables
+   are. That the glue's *call* is the instance's input is the trace-level
+   refinement seam declared out of scope in [Composition.lean](../Cadence/Composition.lean)'s
+   header and [ChorusDesign.md](ChorusDesign.md) §10.1.
 3. **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
    the decided set brackets the first slot from below is justified by
    `ACS.validity_quantitative` through [Windows.lean](../Cadence/Windows.lean)'s median lemma, not

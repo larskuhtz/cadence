@@ -8,13 +8,18 @@ RUN="$HERE/run-chorus-monitor.sh"
 TRACES="$HERE/../traces"
 fail=0
 
+# Bring both monitors' oleans up to date once, so the runner's per-run check
+# is skipped (scripts/monitor/env.sh).
+( . "$HERE/monitor/env.sh" && monitor_build ChorusMonitor ChorusMonitorGen ) || exit 2
+export CADENCE_MONITOR_BUILT=1
+
 check() { # name trace_file want_substr want_exit
   local name="$1" trace="$2" want="$3" wantrc="$4"
   # Run BOTH the hand-written monitor and the #gen_monitor-generated variant;
   # they must agree with each other and with the expectation.
   local outH rcH outG rcG
   outH="$("$RUN" < "$trace" 2>/dev/null)"; rcH=$?
-  outG="$(CHORUS_MONITOR=Cadence/Monitor/ChorusMonitorGen.lean "$RUN" < "$trace" 2>/dev/null)"; rcG=$?
+  outG="$(CHORUS_MONITOR=ChorusMonitorGen "$RUN" < "$trace" 2>/dev/null)"; rcG=$?
   if [[ "$outH" == *"$want"* && "$rcH" == "$wantrc" && "$outH" == "$outG" && "$rcH" == "$rcG" ]]; then
     echo "PASS  $name"
     echo "        → $outH (exit $rcH) [hand-written == generated]"
