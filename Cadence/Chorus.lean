@@ -2896,4 +2896,3 @@ time; multiple concurrent check commands contend for the same discharger
 scheduler and slow each other down. -/
 
 end Chorus
--- X6 probe: a comment-only edit in the model, reverted in the next commit.
