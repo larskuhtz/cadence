@@ -1150,12 +1150,14 @@ def availOwed (i : node) (v : MetaBlock node merkle_root)
     Prop :=
   ∃ w, s.mvba_st.accepted i w v = true
 
-/-- **(F-justice)** — weak fairness of every honest action that is neither
-the oracle step nor one of the three inputs, for the messages of correct
-senders: if from some point on a correct validator's action is enabled at
-every point, and the messages it consumes came from correct validators
-(`Owed`), it eventually fires. The premise asks nothing of a step on a
-Byzantine validator's message: such a message may reach some validators
+/-- **(F-justice)** — a correct validator's enabled step happens, for
+messages from correct senders ([Premises.md](../../docs/Premises.md) §3.1).
+
+Weak fairness of every honest action that is neither the oracle step nor
+one of the three inputs: if from some point on a correct validator's action
+is enabled at every point, and the messages it consumes came from correct
+validators (`Owed`), it eventually fires. The premise asks nothing of a
+step on a Byzantine validator's message: such a message may reach some validators
 only, and the paper's network promises delivery only between correct
 validators.
 
@@ -1212,9 +1214,12 @@ theorem fJustice_iff_move (r : ChorusRun thS thM) :
   · obtain ⟨_, rfl⟩ := hl
     exact mvba_avail_ready_enabledMove hen
 
-/-- **The MVBA's scheduling premise**, replacing (A-mvba): the run has a
-projection onto the MVBA — a labelling of its steps that explains them, and
-infinitely many of them (`Component.Projection`) — whose projected run
+/-- **The MVBA's scheduling premise** — the MVBA's steps inside the run are
+scheduled as `Mvba.termination` asks ([Premises.md](../../docs/Premises.md) §3.2).
+
+The run has a projection onto the MVBA — a labelling of its steps that
+explains them, and infinitely many of them (`Component.Projection`) — whose
+projected run
 satisfies the two scheduling premises of `Mvba.termination`: weak fairness
 of the MVBA's honest actions, and the timer discipline of the good view.
 Stated with [Mvba/Liveness.lean](../Mvba/Liveness.lean)'s own definitions. The theorem's other four
@@ -1261,8 +1266,10 @@ def Certified
   (∀ J, thS.is_proposer J = true →
     (∃ M, thS.mval_pos (thM.ent v) J M = true) ∨ thS.mval_neg (thM.ent v) J = true)
 
-/-- **The bridge** — the MVBA's `Valid` is Chorus's certificate check, in
-both directions, at every point of the run:
+/-- **The bridge** — the MVBA's validity check is Chorus's certificate check
+([Premises.md](../../docs/Premises.md) §5.1).
+
+In both directions, at every point of the run:
 
 * *soundness*: a certified meta-block is `Valid` — what lets a correct
   validator's `mvba_propose` fire, since the contract's `propose` requires
@@ -1271,8 +1278,8 @@ both directions, at every point of the run:
   certified — what enables the decision handlers, whose bridge `require` is
   that check, and what gives the availability report its chunks: a correct
   validator accepts only a `Valid` meta-block, so the `FallbackQC` entries
-  it waits under are genuine, and each has a correct signer that
-  re-disseminates.
+  it waits under are genuine, and each has a correct signer, which sent
+  every validator its chunk when it signed.
 
 The header says why this is a premise: `Valid` is a parameter of the class,
 fixed before Chorus's state exists, and the certificates are facts about
@@ -1289,16 +1296,20 @@ def ValidBridge (r : ChorusRun thS thM) : Prop :=
   (∀ (n : Nat) (i : node) (w : view) (v : MetaBlock node merkle_root), ¬ nset.is_byz i = true →
     (r.at' n).mvba_st.accepted i w v = true → Certified (thS := thS) (thM := thM) (r.at' n) v)
 
-/-- **The caller's first premise: every correct validator participates.**
-Each correct validator eventually invokes `participate()`. Within Cadence
-the glue does so when it opens the slot (Algorithm 1, line 17 (`line:participate`)). This is the
-first antecedent of `SlotConsensusTemporal.termination`. -/
+/-- **The caller's first premise** — every correct validator invokes
+`participate()` ([Premises.md](../../docs/Premises.md) §6.1).
+
+Within Cadence the glue does so when it opens the slot
+(Algorithm 1, line 17 (`line:participate`)). This is the first antecedent
+of `SlotConsensusTemporal.termination`. -/
 def AllParticipate (r : ChorusRun thS thM) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ n, (r.at' n).participating i = true
 
-/-- **The caller's second premise: no correct validator abandons before
-finalizing.** Whenever a correct validator has invoked `abandon()`, it has
-already finalized. Within Cadence the glue abandons a slot only once it has
+/-- **The caller's second premise, C1** — no correct validator invokes
+`abandon()` before it has finalized ([Premises.md](../../docs/Premises.md) §6.2).
+
+Whenever a correct validator has invoked `abandon()`, it has already
+finalized. Within Cadence the glue abandons a slot only once it has
 finalized it (Algorithm 1, line 23 (`line:abandon`)). This is the second antecedent of
 `SlotConsensusTemporal.termination`, and the C1 antecedent of the timed
 fields. Without it the claim is false: a validator that abandons at once

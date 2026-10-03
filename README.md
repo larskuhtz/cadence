@@ -136,12 +136,16 @@ for a human reader:
    class constraints — are [Cadence/Interfaces.lean](Cadence/Interfaces.lean);
    [docs/CompositionContracts.md](docs/CompositionContracts.md) explains the
    encoding and names the seams that remain.
-3. **Are the meta-theoretic assumptions sound?** Everything deliberately kept
-   outside Lean — the network abstraction's soundness contract, the
-   scheduling premises of the liveness theorems, the cryptographic
-   primitives, the timing/quantitative module obligations — is a **named,
-   complete inventory**: [docs/Architecture.md](docs/Architecture.md) §4.
-   That inventory is the audit checklist. It is short on purpose.
+3. **Are the meta-theoretic assumptions sound?** **Start with
+   [docs/Premises.md](docs/Premises.md)**: every liveness claim is
+   conditional, and that page lists each of its premises once — its role,
+   why it is plausible, the witness showing all of a claim's premises hold
+   together, and the proof step that uses it. Everything else deliberately
+   kept outside Lean — the network abstraction's soundness contract, the
+   cryptographic primitives, the timing/quantitative module obligations —
+   is a **named, complete inventory**:
+   [docs/Architecture.md](docs/Architecture.md) §4. That inventory is the
+   audit checklist. It is short on purpose.
 
 Item 3 lists assumptions *by name*, and the fairness and oracle axioms appear
 verbatim in the Lean sources where they are consumed — `grep -rn '(A-'
@@ -196,16 +200,17 @@ in [Cadence.lean](Cadence.lean).
 | **`Mvba ⊨ MVBATemporal`, and so a full `MVBA`**, the one the composed system runs: **`ℓ_MVBA`-Termination with an explicit `ℓ`**, the supplement's `O(fΔ)` at `k = f + 1`. Every correct validator decides by `max(t, GST) + ℓ` once all have proposed valid values by `t` and none abandons early, in every admissible run. Admissible means bounded fairness after GST under the supplement's network (a message sent at or after GST by a correct validator and retained is consumed within `Δ`, a retransmitted one within `Δ + ρ`, a local step within `δ`), a punctual view timer, and availability within `Δ_sync`, and such runs exist. The hypotheses are finitely many validators, the honest-quorum and view-order classes, a correct leader in every `k` consecutive views, a capped timeout that eventually exceeds the chain's latency, and a cancellative, Archimedean time monoid. | [Cadence/Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean) (`Mvba.mvbaTemporal`, `Mvba.mvbaFull`), from [Cadence/Mvba/BoundedTermination.lean](Cadence/Mvba/BoundedTermination.lean) (`Mvba.bounded_termination`) | plain Lean over timed runs of the generated transition system; premises are hypotheses, never axioms ([docs/Bounds.md](docs/Bounds.md) §6.2) |
 | **The MVBA's lock check is load-bearing** — with the `Pre-Prepare` handler's lock check removed, two correct validators decide different vectors: the mutation test showing the instantiation's invariants are needed, not merely true | [Cadence/Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean) | exhaustive model check of a restriction of the mutant (every run of which is a run of the mutant); the counterexample trace is pinned in the build |
 
-What is *not* proven in Lean — timing bounds other than the MVBA's, the scheduling (fairness)
-premises of the two termination theorems (the theorems themselves, and the
-liveness argument's entire state-level content, **are** machine-checked —
-[docs/Liveness.md](docs/Liveness.md)), the cryptographic primitives,
-the monotone-network soundness contract — is the named assumption inventory in
-[docs/Architecture.md](docs/Architecture.md) §4. For the two sub-protocol
-implementations, the temporal part of that inventory is also a *type*: the
-`…Temporal` classes above list, field by field, what each still owes of its
-paper contract — and the absence of an instance is how the development says
-it does not have one.
+What is *not* proven in Lean is, first, the premises of the liveness
+theorems — one page, [docs/Premises.md](docs/Premises.md); the theorems
+themselves, and the liveness argument's entire state-level content,
+**are** machine-checked ([docs/Liveness.md](docs/Liveness.md)) — and then
+the cryptographic primitives, the monotone-network soundness contract and
+the rest of the named assumption inventory in
+[docs/Architecture.md](docs/Architecture.md) §4. The temporal part of that
+inventory is also a *type*: the `…Temporal` classes list, field by field,
+what each implementation owes of its paper contract. The Conductor's has
+no instance, and that absence is how the development says it does not have
+one.
 
 ---
 
@@ -554,6 +559,7 @@ verification; the deeper layers assume progressively more.
 | | |
 |---|---|
 | The end theorems and the trust base on one page | [Cadence.lean](Cadence.lean) |
+| **The premises of every liveness claim** — one line each: role, plausibility, witness, use | [docs/Premises.md](docs/Premises.md) |
 | The verification architecture: how the layers correspond, the four methods, the trust bases | [docs/Architecture.md](docs/Architecture.md) §1–§3 |
 | **The audit checklist** — everything the machine does *not* establish, by name | [docs/Architecture.md](docs/Architecture.md) §4 |
 

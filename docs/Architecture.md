@@ -288,98 +288,35 @@ relations, and it takes a human to confirm each use is positive.
    consulting a row of `msg_proposer_signed`/`msg_commit_cast`
    negatively, where the row is indexed by, and writable only by, the
    acting validator itself — enumerated in ChorusDesign.md §3.1).
-2. **Liveness premises** — the premises of `Chorus.termination`
-   ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), each a named `Prop` in
-   [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) and a hypothesis of the theorem,
-   never an axiom; [Liveness.md](Liveness.md) §2 has them in short.
-   The liveness argument's state-level content is kernel-checked — the
-   fair-progress invariants of the sweep, and the theorems of
-   [Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean),
+2. **Liveness premises** — the hypotheses of the liveness theorems, never
+   axioms. **[Premises.md](Premises.md) is their one page**: for every
+   headline claim, each premise with its role, why it is plausible, the
+   witness theorem showing all of them hold together, and the proof step
+   that uses it. The liveness argument's state-level content is
+   kernel-checked — the fair-progress invariants of the sweep, and the
+   theorems of [Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean),
    [Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean) and
    [Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean) —
    and so is the temporal argument over runs. What has to be believed is
-   that the premises describe the executions that matter:
-   * **(F-justice)**, `FJustice`: correct validators' actions are weakly
-     fair for the messages of correct senders — an action enabled from some
-     point on, whose messages came from correct validators, eventually
-     fires (weak suffices: apart from each action's fired-once guard, which
-     only its own firing sets, enabledness is monotone in this model). It
-     asks nothing of a Byzantine validator's messages, since the paper's
-     network delivers only between correct validators. Proposing a value to
-     the MVBA is fair as one action per validator and value, and handing a
-     decided MVBA certificate to one's own MVBA as one action per receiver,
-     whatever state the MVBA ends in. (The per-validator implementation
-     refinement of building that proposal is the receipt layer, §5.)
-   * **(F-byz)**: Byzantine actions are unfair. This is not a premise but
-     the absence of one: no fairness is asked of the `byz_*` labels, so no
-     progress relies on adversarial help.
-   * **`MvbaAdmissible`**: the run's MVBA steps, read as a run of the MVBA
-     model, satisfy the MVBA's own scheduling premises — weak fairness of
-     its honest actions for correct senders, and (A-viewsync), stated with
-     [Cadence/Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)'s definitions. It includes that the
-     run takes infinitely many MVBA steps (`Component.Scheduled`), and it
-     supplies the labels, since the composed run records only the MVBA's
-     states.
-   * **`ValidBridge`**: the MVBA's `Valid` holds exactly for meta-blocks
-     whose entries carry certificates on Chorus's network — certified
-     meta-blocks are `Valid`, and the ones a correct validator decided or
-     holds in its MVBA are certified. It is the
-     **cryptographic seam** between the two models (certificates cannot
-     be forged and are publicly verifiable), the run-level form of the one
-     stated bridge of item 3, and **not a fairness assumption**.
-
-   **(A-mvba) is retired.** It was the assumption that the MVBA,
-   invoked with per-proposer evidence, terminates. `Chorus.termination`
-   applies `Mvba.termination` to the run's MVBA steps instead, and derives
-   that theorem's four caller premises (every correct validator proposes;
-   none is abandoned before deciding; decided certificates are handed on,
-   by Chorus's handoff `accept_mvba_commitqc`; the availability shares
-   arrive, (F-avail), by Chorus's availability report `mvba_avail_ready`,
-   since R16). The timed (Δ-avail) is derived from the same rows since R19
-   (`Chorus.availWithin_of_timedJustice`, under the schedule's
-   `Δ ≤ Δ_sync`; F15, [Bounds.md](Bounds.md) §6.4.2), so the timed claim at
-   the system's MVBA assumes only the MVBA's own scheduling. `MvbaAdmissible` and `ValidBridge`
-   are what it leaves. The name survives in the prose of
-   [Cadence/Chorus.lean](../Cadence/Chorus.lean),
-   [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and
-   [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean), which a `grep` for `(A-` still
-   finds; aligning those comments re-solves proof families, so it waits
-   for the next edit there ([TODO.md](TODO.md) § Liveness). The premises
-   can all hold at once: one model and one run meet every premise of
-   `Chorus.termination`, of the timed `TimedTerminationClaim` (proven as
-   `Chorus.timed_termination`) and of `TotalityClaim` (`Chorus.termination_premises_satisfiable`,
-   `Chorus.timedTermination_premises_satisfiable`,
-   `Chorus.totality_premises_satisfiable`; the ledger is
-   [Bounds.md](Bounds.md) §6.4.5). The
-   MVBA's side of the argument puts one assumption on this list in an
-   unusual place:
-   **(A-viewsync)**, a premise of the untimed `Mvba.termination`, is the
-   view timer stated as ordering constraints: timers do fire, and one
-   honest-led view's timer waits for a correct validator's decision. The theorem
-   therefore reads *given enough time, the protocol decides*. It is no
-   longer an assumption of the stack: the timed premises imply it
-   (`Mvba.aViewSync_of_sync`), and they are the supplement's kind, bounded
-   delays after GST and a timeout above the latency
-   ([Liveness.md](Liveness.md) §2.1 in short, [Bounds.md](Bounds.md)
-   §6.2 in full). Why the untimed shape is forced is
-   [MvbaPlan.md](MvbaPlan.md) §3.7. Chorus makes the same move one
-   layer up, replacing `s.deadline − Δ ≥ GST` by the protocol-level
-   consequence `all_honest_recorded`; no Cadence model carries a GST marker,
-   and GST appears only in [Interfaces.lean](../Cadence/Interfaces.lean)'s `TimedRun`, where the
-   undischarged temporal obligations are stated. And
-   **(A-leader-rotation)** — [Mvba.lean](../Cadence/Mvba.lean)'s `assumption
-   [leader_honest_cofinal]`, that above every view there is an honest-led
-   one. It is the model-level stand-in for round-robin rotation over
-   `n = 3f+1` with at most `f` Byzantine leaders, and it is stated as a
-   model `assumption` rather than as a hypothesis of the liveness theorems
-   because the fair-progress invariants it will serve are sweep cells and
-   only a model `assumption` reaches the solver. The price is that it is a
-   conjunct of `assumptions th`, hence of `Mvba.mvbaSafety`'s `init`: the
-   MVBA's three **safety** results are claimed for leader schedules
-   with cofinally many honest leaders rather than for every schedule.
-   Nothing in their proofs needs it, so the narrowing is formal rather than
-   material — but it is a narrowing, and it is why the assumption is
-   listed here and not only in [MvbaPlan.md](MvbaPlan.md) §3.3.
+   that the premises describe the executions that matter. The tagged names
+   a `grep` finds are on that page: (F-justice), (A-viewsync), (F-avail),
+   (F-relay) and their timed forms, and (A-leader-rotation-k). Three need
+   a word here:
+   * **(F-byz)** is the absence of a premise: no fairness is asked of the
+     `byz_*` labels, so no progress relies on adversarial help.
+   * **(A-mvba) is retired.** Chorus's claims apply `Mvba.termination`
+     (and the MVBA contract's timed `termination`) to the run's MVBA steps,
+     and derive that theorem's caller premises. The Lean sources name it
+     only as retired ([Cadence/Chorus.lean](../Cadence/Chorus.lean)'s
+     liveness section).
+   * **(A-leader-rotation)** — [Mvba.lean](../Cadence/Mvba.lean)'s
+     `assumption [leader_honest_cofinal]`, that above every view there is
+     a correct-led one. As a model `assumption` it is a conjunct of
+     `assumptions th`, hence of `Mvba.mvbaSafety`'s `init`: the MVBA's
+     three **safety** results are claimed for leader schedules with
+     cofinally many correct leaders rather than for every schedule. No
+     proof of a headline claim uses it, and `LeaderRotation` implies it;
+     [Premises.md](Premises.md) §7 proposes removing it.
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive;
    [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS`
@@ -465,36 +402,15 @@ relations, and it takes a human to confirm each use is positive.
    proven: Termination from `Chorus.termination`, the timed fields from
    `Chorus.timed_termination_atMvba` and `Chorus.totality`, Quiescence in
    Lemma 6 (`lemma:chorus-quiescence`)'s two parts. Its `Admissible` is the
-   claims' premises by name: `FJustice`, `MvbaAdmissible`, `ValidBridge`
-   and the timing model `SyncAtMvba` ([Bounds.md](Bounds.md) §6.4.5). Its
-   hypotheses are the MVBA instance's (below, less `ByzNodeSetHonestQuorum`,
-   which the concrete family has) and one about the configuration: the
-   slot's proposer set is non-empty. A proposer need not propose; that
-   case is the run `admissible_exists` exhibits.
-   **`MVBATemporal` has an instance**, `Mvba.mvbaTemporal`
+   claims' premises by name. **`MVBATemporal` has an instance**,
+   `Mvba.mvbaTemporal`
    ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), at
    `Mvba.mvbaSafety`, the fragment [Cadence/System.lean](../Cadence/System.lean) plugs into
-   Chorus, and it is proven from named hypotheses, none of them an axiom:
-   * finitely many validators (`Fintype node`);
-   * the classes `ByzNodeSetHonestQuorum` and `ViewOrderEnum`;
-   * (A-leader-rotation-k), a correct leader in every `k` consecutive
-     views;
-   * a view-timeout schedule that is capped and eventually exceeds the
-     chain's latency;
-   * a cancellative, Archimedean, linearly ordered time monoid.
-
-   Its `Admissible` is the timing model of
-   [Cadence/Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean): bounded
-   weak fairness after GST per label, a punctual view timer, and
-   availability within `Δ_sync`, each a named premise
-   ([Bounds.md](Bounds.md) §6.2.4). What an auditor has to believe of
-   it is that those clauses are the supplement's timing assumptions;
-   `admissible_exists` proves that they can be met. The caller's side of
-   the contract is three antecedents of `termination`: every correct party
-   proposes by `t`, proposes a `Valid` value, and does not abandon early.
-   One concrete model meets all of these premises together, and the
-   untimed theorem's too (`Mvba.timedTermination_premises_satisfiable`,
-   `Mvba.termination_premises_satisfiable`; [Bounds.md](Bounds.md) §6.3).
+   Chorus; its `Admissible` is the timing model of
+   [Cadence/Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean). Both
+   instances are proven from named hypotheses, none of them an axiom, and
+   both prove that admissible runs exist from every initial state. The
+   hypotheses and the run premises are [Premises.md](Premises.md) §1–§6.
    The models are untimed; the latency bounds proven,
    `Mvba.bounded_termination`, `Chorus.totality` and
    `Chorus.timed_termination`, are over timed runs, which carry the clock

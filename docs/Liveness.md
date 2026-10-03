@@ -41,21 +41,11 @@ once (§2, last item).
 
 `Chorus.termination` takes five premises, each a named `Prop` in
 [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean):
-
-* **`FJustice`**: correct validators' actions are scheduled fairly for the
-  messages of correct senders: an action enabled from some point on, whose
-  messages came from correct validators, eventually fires. Nothing is asked
-  of a Byzantine validator's messages.
-* **`MvbaAdmissible`**: the MVBA's steps inside the run are scheduled the way
-  the MVBA's own termination theorem requires of its scheduler. What it
-  requires of its caller, Chorus, is derived.
-* **`ValidBridge`**: the MVBA's validity check agrees with Chorus's
-  certificates, for the meta-blocks a correct validator decides or holds.
-  This is the cryptographic seam, not a fairness assumption.
-* **`AllParticipate`**: every correct validator eventually invokes
-  `participate()`.
-* **`NoAbandonBeforeFinalizing`**: no correct validator invokes `abandon()`
-  before it has finalized.
+`FJustice`, `MvbaAdmissible`, `ValidBridge`, `AllParticipate` and
+`NoAbandonBeforeFinalizing`. [Premises.md](Premises.md) has each in one
+line, with why it is plausible, its witness and where it is used, for
+this claim and every other; this section explains the choices behind
+them.
 
 The first three are about the run; the last two are about the caller, and
 they are exactly the antecedents of the contract's own

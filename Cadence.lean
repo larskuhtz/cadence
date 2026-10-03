@@ -53,6 +53,12 @@ orientation document; the verification architecture, the methods, and the
 complete inventory of what is **not** in Lean are
 [docs/Architecture.md](docs/Architecture.md).
 
+**Read [docs/Premises.md](docs/Premises.md) first.** Every liveness result
+below is conditional: it holds in the runs that meet its premises, which
+act as its axioms. That page lists each premise once, with its role, why
+it is plausible, the witness theorem showing that all of a claim's
+premises hold together, and the proof step that uses it.
+
 ## The end results
 
 Each entry is the result, the file its statement lives in, and what it says.
@@ -226,7 +232,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   `TotalityClaim` together with its antecedent. All three claims are
   proven (`Chorus.termination`, `Chorus.timed_termination_atMvba`,
   `Chorus.totality`), and the run is checked to be an instance of each.
-  [Bounds.md](docs/Bounds.md) §6.4.5 is the premise-by-premise ledger
+  [docs/Premises.md](docs/Premises.md) lists the premises one by one
 * **`Conductor.orchestratorSafety`** ([Composition.lean](Cadence/Composition.lean)) — Conductor
   ⊨ `OrchestratorSafety` — the state-level fragment of the paper's
   slot-scheduling module contract (open-prefix agreement, Monotonicity,
@@ -322,8 +328,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   two rows above are not vacuous**: one concrete model (four validators, one
   Byzantine, clock `ℕ`, the paper's fixed timeout) and one run meet every
   premise of `Mvba.timed_termination` at once, and the same run meets every
-  premise of `Mvba.termination`. [Bounds.md](docs/Bounds.md) §6.3 is the
-  premise-by-premise ledger
+  premise of `Mvba.termination`. [docs/Premises.md](docs/Premises.md)
+  lists the premises one by one
 
 Two further build-checked claims are pinned where they are made, because
 their form is not an axiom footprint:
@@ -369,7 +375,8 @@ Note what these pins do *and do not* say. They say: the theorem's proof term
 is complete and kernel-checked from Lean's axioms. They do **not** say that
 the *statement* is the right one — that the model faithfully formalises the
 protocol, and that the assumptions the statements are conditioned on are
-sound, is the part an auditor has to read, and it is inventoried in
+sound, is the part an auditor has to read: the premises are
+[docs/Premises.md](docs/Premises.md), and everything else is inventoried in
 [docs/Architecture.md](docs/Architecture.md) §4.
 -/
 

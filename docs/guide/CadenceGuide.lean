@@ -211,9 +211,12 @@ system runs.
 
 # What no machine checks
 
-Four kinds of argument sit above the kernel and are believed rather than
+Five kinds of argument sit above the kernel and are believed rather than
 derived. They are the meta-theory an audit has to read.
 
+* *The liveness premises* — the hypotheses every liveness claim is
+  conditioned on, each with its role, why it is plausible, its witness and
+  its use: [Premises.md](../Premises.md).
 * *The modelling arguments* recorded in each model's header — for the glue,
   the three listed above; for Chorus, also the monotone-network contract
   ([ChorusDesign.md](../ChorusDesign.md) §3.1.1), which Veil does not enforce.

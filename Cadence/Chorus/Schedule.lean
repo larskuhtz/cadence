@@ -218,25 +218,32 @@ end Labels
 
 /-! ## The schedule and the two constants -/
 
-/-- **The Chorus schedule**: the MVBA's schedule — one `Δ` and one `δ` for the
-whole run — plus the slot's deadline `D` (`s.deadline`). The deadline is any
-value; its relation to the participation times is the caller's C2
-(`NoEarlyStart`). -/
+/-- **The Chorus schedule** — the MVBA's schedule, the slot's deadline, and
+two inequalities ([Premises.md](../../docs/Premises.md) §2.8).
+
+The MVBA's schedule gives one `Δ` and one `δ` for the whole run; `D` is the
+slot's deadline (`s.deadline`). The deadline is any value; its relation to
+the participation times is the caller's C2 (`NoEarlyStart`). -/
 structure Schedule (view time : Type) [vord : TotalOrderWithMinimum view]
     [LinearOrder time] [AddCommMonoid time] where
   /-- The MVBA's schedule, whose `Δ` and `δ` Chorus shares. -/
   mvba : Mvba.Schedule view time
   /-- The slot's deadline. -/
   D : time
-  /-- **A local step is no slower than a network hop**: `δ ≤ Δ`, true at the
-  paper's `δ = 0`. A property of the timing model, like `0 < Δ`. It is what
+  /-- **A local step is no slower than a network hop**
+  ([Premises.md](../../docs/Premises.md) §2.8).
+
+  `δ ≤ Δ`, true at the paper's `δ = 0`. A property of the timing model,
+  like `0 < Δ`. It is what
   makes a `Δ`-row cost `Δ`: with its gate already open, a row's window is
   `ref N + max(Δ, δ)` (`BufferedFair` at `N = N'`), so without it every
   network hop whose gate opened first would cost `δ` (F10,
   [Bounds.md](../../docs/Bounds.md) §6.4.2). It implies the `δ ≤ Δ + ρ` that
   `relayed_of_timedJustice` takes. -/
   δ_le_Δ : mvba.δ ≤ mvba.Δ
-  /-- **The MVBA's availability window covers one Chorus network hop**:
+  /-- **The MVBA's availability window covers one Chorus network hop**
+  ([Premises.md](../../docs/Premises.md) §2.8).
+
   `Δ ≤ Δ_sync`, a property of the composed timing model. The MVBA assumes
   that a correct validator holding a meta-block has, within `Δ_sync`, the
   availability shares its `Commit` waits for (Supplement, Section 1.2
@@ -494,8 +501,11 @@ some validators only. -/
 
 /-! ### (Δδ-justice), (P-phase), the MVBA's timing -/
 
-/-- **(Δδ-justice)** — the timed form of `FJustice`, with the hop split. Every
-row of the hop table other than those with a clause of their own
+/-- **(Δδ-justice)** — each owed Chorus step happens within its hop's bound
+([Premises.md](../../docs/Premises.md) §4.1).
+
+The timed form of `FJustice`, with the hop split. Every row of the hop
+table other than those with a clause of their own
 (`OwnClauseLabel`) is `BufferedFair` at its bound, gate and `Owed`; the proposal is one family per validator and value,
 as in `FJustice`: if `i` can propose `v` throughout the window, with its
 trigger owed and its gate open, `i` proposes `v` (for some MVBA successor
@@ -544,8 +554,10 @@ structure TimedJustice (sch : Schedule view time)
   fbCommit : ∀ (i : node) (v : MetaBlock node merkle_root),
     BufferedFair r sch.Δ sch.δ (fun _ => True) (fbCommitGate i v) (.cast_fb_commit i v)
 
-/-- **(P-phase)** — the phase markers are punctual timers. For each landmark
-`L`:
+/-- **(P-phase)** — the slot's phase timers fire on time
+([Premises.md](../../docs/Premises.md) §4.2).
+
+The phase markers are punctual timers. For each landmark `L`:
 
 * **(P1) not early** — its marker fires only at a clock at or after `L`;
 * **(P2) not late** — the phase has reached `L` at some index whose clock is
@@ -570,8 +582,11 @@ noncomputable def mvbaTimedRun {r : TChorusRun thS thM time}
   p.timed.toTimedRun (Mvba.mvbaSafety thM).init (Mvba.mvbaSafety thM).trans
     ⟨p.timed.holds, p.timed.starts⟩ (fun n => ⟨_, p.timed.steps n⟩)
 
-/-- **The MVBA's timing premise**, the timed `MvbaAdmissible`: the run has a
-projection onto the MVBA whose timed run — the MVBA's states at its steps,
+/-- **The MVBA's timing premise** — the MVBA's steps inside the run meet the
+MVBA contract's timing model ([Premises.md](../../docs/Premises.md) §4.3).
+
+The timed `MvbaAdmissible`: the run has a projection onto the MVBA whose
+timed run — the MVBA's states at its steps,
 each with the clock of the composed index at which the MVBA entered it, and
 the composed run's GST — is admissible for the MVBA contract `T`. Stated
 with the contract's own field `T.Admissible` and restated nowhere, so a
@@ -627,23 +642,29 @@ starts (Lemma 15 (`lemma:conductor-totality`)), its integrity keeps them after `
 (Algorithm 1, line 23 (`line:abandon`)). C1 is [Liveness.lean](Liveness.lean)'s
 `NoAbandonBeforeFinalizing`, used as it is. -/
 
-/-- **Every correct validator participates by `t`.** -/
+/-- **Every correct validator participates by `t`**
+([Premises.md](../../docs/Premises.md) §6.1). -/
 def AllParticipateBy (t : time) (r : TChorusRun thS thM time) : Prop :=
   ∀ i, ¬ nset.is_byz i = true → ∃ n, r.clk n ≤ t ∧ (r.at' n).participating i = true
 
-/-- **Participation synchronized within `d`** (Definition 5 (`def:delta-synchronized-participation`)
-at tolerance `d`): once a correct validator participates at clock `c`, every
-correct validator participates by `max(c, GST) + d`. The contract's
-`SyncParticipation` is the case `d = Δ` (`syncParticipation_def`, with
-`byGstBound` read as `max`). -/
+/-- **Participation synchronized within `d`** — once one correct validator
+participates at `c`, all do by `max(c, GST) + d`
+([Premises.md](../../docs/Premises.md) §6.4).
+
+Definition 5 (`def:delta-synchronized-participation`) at tolerance `d`.
+The contract's `SyncParticipation` is the case `d = Δ`
+(`syncParticipation_def`, with `byGstBound` read as `max`). -/
 def SyncParticipationWithin (d : time) (r : TChorusRun thS thM time) : Prop :=
   ∀ n i, ¬ nset.is_byz i = true → (r.at' n).participating i = true →
     ∀ j, ¬ nset.is_byz j = true →
       ∃ m, r.clk m ≤ max (r.clk n) r.gst + d ∧ (r.at' m).participating j = true
 
-/-- **C2: nobody starts before `D − Δ`.** Whenever a correct validator
-participates, the clock has reached `D − Δ`: `D ≤ clk + Δ`, the contract's
-form, which needs no subtraction. The Conductor's integrity. -/
+/-- **C2** — no correct validator participates before `D − Δ`
+([Premises.md](../../docs/Premises.md) §6.3).
+
+Whenever a correct validator participates, the clock has reached `D − Δ`:
+`D ≤ clk + Δ`, the contract's form, which needs no subtraction. The
+Conductor's integrity. -/
 def NoEarlyStart (sch : Schedule view time) (r : TChorusRun thS thM time) : Prop :=
   ∀ n i, ¬ nset.is_byz i = true → (r.at' n).participating i = true → sch.D ≤ r.clk n + sch.Δ
 
@@ -816,8 +837,10 @@ theorem relayed_of_timedJustice (sch : Schedule view time) (hδ : sch.δ ≤ sch
   exact (decide_enabled_guards (hcomp (m + 1) (by omega) (le_trans hcm hW)).1).2 x
     (Mvba.decide_effect htr)
 
-/-- **The MVBA's own scheduling**: the run has a projection onto the MVBA
-whose timed run satisfies the two clauses the MVBA's timing model assumes of
+/-- **The MVBA's own scheduling** — the MVBA's steps inside the run meet the
+MVBA's own two timing clauses ([Premises.md](../../docs/Premises.md) §4.3).
+
+The run has a projection onto the MVBA whose timed run satisfies the two clauses the MVBA's timing model assumes of
 its own steps, (Δ-justice) (`Mvba.BoundedJustice`) and (T-timer)
 (`Mvba.TimerPunctual`). The MVBA's two clauses on its caller, the handoff
 and (Δ-avail), are not here: Chorus is the caller, and its rows provide
