@@ -538,7 +538,7 @@ the Lean development of this repository.*
 | P12 | The MVBA's availability crosses Module 3's interface | module interface | open; the model states the dependency |
 | P13 | Module 1 states Termination without the conditions Chorus needs | module interface | open; the model's contract carries the conditions as antecedents, and Chorus's instance proves the fields under them |
 | P14 | A slot's proposer set may be empty | unstated assumption | open; the model's instance assumes a non-empty proposer set |
-| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the plan states them as antecedents (C4, C5) |
+| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the contract states them as antecedents (C4, C5, R27) |
 | P16 | Module 4's Validity lacks the per-validator bound the median argument needs | module interface, proof gap | open for the paper; the contract carries the bound since R25 (C6), and the median bridge's justification is a theorem from it |
 | P17 | The ACS the Conductor uses is unspecified | missing instantiation | open; the plan keeps the ACS as an assumed module |
 
@@ -873,10 +873,12 @@ conditions the module does not state.**
 
   The `d_tot` form Corollary 4 needs is a property of the Conductor, not of
   Module 2, as `d_tot`-totality is of Chorus and not of Module 1.
-* *Status.* Open. The plan states the two conditional facts as antecedents
-  of the contract's Totality and Recovery, and adds a Conductor-specific
-  level for the `d_tot` form ([ConductorBounds.md](ConductorBounds.md)
-  §2.3, F16, F17).
+* *Status.* Open for the paper. The contract states the two conditional
+  facts as antecedents of its Totality and Recovery
+  (`OrchestratorSafety.CallerTotality`, `CallerTermination`), and a
+  Conductor-specific level, `OrchestratorWithTotality`, carries the `d_tot`
+  form ([Interfaces.lean](../Cadence/Interfaces.lean), R27;
+  [ConductorBounds.md](ConductorBounds.md) §2.3, F16, F17).
 
 **P16. Module 4 (`mod:acs`)'s Validity lacks the per-validator bound the
 median argument needs.**

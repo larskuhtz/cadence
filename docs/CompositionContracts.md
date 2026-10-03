@@ -377,12 +377,41 @@ restatements: there is no second place where these obligations are written
 down.
 
 **`OrchestratorTemporal … (S := Conductor.orchestratorSafety th)`** —
-`Admissible`, `admissible_exists`, `clock_agrees`, `totality`, `bound`,
-`boundedness`, `recovery_time`, `recovery`: the paper's Totality
-(Lemma 15 (`lemma:conductor-totality`)), `B`-Boundedness (Lemma 14 (`lem:boundedness`)) and
-`R`-Recovery (Proposition 18 (`prop:smooth-windows`), Proposition 19 (`prop:first-post-gst-window-time`)),
-over timed runs of the Conductor with the admissible-execution model as
-data. `clock_agrees` ties a run's clock to the Conductor's own `now`. The
+`Admissible`, `admissible_exists`, `clock_agrees`, `caller_d_tot`,
+`caller_ℓ`, `totality`, `bound`, `boundedness`, `recovery_time`,
+`recovery`: the paper's Totality (Lemma 15 (`lemma:conductor-totality`)),
+`B`-Boundedness (Lemma 14 (`lem:boundedness`)) and `R`-Recovery (Lemma 16
+(`lemma:conductor-recovery`)), over timed runs of the Conductor with the
+admissible-execution model as data, and on top of it
+**`OrchestratorWithTotality`** (`d_tot`, and Totality's `d_tot` form, which
+Lemma 15 proves "more specifically" and Corollary 4
+(`cor:chorus-correctness-within-cadence`) consumes; C4). `clock_agrees`
+ties a run's clock to the Conductor's own `now`.
+
+**Totality and Recovery are in rely form (C5, decided 2026-10-03).** They
+hold of the Conductor only "when run within Cadence": a caller that never
+completes a slot leaves every correct validator in window 1 (F17,
+[ConductorBounds.md](ConductorBounds.md) §2.3). The two conditions the
+paper's proofs take from the caller are the fields' antecedents, stated
+over the fragment's own `opened` and `completed`, at the caller's latencies
+`caller_d_tot` and `caller_ℓ`:
+
+* **(R-tot)** `OrchestratorSafety.CallerTotality` — a slot whose openings
+  are synchronized within `d` has its completions synchronized within `d`;
+* **(R-term)** `OrchestratorSafety.CallerTermination` — a slot whose
+  openings are synchronized within `d` and which every correct validator
+  opens by `t` is completed by every correct validator by
+  `max(t, GST) + ℓ`.
+
+`Admissible` stays the scheduler, the network and the timers, as for the
+MVBA and Chorus; nothing about the caller enters it. Within Cadence the
+composition (K7) discharges both from `Chorus.chorusWithTotality`'s
+`totality` and `bounded_termination` through the glue, and each side is a
+conditional statement about one slot, so the composition is not circular.
+The statements the Conductor's proofs (K4, K5) are to meet are
+`Conductor.TotalityClaim`, `Conductor.BoundednessClaim` and
+`Conductor.RecoveryClaim` ([Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean)),
+whose conclusions are these fields at the Conductor's fragment. The
 interval form of boundedness *is* proven, as `safety [bounded_tail]`; what
 stays temporal is the numeric count `2W − p`, which adds the window
 widths (`[win_bounds_shift]`, over the model's shift functions) and their
