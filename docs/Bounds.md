@@ -1463,7 +1463,7 @@ is enabled and the tail owes nothing.
 ### 6.4 The Chorus leg: the kick-off record
 
 *Written 2026-09-29, after `Chorus.termination` (PR #43) and before any
-Lean. S1, S1b, S2, S3 and S4 are done since (§6.4.6, items 1–4, have their records); S5 is not. It supersedes §6's staging for Chorus
+Lean. S1, S1b, S2, S3, S4 and S5 are done since (§6.4.6, items 1–5, have their records): the leg is complete. It supersedes §6's staging for Chorus
 (steps 1–3), which predates the MVBA leg. §6.2 and §6.3 are the template.
 Decisions are recorded with their reasons. Those marked **open** are for
 Lars to take: item 1 above all, and the two class changes it depends on.*
@@ -3000,6 +3000,37 @@ votes and the commit certificate of `Mvba.Witness`'s run, driven from
 Chorus's fallback or case-(a) proposals) and the fallback commit round, well
 over the half day it was allowed. Consistency does not depend on it.
 
+**The contract instance's own premises (S5, R20).** `Chorus.chorusTemporal`
+and `Chorus.chorusWithTotality` ([Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean))
+take the premises above as `Admissible`, by name, and prove
+`admissible_exists` from every initial state, of every configuration
+meeting the instance's hypotheses. That is a stronger non-vacuity fact than
+the witness's single model, and it adds one line to the ledger:
+
+* **The slot's proposer set is non-empty** (`∃ J, is_proposer J = true`):
+  obvious, a slot has a proposer. The target does not say so: it defines
+  "a set of proposers `s.proposers`, which is a subset of the entire set of
+  validators" (Appendix A.1 (`subsection:mcp-preliminaries`)), finding P14
+  ([PaperAlignment.md](PaperAlignment.md) §6). A proposer need not propose, so a slot
+  may have no proposal at all: **the slot's proposers may all stay
+  silent**, and `admissible_exists`'s run is exactly that case. *Used in:*
+  `admissible_exists` only, through `not_certified_of_idle`: with a
+  proposer, nothing is certified at a state where nobody has signed, so
+  `ValidBridge` holds with nothing to say. With no proposer at all, the
+  empty meta-block would be certified at every state, and `ValidBridge`'s
+  soundness would make admissibility depend on the MVBA's validity
+  predicate accepting it.
+* **A view after the first with a correct leader**, which the MVBA's
+  (A-viewsync) names: not a new premise. It follows from `LeaderRotation`
+  (`goodView_of_rotation`) and is used by `admissible_exists` only.
+* **`ByzNodeSetHonestQuorum`** is no longer a hypothesis at the concrete
+  family: `hqeFin` builds it from `honest_quorum_fin`.
+
+Nothing in the instance assumes that a proposal is made: `propose` is an
+input with no fairness, the termination fields take participation and C1/C2
+only, and the idle run, in which nobody proposes, meets every premise of
+`Admissible`.
+
 #### 6.4.6 Staging and sizing
 
 One focused session each, give or take. Reassess after S3, as §6 asked
@@ -3349,7 +3380,9 @@ after its step 2.
      the same re-solve, at the design review's request, not parked.
    * **The witness overrides `Δ_sync`** in its own schedule.
      `Mvba.Schedule.fixedNat` and the MVBA's witness are untouched.
-5. **S5: the contract instances.** `SlotConsensusTemporal` at the new
+5. **S5: the contract instances. Done** (R20, 2026-10-02):
+   [Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean). With it the
+   Chorus bounds leg is complete. The plan was `SlotConsensusTemporal` at the new
    fragment, which includes:
    * Quiescence from the gates and the MVBA's `quiescence`. Since R19 every
      correct chunk send happens inside a gated step: the proposer's in
@@ -3366,6 +3399,37 @@ after its step 2.
      text in [CLAUDE.md](../CLAUDE.md), [Architecture.md](Architecture.md)
      §4 and [CompositionContracts.md](CompositionContracts.md) §5;
    * the (A-sc-termination) entry, which moves from assumed to discharged.
+
+   **The record.** `Chorus.chorusTemporal` and `Chorus.chorusWithTotality`,
+   at the system's configuration, every field proven, none weakened;
+   `Chorus.slotConsensusFull` joins them with the fragment through
+   `slotConsensus_of_temporal`, and `slotConsensusFull_toSafety` is `rfl`.
+   `ℓ = Lchorus Δ δ ℓ_MVBA` and `d_tot = Ltot Δ δ Δ` are pinned by `rfl`,
+   and are the paper's `5Δ + ℓ_MVBA` and `Δ` at `δ = 0`. Four changes to
+   the plan:
+   * **Termination is `Chorus.termination`, not the unbounded corollary of
+     the bounded claim.** The untimed field's antecedents are participation
+     and C1 only; the bounded claim also needs Δ-synchronized participation
+     and C2, which the field does not give. `Admissible` carries both
+     claims' premises, each by name.
+   * **The contract's Quiescence was mis-stated, and is corrected** (approved
+     by Lars): `SlotConsensusTemporal.quiescence` quantified over every
+     transition, reachable or not, and its MVBA half needs two facts that
+     hold only along a run, an MVBA proposal is made while participating
+     (`participating_of_mvba_proposed`) and an abandonment is forwarded
+     (`mvba_abandoned_of_abandoned`). The field now takes `S.reachable st`,
+     as does `ACSTemporal.quiescence`, which had the same shape and no
+     consumer ([CompositionContracts.md](CompositionContracts.md) §5).
+   * **`admissible_exists` is a generic idle run, not the R10 witness**,
+     which is one fixed instance: from any initial state of any
+     configuration, nobody participates, the markers fire at the landmarks,
+     and the caller abandons one validator at every other step. It needs a
+     non-empty proposer set (§6.4.5; P14) and a view after the first with a
+     correct leader, which `LeaderRotation` gives.
+   * **The deadline is per slot** (`FamilySchedule`: one MVBA schedule and
+     `D : slot → time`), since the class's `deadline` is a function of the
+     slot; `ByzNodeSetHonestQuorum` is built for the family (`hqeFin`)
+     rather than taken.
 6. **S6: non-vacuity. Done** (R10, 2026-10-01): the final ledger and the
    one witness, [Chorus/Witness.lean](../Cadence/Chorus/Witness.lean)
    (§6.4.5). It touched no model file. It found F11 (re-dissemination owed

@@ -13,14 +13,12 @@ The composition itself is in place and described in
 [CompositionContracts.md](CompositionContracts.md). What remains, in the
 order worth taking:
 
-* **Chorus's participation interface.** Module 1 (`mod:slotconsensus`)'s
-  `participate`/`abandon`/`propose` are absent from the model, so the whole
-  of `SlotConsensus`'s upper level except Hiding's protocol half is unproven
-  (the fields of `SlotConsensusTemporal`), and the glue's records of those
-  calls (`sc_abandoned`, `proposed`) stay glue-local. Adding the inputs to
-  the Chorus model would let the glue drive them and shrink what is owed to
-  the temporal fields; it is a model change and pays the Chorus cold
-  re-solve.
+* **The glue driving Chorus's inputs.** Chorus's whole contract is proven
+  (`Chorus.slotConsensusFull`, R20), and its participation interface is
+  modelled and proven as contract fields. The glue's records of those calls
+  (`sc_abandoned`, `proposed`) stay glue-local: giving the glue its own
+  `participate`/`propose`/`abandon` actions, which drive the contract's
+  inputs, is the composition leg's work, and a change to the glue model.
 * **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
   the decided set brackets the first slot from below is the quantitative half
   of ACS validity (`ACS.validity_quantitative`, upper level) through
@@ -253,8 +251,22 @@ come first.
   **R19 done** (2026-10-02): F15 closed. The fallback signer
   re-disseminates inside the fallback-entry rule, and (Δ-avail) is derived
   (`Chorus.availWithin_of_timedJustice`; [Bounds.md](Bounds.md) §6.4.2,
-  "F15 closed"). Next: S5, the contract instances
-  ([Bounds.md](Bounds.md) §6.4.6).
+  "F15 closed"). **S5 done** (R20, 2026-10-02): the contract instances,
+  `Chorus.chorusTemporal`, `Chorus.chorusWithTotality` and the full
+  `Chorus.slotConsensusFull`
+  ([Cadence/Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean)), every
+  field proven; the Chorus bounds leg is complete
+  ([Bounds.md](Bounds.md) §6.4.6). (A-sc-termination) is discharged.
+
+  **Next:**
+  1. the premise-presentation pass: every premise of the Chorus and MVBA
+     claims, and of the two contract instances, presented for an auditor,
+     short and by role ([Bounds.md](Bounds.md) §6.4.5 is the ledger it
+     starts from);
+  2. the Conductor's timed claims (`OrchestratorTemporal`: Totality,
+     `B`-Boundedness, `R`-Recovery), with F3, the totality tolerance at
+     `δ > 0` ([Bounds.md](Bounds.md) §6.4.6, "What the Conductor's timed
+     claims need from this leg").
 
   F13 is closed (R15, [Bounds.md](Bounds.md) §6.4.2, "F13 closed"): the
   fallback commit vote waits under the FallbackQC entries of the validator's
@@ -335,12 +347,11 @@ action behaves in a full build.
 The development corresponds to the paper target
 ([PaperAlignment.md](PaperAlignment.md) §0). The realignment items are
 closed: sessions R14–R17 ([History.md](History.md)). The Chorus bounds leg
-resumed with S4 (R18, done; P5 confirmed by proof) and R19 (F15, done); next is S5
-(§ Liveness above, and [PaperAlignment.md](PaperAlignment.md) §8, "After the
-realignment").
+resumed with S4 (R18, done; P5 confirmed by proof) and R19 (F15, done), and
+closed with S5 (R20, done; § Liveness above).
 
 * **Send the findings page to the paper's authors**:
-  [PaperAlignment.md](PaperAlignment.md) §6, P1–P13, all open on their
+  [PaperAlignment.md](PaperAlignment.md) §6, P1–P14, all open on their
   side. Keep it current: a finding the authors resolve is marked so at the
   next re-check.
 * **At the next paper commit**: re-run §1 of

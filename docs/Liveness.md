@@ -1261,8 +1261,16 @@ internal steps, and the family's instance discharges it at every use.
   `TimedTerminationClaim` at `5Δ + ℓ_MVBA + 9δ`, by the route the MVBA leg
   took ([Bounds.md](Bounds.md) §6.4.3), consuming the MVBA contract's
   `T.termination` for the `ℓ_MVBA` part; `Chorus.timed_termination_tight`
-  gives `4Δ + ℓ_MVBA + 8δ` from the same premises (F4). The contract
-  instance (`SlotConsensusTemporal`, S5) is still to come.
+  gives `4Δ + ℓ_MVBA + 8δ` from the same premises (F4).
+* ~~**The contract instance.**~~ **Proven** (R20, 2026-10-02):
+  `Chorus.chorusTemporal` and `Chorus.chorusWithTotality`
+  ([Cadence/Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean)), joined
+  into the full `SlotConsensus` as `Chorus.slotConsensusFull`. The
+  contract's Termination is `Chorus.termination` over runs whose labelling
+  meets the five premises above less the caller's two, which are the
+  field's own antecedents; its timed fields are the two timed claims; its
+  `Admissible` names every premise once; and a run in which every proposer
+  stays silent shows that it can hold ([Bounds.md](Bounds.md) §6.4.5).
 * ~~**Prose alignment.** The model files that still name (A-mvba) in their
   comments.~~ Done by the participation edit below.
 
