@@ -31,3 +31,4 @@ namespace Chorus.Proofs
 #prove_action Chorus participate
 
 end Chorus.Proofs
+-- X6 probe: a comment-only edit, reverted in the next commit.
