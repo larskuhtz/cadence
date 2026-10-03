@@ -60,10 +60,12 @@ are introduced here.
   [Chorus/Compose.lean](Chorus/Compose.lean), so that this file does not
   depend on the Chorus build.
 
-Out of scope ([CompositionContracts.md](../docs/CompositionContracts.md) §7):
-that the glue's *records* of the inputs it does not drive into the contracts
-(`sc_abandoned`, `proposed`) coincide with the instances' inputs — a
-trace-level refinement seam, named in [Cadence.lean](Cadence.lean)'s header. -/
+The glue drives every input it gives through the contracts' input
+transitions (`orch.complete`, `sc.participate`, `sc.propose`, `sc.abandon`),
+so the records it reads of its own calls are the instances'. Out of scope
+([CompositionContracts.md](../docs/CompositionContracts.md) §7): that the
+modules' runs implement the glue's oracle steps — trace-level refinement,
+named in [System.lean](System.lean)'s header. -/
 
 /- Maintainer notes. The generated VC theorems and `relationalTransitionSystem`
 are elaborated under `open Classical` without `DecidableEq` binders, so every
