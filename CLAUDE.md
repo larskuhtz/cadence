@@ -37,10 +37,17 @@ Four Veil models plus support files, mirroring the paper's architecture:
   `SlotConsensusSafety` and `OrchestratorSafety` contracts as **class
   constraints** over abstract sub-protocol states it holds (`instantiate …`;
   no contract property is restated as a guard); slot-indexed MCP safety.
-  Small and fast (~1 min cold, sweep included).
+  Its handlers drive every input Algorithm 1 gives (`on_open` →
+  `sc.participate`, `on_propose` → `sc.propose`, `on_finalize` →
+  `orch.complete` and `sc.abandon` in one step), so the records of its
+  calls are the instances' own and the composed system's Chorus is not
+  inert. Small and fast (~1 min cold, sweep included).
 * **`Cadence/Conductor.lean`** — the window-based orchestrator: `ACSSafety` as
-  a class constraint (one abstract ACS state per window), abstract clock,
-  window structure. Fast (~1 min cold).
+  a class constraint (one abstract ACS state per window, driven through its
+  `propose` and `abandon` inputs), abstract clock, window structure. Its one
+  stated bridge, `acs_decide`'s median `require`, is justified from the
+  contract by `Cadence.acs_median_bracket` (`AcsMedian.lean`). Fast (~1 min
+  cold).
 * **`Cadence/FallbackReceipt.lean`** (+ `Totality.lean`) — the
   per-validator fallback receipt/propose layer (`docs/ChorusDesign.md`
   §7.2 explains its rules). Same family shape as Chorus at 1/17 the scale,
@@ -86,7 +93,8 @@ Four Veil models plus support files, mirroring the paper's architecture:
   state: a first-order `…Safety` fragment the models instantiate, and the
   full class with every temporal obligation; `docs/CompositionContracts.md`),
   `Primitives.lean` (cryptographic primitive classes), `ByzQuorum.lean`
-  (quorum instances and non-vacuity witnesses), `Windows.lean` (the ACS median
+  (quorum instances and non-vacuity witnesses), `AcsMedian.lean` (the
+  median bracket from the ACS contract), `Windows.lean` (the ACS median
   lemma), `Tooling.lean` (targeted check commands).
 * Composition: `Composition.lean` (`#gen_composition` for the two small
   models — the reachability inductions and the named `reachable_<property>`

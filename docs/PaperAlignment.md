@@ -487,6 +487,7 @@ one, and R19 removed it.
 | `SyncView` is its own step; the view timer is a phase marker; one action covers the timer and the `f+1` echo timeout | Mvba | The same reachable states in two steps, or a guard that only removes behaviours (the [Mvba.lean](../Cadence/Mvba.lean) header, "Abstractions"). |
 | The `CommitQC` re-broadcast is folded into the handoff | Chorus | A certificate is transferable and stays valid (`certified_mono`), so its existence is its availability to every validator (§8.2 (a)). |
 | An `upon` handler runs once | Chorus | The target states no convention: P6. |
+| The glue's handlers are separate, later actions (`on_open`, `on_propose`, `on_finalize`, `record_skip`), where Algorithm 1 (`algorithm:cadence`) runs each atomically with its event | Cadence (glue) | An over-approximation: the paper's runs, in which each handler fires at once with its event, are among the model's, so every safety claim covers them. One statement follows the larger model: `[bounded_concurrency_interval]` states only that an active instance is opened and not completed, the direction Lemma 5 (`lemma:cadence-bounded-concurrency`) uses; the converse holds of the atomic runs only. |
 | A redelivered decision casts the vote once, after the wait under the `B′` it is cast for | Chorus | The target does not say: P11. Safe under each reading (§8.1 (d)). |
 | `AvailReady` is an input that Chorus drives; two liveness premises read the MVBA's accepted value | Chorus, Mvba | P12. |
 | Termination's abandon condition and the timed claims' start condition are contract antecedents | Interfaces | P13. |
@@ -532,7 +533,7 @@ the Lean development of this repository.*
 | P13 | Module 1 states Termination without the conditions Chorus needs | module interface | open; the model's contract carries the conditions as antecedents, and Chorus's instance proves the fields under them |
 | P14 | A slot's proposer set may be empty | unstated assumption | open; the model's instance assumes a non-empty proposer set |
 | P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the plan states them as antecedents (C4, C5) |
-| P16 | Module 4's Validity does not bound the pairs per validator, and the median argument needs it | module interface, proof gap | open; the plan adds the field (C6); the model's safety bridge assumes it today |
+| P16 | Module 4's Validity lacks the per-validator bound the median argument needs | module interface, proof gap | open for the paper; the contract carries the bound since R25 (C6), and the median bridge's justification is a theorem from it |
 | P17 | The ACS the Conductor uses is unspecified | missing instantiation | open; the plan keeps the ACS as an assumed module |
 
 P1–P4 are inconsistencies between the main body and the supplement, or
@@ -871,8 +872,8 @@ conditions the module does not state.**
   level for the `d_tot` form ([ConductorBounds.md](ConductorBounds.md)
   §2.3, F16, F17).
 
-**P16. Module 4 (`mod:acs`)'s Validity does not bound the pairs per
-validator, and the median argument needs it.**
+**P16. Module 4 (`mod:acs`)'s Validity lacks the per-validator bound the
+median argument needs.**
 * *Quote.* Module 4 (`mod:acs`): "*Validity:* If a correct validator decides
   a set `set`, then `|set| ≥ 2f + 1`, and for every validator-slot pair
   `(p_i, s_i) ∈ set` such that `p_i` is a correct validator, `p_i` proposed
@@ -893,11 +894,17 @@ validator, and the median argument needs it.**
   shows the intended reading. Any ACS that collects one signed proposal per
   validator meets it. Stating "at most one pair per validator" in Validity
   would settle it.
-* *Status.* Open. The model's safety theorems hold: the median bracket is a
-  stated bridge (a `require` on `acs_decide`). But its justification, that
-  it removes no behaviour of a correct ACS, needs this property, and the
-  contract does not state it. The plan adds it as a first-order field of
-  `ACSSafety` (C6, [ConductorBounds.md](ConductorBounds.md) §3.4, F18).
+* *Status.* Open for the paper. The development's contract carries the
+  bound since R25 (C6, [ConductorBounds.md](ConductorBounds.md) §3.4,
+  F18): `ACSSafety.decided_unique` ("a correct decider's set holds at most
+  one slot per validator"), and `ACSTemporal.validity_quantitative` counts
+  `2f + 1` distinct validators. The median bracket stays a stated bridge
+  (a `require` on `acs_decide`), and its justification, that it removes no
+  behaviour of a correct ACS, is now a theorem from the contract and the
+  system's fault bound (`Cadence.acs_median_bracket`,
+  [AcsMedian.lean](../Cadence/AcsMedian.lean)). Without the bound that
+  theorem is false. The assumed ACS is therefore one that meets Module 4
+  with this sentence added.
 
 **P17. The ACS the Conductor uses is unspecified.**
 * *Quote.* The supplement's Section 2, "Concrete Instantiation of ACS", has
@@ -930,13 +937,13 @@ finding, unless the fact is the development's own stated bridge.
 | `availReady`, the input `markAvail`, their frames; `certified_available` | Chorus's availability report; the MVBA's termination | no: the supplement states `AvailReady` over the dissemination layer's state | P12 |
 | `availOwed` and the validity bridge at a held value, both reading the MVBA's accepted value | `Chorus.termination` (premises `FJustice`, `ValidBridge`) | no: neither document exposes `x_v` | P12 |
 | (Δ-avail), the MVBA's timing premise on its caller | the timed Chorus claim at the system's MVBA (`Chorus.timed_termination_atMvba`), derived there from Chorus's rows (`availWithin_of_timedJustice`) under `Δ ≤ Δ_sync` | no: the supplement's assumption is triggered by `x_v` | P12; derived since R19 (it was blocked by F15, §5.10) |
-| No correct validator abandons before finalizing | `Chorus.termination`, `Chorus.totality` | not by Module 1 (`mod:slotconsensus`) (commented out); the composition meets it (Algorithm 1, line 23 (`line:abandon`)) | P13 |
-| No correct validator starts before `s.deadline − Δ` | the timed Chorus claims and `SlotConsensusWithTotality.bounded_termination` | not by Module 1 (`mod:slotconsensus`) (commented out); by Module 2 (`mod:orchestrator_2`)'s Integrity | P13 |
+| No correct validator abandons before finalizing | `Chorus.termination`, `Chorus.totality` | not by Module 1 (`mod:slotconsensus`) (commented out); the composition meets it (Algorithm 1, line 23 (`line:abandon`)), as the glue's invariant `[abandoned_after_finalize]` over the instance's own record | P13 |
+| No correct validator starts before `s.deadline − Δ` | the timed Chorus claims and `SlotConsensusWithTotality.bounded_termination` | not by Module 1 (`mod:slotconsensus`) (commented out); by Module 2 (`mod:orchestrator_2`)'s Integrity, through the glue's invariant `[participating_opened]` | P13 |
 | A slot has at least one proposer | `admissible_exists` of Chorus's contract instance | no: `s.proposers` is any subset of the validators | P14 |
 | The validity bridge: a valid meta-block's certificates verify against the network, and genuine certificates make it valid | Chorus safety at the decision handlers and the `CommitQC` route; `Chorus.termination` | `Valid` is "publicly verifiable" in both documents; the bridge says what that means for a network of relations | none: the development's one stated bridge ([Architecture.md](Architecture.md) §4) |
 | The MVBA's abandon antecedent and Quiescence | `Chorus.termination` (through `Mvba.termination`) | yes, Module 3 (`mod:mvba`) | — |
 | ACS Agreement, Validity (genuine pairs), Integrity | `Conductor ⊨ OrchestratorSafety` | yes, Module 4 (`mod:acs`) | — |
-| At most `f` Byzantine-attributed pairs in a decided ACS set | the justification of the median bridge at `acs_decide` (Conductor safety); the recovery bounds (planned) | no: Module 4 (`mod:acs`) bounds the set's size, not the pairs per validator | P16 |
+| At most `f` Byzantine-attributed pairs in a decided ACS set | the justification of the median bridge at `acs_decide` (`Cadence.acs_median_bracket`); the recovery bounds (planned) | no: Module 4 (`mod:acs`) bounds the set's size, not the pairs per validator; the contract adds the bound (`decided_unique`) | P16 |
 | The Orchestrator's `d_tot`-Totality of openings | Corollary 4 (`cor:chorus-correctness-within-cadence`); the Conductor's recovery (planned) | not by Module 2 (`mod:orchestrator_2`), whose Totality is eventual; Lemma 15 (`lemma:conductor-totality`) proves it of the Conductor within Cadence | P15 |
 | The conditional completion guarantees of the Orchestrator's caller | the Conductor's Totality and Recovery (planned) | no: Module 2 (`mod:orchestrator_2`)'s assumed-behaviour block is commented out, and is unconditional | P15 |
 | Open-prefix agreement of the Orchestrator | the glue's safety | derived: the safety residue of Module 2 (`mod:orchestrator_2`)'s Totality and Monotonicity | — |
