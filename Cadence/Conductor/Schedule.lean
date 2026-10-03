@@ -91,7 +91,8 @@ Prove anything about the protocol. Its theorems are about its own
 definitions: the constants at `δ = 0` are the paper's (`d_tot_paper`,
 `Φ_oc_paper`), they are the Chorus instance's (`Φ_oc_eq_chorus`), and the
 per-window ACS is a component of the Conductor (`acsComponent`). The proofs
-are stages K4 (Totality, Boundedness) and K5 (Recovery) of
+are stages K4 (Totality, and Boundedness in
+[Boundedness.lean](Boundedness.lean)) and K5 (Recovery) of
 [ConductorBounds.md](../../docs/ConductorBounds.md) §9; the glue's rows,
 which time the caller's side, are K7's. -/
 
@@ -677,7 +678,7 @@ actively participates in is opened and not completed (the glue's
 `[bounded_concurrency_interval]`), so of `𝓑 + 1` such instances the
 lowest would have `𝓑` opened slots above it. The proof is Proposition 11
 (`prop:open-count-window`) with `[bounded_tail]` and the window widths,
-stage K4. -/
+in [Boundedness.lean](Boundedness.lean) (`Conductor.boundedness`). -/
 def BoundednessClaim (sch : ConductorSchedule view time vfin)
     (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
   WindowShifts sch th →
