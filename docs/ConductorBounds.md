@@ -4,8 +4,8 @@
 or modelled: it is the plan for the Conductor's timed claims and for the
 composition that closes the Cadence loop. [Bounds.md](Bounds.md) §6.4 (the
 Chorus leg) set the shape, and §6.2 (the MVBA leg) the timing machinery
-this leg reuses. Decisions are recorded with their reasons. Those marked
-**open** are for Lars to take.*
+this leg reuses. Decisions are recorded with their reasons. The three
+questions put to Lars are **decided (2026-10-03)**, each as recommended.*
 
 ## 1. In short, for an auditor
 
@@ -54,7 +54,7 @@ the glue cannot drive Chorus's `participate`, `propose` and `abandon` inputs
 **What the timed claims would assume.** The same timing model as the MVBA and
 Chorus claims: one clock, one time theory and one Δ for the whole system.
 Messages between correct validators arrive within Δ after GST, and local
-steps are instantaneous (δ = 0, recommended in §5). Timers fire on time.
+steps are instantaneous (δ = 0, decided in §5). Timers fire on time.
 They would also assume that the ACS meets its module (Module 4 (`mod:acs`)),
 since the target leaves the ACS unspecified (§3), and that the four parameter
 assumptions of Algorithm 7 (`algorithm:conductor`) hold. Every condition the
@@ -62,24 +62,26 @@ Conductor needs from its caller, and every condition Chorus needs from the
 Conductor, is discharged by the composition. None is left as a premise of
 the composed claims.
 
-**The three questions for Lars.**
+**The three questions, decided by Lars (2026-10-03).**
 
 1. **The ACS (§3).** The target has no concrete ACS: the supplement's
-   section is empty. **Recommendation (open):** keep the ACS as a contract,
+   section is empty. **Decided:** keep the ACS as a contract,
    so the timed claims are relative to an `ACSTemporal` instance and the ACS
-   is a named assumed module, as the MVBA was before §6.2. Exhibit a
-   plain-Lean ideal ACS only to show that the premises are jointly
-   satisfiable.
-2. **How "within Cadence" enters the contract (§2.3).** **Recommendation
-   (open):** state the Conductor's Totality and Recovery in the rely form
+   is an assumed module named in the trust statement, as the MVBA was
+   before §6.2. A plain-Lean ideal ACS is the consistency witness only.
+   P17 records the gap, and (a) replaces the assumption once the paper
+   specifies an ACS.
+2. **How "within Cadence" enters the contract (§2.3).** **Decided:**
+   state the Conductor's Totality and Recovery in the rely form
    already used for Chorus and the MVBA. The conditions the paper takes from
    Cadence become antecedents over the orchestrator's own observables (C5),
    and a Conductor-specific level states the `d_tot` form that Corollary 4
    consumes (C4).
-3. **δ (§5, C3 from the Chorus leg).** **Recommendation (open):** prove the
+3. **δ (§5, C3 from the Chorus leg).** **Decided:** prove the
    Conductor's and the composed claims at δ = 0, the paper's instantaneous
-   local computation, stated as a schedule field. Chorus's and the MVBA's
-   theorems keep their δ-general forms.
+   local computation, stated as a plain schedule premise. Chorus's and the
+   MVBA's theorems keep their δ-general forms, and F3 records the
+   degradation at δ > 0.
 
 **Nine findings about statements (§7, F16–F24) and three for the paper's
 authors (P15–P17, [PaperAlignment.md](PaperAlignment.md) §6).** One of them
@@ -94,10 +96,10 @@ concern the timed statements and the model's timing freedoms.
 
 **Decisions in one place.**
 
-* ACS: **(b), a contract (open)**, plus an ideal instance for non-vacuity
-  (§3.4).
+* ACS: **(b), a contract, decided (2026-10-03)**, with (c1), the ideal
+  ACS, as the consistency witness (§3.3).
 * C4 (an `OrchestratorWithTotality` level) and C5 (rely antecedents for
-  Totality and Recovery): **recommended (open), jointly** (§2.3).
+  Totality and Recovery): **decided (2026-10-03), jointly** (§2.3).
 * C6 (one pair per validator in a decided ACS set): **recommended**, and
   independent of the timed leg, because it repairs the justification of a
   safety bridge (F18).
@@ -105,8 +107,8 @@ concern the timed statements and the model's timing freedoms.
   inputs move into `SlotConsensusSafety`), each with the cross-frames:
   **recommended**. They are the composition leg's prerequisites (§4, F19,
   F20).
-* δ = 0 for the Conductor's and the composed claims: **recommended (open)**
-  (§5).
+* δ = 0 for the Conductor's and the composed claims, as a plain schedule
+  premise: **decided (2026-10-03)** (§5).
 * The clock is the run's. The Conductor's `now` equals it through
   `OrchestratorTemporal.clock_agrees`, so `tick` is the system's clock step
   (§6.1).
@@ -226,7 +228,7 @@ Conductor-specific level, as `SlotConsensusWithTotality` holds Chorus's.
 `totality` (in rely form under (i)). The instance pins `d_tot` by `rfl` to
 the Chorus instance's `d_tot`. Corollary 4 and Proposition 14 consume it.
 
-**Recommendation (open): (i) with C4**, in one
+**Decided (Lars, 2026-10-03): (i) with C4**, in one
 [Interfaces.lean](../Cadence/Interfaces.lean) edit. No Veil module
 instantiates `OrchestratorTemporal`, so the edit is a warm rebuild of the
 Chorus family and re-solves nothing. The paper side of this is P15.
@@ -306,7 +308,8 @@ idle.
 * *(c2) A multi-shot consensus*, as the second margin note suggests: not in
   the target.
 
-**Recommendation (open): (b), with (c1) as the non-vacuity witness.** P17
+**Decided (Lars, 2026-10-03): (b), with (c1) as the consistency
+witness.** The ACS is an assumed module, named in the trust statement. P17
 records the gap. Once a target revision specifies the ACS, (a) replaces the
 assumption with a proof, along the path the MVBA took.
 
@@ -462,10 +465,12 @@ because "both equal `Δ = d_tot`" (the paragraph before Definition 6
   (tolerance `d_ω`, recurrence `d_{ω+1} = d_ω + cδ`), and the claims as
   holding while `d_ω ≤ Δ`. Faithful, but nothing downstream can use it.
 
-**Recommendation (open): (α)**, with the tolerance-parametric lemmas kept
-wherever they cost nothing (Chorus's already are), so that (β) stays open
-for later. F3 stands as a finding about the model, not about the paper: the
-paper's model is δ = 0.
+**Decided (Lars, 2026-10-03): (α)**, as a plain schedule premise of the
+Conductor's and the composed timed claims. The Chorus and MVBA results stay
+general in δ, and the tolerance-parametric lemmas are kept wherever they
+cost nothing (Chorus's already are), so that (β) remains possible later. F3
+records the degradation at δ > 0. It is a finding about the model, not about
+the paper, whose model is δ = 0.
 
 ## 6. The timing model
 
@@ -692,7 +697,7 @@ marks premises of the composed claims only.
 * **(1)–(4)**: arithmetic, satisfiable by choosing `W` large (§8.2). *Used
   in:* (1) Proposition 17 point 2; (2) Proposition 17 point 1 and
   Proposition 19; (3) Propositions 16 and 17; (4) Propositions 18 and 19.
-* **`δ = 0`** (if (α) is taken): the paper's model. *Used in:* the window
+* **`δ = 0`** (decided, §5): the paper's model. *Used in:* the window
   induction.
 * **The Δ ties** (§6.2): definitional. *Used in:* Proposition 13 (entry),
   C2.
