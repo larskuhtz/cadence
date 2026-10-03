@@ -3,7 +3,6 @@ import Cadence.Primitives
 import Cadence.QuorumCounting
 import Cadence.Interfaces
 import Cadence.Tooling
--- X6 probe: a comment that shifts every declaration down a line, reverted in the next commit.
 
 -- Opening this file in an editor costs the model elaboration plus the cheap
 -- background `doesNotThrow` checks, and no SMT sweep; `VEIL_NO_VERIFY=1` in
