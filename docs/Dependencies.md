@@ -104,7 +104,7 @@ consequence of it.
   | `commit_assign_pos` | 90/101 (89%) | 23 s | 37 s |
   | `record_chunk` | 81/101 (80%) | 23 s | 35 s |
   | `fb_sign_neg` | 92/101 (91%) | 30 s | 41 s |
-  | `vote` (the `foldBoolAtoms false` file) | 64/100 (64%) | 45 s | — |
+  | `vote` (then the `foldBoolAtoms false` file) | 64/100 (64%) | 45 s | — |
 
   Three things are worth reading off it. The wall-clock saving understates
   the change: for four cells in five cvc5 is not called at all, and neither
@@ -530,11 +530,16 @@ Measured by turning it off and on over the same suite:
 | fold off | 402 ms | 654 s | ~30 MB |
 | fold on | **79 ms** | **389 s** | **11–12 MB** |
 
-One file opts out — [Cadence/Chorus/Proofs/Vote.lean](../Cadence/Chorus/Proofs/Vote.lean), whose
-`fastqc_complete_implies_mvba_evidence` cell diverges under the folded query
-shape at any budget. Its olean stays ~30 MB against its siblings' 11–12 MB,
-and its batch costs 42 s against their 13–15 s, which is a clean measure of
-what the fold is worth.
+One cell opts out — `vote × fastqc_complete_implies_mvba_evidence`, which
+diverges under the folded query shape at any budget. Its `#prove_vc` line in
+[Cadence/Chorus/Proofs/Vote.lean](../Cadence/Chorus/Proofs/Vote.lean) runs the automatic tactic
+under `set_option veil.smt.foldBoolAtoms false in`, so the rest of the file
+keeps the fold. When the whole file opted out, its olean stayed ~30 MB
+against its siblings' 11–12 MB and its batch cost 42 s against their
+13–15 s, which is a clean measure of what the fold is worth. Scoping the
+option to the one cell took the file's cold build from 87 s to 43–49 s, its
+peak memory from 7.4 GB to 4.7–4.8 GB and its olean from 53 MB to 26 MB
+(2026-10-03, `LEAN_NUM_THREADS=4`, cache off).
 
 Enabling or disabling it requires **re-solving cold**: cache entries are keyed
 by VC statement, and the fold changes only the proof term, so existing hits
