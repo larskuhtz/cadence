@@ -172,7 +172,6 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "on_mvba_commitqc_pos", [a,b,c,d,e] => do pure (.on_mvba_commitqc_pos (← dNode a) (← dNode b) (← dRoot c) (← dMMsg d) (← dMValue e))
   | "on_mvba_commitqc_neg", [a,b,c,d] => do pure (.on_mvba_commitqc_neg (← dNode a) (← dNode b) (← dMMsg c) (← dMValue d))
   | "mvba_terminate", [a,b]          => do pure (.mvba_terminate (← dNode a) (← dMValue b))
-  | "redisseminate_chunk", [a,b,c,d] => do pure (.redisseminate_chunk (← dNode a) (← dNode b) (← dNode c) (← dRoot d))
   | "cast_fb_commit", [a,b]          => do pure (.cast_fb_commit (← dNode a) (← dMValue b))
   | "commit_assign_pos", [a,b,c]     => do pure (.commit_assign_pos (← dNode a) (← dNode b) (← dRoot c))
   | "commit_assign_neg", [a,b]       => do pure (.commit_assign_neg (← dNode a) (← dNode b))
