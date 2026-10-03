@@ -11,7 +11,8 @@ bound `ℓ = 5Δ + ℓ_MVBA + 9δ` (`Lchorus`; Lemma 11
 every MVBA contract `T` at the fragment Chorus consumes whose latency
 `T.ℓ` is non-negative; **`Chorus.timed_termination_atMvba`** is the same at
 the system's MVBA, `T := Mvba.mvbaTemporal`, where that holds
-(`mvbaSchedule_ℓ_nonneg`).
+(`mvbaSchedule_ℓ_nonneg`) and the MVBA instance's correct supermajority is
+a theorem of the family (`hqeFin`).
 
 **`Chorus.timed_termination_tight`** — F4, confirmed: the same premises give
 `4Δ + ℓ_MVBA + 8δ` (`Ltight`), one `Δ` inside the paper's bound, and
@@ -75,7 +76,8 @@ after it, which gives `M + 5Δ + ℓ_MVBA + 9δ`, exactly `Lchorus`: the
   put the decision before the proposals' deadline on the time line. The two
   theorems take the latency's non-negativity as a hypothesis on `T`; the
   system's MVBA has it (`mvbaSchedule_ℓ_nonneg`), so the `…_atMvba` forms
-  take nothing beyond the MVBA instance's own hypotheses.
+  take nothing beyond the MVBA instance's own hypotheses, and not its
+  correct supermajority, which the family proves (`hqeFin`).
 * **Nothing new of the model**, and no Veil cell: plain Lean over the
   existing step lemmas and invariants.
 * **At the system's MVBA nothing Chorus provides is assumed.** The MVBA's
@@ -1009,15 +1011,25 @@ local notation "thC" => Cadence.chorusTheory (slot := slot) (Phase := Phase) (Pa
 /-- The MVBA configuration at the system's instantiation. -/
 local notation "thMC" => Cadence.mvbaTheory (nodeset := ByzNSet n) mvalid mleader
 
+/-- The family has a supermajority of correct validators
+(`honest_quorum_fin`), which is what the MVBA's timed claim takes as
+`ByzNodeSetHonestQuorum`. -/
+@[implicit_reducible]
+noncomputable def hqeFin :
+    ByzNodeSetHonestQuorum (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz) where
+  honestQuorum := (honest_quorum_fin n f hf is_byz hbyz).choose
+  honestQuorum_supermajority := (honest_quorum_fin n f hf is_byz hbyz).choose_spec.1
+  honestQuorum_correct := (honest_quorum_fin n f hf is_byz hbyz).choose_spec.2
+
 /-- **ℓ-termination at the system's MVBA**: `TimedTerminationClaimAtMvba`,
 the claim at `T := Mvba.mvbaTemporal` with the MVBA's timing premise its own
 two clauses only (`SyncAtMvba`): the handoff and (Δ-avail), which Chorus
 provides, are derived (`sync_of_syncAtMvba`). `ℓ_MVBA` is `Mvba.Schedule.ℓ`
 (`mvbaTemporal_ℓ`). No hypothesis beyond the MVBA instance's own (§6.2.5 of
 [Bounds.md](../../docs/Bounds.md)): a correct supermajority, the view order's
-enumeration, and (A-leader-rotation-k). -/
+enumeration, and (A-leader-rotation-k); the first is a theorem of the
+family (`hqeFin`), so the claim takes the other two only. -/
 theorem timed_termination_atMvba (sch : Schedule view time)
-    (hqe : ByzNodeSetHonestQuorum (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz))
     (vfin : ViewOrderEnum view vord)
     (hrot : Mvba.LeaderRotation (nset := byzNodeSetFin n f hf is_byz hbyz) vfin sch.mvba.k thMC) :
     TimedTerminationClaimAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz) sch vfin thC thMC :=
@@ -1025,12 +1037,11 @@ theorem timed_termination_atMvba (sch : Schedule view time)
     timed_termination n f hf is_byz hbyz sch _ (mvbaSchedule_ℓ_nonneg sch.mvba vfin) r
       (sync_of_syncAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz)
         (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
-        hqe sch vfin hrot hs hbr) hbr hsp hab hC2 t ht j hj
+        (hqeFin n f hf is_byz hbyz) sch vfin hrot hs hbr) hbr hsp hab hC2 t ht j hj
 
 /-- **The tight bound at the system's MVBA**: `timed_termination_tight` with
 `T := Mvba.mvbaTemporal`, under `SyncAtMvba`. -/
 theorem timed_termination_tight_atMvba (sch : Schedule view time)
-    (hqe : ByzNodeSetHonestQuorum (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz))
     (vfin : ViewOrderEnum view vord)
     (hrot : Mvba.LeaderRotation (nset := byzNodeSetFin n f hf is_byz hbyz) vfin sch.mvba.k thMC) :
     ∀ r : TChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thC thMC time,
@@ -1047,7 +1058,7 @@ theorem timed_termination_tight_atMvba (sch : Schedule view time)
     timed_termination_tight n f hf is_byz hbyz sch _ (mvbaSchedule_ℓ_nonneg sch.mvba vfin) r
       (sync_of_syncAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz)
         (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
-        hqe sch vfin hrot hs hbr) hbr
+        (hqeFin n f hf is_byz hbyz) sch vfin hrot hs hbr) hbr
 
 end AtMvba
 

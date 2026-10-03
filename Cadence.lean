@@ -205,7 +205,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   `n = 3f + 1`, the system's configurations, and an MVBA contract whose
   latency is non-negative; **`Chorus.timed_termination_atMvba`** is the
   claim at the system's MVBA (`TimedTerminationClaimAtMvba`), with that
-  hypothesis discharged and the MVBA's timing premise reduced to its own two
+  hypothesis discharged, the MVBA instance's correct supermajority derived
+  for the family (`Chorus.hqeFin`), and the MVBA's timing premise reduced to its own two
   clauses (`SyncAtMvba`): the MVBA's two clauses on its caller, the handoff
   and the availability shares (Δ-avail), are derived from Chorus's rows
   (`Chorus.sync_of_syncAtMvba`; **`Chorus.availWithin_of_timedJustice`**,

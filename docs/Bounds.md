@@ -2533,7 +2533,8 @@ proof, each in the file's header:
   a hypothesis on the contract instance, not on runs, and the system's MVBA
   has it (`mvbaSchedule_ℓ_nonneg`): `Chorus.timed_termination_atMvba` and
   `Chorus.timed_termination_tight_atMvba` take nothing beyond the MVBA
-  instance's own hypotheses. `TimedTerminationClaim` is unchanged.
+  instance's own hypotheses, less its correct supermajority, which the
+  family proves (`hqeFin`). `TimedTerminationClaim` is unchanged.
 * **The δ-multiple.** The paper's route, the outer split at `T₀` with
   totality's `Δ + 2δ`, gives `5Δ + ℓ_MVBA + 9δ`, exactly `Lchorus`. So
   `Lchorus` stands as S3 restated it.

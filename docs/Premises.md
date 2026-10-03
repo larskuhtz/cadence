@@ -64,7 +64,7 @@ premise; their hypotheses are §2's and the trust items of
 | Claim | Premises | Witness |
 |---|---|---|
 | `Chorus.termination` — every correct validator finalizes the slot | §2.1, §2.3, §2.4; `FJustice` §3.1, `MvbaAdmissible` §3.2; `ValidBridge` §5.1; `AllParticipate` §6.1, C1 §6.2 | `Chorus.termination_premises_satisfiable` |
-| `Chorus.timed_termination_atMvba`, `…_tight_atMvba` — every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA + 9δ` (tight: `4Δ + ℓ_MVBA + 8δ`) | §2.1–§2.8; `TimedJustice` §4.1, `PhasePunctual` §4.2, `MvbaOwnTiming` §4.3; `ValidBridge` §5.1; `AllParticipateBy t` §6.1, C1 §6.2, C2 §6.3, `SyncParticipationWithin Δ` §6.4 | `Chorus.timedTermination_premises_satisfiable` |
+| `Chorus.timed_termination_atMvba`, `…_tight_atMvba` — every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA + 9δ` (tight: `4Δ + ℓ_MVBA + 8δ`) | §2.1, §2.3–§2.8 (§2.2 is a theorem of the family, `Chorus.hqeFin`); `TimedJustice` §4.1, `PhasePunctual` §4.2, `MvbaOwnTiming` §4.3; `ValidBridge` §5.1; `AllParticipateBy t` §6.1, C1 §6.2, C2 §6.3, `SyncParticipationWithin Δ` §6.4 | `Chorus.timedTermination_premises_satisfiable` |
 | `Chorus.timed_termination`, `…_tight` — the same, for any MVBA contract `T` | as above, with `TimedMvbaAdmissible T` §4.3 in place of `MvbaOwnTiming`, and `0 ≤ ℓ_MVBA` §2.9 in place of the MVBA instance's §2.2 and §2.5–§2.7 | through the row above (at the system's MVBA, `0 ≤ ℓ_MVBA` is a theorem) |
 | `Chorus.totality` — once one correct validator finalizes at `c`, all do by `max(c, GST) + max(Δ, d) + 2δ` | §2.1 (finitely many validators), §2.8; `TimedJustice` §4.1; C1 §6.2, `SyncParticipationWithin d` §6.4 | `Chorus.totality_premises_satisfiable` |
 | `Chorus.chorusTemporal`, `Chorus.chorusWithTotality`, `Chorus.slotConsensusFull` — Chorus ⊨ the full `SlotConsensus` contract | the three rows above (`Admissible` names their run premises), and the non-empty proposer set §2.10 | `Chorus.admissible_exists` (every initial state) |
@@ -114,7 +114,7 @@ satisfying `ByzNodeSet`'s axioms over finitely many validators
   `2f + 1` are such a set.
 * **Satisfiable:** obvious; proven for every `n ≥ 3f + 1`
   ([ByzQuorum.lean](../Cadence/ByzQuorum.lean)), and at the Chorus family
-  it is a theorem (`Chorus.hqeFin`).
+  it is a theorem (`Chorus.hqeFin`), so the Chorus claims do not take it.
 * **Used in:** `Mvba.termination` (`eventually_tc_below_good`,
   `terminates_of_settled_honest_view`), `Mvba.bounded_termination`
   (`within_tc`, `exists_good_view`).
@@ -596,15 +596,11 @@ claim's statement):
   caller condition, which another implementation may need. *Kept*
   (decided 2026-10-03): it is the paper's caller condition; not used by
   this instance's proof.
-* **Implied: `ByzNodeSetHonestQuorum` in the timed Chorus claims at the
-  system's MVBA.** `Chorus.timed_termination_atMvba` and
-  `Chorus.timed_termination_tight_atMvba` take it as a hypothesis (`hqe`)
-  and use it, but at the family they are stated at it is a theorem
-  (`Chorus.hqeFin`), which the contract instance already uses. *Proposal:*
-  derive it inside the two theorems and drop the hypothesis (a plain-Lean
-  statement change in
-  [Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)
-  and its two callers).
+* **Implied, and now derived: `ByzNodeSetHonestQuorum` in the timed
+  Chorus claims at the system's MVBA.** `Chorus.timed_termination_atMvba`
+  and `Chorus.timed_termination_tight_atMvba` took it as a hypothesis,
+  but at the family they are stated at it is a theorem (`Chorus.hqeFin`).
+  The two theorems derive it inside and no longer take it (R23).
 * **Unused and implied: the model assumption `leader_honest_cofinal`**
   (§2.4). No proof of a claim in §1 reads it: its one reader,
   `Mvba.exists_honest_leader_above` in
