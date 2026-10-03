@@ -673,9 +673,9 @@ instance (K6) consumes it as stated.
 
 | Claim | Premises |
 |---|---|
-| `Conductor.TotalityClaim` — once a correct validator opens slot `s` at `c`, every correct validator opens it by `max(c, GST) + d_tot`, `d_tot = Δ` (Lemma 15 (`lemma:conductor-totality`)) | the schedule §9.2; the ACS's `Δ`, fault bound and inputs §9.2; `Sync` §9.3; (R-tot) §9.4 |
+| `Conductor.TotalityClaim` — once a correct validator opens slot `s` at `c`, every correct validator opens it by `max(c, GST) + d_tot`, `d_tot = Δ` (Lemma 15 (`lemma:conductor-totality`)) | the schedule §9.2; the ACS's `Δ` and fault bound §9.2; `Sync` §9.3; (R-tot) §9.4 |
 | `Conductor.BoundednessClaim` — an opened, uncompleted slot of a correct validator has fewer than `2W − p` opened slots above it, at every reachable state (Lemma 14 (`lem:boundedness`)) | `WindowShifts` §9.2 only: a state property of the Conductor alone |
-| `Conductor.RecoveryClaim` — every slot starting at least `2Wτ` after GST is opened by every correct validator at its starting time (Lemma 16 (`lemma:conductor-recovery`)) | the schedule, `StartTimes`, `WindowShifts` §9.2; the ACS's `Δ`, `ℓ`, fault bound and inputs §9.2; `Sync` §9.3; (R-tot) and (R-term) §9.4 |
+| `Conductor.RecoveryClaim` — every slot starting at least `2Wτ` after GST is opened by every correct validator at its starting time (Lemma 16 (`lemma:conductor-recovery`)) | the schedule, `StartTimes`, `WindowShifts` §9.2; the ACS's `Δ`, `ℓ` and fault bound §9.2; `Sync` §9.3; (R-tot) and (R-term) §9.4 |
 
 ### 9.2 The instance, the schedule and the assumed ACS
 
@@ -733,14 +733,9 @@ instance (K6) consumes it as stated.
   *Plausible:* the system's fault bound. *Used in:* the decided interval's
   row (its correct witnesses, `Cadence.acs_median_bracket`). *Paper:* "at
   most `f` of the `2f + 1` decided values are faulty", before Algorithm 7.
-* **`AcsInputsEnabled`** (F26) — *Role:* the ACS accepts a correct
-  validator's first proposal and its abandonment. *Plausible:* an input is
-  the caller's to give; Module 4 has the two inputs. *Satisfiable:*
-  `Cadence.IdealAcs.inputsEnabled`. *Used in:* the rows of `acs_propose`
-  and `enter_window`, which are owed only when enabled. *Paper:* Module 4's
-  interface; the MVBA contract states the same of its caller-driven input
-  (`MVBASafety.accept_enabled`), and the same field in `ACSSafety` would
-  replace this premise.
+* **The ACS accepts its inputs** is not a premise: it is the contract's
+  (`ACSTemporal.propose_enabled`, `abandon_enabled`, F26), Module 4's
+  inputs being the caller's to invoke.
 
 ### 9.3 The run: `Conductor.Sync`
 

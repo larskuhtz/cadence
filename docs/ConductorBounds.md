@@ -869,13 +869,24 @@ paper's module.
   Module 4 (`mod:acs`) has the two inputs in its interface, and an input is
   the caller's to give, so every ACS meets it. The MVBA's contract states
   its one caller-driven input this way (`MVBASafety.accept_enabled`, rely
-  form). **K3: a premise of the claims**, `AcsInputsEnabled`
-  ([Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean)), met by
-  the ideal ACS (`Cadence.IdealAcs.inputsEnabled`). **Proposal:** a
-  first-order field of `ACSSafety` in the same form, which would replace
-  the premise. It is a contract edit that moves the Conductor's VCs (one
-  cold in-file sweep), so it waits for Lars's decision. Not a paper issue:
-  the paper's module has inputs, and its proofs give them.
+  form). **Closed (R27, decided by Lars 2026-10-03):** two first-order
+  fields in that rely form, `propose_enabled` (a correct validator that has
+  neither abandoned nor proposed can propose any slot) and
+  `abandon_enabled` (a correct validator can abandon; window entry gives
+  this input), in **`ACSTemporal`**. They were first placed in `ACSSafety`,
+  withheld from the solver with `veil_smt_ignore`. The Conductor's in-file
+  sweep then failed: `open_slot × open_prefix_agreement` went from about 5 s
+  to over the 180 s budget on both attempts, reproducibly in isolation,
+  with the fields in the middle of the class or at its end, and other
+  cells slowed severalfold. Without the fields the sweep is green in 44 s.
+  So withholding did not leave the solver's queries as they were (the
+  cause is not diagnosed; a question for the Veil fork). Only a
+  consumer's timed claims need the two fields, and no Veil module
+  instantiates `ACSTemporal`, so no VC moves. The ideal ACS proves both
+  (`Cadence.IdealAcs.acsTemporal`), and the claims lost the premise they
+  carried in between. Not a paper issue: Module 4's inputs are
+  invocations by the caller, and the module formalism has no refusal
+  ([PaperAlignment.md](PaperAlignment.md) §6's table of facts used).
 
 ## 8. Premises and non-vacuity from the start
 
@@ -1092,8 +1103,12 @@ parallel with K1. Everything else is in order.
     * Boundedness is a state property at bound `2W − p`, with
       `WindowShifts` its only premise; it is exactly what Lemma 5 needs
       (K7), so no separate Lemma-5 statement is made;
-    * F26 found (§7): the claims take the ACS's input-enabledness as a
-      premise, pending Lars's decision on a contract field;
+    * F26 found (§7) and closed in the same PR, by Lars's decision: the
+      ACS contract states that its two inputs are accepted
+      (`ACSTemporal.propose_enabled`, `abandon_enabled`, a second
+      [Interfaces.lean](../Cadence/Interfaces.lean) edit, in the upper class
+      because in `ACSSafety` they diverged a Conductor cell even when
+      withheld from the solver, §7 F26). No VC moved;
     * the fault bound (at most `TA.fault_bound` Byzantine) is a premise of
       Totality too, not only of Recovery: the decided interval's row needs
       a correct pair in the decided set;

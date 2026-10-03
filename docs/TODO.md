@@ -267,9 +267,8 @@ come first.
      and the three claims are stated with their premises
      ([Cadence/Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean),
      the draft ledger in [Premises.md](Premises.md) §9). Next is K4, the
-     window induction. Open from K3: F26, the ACS's input-enabledness, a
-     premise of the claims (`AcsInputsEnabled`) that would better be a
-     field of `ACSSafety` (a contract edit, Lars's decision).
+     window induction. F26, found in K3 (the ACS's input-enabledness), is
+     closed by two `ACSTemporal` fields.
 
   F13 is closed (R15, [Bounds.md](Bounds.md) §6.4.2, "F13 closed"): the
   fallback commit vote waits under the FallbackQC entries of the validator's

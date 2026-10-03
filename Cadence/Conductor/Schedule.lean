@@ -41,8 +41,9 @@ prints the whole list.
   `ACSTemporal` ([Interfaces.lean](../Interfaces.lean)), an **assumed
   module** (P17): the target leaves it unspecified. Its constants are the
   system's (`TA.Δ = Δ`, `TA.ℓ = ℓ`, F23), at most its `fault_bound`
-  validators are Byzantine, and it accepts its two inputs
-  (`AcsInputsEnabled`, F26). [IdealAcs.lean](IdealAcs.lean) meets all of it.
+  validators are Byzantine. That it accepts its two inputs is the
+  contract's (`ACSTemporal.propose_enabled`, `abandon_enabled`, F26).
+  [IdealAcs.lean](IdealAcs.lean) meets all of it.
 
 ## What is assumed of a run
 
@@ -78,7 +79,7 @@ upon (F22). The one exception is the recording of the decided interval,
 median computation: its gate is that some correct validator's ACS has
 output a decision. Everything else a rule's guard needs — the interval
 having been recorded, the ACS accepting the input — is protocol state the
-proofs establish, or the premise `AcsInputsEnabled`.
+proofs establish, or the ACS contract's input-enabledness.
 
 ## What this file does not do
 
@@ -275,23 +276,6 @@ def WindowShifts (sch : ConductorSchedule view time vfin)
   (∀ s, th.win_last s = s + (sch.W - 1)) ∧ ∀ s, th.win_boundary s = s + sch.p
 
 end Configuration
-
-/-! ## The ACS's two instance conditions -/
-
-/-- **The ACS accepts its inputs** ([Premises.md](../../docs/Premises.md)
-§9.2): at every reachable state, a correct validator that has not proposed
-can propose any slot, and a correct validator can abandon.
-
-Module 4 (`mod:acs`) gives the module two inputs, and an input is the
-caller's to give; the contract states their effects and frames but not that
-they are accepted. The Conductor's rows can be owed only where its handlers
-are enabled, and `acs_propose` and `enter_window` give these inputs, so the
-claims need it (F26). The MVBA's contract states its one caller-driven
-input this way (`MVBASafety.accept_enabled`); the same field in `ACSSafety`
-would replace this premise. -/
-def AcsInputsEnabled {V Sl σ : Type} {byz : V → Prop} (A : ACSSafety V Sl σ byz) : Prop :=
-  ∀ st, A.reachable st → ∀ i, ¬ byz i →
-    (∀ s, (∀ s', ¬ A.proposed st i s') → ∃ st', A.propose st i s st') ∧ ∃ st', A.abandon st i st'
 
 /-! ## Timed runs of the Conductor -/
 
@@ -648,8 +632,8 @@ variable {window node acsstate : Type} [Inhabited window] [Inhabited node] [Inha
 
 /-- **`d_tot`-Totality, the target** (Lemma 15 (`lemma:conductor-totality`)).
 Under the timing model, with the ACS's `Δ` the system's, at most its fault
-bound Byzantine and its inputs accepted, and if the caller's completions are
-total ((R-tot) at `d_tot`): for every slot, once a correct validator has
+bound Byzantine, and if the caller's completions are total ((R-tot) at
+`d_tot`): for every slot, once a correct validator has
 opened it at clock `c`, every correct validator opens it by
 `max(c, GST) + d_tot`, with `d_tot = Δ` at the schedule's `δ = 0`
 (`ConductorSchedule.d_tot_paper`). The proof is the window induction of
@@ -657,7 +641,7 @@ Proposition 13 (`prop:window-synchronization`), stage K4. -/
 def TotalityClaim {msg : Type} (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz)
     (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
-  TA.Δ = sch.Δ → (Finset.univ.filter fm.byz).card ≤ TA.fault_bound → AcsInputsEnabled A →
+  TA.Δ = sch.Δ → (Finset.univ.filter fm.byz).card ≤ TA.fault_bound →
   ∀ r : TConductorRun th, Sync sch TA r →
     (orchestratorSafety th).CallerTotality (contractRun r) sch.d_tot →
     ∀ s, (orchestratorSafety th).OpeningsSyncWithin (contractRun r) s sch.d_tot
@@ -687,8 +671,8 @@ def BoundednessClaim (sch : ConductorSchedule view time vfin)
 /-- **`(2Wτ)`-Recovery, the target** (Lemma 16 (`lemma:conductor-recovery`)).
 Under the timing model at τ-spaced starting times and windows of the
 schedule's shape, with the ACS's `Δ` and `ℓ` the system's, at most its fault
-bound Byzantine and its inputs accepted, and if the caller's completions are
-total ((R-tot) at `d_tot`) and terminate ((R-term) at `d_tot` and
+bound Byzantine, and if the caller's completions are total ((R-tot) at
+`d_tot`) and terminate ((R-term) at `d_tot` and
 `ℓ_chorus`): every slot whose starting time is at least `GST + 2Wτ` is
 opened by every correct validator by its starting time — with Integrity's
 timing half, exactly then. The proof is Propositions 14–19, stage K5; the
@@ -698,7 +682,6 @@ def RecoveryClaim {msg : Type} (sch : ConductorSchedule view time vfin)
     (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
   StartTimes sch th → WindowShifts sch th →
   TA.Δ = sch.Δ → TA.ℓ = sch.ℓ → (Finset.univ.filter fm.byz).card ≤ TA.fault_bound →
-  AcsInputsEnabled A →
   ∀ r : TConductorRun th, Sync sch TA r →
     (orchestratorSafety th).CallerTotality (contractRun r) sch.d_tot →
     (orchestratorSafety th).CallerTermination (contractRun r) sch.d_tot sch.ℓchorus →

@@ -1,4 +1,5 @@
-import Cadence.Conductor.Schedule
+import Cadence.Timed
+import Mathlib.Algebra.Order.Archimedean.Basic
 
 /-! # IdealAcs — the ACS contract's model, the consistency witness
 
@@ -29,9 +30,9 @@ timing guarantees hold whenever its two assumptions do (`Admissible`): an
 ideal functionality's timing is what it promises. So the timed fields are
 immediate, and what the instance shows is that the contract's fields —
 agreement, validity in both halves, integrity, one slot per validator, the
-frames, the timing, and admissible runs from every initial state — hold
-together. It also meets the two conditions the Conductor's claims add
-(`inputsEnabled`, and `trans_refl`: a finished instance can stutter, F24).
+frames, the inputs accepted, the timing, and admissible runs from every initial state — hold
+together. It also meets the condition the Conductor's claims add: a finished
+instance can stutter (`trans_refl`, F24).
 
 What it is used for: the consistency of the premises of the Conductor's
 timed claims, in the composed witness of K8
@@ -334,6 +335,12 @@ def acsTemporal (msg : Type) (hΔ : 0 < Δ) :
             exact absurd hs (by simp [Proposed, hi.1]),
           fun n i _ hd => absurd hd (by simp [HasDecided, hi.2.2.1])⟩,
         rfl⟩,
+    propose_enabled := fun st i s _ _ _ hnp => by
+      refine ⟨_, ?_, rfl⟩
+      cases h : st.prop i with
+      | none => rfl
+      | some s' => exact absurd h (hnp s'),
+    abandon_enabled := fun st i _ _ => ⟨_, rfl⟩,
     fault_bound := f,
     validity_quantitative st hr i _ hd := by
       obtain ⟨hc, -⟩ := hr.1 i hd
@@ -354,18 +361,6 @@ def acsTemporal (msg : Type) (hΔ : 0 < Δ) :
 
 end Temporal
 
-/-- **The ideal ACS accepts its inputs**: a correct validator that has not
-proposed can propose any slot, and any validator can abandon. The premise
-`AcsInputsEnabled` of the Conductor's timed claims
-([Schedule.lean](Schedule.lean)) holds of it. -/
-theorem inputsEnabled (byz : V → Prop) (f : Nat) :
-    Conductor.AcsInputsEnabled (acsSafety (Sl := Sl) byz f) := by
-  intro st _ i _
-  refine ⟨fun s hnp => ⟨_, ?_, rfl⟩, ⟨_, rfl⟩⟩
-  cases h : st.prop i with
-  | none => rfl
-  | some s' => exact absurd h (hnp s')
-
 end Cadence.IdealAcs
 
 /-! ## The pinned trust base -/
@@ -381,12 +376,6 @@ info: 'Cadence.IdealAcs.acsTemporal' depends on axioms: [propext, Classical.choi
 -/
 #guard_msgs in
 #print axioms Cadence.IdealAcs.acsTemporal
-
-/--
-info: 'Cadence.IdealAcs.inputsEnabled' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cadence.IdealAcs.inputsEnabled
 
 /--
 info: 'Cadence.IdealAcs.trans_refl' depends on axioms: [propext, Classical.choice, Quot.sound]

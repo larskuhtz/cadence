@@ -884,6 +884,10 @@ at.
 * **`abandon`, `abandoned`** and their frames — the interface's second
   input; *safety (first-order)*
 * **`integrity`** — Integrity; *safety*
+* **`propose_enabled`, `abandon_enabled`** — the module accepts its two
+  inputs (F26, [ConductorBounds.md](../docs/ConductorBounds.md) §7);
+  *upper, first-order*: only a consumer's timed claims need them, and at the
+  fragment they would perturb the Conductor's solver queries
 * **`termination`, `ℓ`** — `ℓ`-Termination; *temporal (under the module's two
   assumptions)*
 * **`totality`, `Δ`** — `Δ`-Totality; *temporal (under the module's two
@@ -970,6 +974,18 @@ class ACSTemporal (validator slot state time message : Type)
   Admissible : TimedRun state time S.init S.trans → Prop
   admissible_exists : ∀ st, S.init st →
     ∃ r : TimedRun state time S.init S.trans, Admissible r ∧ r.at' 0 = st
+
+  /-- **The module accepts a proposal** — in the rely form: a correct
+      validator that has neither abandoned nor proposed in this instance can
+      give the `propose(s)` input, for any slot. Module 4 (`mod:acs`)'s
+      interface makes `propose(s)` an input, which the caller invokes; the
+      module cannot refuse it. First-order, and kept at this level because
+      only the timed properties of a consumer need it (F26). -/
+  propose_enabled : ∀ st i s, S.reachable st → ¬ byz i → ¬ S.abandoned st i →
+    (∀ s', ¬ S.proposed st i s') → ∃ st', S.propose st i s st'
+  /-- **The module accepts an abandonment**: a correct validator can always
+      give the `abandon()` input, Module 4 (`mod:acs`)'s second input. -/
+  abandon_enabled : ∀ st i, S.reachable st → ¬ byz i → ∃ st', S.abandon st i st'
 
   /-- The resilience parameter `f` (at most `f` Byzantine validators). -/
   fault_bound : Nat
