@@ -302,9 +302,10 @@ scripts/revalidate.sh /tmp     # ... and write the RSS sample log there
 `JOBS` is the number of concurrent `lean` processes, at roughly 4 GB each.
 The default is 8 on a 14-core / 36 GB machine, which ran the whole suite in
 about 7 min warm and 11 min cold. Past that, more slots do not help, because
-the build is bound by its longest dependency chain. The staged `BATCH` mode
-is for few cores (CI's 4-core runners use `BATCH=1`), where concurrent
-solvers slow each other enough to push a near-budget cell over its timeout.
+the build is bound by its longest dependency chain. On few cores keep `JOBS`
+low (CI's 4-core runner uses `JOBS=2`), since concurrent solvers slow each
+other enough to push a near-budget cell over its timeout. The staged `BATCH`
+mode is what the image build uses.
 The script's header has the measurements.
 
 Individual pieces, for iteration:

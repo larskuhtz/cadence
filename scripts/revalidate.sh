@@ -3,8 +3,8 @@
 # concurrent `lean` processes.
 #
 #   scripts/revalidate.sh [logdir]      # one `lake build`, JOBS-wide
-#   JOBS=6 scripts/revalidate.sh        # ... with an explicit cap
-#   BATCH=1 scripts/revalidate.sh       # the staged build (CI, images)
+#   JOBS=6 scripts/revalidate.sh        # ... with an explicit cap (CI: 2)
+#   BATCH=1 scripts/revalidate.sh       # the staged build (image build)
 #
 # Writes an RSS sample log (total resident memory of all `lean` processes,
 # every 15 s) to $logdir. Both modes build the same targets and do the same
@@ -33,12 +33,33 @@
 # peaks, cold: most proof files 2–4 GB, Chorus/Proofs/Vote.lean 9.2 GB (it
 # opts out of foldBoolAtoms), the Chorus model 11.7 GB.
 #
+# CI's verify job uses JOBS=2 on its 4-core / 16 GB arm64 runner (13 GB
+# container limit). Measured 2026-10-03, cold, all runs against one image
+# digest: an olean-changing edit to Chorus.lean re-solved the Chorus model
+# and its 49 proof files with no proof cache (and the Conductor and glue
+# models, which that image lagged):
+#
+#   mode      verify step         slowest cell (of 180 s)   ⏱ / OOM
+#   BATCH=1   66m38s, 63m09s      56.2 s, 54.6 s            none
+#   BATCH=2   68m51s              69.2 s                    none
+#   JOBS=2    61m24s, 59m36s      48.5 s, 48.9 s            none
+#
+# BATCH=2 is slower than BATCH=1 and its slowest cell rises by a quarter:
+# each process of a staged build sizes its own thread pool to all four
+# cores. LEAN_NUM_THREADS=2 caps both the slots and each process's pool, so
+# per-file times rise (Vote 211 s → 415 s) but the slowest cell does not,
+# and with no barriers the build is still faster overall. A JOBS=2 run that
+# rebuilt the Chorus model next to the whole Mvba family and
+# `Mvba/NoLock.lean` stayed inside the 13 GB limit.
+#
 # BATCH (setting it selects this mode): the staged build — the model files
 # one at a time, then the proof families in batches of $BATCH (capped at 5 for
 # the two smaller families), each stage a separate `lake build` that must
 # finish before the next starts. Exits non-zero on the first failed stage.
-# CI and the image build use BATCH=1 on 4-core runners, where concurrent
-# dischargers contend for wall-clock and a near-limit VC that passes
+# The image build still uses BATCH=1 (its width is a Containerfile ARG, and
+# an edit to the Containerfile rebuilds the deps image); CI's verify job did
+# until 2026-10-03 (table above). A wide batch on few cores makes concurrent
+# dischargers contend for wall-clock, and a near-limit VC that passes
 # comfortably alone then times out (the 2026-08 external audit measured 21 s
 # alone vs > 60 s in a batch of 6 on 8 cores, at the then 60 s budget).
 #
@@ -94,7 +115,8 @@ if [ -z "${BATCH:-}" ]; then
   echo "=== lake build, LEAN_NUM_THREADS=$JOBS — start $(date +%T)"
   t0=$SECONDS
   if LEAN_NUM_THREADS=$JOBS lake build; then
-    echo "=== ALL GREEN ($(( SECONDS - t0 )) s) $(date +%T)"
+    # The staged mode's marker, which CI asserts; here there is one stage.
+    echo "=== ALL STAGES GREEN (one lake build, $(( SECONDS - t0 )) s) $(date +%T)"
     exit 0
   fi
   echo "=== BUILD FAILED ($(( SECONDS - t0 )) s)"
