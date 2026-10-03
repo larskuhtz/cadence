@@ -112,27 +112,6 @@ come first.
 
 ## Liveness
 
-* **F15: fix the model's re-dissemination, then derive the MVBA's
-  (Δ-avail) from Chorus's rows** (R19; open, found by R18). Since R16 the
-  untimed (F-avail) is derived (`Chorus.fAvail_of_fJustice`), and the timed
-  premise has the availability report's δ-row (`TimedJustice.avail`). But
-  the MVBA's timed clause `Mvba.AvailWithin` is still assumed inside
-  `TimedMvbaAdmissible`. R18 found why it cannot be derived yet: the model's
-  `redisseminate_chunk` is gated on the signer's participation at delivery,
-  where the paper sends inside the fallback-entry rule, so an abandonment
-  between signing and delivery drops a message the paper has already sent
-  ([Bounds.md](Bounds.md) §6.4.2, "F15", with the counterexample run). R19:
-  (1) the model fix, (a) a guard on the sender's own `msg_fb_pos_sig`
-  (conflicts with S5's Quiescence) or (b) `fb_sign_pos` delivering the
-  chunks atomically, as the paper's single rule does (keeps Quiescence);
-  a cold Chorus re-solve; (2) the schedule constraint `Δ + δ ≤ Δ_sync` as a
-  field of the schedule, like `δ_le_Δ` (a statement change; the witness's
-  `Mvba.Schedule.fixedNat` has `Δ_sync = 0`); (3) the derivation, the timed
-  twin of `fAvail_of_fJustice`, of the `relayed_of_timedJustice` kind, and
-  `timedMvbaAdmissible_of_rows` without (Δ-avail)
-  ([PaperAlignment.md](PaperAlignment.md) §5.10 and §8.2 (g)).
-
-
 * **A non-vacuity instrument at the *composition* level.** The reason one is
   needed at all is that non-vacuity does not compose —
   [CompositionContracts.md](CompositionContracts.md) §7, "Vacuity does
@@ -271,7 +250,10 @@ come first.
   system's MVBA `Chorus.timed_termination_atMvba`), and F4 is confirmed
   (`Chorus.timed_termination_tight`, `4Δ + ℓ_MVBA + 8δ`;
   [Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)).
-  Next: R19 (F15, above), then S5, the contract instances
+  **R19 done** (2026-10-02): F15 closed. The fallback signer
+  re-disseminates inside the fallback-entry rule, and (Δ-avail) is derived
+  (`Chorus.availWithin_of_timedJustice`; [Bounds.md](Bounds.md) §6.4.2,
+  "F15 closed"). Next: S5, the contract instances
   ([Bounds.md](Bounds.md) §6.4.6).
 
   F13 is closed (R15, [Bounds.md](Bounds.md) §6.4.2, "F13 closed"): the
@@ -353,7 +335,7 @@ action behaves in a full build.
 The development corresponds to the paper target
 ([PaperAlignment.md](PaperAlignment.md) §0). The realignment items are
 closed: sessions R14–R17 ([History.md](History.md)). The Chorus bounds leg
-resumed with S4 (R18, done; P5 confirmed by proof); next are R19 and S5
+resumed with S4 (R18, done; P5 confirmed by proof) and R19 (F15, done); next is S5
 (§ Liveness above, and [PaperAlignment.md](PaperAlignment.md) §8, "After the
 realignment").
 

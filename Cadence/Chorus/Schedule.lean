@@ -34,9 +34,13 @@ clock reading — to a guard, a local record or the network's own facts.
 * **The MVBA's timing** — `TimedMvbaAdmissible`: the MVBA's steps inside the
   run, with the clock carried along, satisfy the MVBA contract's own
   `Admissible`. Stated with the contract's field, restated nowhere. At the
-  system's MVBA its one clause on the caller, the handoff of decided
-  certificates, is derived from (Δδ-justice)'s handoff row
-  (`relayed_of_timedJustice`), so only the MVBA's own scheduling is assumed.
+  system's MVBA its two clauses on the caller are derived from (Δδ-justice):
+  the handoff of decided certificates from the handoff row
+  (`relayed_of_timedJustice`), and the availability shares (Δ-avail) from
+  the availability row and the schedule's `Δ ≤ Δ_sync`
+  (`availWithin_of_timedJustice`, in [TimedTermination.lean](TimedTermination.lean)).
+  So the claim at the system's MVBA assumes only the MVBA's own scheduling
+  (`SyncAtMvba`).
 * **The bridge** — `ValidBridge` ([Liveness.lean](Liveness.lean)), unchanged:
   it is not timing.
 
@@ -53,8 +57,11 @@ before the rule is due. So a gate that mentioned protocol progress would let
 the clause absorb it: "the rule fires `δ` after its gate opened" would then
 say that progress happens. Every gate therefore mentions **only**
 
-* the acting validator's own local state — its participation, `Active`; and
-* the phase — the landmark its rule waits for.
+* the acting validator's own local state — its participation, `Active`, and
+  the output of its own MVBA instance that its rule fires upon (the decision
+  `cast_fb_commit` handles; F15, [Bounds.md](../../docs/Bounds.md) §6.4.2); and
+* the phase — the landmark its rule waits for, and the decision landmark
+  `mvba_complete` that stands for the decided vector having arrived.
 
 `gate` below has one line per row, and each is checked against this list by
 reading it. Everything else a rule's guard needs is either its network part
@@ -115,17 +122,27 @@ the three phase markers ((P-phase) times them).
 * `Δ`: the proposer's chunk (`deliver_chunk_assigned`), others' votes
   (`aggregate_fastqc_*`, `fb_sign_*`), others' commit votes
   (`broadcast_commitqc_*`), others' fallback votes (the `mvba_propose`
-  family on its `FBCert` trigger, Algorithm 5, line 36 (`line:fb-mvba-propose`)), the caster's chunk (`redisseminate_chunk`), a
+  family on its `FBCert` trigger, Algorithm 5, line 36 (`line:fb-mvba-propose`)), a
   certificate someone else sent (`commit_assign_*`), a decided MVBA
   certificate (the handoff `accept_mvba_commitqc`, and the `CommitQC`
-  route's handlers `on_mvba_commitqc_*`);
+  route's handlers `on_mvba_commitqc_*`), and a chunk a fallback signer
+  re-disseminated (the DA wait `cast_fb_commit` and the availability report
+  `mvba_avail_ready`);
 * `δ`: `record_chunk`, `vote`, `commit_sign_*`, `cast_fast_commit`,
   `cast_fallback_vote`, the `mvba_propose` family on its case-(a) trigger
   (Algorithm 5, line 23 (`line:fb-mvba-propose-fast`): the proposer's own complete fast meta-block,
   local state), the decision handlers `on_mvba_decide_*` and
-  `mvba_terminate`, `cast_fb_commit`, `finalize_commit`, and the
-  availability report `mvba_avail_ready` (a family, `avail`: it reads the
-  validator's own chunk receipts).
+  `mvba_terminate`, and `finalize_commit`.
+
+**A re-disseminated chunk is timed at its readers** (F15). The correct
+fallback signer sends every validator its chunk inside its signing step
+(Algorithm 5, line 12 (`line:fb-redisseminate`)), and the chunk relation
+holds from that send, as every broadcast relation of the model does. So the
+two rules that read a validator's own re-disseminated chunk are `Δ`-rows,
+each in a clause of its own: the availability report `mvba_avail_ready`
+(the family `avail`) and the fallback commit vote `cast_fb_commit`
+(`fbCommit`, split at its trigger: the chunks are due `Δ` after they were
+sent, the vote `δ` after the validator's own decision).
 
 **The proposal is two families, the paper's two rules** (F9). `mvba_propose`
 is one label with both triggers, so `hop` gives it its `Δ` row and
@@ -160,7 +177,6 @@ def hop : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg
   | .accept_mvba_commitqc .. => some .net
   | .on_mvba_commitqc_pos .. => some .net
   | .on_mvba_commitqc_neg .. => some .net
-  | .redisseminate_chunk .. => some .net
   | .commit_assign_pos .. => some .net
   | .commit_assign_neg .. => some .net
   | .record_chunk .. => some .loc
@@ -172,10 +188,21 @@ def hop : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg
   | .on_mvba_decide_pos .. => some .loc
   | .on_mvba_decide_neg .. => some .loc
   | .mvba_terminate .. => some .loc
-  | .cast_fb_commit .. => some .loc
+  | .cast_fb_commit .. => some .net
+  | .mvba_avail_ready .. => some .net
   | .finalize_commit .. => some .loc
-  | .mvba_avail_ready .. => some .loc
   | _ => none
+
+/-- **The labels with a clause of their own in `TimedJustice`**: the three
+families of `FamilyLabel` (the proposal, the handoff, the availability
+report) and the fallback commit vote, whose row is split at its trigger
+(`fbCommit`). Every other row of the table is `TimedJustice.rows`. -/
+def OwnClauseLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
+  | .mvba_propose .. => True
+  | .accept_mvba_commitqc .. => True
+  | .mvba_avail_ready .. => True
+  | .cast_fb_commit .. => True
+  | _ => False
 
 /-- **The table covers exactly the fair labels that are not phase markers.**
 A label has a hop bound iff it is a `JusticeLabel` of
@@ -209,6 +236,20 @@ structure Schedule (view time : Type) [vord : TotalOrderWithMinimum view]
   [Bounds.md](../../docs/Bounds.md) §6.4.2). It implies the `δ ≤ Δ + ρ` that
   `relayed_of_timedJustice` takes. -/
   δ_le_Δ : mvba.δ ≤ mvba.Δ
+  /-- **The MVBA's availability window covers one Chorus network hop**:
+  `Δ ≤ Δ_sync`, a property of the composed timing model. The MVBA assumes
+  that a correct validator holding a meta-block has, within `Δ_sync`, the
+  availability shares its `Commit` waits for (Supplement, Section 1.2
+  (`subsec:mvba-protocol`), "Availability-synchronization assumption").
+  Chorus provides them in one network hop: each FallbackQC entry has a
+  correct signer, which sent every validator its chunk when it signed
+  (Algorithm 5, line 12 (`line:fb-redisseminate`)), before any validator
+  could hold the meta-block, and the availability report is a `Δ`-row.
+  With it, (Δ-avail) is derived, not assumed
+  (`availWithin_of_timedJustice`); the `Δ_sync` the MVBA's latency charges
+  is then at least the hop Chorus needs. True when the two layers share
+  `Δ`, `Δ_sync = Δ`. -/
+  Δ_le_Δsync : mvba.Δ ≤ mvba.Δsync
 
 section Constants
 
@@ -401,16 +442,28 @@ def proposeGate (i : node) (s : StateAtMvba slot node nodeset merkle_root view P
     Prop :=
   Active s i ∧ s.phase = Phase_EnumClass.post_mvba_arm
 
+/-- The fallback commit vote's gate: its trigger, "upon `MVBA[s].decide(B′)`"
+(Algorithm 5, line 37 (`line:fb-mvba-decide`)). The voter actively
+participates, its own MVBA has decided `v` and nothing else (P11), and the
+decision landmark `mvba_complete` holds, the model's shadow of the decided
+vector having arrived. -/
+def fbCommitGate (i : node) (v : MetaBlock node merkle_root)
+    (s : StateAtMvba slot node nodeset merkle_root view Phase PathChoice) : Prop :=
+  Active s i ∧ Mvba.Decided s.mvba_st i v ∧
+    (∀ v', Mvba.Decided s.mvba_st i v' → v' = v) ∧ s.mvba_complete = true
+
 /-- **The gates.** A sending rule is gated on its sender's active participation
 (Appendix C.3 (`subsection:chorus-protocol-overview`)), and a rule that waits for a landmark
-on the landmark's phase. The processing rules (`record_chunk`,
-`aggregate_fastqc_*`, the decision and certificate handlers, and the
-availability report) have no participation gate, as in the model, and no
-phase gate: the paper's decision handler is "upon `MVBA[s].decide(B′)`"
-(Algorithm 5, line 37 (`line:fb-mvba-decide`)). -/
+on the landmark's phase. The processing rules (the delivery of a proposer's
+chunk, `record_chunk`, `aggregate_fastqc_*`, the decision and certificate
+handlers, and the availability report) have no participation gate, as in
+the model, and no phase gate: the paper's decision handler is "upon
+`MVBA[s].decide(B′)`" (Algorithm 5, line 37 (`line:fb-mvba-decide`)). The
+delivery of a proposer's chunk is due `Δ` after `propose` sent it, whatever
+the proposer does next (F15, the proposer's half). The fallback commit vote
+is gated on its trigger (`fbCommitGate`). -/
 def gate : LabelAtMvba slot node nodeset merkle_root view Phase PathChoice →
     StateAtMvba slot node nodeset merkle_root view Phase PathChoice → Prop
-  | .deliver_chunk_assigned _ j _ => fun s => Active s j
   | .vote i => fun s => Active s i ∧ s.phase ≠ Phase_EnumClass.pre_deadline
   | .commit_sign_pos i .. => fun s => Active s i
   | .commit_sign_neg i .. => fun s => Active s i
@@ -424,8 +477,7 @@ def gate : LabelAtMvba slot node nodeset merkle_root view Phase PathChoice →
   | .cast_fallback_vote i => fun s => Active s i ∧
       (s.phase = Phase_EnumClass.post_fb_arm ∨ s.phase = Phase_EnumClass.post_mvba_arm)
   | .mvba_propose i .. => proposeGate i
-  | .redisseminate_chunk k .. => fun s => Active s k
-  | .cast_fb_commit i _ => fun s => Active s i
+  | .cast_fb_commit i v => fbCommitGate i v
   | .commit_assign_pos i .. => fun s => Active s i
   | .commit_assign_neg i .. => fun s => Active s i
   | .finalize_commit i => fun s => Active s i
@@ -443,8 +495,8 @@ some validators only. -/
 /-! ### (Δδ-justice), (P-phase), the MVBA's timing -/
 
 /-- **(Δδ-justice)** — the timed form of `FJustice`, with the hop split. Every
-row of the hop table other than the two families is `BufferedFair` at its
-bound, gate and `Owed`; the proposal is one family per validator and value,
+row of the hop table other than those with a clause of their own
+(`OwnClauseLabel`) is `BufferedFair` at its bound, gate and `Owed`; the proposal is one family per validator and value,
 as in `FJustice`: if `i` can propose `v` throughout the window, with its
 trigger owed and its gate open, `i` proposes `v` (for some MVBA successor
 state) within it. The paper has two proposal rules, and so does the premise
@@ -456,15 +508,15 @@ gate (it processes a message): once a correct validator has decided, whose
 decision output is the certificate's broadcast, `i` takes a transferred
 certificate within `Δ` if it can throughout the window. This row is what
 the MVBA's handoff premise is derived from (`relayed_of_timedJustice`). The
-availability report is one family per validator and value, a `δ`-row with
-no gate: once `i` holds `v`, it reports `AvailReady_i(v)` within `δ` of
-its chunk wait being met. With the re-dissemination rows it is what the
-MVBA's (Δ-avail) is to be derived from. It cannot be yet: the model's
-re-dissemination is gated on its sender's participation at delivery, where
-the paper sends inside the fallback-entry rule (F15,
-[Bounds.md](../../docs/Bounds.md) §6.4.2), so (Δ-avail) stays assumed
-inside `TimedMvbaAdmissible` until the model fix (R19,
-[TODO.md](../../docs/TODO.md) § Liveness).
+availability report is one family per validator and value, a `Δ`-row with
+no gate: once `i` holds `v`, it reports `AvailReady_i(v)` within `Δ`, the
+hop of the chunks its wait reads (F15). With the schedule's `Δ ≤ Δ_sync`
+it is what the MVBA's (Δ-avail) is derived from
+(`availWithin_of_timedJustice`). The fallback commit vote is a `Δ`-row split
+at its trigger (`fbCommit`): its message part, the re-disseminated chunks of
+its DA wait, is due `Δ` after they were sent, and the vote `δ` after its
+gate, the validator's own decision (`fbCommitGate`), opened. Its untimed
+owed-condition, the decision, is that gate.
 
 Each window is measured from `max(clk N, gst)` (`TLRun.ref`), so an
 obligation pending at GST is due `Δ` (or `δ`) after it. Stated over plain
@@ -473,7 +525,7 @@ enabledness, as since R6: every fair action of the model fires once
 structure TimedJustice (sch : Schedule view time)
     (r : TChorusRun thS thM time) : Prop where
   rows : ∀ (l : LabelAtMvba slot node nodeset merkle_root view Phase PathChoice) (h : Mvba.Hop),
-    hop l = some h → ¬ FamilyLabel l →
+    hop l = some h → ¬ OwnClauseLabel l →
       BufferedFair r (sch.bound h) sch.δ (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l)
         (gate l) l
   propose : ∀ (i : node) (v : MetaBlock node merkle_root),
@@ -487,8 +539,10 @@ structure TimedJustice (sch : Schedule view time)
     BufferedFairFamily r sch.Δ sch.δ (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
       (fun _ => True) (fun l => ∃ c mvba_next, l = .accept_mvba_commitqc i c mvba_next)
   avail : ∀ (i : node) (v : MetaBlock node merkle_root),
-    BufferedFairFamily r sch.δ sch.δ (availOwed i v)
+    BufferedFairFamily r sch.Δ sch.δ (availOwed i v)
       (fun _ => True) (fun l => ∃ mvba_next, l = .mvba_avail_ready i v mvba_next)
+  fbCommit : ∀ (i : node) (v : MetaBlock node merkle_root),
+    BufferedFair r sch.Δ sch.δ (fun _ => True) (fbCommitGate i v) (.cast_fb_commit i v)
 
 /-- **(P-phase)** — the phase markers are punctual timers. For each landmark
 `L`:
@@ -528,15 +582,22 @@ records only the MVBA's post-states, so a premise about how its labels were
 scheduled has to supply them; `Projection.ofScheduled` says one always exists
 when the MVBA is stepped infinitely often.
 
-**The handoff is derived (C15, R8).** At the system's MVBA, `T.Admissible`
-includes `Mvba.Relayed`: the MVBA's caller hands a decided commit
-certificate to every undecided correct validator within `Δ + ρ`, which the
-supplement asks of the *composing* layer (Supplement, Lemma 13 (`lem:decision-propagation`)). In
-the composed system that caller is Chorus, whose handoff row (`TimedJustice`'s
-`relay`) delivers it: `relayed_of_timedJustice` derives the clause for every
-projection, at every schedule with `δ ≤ Δ + ρ`, and
-`timedMvbaAdmissible_of_rows` is this premise with the clause supplied. So
-what a witness has to show of the MVBA is only its own three clauses. -/
+**The caller's two clauses are derived.** At the system's MVBA,
+`T.Admissible` includes two clauses that the supplement asks of the
+*composing* layer, Chorus:
+
+* `Mvba.Relayed` (C15, R8): a decided commit certificate reaches every
+  undecided correct validator within `Δ + ρ` (Supplement, Lemma 13
+  (`lem:decision-propagation`)). Chorus's handoff row (`TimedJustice`'s
+  `relay`) delivers it: `relayed_of_timedJustice`.
+* `Mvba.AvailWithin`, (Δ-avail) (F15, R19): a correct validator holding a
+  meta-block is `AvailReady` for it within `Δ_sync`. Each FallbackQC entry's
+  correct signer sent the chunks when it signed, and the availability row
+  reports within `Δ ≤ Δ_sync`: `availWithin_of_timedJustice`.
+
+`timedMvbaAdmissible_of_rows` is this premise with both supplied, and
+`SyncAtMvba` the timing model at the system's MVBA with only the MVBA's own
+two clauses, (Δ-justice) and (T-timer), assumed (`MvbaOwnTiming`). -/
 def TimedMvbaAdmissible
     (T : MVBATemporal node (MetaBlock node merkle_root) (node → Option merkle_root)
       (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
@@ -755,21 +816,38 @@ theorem relayed_of_timedJustice (sch : Schedule view time) (hδ : sch.δ ≤ sch
   exact (decide_enabled_guards (hcomp (m + 1) (by omega) (le_trans hcm hW)).1).2 x
     (Mvba.decide_effect htr)
 
-/-- **The form a witness supplies, with the handoff derived.** A projection
-whose timed run satisfies the MVBA's own three clauses — (Δ-justice),
-(T-timer), (Δ-avail) — together with (Δδ-justice) of the composed run gives
-the MVBA premise at the system's instance: its fourth clause, the caller's
-handoff, is `relayed_of_timedJustice`. -/
-theorem timedMvbaAdmissible_of_rows (hqe : ByzNodeSetHonestQuorum node nodeset nset)
-    (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
-    (hrot : Mvba.LeaderRotation vfin sch.mvba.k thM) (hδ : sch.δ ≤ sch.Δ + sch.mvba.ρ)
-    {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r)
-    (p : (mvbaComponent thS thM).Projection r.toLRun)
-    (hown : Mvba.BoundedJustice sch.mvba p.timed ∧ Mvba.TimerPunctual sch.mvba p.timed ∧
-      Mvba.AvailWithin sch.mvba p.timed) :
-    TimedMvbaAdmissible (Mvba.mvbaTemporal thM hqe sch.mvba vfin hrot) r :=
-  timedMvbaAdmissible_of_sync hqe sch vfin hrot p
-    ⟨hown.1, hown.2.1, hown.2.2, relayed_of_timedJustice sch hδ hTJ p⟩
+/-- **The MVBA's own scheduling**: the run has a projection onto the MVBA
+whose timed run satisfies the two clauses the MVBA's timing model assumes of
+its own steps, (Δ-justice) (`Mvba.BoundedJustice`) and (T-timer)
+(`Mvba.TimerPunctual`). The MVBA's two clauses on its caller, the handoff
+and (Δ-avail), are not here: Chorus is the caller, and its rows provide
+them (`timedMvbaAdmissible_of_rows`). -/
+def MvbaOwnTiming (sch : Schedule view time) (r : TChorusRun thS thM time) : Prop :=
+  ∃ p : (mvbaComponent thS thM).Projection r.toLRun,
+    Mvba.BoundedJustice sch.mvba p.timed ∧ Mvba.TimerPunctual sch.mvba p.timed
+
+/-- **The timing model at the system's MVBA**: (Δδ-justice), (P-phase) and
+the MVBA's own scheduling. Nothing Chorus provides to the MVBA is assumed:
+`sync_of_syncAtMvba` derives `Sync` at `T := Mvba.mvbaTemporal` from it and
+the bridge. -/
+def SyncAtMvba (sch : Schedule view time) (r : TChorusRun thS thM time) : Prop :=
+  TimedJustice sch r ∧ PhasePunctual sch r ∧ MvbaOwnTiming sch r
+
+/-- **ℓ-termination at the system's MVBA, the target**: `TimedTerminationClaim`
+at `T := Mvba.mvbaTemporal`, whose `ℓ` is the MVBA schedule's
+(`mvbaTemporal_ℓ`), with `Sync` read as `SyncAtMvba`: the MVBA's timing
+premise is its own two clauses only. -/
+def TimedTerminationClaimAtMvba (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
+    (thS : Chorus.Theory slot node nodeset merkle_root
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
+    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view) :
+    Prop :=
+  ∀ r : TChorusRun thS thM time, SyncAtMvba sch r → ValidBridge r.toLRun →
+    SyncParticipationWithin sch.Δ r → NoAbandonBeforeFinalizing r.toLRun → NoEarlyStart sch r →
+    ∀ t : time, AllParticipateBy t r →
+      ∀ j, ¬ nset.is_byz j = true →
+        ∃ n, r.clk n ≤ max t r.gst + sch.ℓ (sch.mvba.ℓ vfin) ∧ (r.at' n).local_committed j = true
 
 end AtMvba
 
@@ -821,8 +899,3 @@ info: 'Chorus.relayed_of_timedJustice' depends on axioms: [propext, Classical.ch
 #guard_msgs in
 #print axioms Chorus.relayed_of_timedJustice
 
-/--
-info: 'Chorus.timedMvbaAdmissible_of_rows' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Chorus.timedMvbaAdmissible_of_rows

@@ -334,11 +334,11 @@ relations, and it takes a human to confirm each use is positive.
    that theorem's four caller premises (every correct validator proposes;
    none is abandoned before deciding; decided certificates are handed on,
    by Chorus's handoff `accept_mvba_commitqc`; the availability shares
-   arrive, (F-avail), by Chorus's availability report `mvba_avail_ready`
-   and its re-dissemination, since R16). The timed (Δ-avail) is still
-   assumed inside `TimedMvbaAdmissible`: deriving it from the same rows
-   needs a model fix first (F15, [Bounds.md](Bounds.md) §6.4.2;
-   [TODO.md](TODO.md) § Liveness). `MvbaAdmissible` and `ValidBridge`
+   arrive, (F-avail), by Chorus's availability report `mvba_avail_ready`,
+   since R16). The timed (Δ-avail) is derived from the same rows since R19
+   (`Chorus.availWithin_of_timedJustice`, under the schedule's
+   `Δ ≤ Δ_sync`; F15, [Bounds.md](Bounds.md) §6.4.2), so the timed claim at
+   the system's MVBA assumes only the MVBA's own scheduling. `MvbaAdmissible` and `ValidBridge`
    are what it leaves. The name survives in the prose of
    [Cadence/Chorus.lean](../Cadence/Chorus.lean),
    [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) and
@@ -552,7 +552,7 @@ table can be read off one file:
 |---|---|---|
 | `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_temporal` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | `propext, Classical.choice, Quot.sound` | ✓ |
 | `Cadence.system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | same | ✓ |
-| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 5099/5099 real |
+| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 4997/4997 real |
 | `FallbackReceipt.invariants_of_reachable` ([Cadence/FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean)) | same | ✓ + `#veil_status`: 220/220 real |
 | `FallbackReceipt.build_totality_of_reachable` ([Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean)) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)) | same | ✓ |

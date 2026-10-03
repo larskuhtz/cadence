@@ -213,7 +213,7 @@ theorem phase_step {l}
      aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit,
      broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg,
      cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg,
-     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_pos,
      byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback,
      byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
@@ -252,7 +252,7 @@ theorem commit_cast_flip {l} {i : node}
      deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, broadcast_commitqc_pos, broadcast_commitqc_neg,
      fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos,
-     on_mvba_decide_neg, mvba_terminate, redisseminate_chunk, cast_fb_commit,
+     on_mvba_decide_neg, mvba_terminate, cast_fb_commit,
      commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
      byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
      byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg,
@@ -288,8 +288,7 @@ theorem fallback_sig_flip {l} {i : node}
      deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready,
-     on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, redisseminate_chunk,
-     cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
+     on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
      byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
      byz_sign_fb_neg, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
      byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
@@ -327,7 +326,7 @@ theorem path_fallback_flip {l} {i : node}
      deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, broadcast_commitqc_pos, broadcast_commitqc_neg,
      fb_sign_pos, fb_sign_neg, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg,
-     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_pos,
      byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback,
      byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
@@ -359,8 +358,7 @@ theorem msg_vote_pos_sig_mono {l} (htr : (RTS).tr th s l s') :
      deliver_chunk_assigned, record_chunk, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step,
-     mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, redisseminate_chunk,
-     cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
+     mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
      byz_deliver_chunk, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
      byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
      byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
@@ -387,8 +385,7 @@ theorem msg_vote_neg_sig_mono {l} (htr : (RTS).tr th s l s') :
      deliver_chunk_assigned, record_chunk, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step,
-     mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, redisseminate_chunk,
-     cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
+     mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
      byz_deliver_chunk, byz_sign_vote_pos, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
      byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
      byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
@@ -411,8 +408,7 @@ theorem local_entry_neg_mono {l} (htr : (RTS).tr th s l s') :
      deliver_chunk_assigned, record_chunk, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step,
-     mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, redisseminate_chunk,
-     cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
+     mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer,
      byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
      byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg,
      byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
@@ -447,7 +443,7 @@ theorem committed_pos_flip {l} {i j : node} {m : merkle_root}
      aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit,
      broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg,
      cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg,
-     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_neg, finalize_commit,
+     mvba_terminate, cast_fb_commit, commit_assign_neg, finalize_commit,
      byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote,
      byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos,
      byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
@@ -476,7 +472,7 @@ theorem committed_neg_flip {l} {i j : node}
      aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit,
      broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg,
      cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg,
-     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, finalize_commit,
+     mvba_terminate, cast_fb_commit, commit_assign_pos, finalize_commit,
      byz_sign_proposer, byz_deliver_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote,
      byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos,
      byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_redisseminate_chunk, byz_broadcast_commitqc_pos,
@@ -506,7 +502,7 @@ theorem fb_entry_flip {l} {i j : node}
      deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos,
-     on_mvba_decide_neg, mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos,
+     on_mvba_decide_neg, mvba_terminate, cast_fb_commit, commit_assign_pos,
      commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk,
      byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
      byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
@@ -537,7 +533,7 @@ theorem commitqc_sent_flip {l} {c j : node}
      deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, cast_fast_commit, fb_sign_pos, fb_sign_neg,
      cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg,
-     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk,
      byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
      byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
@@ -547,7 +543,7 @@ theorem commitqc_sent_flip {l} {c j : node}
 
 set_option maxHeartbeats 1000000 in
 /-- **A sent-chunk record comes with the delivery** (`deliver_chunk_assigned`
-and `redisseminate_chunk` are its only writers). -/
+and `fb_sign_pos`, which re-disseminates, are its only writers). -/
 theorem chunk_sent_flip {l} {k i j : node} {m : merkle_root}
     (htr : (RTS).tr th s l s')
     (h0 : ¬ s.local_chunk_sent k i j m = true) (h1 : s'.local_chunk_sent k i j m = true) :
@@ -555,19 +551,19 @@ theorem chunk_sent_flip {l} {k i j : node} {m : merkle_root}
   cases l
   case deliver_chunk_assigned =>
     chorus_tr htr
-    obtain ⟨-, -, -, -, -, rfl⟩ := htr
+    obtain ⟨-, -, -, rfl⟩ := htr
     chorus_field_simp
     simp_all; obtain ⟨rfl, rfl, rfl, rfl⟩ := h1; simp
-  case redisseminate_chunk =>
+  case fb_sign_pos =>
     chorus_tr htr
-    obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
     chorus_field_simp
     simp_all
   frame_cases htr local_chunk_sent hfr
     [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose,
      record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos,
      commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg,
-     fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos,
+     fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, on_mvba_decide_pos,
      on_mvba_decide_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk,
      byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
@@ -575,6 +571,46 @@ theorem chunk_sent_flip {l} {k i j : node} {m : merkle_root}
      byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit,
      byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
 
+
+set_option maxHeartbeats 1000000 in
+/-- **A correct positive fallback signer has sent every validator its chunk**
+(Algorithm 5, line 12 (`line:fb-redisseminate`)): the step that sets
+`msg_fb_pos_sig k j m` for a correct `k` is `k`'s own `fb_sign_pos`, which
+delivers every validator's chunk under `(j, m)` in the same step. -/
+theorem fb_pos_sig_chunks_flip {l} {k j : node} {m : merkle_root}
+    (htr : (RTS).tr th s l s') (hk : ¬ nset.is_byz k = true)
+    (h0 : ¬ s.msg_fb_pos_sig k j m = true) (h1 : s'.msg_fb_pos_sig k j m = true) :
+    ∀ i, s'.msg_chunk_received i j m = true := by
+  cases l
+  case fb_sign_pos i' j' m' q qc =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := htr
+    chorus_field_simp
+    intro i
+    by_cases hjm : j = j' ∧ m = m'
+    · obtain ⟨rfl, rfl⟩ := hjm
+      simp
+    · simp_all
+  case byz_sign_fb_pos r' j' m' =>
+    chorus_tr htr
+    obtain ⟨hb, -, rfl⟩ := htr
+    chorus_field_simp
+    by_cases hrk : r' = k
+    · subst hrk
+      simp_all
+    · simp_all
+  frame_cases htr msg_fb_pos_sig hfr
+    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose,
+     deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
+     commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
+     broadcast_commitqc_neg, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose,
+     accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready,
+     on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit,
+     commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk,
+     byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote,
+     byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
+     byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit,
+     byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
 
 set_option maxHeartbeats 1000000 in
 /-- **The fallback-commit record comes with the vote** (`cast_fb_commit`). -/
@@ -593,8 +629,7 @@ theorem fbcommit_voted_flip {l} {i : node}
      deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready,
-     on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, redisseminate_chunk,
-     commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk,
+     on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk,
      byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos,
      byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
      byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit,
@@ -653,7 +688,7 @@ theorem mvba_recorded_flip {l} {i j : node}
      deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready,
-     mvba_terminate, redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk,
      byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
      byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
@@ -686,7 +721,7 @@ theorem avail_marked_flip {l} {i : node} {v : mvalue}
      broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg,
      cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, on_mvba_decide_pos,
      on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate,
-     redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     cast_fb_commit, commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk,
      byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
      byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
@@ -714,7 +749,7 @@ theorem qc_accepted_flip {l} {i : node}
      deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose,
-     on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, mvba_terminate, redisseminate_chunk, cast_fb_commit,
+     on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready, mvba_terminate, cast_fb_commit,
      commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk,
      byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
@@ -1051,21 +1086,6 @@ theorem mvba_terminate_effect {i : node} {v : mvalue}
   obtain ⟨-, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
-theorem enabled_redisseminate_chunk {k i j : node} {m : merkle_root}
-    (hk : ¬ nset.is_byz k = true) (ha : Active s k) (hj : th.is_proposer j = true)
-    (hs : s.msg_proposer_signed j m = true) (hq : Chorus.chunk_quorum j m th s)
-    (hfr : ¬ s.local_chunk_sent k i j m = true) :
-    Enabled RTS th s (.redisseminate_chunk k i j m) := by
-  chorus_enabled
-  exact ⟨_, hk, ha.1, ha.2, hj, hs, hq, hfr, rfl⟩
-
-theorem redisseminate_chunk_effect {k i j : node} {m : merkle_root}
-    (htr : (RTS).tr th s (.redisseminate_chunk k i j m) s') :
-    s'.msg_chunk_received i j m = true := by
-  chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
-  chorus_field_simp
-
 theorem enabled_cast_fb_commit {i : node} {v : mvalue}
     (hi : ¬ nset.is_byz i = true) (ha : Active s i)
     (hd : mvba.decided s.mvba_st i v)
@@ -1231,7 +1251,7 @@ theorem mvba_commitqc_step {l} (htr : (RTS).tr th s l s')
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, on_mvba_decide_pos,
      on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate,
-     redisseminate_chunk, cast_fb_commit, commit_assign_pos, commit_assign_neg,
+     cast_fb_commit, commit_assign_pos, commit_assign_neg,
      finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk,
      byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg,
      byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
@@ -1414,6 +1434,19 @@ theorem chunk_sent_received (r : CRun th) {k i j : node} {m : merkle_root} :
     (by simp [Chorus.local_chunk_sent.init r.starts k i j m])
     (fun n h0 h1 => chunk_sent_flip (r.steps n) h0 h1)
     (fun n h => Chorus.msg_chunk_received.mono (r.steps n) i j m h)
+
+/-- **A correct positive fallback signer's chunks are delivered**: at every
+point of the run at which a correct `k` holds a positive fallback signature
+for `(j, m)`, every validator holds its chunk under `m`. The re-dissemination
+happens inside the signing step (`fb_pos_sig_chunks_flip`). -/
+theorem fb_pos_sig_chunks (r : CRun th) {k j : node} {m : merkle_root}
+    (hk : ¬ nset.is_byz k = true) :
+    ∀ n, (r.at' n).msg_fb_pos_sig k j m = true → ∀ i, (r.at' n).msg_chunk_received i j m = true :=
+  record_backed r (F := fun st => st.msg_fb_pos_sig k j m = true)
+    (Q := fun st => ∀ i, st.msg_chunk_received i j m = true)
+    (by simp [Chorus.msg_fb_pos_sig.init r.starts k j m])
+    (fun n h0 h1 => fb_pos_sig_chunks_flip (r.steps n) hk h0 h1)
+    (fun n h i => Chorus.msg_chunk_received.mono (r.steps n) i j m (h i))
 
 /-- The fallback-commit record comes with the fallback commit vote. -/
 theorem fbcommit_voted_sig (r : CRun th) {i : node} :
@@ -2321,14 +2354,13 @@ availability condition"), which Chorus reports by `mvba_avail_ready`.
 A correct validator `i` that accepted `x` waits for its assigned chunk under
 every positive `FallbackQC` entry of `x`. Those certificates are on the
 network (`ValidBridge`'s completeness at an accepted value), so each has a
-correct signer, which decoded the proposal and re-disseminates `i`'s chunk
-(Algorithm 5, line 12 (`line:fb-redisseminate`), the owed-condition of
-re-dissemination). Then the report is enabled until `i` is `AvailReady`
-for `x`, and it is owed, so it fires. -/
+correct signer, which decoded the proposal and, in the same step, sent `i`
+its chunk (Algorithm 5, line 12 (`line:fb-redisseminate`)). So the wait is
+met from the acceptance on, the report is enabled until `i` is `AvailReady`
+for `x`, and it is owed, so it fires. No validator needs to be active: the
+signer's send happened when it signed. -/
 theorem fAvail_of_fJustice (r : ChorusRun (nset := nset) thS thM) (hfj : FJustice r)
-    (hbr : ValidBridge r) {A : Nat} (hact : ActiveFrom r A)
-    (nodes : List node) (hnodes : ∀ a, a ∈ nodes)
-    (p : (mvbaComponent thS thM).Projection r) : Mvba.FAvail p.run := by
+    (hbr : ValidBridge r) (p : (mvbaComponent thS thM).Projection r) : Mvba.FAvail p.run := by
   mvba_inst
   intro i k V w hi hacc
   -- The acceptance, at the composed run's index.
@@ -2343,49 +2375,15 @@ theorem fAvail_of_fJustice (r : ChorusRun (nset := nset) thS thM) (hfj : FJustic
     r.mono (P := fun st => st.mvba_st.accepted i V w = true)
       (fun n h => mvba_st_step r (fun st => st.accepted i V w = true)
         (fun _ _ _ htr h => Mvba.accepted.mono htr i V w h) n h) hacc'
-  have hper : PerLabel r := hfj.1
-  -- The wait under each FallbackQC entry of `w`, as for the fallback commit
-  -- vote (`eventually_fbcommit_sig`).
-  obtain ⟨Nd, -, hall⟩ := r.eventually_forall
-    (fun J st => ∀ M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
-      st.msg_chunk_received i J M = true)
-    (fun J n h M hM hfb => Chorus.msg_chunk_received.mono (r.steps n) i J M (h M hM hfb)) kd nodes
-    (fun J _ => by
-      by_cases hc : ∃ M0, thS.mval_pos (thM.ent w) J M0 = true ∧ thS.mval_fb w J = true
-      · obtain ⟨M0, hM0, hfb⟩ := hc
-        have hreach := r.reachable kd
-        obtain ⟨hJ, hkind⟩ := (hcert kd (Nat.le_refl _)).1 J M0 hM0
-        obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
-        obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
-        have hsig := hallq k hkq
-        have hown : ∀ n, kd ≤ n → (r.at' n).msg_fb_pos_sig k J M0 = true := fun n hn =>
-          r.mono (P := fun st => st.msg_fb_pos_sig k J M0 = true)
-            (fun m h => Chorus.msg_fb_pos_sig.mono (r.steps m) k J M0 h) hsig n hn
-        have hcq : Chorus.chunk_quorum J M0 thS (r.at' kd) := by
-          obtain ⟨q', hq', hv⟩ := Chorus.reachable_msg_fb_pos_sig_backed hreach k J M0 ⟨hkh, hsig⟩
-          exact ⟨q', hq', fun a ha => Chorus.reachable_vote_pos_sig_chunk hreach a J M0 (hv a ha)⟩
-        obtain ⟨n, hn, h⟩ := eventually_of_weaklyFairWhen
-          (hper (.redisseminate_chunk k i J M0) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
-          (P := fun st => st.msg_chunk_received i J M0 = true) (N := max kd A)
-          (fun n hn => hown n (by omega))
-          (fun _ _ h => redisseminate_chunk_effect h)
-          (fun n hn hnr => enabled_redisseminate_chunk hkh (hact n (by omega) k hkh) hJ
-            (r.mono (P := fun st => st.msg_proposer_signed J M0 = true)
-              (fun m h => Chorus.msg_proposer_signed.mono (r.steps m) J M0 h)
-              (Chorus.reachable_fb_pos_sig_proposer_signed hreach k J M0 hsig) n (by omega))
-            (r.mono (P := fun st => Chorus.chunk_quorum J M0 thS st)
-              (fun m h => chunk_quorum_step (r.steps m) h) hcq n (by omega))
-            fun hf => hnr (chunk_sent_received r n hf))
-        refine ⟨n, by omega, fun M hM _ => ?_⟩
-        obtain rfl := (Veil.RelationalTransitionSystem.reachable_assumptions _ thS _ hreach).2.1
-          _ J M M0 hM hM0
-        exact h
-      · exact ⟨kd, Nat.le_refl _, fun M hM hfb => absurd ⟨M, hM, hfb⟩ hc⟩)
-  have hda : ∀ n, Nd ≤ n → ∀ J M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
-      (r.at' n).msg_chunk_received i J M = true := fun n hn J M hM hfb =>
-    r.mono (P := fun st => st.msg_chunk_received i J M = true)
-      (fun m h => Chorus.msg_chunk_received.mono (r.steps m) i J M h)
-      (hall J (hnodes J) M hM hfb) n hn
+  -- The wait under each FallbackQC entry of `w` is met from the acceptance
+  -- on: the entry's FallbackQC has a correct signer, which sent every
+  -- validator its chunk when it signed (`fb_pos_sig_chunks`).
+  have hda : ∀ n, kd ≤ n → ∀ J M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
+      (r.at' n).msg_chunk_received i J M = true := fun n hn J M hM hfb => by
+    obtain ⟨-, hkind⟩ := (hcert n hn).1 J M hM
+    obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
+    obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
+    exact fb_pos_sig_chunks r hkh n (hallq k hkq) i
   -- Read the conclusion back at the projection.
   suffices h : ∃ n, (r.at' n).mvba_st.avail_ready i w = true by
     obtain ⟨n, hn⟩ := h
@@ -2394,7 +2392,7 @@ theorem fAvail_of_fJustice (r : ChorusRun (nset := nset) thS thM) (hfj : FJustic
     exact hn
   by_contra hcon
   have hno : ∀ n, ¬ (r.at' n).mvba_st.avail_ready i w = true := fun n h => hcon ⟨n, h⟩
-  obtain ⟨m, -, mn, hl⟩ := (hfj.2.2.2 i w).fires (max Nd kd)
+  obtain ⟨m, -, mn, hl⟩ := (hfj.2.2.2 i w).fires kd
       (fun n hn => ⟨V, haccp n (by omega)⟩) fun n hn => by
     -- The `Mvba` model's availability input is unguarded.
     obtain ⟨st', hst'⟩ : ∃ st', (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root)
@@ -2416,13 +2414,12 @@ invoked Chorus's `abandon()` (`hnab`), so none is abandoned in the MVBA
 theorem all_decided_of_all_input [Fintype node] (hqe : Cadence.ByzNodeSetHonestQuorum node nodeset nset)
     (vfin : Cadence.ViewOrderEnum view vord)
     (r : ChorusRun (nset := nset) thS thM) (hcj : FJustice r) (hadm : MvbaAdmissible r)
-    (hbr : ValidBridge r) {A : Nat} (hact : ActiveFrom r A)
+    (hbr : ValidBridge r)
     (hall : ∀ i, ¬ nset.is_byz i = true → ∃ n E, (r.at' n).mvba_st.input i E = true)
     (hnab : ∀ i, ¬ nset.is_byz i = true → ∀ n, ¬ (r.at' n).abandoned i = true) :
     ∀ i, ¬ nset.is_byz i = true → ∃ n v, (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' n).mvba_st i v := by
   obtain ⟨p, hfj, hav⟩ := hadm
-  have hfa := fAvail_of_fJustice r hcj hbr hact (Finset.univ : Finset node).toList
-    (fun a => by simp) p
+  have hfa := fAvail_of_fJustice r hcj hbr p
   have hap : Mvba.AllPropose p.run := fun i hi => by
     obtain ⟨n, E, h⟩ := hall i hi
     refine ⟨(mvbaComponent thS thM).cover r n, E, ?_⟩
@@ -2674,13 +2671,12 @@ under every `FallbackQC` entry of `w`, so the vote stays enabled.
 The wait is the paper's (Algorithm 5, line 38 (`line:fb-commit-foreach`)): the certificate `w`
 names for an entry is on the network (`ValidBridge`'s completeness). Under a
 `FastQC` entry there is nothing to wait for. Under a `FallbackQC` entry one
-of its `f+1` signers is correct and decoded the proposal to sign, so it
-re-disseminates `i`'s chunk (Algorithm 5, line 12 (`line:fb-redisseminate`), the owed-condition
-of re-dissemination). -/
+of its `f+1` signers is correct and decoded the proposal to sign, and in the
+same step sent `i` its chunk (Algorithm 5, line 12 (`line:fb-redisseminate`),
+`fb_pos_sig_chunks`). -/
 theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
     (hfj : PerLabel r) (hbr : ValidBridge r)
-    {A : Nat} (hact : ActiveFrom r A)
-    (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {T : Nat}
+    {A : Nat} (hact : ActiveFrom r A) {T : Nat}
     (hT : ∀ n, T ≤ n → (r.at' n).mvba_complete = true)
     {i : node} (hi : ¬ nset.is_byz i = true)
     (hdi : ∃ k w, (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' k).mvba_st i w) :
@@ -2698,52 +2694,17 @@ theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
   have hcert : ∀ n, kd ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) w :=
     r.mono (P := fun st => Certified (thS := thS) (thM := thM) st w)
       (fun n h => h.step (r.steps n)) (hbr.2.1 kd i w hi hdw)
-  -- The wait under each FallbackQC entry of `w`: its correct signer
-  -- re-disseminates `i`'s chunk.
-  obtain ⟨Nd, hNd, hall⟩ := r.eventually_forall
-    (fun J st => ∀ M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
-      st.msg_chunk_received i J M = true)
-    (fun J n h M hM hfb => Chorus.msg_chunk_received.mono (r.steps n) i J M (h M hM hfb)) kd nodes
-    (fun J _ => by
-      by_cases hc : ∃ M0, thS.mval_pos (thM.ent w) J M0 = true ∧ thS.mval_fb w J = true
-      · obtain ⟨M0, hM0, hfb⟩ := hc
-        have hreach := r.reachable kd
-        obtain ⟨hJ, hkind⟩ := (hcert kd (Nat.le_refl _)).1 J M0 hM0
-        obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
-        obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
-        have hsig := hallq k hkq
-        have hown : ∀ n, kd ≤ n → (r.at' n).msg_fb_pos_sig k J M0 = true := fun n hn =>
-          r.mono (P := fun st => st.msg_fb_pos_sig k J M0 = true)
-            (fun m h => Chorus.msg_fb_pos_sig.mono (r.steps m) k J M0 h) hsig n hn
-        -- A correct signer decoded the proposal: `f+1` chunks are on the network.
-        have hcq : Chorus.chunk_quorum J M0 thS (r.at' kd) := by
-          obtain ⟨q', hq', hv⟩ := Chorus.reachable_msg_fb_pos_sig_backed hreach k J M0 ⟨hkh, hsig⟩
-          exact ⟨q', hq', fun a ha => Chorus.reachable_vote_pos_sig_chunk hreach a J M0 (hv a ha)⟩
-        obtain ⟨n, hn, h⟩ := eventually_of_weaklyFairWhen
-          (hfj (.redisseminate_chunk k i J M0) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
-          (P := fun st => st.msg_chunk_received i J M0 = true) (N := max kd A)
-          (fun n hn => hown n (by omega))
-          (fun _ _ h => redisseminate_chunk_effect h)
-          (fun n hn hnr => enabled_redisseminate_chunk hkh (hact n (by omega) k hkh) hJ
-            (r.mono (P := fun st => st.msg_proposer_signed J M0 = true)
-              (fun m h => Chorus.msg_proposer_signed.mono (r.steps m) J M0 h)
-              (Chorus.reachable_fb_pos_sig_proposer_signed hreach k J M0 hsig) n (by omega))
-            (r.mono (P := fun st => Chorus.chunk_quorum J M0 thS st)
-              (fun m h => chunk_quorum_step (r.steps m) h) hcq n (by omega))
-            fun hf => hnr (chunk_sent_received r n hf))
-        refine ⟨n, by omega, fun M hM _ => ?_⟩
-        obtain rfl := (Veil.RelationalTransitionSystem.reachable_assumptions _ thS _ hreach).2.1
-          _ J M M0 hM hM0
-        exact h
-      · exact ⟨kd, Nat.le_refl _, fun M hM hfb => absurd ⟨M, hM, hfb⟩ hc⟩)
-  have hda : ∀ n, Nd ≤ n → ∀ J M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
-      (r.at' n).msg_chunk_received i J M = true := fun n hn J M hM hfb =>
-    r.mono (P := fun st => st.msg_chunk_received i J M = true)
-      (fun m h => Chorus.msg_chunk_received.mono (r.steps m) i J M h)
-      (hall J (hnodes J) M hM hfb) n hn
+  -- The wait under each FallbackQC entry of `w` is met from the decision
+  -- on: the entry's correct signer sent `i` its chunk when it signed.
+  have hda : ∀ n, kd ≤ n → ∀ J M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
+      (r.at' n).msg_chunk_received i J M = true := fun n hn J M hM hfb => by
+    obtain ⟨-, hkind⟩ := (hcert n hn).1 J M hM
+    obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
+    obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
+    exact fb_pos_sig_chunks r hkh n (hallq k hkq) i
   obtain ⟨n, -, h⟩ := eventually_of_weaklyFairWhen
     (hfj (.cast_fb_commit i w) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h))
-    (P := fun st => st.msg_fbcommit_sig i = true) (N := max (max A kd) (max Nd (max Nm T)))
+    (P := fun st => st.msg_fbcommit_sig i = true) (N := max (max A kd) (max Nm T))
     (fun n hn => ⟨hdec n (by omega), huniq n⟩)
     (fun _ _ h => cast_fb_commit_effect h)
     (fun n hn hnv => enabled_cast_fb_commit hi (hact n (by omega) i hi)
@@ -2771,7 +2732,7 @@ theorem eventually_fbcommitqc (r : ChorusRun (nset := nset) thS thM)
     (fun a n h hm => Chorus.msg_fbcommit_sig.mono (r.steps n) a (h hm)) T nodes
     (fun a _ => by
       by_cases hm : nset.member a qv = true
-      · obtain ⟨n, hn⟩ := eventually_fbcommit_sig r hfj hbr hact nodes hnodes
+      · obtain ⟨n, hn⟩ := eventually_fbcommit_sig r hfj hbr hact
           (fun n hn => (hT n hn).1) (hqvh a hm)
           (hdec a (hqvh a hm))
         exact ⟨max T n, by omega, fun _ => r.mono (P := fun st => st.msg_fbcommit_sig a = true)
@@ -2827,7 +2788,7 @@ theorem eventually_committed_of_mvba_arm [Fintype node]
     exact eventually_input r hfj.2.1 hact hi (N := max M N) (fun n hn => hM n (by omega))
       (fun n hn => hcert n (by omega)) hvalid
   -- So the MVBA terminates: every correct validator decides.
-  have hdec := all_decided_of_all_input hqe vfin r hfj hadm hbr hact hall hnab
+  have hdec := all_decided_of_all_input hqe vfin r hfj hadm hbr hall hnab
   obtain ⟨i0, -, hi0⟩ := ByzNodeSet.greater_than_third_one_honest hqe.honestQuorum
     (ByzNodeSet.supermajority_greater_than_third _ hqe.honestQuorum_supermajority)
   obtain ⟨k0, v0, hd0⟩ := hdec i0 hi0
@@ -3324,3 +3285,9 @@ info: 'Chorus.byzNodeSetFin_honest' depends on axioms: [propext, Classical.choic
 -/
 #guard_msgs in
 #print axioms Chorus.byzNodeSetFin_honest
+
+/--
+info: 'Chorus.fb_pos_sig_chunks' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.fb_pos_sig_chunks

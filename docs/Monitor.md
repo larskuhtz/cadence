@@ -264,8 +264,7 @@ unaffected.
 **The participation inputs.** Since the participation edit the model's
 sending rules require `participating i ∧ ¬ abandoned i`, so a trace must
 open with a `participate` event per node (the slot's `open`), and
-`broadcast_commitqc_*` and `redisseminate_chunk` carry their sender as the
-first argument. The fixtures under [traces/](../traces) were edited by hand to
+`broadcast_commitqc_*` carries its sender as the first argument. The fixtures under [traces/](../traces) were edited by hand to
 match, and the emitter has to learn both. `abandon` forwards to the MVBA's
 `abandon()`, which the silent stub never enables (its `Unit` state cannot
 record `abandoned`), so a trace that abandons is rejected there: the same
@@ -276,7 +275,7 @@ as that node's message.
 **The fired-once guards** (S1b, [Bounds.md](Bounds.md) §6.4.7). Every fair
 action now refuses to fire a second time: a validator aggregates a given
 FastQC once, a collector broadcasts one commit certificate per proposer, a
-proposer or re-disseminator sends a given chunk once, and so on. A trace that
+proposer's chunk is delivered to a given validator once, and so on. A trace that
 repeats such a line for the same actor is therefore rejected at the repeat.
 The fixtures repeat none and pass unchanged. An emitter must emit each such
 event once per actor, and must not map the certificate *re-broadcast* on
@@ -290,6 +289,15 @@ single-Byzantine instance, since the collector's honest rule now requires a
 correct collector. Both decoders learned the three new Byzantine labels
 (`byz_broadcast_commitqc_pos`, `byz_broadcast_commitqc_neg`,
 `byz_redisseminate_chunk`).
+
+**The re-dissemination inside the fallback-entry rule** (F15, R19). The
+model has no separate `redisseminate_chunk` any more: a correct
+`fb_sign_pos` sends every validator its chunk in the same step
+(Algorithm 5, line 12 (`line:fb-redisseminate`)), and a proposer's
+`deliver_chunk_assigned` no longer requires the proposer to be active (the
+send was its `propose`). Both decoders dropped the label. An emitter maps a
+fallback signer's chunk sends to its `fb_sign_pos` event, not to events of
+their own. The fixtures are fast-path only and pass unchanged.
 
 Future scope, in rough order: positive-path emission; finer per-message
 emission (individual votes and casts observed at the network boundary rather

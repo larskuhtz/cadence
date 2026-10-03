@@ -163,11 +163,11 @@ each.
   handed on (F-relay), and the availability shares arrive (F-avail). They
   are **derived**, not assumed. The fourth is (F-justice) on Chorus's
   availability report `mvba_avail_ready`, owed once the validator holds the
-  meta-block, and on the re-dissemination its chunk wait needs
-  (`Chorus.fAvail_of_fJustice`, since R16; until then (F-avail) was part of
-  this premise). The timed (Δ-avail) is still assumed inside
-  `TimedMvbaAdmissible`: its derivation needs a model fix first (F15,
-  [Bounds.md](Bounds.md) §6.4.2; [TODO.md](TODO.md) § Liveness). The second holds
+  meta-block, whose chunk wait the correct FallbackQC signers met when they
+  signed (`Chorus.fAvail_of_fJustice`, since R16; until then (F-avail) was
+  part of this premise). The timed (Δ-avail) is derived too, since R19
+  (`Chorus.availWithin_of_timedJustice`, under the schedule's
+  `Δ ≤ Δ_sync`; F15, [Bounds.md](Bounds.md) §6.4.2). The second holds
   on the branch of the proof that needs the MVBA: there no correct
   validator ever finalizes, so by `NoAbandonBeforeFinalizing` none
   abandons, and the MVBA's `abandon()` is invoked only by Chorus's
@@ -203,8 +203,9 @@ each.
   edit, [Bounds.md](Bounds.md) §6.4.6 S1).
 * Scheduling is distinct from **network delivery**. The monotone network
   makes broadcast signatures globally visible, so delivery surfaces only
-  as fairness on the observation actions (`record_chunk`,
-  `redisseminate_chunk`, `aggregate_fastqc_*`); the network abstraction's
+  as fairness on the observation actions (`deliver_chunk_assigned`,
+  `record_chunk`, `aggregate_fastqc_*`); a fallback signer's chunks are
+  sent and delivered inside its signing step (F15); the network abstraction's
   own soundness contract is [Architecture.md](Architecture.md) §4
   item 1.
 

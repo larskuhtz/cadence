@@ -183,7 +183,12 @@ Each entry is the result, the file its statement lives in, and what it says.
   before finalizing). Hypotheses: the concrete family at every
   `n = 3f + 1`, the system's configurations, and an MVBA contract whose
   latency is non-negative; **`Chorus.timed_termination_atMvba`** is the
-  claim at the system's MVBA, with that hypothesis discharged. The MVBA tail
+  claim at the system's MVBA (`TimedTerminationClaimAtMvba`), with that
+  hypothesis discharged and the MVBA's timing premise reduced to its own two
+  clauses (`SyncAtMvba`): the MVBA's two clauses on its caller, the handoff
+  and the availability shares (Δ-avail), are derived from Chorus's rows
+  (`Chorus.sync_of_syncAtMvba`; **`Chorus.availWithin_of_timedJustice`**,
+  with the schedule's `Δ ≤ Δ_sync`, F15). The MVBA tail
   is `T.termination` on the projection (`Chorus.within_all_decided`), and
   the fallback commit round is a chain of milestones, each a lemma with its
   deadline, to `T₀ = M + 4Δ + ℓ_MVBA + 7δ` (`Chorus.within_finalized_late`)
@@ -202,7 +207,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   one Byzantine and silent, one proposer, clock `ℕ`, `Δ = 1`, `δ = 0`) and
   one run, in which everyone finalizes on the fast path and then abandons,
   meet every premise of `Chorus.termination` at once, every premise of the
-  timed `TimedTerminationClaim` at the system's MVBA, and every premise of
+  timed claim at the system's MVBA (`TimedTerminationClaimAtMvba`), and every premise of
   `TotalityClaim` together with its antecedent. All three claims are
   proven (`Chorus.termination`, `Chorus.timed_termination_atMvba`,
   `Chorus.totality`), and the run is checked to be an instance of each.
@@ -490,6 +495,12 @@ info: 'Chorus.timed_termination_atMvba' depends on axioms: [propext, Classical.c
 -/
 #guard_msgs in
 #print axioms Chorus.timed_termination_atMvba
+
+/--
+info: 'Chorus.availWithin_of_timedJustice' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.availWithin_of_timedJustice
 
 /--
 info: 'Chorus.timed_termination_tight' depends on axioms: [propext, Classical.choice, Quot.sound]

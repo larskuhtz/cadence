@@ -29,7 +29,7 @@ Up to the proposals the milestones are [Timeline.lean](Timeline.lean)'s.
 |---|---|---|---|
 | every correct validator saturated | `within_all_saturated` | `M + 2Δ + 2δ` | 2 |
 | every correct validator's MVBA proposal | `within_all_input` | `t_M = M + 3Δ + 3δ` | 3 |
-| a FallbackQC signer's chunk, everywhere | `fb_pos_sig_at_cast`, `within_fb_chunk` | `M + 3Δ + 2δ` | 2 |
+| a FallbackQC signer's chunk, sent to every validator | `fb_pos_sig_at_cast`, `fb_pos_sig_chunks` | (saturation; its hop due `M + 3Δ + 2δ`) | 2 |
 | every correct validator decides in the MVBA | `within_all_decided` (`T.termination`) | `X_d = t_M + ℓ_MVBA` | 3 |
 | a correct decision's entries recorded | `within_recorded` | `X_d + δ` | 4 |
 | the termination record `mvba_complete` | `within_complete` | `X_d + 2δ` | 5 |
@@ -59,8 +59,12 @@ after it, which gives `M + 5Δ + ℓ_MVBA + 9δ`, exactly `Lchorus`: the
 * **The chunks arrive before the decision.** A FallbackQC entry of any
   correct decision has a correct signer, which signed before its own
   second-round vote (`fb_pos_sig_flip`: `fb_sign_pos` requires that the
-  signer has not voted yet), so its signature is there at saturation and its
-  re-dissemination is owed from then on (F8).
+  signer has not voted yet), so its signature is there at saturation, and
+  it sent every validator its chunk in that same step
+  (`fb_pos_sig_chunks`, Algorithm 5, line 12 (`line:fb-redisseminate`)). The
+  vote's row is split at its trigger (`TimedJustice.fbCommit`): the chunks'
+  hop is due `Δ` after saturation, before the decision, so the vote is `δ`
+  after the decision.
 * **The MVBA enters only through `T`**: `T.termination` on the projected
   timed run (`TimedMvbaAdmissible`), `T.ℓ`, and nothing of the MVBA's
   constants. Its three antecedents are Chorus's: the proposals by `t_M`
@@ -73,7 +77,12 @@ after it, which gives `M + 5Δ + ℓ_MVBA + 9δ`, exactly `Lchorus`: the
   system's MVBA has it (`mvbaSchedule_ℓ_nonneg`), so the `…_atMvba` forms
   take nothing beyond the MVBA instance's own hypotheses.
 * **Nothing new of the model**, and no Veil cell: plain Lean over the
-  existing step lemmas and invariants. -/
+  existing step lemmas and invariants.
+* **At the system's MVBA nothing Chorus provides is assumed.** The MVBA's
+  two clauses on its caller are derived from the rows: the handoff
+  (`relayed_of_timedJustice`) and (Δ-avail) (`availWithin_of_timedJustice`,
+  with the schedule's `Δ ≤ Δ_sync`). `timed_termination_atMvba` takes
+  `SyncAtMvba`, whose MVBA premise is the MVBA's own two clauses. -/
 
 namespace Chorus
 
@@ -157,7 +166,7 @@ theorem fb_pos_sig_flip {l} {k j : node} {m : merkle_root}
      commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
      broadcast_commitqc_neg, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose,
      accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready,
-     on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, redisseminate_chunk, cast_fb_commit,
+     on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit,
      commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk,
      byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote,
      byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
@@ -219,38 +228,6 @@ theorem fb_pos_sig_at_cast {r : TChorusRun thS thM time} {k J : node} {M : merkl
         · exact hnc h
         · exact hnp (Chorus.reachable_fallback_sig_path_fallback (r.reachable m) k ⟨hk, h⟩)
     exact hnot n hle hs
-
-/-- **Milestone: a FallbackQC signer's chunk, `Δ` after the second-round
-votes.** If a correct validator `k` holds a positive fallback signature for
-`(J, M)` at `Ns`, it re-disseminates every validator's chunk for it
-(Algorithm 5, line 12 (`line:fb-redisseminate`)): `redisseminate_chunk` is a
-`Δ`-row owed on `k`'s own signature (F8), gated on `k`'s participation, and
-enabled — `k` decoded the proposal to sign — until the chunk is delivered. -/
-theorem within_fb_chunk (sch : Schedule view time) {r : TChorusRun thS thM time}
-    (hTJ : TimedJustice sch r) {N₀ Ns : Nat} (hNs : N₀ ≤ Ns) {B : time}
-    (hB : r.ref Ns + sch.Δ ≤ B) (hact : ActiveUntil r N₀ B)
-    {k J : node} {M : merkle_root} (hk : ¬ nset.is_byz k = true) (hJ : thS.is_proposer J = true)
-    (hsig : (r.at' Ns).msg_fb_pos_sig k J M = true) (i : node) :
-    r.WithinFrom Ns B (fun st => st.msg_chunk_received i J M = true) := by
-  mvba_inst
-  have hδΔ : sch.δ ≤ sch.Δ := sch.δ_le_Δ
-  have hreach := r.reachable Ns
-  have hcq : Chorus.chunk_quorum J M thS (r.at' Ns) := by
-    obtain ⟨q', hq', hv⟩ := Chorus.reachable_msg_fb_pos_sig_backed hreach k J M ⟨hk, hsig⟩
-    exact ⟨q', hq', fun a ha => Chorus.reachable_vote_pos_sig_chunk hreach a J M (hv a ha)⟩
-  have hps := Chorus.reachable_fb_pos_sig_proposer_signed hreach k J M hsig
-  refine r.withinFrom_of_bufferedFair (hTJ.rows (.redisseminate_chunk k i J M) .net rfl (fun h => h))
-    le_rfl (r.bufWindow_le hB (le_trans (add_le_add le_rfl hδΔ) hB))
-    (fun _ _ h => redisseminate_chunk_effect h)
-    (fun n hn _ hnot => ⟨r.mono (P := fun st => st.msg_fb_pos_sig k J M = true)
-        (fun m h => Chorus.msg_fb_pos_sig.mono (r.steps m) k J M h) hsig n hn,
-      fun hg => enabled_redisseminate_chunk hk hg hJ
-        (r.mono (P := fun st => st.msg_proposer_signed J M = true)
-          (fun m h => Chorus.msg_proposer_signed.mono (r.steps m) J M h) hps n hn)
-        (r.mono (P := fun st => Chorus.chunk_quorum J M thS st)
-          (fun m h => chunk_quorum_step (r.steps m) h) hcq n hn)
-        (fun hf => hnot (chunk_sent_received r.toLRun n hf))⟩)
-    (fun n hn hc _ => hact n (by omega) hc k hk)
 
 omit [IsOrderedAddMonoid time] in
 /-- **Milestone: every correct validator decides in the MVBA, by
@@ -414,35 +391,35 @@ theorem within_complete (sch : Schedule view time) {r : TChorusRun thS thM time}
 
 omit [IsOrderedAddMonoid time] in
 /-- **Milestone: the fallback commit vote, `δ` after the termination record**
-(Algorithm 5, line 41 (`line:fb-commitvote`)). From an index `N` at which a
-correct validator `i` has decided `w` — its own `B′` — `mvba_complete` holds,
-and `i` holds its chunk under every positive `FallbackQC` entry of `w` (the
-DA wait, Algorithm 5, line 39 (`line:fb-commit-wait`)), `cast_fb_commit i w`
-is a `δ`-row owed on `i`'s own decision (`i` decides once, the MVBA's
-integrity), gated on `i`'s participation, and enabled until the vote is cast.
+(Algorithm 5, line 41 (`line:fb-commitvote`)). `cast_fb_commit i w` is a
+`Δ`-row split at its trigger (`TimedJustice.fbCommit`). Its message part is
+`i`'s chunks under the positive `FallbackQC` entries of `w` (the DA wait,
+Algorithm 5, line 39 (`line:fb-commit-wait`)), present from `Nc` on and due
+`Δ` after it. Its gate is the trigger: from `N` on, `i` is active, has
+decided `w`, its own `B′` and nothing else (the MVBA's integrity), and
+`mvba_complete` holds. So the vote is cast by `max(ref Nc + Δ, ref N + δ)`.
 No common `B′` is assumed: each validator waits under its own decision. -/
 theorem within_fbcommit_sig (sch : Schedule view time) {r : TChorusRun thS thM time}
-    (hTJ : TimedJustice sch r) {N₀ N : Nat} (hN : N₀ ≤ N) {B : time}
-    (hB : r.ref N + sch.δ ≤ B) (hact : ActiveUntil r N₀ B)
+    (hTJ : TimedJustice sch r) {N₀ Nc N : Nat} (hN : N₀ ≤ N) (hNc : Nc ≤ N) {B : time}
+    (hBc : r.ref Nc + sch.Δ ≤ B) (hB : r.ref N + sch.δ ≤ B) (hact : ActiveUntil r N₀ B)
     {i : node} (hi : ¬ nset.is_byz i = true) {w : MetaBlock node merkle_root}
     (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' N).mvba_st i w)
     (hc : (r.at' N).mvba_complete = true)
     (hda : ∀ J M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
-      (r.at' N).msg_chunk_received i J M = true) :
-    r.WithinFrom N B (fun st => st.msg_fbcommit_sig i = true) := by
+      (r.at' Nc).msg_chunk_received i J M = true) :
+    r.WithinFrom Nc B (fun st => st.msg_fbcommit_sig i = true) := by
   mvba_inst
   have hdec := decided_persists r.toLRun hd
-  refine r.withinFrom_of_bufferedFair (hTJ.rows (.cast_fb_commit i w) .loc rfl (fun h => h))
-    le_rfl (r.bufWindow_le hB hB) (fun _ _ h => cast_fb_commit_effect h)
-    (fun n hn _ hnv => ⟨⟨hdec n hn, fun w' h => Mvba.reachable_integrity
-        (Chorus.reachable_mvba_reachable (r.reachable n)) i w' w hi h (hdec n hn)⟩,
-      fun hg => enabled_cast_fb_commit hi hg (hdec n hn)
-        (r.mono (P := fun st => st.mvba_complete = true)
-          (fun m h => Chorus.mvba_complete.mono (r.steps m) h) hc n hn)
+  refine r.withinFrom_of_bufferedFair (hTJ.fbCommit i w) hNc (r.bufWindow_le hBc hB)
+    (fun _ _ h => cast_fb_commit_effect h)
+    (fun n hn _ hnv => ⟨trivial, fun hg => enabled_cast_fb_commit hi hg.1 hg.2.1 hg.2.2.2
         (fun J M hM hfb => r.mono (P := fun st => st.msg_chunk_received i J M = true)
           (fun m h => Chorus.msg_chunk_received.mono (r.steps m) i J M h) (hda J M hM hfb) n hn)
         (fun hf => hnv (fbcommit_voted_sig r.toLRun n hf))⟩)
-    (fun n hn hcl _ => hact n (by omega) hcl i hi)
+    (fun n hn hcl _ => ⟨hact n (by omega) hcl i hi, hdec n hn, fun w' h => Mvba.reachable_integrity
+        (Chorus.reachable_mvba_reachable (r.reachable n)) i w' w hi h (hdec n hn),
+      r.mono (P := fun st => st.mvba_complete = true)
+        (fun m h => Chorus.mvba_complete.mono (r.steps m) h) hc n hn⟩)
 
 /-! ### The assembly -/
 
@@ -484,7 +461,8 @@ validator is active on that window (`activeUntil_of_not_finalized`), and:
 * every correct validator holds its chunk under each positive FallbackQC
   entry of its own decision by `M + 3Δ + 2δ`: the entry's FallbackQC has a
   correct signer, whose signature was there at its second-round vote
-  (`fb_pos_sig_at_cast`), so it re-disseminated by then (`within_fb_chunk`);
+  (`fb_pos_sig_at_cast`), and it sent every validator its chunk when it
+  signed (`fb_pos_sig_chunks`); the chunks' hop is due by `M + 3Δ + 2δ`;
 * every correct validator casts its fallback commit vote under its own `B′`
   by `X_v = X_d + 3δ` (`within_fbcommit_sig`), so the honest quorum's votes
   form a correct fbCommitQC;
@@ -613,43 +591,32 @@ theorem within_finalized_late [Fintype node] (sch : Schedule view time)
     obtain ⟨ni, hci, w, hdw⟩ := hdec i hi
     have hdw' := decided_persists r.toLRun hdw
     have hcw : Certified (thS := thS) (thM := thM) (r.at' ni) w := hbr.2.1 ni i w hi hdw
-    -- The chunks under `w`'s FallbackQC entries, by `M + 3Δ + 2δ`.
-    obtain ⟨Nc, hNc, hcc, hchunks⟩ := r.withinFrom_forall
-      (fun J st => ∀ M', thS.mval_pos (thM.ent w) J M' = true → thS.mval_fb w J = true →
-        st.msg_chunk_received i J M' = true)
-      (fun J n h M' hM hfb => Chorus.msg_chunk_received.mono (r.steps n) i J M' (h M' hM hfb))
-      Ns P3 (le_trans hcs hP2P3) (Finset.univ : Finset node).toList
-      (fun J _ => by
-        by_cases hc : ∃ M0, thS.mval_pos (thM.ent w) J M0 = true ∧ thS.mval_fb w J = true
-        · obtain ⟨M0, hM0, hfb⟩ := hc
-          obtain ⟨hJ, hkind⟩ := hcw.1 J M0 hM0
-          obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
-          obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
-          have hcastk : Cast (r.at' Ns) k := by
-            rcases hsat k hkh with ⟨h, -⟩ | ⟨h, -⟩
-            · exact Or.inl h
-            · exact Or.inr h
-          have hsigNs := fb_pos_sig_at_cast hkh hcastk (hallq k hkq)
-          obtain ⟨n, hn, hcn, h⟩ := within_fb_chunk sch hTJ hNs
-            (B := P3) (le_trans (add_le_add (hrefle hcs (le_trans hgM hMP2)) le_rfl)
-              (le_of_eq (by rw [hP3, hMdef]; abel)))
-            (hact.mono hP3Xv) hkh hJ hsigNs i
-          refine ⟨n, hn, hcn, fun M' hM' _ => ?_⟩
-          obtain rfl := (Veil.RelationalTransitionSystem.reachable_assumptions _ thS _
-            (r.reachable ni)).2.1 _ J M' M0 hM' hM0
-          exact h
-        · exact ⟨Ns, le_rfl, le_trans hcs hP2P3, fun M' hM hfb => absurd ⟨M', hM, hfb⟩ hc⟩)
-    set Nv := max ni (max N3 Nc) with hNv
+    -- The chunks under `w`'s FallbackQC entries, at saturation already: each
+    -- entry's correct signer signed before its second-round vote, and sent
+    -- every validator its chunk when it signed.
+    have hchunks : ∀ J M', thS.mval_pos (thM.ent w) J M' = true → thS.mval_fb w J = true →
+        (r.at' Ns).msg_chunk_received i J M' = true := fun J M' hM hfb => by
+      obtain ⟨-, hkind⟩ := hcw.1 J M' hM
+      obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
+      obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
+      have hcastk : Cast (r.at' Ns) k := by
+        rcases hsat k hkh with ⟨h, -⟩ | ⟨h, -⟩
+        · exact Or.inl h
+        · exact Or.inr h
+      exact fb_pos_sig_chunks r.toLRun hkh Ns (fb_pos_sig_at_cast hkh hcastk (hallq k hkq)) i
+    set Nv := max ni N3 with hNv
     have hcv : r.clk Nv ≤ Xd + 2 • sch.δ :=
-      r.clk_max_le' (le_trans hci (le_trans hXd1 hXd2))
-        (r.clk_max_le' hc3' (le_trans hcc (le_trans hP3tM (le_trans htMXd (le_trans hXd1 hXd2)))))
-    obtain ⟨n, hn, hcn, h⟩ := within_fbcommit_sig sch hTJ (N₀ := N₀) (N := Nv) (by omega)
-      (B := Xv) (by rw [← hXd3]; exact add_le_add (hrefle hcv hgXd2) le_rfl) hact hi
-      (hdw' Nv (le_max_left _ _)) (hcomp' Nv (by omega))
-      (fun J M' hM hfb => r.mono (P := fun st => st.msg_chunk_received i J M' = true)
-        (fun m h => Chorus.msg_chunk_received.mono (r.steps m) i J M' h)
-        (hchunks J (by simp) M' hM hfb) Nv (by omega))
-    exact ⟨n, by omega, hcn, h⟩
+      r.clk_max_le' (le_trans hci (le_trans hXd1 hXd2)) hc3'
+    -- The vote: the chunks' hop is due by `M + 3Δ + 2δ`, before the decision.
+    obtain ⟨n, -, hcn, h⟩ := within_fbcommit_sig sch hTJ (N₀ := N₀) (Nc := Ns) (N := Nv)
+      (by omega) (by omega) (B := Xv)
+      (le_trans (le_trans (add_le_add (hrefle hcs (le_trans hgM hMP2)) le_rfl)
+        (le_of_eq (by rw [hP3, hMdef]; abel))) hP3Xv)
+      (by rw [← hXd3]; exact add_le_add (hrefle hcv hgXd2) le_rfl) hact hi
+      (hdw' Nv (le_max_left _ _)) (hcomp' Nv (by omega)) hchunks
+    exact ⟨max n N3, le_max_right _ _, r.clk_max_le' hcn (le_trans hc3' hXdXv),
+      r.mono (P := fun st => st.msg_fbcommit_sig i = true)
+        (fun m h => Chorus.msg_fbcommit_sig.mono (r.steps m) i h) h _ (le_max_left _ _)⟩
   -- The honest quorum's votes, at one index: a correct fbCommitQC.
   obtain ⟨N4, hN4, hc4, hq4⟩ := r.withinFrom_forall
     (fun a st => nset.member a H = true → st.msg_fbcommit_sig a = true)
@@ -760,6 +727,104 @@ theorem within_finalized_tight [Fintype node] (sch : Schedule view time)
       hC2 hN₀ hpart (fun n i hi hc hci => (hA n i hi hc) hci) hj
     refine ⟨n, le_trans hcn ?_, hn⟩
     exact add_le_add le_rfl (nsmul_le_nsmul_left hδ (by norm_num))
+
+/-! ### The MVBA's caller clauses, derived -/
+
+/-- **F15: the MVBA's (Δ-avail) is derived, not assumed.** In every run
+satisfying (Δδ-justice) and the bridge, at every schedule (whose
+`Δ ≤ Δ_sync`, `Schedule.Δ_le_Δsync`), every projection's timed run
+satisfies `Mvba.AvailWithin`: a correct validator that holds a meta-block
+`v` is `AvailReady` for it within `Δ_sync` of holding it.
+
+The argument. `v` is held, so its certificates are on the network
+(`ValidBridge` at a held value). Each positive `FallbackQC` entry of `v` has
+`f+1` signers, one of them correct, which sent every validator its chunk
+when it signed (`fb_pos_sig_chunks`, Algorithm 5, line 12
+(`line:fb-redisseminate`)). So the availability report's chunk wait is met
+from the holding on, the report is owed (`i` holds `v`) and enabled until it
+fires, and its `Δ`-row fires it within `max(Δ, δ) = Δ ≤ Δ_sync`. -/
+theorem availWithin_of_timedJustice (sch : Schedule view time) {r : TChorusRun thS thM time}
+    (hTJ : TimedJustice sch r) (hbr : ValidBridge r.toLRun)
+    (p : (mvbaComponent thS thM).Projection r.toLRun) : Mvba.AvailWithin sch.mvba p.timed := by
+  mvba_inst
+  intro m i V e hi hacc
+  -- The holding, at the composed index at which the MVBA entered `m`.
+  set N₀ := p.entry m with hN₀
+  have hacc' : (r.at' N₀).mvba_st.accepted i V e = true := by
+    have h := p.run_at'_entry m
+    rw [show p.timed.at' m = p.run.at' m from rfl, h] at hacc
+    exact hacc
+  have hcert : ∀ n, N₀ ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) e :=
+    r.mono (P := fun st => Certified (thS := thS) (thM := thM) st e)
+      (fun n h => Certified.step (r.steps n) h) (hbr.2.2 N₀ i V e hi hacc')
+  have haccp : ∀ n, N₀ ≤ n → (r.at' n).mvba_st.accepted i V e = true :=
+    r.mono (P := fun st => st.mvba_st.accepted i V e = true)
+      (fun n h => mvba_st_step r.toLRun (fun st => st.accepted i V e = true)
+        (fun _ _ _ htr h => Mvba.accepted.mono htr i V e h) n h) hacc'
+  -- The chunk wait is met from the holding on.
+  have hda : ∀ n, N₀ ≤ n → ∀ J M, thS.mval_pos (thM.ent e) J M = true → thS.mval_fb e J = true →
+      (r.at' n).msg_chunk_received i J M = true := fun n hn J M hM hfb => by
+    obtain ⟨-, hkind⟩ := (hcert n hn).1 J M hM
+    obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
+    obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
+    exact fb_pos_sig_chunks r.toLRun hkh n (hallq k hkq) i
+  -- The report's `Δ`-row, from the holding.
+  have hW : r.bufWindow N₀ N₀ sch.Δ sch.δ ≤ r.ref N₀ + sch.mvba.Δsync :=
+    r.bufWindow_le (add_le_add le_rfl sch.Δ_le_Δsync)
+      (add_le_add le_rfl (le_trans sch.δ_le_Δ sch.Δ_le_Δsync))
+  obtain ⟨n, hn, hcn, hP⟩ := r.withinFrom_of_bufferedFairFamily (hTJ.avail i e) le_rfl hW
+    (P := fun st => st.mvba_st.avail_ready i e = true)
+    (fun l ⟨mn, hl⟩ _ _ htr => by
+      subst hl
+      exact Mvba.avail_effect_tr thM (mvba_avail_ready_tr htr))
+    (fun n hn _ hnP => ⟨⟨V, haccp n hn⟩, fun _ => by
+      -- The `Mvba` model's availability input is unguarded.
+      obtain ⟨st', hst'⟩ : ∃ st', (mvbaRTS (node := node) (nodeset := nodeset)
+          (merkle_root := merkle_root) (view := view)).tr thM (r.at' n).mvba_st
+          (.become_avail_ready i e) st' := by
+        simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct, trSimp]
+        exact ⟨_, rfl⟩
+      exact ⟨_, ⟨st', rfl⟩, enabled_mvba_avail_ready hi (hda n hn)
+        (fun hf => hnP (avail_marked_ready r.toLRun n hf)) hst'⟩⟩)
+    (fun _ _ _ _ => trivial)
+  -- Read back at the projection: the state covering `n` was entered no later.
+  refine ⟨(mvbaComponent thS thM).cover r.toLRun n, p.le_cover_of_entry_le hn, ?_,
+    le_trans (r.clk_le_of_le (p.entry_cover_le n)) hcn⟩
+  show (p.run.at' _).avail_ready i e = true
+  rw [← p.proj_eq_run_cover n]
+  exact hP
+
+omit [IsOrderedAddMonoid time] in
+/-- **The MVBA premise at the system's instance, from the MVBA's own two
+clauses.** A projection whose timed run satisfies (Δ-justice) and
+(T-timer), together with (Δδ-justice) and the bridge of the composed run,
+gives the MVBA premise at `T := Mvba.mvbaTemporal`: its two clauses on the
+caller are derived, the handoff by `relayed_of_timedJustice` (its
+`δ ≤ Δ + ρ` from `δ ≤ Δ`) and (Δ-avail) by `availWithin_of_timedJustice`. -/
+theorem timedMvbaAdmissible_of_rows [IsOrderedCancelAddMonoid time] [Archimedean time]
+    [Fintype node] (hqe : ByzNodeSetHonestQuorum node nodeset nset)
+    (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
+    (hrot : Mvba.LeaderRotation vfin sch.mvba.k thM)
+    {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r) (hbr : ValidBridge r.toLRun)
+    (p : (mvbaComponent thS thM).Projection r.toLRun)
+    (hown : Mvba.BoundedJustice sch.mvba p.timed ∧ Mvba.TimerPunctual sch.mvba p.timed) :
+    TimedMvbaAdmissible (Mvba.mvbaTemporal thM hqe sch.mvba vfin hrot) r :=
+  timedMvbaAdmissible_of_sync hqe sch vfin hrot p
+    ⟨hown.1, hown.2, availWithin_of_timedJustice sch hTJ hbr p,
+      relayed_of_timedJustice sch
+        (le_trans sch.δ_le_Δ (le_add_of_nonneg_right sch.mvba.ρ_nonneg)) hTJ p⟩
+
+omit [IsOrderedAddMonoid time] in
+/-- **The timing model at the system's MVBA gives `Sync`.** `SyncAtMvba` and
+the bridge imply `Sync` at `T := Mvba.mvbaTemporal`: what is assumed of the
+MVBA is its own scheduling only. -/
+theorem sync_of_syncAtMvba [IsOrderedCancelAddMonoid time] [Archimedean time]
+    [Fintype node] (hqe : ByzNodeSetHonestQuorum node nodeset nset)
+    (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
+    (hrot : Mvba.LeaderRotation vfin sch.mvba.k thM)
+    {r : TChorusRun thS thM time} (hs : SyncAtMvba sch r) (hbr : ValidBridge r.toLRun) :
+    Sync sch (Mvba.mvbaTemporal thM hqe sch.mvba vfin hrot) r :=
+  ⟨hs.1, hs.2.1, let ⟨p, hp⟩ := hs.2.2; timedMvbaAdmissible_of_rows hqe sch vfin hrot hs.1 hbr p hp⟩
 
 end Round
 
@@ -944,29 +1009,32 @@ local notation "thC" => Cadence.chorusTheory (slot := slot) (Phase := Phase) (Pa
 /-- The MVBA configuration at the system's instantiation. -/
 local notation "thMC" => Cadence.mvbaTheory (nodeset := ByzNSet n) mvalid mleader
 
-/-- **ℓ-termination at the system's MVBA**: `TimedTerminationClaim` with
-`T := Mvba.mvbaTemporal`, whose `ℓ` is `Mvba.Schedule.ℓ` (`mvbaTemporal_ℓ`).
-No hypothesis beyond the MVBA instance's own (§6.2.5 of
+/-- **ℓ-termination at the system's MVBA**: `TimedTerminationClaimAtMvba`,
+the claim at `T := Mvba.mvbaTemporal` with the MVBA's timing premise its own
+two clauses only (`SyncAtMvba`): the handoff and (Δ-avail), which Chorus
+provides, are derived (`sync_of_syncAtMvba`). `ℓ_MVBA` is `Mvba.Schedule.ℓ`
+(`mvbaTemporal_ℓ`). No hypothesis beyond the MVBA instance's own (§6.2.5 of
 [Bounds.md](../../docs/Bounds.md)): a correct supermajority, the view order's
 enumeration, and (A-leader-rotation-k). -/
 theorem timed_termination_atMvba (sch : Schedule view time)
     (hqe : ByzNodeSetHonestQuorum (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz))
     (vfin : ViewOrderEnum view vord)
     (hrot : Mvba.LeaderRotation (nset := byzNodeSetFin n f hf is_byz hbyz) vfin sch.mvba.k thMC) :
-    TimedTerminationClaim (nset := byzNodeSetFin n f hf is_byz hbyz)
-      (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz) sch
-      (Mvba.mvbaTemporal (nset := byzNodeSetFin n f hf is_byz hbyz) thMC hqe sch.mvba vfin hrot) thC :=
-  timed_termination n f hf is_byz hbyz sch _ (mvbaSchedule_ℓ_nonneg sch.mvba vfin)
+    TimedTerminationClaimAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz) sch vfin thC thMC :=
+  fun r hs hbr hsp hab hC2 t ht j hj =>
+    timed_termination n f hf is_byz hbyz sch _ (mvbaSchedule_ℓ_nonneg sch.mvba vfin) r
+      (sync_of_syncAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz)
+        (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
+        hqe sch vfin hrot hs hbr) hbr hsp hab hC2 t ht j hj
 
 /-- **The tight bound at the system's MVBA**: `timed_termination_tight` with
-`T := Mvba.mvbaTemporal`. -/
+`T := Mvba.mvbaTemporal`, under `SyncAtMvba`. -/
 theorem timed_termination_tight_atMvba (sch : Schedule view time)
     (hqe : ByzNodeSetHonestQuorum (Fin n) (ByzNSet n) (byzNodeSetFin n f hf is_byz hbyz))
     (vfin : ViewOrderEnum view vord)
     (hrot : Mvba.LeaderRotation (nset := byzNodeSetFin n f hf is_byz hbyz) vfin sch.mvba.k thMC) :
     ∀ r : TChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thC thMC time,
-      Sync (nset := byzNodeSetFin n f hf is_byz hbyz) sch
-        (Mvba.mvbaTemporal (nset := byzNodeSetFin n f hf is_byz hbyz) thMC hqe sch.mvba vfin hrot) r →
+      SyncAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz) sch r →
       ValidBridge (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun →
       SyncParticipationWithin (nset := byzNodeSetFin n f hf is_byz hbyz) sch.Δ r →
       NoAbandonBeforeFinalizing (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun →
@@ -975,7 +1043,11 @@ theorem timed_termination_tight_atMvba (sch : Schedule view time)
         ∀ j, ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz j = true →
           ∃ m, r.clk m ≤ max t r.gst + Ltight sch.Δ sch.δ (sch.mvba.ℓ vfin) ∧
             (r.at' m).local_committed j = true :=
-  timed_termination_tight n f hf is_byz hbyz sch _ (mvbaSchedule_ℓ_nonneg sch.mvba vfin)
+  fun r hs hbr =>
+    timed_termination_tight n f hf is_byz hbyz sch _ (mvbaSchedule_ℓ_nonneg sch.mvba vfin) r
+      (sync_of_syncAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz)
+        (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
+        hqe sch vfin hrot hs hbr) hbr
 
 end AtMvba
 
@@ -997,11 +1069,6 @@ info: 'Chorus.fb_pos_sig_at_cast' depends on axioms: [propext, Classical.choice,
 #guard_msgs in
 #print axioms Chorus.fb_pos_sig_at_cast
 
-/--
-info: 'Chorus.within_fb_chunk' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Chorus.within_fb_chunk
 
 /--
 info: 'Chorus.within_all_decided' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -1076,3 +1143,21 @@ info: 'Chorus.timed_termination_tight_atMvba' depends on axioms: [propext, Class
 -/
 #guard_msgs in
 #print axioms Chorus.timed_termination_tight_atMvba
+
+/--
+info: 'Chorus.availWithin_of_timedJustice' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.availWithin_of_timedJustice
+
+/--
+info: 'Chorus.timedMvbaAdmissible_of_rows' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.timedMvbaAdmissible_of_rows
+
+/--
+info: 'Chorus.sync_of_syncAtMvba' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.sync_of_syncAtMvba

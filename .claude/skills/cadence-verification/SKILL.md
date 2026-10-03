@@ -41,7 +41,7 @@ Cadence/Chorus.lean            MODEL — state, actions, invariants.
    │                           Elaborating it persists every VC *statement*
    │                           in the module's registry. No sweep, no proofs.
    ▼ imported by
-Cadence/Chorus/Proofs/*.lean   ONE FILE PER ACTION (43, incl. Init.lean).
+Cadence/Chorus/Proofs/*.lean   ONE FILE PER ACTION (49, incl. Init.lean).
    │                           `#prove_action Chorus <action>` re-creates that
    │                           action's registered VCs, discharges them with
    │                           reconstruction, persists real kernel-checked
@@ -225,7 +225,7 @@ never write one by hand.
      needs the action guards or the invariants at the pre-state (the
      Conductor's `monotonicity`, Chorus's `committed_pos_frozen`). It is
      checked per action, counts in `#veil_status`, and is exported as
-     `<Module>.reachable_<name>_step`. **One cell per action** — 40 on
+     `<Module>.reachable_<name>_step`. **One cell per action** — 48 on
      Chorus — so add one only for a fact a contract needs;
   3. **by hand from the transition bodies**, for a single-action effect or
      pointwise frame: dispatch the label, `simp only [trSimp]` (the

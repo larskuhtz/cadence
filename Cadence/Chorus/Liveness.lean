@@ -73,8 +73,8 @@ caller, and they are exactly the antecedents of the contract's own
   validator finalizes (the MVBA's `abandon()` is invoked only by Chorus's
   `abandon`, Algorithm 5, line 48 (`line:fb-abandon`)), the third from (F-justice) on the handoff
   `accept_mvba_commitqc` (`fRelay_of_fJustice`), and the fourth from
-  (F-justice) on the availability report `mvba_avail_ready` and on the
-  re-dissemination its chunk wait needs (`fAvail_of_fJustice`). The
+  (F-justice) on the availability report `mvba_avail_ready`, whose chunk wait
+  the correct FallbackQC signers met when they signed (`fAvail_of_fJustice`). The
   premise is unconditional, as before: the proof uses the MVBA only on
   that branch.
 * **The bridge** — `ValidBridge`: the MVBA's `Valid` agrees with Chorus's
@@ -143,8 +143,8 @@ variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathCh
 
 /-- **(F-byz).** The labels the adversary controls — the `byz_*` family,
 including its share of the two anonymous capabilities (assembling a commit
-certificate, re-disseminating a decodable chunk), whose correct-sender forms
-are the fair `broadcast_commitqc_*` and `redisseminate_chunk`. No premise
+certificate, re-disseminating a decodable chunk), whose correct forms are the
+fair `broadcast_commitqc_*` and the sends inside `fb_sign_pos`. No premise
 requires anything of them, which *is* the assumption: progress never relies
 on adversarial help. `not_justice_of_byz` pins the disjointness. -/
 def ByzLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
@@ -415,7 +415,6 @@ theorem mvba_st_frame_of_not_step
   case on_mvba_commitqc_pos => exact Chorus.on_mvba_commitqc_pos.frame_mvba_st htr
   case on_mvba_commitqc_neg => exact Chorus.on_mvba_commitqc_neg.frame_mvba_st htr
   case mvba_terminate => exact Chorus.mvba_terminate.frame_mvba_st htr
-  case redisseminate_chunk => exact Chorus.redisseminate_chunk.frame_mvba_st htr
   case cast_fb_commit => exact Chorus.cast_fb_commit.frame_mvba_st htr
   case commit_assign_pos => exact Chorus.commit_assign_pos.frame_mvba_st htr
   case commit_assign_neg => exact Chorus.commit_assign_neg.frame_mvba_st htr
@@ -824,17 +823,6 @@ theorem mvba_terminate_moves {i : node} {v : MetaBlock node merkle_root}
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem redisseminate_chunk_moves {k i j : node} {m : merkle_root}
-    (htr : (atMvba thM).tr thS s (.redisseminate_chunk k i j m) s') : s' ≠ s := by
-  rintro rfl
-  chorus_tr htr
-  repeat (obtain ⟨_, htr⟩ := htr)
-  have h := congrArg (fun st => st.local_chunk_sent k i j m) htr
-  have hd := phase_distinct (Phase := Phase)
-  chorus_field_simp
-  simp_all
-
-set_option maxHeartbeats 1000000 in
 theorem accept_mvba_commitqc_moves {i : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {n}
     (htr : (atMvba thM).tr thS s (.accept_mvba_commitqc i c n) s') : s' ≠ s := by
   rintro rfl
@@ -930,7 +918,6 @@ theorem justice_enabledMove
   case on_mvba_commitqc_neg => exact on_mvba_commitqc_neg_moves htr
   case mvba_avail_ready => exact mvba_avail_ready_moves htr
   case mvba_terminate => exact mvba_terminate_moves htr
-  case redisseminate_chunk => exact redisseminate_chunk_moves htr
   case cast_fb_commit => exact cast_fb_commit_moves htr
   case commit_assign_pos => exact commit_assign_pos_moves htr
   case commit_assign_neg => exact commit_assign_neg_moves htr
@@ -1059,22 +1046,19 @@ environment owes the step at all.
   that cast its fast commit vote holds the FastQC — the same rule broadcasts
   its `FastBlock` (Algorithm 4, line 20 (`line:fast-metablock`)), whose FastQCs a receiver adopts;
 * the other rows over a quorum parameter: the quorum is correct;
-* `fb_sign_pos`: also the `2f+1` votes its guard counts, from correct voters;
+* `fb_sign_pos`: also the `2f+1` votes its guard counts, from correct voters.
+  The same step re-encodes the proposal and sends every validator its chunk
+  (Algorithm 5, line 12 (`line:fb-redisseminate`)), so re-dissemination has
+  no row of its own. That rule is the main body's; the supplement's
+  implementation replaces the re-encode-and-send by ChunkSync, which pulls
+  the missing chunks within `Δ_sync` (Supplement, Section 1.2
+  (`subsec:mvba-protocol`), Supplement, Section 7.4
+  (`sec:fallback-transition`)), and the model follows the main body;
 * the proposal: its trigger from correct senders (`proposeOwed`);
 * the handoff and the `CommitQC` route's handlers: a correct validator has
   decided (`relayOwed`), and Chorus broadcasts that decision's certificate.
   The premise owes nothing on a certificate the adversary assembled and
   showed to nobody (F5);
-* `redisseminate_chunk k …`: only where the paper sends other validators
-  their chunks (F11, F14): the sender `k` signed a positive fallback entry
-  for the root, which it could only do after decoding, and the same rule
-  re-encodes and sends each validator its chunk (Algorithm 5, line 12 (`line:fb-redisseminate`)).
-  A decided validator broadcasts only its own chunk (Algorithm 5, line 39 (`line:fb-commit-wait`)),
-  and a correct validator on the fast path re-disseminates nothing. Both
-  rules are the main body's; the supplement's implementation drops the
-  re-encode-and-send for ChunkSync, which pulls the missing chunks within
-  `Δ_sync` (Supplement, Section 1.2 (`subsec:mvba-protocol`), Supplement, Section 7.4 (`sec:fallback-transition`)), and the
-  model follows the main body;
 * `commit_assign_*`: a commitment proof a correct validator sent — a correct
   validator's finalization re-broadcasts its proof
   (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)), and the
@@ -1109,7 +1093,6 @@ def Owed (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentrie
   | .accept_mvba_commitqc .. => relayOwed
   | .on_mvba_commitqc_pos .. => relayOwed
   | .on_mvba_commitqc_neg .. => relayOwed
-  | .redisseminate_chunk k _ j m => fun s => s.msg_fb_pos_sig k j m = true
   | .commit_assign_pos _ j m => fun s =>
       (∃ k, ¬ nset.is_byz k = true ∧ s.local_committed k = true ∧
         s.local_committed_pos k j m = true) ∨
