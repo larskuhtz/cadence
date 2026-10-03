@@ -459,9 +459,11 @@ Two other Part II departures bear on fairness justifications. A signer of
 a positive fallback entry no longer re-encodes and sends each validator its
 chunk; ChunkSync pulls instead. Chunks are also disseminated
 unconditionally (Supplement, Section 8 (`sec:raptorcast`), "Disseminate
-assigned chunks unconditionally"). The model
-justifies (F-justice) on `redisseminate_chunk` by Algorithm 5, line 12 (`line:fb-redisseminate`)
-and Algorithm 5, line 39 (`line:fb-commit-wait`), both main-body rules that hold at the target.
+assigned chunks unconditionally"). The model follows the main body's
+Algorithm 5, line 12 (`line:fb-redisseminate`), which holds at the target:
+since R19 the positive fallback signer sends every validator its chunk
+inside its signing step (F15, below), and the broadcast of
+Algorithm 5, line 39 (`line:fb-commit-wait`) needs no step of its own.
 **Class (d).**
 
 ### 5.10 What remains different, and why
@@ -470,8 +472,8 @@ The re-check of R17 walked §§3–4 once more against the realigned models.
 Every (b) and (c) item is modelled (the list at the end of §4 says where).
 Every remaining difference between a model and the target is one of the
 following: below the model's abstraction, with its argument, or a finding
-of §6. One needs a model change, F15, found by R18 after the re-check (the
-last row); the others do not.
+of §6. None needs a model change. F15, found by R18 after the re-check, was
+one, and R19 removed it.
 
 | Difference | Model | Why it is sound, or the finding |
 |---|---|---|
@@ -489,7 +491,7 @@ last row); the others do not.
 | Both fallback finalization routes are modelled | Chorus | The target specifies both (§5.7); P2. |
 | The `EquivCert` rule is Algorithm 5's, not Part II's | FallbackReceipt, Chorus | The main body's rule is the specified protocol (§5.9); P3. |
 | Part II's implementation variants; the practical Conductor | — | Outside the verified surface (§2, §7, §9). |
-| **F15**: the fallback signer's chunk is a separate step, gated on the signer's participation at delivery, where the paper sends it inside the fallback-entry rule (Algorithm 5, line 12 (`line:fb-redisseminate`)) | Chorus | **Our divergence, open; closed in R19** (a model change and a cold Chorus re-solve). An abandonment between signing and delivery drops a message the paper has already sent, so the MVBA's (Δ-avail) cannot be derived from the rows and stays assumed in the timed MVBA premise. Safety is unaffected (fewer deliveries), and `Chorus.timed_termination` does not meet it. The counterexample and R19's two designs: [Bounds.md](Bounds.md) §6.4.2, "F15". |
+| ~~**F15**: the fallback signer's chunk is a separate step, gated on the signer's participation at delivery, where the paper sends it inside the fallback-entry rule (Algorithm 5, line 12 (`line:fb-redisseminate`)); the proposer's chunks the same (Algorithm 2 (`alg:proposer-dissemination`))~~ | Chorus | **Removed in R19.** `fb_sign_pos` sends every validator its chunk in the same step, and `redisseminate_chunk` is gone. A proposer's chunk is delivered whatever the proposer does after `propose`. (Δ-avail) is derived from the rows (`availWithin_of_timedJustice`). The design, the counterexample and the record: [Bounds.md](Bounds.md) §6.4.2, "F15: the design" and "F15 closed". |
 
 **No rule of the target is unmodellable.** Every protocol rule of the main
 body and of Part I's MVBA can be modelled faithfully within the
@@ -753,13 +755,16 @@ through state Module 3 (`mod:mvba`) does not expose.**
   fairness. The two premises that need the trigger read the MVBA's
   internal accepted value at the system's instance, the honest form: the
   fairness owed to the availability report, and the validity bridge at a
-  held value. The timed form of the assumption, (Δ-avail), is still assumed
-  in the timed MVBA premise of the proven timed Chorus claim
-  (`Chorus.timed_termination`). The paper's Chorus does provide it, but
-  the model cannot derive it from Chorus's own timed rows yet: the model's
-  re-dissemination diverges from the paper's (F15, our divergence, §5.10),
-  and R19 fixes the model and derives it. Safety does not depend on any of
-  this.
+  held value. The timed form of the assumption, (Δ-avail), is **derived**
+  since R19 (`Chorus.availWithin_of_timedJustice`). It follows from
+  Chorus's timed rows and the bridge under one property of the composed
+  timing model, that the MVBA's availability window covers one Chorus
+  network hop (`Δ ≤ Δ_sync`, `Chorus.Schedule.Δ_le_Δsync`). The proven
+  timed claim at the system's MVBA (`Chorus.timed_termination_atMvba`)
+  therefore assumes of the MVBA only its own scheduling. The coupling
+  itself remains the finding: the module boundary of Module 3
+  (`mod:mvba`) does not carry it, and the composition needs `Δ_sync` to
+  cover a hop of the caller's. Safety does not depend on any of this.
 
 **P13. Module 1 (`mod:slotconsensus`) states Termination without the
 conditions Chorus needs.**
@@ -810,7 +815,7 @@ finding, unless the fact is the development's own stated bridge.
 | The MVBA's commit certificate: `certifies`, `decided_certified`, `accept` and its effect, `certified_mono`, `certified_unique`, `certified_decided`, `certified_valid` | the `CommitQC` finalization route (Chorus safety); the decision handoff (`Chorus.termination`) | not by Module 3 (`mod:mvba`), whose `decide` outputs the meta-block alone; by the supplement's Part I ("`decide(x, CommitQC)`", a transferable certificate the MVBA accepts from any view) | P2 |
 | `availReady`, the input `markAvail`, their frames; `certified_available` | Chorus's availability report; the MVBA's termination | no: the supplement states `AvailReady` over the dissemination layer's state | P12 |
 | `availOwed` and the validity bridge at a held value, both reading the MVBA's accepted value | `Chorus.termination` (premises `FJustice`, `ValidBridge`) | no: neither document exposes `x_v` | P12 |
-| (Δ-avail), in the timed MVBA premise | the timed Chorus claim (`Chorus.timed_termination`, through `T.Admissible`) | no: the supplement's assumption is triggered by `x_v` | P12; still assumed: the derivation from Chorus's timed rows is blocked by F15, our divergence (§5.10), and is R19's |
+| (Δ-avail), the MVBA's timing premise on its caller | the timed Chorus claim at the system's MVBA (`Chorus.timed_termination_atMvba`), derived there from Chorus's rows (`availWithin_of_timedJustice`) under `Δ ≤ Δ_sync` | no: the supplement's assumption is triggered by `x_v` | P12; derived since R19 (it was blocked by F15, §5.10) |
 | No correct validator abandons before finalizing | `Chorus.termination`, `Chorus.totality` | not by Module 1 (`mod:slotconsensus`) (commented out); the composition meets it (Algorithm 1, line 23 (`line:abandon`)) | P13 |
 | No correct validator starts before `s.deadline − Δ` | the timed Chorus claims (stated) | not by Module 1 (`mod:slotconsensus`) (commented out); by Module 2 (`mod:orchestrator_2`)'s Integrity | P13 |
 | The validity bridge: a valid meta-block's certificates verify against the network, and genuine certificates make it valid | Chorus safety at the decision handlers and the `CommitQC` route; `Chorus.termination` | `Valid` is "publicly verifiable" in both documents; the bridge says what that means for a network of relations | none: the development's one stated bridge ([Architecture.md](Architecture.md) §4) |
@@ -1067,6 +1072,10 @@ stopped ([Bounds.md](Bounds.md) §6.4.6):
   **Done in R18** (2026-10-02): `Chorus.timed_termination` and
   `Chorus.timed_termination_tight`; F4 and P5 confirmed. (Δ-avail) was not
   derived: F15 (§5.10) needs a model change, R19.
+* **R19: F15 closed** (2026-10-02). The fallback signer re-disseminates
+  inside the fallback-entry rule, and a proposer's chunk is delivered
+  whatever the proposer does after proposing. (Δ-avail) is derived, and P12
+  is updated ([Bounds.md](Bounds.md) §6.4.2, "F15 closed").
 * **S5: the contract instances.** `SlotConsensusTemporal` at the new
   fragment (Quiescence, `admissible_exists`, Termination as the unbounded
   corollary), then `SlotConsensusWithTotality` and the `…_of_temporal` join

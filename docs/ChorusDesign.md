@@ -114,7 +114,7 @@ network relations. Auditing Chorus, the property split is:
 | `mvba_decided_*`, `mvba_complete` | ✓ | ✓ — read positively only. The records are written by the decision handlers, which never read them |
 | `phase : Phase` enum | (forward-only, see below) | ✓ |
 | `local_entry_pos/neg`, `local_voted`, `local_path`, `local_committed*` | ✓ | ✗ |
-| `participating`, `abandoned` | ✓ (written only by the inputs `participate i` / `abandon i`) | ✗ — the participation gate `participating i ∧ ¬ abandoned i` of every sending rule, read at the acting validator (for `broadcast_commitqc_*` and `redisseminate_chunk`, the sender parameter) |
+| `participating`, `abandoned` | ✓ (written only by the inputs `participate i` / `abandon i`) | ✗ — the participation gate `participating i ∧ ¬ abandoned i` of every sending rule, read at the acting validator (for `broadcast_commitqc_*`, the sender parameter) |
 | `local_chunk_sent`, `local_commit_entry`, `local_fb_entry`, `local_commitqc_sent`, `local_mvba_recorded`, `local_fbcommit_voted` (the fired-once records, S1b) | ✓ (each written only by the action it guards) | ✗ — each action's "not already" guard, read at the acting validator only |
 
 (M-update) is syntactic for every relation in the table: each write is the
@@ -459,7 +459,7 @@ row indexed by the acting validator.
 | `local_fastqc_pos i j m`, `local_fastqc_neg i j` | `i` has aggregated `Ev(j)` as a FastQC (Algorithm 4, line 18 (`line:fast-formqc`)). Kept per-validator (unlike the transferable certificates) because an honest commit signature is justified by *the signer's own* FastQC observation. |
 | `local_committed i`, `local_committed_pos i j m`, `local_committed_neg i j` | `i`'s finalization decision. |
 | `participating i`, `abandoned i` | `i` has invoked the slot-consensus inputs `participate()` / `abandon()` (Module 1 (`mod:slotconsensus`)); written only by the input actions of the same name. Named as the contract's observables rather than `local_*`. Every sending rule reads them at its own sender (the participation gate), which is a local read. |
-| `local_chunk_sent k i j m` | sender `k` has sent `i` its assigned chunk under `(j, m)`: the proposer's `deliver_chunk_assigned` (`k = j`) or a correct `redisseminate_chunk` (Algorithm 5, line 12 (`line:fb-redisseminate`)). |
+| `local_chunk_sent k i j m` | `i` has received sender `k`'s chunk for it under `(j, m)`: the delivery of the proposer's send (`deliver_chunk_assigned`, `k = j`), or the re-dissemination inside a correct `fb_sign_pos` (`k` the signer, Algorithm 5, line 12 (`line:fb-redisseminate`)), which sends and delivers in one step. |
 | `local_commit_entry i j`, `local_fb_entry i j` | `i` has signed its commit-vote entry, resp. its fallback entry, for proposer `j` (the per-proposer steps of Algorithm 4, line 24 (`line:fast-commitvote`) and Algorithm 5, line 8 (`line:fb-cast-entry`)). |
 | `local_commitqc_sent c j` | collector `c` has broadcast its commit certificate's entry for `j` (Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)). |
 | `local_mvba_recorded i j` | `i` has recorded entry `j` of its MVBA decision (Algorithm 5, line 37 (`line:fb-mvba-decide`)). |
@@ -514,6 +514,20 @@ The decoding threshold (`isDecoded`) is the ghost `chunk_quorum j m`
   (c) follows from the vote threshold (b) at the network level.
 * `fb_sign_pos` nevertheless keeps (c) as an explicit precondition,
   because `isDecoded` is a check the real protocol performs.
+
+**Who sends a chunk, and when** (F15, R19). The paper sends chunks in two
+rules, and in both the send is part of the rule's own step:
+
+| paper | model |
+|---|---|
+| the proposer: upon `propose`, … for each validator `p_r`: send `p_r` its chunk (Algorithm 2 (`alg:proposer-dissemination`)) | the send is `propose j m` (gated on participation; its record is `msg_proposer_signed j m`). The delivery `deliver_chunk_assigned i j m` is a step of its own, because `record_chunk` before the deadline depends on when a chunk *arrives*. It reads the send and nothing of the proposer's later state: a delivery of an earlier send is not a new send |
+| the positive fallback signer: re-encode the proposal; send each validator its assigned chunk for `ρ` (Algorithm 5, line 12 (`line:fb-redisseminate`)) | inside `fb_sign_pos i j m q qc`: `msg_chunk_received I j m := true` and `local_chunk_sent i I j m := true`, two bulk updates of the gated signing step. Nothing reads such a chunk before the deadline, so its delivery needs no step. The relation holds from the send, and the two rules that read it, `cast_fb_commit` and `mvba_avail_ready`, are `Δ`-rows of the timed premise |
+
+The decided validator's broadcast of its *own* chunk (Algorithm 5, line 39
+(`line:fb-commit-wait`)) changes no relation: `msg_chunk_received i j m`
+already records that `i`'s chunk is on the network, and `chunk_quorum`
+counts it from then on. A Byzantine holder of `f+1` chunks can
+re-disseminate at any time (`byz_redisseminate_chunk`, unfair).
 
 The model-level DA safety theorem is
 `local_committed_pos_implies_decodable`: every honest positive commit
@@ -747,11 +761,12 @@ messages that could never influence an honest participant.
 **The adversary's share of the anonymous capabilities.** Assembling a
 commit certificate from `2f+1` broadcast commit votes, and re-disseminating a
 chunk once `f+1` chunks are on the network, are capabilities any holder of
-the data has. For a correct sender they are the honest rules
-`broadcast_commitqc_*` and `redisseminate_chunk`, gated on participation and
-fired once. In Byzantine hands they are `byz_broadcast_commitqc_*` and
-`byz_redisseminate_chunk`: the same validity checks, no gate, no record, and
-no fairness ((F-byz)). Until S1b both were branches of the honest actions;
+the data has. For a correct sender the first is the honest rule
+`broadcast_commitqc_*`, gated on participation and fired once; the second
+is part of the fallback-entry rule `fb_sign_pos` (Algorithm 5, line 12
+(`line:fb-redisseminate`); since R19, F15). In Byzantine hands they are
+`byz_broadcast_commitqc_*` and `byz_redisseminate_chunk`: the same validity
+checks, no gate, no record, and no fairness ((F-byz)). Until S1b both were branches of the honest actions;
 splitting them keeps every fair action fired-once
 ([Bounds.md](Bounds.md) §6.4.7) without constraining the adversary.
 
@@ -1015,10 +1030,9 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
    (Algorithm 5, lines 37–47 (`line:fb-mvba-decide`–`line:fb-finalize`)) carries decisions to
    finalization: once `mvba_complete` holds, a decided-positive root is
    held by a FastQC, which needs no wait, or by a FallbackQC, whose
-   correct signer's `redisseminate_chunk` is enabled
-   (`mvba_decided_is_proposer` + `mvba_decided_pos_chunks_decodable` +
-   `mvba_decided_pos_proposer_signed`) and owed, so (F-justice) delivers
-   each honest validator's assigned chunk; `cast_fb_commit` is then enabled
+   correct signer sent every validator its assigned chunk when it signed
+   (`fb_sign_pos`, Algorithm 5, line 12 (`line:fb-redisseminate`);
+   `Chorus.fb_pos_sig_chunks`); `cast_fb_commit` is then enabled
    (it has no phase gate); the `2f+1` honest
    commit votes are a certificate outright
    (`Chorus.fbcommitqc_of_honest_commit_votes` — the honest population

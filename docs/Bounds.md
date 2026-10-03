@@ -1797,7 +1797,7 @@ The hop table, classified as §6.2.4's is, by what the guard consumes:
 | `fb_sign_*` (others' votes and chunks; gate: the fallback arm) | `cast_fallback_vote` |
 | `broadcast_commitqc_*` (others' commit votes) | `on_mvba_decide_*`, `mvba_terminate` (the certificates travel inside the decided value, whose `Valid` checks them) |
 | `mvba_propose` family (others' fallback votes via `fbcert`; gate: the arm) | `cast_fb_commit` |
-| `redisseminate_chunk` (the caster's chunk) | `finalize_commit` |
+| `redisseminate_chunk` (the caster's chunk; removed by R19, F15) | `finalize_commit` |
 | `commit_assign_*` (a certificate someone else broadcast) | |
 
 The table has three consequences:
@@ -1825,7 +1825,7 @@ Each row has a bound, a gate, and a condition under which it is owed at all.
 
 | row | bound | gate | owed when |
 |---|---|---|---|
-| `deliver_chunk_assigned i j m` | `Δ` | `Active j` | always (the proposer is correct by the guard) |
+| `deliver_chunk_assigned i j m` | `Δ` | none (since R19: the send was `propose`) | always (the proposer is correct by the guard) |
 | `record_chunk` | `δ` | none | always |
 | `vote i` | `δ` | `Active i`, phase past `D` | always |
 | `aggregate_fastqc_* … q` | `Δ` | none | the quorum `q` is correct |
@@ -1837,8 +1837,9 @@ Each row has a bound, a gate, and a condition under which it is owed at all.
 | `mvba_propose i v _` on `FBCert` (`propose`, one family per `(i, v)`) | `Δ` | `Active i`, the MVBA arm | `FBCert` from a correct supermajority |
 | `mvba_propose i v _` on the fast meta-block (`proposeFast`, one family per `(i, v)`, F9) | `δ` | `Active i`, the MVBA arm | `i`'s own complete fast meta-block |
 | `on_mvba_decide_*`, `mvba_terminate` | `δ` | the MVBA arm | always (the guard reads `i`'s own decision) |
-| `redisseminate_chunk k i j m` | `Δ` | `Active k` | `k` signed a positive fallback entry for `(j, m)` (F8), or `k` has itself decided and `f+1` correct validators hold their chunk under `(j, m)` (F11) |
-| `cast_fb_commit i` | `δ` | `Active i`, the MVBA arm | `i` has itself decided |
+| `redisseminate_chunk k i j m` (removed by R19: inside `fb_sign_pos`, F15) | `Δ` | `Active k` | `k` signed a positive fallback entry for `(j, m)` (F8), or `k` has itself decided and `f+1` correct validators hold their chunk under `(j, m)` (F11) |
+| `cast_fb_commit i v` (since R19: `TimedJustice.fbCommit`, split at its trigger) | `Δ` (was `δ`) | `fbCommitGate`: `Active i`, `i`'s own decision of `v` only, `mvba_complete` | (the gate; was: `i` has itself decided) |
+| `mvba_avail_ready i v` (the family `avail`) | `Δ` (was `δ`, R19) | none | `i` holds `v` |
 | `commit_assign_* i j …` | `Δ` | `Active i` | a correct validator finalized with that entry, or the fallback commit certificate from correct voters over the decided entry |
 | `finalize_commit i` | `δ` | `Active i` | always |
 
@@ -2142,8 +2143,7 @@ quorum. The `#veil_status Chorus` count is unchanged, `47 · 102 + 46 = 4840`.
 
 **F15: re-dissemination is gated at delivery, so (Δ-avail) is not derivable**
 (found by R18, 2026-10-02, while deriving the MVBA's (Δ-avail) from the
-availability row; **open, closed in R19**: a model change and a cold Chorus
-re-solve). The paper sends a validator's chunk inside the fallback-entry
+availability row; **closed in R19**, see "F15 closed" below). The paper sends a validator's chunk inside the fallback-entry
 rule (Algorithm 5, line 12 (`line:fb-redisseminate`)), while the signer is
 active, so the chunk is in flight from the signature on and is delivered
 within `Δ` after GST whatever the signer does next. The model splits the send
@@ -2370,6 +2370,56 @@ paper's. The fix needs no new relation and no new kind of step:
   message was sent between correct validators. No invariant reads the participation
   relations against chunk delivery, and the pin is unchanged by it.
 
+**F15 closed** (R19, 2026-10-02). Built as designed, with the review's
+decisions:
+
+| | the fallback-entry rule's re-dissemination |
+|---|---|
+| paper | "re-encode proposal; send each validator its assigned chunk for `ρ`" inside the positive branch of the fallback-entry rule (Algorithm 5, line 12 (`line:fb-redisseminate`)) |
+| before | a separate step `redisseminate_chunk k i j m`, requiring `participating k ∧ ¬ abandoned k` at delivery |
+| after | in `fb_sign_pos i j m q qc` itself: `msg_chunk_received I j m := true`, `local_chunk_sent i I j m := true` |
+
+| | the proposer's dissemination |
+|---|---|
+| paper | upon `propose`: … for each validator `p_r`: send `p_r` its chunk (Algorithm 2 (`alg:proposer-dissemination`)) |
+| before | `deliver_chunk_assigned i j m` required `participating j ∧ ¬ abandoned j` |
+| after | the delivery reads the send (`msg_proposer_signed j m`) and nothing of the proposer's later state |
+
+* **The model.** One action fewer; no invariant changed; no manual cell.
+  `#veil_status Chorus` **5099 → 4997** (= 49 · 101 + 48), as predicted.
+  The family re-solved cold, with an empty proof cache: lake exit 0, 4 978 ✅
+  / 0 ❌ / 0 💥 / 0 ⏱, no cache hit, 505 s for the proof family after
+  407 s for the model.
+* **The premise.** `TimedJustice` has no re-dissemination row any more.
+  `cast_fb_commit` and the `avail` family are `Δ`-rows, the first in its own
+  field `fbCommit`, split at its trigger `fbCommitGate`. The gate
+  checklist ([Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)'s
+  header) admits the actor's own MVBA output. `deliver_chunk_assigned` has
+  no gate. The untimed `FJustice` loses the re-dissemination row, and its
+  `Owed` loses that line.
+* **The schedule.** `Chorus.Schedule.Δ_le_Δsync : mvba.Δ ≤ mvba.Δsync`.
+* **(Δ-avail), derived.** `Chorus.availWithin_of_timedJustice`: in every run
+  satisfying `TimedJustice` and `ValidBridge`, at every schedule, every
+  projection's timed run satisfies `Mvba.AvailWithin`.
+  `timedMvbaAdmissible_of_rows` takes only (Δ-justice) and (T-timer) of the
+  MVBA. `SyncAtMvba` and `TimedTerminationClaimAtMvba` state the timing
+  model and the claim at the system's MVBA with only those two clauses
+  assumed, and `Chorus.timed_termination_atMvba` and
+  `…_tight_atMvba` are proven over them (`sync_of_syncAtMvba`). The timed
+  claim at the system's MVBA therefore assumes no availability fact that
+  Chorus provides.
+* **The proofs.** The chunk is there from the correct signer's signature on
+  (`fb_pos_sig_chunks`, by `record_backed` over `fb_pos_sig_chunks_flip`).
+  `eventually_fbcommit_sig` and `fAvail_of_fJustice` read it directly, and
+  the latter no longer takes `ActiveFrom`. `within_fb_chunk` is gone, and
+  `within_finalized_late` meets the vote's split row with the chunks at
+  saturation. The bound is unchanged: `T₀ = M + 4Δ + ℓ_MVBA + 7δ`,
+  `Lchorus`, `Ltight`.
+* **The witness.** `schC` overrides `Δsync := 1` (`Mvba.Schedule.fixedNat`
+  and the MVBA's witness are untouched, and `Mvba.Witness.ell = 24`). Its
+  clock-0 re-dissemination case is gone, and
+  `timedTermination_premises_satisfiable` states `SyncAtMvba`.
+
 **Expected pins, written before the build.** Chorus: one action and one
 state relation, no property: `101 + 46 × (101 + 1) + 47 = 4840` (from
 4737). Mvba: the model file does not change (`decide` becomes an input in
@@ -2460,7 +2510,7 @@ With `M = max(t, GST)`, the same notation as the paper:
 | `D ≤ t + Δ` | C2 at each correct start, with (P2) | — |
 | by `M + Δ`: first-round votes | `eventually_voted`, then `eventually_quorum_cast` (`voted_implies_cast`) | `vote` δ |
 | by `M + 2Δ`: second-round votes | `eventually_saturated` / `eventually_all_saturated` | aggregate Δ, sign/cast δ; `fb_sign_*` Δ, gate `D + Δ ≤ M + 2Δ`; `cast_fallback_vote` δ |
-| by `M + 3Δ`: MVBA proposals, fallback chunks | `eventually_complete_fast_metablock`, `eventually_trigger`, `eventually_input`, `certifiedVector` (`ValidBridge` soundness); `redisseminate_chunk` | the proposal family Δ, gate `D + 2Δ`; aggregate Δ; redisseminate Δ |
+| by `M + 3Δ`: MVBA proposals, fallback chunks | `eventually_complete_fast_metablock`, `eventually_trigger`, `eventually_input`, `certifiedVector` (`ValidBridge` soundness); the chunks sent with each positive fallback signature (`fb_pos_sig_chunks`, F15) | the proposal family Δ, gate `D + 2Δ`; aggregate Δ; the chunks' hop Δ, timed at their reader (`fbCommit`) |
 | by `T₀ − Δ = M + 3Δ + ℓ_MVBA`: decision | `T.termination` on the timed projection; `eventually_mvba_complete`, `eventually_fbcommit_sig` | `ℓ_MVBA`; handlers, terminate and cast δ |
 | by `T₀`: certificates, finalization | `eventually_fbcommitqc` (a ghost, no hop), `eventually_committed_of_assignable` | `commit_assign_*` Δ, `finalize_commit` δ |
 
@@ -2554,7 +2604,7 @@ With `t_M = M + 3Δ + 3δ` and `X_d = t_M + ℓ_MVBA`:
 | milestone | lemma | by | `δ`s |
 |---|---|---|---|
 | a FallbackQC signer's signature is there at its second-round vote | `fb_pos_sig_flip`, `fb_pos_sig_at_cast` | (saturation, `M + 2Δ + 2δ`) | 2 |
-| its chunk delivered to every validator (F8) | `within_fb_chunk` | `M + 3Δ + 2δ` | 2 |
+| its chunk sent to every validator with the signature (F8; F15, R19) | `fb_pos_sig_chunks` (was `within_fb_chunk`) | (saturation; the hop due by `M + 3Δ + 2δ`) | 2 |
 | every correct validator decides in the MVBA | `within_all_decided` (`T.termination` on the projection) | `X_d` | 3 |
 | a correct decision's entries recorded (the handlers) | `within_recorded` | `X_d + δ` | 4 |
 | `mvba_complete` (`mvba_terminate`) | `within_complete` | `X_d + 2δ` | 5 |
@@ -2573,8 +2623,10 @@ proof, each in the file's header:
   (`mvba_recorded_entry`, as in the untimed `eventually_mvba_complete`).
 * **The chunks precede the decision.** A correct FallbackQC signer signed
   before its second-round vote (`fb_sign_pos`'s guards), so its signature is
-  at the saturation index and its re-dissemination is owed from there. This
-  is the first-flip fact the reassessment asked for.
+  at the saturation index. This is the first-flip fact the reassessment
+  asked for. Since R19 (F15) the same step sent every validator its chunk
+  (`fb_pos_sig_chunks`), and the chunks' hop is timed at the vote's split
+  row.
 * **The MVBA tail is the contract's.** `T.termination` on `mvbaTimedRun p`,
   the proposals carried forward (`Projection.timed_forward`), their validity
   the MVBA's own `input_valid`, no abandonment before `t_M + ℓ_MVBA` (the
@@ -2661,10 +2713,10 @@ theorems that say so, each pinned at the standard three axioms, are:
   assumptions of the system's configuration `chorusTheory`, `FJustice`
   with its owed-conditions and its two families, `MvbaAdmissible`,
   `ValidBridge`, and the caller's two.
-* `Chorus.timedTermination_premises_satisfiable`: the same for
-  `TimedTerminationClaim` at the system's MVBA, `T := Mvba.mvbaTemporal`.
-  That is `Mvba.mvbaTemporal`'s instance hypotheses, `Sync`, the
-  `δ ≤ Δ + ρ` that the handoff's derivation takes, `ValidBridge`, and the
+* `Chorus.timedTermination_premises_satisfiable`: the same for the timed
+  claim at the system's MVBA, `TimedTerminationClaimAtMvba` (R19). That is
+  `Mvba.mvbaTemporal`'s instance hypotheses, the schedule, `SyncAtMvba`
+  (whose MVBA premise is the MVBA's own two clauses), `ValidBridge`, and the
   caller's four. The witness file also applies
   `Chorus.timed_termination_atMvba` to the run (an `example`), so the build
   checks that this premise set is the proven claim's.
@@ -2732,17 +2784,20 @@ The instance, shared by the three claims:
   (the MVBA's decision deadline `t_M + ℓ_MVBA` is after the proposals' and
   the chunks', so the vote's window starts at the decision).
 * **The Chorus schedule** (the MVBA's plus the deadline `D`, with
-  `δ ≤ Δ`, F10): obvious. Model: `Δ = 1`, `δ = 0`, `D = 1`. *Used in:*
+  `δ ≤ Δ`, F10, and `Δ ≤ Δ_sync`, F15): obvious. The second says that the
+  MVBA's availability window covers one Chorus network hop, true when the
+  two layers share `Δ`. Model: `Δ = 1`, `δ = 0`, `D = 1`, `Δ_sync = 1` (the
+  Chorus witness overrides the MVBA's fixed schedule's `0`). *Used in:*
   `δ_le_Δ` by the Δ-row milestones (`within_fb_sig`,
   `within_complete_fast_metablock`, `within_input_of_fbcert`,
-  `within_chunk_delivered`, and the round's `within_fb_chunk` and
-  `within_finalized_late`); `D` by `deadline_le_of_start` and the window
-  arithmetic.
+  `within_chunk_delivered`, and the round's `within_finalized_late`), and by
+  the handoff's `δ ≤ Δ + ρ` in `timedMvbaAdmissible_of_rows`;
+  `Δ_le_Δsync` by `availWithin_of_timedJustice`, the (Δ-avail)
+  derivation; `D` by `deadline_le_of_start` and the window arithmetic.
 * **`δ ≤ Δ + ρ`**, a hypothesis of the handoff's derivation
   (`Chorus.relayed_of_timedJustice`): obvious, it follows from `δ ≤ Δ`.
-  *Used in:* `relayed_of_timedJustice` and `timedMvbaAdmissible_of_rows`
-  (the handoff's window). It is not a hypothesis of any of the three
-  claims, which assume `TimedMvbaAdmissible` outright.
+  Since R19 no claim and no witness takes it: `timedMvbaAdmissible_of_rows`
+  derives it from `δ_le_Δ` and `0 ≤ ρ`.
 
 The timing model, `Sync`, premises of the timed termination claim
 (`TotalityClaim` takes `TimedJustice` only):
@@ -2764,18 +2819,18 @@ The timing model, `Sync`, premises of the timed termination claim
   `within_complete_fast_metablock`, `within_chunk_delivered`,
   `within_entry_recorded`; the two proposal families in
   `within_input_of_fbcert` / `within_input_of_fast`; the handoff in
-  `relayed_of_timedJustice`) and the round (`redisseminate_chunk` in
-  `within_fb_chunk`, the decision handlers in `within_recorded`,
-  `mvba_terminate` in `within_complete`, `cast_fb_commit` in
-  `within_fbcommit_sig`, `commit_assign_*` and `finalize_commit` through
+  `relayed_of_timedJustice`) and the round (the decision handlers in
+  `within_recorded`, `mvba_terminate` in `within_complete`, the vote's split
+  row `fbCommit` in `within_fbcommit_sig`, `commit_assign_*` and `finalize_commit` through
   totality's two links in `within_finalized_late`). Rows no termination
   proof uses: the fast commit path's (`commit_sign_*`, `cast_fast_commit`,
   `broadcast_commitqc_*`: the fast vote is counted when it happens, never
   awaited), the `CommitQC` route's handlers `on_mvba_commitqc_*` (the
-  timed proof takes the main body's fbCommitQC route), and the
-  availability report `avail`, which is there for the (Δ-avail)
-  derivation that F15 blocks (§6.4.2). The handoff family `relay` is used
-  only by that kind of derivation, `relayed_of_timedJustice`. They stay:
+  timed proof takes the main body's fbCommitQC route). The availability
+  report `avail` and the handoff family `relay` are used by the derivations
+  of the MVBA's caller clauses at the system's MVBA,
+  `availWithin_of_timedJustice` and `relayed_of_timedJustice`, which
+  `timed_termination_atMvba` consumes through `sync_of_syncAtMvba`. They stay:
   the premise is the paper's "every step within its bound", and
   dropping a row would make a run admissible that the paper's network does
   not produce.
@@ -2786,17 +2841,19 @@ The timing model, `Sync`, premises of the timed termination claim
   phase (`within_voted`, `within_fb_sig`, `within_cast`,
   `within_input_of_*`); (P1) by `phase_pre_of_lt`, for
   `within_entry_recorded` (`record_chunk` closes at `D`).
-* **The MVBA's timing, `TimedMvbaAdmissible T`**: obvious alone
-  (`Mvba.admissible_exists`). **Jointly not obvious**: Chorus's own steps
-  drive the MVBA's inputs (here `abandon`), and the projection needs the
-  MVBA to be stepped infinitely often without any row becoming enabled.
-  Discharged by `Chorus.timedTermination_premises_satisfiable`. The
-  handoff clause is derived from the rows (C15,
-  `Chorus.timedMvbaAdmissible_of_rows`), so the witness supplies only the
-  MVBA's own three clauses, on a quiet projection. At the system's MVBA the
-  premise still contains (Δ-avail), which Chorus provides in the paper but
-  cannot derive in the model until F15 is fixed (R19, §6.4.2). *Used in:*
-  `within_all_decided`, the MVBA tail, through `T.termination`.
+* **The MVBA's timing, `TimedMvbaAdmissible T`** (generic claims), at the
+  system's MVBA **`MvbaOwnTiming`**, the MVBA's own two clauses (Δ-justice)
+  and (T-timer) on a projection: obvious alone (`Mvba.admissible_exists`).
+  **Jointly not obvious**: Chorus's own steps drive the MVBA's inputs (here
+  `abandon`), and the projection needs the MVBA to be stepped infinitely
+  often without any row becoming enabled. Discharged by
+  `Chorus.timedTermination_premises_satisfiable`. The MVBA's two clauses on
+  its caller are derived from the rows: the handoff (C15,
+  `relayed_of_timedJustice`) and (Δ-avail) (F15, R19,
+  `availWithin_of_timedJustice`), joined by `timedMvbaAdmissible_of_rows`.
+  So the claim at the system's MVBA assumes no availability fact Chorus
+  provides. *Used in:* `within_all_decided`, the MVBA tail, through
+  `T.termination`.
 
 The bridge, a premise of both termination claims:
 
@@ -2816,11 +2873,13 @@ The bridge, a premise of both termination claims:
   `eventually_mvba_complete` (the decision passes the handlers' certificate
   check) and by `eventually_fbcommit_sig` (a FallbackQC entry of the
   validator's own decision has its fallback quorum, whose correct signer
-  re-disseminates). The timed claim: soundness by `within_finalized_late`
-  (the certified vector at saturation is `Valid`, the timeline's input),
-  completeness by `within_recorded` (the handlers' check) and
-  `within_finalized_late` (a FallbackQC entry of a correct decision has its
-  correct signer).
+  sent the chunks when it signed). The held-value clause by
+  `fAvail_of_fJustice` and, timed, `availWithin_of_timedJustice` (a held
+  meta-block's FallbackQC entries are certified). The timed claim:
+  soundness by `within_finalized_late` (the certified vector at saturation
+  is `Valid`, the timeline's input), completeness by `within_recorded` (the
+  handlers' check) and `within_finalized_late` (a FallbackQC entry of a
+  correct decision has its correct signer).
 
 The untimed fairness, a premise of `Chorus.termination`:
 
@@ -2835,9 +2894,9 @@ The untimed fairness, a premise of `Chorus.termination`:
   `eventually_saturated`, `eventually_mvba_complete`,
   `eventually_fbcommit_sig`, `eventually_committed_of_assignable`, …); the
   proposal family by `eventually_input`; the handoff family by
-  `fRelay_of_fJustice`. Re-dissemination's row, owed only on the sender's
-  own positive fallback entry (F11, F14), is used by
-  `eventually_fbcommit_sig`, for the FallbackQC signer's chunk.
+  `fRelay_of_fJustice`; the availability family by `fAvail_of_fJustice`.
+  Since R19 (F15) re-dissemination has no row: the FallbackQC signer's
+  chunks come with its `fb_sign_pos` (`fb_pos_sig_chunks`).
 * **`MvbaAdmissible`**: the MVBA's own three premises on a projection.
   Jointly not obvious, as the timed form is. Discharged by
   `Chorus.termination_premises_satisfiable` (its caller premises are
@@ -2897,10 +2956,12 @@ the untimed one forgets its clock:
 
 Bounds are upper bounds, so this eager run is one the paper's protocol
 produces. Nobody sends anything the paper's rules would not. The clock
-advances only at four plateau ends. At three of them no row is enabled. At
-the first, the end of clock 0, only re-dissemination is, and its `Δ`-window
-reaches clock 1, where its gate is closed. Every timed row therefore holds
-with its antecedent false. Both proven claims also apply to the run
+advances only at four plateau ends, and at none of them is a row enabled
+(the availability report aside, which nobody owes). Until R19 the first
+one, the end of clock 0, had re-dissemination enabled, which needed an
+argument of its own; since F15 re-dissemination happens only inside a
+positive fallback signature, and nobody signs one. Every timed row
+therefore holds with its antecedent false. Both proven claims also apply to the run
 (`example`s in the file), which checks that it lives at their instance
 regime.
 
@@ -3264,9 +3325,38 @@ after its step 2.
      `timedMvbaAdmissible_of_rows` still takes the MVBA's three clauses.
    * **The comments of [Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)**
      were brought up to date (comment-only, approved in session).
+
+   **Then R19: F15 closed** (2026-10-02, the "R19" PR; §6.4.2 "F15: the
+   design" and "F15 closed"). A model session between S4 and S5. The
+   fallback signer re-disseminates inside `fb_sign_pos`, the proposer's
+   chunk delivery no longer requires the proposer to be active, and
+   `redisseminate_chunk` is gone: `#veil_status Chorus` 5099 → 4997, the
+   family re-solved cold. (Δ-avail) is derived
+   (`availWithin_of_timedJustice`), and the claim at the system's MVBA
+   (`TimedTerminationClaimAtMvba`) assumes only the MVBA's own two clauses.
+   Changes to the plan:
+
+   * **`Δ ≤ Δ_sync`, not `Δ + δ ≤ Δ_sync`.** Once the chunk is sent with the
+     signature, the availability report is a `Δ`-row, which costs
+     `max(Δ, δ) = Δ`. The `+ δ` belonged to a sequential reading that the
+     atomic step retires.
+   * **Two premise rows changed shape**, both weakenings. `cast_fb_commit`
+     and `mvba_avail_ready` read a re-disseminated chunk, which now holds
+     from its send, so they are `Δ`-rows (the first split at its trigger,
+     `TimedJustice.fbCommit`). The gate checklist admits the actor's own
+     MVBA output.
+   * **The proposer's dissemination**, the same shape as F15, was closed in
+     the same re-solve, at the design review's request, not parked.
+   * **The witness overrides `Δ_sync`** in its own schedule.
+     `Mvba.Schedule.fixedNat` and the MVBA's witness are untouched.
 5. **S5: the contract instances.** `SlotConsensusTemporal` at the new
    fragment, which includes:
-   * Quiescence from the gates and the MVBA's `quiescence`;
+   * Quiescence from the gates and the MVBA's `quiescence`. Since R19 every
+     correct chunk send happens inside a gated step: the proposer's in
+     `propose` (whose record is `msg_proposer_signed`) and a fallback
+     signer's in `fb_sign_pos` (`local_chunk_sent i I j m`). A later
+     `deliver_chunk_assigned` delivers an earlier send and is not a new
+     send;
    * `admissible_exists` from an idle run;
    * Termination, as the unbounded corollary of the bounded one.
 
