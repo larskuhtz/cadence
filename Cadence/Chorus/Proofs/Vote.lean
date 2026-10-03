@@ -113,23 +113,6 @@ after a statement check. -/
   rw [if_neg hai]
   simp [ha_sig_false]
 
-/- Manual cell for solver-budget headroom: `vote` preserves the step property
-`committed_pos_frozen`. The fact is a frame — `vote` writes no
-`local_committed_pos` — but the automatic route hands the solver the whole
-invariant clump as well, and on the 4-core CI runner the cell took 73 % of
-its budget (PR #46). This is the fork's own step-cell route
-(`veil_solve_step`: introduce, expose the transition, split, concretize,
-solve) with the pre-state's invariants and assumptions dropped first, since
-a frame needs neither. -/
-#prove_vc Chorus vote committed_pos_frozen by
-  veil_intros
-  clear hinv has
-  veil_simp +instances only [invSimp, actSimp] at *
-  veil_simp +instances only [ifSimp] at *
-  veil_destruct only [Exists, And]
-  veil_split_ifs
-  all_goals (veil_concretize_tr; veil_fol; veil_solve)
-
 #prove_action Chorus vote
 
 end Chorus.Proofs

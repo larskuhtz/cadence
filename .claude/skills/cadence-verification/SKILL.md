@@ -226,7 +226,13 @@ never write one by hand.
      Conductor's `monotonicity`, Chorus's `committed_pos_frozen`). It is
      checked per action, counts in `#veil_status`, and is exported as
      `<Module>.reachable_<name>_step`. **One cell per action** — 48 on
-     Chorus — so add one only for a fact a contract needs;
+     Chorus — so add one only for a fact a contract needs. A step cell's
+     discharger tries a solver-free rung first (`veil_solve_step_frame`:
+     the step route with the invariant clump and the assumptions cleared,
+     closed by `grind`), so a property that is a frame for most actions
+     costs about a second per cell; a cell that needs an invariant falls
+     through to the solver route. A manual step cell is therefore rarely
+     worth writing;
   3. **by hand from the transition bodies**, for a single-action effect or
      pointwise frame: dispatch the label, `simp only [trSimp]` (the
      `conductor_tr` / `mvba_tr` macros are that plus the
