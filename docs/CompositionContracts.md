@@ -411,12 +411,13 @@ conditional statement about one slot, so the composition is not circular.
 The statements the Conductor's proofs (K4, K5) meet are
 `Conductor.TotalityClaim`, `Conductor.BoundednessClaim` and
 `Conductor.RecoveryClaim` ([Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean)),
-whose conclusions are these fields at the Conductor's fragment. Two are
-proven (K4): the count `2W − p`, from the interval form
+whose conclusions are these fields at the Conductor's fragment. All three
+are proven. K4 proved the count `2W − p`, from the interval form
 `safety [bounded_tail]` and the window widths (`[win_bounds_shift]`, over
 the model's shift functions) at the instance at `slot := ℕ`
 (`Conductor.boundedness`), and `d_tot`-Totality by the window induction
-(`Conductor.totality`). Recovery is K5's. Integrity's timing half is first-order and the Conductor proves
+(`Conductor.totality`). K5 proved `(2Wτ)`-Recovery through Propositions
+14–19 (`Conductor.recovery`). Integrity's timing half is first-order and the Conductor proves
 it, so it sits in `OrchestratorSafety` (`integrity_timing`, from `safety
 [opened_after_start]`) — which is why that fragment carries `time`.
 

@@ -659,9 +659,8 @@ Chorus model); the reasons for the fairness classes are
 *A draft, written with the statements (stage K3 of
 [ConductorBounds.md](ConductorBounds.md) §9). The premises are fixed and
 type-checked in [Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean).
-Two of the three claims are proven (K4, R28): "Used in" names the Lean lemma
-that uses each premise there, and, for Recovery (K5), the step of the
-paper's proof each is planned for. "Satisfiable" is the witness plan of
+All three claims are proven (K4, R28; K5, R29): "Used in" names the Lean
+lemma that uses each premise. "Satisfiable" is the witness plan of
 [ConductorBounds.md](ConductorBounds.md) §8.2, which K8 builds. Until the
 contract instance (K6) no row of §1 cites these claims.*
 
@@ -675,20 +674,21 @@ it as stated.
 |---|---|---|
 | `Conductor.TotalityClaim` — once a correct validator opens slot `s` at `c`, every correct validator opens it by `max(c, GST) + d_tot`, `d_tot = Δ` (Lemma 15 (`lemma:conductor-totality`)) | an ordered time, the schedule, `StartsUnbounded` and the ACS's `Δ` §9.2; `Sync` §9.3; (R-tot) §9.4 | `Conductor.totality` ([Conductor/Induction.lean](../Cadence/Conductor/Induction.lean)) |
 | `Conductor.BoundednessClaim` — an opened, uncompleted slot of a correct validator has fewer than `2W − p` opened slots above it, at every reachable state (Lemma 14 (`lem:boundedness`)) | `WindowShifts` §9.2 only: a state property of the Conductor alone | `Conductor.boundedness` ([Conductor/Boundedness.lean](../Cadence/Conductor/Boundedness.lean)) |
-| `Conductor.RecoveryClaim` — every slot starting at least `2Wτ` after GST is opened by every correct validator at its starting time (Lemma 16 (`lemma:conductor-recovery`)) | an ordered time, the schedule, `StartTimes`, `WindowShifts` §9.2; the ACS's `Δ`, `ℓ` and fault bound §9.2; `Sync` §9.3; (R-tot) and (R-term) §9.4 | K5 |
+| `Conductor.RecoveryClaim` — every slot starting at least `2Wτ` after GST is opened by every correct validator at its starting time (Lemma 16 (`lemma:conductor-recovery`)) | an ordered time, the schedule, `StartTimes`, `WindowShifts`, `StartsUnbounded`, `WindowsUnbounded` §9.2; the ACS's `Δ`, `ℓ` and fault bound §9.2; `Sync` §9.3; (R-tot) and (R-term) §9.4 | `Conductor.recovery` ([Conductor/Recovery.lean](../Cadence/Conductor/Recovery.lean)) |
 
 ### 9.2 The instance, the schedule and the assumed ACS
 
 * **Slots are numbers** (`natSlotOrder`) — *Role:* gives the shifts and the
   spacing their arithmetic; `s : ℕ` is the paper's slot `s + 1`.
   *Plausible:* the paper's slots are numbered. *Satisfiable:* obvious.
-  *Used in:* both proofs (the count, the induction over first slots).
+  *Used in:* all three proofs (the count, the induction over first slots,
+  the recovery arithmetic).
   *Paper:* Appendix A.1 (`subsection:mcp-preliminaries`).
 * **An ordered time** (`[IsOrderedAddMonoid time]`, F27) — *Role:* adding a
   delay is monotone, so `max(t, GST) + Δ` grows with `t`. *Plausible:* the
   time theory of §2.6, the real line in the paper. *Satisfiable:* `ℕ`.
-  *Used in:* `Conductor.totality` throughout (every deadline comparison);
-  a premise of `RecoveryClaim` too. *Paper:* the paper's time is the real
+  *Used in:* `Conductor.totality` and `Conductor.recovery` throughout
+  (every deadline comparison). *Paper:* the paper's time is the real
   line.
 * **`ConductorSchedule`**, Chorus's family schedule (§2.8, one `Δ` and one
   `δ`) extended by `W`, `p`, `τ`, the ACS's `ℓ` and slot 1's starting time:
@@ -697,48 +697,70 @@ it as stated.
     and `d_tot` the Chorus instance's own constants (`Φ_oc_eq_chorus`),
     at the paper's `6Δ + ℓ_MVBA` and `Δ` (`Φ_oc_paper`, `d_tot_paper`).
     *Satisfiable:* by a large `W`; the plan's `p = 4`,
-    `W = p + Φ_oc + ℓ`, `ℓ = 2`, `Δ = τ = 1`. *Used in:* Recovery only, as
-    planned: (1) Proposition 17 (`prop:window-progression`) point 2; (2)
-    Proposition 17 point 1 and Proposition 19
-    (`prop:first-post-gst-window-time`); (3) Proposition 16
-    (`prop:window-open-time`) and Proposition 17; (4) Proposition 18
-    (`prop:smooth-windows`) and Proposition 19. Totality and Boundedness
-    need none of them. *Paper:* Algorithm 7, lines 7–10
-    (`line:assumption-one`–`line:assumption-four`).
+    `W = p + Φ_oc + ℓ`, `ℓ = 2`, `Δ = τ = 1`. *Used in:* Recovery only:
+    (1) Proposition 17 (`prop:window-progression`), both points
+    (`Conductor.window_progression`); (2) Proposition 19
+    (`prop:first-post-gst-window-time`), `Conductor.first_post_gst_window_time`;
+    (3) only for `0 < ℓ` (`ConductorSchedule.ℓ_pos`); (4) Proposition 18
+    (`prop:smooth-windows`), `Conductor.smooth_windows`, and Proposition 19.
+    (1) and (2) are used with `ℓ_chorus` in place of `Φ_oc`. This slack is
+    recorded for the authors ([ConductorBounds.md](ConductorBounds.md) §9,
+    K5). Totality and Boundedness need none of them. *Paper:* Algorithm 7,
+    lines 7–10 (`line:assumption-one`–`line:assumption-four`).
   * **`δ_zero`** — *Role:* local computation takes no time. *Plausible:*
     the paper's model throughout. *Used in:* the window induction, whose
     tolerance stays `Δ` only at `δ = 0` (F3): the two rows fire within the
     deadline (`Conductor.entry_step`, `Conductor.prop_step`), and
     `d_tot = Δ` (`ConductorSchedule.d_tot_paper`, in
-    `Conductor.totality`). *Paper:* modelling choice, decided
+    `Conductor.totality`); in Recovery, all three rows fire by their
+    deadlines (`Conductor.row_window`), and `ℓ_chorus` is the paper's
+    (`ConductorSchedule.ℓchorus_paper`). *Paper:* modelling choice, decided
     ([ConductorBounds.md](ConductorBounds.md) §5).
   * **`τ_pos`, `p_lt_W`** — *Role:* slots are spaced, and the readiness
     threshold is a slot of the window. *Plausible:* the paper's ranges.
-    *Used in:* `p_lt_W` in the count (`Conductor.boundedness`); `τ_pos` in
-    Recovery's arithmetic (K5). *Paper:* Appendix A.1, Algorithm 7
-    (`algorithm:conductor`)'s parameters.
+    *Used in:* `p_lt_W` in the count (`Conductor.boundedness`) and for
+    `W ≥ 1` in Recovery (`ConductorSchedule.one_le_W`); `τ_pos` in
+    Proposition 19 (`Conductor.first_post_gst_window_time`). *Paper:*
+    Appendix A.1, Algorithm 7 (`algorithm:conductor`)'s parameters.
   * **`mvba.Δ_pos`** (the MVBA schedule's, §2.7) — *Used in:* `0 ≤ Δ`,
-    so a deadline `max(t, GST) + Δ` is at least `t` (`Conductor.totality`).
+    so a deadline `max(t, GST) + Δ` is at least `t` (`Conductor.totality`,
+    `Conductor.recovery`); with assumption (3), `0 < ℓ`. With the MVBA
+    schedule's other bounds it also gives `0 ≤ ℓ_chorus`
+    (`ConductorSchedule.ℓchorus_nonneg`), so no premise like §2.9 is
+    needed here.
   * **`D_eq`** — *Role:* one `Δ`: Chorus's deadline is the Conductor's
     starting time plus `Δ`. *Plausible:* definitional (starting time =
     deadline − `Δ`). *Used in:* C2 for the composed claims (K7).
     *Paper:* Algorithm 7, line 27 (`line:conductor-wait-for-open`).
 * **`StartTimes`** — *Role:* starting times are τ-spaced from slot 1's.
-  *Plausible:* the paper's setting. *Used in:* Propositions 16, 19 and
-  Lemma 16 (planned). *Paper:* Appendix A.1.
+  *Plausible:* the paper's setting. *Used in:* Propositions 16–19 and
+  Lemma 16 (`Conductor.start_add`, and the run's start at slot 1's
+  starting time, `Conductor.clk_zero`). *Paper:* Appendix A.1.
 * **`StartsUnbounded`** (F28) — *Role:* whatever the time, some slot has
   not started yet, so a ready validator can always pick its proposal `s*`.
   *Plausible:* the paper's slots are infinitely many and τ-spaced on the
   real line. *Satisfiable:* at `ℕ` with `start₀ + s • τ`, `0 < τ`.
   *Used in:* `Conductor.sstar_exists`, hence the proposal step
-  (`Conductor.prop_step`) of `Conductor.totality`; Recovery will need it too
-  (F28). *Paper:* Appendix A.1, and Algorithm 7, line 39
-  (`line:sstar-compute`), whose `s*` presumes it.
+  (`Conductor.prop_step`) of `Conductor.totality`; in Recovery, the same
+  for every proposal (`Conductor.propose_by`), and some window of the
+  chain starts after GST (`Conductor.exists_post_gst`). *Paper:*
+  Appendix A.1, and Algorithm 7, line 39 (`line:sstar-compute`), whose
+  `s*` presumes it.
+* **`WindowsUnbounded`** (F30) — *Role:* every window has a successor, so
+  a ready validator has a next ACS to propose to and a next window to
+  enter. *Plausible:* the paper's windows are the numbers `ω ∈ ℕ≥1`, one
+  ACS instance for each `ω ≥ 2`. *Satisfiable:* at `window := ℕ`.
+  *Used in:* Recovery only: the chain of windows (`Conductor.WinSucc.exists`)
+  in `Conductor.exists_post_gst` and in Lemma 16's last step. Totality
+  needs none: it speaks only of windows some correct validator entered.
+  *Paper:* Algorithm 7, line 12 (`line:acs-instances`); Proposition 15
+  (`prop:enters-every-window`) inducts over `ℕ≥1`.
 * **`WindowShifts`** — *Role:* a window is the `W` slots from its first,
   its readiness boundary the `(p + 1)`-th. *Plausible:* Algorithm 7's
   window. *Used in:* the count `2W − p` (`Conductor.boundedness`, the
   interval form of Proposition 11 (`prop:open-count-window`)) and "no gap"
-  (Proposition 17, planned). *Paper:*
+  (Proposition 17, `Conductor.bounds_shift` in
+  `Conductor.window_progression`). *Paper:*
   Algorithm 7, line 52 (`line:last-update`), Algorithm 7, line 23
   (`line:ready-check`).
 * **An `ACSTemporal` instance** at the fragment the Conductor
@@ -748,17 +770,21 @@ it as stated.
   the class's model ([Conductor/IdealAcs.lean](../Cadence/Conductor/IdealAcs.lean)).
   *Used in:* its Δ-Totality, `integrity`, `propose_enabled` and
   `abandon_enabled` in `Conductor.entry_step` and `Conductor.prop_step`;
-  its Termination in Recovery (planned). *Paper:* Module 4 (`mod:acs`).
+  in Recovery, its Termination (`Conductor.decide_by`), Validity's
+  quantitative half (a correct pair in a decided set, `Conductor.correct_pair`)
+  and its qualitative half (the median's brackets are correct proposals,
+  `Conductor.recorded_bracket`). *Paper:* Module 4 (`mod:acs`).
 * **`TA.Δ = Δ`, `TA.ℓ = ℓ`** — *Role:* the ACS's constants are the
   system's (F23). *Plausible:* one network. *Used in:* `TA.Δ = Δ` in
   `Conductor.entry_step`, Proposition 13 (`prop:window-synchronization`)'s
-  entry step; `TA.ℓ = ℓ` in Propositions 15–17 (planned). *Paper:*
+  entry step; `TA.ℓ = ℓ` in the ACS's termination (`Conductor.decide_by`),
+  hence Propositions 15–19. *Paper:*
   Algorithm 7's `ℓ` is "the latency of the utilized ACS".
 * **At most `TA.fault_bound` Byzantine validators** — *Role:* a decided
-  set holds a correct pair, so the median is bracketed by correct ones.
-  *Plausible:* the system's fault bound. *Used in:* Recovery only (planned):
-  the decided interval's row (its correct witnesses,
-  `Cadence.acs_median_bracket`). No longer a premise of Totality, which
+  set holds a correct pair, so recording the decided interval has the
+  correct witnesses its step needs. *Plausible:* the system's fault bound.
+  *Used in:* Recovery only: the decided interval's row
+  (`Conductor.correct_pair` in `Conductor.record_by`). No longer a premise of Totality, which
   never needs that row (F29). *Paper:* "at most `f` of the `2f + 1`
   decided values are faulty", before Algorithm 7.
 * **The ACS accepts its inputs** is not a premise: it is the contract's
@@ -773,18 +799,22 @@ it as stated.
   validator's own window, readiness and its own ACS output (F22).
   *Satisfiable:* the witness's run fires each at once. *Used in:* the
   proposal row in `Conductor.prop_step`, the entry row in
-  `Conductor.entry_step`; the decided interval's row in Recovery
-  (planned). *Paper:* the event-driven
+  `Conductor.entry_step`; in Recovery all three, each read by a deadline
+  (`Conductor.propose_by`, `Conductor.enter_by`, and the decided
+  interval's row in `Conductor.record_by`). *Paper:* the event-driven
   handlers of Algorithm 7, lines 37–52 (`line:ready`–`line:last-update`).
 * **`OpenPunctual`**, (P-open) — *Role:* a scheduled slot opens at
   `max(scheduling time, starting time)`. *Plausible:* a local timer on
   synchronized clocks, as Chorus's (P-phase) (§4.2). *Used in:*
-  `Conductor.open_step`, the openings condition of Proposition 13; and
-  Proposition 18 (planned). *Paper:*
+  `Conductor.open_step`, the openings condition of Proposition 13; in
+  Recovery, `Conductor.open_by`: the openings that (R-term) needs, and
+  Proposition 18's and Lemma 16's "opened by its starting time". *Paper:*
   Algorithm 7, lines 27–28 (`line:conductor-wait-for-open`–`line:trigger-open`).
 * **`ClockAgrees`** — *Role:* one clock. *Plausible:* definitional.
   *Used in:* every comparison of a starting time with the run's clock
-  (`Conductor.open_step`: an opened slot has started).
+  (`Conductor.open_step`: an opened slot has started; in Recovery, the run
+  starts at slot 1's starting time, `Conductor.clk_zero`, and the `s*`
+  rule's times, `Conductor.sstar_slot`).
   *Paper:* "validators' clocks are synchronized, so they share one global
   timeline" (the description of Algorithm 7 (`algorithm:conductor`)).
 * **`AcsAdmissible`** — *Role:* each started window's ACS meets its
@@ -795,7 +825,8 @@ it as stated.
   so an untouched instance is asked nothing. *Satisfiable:* the ideal
   ACS's runs; a finished instance can stutter
   (`Cadence.IdealAcs.trans_refl`). *Used in:* the ACS's Δ-Totality in
-  `Conductor.entry_step`; its Termination in Recovery (planned). *Paper:*
+  `Conductor.entry_step`; its Termination in Recovery
+  (`Conductor.decide_by`). *Paper:*
   Module 4.
 
 ### 9.4 The caller's conditions
@@ -811,10 +842,13 @@ composed claims.
   synchronized within `d_tot`. *Plausible:* Chorus's Proposition 4
   (`prop:chorus-totality`) through the glue. *Used in:*
   `Conductor.comp_of_open`, Proposition 13's completions condition, hence
-  every claim but Boundedness.
+  every claim but Boundedness; in Recovery also through Lemma 15, which
+  gives (R-term) its synchronized openings (`Conductor.complete_by`).
 * **(R-term)** `OrchestratorSafety.CallerTermination` at `d_tot` and
   `ℓ_chorus` — *Role:* a slot every correct validator opens by `t`, with
   synchronized openings, is completed by `max(t, GST) + ℓ_chorus`.
   *Plausible:* Chorus's Lemma 11 (`lemma:chorus-termination`) through the
-  glue. *Used in:* Proposition 14 (`prop:conductor-open-to-complete`),
-  hence Recovery (planned).
+  glue. *Used in:* `Conductor.complete_by`: Proposition 14
+  (`prop:conductor-open-to-complete`), `Conductor.open_to_complete`, and the
+  completions every step of Recovery's chain waits for
+  (`Conductor.completions_by`).

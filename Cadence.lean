@@ -19,6 +19,7 @@ import Cadence.System
 import Cadence.AcsMedian
 import Cadence.Conductor.Boundedness
 import Cadence.Conductor.Induction
+import Cadence.Conductor.Recovery
 
 -- The fallback receipt/propose leg: the shipped design, verified.
 import Cadence.FallbackReceipt.Totality
@@ -270,6 +271,20 @@ Each entry is the result, the file its statement lives in, and what it says.
   its corollaries `Conductor.entry_sync`, `Conductor.prop_sync` and
   `Conductor.comp_sync`, each at `max(t, GST) + Δ`. No
   `OrchestratorTemporal` instance packages these yet (stage K6)
+* **`Conductor.recovery`** ([Conductor/Recovery.lean](Cadence/Conductor/Recovery.lean)) —
+  **`(2Wτ)`-Recovery**, Lemma 16 (`lemma:conductor-recovery`)
+  (`RecoveryClaim`): every slot whose starting time is at least
+  `GST + 2Wτ` is opened by every correct validator by its starting time.
+  The premises: Totality's, the τ-spaced starting times and the window
+  shifts, every window having a successor, the ACS's `ℓ` the system's and
+  at most its fault bound Byzantine, the caller's (R-term), and the four
+  parameter assumptions, which are the schedule's fields. The proof is
+  Propositions 14–19 (`Conductor.open_to_complete`,
+  `Conductor.enters_every_window`, `Conductor.window_open_time`,
+  `Conductor.window_progression`, `Conductor.smooth_windows`,
+  `Conductor.first_post_gst_window_time`); **`Conductor.recovery_sharp`**
+  proves the same at `(W + p − 1)τ ≤ 2Wτ`. No `OrchestratorTemporal`
+  instance packages it yet (stage K6)
 * **`Cadence.acs_median_bracket`** ([AcsMedian.lean](Cadence/AcsMedian.lean)) — the
   justification of the Conductor's one stated bridge: for every ACS meeting
   the contract and at most `f` Byzantine validators, the median of a
@@ -684,6 +699,18 @@ info: 'Conductor.totality' depends on axioms: [propext, Classical.choice, Quot.s
 -/
 #guard_msgs in
 #print axioms Conductor.totality
+
+/--
+info: 'Conductor.recovery' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.recovery
+
+/--
+info: 'Conductor.recovery_sharp' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.recovery_sharp
 
 /--
 info: 'Cadence.acs_median_bracket' depends on axioms: [propext, Classical.choice, Quot.sound]

@@ -8,9 +8,9 @@ this leg reuses. Decisions are recorded with their reasons. The three
 questions put to Lars are **decided (2026-10-03)**, each as recommended.
 K1, the untimed composition edit, is **done** (2026-10-03, R25; §9), and so
 are K2, the model's timing completion (2026-10-03, R26; F21 closed), K3,
-the contract edit and the claims stated (2026-10-03, R27; §9), and K4, the
+the contract edit and the claims stated (2026-10-03, R27; §9), K4, the
 window induction with Boundedness and Totality proven (2026-10-03, R28;
-§9).*
+§9), and K5, Recovery proven (2026-10-03, R29; §9).*
 
 ## 1. In short, for an auditor
 
@@ -51,13 +51,16 @@ as fields of `OrchestratorTemporal`, Totality and Recovery in rely form, with
 the `d_tot` form on top in `OrchestratorWithTotality`
 ([Interfaces.lean](../Cadence/Interfaces.lean); C4, C5, since K3), and
 nothing instantiates them. The three claims are stated, with their premises,
-in [Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean). Two are
-proven (K4): Boundedness at the paper's `2W − p`, from the interval form
-`safety [bounded_tail]` of [Conductor.lean](../Cadence/Conductor.lean) and
-the window widths (`Conductor.boundedness`), and `d_tot`-Totality, by the
-window induction (`Conductor.totality`, with Proposition 13 and its three
+in [Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean). All three
+are proven. K4 proved Boundedness at the paper's `2W − p`, from the
+interval form `safety [bounded_tail]` of
+[Conductor.lean](../Cadence/Conductor.lean) and the window widths
+(`Conductor.boundedness`). It also proved `d_tot`-Totality, by the window
+induction (`Conductor.totality`, with Proposition 13 and its three
 corollaries; [Conductor/Induction.lean](../Cadence/Conductor/Induction.lean)).
-Recovery is K5's. The safety half of the
+K5 proved Recovery at the paper's `2Wτ`, through Propositions 14–19
+(`Conductor.recovery`;
+[Conductor/Recovery.lean](../Cadence/Conductor/Recovery.lean)). The safety half of the
 composition is proven (`Cadence.system_positional_log_safety`,
 [System.lean](../Cadence/System.lean)), and since K1 the glue drives
 Chorus's `participate`, `propose` and `abandon` inputs through the contract,
@@ -96,8 +99,8 @@ the composed claims.
    MVBA's theorems keep their δ-general forms, and F3 records the
    degradation at δ > 0.
 
-**Fourteen findings about statements (§7, F16–F29) and three for the
-paper's authors (P15–P17, [PaperAlignment.md](PaperAlignment.md) §6).** Two
+**Fifteen findings about statements (§7, F16–F30) and four for the
+paper's authors (P15–P18, [PaperAlignment.md](PaperAlignment.md) §6).** Two
 of them
 reach the existing safety claims. **F18 / P16:** Module 4's Validity
 bounds the size of the decided set but not the number of pairs per
@@ -923,10 +926,13 @@ paper's module.
   does not imply it, even with an Archimedean time: with
   `start₀ = (−1, 0)` and `τ = (0, 1)` in the lexicographic monoid
   `{(a, b) : a < 0, or a = 0 ∧ b ≥ 0}`, every starting time stays below
-  `(0, 0)`. Deriving it would need `0 ≤ start₀` or a group. *For K5:*
+  `(0, 0)`. Deriving it would need `0 ≤ start₀` or a group. For K5,
   `RecoveryClaim` proposes too, so it needs `StartsUnbounded` as well, or
-  `StartTimes` together with `[Archimedean time]` and `0 ≤ start₀`. Not a
-  paper issue.
+  `StartTimes` together with `[Archimedean time]` and `0 ≤ start₀`.
+  **Done in K5 (R29, decided by Lars 2026-10-03):** `RecoveryClaim` takes
+  `StartsUnbounded`, the same premise as Totality. Recovery also uses it
+  to find a window of the chain that starts after GST
+  (`Conductor.exists_post_gst`). Not a paper issue.
 * **F29: Totality's fault-bound premise was unused.** Found by K4. K3 gave
   `TotalityClaim` the premise "at most the ACS's `fault_bound` validators
   are Byzantine", for the decided interval's row (its correct median
@@ -936,6 +942,26 @@ paper's module.
   premise is dropped from `TotalityClaim`. The decided interval's row and
   the fault bound remain premises of `RecoveryClaim`, where Propositions 15
   and 16 need the interval to be recorded.
+* **F30: Recovery needs every window to have a successor.** Found by K5.
+  The model's window order is abstract (`TotalOrderWithMinimum window`), and
+  a validator leaves a window only for its successor: `acs_propose` and
+  `enter_window` read `win_ord.next`. `RecoveryClaim` assumed nothing of
+  the order. At `window := Fin 1` every validator stays in window 1 for
+  good, and every premise of the claim holds. The rows are vacuous
+  without a successor, the ACS is never proposed to, and the caller
+  completes window 1's slots. No slot past window 1 is ever opened, so the
+  claim is false. The paper's windows are the numbers `ω ∈ ℕ≥1`, with one
+  ACS instance for each `ω ≥ 2` (Algorithm 7, line 12
+  (`line:acs-instances`)), and Proposition 15 (`prop:enters-every-window`)
+  inducts over them. **Closed (R29, decided by Lars 2026-10-03):** a plain
+  configuration premise, `WindowsUnbounded` ("every window has a
+  successor"), beside `StartsUnbounded` in
+  [Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean), and a
+  premise of `RecoveryClaim` only. Totality and Boundedness speak only of
+  windows a correct validator has entered and need none. The alternative,
+  stating the claim at `window := ℕ`, was declined: the claim stays generic
+  in the window type, and K6's instance carries the premise, which is
+  trivial at `ℕ`. Not a paper issue.
 
 ## 8. Premises and non-vacuity from the start
 
@@ -1223,6 +1249,92 @@ parallel with K1. Everything else is in order.
       rewrites the status text.
 * **K5: Recovery.** Propositions 14–19 and Lemma 16. Plain Lean; the
   schedule arithmetic is where F4-style slack would show.
+  * **Done (2026-10-03, R29).** One new file,
+    [Conductor/Recovery.lean](../Cadence/Conductor/Recovery.lean), every
+    theorem pinned at the standard trio. `RecoveryClaim` is proven at the
+    paper's `𝓡 = 2Wτ` (`Conductor.recovery`), after one statement edit
+    with two premises added (F28's `StartsUnbounded`, as planned, and
+    F30's `WindowsUnbounded`), both decided by Lars in the session. What is
+    proven, each item at the paper's deadline (`d_tot = Δ` at `δ = 0`):
+
+    | the paper | Lean | deadline |
+    |---|---|---|
+    | Proposition 14 (`prop:conductor-open-to-complete`) | `Conductor.open_to_complete` | `max(t, GST) + d_tot + ℓ_chorus`, for every correct validator |
+    | Proposition 15 (`prop:enters-every-window`) | `Conductor.enters_every_window` (and `window_entered_by`, by some time) | eventually, for window 1 and each of its successors |
+    | Proposition 16 (`prop:window-open-time`) | `Conductor.window_open_time` | `max(T₁(ω), GST) + d_tot + ℓ` |
+    | Proposition 17 (`prop:window-progression`) | `Conductor.window_progression` | (1) the next window's first slot is `slot(ω, W) + 1`; (2) entered by `T₁(ω + 1)` |
+    | Proposition 18 (`prop:smooth-windows`) | `Conductor.smooth_windows` | every slot of a later window opened by its starting time |
+    | Proposition 19 (`prop:first-post-gst-window-time`) | `Conductor.first_post_gst_window_time` | `T₁(ω) ≤ GST + Wτ` |
+    | Lemma 16 (`lemma:conductor-recovery`) | `Conductor.recovery` (`RecoveryClaim`) | `𝓡 = 2Wτ` |
+    | (slack) | `Conductor.recovery_sharp` | `𝓡 = (W + p − 1)τ` |
+
+    Differences from the plan:
+    * **one engine instead of separate arguments.** `succ_window`: once
+      every correct validator has entered a window by `X`, every correct
+      validator proposes to the next ACS by
+      `max(X, T, GST) + ℓ_chorus`, where `T` bounds the starting times
+      below the readiness boundary, and enters the next window `ℓ` later.
+      Propositions 15–19 instantiate it. The paper's case splits on an
+      early correct decision or entry, in Propositions 15, 16 and 17
+      point 2, are not needed: once every correct validator has proposed,
+      the ACS's `ℓ`-termination applies whatever happened before;
+    * **Proposition 16 needs neither Proposition 15 nor assumption (3).**
+      It is stated for a window whose interval is recorded. The median's
+      lower bracket, a correct proposal at or below the first slot, was
+      made by `T₁(ω)`, since the `s*` rule never picks a slot that has
+      started. Corollaries 1–3 then make every correct validator ready
+      and proposing by `max(T₁(ω), GST) + Δ`;
+    * **Proposition 15 and the windows' existence are one induction**
+      along the chain of successors (`WinSucc`), which `WindowsUnbounded`
+      makes infinite (F30). The smallest post-GST window is found on it
+      (`exists_post_gst`): the chain's first slots grow (`chain_bounds`),
+      and `StartsUnbounded` puts one past GST;
+    * **window 1 may be post-GST with `T₁(1) > GST + Wτ`.** The paper's
+      time starts at `0 = T₁(1)` with `GST ≥ 0`. A run here starts at slot
+      1's starting time, and GST is arbitrary, so Proposition 19's `ω = 1`
+      case does not carry over. `recovery` treats window 1 apart: it is
+      entered at its starting time, so its slots are opened at theirs, and
+      Proposition 19 is stated for `ω > 1` (a predecessor that starts
+      before GST). Not a paper issue: at `GST ≥ T₁(1)` the cases agree;
+    * **the decided interval's row is fed one correct pair**, used as
+      both median witnesses (`correct_pair`, from `validity_quantitative`
+      and the fault bound). The model records any first slot between two
+      correct pairs, and the timing argument reads only those brackets
+      (`recorded_bracket`), so it holds at the median as well;
+    * **the ACS through its contract only:** `T_acs.Admissible` of the
+      window's part (`AcsAdmissible`), its ℓ-Termination
+      (`Cadence.acs_termination_in`), Δ-Totality through Lemma 15's
+      corollaries, Validity's two halves and its input-enabledness. Chorus
+      enters only through (R-tot) and (R-term), at `d_tot` and
+      `ℓ_chorus`. `0 ≤ ℓ_chorus` is derived from the MVBA schedule
+      (`ConductorSchedule.ℓchorus_nonneg`), so no premise like
+      [Premises.md](Premises.md) §2.9 is added.
+
+    **The schedule arithmetic: slack (P18), no shortfall.** The proof
+    needs:
+    * `(p − 1)τ + ℓ_chorus + ℓ ≤ Wτ` (Proposition 17, both points), not
+      (1) with `Φ_oc`;
+    * `(p − 1)τ + ℓ_chorus ≤ (W − 1)τ` (Proposition 19 only), not (2)
+      with `Φ_oc`;
+    * `0 < ℓ`, not (3)'s `Δ < ℓ`;
+    * (4) as stated (Propositions 18 and 19).
+
+    Where every correct validator has already opened the slots, Chorus's
+    termination applies directly, and Proposition 14's `d_tot` is not paid.
+    Proposition 17 point 1 needs the proposals only by `T₁(ω + 1)`, which
+    (1) implies. `𝓡 = (W + p − 1)τ ≤ 2Wτ` suffices, because the smallest
+    post-GST window is itself entered by its `T_p` (`recovery_sharp`).
+    With P5's tight `ℓ_chorus = 4Δ + ℓ_MVBA` (F4) as well, the `Φ_oc` of
+    (1)–(2) could shrink from the paper's `6Δ + ℓ_MVBA` to `4Δ + ℓ_MVBA`,
+    one `Δ` below the §6.3 remark's `5Δ + ℓ_MVBA`. The claim keeps the paper's values,
+    as the Chorus leg did. The proof needs nothing beyond the stated
+    assumptions, so no finding of the F-kind arises from the arithmetic.
+
+    **Premises: each is used** ([Premises.md](Premises.md) §9, "Used in").
+    The one weakly used is assumption (3), for `0 < ℓ` only; the others
+    enter their named steps. No removal is proposed, since (3) is a field
+    the composed claims share with the paper, and P18 reports the slack
+    to the authors.
 * **K6: the contract instances.** `OrchestratorTemporal` and
   `OrchestratorWithTotality` at `Conductor.orchestratorSafety`, the join
   with its `…_toSafety` `rfl` lemma, then the
