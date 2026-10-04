@@ -11,8 +11,9 @@ are K2, the model's timing completion (2026-10-03, R26; F21 closed), K3,
 the contract edit and the claims stated (2026-10-03, R27; §9), K4, the
 window induction with Boundedness and Totality proven (2026-10-03, R28;
 §9), K5, Recovery proven (2026-10-03, R29; §9), K6, the contract
-instances (2026-10-03, R30; §9), and K7, the composed claims (2026-10-03,
-R31; censorship resistance 2026-10-04, R31.2, after F31; §9).*
+instances (2026-10-03, R30; §9), K7, the composed claims (2026-10-03,
+R31; censorship resistance 2026-10-04, R31.2, after F31; §9), and K8,
+non-vacuity (2026-10-04, R32; §8.2, §9). **The Conductor leg is complete.***
 
 ## 1. In short, for an auditor
 
@@ -1010,85 +1011,59 @@ paper's module.
 
 ## 8. Premises and non-vacuity from the start
 
-### 8.1 The draft ledger
+### 8.1 The ledger
 
-In the premise-ledger form of [Bounds.md](Bounds.md) §6.4.5. Superseded by
-the draft K3 wrote on the premises page, [Premises.md](Premises.md) §9, over
-the premises as stated in Lean; the list below is the plan it started from. Each line
-gives the premise, why it is plausible, and the planned use. "Composed"
-marks premises of the composed claims only.
+The draft ledger this section started from has its one home on the
+premises page now: [Premises.md](Premises.md) §0 (the composed claims) and
+§9 (the Conductor's own), each line with its role, use, plausibility and
+witness. Git history has the draft (this section before R32).
 
-*The instance:*
+### 8.2 The witness. Done (K8, R32, 2026-10-04)
 
-* **`n = 3f + 1`, at most `f` Byzantine, one fault pattern** (`hbyz`, the
-  ACS's `byz` the same): obvious. *Used in:* the median brackets (with C6),
-  and Chorus's claims.
-* **The parameters `W ≥ 1` and `2 ≤ p ≤ W − 1`, and `0 < τ`**: obvious.
-  *Used in:* every window lemma.
+[Composed/Witness.lean](../Cadence/Composed/Witness.lean): one model of the
+composed system meets every premise of the four composed claims at once,
+and the orchestrator's part of it every premise of the Conductor's three
+(`Composed.Witness.*_premises_satisfiable`; the run in plain words is
+[Premises.md](Premises.md) §0.5). As planned: `Fin 4` with validator 3
+Byzantine and silent, one proposer, `Δ = τ = 1`, `δ = 0`, the MVBA
+witness's schedule with the Chorus witness's `Δ_sync = 1` (`ℓ_MVBA = 24`),
+`ℓ_ACS = 2`, `p = 4`, `W = p + Φ_oc + ℓ_ACS = 36`, the ideal ACS, a
+periodic run in which every slot takes the fast path. The four parameter
+assumptions hold by `decide`. Differences from the plan:
 
-*The schedule* (`ConductorSchedule`, §6.3):
-
-* **(1)–(4)**: arithmetic, satisfiable by choosing `W` large (§8.2). *Used
-  in:* (1) Proposition 17 point 2; (2) Proposition 17 point 1 and
-  Proposition 19; (3) Propositions 16 and 17; (4) Propositions 18 and 19.
-* **`δ = 0`** (decided, §5): the paper's model. *Used in:* the window
-  induction.
-* **The Δ ties** (§6.2): definitional. *Used in:* Proposition 13 (entry),
-  C2.
-* **Slot 1 starts at the run's start; slots are τ-spaced**: the paper's
-  setting. *Used in:* Propositions 16 and 19, and Lemma 16.
-
-*The run* (`Admissible`):
-
-* **The Conductor's and the glue's rows** (§6.4): the paper's
-  instantaneous handlers and timers, as bounded fairness. *Used in:* every
-  "fires by" step.
-* **Each started window's ACS projection is `T_acs`-admissible**: what "the
-  ACS meets its module" means for one run. The projection is F24's stutter
-  lift, and the premise applies once a correct validator has proposed to
-  the window. *Used in:* every use of the ACS's timed fields.
-* **Each started slot's Chorus projection is `Chorus.Admissible`**
-  (composed): the Chorus leg's premises, per slot, over the same lift, once
-  a correct validator participates. *Used in:* (R-tot) and (R-term).
-* **`clock_agrees`**: definitional (§6.1).
-
-*The assumed module:*
-
-* **An `ACSTemporal` instance at the fragment the Conductor instantiates**
-  (option (b)): the paper's own "Uses: ACS". Not obvious that one exists:
-  the ideal ACS (§3.3 (c1)) is the witness.
-
-*Caller conditions:* none at the composed level. C1, C2, participation,
-Δ-synchronized participation, (R-tot), (R-term), Δ-synchronized proposals
-and no premature abandonment are all discharged (§4.2, Proposition 12,
-Corollary 2).
-
-### 8.2 The witness plan
-
-One witness for the composed claims, in the style of
-[Chorus/Witness.lean](../Cadence/Chorus/Witness.lean):
-
-* `Fin 4`, validator 3 Byzantine and silent, one proposer per slot;
-* `Δ = τ = 1`, `δ = 0`;
-* the MVBA witness's `ℓ_MVBA`, `ℓ_ACS = 2`, `p = 4`,
-  `W = p + Φ_oc + ℓ_ACS`. That gives (1) `3 + Φ_oc + 2 ≤ W` and
-  (2) `3 + Φ_oc ≤ W − 1` with room to spare, (3) `1 < 2`, and
-  (4) `1 + 2 ≤ 3`;
-* the ideal ACS;
-* a **periodic** run: every window repeats the first one, shifted by `Wτ`
-  in time and by `W` in slot number. In each slot Chorus takes the fast
-  path, as in the Chorus witness.
-
-Every finished part must be able to stutter (F24): a finished slot does,
-by `abandon` re-issued to a validator that has already abandoned, and the
-ideal ACS does by construction.
-
-The run must be infinite and keep every row honest, so its construction is a
-generic "periodic extension" lemma plus one period checked by hand. This is
-the largest single piece of the leg, and the first non-vacuity witness of
-the composed system: the per-module witnesses do not certify the composition
-([CompositionContracts.md](CompositionContracts.md) §7, "Vacuity does not
-compose").
+* **The period is one clock reading.** The run is built from one block of
+  56 steps, checked once for every clock reading `t` (`Composed.Witness.gstep`,
+  through `Cadence.plateauRun`, the generic periodic extension): the block
+  holds slot `t`'s start, slot `t − 1`'s fast path, slots `t − 2` and
+  `t − 3`'s arm markers, and, when `t ≡ 4 (mod 36)`, the next window's ACS
+  and entry. So every slot repeats the one before it shifted by `τ`, and
+  every window repeats the first shifted by `Wτ` and `W` slots, as planned.
+  A position whose slot or window does not exist yet is the Conductor's
+  `tick` in place.
+* **Every row holds at the end of a clock reading**
+  (`Cadence.bufferedFairFamily_of_ends`): each handler fires in the
+  reading its gate opens at, so no gate is open, or nothing it covers is
+  enabled, when the clock moves. This is what makes `δ = 0` rows
+  satisfiable.
+* **A slot stutters by its `participate` re-issued until validator 0 has
+  abandoned it, by its `abandon` after** (F24's re-issued `abandon` is the
+  second half). Its initial state cannot stutter
+  (`Composed.Witness.no_stutter_init`), so its part starts at its first
+  step; every slot's part is then one labelled run with the clock shifted
+  by the slot's number (`Composed.Witness.srun`). The orchestrator stutters
+  by its `tick` in place, the ideal ACS by `trans_refl`, so both parts are
+  stepped at every index.
+* **Validator 3 sends nothing**, not even the Chorus witness's MVBA
+  `Pre-Prepare`: the composed clock moves on the Conductor's `tick`, and the
+  re-issued `abandon` keeps each slot's MVBA stepped.
+* **One model at fixed types.** The theorems quantify over the claims'
+  configuration and run, at `Fin 4` and `ℕ`, rather than over the types
+  too; one model is all consistency asks.
+* **The Conductor's own claims are covered too**
+  (`Composed.Witness.conductor_premises_satisfiable`): their caller
+  conditions, (R-tot) and (R-term), hold on the orchestrator's part as
+  theorems of the composition (`Composed.caller_totality`,
+  `Composed.caller_termination`).
 
 ## 9. Staging and sizing
 
@@ -1514,8 +1489,13 @@ parallel with K1. Everything else is in order.
     removed: Chorus's non-empty proposer set (`hprop`) enters only to form
     Chorus's contract instance. The glue's `propose` row, reported in R31,
     is used by censorship resistance since R31.2.
-* **K8: non-vacuity.** The periodic composed witness (§8.2), and the
-  ledger moved to the premises page. Probably two sessions.
+* **K8: non-vacuity. Done (2026-10-04, R32).** The periodic composed
+  witness (§8.2) and the ledger moved to the premises page
+  ([Premises.md](Premises.md) §0, §0.5, §9). One session; the plan's
+  second was not needed. No model, proof or statement file changed. What
+  K0 asked of K8 holds: a finished slot stutters by its re-issued `abandon`,
+  the ideal ACS by construction, and each part's `Admissible` accepts the
+  stutters. **The Conductor leg is complete.**
 
 **Total:** nine to eleven sessions. **No stage re-solves the Chorus or Mvba
 families cold.** K0 settled F24 without a `TransitionSystemSafety` change.

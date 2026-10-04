@@ -114,7 +114,11 @@ Four Veil models plus support files, mirroring the paper's architecture:
   condition of either side discharged and Corollary 4 in
   `Corollary4.lean`, Lemma 5 in `Concurrency.lean`, `𝓡`-Liveness in
   `Liveness.lean`, censorship resistance in `Censorship.lean`; plain Lean, premises [docs/Premises.md](./docs/Premises.md)
-  §0).
+  §0). `Composed/Witness.lean` (over `Composed/Witness/`) is their
+  non-vacuity model: one composed run meeting every premise of §0 at once,
+  built one 56-step clock plateau at a time (`Cadence.plateauRun`), its
+  states closed formulas in the index, every row holding because no gate is
+  open when the clock moves ([docs/Premises.md](./docs/Premises.md) §0.5).
 * `Cadence/Monitor/` — the model-conformance monitor. Not part of any
   theorem's trust base; see [docs/Monitor.md](./docs/Monitor.md).
 
