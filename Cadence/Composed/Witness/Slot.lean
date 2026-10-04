@@ -514,4 +514,59 @@ theorem quiet37 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail
 theorem quiet38 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
     ¬ Enabled sys thS (cst 38) l := by wquiet
 
+/-- At the final local state no fair label is enabled, the availability
+report aside: the rows by `quiet38`, and the three phase markers because the
+phase is past the last landmark. -/
+theorem justice38 (l : CL) (hj : JusticeLabel l) (ha : ¬ IsAvail l) :
+    ¬ Enabled sys thS (cst 38) l := by
+  by_cases hm : MarkerLabel l
+  · obtain ⟨L, rfl⟩ := (markerLabel_iff l).mp hm
+    rintro ⟨s', htr⟩
+    cases L <;> simp only [Landmark.marker] at htr <;> wunfold htr
+  · obtain ⟨h, hh⟩ := Option.isSome_iff_exists.mp ((hop_isSome_iff l).mpr ⟨hj, hm⟩)
+    exact quiet38 hh ha
+
+/-! ## The bridge -/
+
+/-- A ghost certificate over a supermajority whose members' signatures never
+appear, refuted by the quorum's having a member: nobody signs a negative vote
+entry or casts a fallback vote. -/
+local macro "wnocert" h:ident : tactic =>
+  `(tactic| (
+    simp only [Chorus.vote_quorum_neg, Chorus.fbcert] at $h:ident
+    obtain ⟨q, hq, hall⟩ := $h:ident
+    dsimp +instances only [Chorus.Witness.nsetC, byzNodeSetFin] at hq hall
+    obtain ⟨r, hr⟩ := List.exists_mem_of_length_pos (by omega : 0 < q.val.length)
+    have := hall r (by simpa using hr)
+    simp +unfoldPartialApp [Veil.FieldRepresentation.get, instIsSubStateOfRefl.getFrom_id, cst] at this))
+
+/-- **The only certifiable representation is `v⋆`**, at every local index:
+a non-proposer has no entry, and the proposer's entry is its one root held by
+a FastQC, since no negative FastQC and no `FBCert` ever exist. -/
+theorem certified_eq (m : Nat) (v : V) (hc : Certified (thS := thS) (thM := thM) (cst m) v) :
+    v = Chorus.Witness.vstar := by
+  obtain ⟨hpos, hneg, hall⟩ := hc
+  funext j
+  simp only [thS, Cadence.chorusTheory, thM, Chorus.Witness.thM, MetaBlock.entries,
+    decide_eq_true_eq] at hpos hneg hall
+  by_cases hj : j.val = 0
+  · have hj0 : j = 0 := Fin.ext hj
+    subst hj0
+    rcases hall 0 (by decide) with ⟨M, hM⟩ | hM
+    · cases hv : v 0 with
+      | none => simp [hv] at hM
+      | some p =>
+        obtain ⟨u, k⟩ := p
+        rcases (hpos 0 u (by simp [hv])).2 with ⟨hnf, -⟩ | ⟨-, -, h⟩
+        · cases k
+          · simp [Chorus.Witness.vstar]
+          · simp [hv] at hnf
+        · wnocert h
+    · rcases (hneg 0 hM).2 with h | ⟨-, h⟩
+      · wnocert h
+      · wnocert h
+  · cases hv : v j with
+    | none => simp [Chorus.Witness.vstar, hj]
+    | some p => exact absurd (hpos j p.1 (by simp [hv])).1 hj
+
 end Composed.Witness

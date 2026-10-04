@@ -405,14 +405,18 @@ theorem gs_delivered (n : ℕ) (h : n % 56 < 24 ∨ 26 < n % 56 ∨ n / 56 = 0) 
   have := idx_eq n; have := pos_lt n
   funext i x v; have := i.isLt
   simp only [gs, decide_eq_decide]
-  by_cases hv : v = vec x <;> simp only [hv, and_true, and_false] <;> omega
+  by_cases hv : v = vec x
+  · simp only [hv, and_true]; omega
+  · simp only [hv, and_false]
 
 theorem gs_appended (n : ℕ) (h : n % 56 < 27 ∨ 29 < n % 56 ∨ n / 56 = 0) :
     (gs (n + 1)).appended = (gs n).appended := by
   have := idx_eq n; have := pos_lt n
   funext i x v; have := i.isLt
   simp only [gs, decide_eq_decide]
-  by_cases hv : v = vec x <;> simp only [hv, and_true, and_false] <;> omega
+  by_cases hv : v = vec x
+  · simp only [hv, and_true]; omega
+  · simp only [hv, and_false]
 
 theorem gs_resolved (n : ℕ) (h : n % 56 < 27 ∨ 29 < n % 56 ∨ n / 56 = 0) :
     (gs (n + 1)).resolved = (gs n).resolved := by
