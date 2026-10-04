@@ -14,8 +14,9 @@ and [Cadence/System.lean](../Cadence/System.lean) (the composed theorem).
 For what is proven overall, read [README.md](../README.md) and
 [Architecture.md](Architecture.md).*
 
-**§5 and §7 are the audit-relevant sections**: what each implementation still
-owes of its module contract, and the seams the composition does not close.
+**§5 and §7 are the audit-relevant sections**: what each implementation proves
+of its module contract and what stays assumed, and the seams the
+composition does not close.
 
 ## 1. The problem
 
@@ -365,27 +366,47 @@ Every declaration added by the composition is axiom-pinned at
 `[propext, Classical.choice, Quot.sound]` at its own site and in
 [Cadence.lean](../Cadence.lean).
 
-## 5. What is still assumed: the missing `XTemporal` instances
+## 5. The temporal levels: the `XTemporal` instances
 
-Each implementation proves its `XSafety` fragment. What it still owes is an
-instance of the matching `XTemporal` class **at that fragment**. The MVBA
-and Chorus owe nothing: their temporal levels are proven (the last two
-paragraphs of this section). The Conductor still owes its. Because those classes
-are stated over the fragment's own `init` / `trans` / `reachable` /
-observables, the list below is a list of *class fields*, not of
-restatements: there is no second place where these obligations are written
-down.
+Each implementation proves its `XSafety` fragment, and an instance of the
+matching `XTemporal` class **at that fragment**. All three are proven: the
+Conductor's, Chorus's and the MVBA's, each from named hypotheses. Because
+those classes are stated over the fragment's own `init` / `trans` /
+`reachable` / observables, the lists below are lists of *class fields*,
+not of restatements: there is no second place where these obligations are
+written down. What stays assumed is the ACS, which the Conductor consumes
+as a module (both levels of `ACS`, an arbitrary instance), and the glue's
+composed timed claims (stage K7).
 
-**`OrchestratorTemporal … (S := Conductor.orchestratorSafety th)`** —
-`Admissible`, `admissible_exists`, `clock_agrees`, `caller_d_tot`,
-`caller_ℓ`, `totality`, `bound`, `boundedness`, `recovery_time`,
-`recovery`: the paper's Totality (Lemma 15 (`lemma:conductor-totality`)),
-`B`-Boundedness (Lemma 14 (`lem:boundedness`)) and `R`-Recovery (Lemma 16
-(`lemma:conductor-recovery`)), over timed runs of the Conductor with the
-admissible-execution model as data, and on top of it
-**`OrchestratorWithTotality`** (`d_tot`, and Totality's `d_tot` form, which
-Lemma 15 proves "more specifically" and Corollary 4
-(`cor:chorus-correctness-within-cadence`) consumes; C4). `clock_agrees`
+**`OrchestratorTemporal … (S := Conductor.orchestratorSafety th)` is
+proven**, as `Conductor.conductorTemporal`
+([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)),
+for an arbitrary ACS meeting `ACSSafety` and `ACSTemporal`, with
+**`OrchestratorWithTotality`** on top (`Conductor.conductorWithTotality`:
+`d_tot` and Totality's `d_tot` form, which Lemma 15
+(`lemma:conductor-totality`) proves "more specifically" and Corollary 4
+(`cor:chorus-correctness-within-cadence`) consumes; C4).
+`Conductor.conductorFull` joins it with the fragment through
+`orchestrator_of_temporal`, and `Conductor.conductorFull_toSafety` is
+`rfl`. Every field is proven, none is weakened:
+
+| field | proven by |
+|---|---|
+| `Admissible` | `Conductor.Admissible`: the run is `contractRun` of a labelled timed run meeting `Sync`, the claims' run premises by name |
+| `admissible_exists` | `Conductor.admissible_exists`: the idle run, in which the caller completes nothing, no correct validator becomes ready, and only the clock and window 1's openings move |
+| `clock_agrees` | `ClockAgrees`, a conjunct of `Sync` |
+| `caller_d_tot`, `caller_ℓ` | Chorus's `d_tot` and `ℓ_chorus` |
+| `totality` | `Conductor.totality` (Lemma 15) |
+| `bound`, `boundedness` | `2W − p`, `Conductor.boundedness` (Lemma 14 (`lem:boundedness`)) |
+| `recovery_time`, `recovery` | `2Wτ`, `Conductor.recovery` (Lemma 16 (`lemma:conductor-recovery`)) |
+| `OrchestratorWithTotality.d_tot`, `.totality` | Chorus's `d_tot`, the paper's `Δ` at `δ = 0`; `Conductor.totality` |
+
+The hypotheses are the claims' configuration premises by name
+(`StartTimes`, `WindowShifts`, `StartsUnbounded`, `WindowsUnbounded`, the
+ACS's `Δ`, `ℓ` and fault bound), finitely many validators and an ordered
+time ([Premises.md](Premises.md) §9). `Conductor.conductorFullNat`
+discharges `WindowsUnbounded` and `StartsUnbounded` at `window := ℕ` over
+an Archimedean time whose slot 1 starts at or after `0`. `clock_agrees`
 ties a run's clock to the Conductor's own `now`.
 
 **Totality and Recovery are in rely form (C5, decided 2026-10-03).** They
@@ -411,8 +432,8 @@ conditional statement about one slot, so the composition is not circular.
 The statements the Conductor's proofs (K4, K5) meet are
 `Conductor.TotalityClaim`, `Conductor.BoundednessClaim` and
 `Conductor.RecoveryClaim` ([Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean)),
-whose conclusions are these fields at the Conductor's fragment. All three
-are proven. K4 proved the count `2W − p`, from the interval form
+whose conclusions are these fields at the Conductor's fragment, and the
+instance (K6) consumes them as stated. K4 proved the count `2W − p`, from the interval form
 `safety [bounded_tail]` and the window widths (`[win_bounds_shift]`, over
 the model's shift functions) at the instance at `slot := ℕ`
 (`Conductor.boundedness`), and `d_tot`-Totality by the window induction
@@ -487,8 +508,9 @@ what lets an untimed model's fragment carry a timed contract.
 
 [Architecture.md](Architecture.md) §4 item 4 points at these field lists
 by name; the meta-axiom names (A-orch-totality), (A-orch-boundedness),
-(A-orch-recovery) are the fields' docstrings, and (A-sc-termination) is
-discharged by `Chorus.chorusTemporal`.
+(A-orch-recovery) are the fields' docstrings, discharged by
+`Conductor.conductorTemporal` modulo the assumed ACS, and
+(A-sc-termination) is discharged by `Chorus.chorusTemporal`.
 
 ## 6. The composed system
 

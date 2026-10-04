@@ -48,10 +48,12 @@ are introduced here.
   its `orch` constraint — nothing is restated between the two.
 * **`Conductor.orchestrator_of_temporal`** — that the *only* thing between
   the proven fragment and the full `Orchestrator` contract is an instance of
-  `OrchestratorTemporal` at that fragment, of which this development has
-  none. Totality, `B`-Boundedness, `R`-Recovery and the admissible-run model
-  are that class's fields, already stated over `(orchestratorSafety th)`'s
-  own relations, so nothing is restated anywhere to say what is missing.
+  `OrchestratorTemporal` at that fragment. Totality, `B`-Boundedness,
+  `R`-Recovery and the admissible-run model are that class's fields,
+  already stated over `(orchestratorSafety th)`'s own relations. The
+  instance is proven, `Conductor.conductorTemporal`
+  ([Conductor/Temporal.lean](Conductor/Temporal.lean)), and
+  `Conductor.conductorFull` is the join.
 * **`Cadence.positional_log_safety`** — the paper's MCP Safety over
   positional logs, for the glue at *any* instances of the two contracts;
   [System.lean](System.lean) instantiates it at the Conductor and Chorus
@@ -516,36 +518,26 @@ noncomputable def orchestratorSafety (th : Conductor.Theory slot window time nod
     reachable_open_prefix_agreement hr i j s s'
       ⟨hi, hj, his, hjs, (TotalOrderWithMinimum.le_lt s' s).mpr ⟨hle, hne⟩⟩
 
-/-! ### What the full `Orchestrator` still owes
+/-! ### The full `Orchestrator`
 
-`OrchestratorSafety` above is proven. What remains between it and the full
+`OrchestratorSafety` above is proven. What lies between it and the full
 `Orchestrator` (the paper's Module 2 (`mod:orchestrator_2`),
 [Interfaces.lean](Interfaces.lean)) is an instance of
-**`OrchestratorTemporal … (S := orchestratorSafety th)`** — and there is
-none. That is the whole statement of the gap: not a structure restating the
-missing obligations at the Conductor's types, but the absence of an instance
-of a class whose every field is already stated over `(orchestratorSafety
-th).init`, `.trans`, `.reachable` and `.opened`.
+**`OrchestratorTemporal … (S := orchestratorSafety th)`**, a class whose
+every field is already stated over `(orchestratorSafety th).init`,
+`.trans`, `.reachable` and `.opened`, so nothing is restated at the
+Conductor's types.
 
 Its fields are the formal counterparts of the paper's Totality
 (Lemma 15 (`lemma:conductor-totality`)), `B`-Boundedness (Lemma 14 (`lem:boundedness`),
-`B = 2W − p`) and `R`-Recovery (Proposition 18 (`prop:smooth-windows`),
-Proposition 19 (`prop:first-post-gst-window-time`), `R = 2Wτ`), together with the admissible
-execution model they are stated for — (A-orch-totality),
-(A-orch-boundedness) and (A-orch-recovery) of
-[Architecture.md](../docs/Architecture.md) §4 item 4, whose
-`Admissible` is the Conductor's fairness and network assumptions
-((F-justice), (A-acs-termination), (A-acs-totality), (A-sc-termination) in
-[Conductor.lean](Conductor.lean)'s liveness section).
-
-Where they stand: Boundedness at `B = 2W − p` and `d_tot`-Totality are
-proven, in plain Lean over the model's reachable states and timed runs, as
-the targets stated in [Conductor/Schedule.lean](Conductor/Schedule.lean):
-`Conductor.boundedness` ([Conductor/Boundedness.lean](Conductor/Boundedness.lean)),
-from `[bounded_tail]` and the window widths `[win_bounds_shift]`, and
-`Conductor.totality` ([Conductor/Induction.lean](Conductor/Induction.lean)),
-the paper's window induction. Recovery is stage K5, and the instance that
-packages the three is stage K6 ([ConductorBounds.md](../docs/ConductorBounds.md) §9).
+`B = 2W − p`) and `R`-Recovery (Lemma 16 (`lemma:conductor-recovery`),
+`R = 2Wτ`), together with the admissible execution model they are stated
+for. The instance is proven, for an arbitrary ACS meeting its contract:
+`Conductor.conductorTemporal` ([Conductor/Temporal.lean](Conductor/Temporal.lean)),
+from `Conductor.totality`, `Conductor.boundedness` and `Conductor.recovery`,
+with `Admissible` the timing model of
+[Conductor/Schedule.lean](Conductor/Schedule.lean). `Conductor.conductorFull`
+joins it with the fragment below.
 
 Integrity's timing half is proven: it is a first-order fact about a
 reachable state, so it sits in the fragment above (`integrity_timing`, from

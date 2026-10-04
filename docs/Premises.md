@@ -53,7 +53,7 @@ with the role line of this page.
 6. [The caller's conditions](#6-the-callers-conditions)
 7. [Independence: every premise is used](#7-independence-every-premise-is-used)
 8. [What is not a premise](#8-what-is-not-a-premise)
-9. [The Conductor's timed claims (draft)](#9-the-conductors-timed-claims-draft)
+9. [The Conductor's timed claims](#9-the-conductors-timed-claims)
 
 ## 1. The claims and their premises
 
@@ -72,6 +72,8 @@ premise; their hypotheses are §2's and the trust items of
 | `Mvba.termination` — every correct validator decides | §2.1, §2.2, §2.3, §2.4; `Mvba.FJustice` §3.3, (A-viewsync) §3.4, (F-avail) §3.5; `AllPropose`, `NoEarlyAbandon`, (F-relay) §6.5 | `Mvba.termination_premises_satisfiable` |
 | `Mvba.bounded_termination`, `Mvba.timed_termination` — every correct validator decides by `max(t, GST) + ℓ_MVBA` | §2.1–§2.7; `Mvba.Sync` §4.4–§4.7; the timed caller conditions §6.5 | `Mvba.timedTermination_premises_satisfiable` |
 | `Mvba.mvbaTemporal`, `Mvba.mvbaFull` — Mvba ⊨ the full `MVBA` contract | the row above (`Admissible` is `Mvba.Sync`) | `Mvba.admissible_exists` (every initial state) |
+| `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` — the Conductor's Totality, `(2W − p)`-Boundedness and `(2Wτ)`-Recovery | §9.1–§9.4 | the composed witness of stage K8 (planned, [ConductorBounds.md](ConductorBounds.md) §8.2) |
+| `Conductor.conductorTemporal`, `Conductor.conductorWithTotality`, `Conductor.conductorFull` — the Conductor ⊨ the full `Orchestrator` contract, for an arbitrary ACS | the three rows above (`Admissible` is `Conductor.Sync`); the instance's hypotheses are §9.5 | `Conductor.admissible_exists` (every initial state) |
 | `Cadence.system_positional_log_safety` — two correct validators never disagree on a log position, in the composed system | `ACSSafety` (the ACS primitive, assumed: [Architecture.md](Architecture.md) §4 item 3); the quorum classes of §2.1; the three modules' configurations, with the models' assumptions of §2.4; that the Conductor and Chorus agree on who is Byzantine (`hbyz`, [CompositionContracts.md](CompositionContracts.md) §7) | — (a safety claim: it holds in every reachable state) |
 
 "Finitely many validators" in the Chorus rows is `Fin n`; the timed claims
@@ -654,15 +656,15 @@ contract, the primitive contracts, the trusted tooling, the scope) is
 Chorus model); the reasons for the fairness classes are
 [Liveness.md](Liveness.md) §2.
 
-## 9. The Conductor's timed claims (draft)
+## 9. The Conductor's timed claims
 
-*A draft, written with the statements (stage K3 of
-[ConductorBounds.md](ConductorBounds.md) §9). The premises are fixed and
-type-checked in [Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean).
-All three claims are proven (K4, R28; K5, R29): "Used in" names the Lean
-lemma that uses each premise. "Satisfiable" is the witness plan of
-[ConductorBounds.md](ConductorBounds.md) §8.2, which K8 builds. Until the
-contract instance (K6) no row of §1 cites these claims.*
+*The premises are fixed and type-checked in
+[Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean). All three
+claims are proven (K4, R28; K5, R29), and the contract instance consumes
+them (K6, R30; §9.5): "Used in" names the Lean lemma that uses each
+premise. "Satisfiable" is the witness plan of
+[ConductorBounds.md](ConductorBounds.md) §8.2, which K8 builds; until
+then the claims' joint witness is the one open item of this section.*
 
 ### 9.1 The claims
 
@@ -852,3 +854,44 @@ composed claims.
   (`prop:conductor-open-to-complete`), `Conductor.open_to_complete`, and the
   completions every step of Recovery's chain waits for
   (`Conductor.completions_by`).
+
+### 9.5 The contract instance: the final ledger
+
+`Conductor.conductorTemporal`, `Conductor.conductorWithTotality` and
+`Conductor.conductorFull`
+([Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)) take the
+claims' premises as follows. Nothing is added beyond them.
+
+* **The run premises** (`Sync`, §9.3) are the instance's `Admissible`, by
+  name: a contract run is admissible when it is the reading
+  (`contractRun`) of a labelled timed run meeting `Sync`.
+  `admissible_exists` holds from every initial state (the idle run,
+  `Conductor.idleRun_sync`), so the instance's admissible runs exist
+  whatever the configuration.
+* **The caller's conditions** (§9.4) stay the contract fields'
+  antecedents, at the caller's constants `caller_d_tot = d_tot` and
+  `caller_ℓ = ℓ_chorus` (`Conductor.conductorTemporal_caller`).
+* **The configuration premises** (§9.2) are the instance's hypotheses:
+  `StartTimes`, `WindowShifts`, `StartsUnbounded`, `WindowsUnbounded`,
+  `TA.Δ = Δ`, `TA.ℓ = ℓ` and the fault bound. Each is used: the last
+  four and `StartTimes` by Recovery, `StartsUnbounded` and `TA.Δ = Δ` by
+  Totality too, `WindowShifts` by Boundedness and Recovery. The idle run
+  adds two uses. `WindowShifts` with assumption (4) puts window 1's first
+  slot below its readiness boundary (`ConductorSchedule.two_le_p`,
+  `Conductor.genesis_boundary_pos`), so no correct validator becomes
+  ready. `StartsUnbounded` makes the idle run's clock, which steps from
+  one starting time to the next, unbounded.
+* **Two configuration premises hold at the system's types**, and stay
+  premises of the generic claims:
+  * `WindowsUnbounded` at `window := ℕ` (`Conductor.windowsUnbounded_nat`);
+  * `StartsUnbounded` from `StartTimes` over an Archimedean time, once
+    slot 1 starts at or after `0`, the paper's `0`
+    (`Conductor.startsUnbounded_of_startTimes`). The condition on `start₀`
+    is needed (F28's example).
+
+  `Conductor.conductorFullNat` is the full contract with both
+  discharged. What stays with the caller there: `StartTimes` with
+  `0 ≤ start₀`, `WindowShifts`, the ACS's constants and its fault bound,
+  and the assumed ACS itself.
+* **The ACS** is an arbitrary `ACSTemporal` instance (§9.2), the assumed
+  module; the instance names it in its type.

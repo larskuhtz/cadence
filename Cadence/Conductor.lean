@@ -62,18 +62,24 @@ SMT-checked here (the safety-shaped content):
 * boundedness as interval inclusion (Lemma 14 (`lem:boundedness`), interval form) —
   `safety [bounded_tail]`: every scheduled-but-uncompleted slot lies at
   or above the *previous* window's readiness boundary. The numeric
-  `(2W − p)` bound is the one-line meta corollary: the region from
+  `(2W − p)` bound adds the window widths: the region from
   `boundary(ω−1)` on within scheduled intervals is the last `W − p` slots of
-  window `ω−1` plus the `W` slots of window `ω`;
+  window `ω−1` plus the `W` slots of window `ω` (`Conductor.boundedness`,
+  [Conductor/Boundedness.lean](Conductor/Boundedness.lean));
 * integrity's clock half ("no open before the slot's starting time",
   Algorithm 7, line 27 (`line:conductor-wait-for-open`)) — `safety [opened_after_start]`, via the
   abstract monotone clock.
 
-Meta (documented; genuinely temporal — see the Liveness section):
+Proven outside the model, in plain Lean over its timed runs
+([Conductor/Temporal.lean](Conductor/Temporal.lean) and the files it
+imports):
 * totality (Lemma 15 (`lemma:conductor-totality`), `d_tot`-totality) and
-  `(2Wτ)`-recovery — the paper's per-window induction;
-* the four parameter assumptions (Algorithm 7, lines 7–10
-  (`line:assumption-one`–`line:assumption-four`));
+  `(2Wτ)`-recovery (Lemma 16 (`lemma:conductor-recovery`)) — the paper's
+  per-window induction, under the four parameter assumptions (Algorithm 7,
+  lines 7–10 (`line:assumption-one`–`line:assumption-four`)), which are
+  fields of the schedule;
+
+Meta (assumed; the ACS is an assumed module):
 * `ℓ`-termination / `Δ`-totality of ACS — **(A-acs-termination)** /
   **(A-acs-totality)** ([Interfaces.lean](Interfaces.lean) `ACS.termination`,
   `ACS.totality` — the upper level of the contract this module's `acs`
@@ -141,10 +147,12 @@ hypothesis.
 
 ## Obligation discharge map (→ [Interfaces.lean](Interfaces.lean) `Orchestrator`)
 
-The machine-checked half of this table is `Conductor.orchestratorSafety`
-([Composition.lean](Composition.lean)); the rest is
-`OrchestratorTemporal` there, the same rows as the fields of a class this
-development supplies no instance of.
+The safety rows are `Conductor.orchestratorSafety`
+([Composition.lean](Composition.lean)); the temporal rows are
+`Conductor.conductorTemporal`
+([Conductor/Temporal.lean](Conductor/Temporal.lean)), for an arbitrary ACS
+meeting its contract. Both are proven, and `Conductor.conductorFull` joins
+them.
 
 Each entry is a contract item and what discharges it.
 
@@ -159,11 +167,12 @@ Each entry is a contract item and what discharges it.
 * **the observables' frames (`completed_step_frame`, `complete_frame`,
   `complete_effect`)** — the transition bodies: only `complete_slot` touches
   `completed`, and only its own pair
-* **`B`-boundedness, `B = 2W − p`** — **unproven** — `safety [bounded_tail]`
-  is the interval form; the count adds the widths (`[win_bounds_shift]`)
-  at the instance at `slot := ℕ`
-* **Totality / `R`-recovery, `R = 2Wτ`** — **unproven** — Liveness section
-  below
+* **`B`-boundedness, `B = 2W − p`** — `Conductor.boundedness`, from
+  `safety [bounded_tail]`, the interval form, and the widths
+  (`[win_bounds_shift]`) at the instance at `slot := ℕ`
+* **Totality / `R`-recovery, `R = 2Wτ`** — `Conductor.totality` and
+  `Conductor.recovery`, over the timed runs of
+  [Conductor/Schedule.lean](Conductor/Schedule.lean)
 -/
 
 veil module Conductor

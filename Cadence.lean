@@ -20,6 +20,7 @@ import Cadence.AcsMedian
 import Cadence.Conductor.Boundedness
 import Cadence.Conductor.Induction
 import Cadence.Conductor.Recovery
+import Cadence.Conductor.Temporal
 
 -- The fallback receipt/propose leg: the shipped design, verified.
 import Cadence.FallbackReceipt.Totality
@@ -247,10 +248,31 @@ Each entry is the result, the file its statement lives in, and what it says.
 * **`Conductor.orchestrator_of_temporal`** ([Composition.lean](Cadence/Composition.lean)) —
   given an instance of `OrchestratorTemporal` **at the proven fragment** —
   Totality, `B`-Boundedness, `R`-Recovery and the admissible-run model — the
-  Conductor is a full `Orchestrator`. This development has no such instance,
-  and that is the statement of what is *not* proven about the Conductor as an
-  orchestrator. Integrity's timing half is first-order and is proven in the
-  fragment
+  Conductor is a full `Orchestrator`. Integrity's timing half is
+  first-order and is proven in the fragment
+* **`Conductor.conductorFull`** ([Conductor/Temporal.lean](Cadence/Conductor/Temporal.lean)) —
+  **Conductor ⊨ `Orchestrator`, the whole contract**, for an arbitrary ACS
+  meeting its contract (an assumed module, P17): the proven temporal level
+  **`Conductor.conductorTemporal`** joined with the fragment, which comes
+  back out by `rfl` (`Conductor.conductorFull_toSafety`). Every field of
+  `OrchestratorTemporal` is proven: Totality from `Conductor.totality`,
+  `(2W − p)`-Boundedness from `Conductor.boundedness`, `(2Wτ)`-Recovery
+  from `Conductor.recovery`, the clock from `ClockAgrees`. Its `Admissible`
+  is `Sync`, the claims' run premises, by name; `admissible_exists` is the
+  idle run, in which the caller completes nothing and only the clock and
+  window 1's openings move (`Conductor.idleRun_sync`).
+  **`Conductor.conductorWithTotality`** adds `d_tot`-Totality, `d_tot`
+  pinned by `rfl` (`Conductor.conductorWithTotality_d_tot`) and the paper's
+  `Δ` at `δ = 0`; `𝓑 = 2W − p`, `𝓡 = 2Wτ` and the caller's constants are
+  pinned likewise (`Conductor.conductorTemporal_bound`,
+  `Conductor.conductorTemporal_recovery_time`,
+  `Conductor.conductorTemporal_caller`). Hypotheses: the claims'
+  configuration premises (τ-spaced starting times, the window shifts,
+  unbounded starting times, every window with a successor, the ACS's `Δ`,
+  `ℓ` and fault bound). **`Conductor.conductorFullNat`** discharges two of
+  them at `window := ℕ` over an Archimedean time with slot 1 starting at or
+  after `0` (`Conductor.windowsUnbounded_nat`,
+  `Conductor.startsUnbounded_of_startTimes`)
 * **`Conductor.boundedness`** ([Conductor/Boundedness.lean](Cadence/Conductor/Boundedness.lean)) —
   **`(2W − p)`-Boundedness**, Lemma 14 (`lem:boundedness`): at every
   reachable state, an opened, uncompleted slot of a correct validator has
@@ -269,8 +291,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   (P17). The proof is the window induction, Proposition 13
   (`prop:window-synchronization`), **`Conductor.window_synchronized`**, with
   its corollaries `Conductor.entry_sync`, `Conductor.prop_sync` and
-  `Conductor.comp_sync`, each at `max(t, GST) + Δ`. No
-  `OrchestratorTemporal` instance packages these yet (stage K6)
+  `Conductor.comp_sync`, each at `max(t, GST) + Δ`. It is the
+  contract's `totality` in `Conductor.conductorWithTotality`
 * **`Conductor.recovery`** ([Conductor/Recovery.lean](Cadence/Conductor/Recovery.lean)) —
   **`(2Wτ)`-Recovery**, Lemma 16 (`lemma:conductor-recovery`)
   (`RecoveryClaim`): every slot whose starting time is at least
@@ -283,8 +305,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   `Conductor.enters_every_window`, `Conductor.window_open_time`,
   `Conductor.window_progression`, `Conductor.smooth_windows`,
   `Conductor.first_post_gst_window_time`); **`Conductor.recovery_sharp`**
-  proves the same at `(W + p − 1)τ ≤ 2Wτ`. No `OrchestratorTemporal`
-  instance packages it yet (stage K6)
+  proves the same at `(W + p − 1)τ ≤ 2Wτ`. It is the contract's
+  `recovery` in `Conductor.conductorTemporal`, at the paper's `2Wτ`
 * **`Cadence.acs_median_bracket`** ([AcsMedian.lean](Cadence/AcsMedian.lean)) — the
   justification of the Conductor's one stated bridge: for every ACS meeting
   the contract and at most `f` Byzantine validators, the median of a
@@ -711,6 +733,88 @@ info: 'Conductor.recovery_sharp' depends on axioms: [propext, Classical.choice, 
 -/
 #guard_msgs in
 #print axioms Conductor.recovery_sharp
+
+/--
+info: 'Conductor.idleRun_sync' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.idleRun_sync
+
+/--
+info: 'Conductor.admissible_exists' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.admissible_exists
+
+/--
+info: 'Conductor.conductorTemporal' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.conductorTemporal
+
+/--
+info: 'Conductor.conductorWithTotality' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.conductorWithTotality
+
+/--
+info: 'Conductor.conductorFull' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.conductorFull
+
+/--
+info: 'Conductor.conductorFull_toSafety' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.conductorFull_toSafety
+
+/--
+info: 'Conductor.conductorTemporal_bound' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.conductorTemporal_bound
+
+/--
+info: 'Conductor.conductorTemporal_recovery_time' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.conductorTemporal_recovery_time
+
+/--
+info: 'Conductor.conductorTemporal_caller' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.conductorTemporal_caller
+
+/--
+info: 'Conductor.conductorWithTotality_d_tot' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.conductorWithTotality_d_tot
+
+/--
+info: 'Conductor.conductorWithTotality_d_tot_paper' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.conductorWithTotality_d_tot_paper
+
+/--
+info: 'Conductor.windowsUnbounded_nat' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.windowsUnbounded_nat
+
+/--
+info: 'Conductor.conductorFullNat' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.conductorFullNat
+
+/-- info: 'Conductor.startsUnbounded_of_startTimes' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms Conductor.startsUnbounded_of_startTimes
 
 /--
 info: 'Cadence.acs_median_bracket' depends on axioms: [propext, Classical.choice, Quot.sound]
