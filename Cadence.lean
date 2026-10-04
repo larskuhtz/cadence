@@ -327,7 +327,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   beyond it, what is assumed is the three modules' configurations and that
   the Conductor and Chorus agree on who is Byzantine
 * **`Composed.corollary4`** ([Composed/Corollary4.lean](Cadence/Composed/Corollary4.lean)) —
-  **Corollary 4** (`cor:chorus-correctness-within-cadence`),
+  **Corollary 4 (`cor:chorus-correctness-within-cadence`)**,
   `Corollary4Claim`: in every composed run meeting its timing model
   (`SysSync`: the glue's rows, the Conductor's timing model on its part,
   Chorus's on every started slot's part), every slot's Chorus part meets
@@ -340,7 +340,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   (`Composed.caller_totality`, `Composed.caller_termination`), and with them
   Lemma 15 within Cadence (`Composed.openings_sync`)
 * **`Composed.boundedConcurrency`** ([Composed/Concurrency.lean](Cadence/Composed/Concurrency.lean)) —
-  **Lemma 5** (`lemma:cadence-bounded-concurrency`) at `𝓑 = 2W − p`
+  **Lemma 5 (`lemma:cadence-bounded-concurrency`)** at `𝓑 = 2W − p`
   (`BoundedConcurrencyClaim`): at every reachable state of the composed
   system, no correct validator actively participates in `𝓑 + 1` slot
   instances. One premise, the windows' shape
