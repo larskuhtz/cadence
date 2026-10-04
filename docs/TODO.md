@@ -272,8 +272,13 @@ come first.
      `d_tot`-Totality (`Conductor.totality`, by the window induction,
      Proposition 13 and Corollaries 1–3) are proven, after three statement
      fixes F27–F29 (an ordered time, unbounded starting times, no fault
-     bound for Totality). Next is K5, Recovery; F28 says `RecoveryClaim`
-     needs `StartsUnbounded` too, a statement edit for K5 to put to Lars.
+     bound for Totality). K5 is done (R29): `(2Wτ)`-Recovery
+     (`Conductor.recovery`, through Propositions 14–19) is proven, after
+     one statement edit that adds `StartsUnbounded` (F28) and
+     `WindowsUnbounded` (F30, every window has a successor). The proof
+     shows the paper's assumptions (1)–(3) and `𝓡` are not tight (P18).
+     Next is K6, the contract instances (`OrchestratorTemporal`,
+     `OrchestratorWithTotality`, the join), which carry both new premises.
      The model header of [Conductor.lean](../Cadence/Conductor.lean) still
      lists `B`-Boundedness as unproven; K6 rewrites that status text.
 

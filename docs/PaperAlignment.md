@@ -538,9 +538,10 @@ the Lean development of this repository.*
 | P12 | The MVBA's availability crosses Module 3's interface | module interface | open; the model states the dependency |
 | P13 | Module 1 states Termination without the conditions Chorus needs | module interface | open; the model's contract carries the conditions as antecedents, and Chorus's instance proves the fields under them |
 | P14 | A slot's proposer set may be empty | unstated assumption | open; the model's instance assumes a non-empty proposer set |
-| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the contract states them as antecedents (C4, C5, R27) |
+| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the contract states them as antecedents (C4, C5, R27), and both are proven under them (R28, R29) |
 | P16 | Module 4's Validity lacks the per-validator bound the median argument needs | module interface, proof gap | open for the paper; the contract carries the bound since R25 (C6), and the median bridge's justification is a theorem from it |
 | P17 | The ACS the Conductor uses is unspecified | missing instantiation | open; the plan keeps the ACS as an assumed module |
+| P18 | The recovery chain needs less than Algorithm 7's assumptions (1)–(3), and `𝓡 = 2Wτ` is not tight | slack | open; **confirmed by proof**: the model proves Lemma 16 at `2Wτ` and at `(W + p − 1)τ` |
 
 P1–P4 are inconsistencies between the main body and the supplement, or
 within the supplement. P5 and P6 date from the review of arXiv v2 and hold
@@ -549,8 +550,9 @@ module boundaries: a claim takes from a module something the module's
 interface does not state. §6.1 checks every module boundary the
 development's claims cross. P17 is about a module the target does not
 instantiate. P15–P17 come from the Conductor leg's kick-off record
-([ConductorBounds.md](ConductorBounds.md)), written before any Lean: they
-are findings about statements and proofs, not yet machine-checked.
+([ConductorBounds.md](ConductorBounds.md)), written before any Lean, and
+P15 is since borne out by the proofs (R28, R29). P18 is slack, as P5 is:
+the paper's bounds hold, and the proof shows weaker assumptions suffice.
 
 **P1. Module 3 (`mod:mvba`) Integrity was not revised with Agreement.**
 * *Quote.* The supplement (Supplement, Section 1.2
@@ -878,7 +880,10 @@ conditions the module does not state.**
   (`OrchestratorSafety.CallerTotality`, `CallerTermination`), and a
   Conductor-specific level, `OrchestratorWithTotality`, carries the `d_tot`
   form ([Interfaces.lean](../Cadence/Interfaces.lean), R27;
-  [ConductorBounds.md](ConductorBounds.md) §2.3, F16, F17).
+  [ConductorBounds.md](ConductorBounds.md) §2.3, F16, F17). Under these
+  two antecedents the Conductor's Totality and Recovery are proven
+  (`Conductor.totality`, R28; `Conductor.recovery`, R29), so the two
+  conditional facts suffice.
 
 **P16. Module 4 (`mod:acs`)'s Validity lacks the per-validator bound the
 median argument needs.**
@@ -932,6 +937,52 @@ median argument needs.**
   ACS shows that the premises are consistent
   ([ConductorBounds.md](ConductorBounds.md) §3).
 
+**P18. The recovery chain needs less than Algorithm 7's assumptions (1)–(3),
+and `𝓡 = 2Wτ` is not tight.**
+* *Quote.* Algorithm 7 (`algorithm:conductor`)'s parameter assumptions
+  (Algorithm 7, lines 7–10 (`line:assumption-one`–`line:assumption-four`)):
+  "(1) `(p − 1)τ + Φ_oc + ℓ ≤ Wτ`, (2) `(p − 1)τ + Φ_oc ≤ (W − 1)τ`,
+  (3) `Δ < ℓ`, (4) `d_tot + ℓ ≤ (p − 1)τ`", with
+  `Φ_oc = ℓ_chorus + d_tot`. Theorem 2 (`thm:conductor-correctness`):
+  "`𝓡 = 2Wτ`".
+* *Why it matters.* The model proves Lemma 16 (`lemma:conductor-recovery`)
+  through Propositions 14–19 as the paper states them, and the proof shows
+  four kinds of slack:
+  * **(1) and (2) hold with `ℓ_chorus` in place of `Φ_oc`.** Proposition 17
+    (`prop:window-progression`) and Proposition 19
+    (`prop:first-post-gst-window-time`) apply Proposition 14
+    (`prop:conductor-open-to-complete`), whose `d_tot` covers one
+    validator's opening reaching the others. In both places every correct
+    validator has already opened the slots, by `T_p(ω)` and by
+    `GST + (p − 1)τ` respectively, so Chorus's `ℓ_chorus`-termination
+    (Lemma 11 (`lemma:chorus-termination`)) applies at that time directly.
+  * **(2) is needed only by Proposition 19.** Proposition 17, point 1,
+    needs the proposal trigger only by `T₁(ω + 1)`, not by
+    `slot(ω, W).deadline − Δ`: the `s*` rule then still picks
+    `slot(ω, W) + 1`. (1) already implies that.
+  * **(3) is needed only for `ℓ > 0`.** It enters Proposition 16
+    (`prop:window-open-time`) and Proposition 17, point 2, through a case
+    split on an early correct entry or decision. The ACS's
+    `ℓ`-termination needs only that every correct validator proposes, and
+    both proofs show that, so the other case covers both.
+  * **`𝓡 = (W + p − 1)τ` suffices.** The smallest post-GST window `ω*`
+    is itself entered by `T_p(ω*)` (Proposition 18's base case), so its
+    slots from the `p`-th on are opened at their starting times as well.
+    Those start by `GST + (W + p − 1)τ`, using Proposition 19. Since
+    `p < W`, this is at most `2Wτ`.
+
+  With P5's `ℓ_chorus = 4Δ + ℓ_MVBA` as well, (1) and (2) would read with
+  `4Δ + ℓ_MVBA` where the paper has `Φ_oc = 6Δ + ℓ_MVBA`. Smaller windows
+  and an earlier recovery then satisfy the assumptions.
+* *Status.* Open for the authors. **Confirmed by proof** (R29,
+  2026-10-03): `Conductor.recovery` proves Lemma 16 at `2Wτ` from (1)–(4)
+  as stated, and `Conductor.recovery_sharp` proves it at `(W + p − 1)τ`
+  from the same premises. Both use (1) and (2) only in their `ℓ_chorus`
+  form and (3) only as `ℓ > 0`
+  ([ConductorBounds.md](ConductorBounds.md) §9, K5). **Suggested
+  correction:** state (1) and (2) with `ℓ_chorus` and (3) as `ℓ > 0`, and
+  `𝓡 = (W + p − 1)τ`, or note that they are sufficient, not tight.
+
 ### 6.1 The interface check
 
 Every claimed result takes facts from module contracts. This table lists
@@ -951,10 +1002,11 @@ finding, unless the fact is the development's own stated bridge.
 | The validity bridge: a valid meta-block's certificates verify against the network, and genuine certificates make it valid | Chorus safety at the decision handlers and the `CommitQC` route; `Chorus.termination` | `Valid` is "publicly verifiable" in both documents; the bridge says what that means for a network of relations | none: the development's one stated bridge ([Architecture.md](Architecture.md) §4) |
 | The MVBA's abandon antecedent and Quiescence | `Chorus.termination` (through `Mvba.termination`) | yes, Module 3 (`mod:mvba`) | — |
 | ACS Agreement, Validity (genuine pairs), Integrity | `Conductor ⊨ OrchestratorSafety` | yes, Module 4 (`mod:acs`) | — |
-| At most `f` Byzantine-attributed pairs in a decided ACS set | the justification of the median bridge at `acs_decide` (`Cadence.acs_median_bracket`); the recovery bounds (planned) | no: Module 4 (`mod:acs`) bounds the set's size, not the pairs per validator; the contract adds the bound (`decided_unique`) | P16 |
-| The Orchestrator's `d_tot`-Totality of openings | Corollary 4 (`cor:chorus-correctness-within-cadence`); the Conductor's recovery (planned) | not by Module 2 (`mod:orchestrator_2`), whose Totality is eventual; Lemma 15 (`lemma:conductor-totality`) proves it of the Conductor within Cadence, as does `Conductor.totality` (R28) | P15 |
-| The conditional completion guarantees of the Orchestrator's caller | the Conductor's Totality (`Conductor.totality`, through (R-tot)) and Recovery (planned) | no: Module 2 (`mod:orchestrator_2`)'s assumed-behaviour block is commented out, and is unconditional | P15 |
-| Unbounded starting times: whatever the time, some slot has not started (`StartsUnbounded`) | `Conductor.totality`, for the ACS proposal's `s*`; Recovery (planned) | yes, implicitly: the slots are infinitely many and τ-spaced on the real line (Appendix A.1 (`subsection:mcp-preliminaries`)), and Algorithm 7, line 39 (`line:sstar-compute`)'s `s*` presumes one | none: the development's statement lacked it (F28, R28) |
+| At most `f` Byzantine-attributed pairs in a decided ACS set | the justification of the median bridge at `acs_decide` (`Cadence.acs_median_bracket`); `Conductor.recovery`, for a correct pair in a decided set (`Conductor.correct_pair`, from `validity_quantitative`'s `2f + 1` distinct validators) | no: Module 4 (`mod:acs`) bounds the set's size, not the pairs per validator; the contract adds the bound (`decided_unique`) | P16 |
+| The Orchestrator's `d_tot`-Totality of openings | Corollary 4 (`cor:chorus-correctness-within-cadence`); the Conductor's recovery (`Conductor.recovery`, through `Conductor.open_sync`) | not by Module 2 (`mod:orchestrator_2`), whose Totality is eventual; Lemma 15 (`lemma:conductor-totality`) proves it of the Conductor within Cadence, as does `Conductor.totality` (R28) | P15 |
+| The conditional completion guarantees of the Orchestrator's caller | the Conductor's Totality (`Conductor.totality`, through (R-tot)) and Recovery (`Conductor.recovery`, through (R-tot) and (R-term)) | no: Module 2 (`mod:orchestrator_2`)'s assumed-behaviour block is commented out, and is unconditional | P15 |
+| Unbounded starting times: whatever the time, some slot has not started (`StartsUnbounded`) | `Conductor.totality`, for the ACS proposal's `s*`, and `Conductor.recovery`, which also needs a window of the chain after GST | yes, implicitly: the slots are infinitely many and τ-spaced on the real line (Appendix A.1 (`subsection:mcp-preliminaries`)), and Algorithm 7, line 39 (`line:sstar-compute`)'s `s*` presumes one | none: the development's statement lacked it (F28, R28) |
+| Every window has a successor (`WindowsUnbounded`) | `Conductor.recovery`: the chain of windows Propositions 15–19 run along | yes: the windows are the numbers `ω ∈ ℕ≥1`, one ACS instance for each `ω ≥ 2` (Algorithm 7, line 12 (`line:acs-instances`)) | none: the development's statement lacked it (F30, R29) |
 | The ACS accepts its two inputs (`ACSTemporal.propose_enabled`, `abandon_enabled`) | the Conductor's timed claims, through its handlers' rows (`Conductor.totality`) | yes, implicitly: Module 4 (`mod:acs`)'s interface makes `propose(s)` and `abandon()` inputs, which the caller invokes, and the module formalism has no refusal; the proofs (Proposition 15 (`prop:enters-every-window`): "`p_j` proposes to `ACS[ω]`") rely on exactly that | none: the module convention states it, the contract spells it out (F26, R27) |
 | Open-prefix agreement of the Orchestrator | the glue's safety | derived: the safety residue of Module 2 (`mod:orchestrator_2`)'s Totality and Monotonicity | — |
 | "A correct validator decides only after proposing", for the MVBA | nothing since R16 (the two helper invariants that needed it were deleted) | not by Module 3 (`mod:mvba`); Module 4 (`mod:acs`)'s Integrity states it for the ACS | none: no claim uses it |
