@@ -79,6 +79,14 @@ theorem enabled_record_skip {i : node} {x w : slot} (hi : ¬ fm.byz i)
   glue_enabled
   exact ⟨_, hi, hw, hle, hne, hn, rfl⟩
 
+theorem enabled_on_propose {i : node} {x : slot} {p : proposal} {a : scstate} (hi : ¬ fm.byz i)
+    (ho : orch.opened st.os i x) (hp : sc.participating (st.sc_state x) i)
+    (hJ : th.is_proposer i x = true) (hn : ¬ ∃ p', sc.proposed (st.sc_state x) i p')
+    (hpr : sc.propose (st.sc_state x) i p a) :
+    Enabled GRTS th st (.on_propose i x p a) := by
+  glue_enabled
+  exact ⟨_, hi, ho, hp, hJ, fun p' h => hn ⟨p', h⟩, hpr, rfl⟩
+
 theorem enabled_append {i : node} {x : slot} {v : pvector} (hi : ¬ fm.byz i)
     (hd : st.delivered i x v = true) (ha : ∀ v', st.appended i x v' = false)
     (hr : ∀ y, slot_ord.le y x → y ≠ x → st.resolved i y = true) :
@@ -251,6 +259,84 @@ theorem run_resolved_mono {N : Nat} {i : node} {x : slot}
     (h : (r.at' N).resolved i x = true) : ∀ m, N ≤ m → (r.at' m).resolved i x = true :=
   r.mono (P := fun st => st.resolved i x = true)
     (fun n hn => Cadence.resolved.mono (r.steps n) i x hn) h
+
+theorem run_on_time_mono {N : Nat} {j : node} {x : slot} {P : proposal}
+    (h : sc.on_time ((r.at' N).sc_state x) j P) :
+    ∀ m, N ≤ m → sc.on_time ((r.at' m).sc_state x) j P :=
+  r.mono (P := fun st => sc.on_time (st.sc_state x) j P) (fun n hn => by
+    rcases sc_trans_or_eq x (r.steps n) with he | ht
+    · rw [he]; exact hn
+    · exact sc.on_time_mono _ _ j P (inv_sc_reachable (r.reachable n) x) ht hn) h
+
+set_option maxHeartbeats 2000000 in
+/-- **A correct proposer's proposals are its own inputs**: whatever every
+`propose` input guarantees of its proposal holds of every proposal a
+correct validator has made. The contract's frames keep every other step
+and input from recording a correct validator's proposal. -/
+theorem run_proposed_of {W : proposal → Prop}
+    (hW : ∀ s i p s', sc.propose s i p s' → W p) {j : node} (hj : ¬ fm.byz j) (x : slot) :
+    ∀ n p, sc.proposed ((r.at' n).sc_state x) j p → W p := by
+  intro n
+  induction n with
+  | zero =>
+    intro p h
+    have hi := r.starts
+    rw [(glue_init hi).2] at h
+    exact absurd h (sc.init_proposed _ j p (r.holds.2.1 x))
+  | succ n ih =>
+    intro p h
+    by_cases hold : sc.proposed ((r.at' n).sc_state x) j p
+    · exact ih p hold
+    · have htr := r.steps n
+      cases hl : r.lbl n with
+      | orch_step a =>
+        rw [hl] at htr
+        rw [congrFun (Cadence.orch_step.frame_sc_state htr) x] at h; exact absurd h hold
+      | record_skip i y w =>
+        rw [hl] at htr
+        rw [congrFun (Cadence.record_skip.frame_sc_state htr) x] at h; exact absurd h hold
+      | append i y v =>
+        rw [hl] at htr
+        rw [congrFun (Cadence.append.frame_sc_state htr) x] at h; exact absurd h hold
+      | sc_step y a =>
+        rw [hl] at htr
+        obtain ⟨hs, he⟩ := sc_step_sc htr
+        rw [he x] at h
+        by_cases hy : x = y
+        · subst hy; rw [if_pos rfl] at h
+          exact absurd ((sc.proposed_step_frame _ _ j p hs hj).1 h) hold
+        · rw [if_neg hy] at h; exact absurd h hold
+      | on_open i y a =>
+        rw [hl] at htr
+        obtain ⟨hs, he⟩ := on_open_sc htr
+        rw [he x] at h
+        by_cases hy : x = y
+        · subst hy; rw [if_pos rfl] at h
+          exact absurd ((sc.participate_proposed_frame _ _ _ j p hs hj).1 h) hold
+        · rw [if_neg hy] at h; exact absurd h hold
+      | on_finalize i y v a b =>
+        rw [hl] at htr
+        obtain ⟨-, hs, -, he⟩ := on_finalize_eff htr
+        rw [he x] at h
+        by_cases hy : x = y
+        · subst hy; rw [if_pos rfl] at h
+          exact absurd ((sc.abandon_proposed_frame _ _ _ j p hs hj).1 h) hold
+        · rw [if_neg hy] at h; exact absurd h hold
+      | on_propose i y p' a =>
+        rw [hl] at htr
+        obtain ⟨hs, he⟩ := on_propose_sc htr
+        rw [he x] at h
+        by_cases hy : x = y
+        · subst hy; rw [if_pos rfl] at h
+          by_cases hq : j = i ∧ p = p'
+          · obtain ⟨rfl, rfl⟩ := hq
+            exact hW _ _ _ _ hs
+          · have hne : j ≠ i ∨ p ≠ p' := by
+              by_cases hji : j = i
+              · exact Or.inr (fun hp => hq ⟨hji, hp⟩)
+              · exact Or.inl hji
+            exact absurd ((sc.propose_frame _ _ _ _ j p hs hj hne).1 h) hold
+        · rw [if_neg hy] at h; exact absurd h hold
 
 theorem run_skipped_mono {N : Nat} {i : node} {x : slot}
     (h : (r.at' N).skipped i x = true) : ∀ m, N ≤ m → (r.at' m).skipped i x = true :=

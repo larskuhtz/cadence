@@ -21,11 +21,8 @@ import Cadence.Composed.Corollary4
   slot's `ready_to_append` holds, and the vector is appended.
   `liveness_sharp` is the same at `(W + p − 1)τ`.
 
-Censorship resistance (Definition 3 (`def:censorship-resistance`)) is not
-here: its timed premise meets the deadline tie of
-[Bounds.md](../../docs/Bounds.md) §6.4.2 ("What `s.deadline − Δ ≥ GST`
-becomes"), recorded as F31 in
-[ConductorBounds.md](../../docs/ConductorBounds.md) §7. -/
+Censorship resistance (Definition 3 (`def:censorship-resistance`)) builds
+on these in [Censorship.lean](Censorship.lean). -/
 
 namespace Composed
 

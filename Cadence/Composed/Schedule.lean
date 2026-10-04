@@ -8,7 +8,7 @@ The glue ([Cadence.lean](../Cadence.lean)) at the verified instances — the
 Conductor as its orchestrator, Chorus (with the `Mvba` model as its MVBA)
 as every slot's consensus — run on one clock, with one time theory and one
 `Δ`, at `δ = 0`. This file states the **timing model of a composed run**,
-every premise a named `Prop`, and the **three composed claims** as
+every premise a named `Prop`, and the **four composed claims** as
 `Prop`-valued definitions, apart from any proof, as
 [Conductor/Schedule.lean](../Conductor/Schedule.lean) does for the
 Conductor.
@@ -44,6 +44,10 @@ prints the whole list.
   once a correct validator participates in slot `x`, the slot's part is
   admissible for `Chorus.chorusTemporal`, at the schedule's family schedule.
 
+Censorship resistance takes one premise more, (P-incl) on every started
+slot's part (`SlotInclusive`): a chunk delivered by the deadline is
+recorded, the paper's "by the deadline" read inclusively (F31, P19).
+
 The caller conditions of either side are **not** premises: Chorus's (C1,
 C2, Δ-synchronized participation) and the Conductor's ((R-tot), (R-term))
 are discharged in [Corollary4.lean](Corollary4.lean).
@@ -54,7 +58,9 @@ are discharged in [Corollary4.lean](Corollary4.lean).
 * `BoundedConcurrencyClaim` — Lemma 5 (`lemma:cadence-bounded-concurrency`)
   at `𝓑 = 2W − p`;
 * `LivenessClaim R` — `𝓡`-Liveness (Definition 2 (`def:liveness`), Lemma 2
-  (`lemma:cadence-liveness`)) at recovery time `R`. -/
+  (`lemma:cadence-liveness`)) at recovery time `R`;
+* `CensorshipClaim R` — `𝓡`-Censorship resistance (Definition 3
+  (`def:censorship-resistance`)) at grace period `R`. -/
 
 namespace Composed
 
@@ -472,11 +478,32 @@ def SysSync (sch : ConductorSchedule view time vfin)
       (orch := OS n f hf is_byz hbyz thO) (sc := SC n f hf is_byz hbyz thS thM) thG sch.δ r ∧
     OrchAdmissible n f hf is_byz hbyz sch TA r ∧ SlotAdmissible n f hf is_byz hbyz sch r
 
+/-- **Each started slot's chunks are on time by the deadline** — (P-incl),
+Chorus's `DeadlineInclusive`, on every started slot's part of the run
+([Premises.md](../../docs/Premises.md) §4.8).
+
+Read through every labelling of the part: `DeadlineInclusive` speaks only
+of a run's states and clocks, so this is that premise about the part's own
+states and clocks, restated nowhere. Used only by censorship resistance:
+it is the paper's "by the deadline" read inclusively (P19). -/
+def SlotInclusive (sch : ConductorSchedule view time vfin)
+    {thO : Conductor.Theory ℕ window time (Fin n) acsstate}
+    {thS : ChorusTh merkle_root view Phase PathChoice n} {thM : MvbaTh merkle_root view n}
+    {thG : GTheory merkle_root view Phase PathChoice window time acsstate n}
+    (r : TSysRun n f hf is_byz hbyz thO thS thM thG) : Prop :=
+  ∀ x, (∃ k i, ¬ (fmF n f hf is_byz hbyz).byz i ∧
+      (SC n f hf is_byz hbyz thS thM).participating ((r.at' k).sc_state x) i) →
+    ∀ (p : (stutterComp (slotC n f hf is_byz hbyz thO thS thM thG x)).Projection
+        (liftRun (slotC n f hf is_byz hbyz thO thS thM thG x) r).toLRun)
+      (r' : Chorus.TChorusRun (nset := nsetF) thS thM time),
+      (∀ k, r'.at' k = ((partRun p).at' k).2) → (∀ k, r'.clk k = (partRun p).clk k) →
+      Chorus.DeadlineInclusive (nset := nsetF) (sch.toFamilySchedule.at x) r'
+
 /-! ## The composed claims, stated
 
-Three `Prop`-valued definitions, asserted nowhere; the proofs are in
-[Corollary4.lean](Corollary4.lean), [Concurrency.lean](Concurrency.lean)
-and [Liveness.lean](Liveness.lean). Chorus enters at the system's
+Four `Prop`-valued definitions, asserted nowhere; the proofs are in
+[Corollary4.lean](Corollary4.lean), [Concurrency.lean](Concurrency.lean),
+[Liveness.lean](Liveness.lean) and [Censorship.lean](Censorship.lean). Chorus enters at the system's
 configuration (`Cadence.chorusTheory`, `Cadence.mvbaTheory`), as its
 contract instance `Chorus.chorusWithTotality` is stated there. -/
 
@@ -554,6 +581,45 @@ def LivenessClaim (sch : ConductorSchedule view time vfin)
             (Cadence.chorusTheory (slot := ℕ) (Phase := Phase) (PathChoice := PathChoice) is_proposer
               well_encoded mvba_init_state)
             (Cadence.mvbaTheory (nodeset := ByzNSet n) mvalid mleader)).slot_of v = s
+
+/-- **`c`-Censorship resistance of the composed system, the claim**
+(Definition 3 (`def:censorship-resistance`)), at grace period `R`. Over the
+same premises as `LivenessClaim`, with (P-incl) on every started slot
+(`SlotInclusive`) and a well-encoded root available to a correct proposer:
+for every slot `s` with `s.deadline − Δ ≥ GST + R` and every correct
+proposer `j` of `s`, `j` proposes some `P`, and every correct validator
+appends a vector `V` with `V.slot = s` and `V[j] = P`. The glue's proposer
+assignment is Chorus's by construction (`is_proposer j` for every slot),
+so no tie between the two is assumed. -/
+def CensorshipClaim (sch : ConductorSchedule view time vfin)
+    (TA : ACSTemporal (Fin n) ℕ acsstate time msg (fmF n f hf is_byz hbyz).byz)
+    (thO : Conductor.Theory ℕ window time (Fin n) acsstate) (R : time) : Prop :=
+  StartTimes sch thO → WindowShifts sch thO → StartsUnbounded thO → WindowsUnbounded window →
+  TA.Δ = sch.Δ → TA.ℓ = sch.ℓ →
+  (Finset.univ.filter (fmF n f hf is_byz hbyz).byz).card ≤ TA.fault_bound →
+  (∃ m, well_encoded m = true) →
+  ∀ (o : OrchSt window time acsstate n) (sci : ℕ → SlotSt merkle_root view Phase PathChoice n)
+    (r : TSysRun n f hf is_byz hbyz thO
+      (Cadence.chorusTheory (slot := ℕ) (Phase := Phase) (PathChoice := PathChoice) is_proposer
+        well_encoded mvba_init_state)
+      (Cadence.mvbaTheory (nodeset := ByzNSet n) mvalid mleader) ⟨fun j _ => is_proposer j, o, sci⟩),
+    SysSync n f hf is_byz hbyz sch TA r → SlotInclusive n f hf is_byz hbyz sch r →
+    ∀ s, r.gst + R ≤ thO.start_time s →
+      ∀ j, ¬ (fmF n f hf is_byz hbyz).byz j → is_proposer j = true →
+        ∃ P, (∃ k, (SC n f hf is_byz hbyz
+            (Cadence.chorusTheory (slot := ℕ) (Phase := Phase) (PathChoice := PathChoice) is_proposer
+              well_encoded mvba_init_state)
+            (Cadence.mvbaTheory (nodeset := ByzNSet n) mvalid mleader)).proposed ((r.at' k).sc_state s) j P) ∧
+          ∀ i, ¬ (fmF n f hf is_byz hbyz).byz i →
+            ∃ m v, (r.at' m).appended i s v = true ∧
+              (SC n f hf is_byz hbyz
+                (Cadence.chorusTheory (slot := ℕ) (Phase := Phase) (PathChoice := PathChoice) is_proposer
+                  well_encoded mvba_init_state)
+                (Cadence.mvbaTheory (nodeset := ByzNSet n) mvalid mleader)).slot_of v = s ∧
+              (SC n f hf is_byz hbyz
+                (Cadence.chorusTheory (slot := ℕ) (Phase := Phase) (PathChoice := PathChoice) is_proposer
+                  well_encoded mvba_init_state)
+                (Cadence.mvbaTheory (nodeset := ByzNSet n) mvalid mleader)).includes v j P
 
 end Claims
 

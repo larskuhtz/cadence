@@ -23,6 +23,7 @@ import Cadence.Conductor.Recovery
 import Cadence.Conductor.Temporal
 import Cadence.Composed.Concurrency
 import Cadence.Composed.Liveness
+import Cadence.Composed.Censorship
 
 -- The fallback receipt/propose leg: the shipped design, verified.
 import Cadence.FallbackReceipt.Totality
@@ -354,6 +355,16 @@ Each entry is the result, the file its statement lives in, and what it says.
   `(W + p − 1)τ` (P18). The premises are the composed run's timing model,
   the Conductor's configuration premises and the ACS's constants and fault
   bound ([docs/Premises.md](docs/Premises.md) §0)
+* **`Composed.censorship`** ([Composed/Censorship.lean](Cadence/Composed/Censorship.lean)) —
+  **`𝓡`-Censorship resistance of the composed system** (Definition 3
+  (`def:censorship-resistance`)) at the paper's `𝓡 = 2Wτ`
+  (`CensorshipClaim`): for every slot starting at least `2Wτ` after GST and
+  every correct proposer of it, every correct validator appends a vector
+  for the slot that holds that proposer's proposal.
+  **`Composed.censorship_sharp`** proves the same at `(W + p − 1)τ`. Its
+  premises are Liveness's, (P-incl) on every started slot (a chunk
+  delivered by the deadline is recorded, F31) and a well-encoded root for
+  the proposer; the glue's proposers are Chorus's by construction
 * **`FallbackReceipt.invariants_of_reachable`**
   ([FallbackReceipt/Certify.lean](Cadence/FallbackReceipt/Certify.lean)) — every reachable state of the
   fallback receipt/propose layer satisfies its declared invariants
@@ -917,6 +928,18 @@ info: 'Composed.liveness_sharp' depends on axioms: [propext, Classical.choice, Q
 -/
 #guard_msgs in
 #print axioms Composed.liveness_sharp
+
+/--
+info: 'Composed.censorship' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.censorship
+
+/--
+info: 'Composed.censorship_sharp' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.censorship_sharp
 
 /--
 info: 'Cadence.acs_median_bracket' depends on axioms: [propext, Classical.choice, Quot.sound]
