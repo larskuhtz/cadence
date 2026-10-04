@@ -225,7 +225,9 @@ jobs:
       # the cell is solved again and stored under the old name (the first PR
       # run, after an Mvba assumption was removed: 290 such stores, no new
       # names). That re-solved entry is the one this pull request needs. The
-      # stamp marks the priming time for the export below.
+      # two stamps bracket the delta's copy (made without `-p`, so its entries
+      # carry the copy time) for the export below: newer than the first is
+      # this pull request's, newer than the second was written by this run.
       - name: Prime the proof cache
         if: steps.mode.outputs.mode == 'primed'
         env:
@@ -242,8 +244,12 @@ jobs:
               c=/workspaces/cadence/.lake/build/veilcache
               mkdir -p "$c"
               img=$(find "$c" -name "*.vpc" | wc -l)
-              cp -p /delta/*.vpc "$c"/ 2>/dev/null || true
-              touch /workspaces/cadence/.lake/build/veilcache-primed.stamp
+              b=/workspaces/cadence/.lake/build
+              touch "$b/veilcache-delta.stamp"
+              sleep 1
+              cp /delta/*.vpc "$c"/ 2>/dev/null || true
+              sleep 1
+              touch "$b/veilcache-primed.stamp"
               echo "image=$img"
               echo "delta=$(find /delta -name "*.vpc" | wc -l)"
               echo "size=$(du -sh "$c" | cut -f1)"' | tee prime.txt
@@ -378,7 +384,8 @@ jobs:
               for f in *.vpc; do
                 if [ "$f" -nt /vol/build/veilcache-primed.stamp ]; then
                   cp -p "$f" /out/; new=$((new + 1))
-                elif [ ! -e "/workspaces/cadence/.lake/build/veilcache/$f" ]; then
+                elif [ "$f" -nt /vol/build/veilcache-delta.stamp ] \
+                     || [ ! -e "/workspaces/cadence/.lake/build/veilcache/$f" ]; then
                   cp -p "$f" /out/
                 fi
               done
