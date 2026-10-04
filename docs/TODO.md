@@ -21,18 +21,11 @@ order worth taking:
   Chorus's MVBA constraint with a stub that never decides, so no fallback-path
   trace can be checked ([Monitor.md](Monitor.md) §8).
 
-One smaller item falls out of the same work (the Conductor's
-`Admissible`, the other, is done: `Conductor.Admissible`, R30): a
-**composed bounded-concurrency corollary** — from the glue's
-`bounded_concurrency_interval` and `OrchestratorTemporal.boundedness`,
-"at most `B` slots actively participated in", which needs a finite
-minimum-extraction argument over slots that is not written yet. It uses
-only the direction the glue states (an active instance is opened and not
-completed): take the least of `B + 1` active slots; the other `B` are opened
-above an opened, uncompleted slot, which `boundedness` forbids. Planned
-as a deliverable of K7 ([ConductorBounds.md](ConductorBounds.md) §9), at
-the instance K6 provides (`Conductor.conductorTemporal`; at `window := ℕ`,
-`Conductor.conductorFullNat`).
+* **Censorship resistance in the composed system** (Definition 3
+  (`def:censorship-resistance`)) waits on a timing convention: a correct
+  proposer's chunk may arrive exactly at the deadline, where Chorus's
+  deadline marker may fire first (F31, [ConductorBounds.md](ConductorBounds.md)
+  §7; P19). Put to Lars in R31; R31.2 states and proves it once decided.
 
 ## Soundness — guarding against vacuous claims
 
@@ -279,12 +272,15 @@ come first.
      `Conductor.conductorWithTotality` and the full `Conductor.conductorFull`,
      every field proven, for an arbitrary ACS
      ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)).
-     **Next is K7**, the composed timed claims: the composed run, the
-     glue's rows, (R-tot)/(R-term) discharged from Chorus, **Corollary 4
-     (`cor:chorus-correctness-within-cadence`)** as a theorem, the timed
-     `𝓡`-Liveness and censorship resistance, and **Lemma 5
-     (`lemma:cadence-bounded-concurrency`)'s bound** from
-     `OrchestratorTemporal.boundedness`. Then K8, the composed witness.
+     K7 is done (R31), except censorship resistance (F31): the composed
+     run ([Cadence/Composed/](../Cadence/Composed/Schedule.lean)), every
+     caller condition of either side discharged, **Corollary 4
+     (`cor:chorus-correctness-within-cadence`)**, **Lemma 5
+     (`lemma:cadence-bounded-concurrency`)** at `2W − p`, and `𝓡`-Liveness
+     at `2Wτ` and `(W + p − 1)τ`; the composed premises are
+     [Premises.md](Premises.md) §0. **Next is K8**, the composed
+     non-vacuity witness ([ConductorBounds.md](ConductorBounds.md) §8.2):
+     one instance and run meeting every premise of §0 at once.
      Left from K6: the liveness section of
      [Conductor.lean](../Cadence/Conductor.lean) ("Liveness —
      meta-argument") still narrates totality and recovery as meta-axioms;
