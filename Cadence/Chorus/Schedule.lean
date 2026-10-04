@@ -573,6 +573,28 @@ def PhasePunctual (sch : Schedule view time) (r : TChorusRun thS thM time) : Pro
     (∀ n, r.lbl n = L.marker → L.time sch ≤ r.clk n) ∧
     (∃ n, L.Reached (r.at' n) ∧ r.clk n ≤ L.time sch)
 
+/-- **(P-incl) A chunk received by the deadline is recorded** —
+the paper's "by the deadline" read inclusively
+([Premises.md](../../docs/Premises.md) §4.8).
+
+Proposition 3 (`prop:honest-positive-entry`) has every correct
+validator receive a correct proposer's chunk "by the deadline" and
+set its positive entry before voting. A chunk sent at `D − Δ` may
+arrive exactly at `D`, where the deadline marker may also fire;
+the paper counts the chunk as on time without saying so (P19).
+This premise states that reading: a chunk a correct validator
+holds, under a signed root, at a clock at or before `D` is
+recorded. In an actual run: messages delivered by the deadline
+are processed before the deadline handler. -/
+def DeadlineInclusive (sch : Schedule view time)
+    (r : TChorusRun thS thM time) : Prop :=
+  ∀ n (i j : node) (m : merkle_root), ¬ nset.is_byz i = true →
+    thS.is_proposer j = true →
+    (r.at' n).msg_chunk_received i j m = true →
+    (r.at' n).msg_proposer_signed j m = true →
+    r.clk n ≤ sch.D →
+    ∃ k m', (r.at' k).local_entry_pos i j m' = true
+
 /-- The MVBA's projected timed run, as a run of the MVBA contract (`TimedRun`
 at `mvbaSafety thM`): the timed projection with its labels forgotten. -/
 noncomputable def mvbaTimedRun {r : TChorusRun thS thM time}

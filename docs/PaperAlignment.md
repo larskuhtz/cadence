@@ -541,7 +541,8 @@ the Lean development of this repository.*
 | P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the contract states them as antecedents (C4, C5, R27), both are proven under them (R28, R29), and the full instance carries them (R30) |
 | P16 | Module 4's Validity lacks the per-validator bound the median argument needs | module interface, proof gap | open for the paper; the contract carries the bound since R25 (C6), and the median bridge's justification is a theorem from it |
 | P17 | The ACS the Conductor uses is unspecified | missing instantiation | open; the plan keeps the ACS as an assumed module |
-| P18 | The recovery chain needs less than Algorithm 7's assumptions (1)–(3), and `𝓡 = 2Wτ` is not tight | slack | open; **confirmed by proof**: the model proves Lemma 16 at `2Wτ` and at `(W + p − 1)τ` |
+| P18 | The recovery chain needs less than Algorithm 7's assumptions (1)–(3), and `𝓡 = 2Wτ` is not tight | slack | open; **confirmed by proof**: the model proves Lemma 16, and the composed `𝓡`-Liveness, at `2Wτ` and at `(W + p − 1)τ` |
+| P19 | A chunk that arrives exactly at the deadline is counted as on time without a stated rule | missing convention | open; the model states the inclusive reading as a premise, (P-incl), and proves censorship resistance under it ([ConductorBounds.md](ConductorBounds.md) F31) |
 
 P1–P4 are inconsistencies between the main body and the supplement, or
 within the supplement. P5 and P6 date from the review of arXiv v2 and hold
@@ -553,6 +554,8 @@ instantiate. P15–P17 come from the Conductor leg's kick-off record
 ([ConductorBounds.md](ConductorBounds.md)), written before any Lean, and
 P15 is since borne out by the proofs (R28, R29). P18 is slack, as P5 is:
 the paper's bounds hold, and the proof shows weaker assumptions suffice.
+P19 is a timing convention, found by the composition leg (R31), as P6 is
+an execution convention.
 
 **P1. Module 3 (`mod:mvba`) Integrity was not revised with Agreement.**
 * *Quote.* The supplement (Supplement, Section 1.2
@@ -982,7 +985,40 @@ and `𝓡 = 2Wτ` is not tight.**
   form and (3) only as `ℓ > 0`
   ([ConductorBounds.md](ConductorBounds.md) §9, K5). **Suggested
   correction:** state (1) and (2) with `ℓ_chorus` and (3) as `ℓ > 0`, and
-  `𝓡 = (W + p − 1)τ`, or note that they are sufficient, not tight.
+  `𝓡 = (W + p − 1)τ`, or note that they are sufficient, not tight. The
+  sharper value carries through the composition: the composed system's
+  `𝓡`-Liveness (Lemma 2 (`lemma:cadence-liveness`)) is proven at
+  `(W + p − 1)τ` too (`Composed.liveness_sharp`, R31).
+
+**P19. A chunk that arrives exactly at the deadline is counted as on time
+without a stated rule.**
+* *Quote.* Proposition 3 (`prop:honest-positive-entry`): "Since
+  `s.deadline − Δ ≥ GST` and `p_j` disseminates at the slot's starting time,
+  every correct validator receives and validates its assigned chunk under
+  `root_P` by the deadline [...] setting its entry for `p_j` to the positive
+  entry". The proof of censorship resistance for Algorithm 1
+  (`algorithm:cadence`), in Appendix B.3 (`subsection:correctness_cadence`),
+  has the proposer propose "at that same time", the slot's starting time.
+* *Why it matters.* A message sent at `D − Δ ≥ GST` arrives by `D`, so in
+  the worst case exactly at `D`, the instant at which a correct validator's
+  deadline handler fires and it votes with the entries it holds
+  (Algorithm 3 (`alg:voting`)). The proposition needs the chunk to be
+  recorded before that handler runs. With local computation instantaneous,
+  both events happen at `D`, and no rule says which runs first. Under the
+  other order the validator votes without the entry, and Proposition 3's
+  conclusion fails for that run. Censorship resistance at any `c` rests on
+  it, since the proposal is always made exactly `Δ` before the deadline.
+* *Status.* Open for the authors, found by R31 (2026-10-03). The model's
+  punctual deadline marker may fire at clock `D`, so the existing
+  milestone needs the recording strictly before `D`
+  (`Chorus.within_proposal_recorded`). The model states the paper's
+  inclusive reading as a premise of Chorus's timing model, (P-incl)
+  `DeadlineInclusive` (decided by Lars, R31.2), and proves censorship
+  resistance under it (`Composed.censorship`;
+  [ConductorBounds.md](ConductorBounds.md) F31). **Suggested
+  correction:** state the convention, e.g. that messages delivered at the
+  deadline are processed before the deadline handler; or have the
+  proposer disseminate before the starting time.
 
 ### 6.1 The interface check
 

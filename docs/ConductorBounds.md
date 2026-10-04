@@ -10,7 +10,9 @@ K1, the untimed composition edit, is **done** (2026-10-03, R25; §9), and so
 are K2, the model's timing completion (2026-10-03, R26; F21 closed), K3,
 the contract edit and the claims stated (2026-10-03, R27; §9), K4, the
 window induction with Boundedness and Totality proven (2026-10-03, R28;
-§9), and K5, Recovery proven (2026-10-03, R29; §9).*
+§9), K5, Recovery proven (2026-10-03, R29; §9), K6, the contract
+instances (2026-10-03, R30; §9), and K7, the composed claims (2026-10-03,
+R31; censorship resistance 2026-10-04, R31.2, after F31; §9).*
 
 ## 1. In short, for an auditor
 
@@ -65,7 +67,15 @@ composition is proven (`Cadence.system_positional_log_safety`,
 [System.lean](../Cadence/System.lean)), and since K1 the glue drives
 Chorus's `participate`, `propose` and `abandon` inputs through the contract,
 so the composed system's Chorus is not inert
-([CompositionContracts.md](CompositionContracts.md) §3, §7 item 2).
+([CompositionContracts.md](CompositionContracts.md) §3, §7 item 2). K6
+instantiated the full orchestrator contract
+(`Conductor.conductorFull`). K7 closed the loop in the composed run
+([Composed/](../Cadence/Composed/Corollary4.lean)): every condition each
+side takes from its caller is a theorem, Corollary 4 is proven
+(`Composed.corollary4`), and so are Lemma 5 at `2W − p`
+(`Composed.boundedConcurrency`), `𝓡`-Liveness at `2Wτ`
+(`Composed.liveness`) and censorship resistance at `2Wτ`
+(`Composed.censorship`, after F31).
 
 **What the timed claims would assume.** The same timing model as the MVBA and
 Chorus claims: one clock, one time theory and one Δ for the whole system.
@@ -963,6 +973,41 @@ paper's module.
   in the window type, and K6's instance carries the premise, which is
   trivial at `ℕ`. Not a paper issue.
 
+* **F31: censorship resistance's timed premise ties with the deadline.**
+  Found by K7. The paper's proof that Algorithm 1 (`algorithm:cadence`)
+  meets Definition 3 (`def:censorship-resistance`), in Appendix B.3
+  (`subsection:correctness_cadence`), has a correct proposer open its slot and propose at its starting time
+  `D − Δ ≥ GST`, and reads Chorus's proposal inclusion off Proposition 3
+  (`prop:honest-positive-entry`): every correct validator "receives and
+  validates its assigned chunk under `root_P` by the deadline". In the
+  model the chunk arrives by `max(D − Δ, GST) + Δ = D` and is recorded at
+  `δ = 0` by `D`, while the deadline marker, punctual, also fires at `D`
+  (P1 lets it fire at clock `D`). Once it has fired, recording is closed,
+  so `Chorus.within_proposal_recorded` needs the strict `< D`. That is the
+  tie [Bounds.md](Bounds.md) §6.4.2 ("What `s.deadline − Δ ≥ GST`
+  becomes") anticipated. No choice of `𝓡` removes it, since the proposal
+  is always made exactly `Δ` before the deadline. The paper resolves the
+  tie in the chunk's favour without saying so. **Proposal:** a tie-break
+  premise in Chorus's timing model (a chunk record owed at clock `≤ D`
+  fires before the deadline marker), with the paper side recorded as P19;
+  alternatives: leave Definition 3 out of the composed claims, or a strict
+  network bound (not the paper's). **Open: put to Lars (R31).** The
+  composed claim also needs two plain configuration ties: the glue's
+  proposer assignment is Chorus's, and a correct proposer has a
+  well-encoded root.
+  **Closed (R31.2, decided by Lars 2026-10-04, option A):** the tie-break
+  is a standalone premise of Chorus's timing model, (P-incl)
+  `DeadlineInclusive` ([Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)):
+  a chunk a correct validator holds at a clock at or before `D` is
+  recorded. It is not part of `SyncAtMvba`, so no existing claim takes it;
+  the Chorus witness meets it (`Chorus.Witness.deadlineInclusive`). The
+  milestone is `Chorus.within_proposal_recorded_incl`
+  ([Chorus/Inclusion.lean](../Cadence/Chorus/Inclusion.lean)), and
+  censorship resistance is proven (`Composed.censorship`). The proposer
+  tie is definitional: the claim's glue configuration takes Chorus's
+  proposer set for every slot. What stays a premise is a well-encoded root
+  for the proposer. P19 records the paper side.
+
 ## 8. Premises and non-vacuity from the start
 
 ### 8.1 The draft ledger
@@ -1412,6 +1457,63 @@ parallel with K1. Everything else is in order.
   completed) and `OrchestratorTemporal.boundedness` at the instance K6
   provides (take the least of `𝓑 + 1` active slots: the other `𝓑` are
   opened above an opened, uncompleted slot). Possibly two sessions.
+  * **Done (2026-10-03, R31; censorship resistance 2026-10-04, R31.2).**
+    Six new files under [Composed/](../Cadence/Composed/Schedule.lean) and
+    [Chorus/Inclusion.lean](../Cadence/Chorus/Inclusion.lean), every
+    theorem pinned at the standard trio. One shared statement file edited,
+    by Lars's decision on F31: [Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)
+    gains the standalone premise (P-incl). What is proven:
+
+    | the paper | Lean | at |
+    |---|---|---|
+    | the composed timed run | `Composed.sysRTS`, `Composed.TSysRun`, `Composed.orchComponent`, `Composed.slotComponent`, `Composed.GlueRows`, `Composed.SysSync` | — (definitions: the claims' run premises by name) |
+    | C1, C2, participation, Δ-synchronized participation (Chorus's caller conditions) | `Composed.c1_slot`, `Composed.c2_slot`, `Composed.participating_by`, `Composed.sync_slot` | `D = start + Δ`; `Δ` |
+    | (R-tot), (R-term) (the Conductor's caller conditions) | `Composed.caller_totality`, `Composed.caller_termination` | `d_tot = Δ`, `ℓ_chorus` |
+    | Lemma 15 (`lemma:conductor-totality`) within Cadence | `Composed.openings_sync` | `Δ` |
+    | Corollary 4 (`cor:chorus-correctness-within-cadence`) | `Composed.corollary4` (`Corollary4Claim`); `Composed.corollary4_bounded_termination`, `…_totality`, `…_termination` | `5Δ + ℓ_MVBA`, `Δ` |
+    | Lemma 5 (`lemma:cadence-bounded-concurrency`) | `Composed.boundedConcurrency` (`BoundedConcurrencyClaim`) | `𝓑 = 2W − p` |
+    | Lemma 16 (`lemma:conductor-recovery`) within Cadence | `Composed.recovery_in`, `Composed.recovery_sharp_in` | `2Wτ`; `(W + p − 1)τ` |
+    | `𝓡`-Liveness (Definition 2 (`def:liveness`), Lemma 2 (`lemma:cadence-liveness`)) | `Composed.liveness`, `Composed.liveness_sharp` (`LivenessClaim`) | `2Wτ`; `(W + p − 1)τ` |
+    | Proposition 3 (`prop:honest-positive-entry`), timed | `Chorus.within_proposal_recorded_incl` | by the deadline, under (P-incl) |
+    | `𝓡`-Censorship resistance (Definition 3 (`def:censorship-resistance`)) | `Composed.censorship`, `Composed.censorship_sharp` (`CensorshipClaim`) | `2Wτ`; `(W + p − 1)τ` |
+
+    Differences from the plan:
+    * **the parts are stutter-lifted, both of them**: the orchestrator's
+      as well as each slot's, so both premises read
+      "`T.Admissible (partRun p)`" with the instance's own `Admissible`
+      (`Conductor.Admissible`, `Chorus.Admissible`), restated nowhere;
+    * **one fault pattern, Chorus's** (`fmF`): the Conductor, the ACS
+      and the glue are stated at it, so no transport like
+      [System.lean](../Cadence/System.lean)'s `hbyz` is needed;
+    * **the Conductor is consumed through its lemmas**
+      (`Conductor.totality`, `Conductor.recovery`), not through the
+      contract instance: the instance takes Recovery's configuration
+      premises, and Corollary 4 needs only Totality's. Chorus is consumed
+      through its contract instance (`Chorus.chorusWithTotality`,
+      `Chorus.chorusTemporal`), whose fields are exactly the claims used;
+    * **Corollary 4's Termination needs no Conductor premise**: its one
+      caller condition, C1, is the glue's invariant;
+    * **Liveness concludes `V.slot = s`** as Definition 2 asks, from the
+      contract's `slot_safety` through the glue (`Composed.inv_appended_slot`);
+    * **System.lean is unchanged.** The composed timed claims sit in
+      [Composed/](../Cadence/Composed/Liveness.lean), indexed in
+      [Cadence.lean](../Cadence.lean) next to the safety theorem;
+    * **censorship resistance needed F31's decision** (R31.2): the
+      tie-break premise (P-incl), a proof that a proposer has not
+      abandoned before proposing (`Chorus.committed_post_deadline`: a
+      finalization postdates the deadline), and that a correct proposer's
+      proposals are its own inputs (`Composed.run_proposed_of`, from the
+      contract's frames), for the root's well-encodedness.
+
+    **Premises** ([Premises.md](Premises.md) §0, each with its "Used
+    in"): the union of the parts' environment premises (the glue's rows,
+    the Conductor's `Sync` on its part, Chorus's `Admissible` on every
+    started slot's part, the configuration, the assumed ACS), with every
+    caller condition discharged; censorship resistance adds (P-incl) on
+    every started slot and a well-encoded root. One is reported, not
+    removed: Chorus's non-empty proposer set (`hprop`) enters only to form
+    Chorus's contract instance. The glue's `propose` row, reported in R31,
+    is used by censorship resistance since R31.2.
 * **K8: non-vacuity.** The periodic composed witness (§8.2), and the
   ledger moved to the premises page. Probably two sessions.
 

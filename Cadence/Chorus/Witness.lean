@@ -798,6 +798,21 @@ theorem phasePunctual : PhasePunctual schC run := by
     · simp [Landmark.Reached, run, st]
     · decide
 
+/-- **(P-incl)**: every chunk a correct validator holds is recorded. The
+proposer's chunk reaches the four validators at clock 0, the three correct
+ones record it at once, and the deadline marker fires only after them, at
+clock 1. The tie-break premise of censorship resistance holds of the
+witness, at its schedule and at any other. -/
+theorem deadlineInclusive (sch : Chorus.Schedule ℕ ℕ) : DeadlineInclusive sch run := by
+  intro n i j m hi _ hc _ _
+  have hi3 := correct_lt hi
+  have hj : j.val = 0 := by
+    simp only [run, st, decide_eq_true_eq] at hc
+    exact hc.1
+  refine ⟨11, (), ?_⟩
+  simp only [run, st, decide_eq_true_eq]
+  omega
+
 /-! ## The MVBA's projection: quiet, abandoned by the caller -/
 
 /-- The MVBA's label at each index: the three abandonments, and validator
@@ -1213,3 +1228,9 @@ info: 'Chorus.totality_premises_satisfiable' depends on axioms: [propext, Classi
 -/
 #guard_msgs in
 #print axioms Chorus.totality_premises_satisfiable
+
+/--
+info: 'Chorus.Witness.deadlineInclusive' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.Witness.deadlineInclusive

@@ -109,7 +109,12 @@ Four Veil models plus support files, mirroring the paper's architecture:
   the projection; `docs/Liveness.md` §4.5–§4.7),
   `System.lean` (the
   glue's end theorem at both instances — the composed system, no contract
-  hypothesis left).
+  hypothesis left), and `Composed/` (the composed system's timed claims:
+  the composed run and its premises in `Schedule.lean`, every caller
+  condition of either side discharged and Corollary 4 in
+  `Corollary4.lean`, Lemma 5 in `Concurrency.lean`, `𝓡`-Liveness in
+  `Liveness.lean`, censorship resistance in `Censorship.lean`; plain Lean, premises [docs/Premises.md](./docs/Premises.md)
+  §0).
 * `Cadence/Monitor/` — the model-conformance monitor. Not part of any
   theorem's trust base; see [docs/Monitor.md](./docs/Monitor.md).
 

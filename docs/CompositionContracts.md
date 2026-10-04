@@ -375,8 +375,8 @@ those classes are stated over the fragment's own `init` / `trans` /
 `reachable` / observables, the lists below are lists of *class fields*,
 not of restatements: there is no second place where these obligations are
 written down. What stays assumed is the ACS, which the Conductor consumes
-as a module (both levels of `ACS`, an arbitrary instance), and the glue's
-composed timed claims (stage K7).
+as a module (both levels of `ACS`, an arbitrary instance). The composed
+timed claims are proven from these instances (§6, stage K7).
 
 **`OrchestratorTemporal … (S := Conductor.orchestratorSafety th)` is
 proven**, as `Conductor.conductorTemporal`
@@ -426,9 +426,11 @@ over the fragment's own `opened` and `completed`, at the caller's latencies
 
 `Admissible` stays the scheduler, the network and the timers, as for the
 MVBA and Chorus; nothing about the caller enters it. Within Cadence the
-composition (K7) discharges both from `Chorus.chorusWithTotality`'s
-`totality` and `bounded_termination` through the glue, and each side is a
-conditional statement about one slot, so the composition is not circular.
+composition discharges both from `Chorus.chorusWithTotality`'s
+`totality` and `bounded_termination` through the glue
+(`Composed.caller_totality`, `Composed.caller_termination`, §6), and each
+side is a conditional statement about one slot, so the composition is not
+circular.
 The statements the Conductor's proofs (K4, K5) meet are
 `Conductor.TotalityClaim`, `Conductor.BoundednessClaim` and
 `Conductor.RecoveryClaim` ([Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean)),
@@ -549,6 +551,36 @@ timed instance (`LeaderRotation`), not of the safety instance
 No temporal obligation enters: MCP Safety is a safety property and needs only
 the proven fragments.
 
+**The composed timed claims** ([Composed/](../Cadence/Composed/Schedule.lean),
+stage K7) consume the temporal levels. They are stated for the glue at the
+Conductor and at Chorus's system configuration, on one clock, with one time
+theory, one `Δ` and `δ = 0`, and **one fault pattern, Chorus's** (`fmF`), at
+which the Conductor and the ACS are stated too, so no `hbyz` transport is
+needed there. A composed run's premises (`Composed.SysSync`) are the glue's
+five handler rows, the Conductor's instance's `Admissible` on the
+orchestrator's part of the run, and Chorus's instance's `Admissible` on every
+started slot's part (each part the stutter lift of
+[PartProjection.lean](../Cadence/PartProjection.lean)). Every condition a
+module takes from its caller is a theorem about the composed run:
+
+* Chorus's C1, C2, participation and Δ-synchronized participation, from the
+  glue's invariants, the Conductor's `integrity_timing` and clock, and
+  Lemma 15 within Cadence (`Composed.openings_sync`);
+* the Conductor's (R-tot) and (R-term), from Chorus's instance through the
+  glue's `on_open` and `on_finalize`.
+
+On that footing: Corollary 4 (`cor:chorus-correctness-within-cadence`)
+(`Composed.corollary4`, with Chorus's three claims per slot and no caller
+premise left), Lemma 5 (`lemma:cadence-bounded-concurrency`) at `2W − p`
+(`Composed.boundedConcurrency`), Lemma 16 within Cadence
+(`Composed.recovery_in`), `𝓡`-Liveness (Definition 2
+(`def:liveness`)) and censorship resistance (Definition 3
+(`def:censorship-resistance`)) at `2Wτ` and at `(W + p − 1)τ`
+(`Composed.liveness`, `Composed.censorship`, and their `_sharp` forms). The premise list, each with its use, is
+[Premises.md](Premises.md) §0. [System.lean](../Cadence/System.lean)'s
+safety theorem is unchanged; it stays generic in the slot order, the time
+and the fault-pattern transport, which the timed claims fix.
+
 ## 7. The remaining seams, named
 
 1. **The MVBA certificate bridge.** Each decision handler `require`s the
@@ -611,6 +643,19 @@ the proven fragments.
    could be vacuous if it defined it as `False`; `admissible_exists` forbids
    that, and the definition is one line to audit.
 5. **The two fault patterns** meet in `hbyz` (§6) — a hypothesis, not a proof.
+   The composed timed claims avoid it by stating the Conductor and the ACS
+   at Chorus's fault pattern.
+6. **Censorship resistance rests on a timing convention** (F31,
+   [ConductorBounds.md](ConductorBounds.md) §7; P19). A correct proposer's
+   chunk, sent at the slot's starting time `D − Δ`, may arrive exactly at
+   the deadline `D`, where Chorus's punctual deadline marker may fire
+   first; the paper counts the chunk as on time without saying so. The
+   model states that reading as a premise, (P-incl), and proves censorship
+   resistance under it ([Premises.md](Premises.md) §4.8).
+7. **The composed claims' joint satisfiability** is stage K8's witness
+   ([ConductorBounds.md](ConductorBounds.md) §8.2): until it exists, the
+   composed premises are type-checked and each is used, but not yet shown
+   to hold together.
 
 ### Vacuity does not compose
 
