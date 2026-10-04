@@ -130,3 +130,11 @@ theorem glueRows :
     fun i x _ => row_append i x⟩
 
 end Composed.Witness
+
+/-! ## The pinned trust base -/
+
+/--
+info: 'Composed.Witness.glueRows' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.glueRows

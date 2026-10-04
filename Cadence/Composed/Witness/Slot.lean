@@ -570,3 +570,29 @@ theorem certified_eq (m : Nat) (v : V) (hc : Certified (thS := thS) (thM := thM)
     | some p => exact absurd (hpos j p.1 (by simp [hv])).1 hj
 
 end Composed.Witness
+
+/-! ## The pinned trust base -/
+
+/--
+info: 'Composed.Witness.cstep' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.cstep
+
+/--
+info: 'Composed.Witness.stut_tr' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.stut_tr
+
+/--
+info: 'Composed.Witness.no_stutter_init' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.no_stutter_init
+
+/--
+info: 'Composed.Witness.certified_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.certified_eq

@@ -253,3 +253,35 @@ noncomputable def projOfFrom {n0 : Nat}
 end AlignedRuns
 
 end Cadence
+
+/-! ## The pinned trust base -/
+
+/--
+info: 'Cadence.plateauRun' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Cadence.plateauRun
+
+/--
+info: 'Cadence.bufferedFairFamily_of_ends' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Cadence.bufferedFairFamily_of_ends
+
+/--
+info: 'Cadence.idx_of_from' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Cadence.idx_of_from
+
+/--
+info: 'Cadence.partRun_at'_of_all' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Cadence.partRun_at'_of_all
+
+/--
+info: 'Cadence.entry_of_from' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Cadence.entry_of_from

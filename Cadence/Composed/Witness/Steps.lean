@@ -720,3 +720,23 @@ noncomputable def run : TSysRun 4 1 rfl isByz Chorus.Witness.hbyz thO thS thM th
 @[simp] theorem run_gst : run.gst = 0 := rfl
 
 end Composed.Witness
+
+/-! ## The pinned trust base -/
+
+/--
+info: 'Composed.Witness.ostep' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.ostep
+
+/--
+info: 'Composed.Witness.gstep' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.gstep
+
+/--
+info: 'Composed.Witness.run' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.run

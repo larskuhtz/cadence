@@ -288,3 +288,17 @@ theorem tr_enter_window {i : node} {w w' : window} {f b l : ℕ} {a : acsstate}
 end Conductor
 
 end Composed.Witness
+
+/-! ## The pinned trust base -/
+
+/--
+info: 'Composed.Witness.tr_on_finalize' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.tr_on_finalize
+
+/--
+info: 'Composed.Witness.tr_acs_propose' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.tr_acs_propose
