@@ -68,10 +68,12 @@ configuration: the network and the schedule, the fairness of each module's
 honest steps, the assumed ACS, and the seam between Chorus and the MVBA.
 The premises are fixed and type-checked in
 [Composed/Schedule.lean](../Cadence/Composed/Schedule.lean). Each line
-names the Lean lemma that uses it. "Satisfiable" for the whole list is the
-composed witness of stage K8 ([ConductorBounds.md](ConductorBounds.md)
-§8.2), still to be built: until then, the joint satisfiability of this list
-is the one open item of this section.*
+names the Lean lemma that uses it, and the witness that satisfies it. The
+whole list holds at once in one model of the composed system, the
+**composed witness** (§0.5): every line marked "not obvious" names the
+theorem of [Composed/Witness/](../Cadence/Composed/Witness/) that meets it
+there, and the four `…_premises_satisfiable` theorems meet them all
+together.*
 
 ### 0.1 The claims
 
@@ -96,12 +98,15 @@ below; Liveness takes all of them.
   Chorus and the glue. *Used in:* every Chorus quorum argument, through
   Chorus's instance (§2.1); the system's fault pattern is Chorus's, so no
   transport of the kind `System.lean`'s `hbyz` makes is needed. (C4)
+  *Satisfiable:* obvious; `Fin 4`, `f = 1`, validator 3 Byzantine.
 * **Chorus's configuration** at the system's (`Cadence.chorusTheory`,
   `Cadence.mvbaTheory`), with the view enumeration and
   (A-leader-rotation-k) (§2.3, §2.5) and a cancellative, Archimedean time
   (§2.6). *Used in:* Chorus's bounded termination (the MVBA's termination
   inside it) in `Composed.caller_termination`; its totality in
-  `Composed.caller_totality`. (C4)
+  `Composed.caller_totality`. (C4) *Satisfiable:* obvious; the Chorus
+  witness's configuration (`k = 1`, validator 0 leading every view, `ℕ`),
+  `Composed.Witness.hrot`.
 * **The proposers.** The glue's per-slot proposer assignment is Chorus's,
   by construction in the censorship claim (`is_proposer j` in every slot),
   so no tie between the two is assumed. Chorus's configuration has one
@@ -112,11 +117,13 @@ below; Liveness takes all of them.
   correct proposer encodes its ciphertext into a valid erasure encoding
   (the recovery guarantee). *Used in:* the `on_propose` row's
   enabledness (`Chorus.propose_exists` in `Composed.censorship_of`).
-  *Paper:* Algorithm 2 (`alg:proposer-dissemination`).
+  *Paper:* Algorithm 2 (`alg:proposer-dissemination`). *Satisfiable:*
+  obvious; every root is well-encoded.
 * **The slot has a proposer** (`hprop`, §2.10) — *Role:* forms Chorus's
   contract instance. *Used in:* only through that instance
   (`Chorus.chorusTemporal`'s `admissible_exists`); no step of the composed
-  proofs uses it. Reported, not removed. (C4)
+  proofs uses it. Reported, not removed. (C4) *Satisfiable:* obvious;
+  validator 0.
 * **`ConductorSchedule`** (§9.2): one `Δ`, one `δ`, the MVBA's constants,
   the window parameters, the four parameter assumptions:
   * **`D_eq`** — *Role:* Chorus's deadline is the Conductor's starting time
@@ -127,17 +134,31 @@ below; Liveness takes all of them.
     `Composed.openings_sync`). (C4)
   * **`assm_one`–`assm_four`**, `τ_pos`, `p_lt_W` — *Used in:* Recovery
     (§9.2), through `Composed.recovery_in`.
+
+  *Satisfiable:* not obvious as a whole (the four assumptions bound `W`
+  from below by Chorus's own latency): `Composed.Witness.sch`, at
+  `Δ = τ = 1`, `δ = 0`, the Chorus witness's MVBA schedule
+  (`ℓ_MVBA = 24`, so `Φ_oc = 30`), `ℓ = 2`, `p = 4` and
+  `W = p + Φ_oc + ℓ = 36`; the four assumptions are checked by `decide`,
+  `D_eq` and `δ_zero` hold by definition.
 * **`StartTimes`** — *Used in:* C2 (`Composed.c2_slot`, the starting time
-  `start₀ + s • τ`), and Recovery. (C4)
+  `start₀ + s • τ`), and Recovery. (C4) *Satisfiable:* obvious; slot `s`
+  starts at `s`.
 * **`StartsUnbounded`** — *Used in:* the Conductor's Totality inside
-  `Composed.openings_sync`, and Recovery. (C4)
+  `Composed.openings_sync`, and Recovery. (C4) *Satisfiable:* obvious at
+  `ℕ`.
 * **`WindowsUnbounded`**, **`WindowShifts`** — *Used in:* Recovery;
   `WindowShifts` also in Lemma 5 (`Composed.bounded_concurrency`, through
-  `Conductor.boundedness`), its only premise.
+  `Conductor.boundedness`), its only premise. *Satisfiable:* obvious;
+  windows are `ℕ`, a window's last slot is its first plus `W − 1`, its
+  boundary its first plus `p`.
 * **The assumed ACS** (`TA : ACSTemporal …`, P17), with **`TA.Δ = Δ`**
   (C4), **`TA.ℓ = ℓ`** and **at most `TA.fault_bound` Byzantine** — *Used
   in:* `TA.Δ = Δ` in the Conductor's Totality (`Composed.openings_sync`);
-  the other two in Recovery (§9.2).
+  the other two in Recovery (§9.2). *Satisfiable:* not obvious (an ACS
+  meeting both levels of its contract): the ideal ACS,
+  `Cadence.IdealAcs.acsTemporal`, at `Δ = 1`, `ℓ = 2`, `f = 1`
+  (`Composed.Witness.TA`, `hΔ`, `hℓ`, `hfault`).
 
 ### 0.3 The run: `Composed.SysSync`
 
@@ -157,24 +178,39 @@ below; Liveness takes all of them.
     the slot's starting time.
 
   *Paper:* the glue's handlers, Algorithm 1, lines 16–26
-  (`line:implicit-skip`–`line:pending-remove`).
+  (`line:implicit-skip`–`line:pending-remove`). *Satisfiable:* not
+  obvious jointly with the rest: `Composed.Witness.glueRows`. Every handler
+  fires in the clock reading its gate opens at, so at the last index of
+  every reading each gate is closed.
 * **`OrchAdmissible`** — *Role:* the Conductor meets its timing model on
   its part of the run: `Conductor.Admissible`, the Conductor instance's own
   `Admissible`, which is `Conductor.Sync` (§9.3) by name. *Used in:* its
   clock (`Composed.clock_le`, hence C2); the Conductor's Totality
   (`Composed.openings_sync`) and Recovery (`Composed.recovery_in`). (C4)
+  *Satisfiable:* not obvious: `Composed.Witness.orchAdmissible`. The
+  orchestrator's part is stepped at every index (its `tick` in place), its
+  labelled run is the Conductor's own (`Composed.Witness.crun`), and it
+  meets the rows, (P-open), one clock, and every window's ideal ACS with
+  both of its timing guarantees.
 * **`SlotAdmissible`** — *Role:* every slot a correct validator
   participates in meets Chorus's timing model on its part of the run:
   `Chorus.Admissible`, Chorus's instance's own `Admissible`, which names
   §3.1, §3.2, §4.1–§4.3 and §5.1 at the slot's deadline. *Used in:* every
   use of a Chorus field (`Composed.caller_totality`,
   `Composed.caller_termination`, `Composed.appended_of_all_open`). (C4)
-
+  *Satisfiable:* not obvious: `Composed.Witness.slotAdmissible`. A slot is
+  stepped exactly from its first step on (its initial state cannot
+  stutter, `Composed.Witness.no_stutter_init`), and its part is then one
+  labelled run, the same for every slot up to a shift of the clock
+  (`Composed.Witness.srun`), meeting §3.1, §3.2, §4.1–§4.3 and §5.1 as the
+  Chorus witness does.
 * **`SlotInclusive`** (CR) — *Role:* (P-incl), Chorus's
   `DeadlineInclusive` (§4.8), on every started slot's part of the run.
   *Used in:* `Chorus.within_proposal_recorded_incl` in
   `Composed.censorship_of`: the proposer's chunk, delivered by the
-  deadline, is recorded by every correct validator.
+  deadline, is recorded by every correct validator. *Satisfiable:* not
+  obvious: `Composed.Witness.slotInclusive`; every correct validator
+  records the proposer's chunk in the slot's first clock reading.
 
 ### 0.4 What is not a premise: the caller conditions
 
@@ -194,6 +230,40 @@ about the composed run ([Composed/Corollary4.lean](../Cadence/Composed/Corollary
 The MVBA's caller conditions (§6.5) are derived inside Chorus's claims
 (§8).
 
+### 0.5 The composed witness: every line at once
+
+[Composed/Witness.lean](../Cadence/Composed/Witness.lean), stage K8
+([ConductorBounds.md](ConductorBounds.md) §8.2). One model of the composed
+system meets every line of §0.2 and §0.3 together:
+
+| Claim | Its premises jointly satisfied by |
+|---|---|
+| Corollary 4 (`Corollary4Claim`) | `Composed.Witness.corollary4_premises_satisfiable` |
+| Lemma 5 (`BoundedConcurrencyClaim`) | `Composed.Witness.boundedConcurrency_premises_satisfiable` (`WindowShifts`, and the reachable states of the run) |
+| `𝓡`-Liveness, at `2Wτ` and `(W + p − 1)τ` (`LivenessClaim`) | `Composed.Witness.liveness_premises_satisfiable` |
+| `𝓡`-Censorship resistance, at `2Wτ` and `(W + p − 1)τ` (`CensorshipClaim`) | `Composed.Witness.censorship_premises_satisfiable` |
+| the Conductor's Totality, Boundedness and Recovery (§9) | `Composed.Witness.conductor_premises_satisfiable`, the caller's (R-tot) and (R-term) included |
+
+*The model.* Four validators, validator 3 Byzantine and silent;
+validator 0 proposes in every slot; `Δ = τ = 1`, `δ = 0`, `ℓ_ACS = 2`,
+`p = 4`, `W = 36`; the ideal ACS. *The run.* Every clock reading `t` is one
+block of 56 steps: each correct validator opens slot `t`, participates,
+and validator 0 proposes; its chunk reaches everyone and the correct
+validators record it. At `t + 1`, the slot's deadline, it takes the fast
+path, every correct validator finalizes it, completes it at the Conductor,
+abandons it and appends its vector; at `t + 2` and `t + 3` its arm
+markers fire on a quiet instance. At each window's readiness boundary
+`36k + 4`, every correct validator proposes slot `36(k + 1)` to the next
+window's ACS, which decides at once; the interval is recorded and everyone
+enters the window. Every window repeats the first, shifted by `Wτ` in time
+and `W` in slot number, and every slot the one before it, shifted by `τ`.
+GST is 0. Every handler fires in the clock reading its gate opens at, so
+every row holds with nothing pending when the clock moves.
+
+Each theorem proves the premises only, never a conclusion. As a check that
+the premise set is the one the claims take, each proven claim is applied
+to the model in [Composed/Witness.lean](../Cadence/Composed/Witness.lean).
+
 ## 1. The claims and their premises
 
 Each row is a headline claim, the premises it takes (by the section of this
@@ -211,8 +281,8 @@ premise; their hypotheses are §2's and the trust items of
 | `Mvba.termination` — every correct validator decides | §2.1, §2.2, §2.3, §2.4; `Mvba.FJustice` §3.3, (A-viewsync) §3.4, (F-avail) §3.5; `AllPropose`, `NoEarlyAbandon`, (F-relay) §6.5 | `Mvba.termination_premises_satisfiable` |
 | `Mvba.bounded_termination`, `Mvba.timed_termination` — every correct validator decides by `max(t, GST) + ℓ_MVBA` | §2.1–§2.7; `Mvba.Sync` §4.4–§4.7; the timed caller conditions §6.5 | `Mvba.timedTermination_premises_satisfiable` |
 | `Mvba.mvbaTemporal`, `Mvba.mvbaFull` — Mvba ⊨ the full `MVBA` contract | the row above (`Admissible` is `Mvba.Sync`) | `Mvba.admissible_exists` (every initial state) |
-| `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` — the Conductor's Totality, `(2W − p)`-Boundedness and `(2Wτ)`-Recovery | §9.1–§9.4 | the composed witness of stage K8 (planned, [ConductorBounds.md](ConductorBounds.md) §8.2) |
-| `Composed.corollary4`, `Composed.boundedConcurrency`, `Composed.liveness`, `Composed.liveness_sharp`, `Composed.censorship`, `Composed.censorship_sharp` — Corollary 4, Lemma 5 at `2W − p`, `𝓡`-Liveness and censorship resistance at `2Wτ` and `(W + p − 1)τ`, for the composed system | §0, with every caller condition discharged (§0.4) | the composed witness of stage K8 (planned) |
+| `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` — the Conductor's Totality, `(2W − p)`-Boundedness and `(2Wτ)`-Recovery | §9.1–§9.4 | `Composed.Witness.conductor_premises_satisfiable` (§0.5) |
+| `Composed.corollary4`, `Composed.boundedConcurrency`, `Composed.liveness`, `Composed.liveness_sharp`, `Composed.censorship`, `Composed.censorship_sharp` — Corollary 4, Lemma 5 at `2W − p`, `𝓡`-Liveness and censorship resistance at `2Wτ` and `(W + p − 1)τ`, for the composed system | §0, with every caller condition discharged (§0.4) | `Composed.Witness.corollary4_premises_satisfiable`, `…boundedConcurrency…`, `…liveness…`, `…censorship…` (§0.5) |
 | `Conductor.conductorTemporal`, `Conductor.conductorWithTotality`, `Conductor.conductorFull` — the Conductor ⊨ the full `Orchestrator` contract, for an arbitrary ACS | the three rows above (`Admissible` is `Conductor.Sync`); the instance's hypotheses are §9.5 | `Conductor.admissible_exists` (every initial state) |
 | `Cadence.system_positional_log_safety` — two correct validators never disagree on a log position, in the composed system | `ACSSafety` (the ACS primitive, assumed: [Architecture.md](Architecture.md) §4 item 3); the quorum classes of §2.1; the three modules' configurations, with the models' assumptions of §2.4; that the Conductor and Chorus agree on who is Byzantine (`hbyz`, [CompositionContracts.md](CompositionContracts.md) §7) | — (a safety claim: it holds in every reachable state) |
 
@@ -821,9 +891,9 @@ Chorus model); the reasons for the fairness classes are
 [Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean). All three
 claims are proven (K4, R28; K5, R29), and the contract instance consumes
 them (K6, R30; §9.5): "Used in" names the Lean lemma that uses each
-premise. "Satisfiable" is the witness plan of
-[ConductorBounds.md](ConductorBounds.md) §8.2, which K8 builds; until
-then the claims' joint witness is the one open item of this section.*
+premise. All of them hold together on the orchestrator's part of the
+composed witness, (R-tot) and (R-term) included:
+`Composed.Witness.conductor_premises_satisfiable` (§0.5, K8).*
 
 ### 9.1 The claims
 
@@ -857,8 +927,9 @@ it as stated.
     its `Wτ`. *Plausible:* the paper's parameter assumptions, with `Φ_oc`
     and `d_tot` the Chorus instance's own constants (`Φ_oc_eq_chorus`),
     at the paper's `6Δ + ℓ_MVBA` and `Δ` (`Φ_oc_paper`, `d_tot_paper`).
-    *Satisfiable:* by a large `W`; the plan's `p = 4`,
-    `W = p + Φ_oc + ℓ`, `ℓ = 2`, `Δ = τ = 1`. *Used in:* Recovery only:
+    *Satisfiable:* by a large `W`; the composed witness's `p = 4`,
+    `W = p + Φ_oc + ℓ = 36`, `ℓ = 2`, `Δ = τ = 1` (`Composed.Witness.sch`,
+    §0.2). *Used in:* Recovery only:
     (1) Proposition 17 (`prop:window-progression`), both points
     (`Conductor.window_progression`); (2) Proposition 19
     (`prop:first-post-gst-window-time`), `Conductor.first_post_gst_window_time`;

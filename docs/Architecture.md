@@ -249,7 +249,8 @@ The paper's headline properties and their formal counterparts:
 | Speculative-finality revertibility claim | `safety [speculative_agreement_pos]`, `[..._pos_neg]` (conditional on `no_equivocation` and `no_invalid_encoding`) | sweep |
 | Chorus termination (Lemma 11 (`lemma:chorus-termination`)), bound-erased: every correct validator finalizes the slot, at every `n = 3f+1` | `Chorus.termination` ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), from the premises `FJustice`, `MvbaAdmissible`, `ValidBridge` of [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) (§4 item 2); consumes `Mvba.termination`; untimed (no `5Δ + ℓ_MVBA` bound) | sweep + Lean over runs |
 | Chorus ℓ-termination, timed (Lemma 11 (`lemma:chorus-termination`)): every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA` (plus `9δ` local steps), at every `n = 3f+1`; and by `4Δ + ℓ_MVBA + 8δ` from the same premises (F4) | `Chorus.timed_termination`, `Chorus.timed_termination_tight` ([Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)), from the timing model of [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean), `ValidBridge` and the caller's four conditions; consumes the MVBA contract's `T.termination`; at the system's MVBA `Chorus.timed_termination_atMvba` | Lean over timed runs |
-| Chorus `d_tot`-totality (Proposition 4 (`prop:chorus-totality`)): `Δ + 2δ` after the first correct finalization, at a participation tolerance `d` in general | `Chorus.totality`, `Chorus.totality_paper` ([Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)) | Lean over timed runs |
+| Chorus `d_tot`-totality (Proposition 4 (`prop:chorus-totality`)): `Δ + 2δ` after the first correct finalization, at a participation tolerance `d` in general | `Composed.Witness.corollary4_premises_satisfiable`, `…boundedConcurrency…`, `…liveness…`, `…censorship…`, `…conductor…` ([Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean)) | same | ✓ |
+| `Chorus.totality`, `Chorus.totality_paper` ([Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)) | Lean over timed runs |
 | "Fallback meta-block valid by construction" (Algorithm 5 (`alg:fallback`) build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
 | Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of Lemma 11 (`lemma:chorus-termination`)'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
 | Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of Lemma 11 (`lemma:chorus-termination`)'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
@@ -420,7 +421,10 @@ relations, and it takes a human to confirm each use is positive.
    ([Cadence/Composed/](../Cadence/Composed/Schedule.lean), stage K7):
    Corollary 4, Lemma 5 at `2W − p`, `𝓡`-Liveness and censorship
    resistance, with every caller condition discharged and their premises
-   one list, [Premises.md](Premises.md) §0. The models are untimed; the
+   one list, [Premises.md](Premises.md) §0. That list holds together in one
+   model of the composed system
+   ([Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean),
+   stage K8, [Premises.md](Premises.md) §0.5). The models are untimed; the
    latency bounds proven,
    `Mvba.bounded_termination`, `Chorus.totality`,
    `Chorus.timed_termination`, `Conductor.totality` and

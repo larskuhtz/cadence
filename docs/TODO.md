@@ -7,6 +7,41 @@ The authoritative, numbered list of Chorus-side open items is
 lifts); this file collects the cross-cutting ones and the model-hygiene
 wishlist.
 
+## What's next
+
+Every claim of the composed system is proven and its premises are shown
+to hold together ([Premises.md](Premises.md) §0.5). What remains open
+across the project, in the order worth taking:
+
+* **For the paper's authors: P1–P19**
+  ([PaperAlignment.md](PaperAlignment.md) §6, the page written for them).
+  Each is open on the paper side. The model either follows one reading,
+  states the missing condition, or proves the claim without the paper's
+  step. P5 and P18 are confirmed by proof: Lemma 11's bound is one `Δ`
+  loose, and Lemma 16's `𝓡 = 2Wτ` and assumptions (1)–(3) are not tight.
+  P13, P15 and P16 are conditions the modules' interfaces leave unstated,
+  which the contracts carry as antecedents or fields. P17 (the ACS is
+  unspecified) is why the ACS is an assumed module, witnessed by the ideal
+  one. P19 is the inclusive-deadline convention censorship resistance rests
+  on.
+* **Doc cleanups.** The liveness section of
+  [Conductor.lean](../Cadence/Conductor.lean) ("Liveness —
+  meta-argument") still narrates totality and recovery as meta-axioms,
+  although both are proven (`Conductor.totality`, `Conductor.recovery`).
+  It is a model file, so the comment waits for the next edit there (the
+  sweep re-runs warm). The standing rule behind it is § Model hygiene's
+  second item: comments describe the model as it is.
+* **The practical Conductor compatibility check.** The supplement's
+  practical Conductor (Supplement, Algorithm 2 (`alg:conductor-practical`))
+  is outside the verified surface ([PaperAlignment.md](PaperAlignment.md)
+  §5.8, §9). The check is whether its behaviour is one the verified
+  Conductor's contract admits: the main-body model's window rules and
+  `s*` choice against the practical relation lemmas, under P9's narrower
+  parameter range `2 ≤ p ≤ W − 1`.
+* **The remaining seams and instruments** below: the `ThresholdIBE`
+  model instance, the (M-frame) syntax checker, the monitor's MVBA leg,
+  and the model-hygiene wishlist.
+
 ## Contract composition — what the named seams still cost
 
 The composition itself is in place and described in
@@ -68,6 +103,14 @@ come first.
   turns CI red — [Monitor.md](Monitor.md) has the mechanism.
   Reachability-directed trace generation (§ Liveness below) would
   supersede this.
+* **Non-vacuity of the composed timed claims. Done (K8, R32).** One model
+  of the whole composed system meets every premise of Corollary 4,
+  Lemma 5, `𝓡`-Liveness and censorship resistance at once, and its
+  orchestrator's part every premise of the Conductor's three claims
+  ([Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean),
+  [Premises.md](Premises.md) §0.5). The per-module witnesses did not
+  certify the composition ([CompositionContracts.md](CompositionContracts.md)
+  §7, "Vacuity does not compose"); this one is of the composition itself.
 * **Syntactic audit of the monotone-network contract.** The (M-frame) half of
   the network abstraction — network relations consulted in positive position
   only — is checked by hand today and *not* enforced by the tool; a violation
@@ -273,9 +316,11 @@ come first.
      (`lemma:cadence-bounded-concurrency`)** at `2W − p`, and `𝓡`-Liveness
      and censorship resistance at `2Wτ` and `(W + p − 1)τ` (the latter
      under (P-incl), F31); the composed premises are
-     [Premises.md](Premises.md) §0. **Next is K8**, the composed
-     non-vacuity witness ([ConductorBounds.md](ConductorBounds.md) §8.2):
-     one instance and run meeting every premise of §0 at once.
+     [Premises.md](Premises.md) §0. K8 is done (R32): one model of the
+     composed system meets every premise of §0 at once, and its
+     orchestrator's part every premise of the Conductor's own claims
+     ([Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean),
+     [Premises.md](Premises.md) §0.5). **The Conductor leg is complete.**
      Left from K6: the liveness section of
      [Conductor.lean](../Cadence/Conductor.lean) ("Liveness —
      meta-argument") still narrates totality and recovery as meta-axioms;

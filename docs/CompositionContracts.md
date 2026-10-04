@@ -652,10 +652,13 @@ and the fault-pattern transport, which the timed claims fix.
    first; the paper counts the chunk as on time without saying so. The
    model states that reading as a premise, (P-incl), and proves censorship
    resistance under it ([Premises.md](Premises.md) §4.8).
-7. **The composed claims' joint satisfiability** is stage K8's witness
-   ([ConductorBounds.md](ConductorBounds.md) §8.2): until it exists, the
-   composed premises are type-checked and each is used, but not yet shown
-   to hold together.
+7. **The composed claims are non-vacuous** (K8): one model of the whole
+   composed system meets every premise of Corollary 4, Lemma 5,
+   `𝓡`-Liveness and censorship resistance at once, and its orchestrator's
+   part every premise of the Conductor's three
+   (`Composed.Witness.*_premises_satisfiable`,
+   [Premises.md](Premises.md) §0.5). What stays with the auditor is the
+   premises' plausibility, which no witness settles.
 
 ### Vacuity does not compose
 
@@ -689,8 +692,17 @@ corresponding assumption with it, non-vacuity along that path stops being a
 question about witnesses. [Mvba.termination](../Cadence/Mvba/Liveness.lean)
 is that theorem for the MVBA, and `Chorus.termination` consumes it, which
 retires Chorus's (A-mvba) ([Architecture.md](Architecture.md) §4 item 2).
-What is still open along that path is the joint satisfiability of
-`Chorus.termination`'s premises ([TODO.md](TODO.md) § Liveness).
+
+Both are now done for the timed claims of the composed system. The
+composition's premises are exhibited together in one model of the composed
+system itself, not in the modules' own models
+([Composed/Witness.lean](../Cadence/Composed/Witness.lean),
+[Premises.md](Premises.md) §0.5). Every caller condition one module's claims
+take from another is a theorem about the composed run (§0.4 there), so no
+input profile is left to assume. In the witness's run every slot is opened,
+proposed in, finalized and appended, and every window decided and entered:
+the composed claims are not vacuous, and the run exercises what they speak
+of.
 
 ## 8. Reproductions
 
