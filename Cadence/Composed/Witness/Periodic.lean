@@ -177,4 +177,79 @@ theorem idx_of_from (C : Component sys th sub th') (r : LRun sys th) {n0 : Nat}
 
 end Aligned
 
+/-! ### Aligned part runs
+
+The stutter lift of [PartProjection.lean](../../PartProjection.lean),
+read at a part whose contract relates its state at every index to its state
+at the next (`hall`), or does so from index `n0` on and not before
+(`hfrom`). The projection is then any labelling, and the part's run is
+the composed run read off at the part, from `n0`. -/
+
+section AlignedRuns
+
+variable {ρ σ lbl : Type} {sys : RelationalTransitionSystem ρ σ lbl} {th : ρ}
+variable {σ' : Type} {T : TransitionSystemSafety σ'}
+variable {time : Type} [LinearOrder time]
+variable {C : Component sys th (contractRTS T) ()} {r : TLRun sys th time}
+
+/-- Two timed runs with the same states, clocks and GST are equal. -/
+theorem timedRun_ext {state : Type} {init : state → Prop} {trans : state → state → Prop}
+    {r₁ r₂ : TimedRun state time init trans} (h₁ : ∀ k, r₁.at' k = r₂.at' k)
+    (h₂ : ∀ k, r₁.clk k = r₂.clk k) (h₃ : r₁.gst = r₂.gst) : r₁ = r₂ := by
+  obtain ⟨⟨a₁, _, _⟩, c₁, _, _, g₁⟩ := r₁
+  obtain ⟨⟨a₂, _, _⟩, c₂, _, _, g₂⟩ := r₂
+  have ha : a₁ = a₂ := funext h₁
+  have hc : c₁ = c₂ := funext h₂
+  simp only at h₃
+  subst ha hc h₃
+  rfl
+
+/-- A part related to itself across every step is stepped at every index
+of the lift. -/
+theorem lift_isSub_of_all (hall : ∀ n, T.trans (C.proj (r.at' n)) (C.proj (r.at' (n + 1)))) (n : Nat) :
+    (stutterComp C).isSub ((liftRun C r).lbl n) :=
+  (lift_isSub_iff C r n).2 (hall n)
+
+/-- Its projection: any labelling (`Projection.ofScheduled`). -/
+noncomputable def projOfAll (hall : ∀ n, T.trans (C.proj (r.at' n)) (C.proj (r.at' (n + 1)))) :
+    (stutterComp C).Projection (liftRun C r).toLRun :=
+  Component.Projection.ofScheduled _ _ fun N => ⟨N, le_rfl, lift_isSub_of_all hall N⟩
+
+theorem entry_of_all (hall : ∀ n, T.trans (C.proj (r.at' n)) (C.proj (r.at' (n + 1))))
+    (p : (stutterComp C).Projection (liftRun C r).toLRun) (k : Nat) : p.entry k = k := by
+  cases k with
+  | zero => rfl
+  | succ k =>
+    show (stutterComp C).idx (liftRun C r).toLRun k + 1 = k + 1
+    rw [idx_of_always _ _ (lift_isSub_of_all hall)]
+
+/-- **The part's run is the composed run, read off at the part.** -/
+theorem partRun_at'_of_all (hall : ∀ n, T.trans (C.proj (r.at' n)) (C.proj (r.at' (n + 1))))
+    (p : (stutterComp C).Projection (liftRun C r).toLRun) (k : Nat) :
+    (partRun p).at' k = C.proj (r.at' k) := by
+  rw [partRun_at', entry_of_all hall]
+
+theorem partRun_clk_of_all (hall : ∀ n, T.trans (C.proj (r.at' n)) (C.proj (r.at' (n + 1))))
+    (p : (stutterComp C).Projection (liftRun C r).toLRun) (k : Nat) :
+    (partRun p).clk k = r.clk k := by
+  rw [partRun_clk, entry_of_all hall]
+
+/-- A part stepped exactly from `n0` on is stepped at index `n0 + k` of the
+lift, its `k`-th step. -/
+theorem entry_of_from {n0 : Nat}
+    (hfrom : ∀ n, T.trans (C.proj (r.at' n)) (C.proj (r.at' (n + 1))) ↔ n0 ≤ n)
+    (p : (stutterComp C).Projection (liftRun C r).toLRun) (k : Nat) :
+    p.entry (k + 1) = n0 + k + 1 := by
+  show (stutterComp C).idx (liftRun C r).toLRun k + 1 = n0 + k + 1
+  rw [idx_of_from _ _ (fun n => (lift_isSub_iff C r n).trans (hfrom n))]
+
+/-- Its projection: any labelling. -/
+noncomputable def projOfFrom {n0 : Nat}
+    (hfrom : ∀ n, T.trans (C.proj (r.at' n)) (C.proj (r.at' (n + 1))) ↔ n0 ≤ n) :
+    (stutterComp C).Projection (liftRun C r).toLRun :=
+  Component.Projection.ofScheduled _ _ fun N =>
+    ⟨max N n0, le_max_left _ _, (lift_isSub_iff C r _).2 ((hfrom _).2 (le_max_right _ _))⟩
+
+end AlignedRuns
+
 end Cadence
