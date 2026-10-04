@@ -345,7 +345,7 @@ relation tc_formed (i : node) (v : view)
 
 /-- `Leader(slot, v)` names one leader per view. -/
 assumption [leader_functional]
-  ∀ (V : view) (L L' : node), leader V L → leader V L' → L' = L
+  ∀ (V : view) (L L' : node), leader V L → leader V L' → L = L'
 
 /-! ## Derived state (ghosts) -/
 
@@ -1405,6 +1405,3 @@ sat trace {
 }
 
 end Mvba
-
-/-- X6 probe: a harmless declaration that changes the olean, reverted in the next commit. -/
-def x6Probe : Nat := 0
