@@ -102,21 +102,21 @@ theorem decide_quiet (t w : ℕ) :
     decide_eq_true_eq, dB, and_true] at this
   omega
 
-theorem pEnd_ge (N : ℕ) : N ≤ N / 56 * 56 + 55 := by have := idx_eq N; have := pos_lt N; omega
+theorem cEnd_ge (N : ℕ) : N ≤ N / 56 * 56 + 55 := by have := idx_eq N; have := pos_lt N; omega
 
-theorem pEnd_clk (N : ℕ) : crun.clk (N / 56 * 56 + 55) = crun.clk N := by
+theorem cEnd_clk (N : ℕ) : crun.clk (N / 56 * 56 + 55) = crun.clk N := by
   simp only [crun_clk]; omega
 
 /-- **The Conductor's rows**, at `δ = 0`. -/
 theorem timedRows : TimedRows (fm := FM) (A := AS) sch crun where
   propose i w' hi := bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
-    ⟨_, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ =>
+    ⟨_, cEnd_ge N, cEnd_clk N, fun ⟨_, hg, _⟩ =>
       not_proposeGate (N / 56) i ((correct_iff i).1 hi) w' hg⟩
   enter i w' hi := bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
-    ⟨_, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ =>
+    ⟨_, cEnd_ge N, cEnd_clk N, fun ⟨_, hg, _⟩ =>
       not_proposeGate (N / 56) i ((correct_iff i).1 hi) w' hg.2⟩
   decide w := bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
-    ⟨_, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, hen⟩ => decide_quiet (N / 56) w ⟨hg, hen⟩⟩
+    ⟨_, cEnd_ge N, cEnd_clk N, fun ⟨_, hg, hen⟩ => decide_quiet (N / 56) w ⟨hg, hen⟩⟩
 
 /-! ## The ACS meets its module
 
