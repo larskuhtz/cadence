@@ -565,8 +565,9 @@ Each entry is the class field, the paper's name for it, the level it sits at,
 and where it is discharged.
 
 * **`totality`** — Totality; *temporal*, in rely form (see "Within
-  Cadence" below). **not proven**: Lemma 15 (`lemma:conductor-totality`),
-  a per-window induction over timed runs
+  Cadence" below). Lemma 15 (`lemma:conductor-totality`), a per-window
+  induction over timed runs — `Conductor.conductorTemporal`, from
+  `Conductor.totality`
 * **`opened_mono`** — Integrity, "at most once"; *safety*. The `opened`
   observable is monotone, so an open event (`¬ opened st ∧ opened st'`)
   happens at most once per `(i, s)` — `Conductor.orchestratorSafety`
@@ -580,16 +581,24 @@ and where it is discharged.
   residue; *safety*. Conductor `safety [open_prefix_agreement]` —
   `Conductor.orchestratorSafety`
 * **`boundedness`, `bound`** — `B`-Boundedness; *temporal (quantifies over
-  `Fin bound → slot`)*. **not proven**: the interval form is Conductor `safety
+  `Fin bound → slot`)*. The interval form is Conductor `safety
   [bounded_tail]`; the count `B = 2W − p` adds the window widths, which the
   model states (`[win_bounds_shift]`) and the instance at `slot := ℕ` fixes
+  — `Conductor.conductorTemporal`, from `Conductor.boundedness`
 * **`recovery`, `recovery_time`** — `R`-Recovery; *temporal*, in rely form.
-  **not proven**: Lemma 16 (`lemma:conductor-recovery`), through
-  Proposition 18 (`prop:smooth-windows`) and Proposition 19
-  (`prop:first-post-gst-window-time`), under the four parameter assumptions
+  Lemma 16 (`lemma:conductor-recovery`), through Proposition 18
+  (`prop:smooth-windows`) and Proposition 19
+  (`prop:first-post-gst-window-time`), under the four parameter
+  assumptions, at `R = 2Wτ` — `Conductor.conductorTemporal`, from
+  `Conductor.recovery`
 * **`OrchestratorWithTotality`** — the `d_tot` form of Totality that
   Lemma 15 (`lemma:conductor-totality`) proves "more specifically"; a
-  Conductor-level strengthening, not part of Module 2. **not proven**
+  Conductor-level strengthening, not part of Module 2 —
+  `Conductor.conductorWithTotality`, from `Conductor.totality`
+
+The full `Orchestrator` at the Conductor is `Conductor.conductorFull`
+([Conductor/Temporal.lean](Conductor/Temporal.lean)), for an arbitrary ACS
+meeting its contract, which stays an assumed module.
 
 ### Within Cadence: the caller's two conditions
 
