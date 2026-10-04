@@ -203,6 +203,34 @@ theorem censorship_premises_satisfiable :
   ⟨sch, TA, thO, _, _, mst 0, _, _, hprop, hrot, cond 0, fun x => (x, cst 0), run, startTimes, windowShifts,
     startsUnbounded, windowsUnbounded_nat, hΔ, hℓ, hfault, ⟨(), rfl⟩, sysSync, slotInclusive⟩
 
+/-- **The premises of the Conductor's three timed claims are jointly
+satisfiable** (`Conductor.TotalityClaim`, `Conductor.BoundednessClaim`,
+`Conductor.RecoveryClaim`; [Premises.md](../../docs/Premises.md) §9), on
+the orchestrator's part of the same run: the configuration premises, the
+ACS's constants and fault bound, the Conductor's timing model `Sync`, and
+the caller's (R-tot) and (R-term), which within the composed run are
+theorems (`Composed.caller_totality`, `Composed.caller_termination`). -/
+theorem conductor_premises_satisfiable :
+    ∃ (sch : ConductorSchedule ℕ ℕ natViewOrderEnum)
+      (TA : ACSTemporal (Fin 4) ℕ ACSt ℕ Unit (fmF 4 1 rfl isByz Chorus.Witness.hbyz).byz)
+      (thO : Conductor.Theory ℕ ℕ ℕ (Fin 4) ACSt)
+      (r : TConductorRun (fm := fmF 4 1 rfl isByz Chorus.Witness.hbyz) (A := AS) thO),
+      StartTimes sch thO ∧ WindowShifts sch thO ∧ StartsUnbounded thO ∧ WindowsUnbounded ℕ ∧
+        TA.Δ = sch.Δ ∧ TA.ℓ = sch.ℓ ∧
+        (Finset.univ.filter (fmF 4 1 rfl isByz Chorus.Witness.hbyz).byz).card ≤ TA.fault_bound ∧
+        Conductor.Sync sch TA r ∧
+        (orchestratorSafety (fm := fmF 4 1 rfl isByz Chorus.Witness.hbyz) (acs := AS) thO).CallerTotality
+          (contractRun r) sch.d_tot ∧
+        (orchestratorSafety (fm := fmF 4 1 rfl isByz Chorus.Witness.hbyz) (acs := AS) thO).CallerTermination
+          (contractRun r) sch.d_tot sch.ℓchorus := by
+  refine ⟨sch, TA, thO, crun, startTimes, windowShifts, startsUnbounded, windowsUnbounded_nat, hΔ, hℓ, hfault,
+    csync, ?_, ?_⟩
+  · rw [crun_contract]
+    exact caller_totality 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) sch hprop hrot glueRows slotAdmissible _
+  · rw [crun_contract]
+    exact caller_termination 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) sch TA hprop hrot glueRows
+      slotAdmissible _ (crun_contract ▸ ⟨crun, rfl, csync⟩) startTimes
+
 /-! ## The proven claims apply
 
 Not needed for non-vacuity: these check that the model is an instance of
@@ -224,6 +252,13 @@ example := liveness_sharp 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) sch TA hpr
 example := censorship 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) sch TA hprop hrot startTimes windowShifts
   startsUnbounded windowsUnbounded_nat hΔ hℓ hfault ⟨(), rfl⟩ (cond 0) (fun x => (x, cst 0)) run sysSync
   slotInclusive
+
+example := Conductor.totality sch TA thO startsUnbounded hΔ crun csync
+
+example := Conductor.boundedness sch thO windowShifts
+
+example := Conductor.recovery sch TA thO startTimes windowShifts startsUnbounded windowsUnbounded_nat hΔ hℓ hfault
+  crun csync
 
 example := censorship_sharp 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) sch TA hprop hrot startTimes
   windowShifts startsUnbounded windowsUnbounded_nat hΔ hℓ hfault ⟨(), rfl⟩ (cond 0) (fun x => (x, cst 0))
@@ -250,6 +285,12 @@ info: 'Composed.Witness.liveness_premises_satisfiable' depends on axioms: [prope
 -/
 #guard_msgs in
 #print axioms Composed.Witness.liveness_premises_satisfiable
+
+/--
+info: 'Composed.Witness.conductor_premises_satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.conductor_premises_satisfiable
 
 /--
 info: 'Composed.Witness.censorship_premises_satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]

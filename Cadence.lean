@@ -369,7 +369,8 @@ Each entry is the result, the file its statement lives in, and what it says.
 * **`Composed.Witness.corollary4_premises_satisfiable`,
   `Composed.Witness.boundedConcurrency_premises_satisfiable`,
   `Composed.Witness.liveness_premises_satisfiable`,
-  `Composed.Witness.censorship_premises_satisfiable`**
+  `Composed.Witness.censorship_premises_satisfiable`,
+  `Composed.Witness.conductor_premises_satisfiable`**
   ([Composed/Witness.lean](Cadence/Composed/Witness.lean)) — **the composed
   claims are not vacuous**: one model of the whole composed system (four
   validators, one Byzantine and silent, `Δ = τ = 1`, `δ = 0`, `p = 4`,
@@ -379,9 +380,11 @@ Each entry is the result, the file its statement lives in, and what it says.
   once: the timing model `SysSync` (the glue's rows, the Conductor's
   timing model on its part with every window's ACS meeting its module,
   Chorus's on every slot's part), (P-incl) on every slot, the
-  configuration premises and the ACS's constants and fault bound. Each
-  proven claim is checked to apply to the model. [docs/Premises.md](docs/Premises.md)
-  §0 has the ledger
+  configuration premises and the ACS's constants and fault bound. The
+  orchestrator's part of the same run meets every premise of the
+  Conductor's three timed claims, the caller's (R-tot) and (R-term)
+  included. Each proven claim is checked to apply to the model.
+  [docs/Premises.md](docs/Premises.md) §0 has the ledger
 * **`FallbackReceipt.invariants_of_reachable`**
   ([FallbackReceipt/Certify.lean](Cadence/FallbackReceipt/Certify.lean)) — every reachable state of the
   fallback receipt/propose layer satisfies its declared invariants
@@ -981,6 +984,12 @@ info: 'Composed.Witness.censorship_premises_satisfiable' depends on axioms: [pro
 -/
 #guard_msgs in
 #print axioms Composed.Witness.censorship_premises_satisfiable
+
+/--
+info: 'Composed.Witness.conductor_premises_satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.Witness.conductor_premises_satisfiable
 
 /--
 info: 'Cadence.acs_median_bracket' depends on axioms: [propext, Classical.choice, Quot.sound]

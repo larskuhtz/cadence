@@ -190,12 +190,20 @@ noncomputable abbrev OC := orchC (A := AS) 4 1 rfl isByz Chorus.Witness.hbyz thO
 theorem orch_all (n : ℕ) : OSI.trans (OC.proj (run.at' n)) (OC.proj (run.at' (n + 1))) :=
   ⟨clbl n, ostep n⟩
 
-/-- **The Conductor meets its timing model on the composed witness.** -/
-theorem orchAdmissible : OrchAdmissible (A := AS) 4 1 rfl isByz Chorus.Witness.hbyz sch TA run := by
-  refine ⟨projOfAll orch_all, crun, ?_, timedRows, openPunctual, clockAgrees, acsAdmissible⟩
+/-- The orchestrator's part of the run is the Conductor's run, read as a
+run of its contract. -/
+theorem crun_contract : contractRun crun = partRun (projOfAll orch_all) := by
   refine timedRun_ext (fun k => ?_) (fun k => ?_) rfl
   · rw [partRun_at'_of_all orch_all]; rfl
   · rw [partRun_clk_of_all orch_all]; rfl
+
+/-- **The Conductor's timing model**, on its labelled run. -/
+theorem csync : Conductor.Sync (fm := FM) (A := AS) sch TA crun :=
+  ⟨timedRows, openPunctual, clockAgrees, acsAdmissible⟩
+
+/-- **The Conductor meets its timing model on the composed witness.** -/
+theorem orchAdmissible : OrchAdmissible (A := AS) 4 1 rfl isByz Chorus.Witness.hbyz sch TA run :=
+  ⟨projOfAll orch_all, crun, crun_contract, csync⟩
 
 end Composed.Witness
 
