@@ -33,10 +33,11 @@ prints the whole list.
   [ConductorBounds.md](../../docs/ConductorBounds.md) §5). `Φ_oc` and
   `d_tot` are not new constants: they are the Chorus instance's own
   `Lchorus …` and `Ltot …` (`Φ_oc_eq_chorus`).
-* **The configuration** (`StartTimes`, `WindowShifts`, `StartsUnbounded`):
-  the Conductor's theory has the τ-spaced starting times of Appendix A.1
-  (`subsection:mcp-preliminaries`), the shift functions of K2 are
-  `+ (W − 1)` and `+ p`, and some slot has always not yet started (F28).
+* **The configuration** (`StartTimes`, `WindowShifts`, `StartsUnbounded`,
+  `WindowsUnbounded`): the Conductor's theory has the τ-spaced starting
+  times of Appendix A.1 (`subsection:mcp-preliminaries`), the shift
+  functions of K2 are `+ (W − 1)` and `+ p`, some slot has always not yet
+  started (F28), and every window has a successor (F30).
 * **Time** is linearly ordered with an ordered addition
   (`IsOrderedAddMonoid`, F27), the time theory of
   [ConductorBounds.md](../../docs/ConductorBounds.md) §6.2; the timed claims
@@ -92,7 +93,8 @@ definitions: the constants at `δ = 0` are the paper's (`d_tot_paper`,
 `Φ_oc_paper`), they are the Chorus instance's (`Φ_oc_eq_chorus`), and the
 per-window ACS is a component of the Conductor (`acsComponent`). The proofs
 are stages K4 (Totality and Boundedness, [Induction.lean](Induction.lean)
-and [Boundedness.lean](Boundedness.lean)) and K5 (Recovery) of
+and [Boundedness.lean](Boundedness.lean)) and K5 (Recovery,
+[Recovery.lean](Recovery.lean)) of
 [ConductorBounds.md](../../docs/ConductorBounds.md) §9; the glue's rows,
 which time the caller's side, are K7's. -/
 
@@ -292,6 +294,18 @@ starting time ([ConductorBounds.md](../../docs/ConductorBounds.md) F28).
 time can still have `start₀ + s • τ` bounded when `start₀` is negative. -/
 def StartsUnbounded (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
   ∀ t, ∃ s, t ≤ th.start_time s
+
+variable (window) in
+/-- **Every window has a successor**: the paper's windows are the numbers
+`ω ∈ ℕ≥1`, one ACS instance for each `ω ≥ 2` (Algorithm 7, line 12
+(`line:acs-instances`)), and Proposition 15 (`prop:enters-every-window`)
+inducts over them. The model's window order is abstract, and a validator
+leaves a window only for its successor (`acs_propose` and `enter_window`
+read `win_ord.next`), so without it a finite window order stops the
+Conductor in its last window ([ConductorBounds.md](../../docs/ConductorBounds.md)
+F30). -/
+def WindowsUnbounded [win_ord : TotalOrderWithMinimum window] : Prop :=
+  ∀ w : window, ∃ w', win_ord.next w w'
 
 end Configuration
 
@@ -688,19 +702,21 @@ def BoundednessClaim (sch : ConductorSchedule view time vfin)
     ¬ ∃ g : Fin sch.bound → ℕ, Function.Injective g ∧ ∀ k, Opened st i (g k) ∧ s ≤ g k ∧ s ≠ g k
 
 /-- **`(2Wτ)`-Recovery, the target** (Lemma 16 (`lemma:conductor-recovery`)).
-Over an ordered time (F27), under the timing model at τ-spaced starting
-times and windows of the schedule's shape, with the ACS's `Δ` and `ℓ` the
-system's, at most its fault
+Over an ordered time (F27), under the timing model at τ-spaced, unbounded
+starting times (`StartsUnbounded`, F28), with windows of the schedule's
+shape that each have a successor (`WindowsUnbounded`, F30), with the ACS's
+`Δ` and `ℓ` the system's, at most its fault
 bound Byzantine, and if the caller's completions are total ((R-tot) at
 `d_tot`) and terminate ((R-term) at `d_tot` and
 `ℓ_chorus`): every slot whose starting time is at least `GST + 2Wτ` is
 opened by every correct validator by its starting time — with Integrity's
-timing half, exactly then. The proof is Propositions 14–19, stage K5; the
-four parameter assumptions are the schedule's fields. -/
+timing half, exactly then. The proof is Propositions 14–19, in
+[Recovery.lean](Recovery.lean) (`Conductor.recovery`); the four parameter
+assumptions are the schedule's fields. -/
 def RecoveryClaim [IsOrderedAddMonoid time] {msg : Type} (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz)
     (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
-  StartTimes sch th → WindowShifts sch th →
+  StartTimes sch th → WindowShifts sch th → StartsUnbounded th → WindowsUnbounded window →
   TA.Δ = sch.Δ → TA.ℓ = sch.ℓ → (Finset.univ.filter fm.byz).card ≤ TA.fault_bound →
   ∀ r : TConductorRun th, Sync sch TA r →
     (orchestratorSafety th).CallerTotality (contractRun r) sch.d_tot →
