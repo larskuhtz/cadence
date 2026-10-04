@@ -465,12 +465,9 @@ is a change to what this project *claims*, not a refactor.
   of join exist:
   * **Conditional joins**, given an instance of the matching `…Temporal`
     class at the proven fragment: `Conductor.orchestrator_of_temporal`,
-    `Chorus.slotConsensus_of_temporal`, `Mvba.mvba_of_temporal`. There is no
-    `OrchestratorTemporal` instance, and that absence *is* the statement of
-    what is unproven for the Conductor: the class's fields, stated over the
-    fragment's own relations, restated nowhere. `Orchestrator` therefore
-    exists only through `orchestrator_of_temporal`.
-  * **Two proven temporal instances**, each from named hypotheses, never
+    `Chorus.slotConsensus_of_temporal`, `Mvba.mvba_of_temporal`. Each is
+    used only with a proven temporal instance below.
+  * **Three proven temporal instances**, each from named hypotheses, never
     from an axiom:
     * `Mvba.mvbaTemporal`, at `Mvba.mvbaSafety`, joined by
       `mvba_of_temporal` into `Mvba.mvbaFull`: finitely many validators
@@ -481,7 +478,23 @@ is a change to what this project *claims*, not a refactor.
       `Chorus.slotConsensusSafety` and the system's configuration, joined
       by `slotConsensus_of_temporal` into `Chorus.slotConsensusFull`: the
       MVBA's hypotheses at the concrete quorum family, and a non-empty
-      proposer set.
+      proposer set;
+    * `Conductor.conductorTemporal` (with `Conductor.conductorWithTotality`
+      on top), at `Conductor.orchestratorSafety`, joined by
+      `orchestrator_of_temporal` into `Conductor.conductorFull`: an
+      arbitrary ACS meeting `ACSSafety` and `ACSTemporal` (an assumed
+      module, P17), the claims' configuration premises (`StartTimes`,
+      `WindowShifts`, `StartsUnbounded`, `WindowsUnbounded`, the ACS's
+      `Δ`, `ℓ` and fault bound), finitely many validators and an ordered
+      time. `Conductor.conductorFullNat` discharges `WindowsUnbounded` and
+      `StartsUnbounded` at `window := ℕ` over an Archimedean time.
+
+    The **`ACS`** full class has no join and no instance of the full class
+    in this development: no protocol implements it (the target leaves the
+    ACS unspecified), and the Conductor consumes its two levels as an
+    assumed module. `Cadence.IdealAcs.acsSafety` and `acsTemporal` are a
+    plain-Lean model of both levels, the consistency witness of that
+    assumption, not a protocol and not a proof of it.
 
     A new temporal instance takes the same form, with its hypotheses listed
     in `Cadence.lean`'s row, and its `Admissible` is a run model defined

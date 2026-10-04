@@ -68,15 +68,16 @@ Chorus's fallback path — assembling a valid meta-block from received receipts
 
 Each arrow reads "fills the contract constraint above it", and each is a Lean
 instance rather than a correspondence argued in prose — except the dashed
-one, which marks the single contract nothing here implements. What each
-implementation does **not** prove of its contract is the field list of a
-class it supplies no instance of; see
-[docs/CompositionContracts.md](docs/CompositionContracts.md) §5. The MVBA
-and Chorus are the exceptions: their whole contracts are proven, as a full
-`MVBA` (`Mvba.mvbaFull`) and a full `SlotConsensus` with the timing
-strengthenings (`Chorus.slotConsensusFull`, `Chorus.chorusWithTotality`),
-at the system's configuration. The Conductor's temporal level is the one
-still owed.
+one, which marks the single contract nothing here implements. Every
+implemented contract is proven whole, from named hypotheses: a full `MVBA`
+(`Mvba.mvbaFull`), a full `SlotConsensus` with the timing strengthenings
+(`Chorus.slotConsensusFull`, `Chorus.chorusWithTotality`) at the system's
+configuration, and a full `Orchestrator` with `d_tot`-Totality
+(`Conductor.conductorFull`, `Conductor.conductorWithTotality`) for an
+arbitrary ACS meeting its contract; see
+[docs/CompositionContracts.md](docs/CompositionContracts.md) §5. What stays
+assumed is the ACS, and the glue's composed timed claims are not yet
+stated.
 
 ---
 
@@ -96,7 +97,7 @@ is a build failure.
 | **Nothing is stubbed.** Every Chorus verification condition (one per action × property, plus a does-not-throw check per action), and every one of the receipt layer's and of the MVBA instantiation's, has a real, statement-matching, kernel-checked theorem in scope | the pinned `#veil_status` lines in [Cadence/Chorus/Certify.lean](Cadence/Chorus/Certify.lean), [Cadence/FallbackReceipt/Certify.lean](Cadence/FallbackReceipt/Certify.lean) and [Cadence/Mvba/Certify.lean](Cadence/Mvba/Certify.lean), each asserting *all* cells real with the axiom union over all of them |
 | The verification conditions are the ones the model states — they are not re-typed by hand anywhere | the proof files read their statements out of the model's own persisted registry; identity is by construction |
 | **The composition is not a transcription.** The glue, the Conductor and Chorus consume the sub-protocol contracts as *class constraints* over abstract states (`instantiate orch : OrchestratorSafety …`, `instantiate sc : SlotConsensusSafety …`, `instantiate acs : ACSSafety …`, `instantiate mvba : MVBASafety …`), so no contract property is restated as a guard or invariant; the implementations' instances (`Conductor.orchestratorSafety`, `Chorus.slotConsensusSafety`, `Mvba.mvbaSafety`) are checked against the same classes. Two stated *bridges* remain — the ACS median range and the MVBA decision's certificate check — each the interpretation of a class parameter in the consumer's vocabulary rather than a restatement (docs/CompositionContracts.md §7) | the `instantiate` lines in [Cadence/Cadence.lean](Cadence/Cadence.lean), [Cadence/Conductor.lean](Cadence/Conductor.lean) and [Cadence/Chorus.lean](Cadence/Chorus.lean); the instance definitions' types; [Cadence/System.lean](Cadence/System.lean), which instantiates the glue's end theorem at the instances, with `Mvba.mvbaSafety` filling Chorus's constraint, and leaves one contract hypothesis, the Conductor's `ACSSafety` |
-| **What is not proven about the composition is a type, not prose.** Each implementation's unproven contract obligations are the fields of a class it has *no instance of* — stated over the very transition system it proved, so they are written down once and nowhere else. The temporal levels that *are* proven, the MVBA's and Chorus's, are instances of the same classes, with their hypotheses in their types | `OrchestratorTemporal` / `orchestrator_of_temporal` ([Cadence/Composition.lean](Cadence/Composition.lean)); `MVBATemporal` is instantiated, `Mvba.mvbaTemporal`, and joined by `mvba_of_temporal` into `Mvba.mvbaFull` ([Cadence/Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean)); `SlotConsensusTemporal` is instantiated, `Chorus.chorusTemporal`, and joined by `slotConsensus_of_temporal` into `Chorus.slotConsensusFull` ([Cadence/Chorus/Temporal.lean](Cadence/Chorus/Temporal.lean)) — each join paired with a `rfl` lemma that it hands back exactly the proven fragment |
+| **What each implementation owes of its contract is a type, not prose.** The temporal obligations are the fields of a class stated over the very transition system the implementation proved, so they are written down once and nowhere else. The proven temporal levels, the MVBA's, Chorus's and the Conductor's, are instances of those classes, with their hypotheses in their types | `OrchestratorTemporal` is instantiated, `Conductor.conductorTemporal`, and joined by `orchestrator_of_temporal` into `Conductor.conductorFull` ([Cadence/Conductor/Temporal.lean](Cadence/Conductor/Temporal.lean)); `MVBATemporal` is instantiated, `Mvba.mvbaTemporal`, and joined by `mvba_of_temporal` into `Mvba.mvbaFull` ([Cadence/Mvba/Temporal.lean](Cadence/Mvba/Temporal.lean)); `SlotConsensusTemporal` is instantiated, `Chorus.chorusTemporal`, and joined by `slotConsensus_of_temporal` into `Chorus.slotConsensusFull` ([Cadence/Chorus/Temporal.lean](Cadence/Chorus/Temporal.lean)) — each join paired with a `rfl` lemma that it hands back exactly the proven fragment |
 | The MVBA instantiation's invariants are **load-bearing**, not merely true: remove the lock check and agreement fails | [Cadence/Mvba/NoLock.lean](Cadence/Mvba/NoLock.lean) pins the model checker's counterexample to the mutant; the file builds only if the violation is still found, verbatim |
 
 In short: `lake build` succeeding is the claim. You can re-derive any pin
@@ -193,7 +194,7 @@ in [Cadence.lean](Cadence.lean).
 | **MCP Safety, positional form** — for the glue over *any* orchestrator and slot consensus satisfying the contracts, and **for the composed system** (the glue running the Conductor's and Chorus's own transition systems, Chorus running the `Mvba` model's as its MVBA; conditional only on the ACS contract `ACSSafety`) | [Cadence/Composition.lean](Cadence/Composition.lean) (`positional_log_safety`), [Cadence/System.lean](Cadence/System.lean) (`system_positional_log_safety`) | sweep (against the contracts as class constraints) + composition |
 | **`Conductor ⊨ OrchestratorSafety`**, **`Chorus ⊨ SlotConsensusSafety`** — the state-level fragments of the paper's module contracts, every field proven (including the two-state fields: monotonicity of the observables, frames, the paper's Monotonicity) | [Cadence/Composition.lean](Cadence/Composition.lean) (`Conductor.orchestratorSafety`), [Cadence/Chorus/Compose.lean](Cadence/Chorus/Compose.lean) (`Chorus.slotConsensusSafety`) | composition, over persisted VC theorems and Veil's transition bodies |
 | **Chorus's full contract, at the system's configuration** — `SlotConsensusTemporal` and `SlotConsensusWithTotality` instantiated, every field proven: Termination; `ℓ`-termination with `ℓ = 5Δ + ℓ_MVBA` at `δ = 0` (Lemma 11 (`lemma:chorus-termination`)); `d_tot`-totality with `d_tot = Δ` at `δ = 0` (Proposition 4 (`prop:chorus-totality`)); Quiescence (Lemma 6 (`lemma:chorus-quiescence`)); the participation interface. `Admissible` is the premises above by name, and a run in which every proposer stays silent shows it is not vacuous. Hypotheses: the MVBA instance's, and a non-empty proposer set. Joined with the fragment into the full `SlotConsensus`, which hands the fragment back by `rfl` | [Cadence/Chorus/Temporal.lean](Cadence/Chorus/Temporal.lean) (`Chorus.chorusTemporal`, `Chorus.chorusWithTotality`, `Chorus.slotConsensusFull`) | plain Lean over runs; premises are hypotheses, never axioms |
-| **The Conductor's join toward its full contract** — given an `OrchestratorTemporal` instance at the proven fragment (Totality, `B`-Boundedness, `R`-Recovery, the execution model) the Conductor is a full `Orchestrator`. This development supplies none, and that is precisely the claim about what is unproven. Integrity's timing half and Hiding's protocol half are first-order and *are* proven — they sit in the fragments | `orchestrator_of_temporal` | plain Lean; what is unproven is a hypothesis, never an axiom |
+| **The Conductor's full contract, for an arbitrary ACS meeting its contract** — `OrchestratorTemporal` and `OrchestratorWithTotality` instantiated, every field proven: Totality and `d_tot`-Totality with `d_tot = Δ` at `δ = 0` (Lemma 15 (`lemma:conductor-totality`)); `(2W − p)`-Boundedness (Lemma 14 (`lem:boundedness`)); `(2Wτ)`-Recovery (Lemma 16 (`lemma:conductor-recovery`)), all in rely form on the caller's totality and termination. `Admissible` is the claims' run premises by name, and a run in which the caller completes nothing shows it is not vacuous. Hypotheses: the configuration premises (τ-spaced, unbounded starting times; windows of `W` slots, each with a successor; the ACS's constants and fault bound); two of them hold at `window := ℕ` over an Archimedean time (`Conductor.conductorFullNat`). The ACS is an assumed module. Joined with the fragment into the full `Orchestrator`, which hands the fragment back by `rfl`. Integrity's timing half is first-order and sits in the fragment | [Cadence/Conductor/Temporal.lean](Cadence/Conductor/Temporal.lean) (`Conductor.conductorTemporal`, `Conductor.conductorWithTotality`, `Conductor.conductorFull`), from `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` | plain Lean over timed runs; premises are hypotheses, never axioms |
 | **Fallback meta-block "valid by construction"**, including the counting argument, for **every** `n = 3f+1` | [Cadence/FallbackReceipt.lean](Cadence/FallbackReceipt.lean) + [Cadence/FallbackReceipt/Totality.lean](Cadence/FallbackReceipt/Totality.lean) | sweep + composition |
 | **MVBA agreement, integrity and external validity** — the three safety properties of Module 3 (`mod:mvba`), for the leader-based instantiation of the paper repository's *internal supplement* (views, timeouts, timeout certificates, the lock; the supplement is part of the paper target) | [Cadence/Mvba.lean](Cadence/Mvba.lean) (`agreement`, `integrity`, `external_validity`) → `Mvba.mvbaSafety` | sweep + composition |
 | **`Mvba ⊨ MVBASafety`** — the state-level fragment of the paper's MVBA contract, every field proven, including the two inputs, their observables and **Quiescence**; given an `MVBATemporal` instance (the clock, the admissible-run model, `ℓ_MVBA`-Termination — four fields, nothing safety-shaped) the instantiation is a full `MVBA`. Chorus consumes the class as a constraint and [Cadence/System.lean](Cadence/System.lean) fills it with this instance | [Cadence/Mvba/Compose.lean](Cadence/Mvba/Compose.lean) (`Mvba.mvbaSafety`, `mvba_of_temporal`) | composition, over persisted VC theorems and Veil's transition bodies |
@@ -208,9 +209,9 @@ the cryptographic primitives, the monotone-network soundness contract and
 the rest of the named assumption inventory in
 [docs/Architecture.md](docs/Architecture.md) §4. The temporal part of that
 inventory is also a *type*: the `…Temporal` classes list, field by field,
-what each implementation owes of its paper contract. The Conductor's has
-no instance, and that absence is how the development says it does not have
-one.
+what each implementation owes of its paper contract, and each is
+instantiated from named hypotheses. The ACS's is not: the ACS is an
+assumed module, consumed through its contract.
 
 ---
 
@@ -465,6 +466,13 @@ Cadence/
                                     instances, the join  (axiom-pinned)
   Conductor.lean                   window-based orchestrator MODEL (+ sweep, traces, theorems)
   Cadence.lean                     extreme-pipelining MODEL (+ sweep, traces, theorems)
+  Conductor/Schedule.lean           the Conductor's timing model and its three timed claims,
+                                    stated
+  Conductor/Induction.lean, Conductor/Boundedness.lean, Conductor/Recovery.lean
+                                   Totality, (2W − p)-Boundedness, (2Wτ)-Recovery
+                                    (axiom-pinned)
+  Conductor/Temporal.lean           Conductor ⊨ Orchestrator in full: the temporal and
+                                    totality instances, the join  (axiom-pinned)
   Composition.lean                 Cadence + Conductor reachability inductions,
                                     Conductor ⊨ OrchestratorSafety + the join toward the
                                     full Orchestrator, positional MCP Safety

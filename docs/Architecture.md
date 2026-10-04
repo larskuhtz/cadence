@@ -83,7 +83,7 @@ flowchart BT
 | Paper module | Contract class | Implementation | Instance | Still owed |
 |---|---|---|---|---|
 | Module 1 (`mod:slotconsensus`) | `SlotConsensusSafety` / `SlotConsensus` | [Cadence/Chorus.lean](../Cadence/Chorus.lean) | `Chorus.slotConsensusSafety` | `SlotConsensusTemporal` |
-| Module 2 (`mod:orchestrator_2`) | `OrchestratorSafety` / `Orchestrator` | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | `Conductor.orchestratorSafety` | `OrchestratorTemporal` |
+| Module 2 (`mod:orchestrator_2`) | `OrchestratorSafety` / `Orchestrator` | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | `Conductor.orchestratorSafety`, `Conductor.conductorTemporal`, the full `Conductor.conductorFull` | nothing (the ACS it consumes is assumed) |
 | Module 3 (`mod:mvba`) | `MVBASafety` / `MVBA` | [Cadence/Mvba.lean](../Cadence/Mvba.lean) | `Mvba.mvbaSafety`, `Mvba.mvbaTemporal`, the full `Mvba.mvbaFull` | nothing |
 | Module 4 (`mod:acs`) | `ACSSafety` / `ACS` | — (out of scope) | — | the whole contract |
 
@@ -185,11 +185,14 @@ quantitative obligation over explicit runs
   instances, conditional only on the Conductor's ACS contract `ACSSafety`
   (`Cadence.system_positional_log_safety`,
   [Cadence/System.lean](../Cadence/System.lean));
-* what the Conductor and Chorus still owe of their *full* contracts is a
-  **missing class instance**, no `OrchestratorTemporal` or
-  `SlotConsensusTemporal` at the fragment each proved, with a definition
-  (`…_of_temporal`) that joins the two levels when one is supplied; these
-  are §4 item 4 as types, restated nowhere;
+* the Conductor's and Chorus's temporal levels **are** instantiated:
+  `Conductor.conductorTemporal` at `Conductor.orchestratorSafety`, for an
+  arbitrary ACS meeting its contract
+  ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)),
+  and `Chorus.chorusTemporal` at `Chorus.slotConsensusSafety`
+  ([Cadence/Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean)), each
+  joined into its full contract by the definition (`…_of_temporal`) that
+  hands the fragment back by `rfl`;
 * the MVBA's temporal level **is** instantiated: `Mvba.mvbaTemporal`
   (`MVBATemporal` with `ℓ_MVBA`-Termination, the supplement's `O(fΔ)`) at
   `Mvba.mvbaSafety`, the fragment the composed system runs, joined into the
@@ -254,7 +257,8 @@ The paper's headline properties and their formal counterparts:
 | The MVBA's lock check is load-bearing (Supplement, Lemma 8 (`lem:lock-persistence`)'s premise; the mutation test of [docs/MvbaPlan.md](MvbaPlan.md) §4): without it, two correct validators decide differently | pinned model-checker violation, [Cadence/Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) | model check |
 | Conductor as the paper's orchestrator, state-level: open-prefix agreement, Monotonicity, Integrity (at most once), the observables' monotonicity and frames; boundedness in interval form | Conductor sweep + `Conductor.orchestratorSafety` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | sweep + composition |
 | MCP Safety, positional form (Definition 1 (`def:safety`)) — for the glue over any contract instances, and for the composed system | `positional_log_safety` ([Cadence/Composition.lean](../Cadence/Composition.lean)); `system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | composition |
-| Conductor/Cadence temporal claims (totality, ℓ-liveness, recovery, termination, quiescence) | fields of the `…Temporal` classes in [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), stated over timed runs; the unproven subset per implementation is the field list of `OrchestratorTemporal` / `SlotConsensusTemporal`, of which this development supplies no instance | not proven — §4 item 4 |
+| Conductor temporal claims (Totality, `d_tot`-Totality, `(2W − p)`-Boundedness, `(2Wτ)`-Recovery; Lemmas 14–16) | `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` ([Cadence/Conductor/Induction.lean](../Cadence/Conductor/Induction.lean), [Boundedness.lean](../Cadence/Conductor/Boundedness.lean), [Recovery.lean](../Cadence/Conductor/Recovery.lean)); the contract fields in `Conductor.conductorTemporal` and `Conductor.conductorWithTotality` ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)), for an arbitrary ACS meeting its contract, under the timing model of §4 item 4 | Lean over timed runs |
+| The glue's composed timed claims (ℓ-liveness, recovery and censorship resistance of the composed system, Corollary 4) | not stated yet (stage K7, [ConductorBounds.md](ConductorBounds.md) §9) | not proven — §4 item 4 |
 | MVBA agreement, integrity, external validity (Module 3 (`mod:mvba`); the internal Supplement, Theorem 1 (`thm:agreement`) at the entries level and Supplement, Lemma 9 (`lem:external-validity`), for its leader-based instantiation — [Cadence/Mvba.lean](../Cadence/Mvba.lean)'s header pins the referent) | `safety [agreement]`, `[integrity]`, `[external_validity]` in [Cadence/Mvba.lean](../Cadence/Mvba.lean); instance fields of `Mvba.mvbaSafety` in [Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean) | sweep + composition |
 | MVBA Quiescence (Module 3 (`mod:mvba`)), and the module's inputs and their observables | proven in `Mvba.mvbaSafety` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) from the transition bodies | composition |
 | MVBA `ℓ_MVBA`-Termination (Module 3 (`mod:mvba`); the internal Supplement, Theorem 2 (`thm:termination`), `O(fΔ)` at `k = f + 1`) | `Mvba.bounded_termination` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)); the contract field in `Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), under the timing model and hypotheses of §4 item 4 | Lean over timed runs |
@@ -377,14 +381,23 @@ relations, and it takes a human to confirm each use is positive.
    full contracts `Orchestrator`, `SlotConsensus`,
    `SlotConsensusWithTotality`, `ACS`, `MVBA` in
    [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), stated over timed
-   runs with an implementation-defined admissible-execution model. For the
-   Conductor the exact unproven subset is the field list of a class that
-   has **no instance** at the fragment it proved: `OrchestratorTemporal`
-   ([Cadence/Composition.lean](../Cadence/Composition.lean); Totality,
-   `B`-Boundedness, `R`-Recovery, the execution model). The meta-axiom
-   names ((A-orch-totality), (A-orch-boundedness), (A-orch-recovery),
-   (A-acs-termination), (A-acs-totality)) are those fields' docstrings and
-   the `ACS` contract's; they stay assumed.
+   runs with an implementation-defined admissible-execution model.
+   **(A-orch-totality), (A-orch-boundedness) and (A-orch-recovery) are
+   discharged, modulo the assumed ACS module.** `OrchestratorTemporal` and
+   `OrchestratorWithTotality` have instances, `Conductor.conductorTemporal`
+   and `Conductor.conductorWithTotality`
+   ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)),
+   at `Conductor.orchestratorSafety`, joined into the full `Orchestrator` as
+   `Conductor.conductorFull`, for an arbitrary ACS meeting `ACSSafety` and
+   `ACSTemporal`. Every field is proven: Totality and `d_tot`-Totality from
+   `Conductor.totality`, `(2W − p)`-Boundedness from
+   `Conductor.boundedness`, `(2Wτ)`-Recovery from `Conductor.recovery`, at
+   the paper's values. Its `Admissible` is the claims' run premises by name
+   (`Sync`, [Cadence/Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean)),
+   and its admissible runs exist from every initial state (the idle run).
+   The ACS stays assumed: (A-acs-termination) and (A-acs-totality) are the
+   `ACS` contract's fields, which no protocol in this development
+   implements (the target leaves the ACS unspecified, P17).
    **(A-sc-termination) and (A-sc-totality) are discharged.**
    `SlotConsensusTemporal` and `SlotConsensusWithTotality` have instances,
    `Chorus.chorusTemporal` and `Chorus.chorusWithTotality`
@@ -399,13 +412,15 @@ relations, and it takes a human to confirm each use is positive.
    ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), at
    `Mvba.mvbaSafety`, the fragment [Cadence/System.lean](../Cadence/System.lean) plugs into
    Chorus; its `Admissible` is the timing model of
-   [Cadence/Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean). Both
+   [Cadence/Mvba/Schedule.lean](../Cadence/Mvba/Schedule.lean). The three
    instances are proven from named hypotheses, none of them an axiom, and
-   both prove that admissible runs exist from every initial state. The
-   hypotheses and the run premises are [Premises.md](Premises.md) §1–§6.
-   The models are untimed; the latency bounds proven,
-   `Mvba.bounded_termination`, `Chorus.totality` and
-   `Chorus.timed_termination`, are over timed runs, which carry the clock
+   each proves that admissible runs exist from every initial state. The
+   hypotheses and the run premises are [Premises.md](Premises.md) §1–§6
+   and §9. What is not proven is the glue's composed timed claims (stage
+   K7). The models are untimed; the latency bounds proven,
+   `Mvba.bounded_termination`, `Chorus.totality`,
+   `Chorus.timed_termination`, `Conductor.totality` and
+   `Conductor.recovery`, are over timed runs, which carry the clock
    beside the models' untimed states.
 5. **Scope**: single slot for Chorus (slot independence is argued, not
    modelled), no epochs/proposer rotation, chunk indices and
@@ -474,6 +489,7 @@ table can be read off one file:
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)) | same | ✓ |
 | `Chorus.evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)) | same | ✓ |
 | `Mvba.invariants_of_reachable` + per-property projections ([Cadence/Mvba/Certify.lean](../Cadence/Mvba/Certify.lean)) | same | ✓ + `#veil_status`: 1507/1507 real |
+| `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` ([Cadence/Conductor/Induction.lean](../Cadence/Conductor/Induction.lean), [Boundedness.lean](../Cadence/Conductor/Boundedness.lean), [Recovery.lean](../Cadence/Conductor/Recovery.lean)); `Conductor.conductorTemporal`, `Conductor.conductorWithTotality`, `Conductor.conductorFull` ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)) | same | ✓ |
 | `Mvba.mvbaSafety`, `Mvba.mvba_of_temporal` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) | same | ✓ |
 | `Mvba.bounded_termination`, `Mvba.aViewSync_of_sync` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)) | same | ✓ |
 | `Mvba.mvbaTemporal`, `Mvba.timed_termination`, `Mvba.admissible_exists`, `Mvba.mvbaFull` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)) | same | ✓ |
