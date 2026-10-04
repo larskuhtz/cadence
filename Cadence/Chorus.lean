@@ -2896,6 +2896,3 @@ time; multiple concurrent check commands contend for the same discharger
 scheduler and slow each other down. -/
 
 end Chorus
-
-/-- X6 probe: a harmless declaration that changes the olean, reverted in the next commit. -/
-def x6Probe : Nat := 0
