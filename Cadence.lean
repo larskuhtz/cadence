@@ -21,6 +21,8 @@ import Cadence.Conductor.Boundedness
 import Cadence.Conductor.Induction
 import Cadence.Conductor.Recovery
 import Cadence.Conductor.Temporal
+import Cadence.Composed.Concurrency
+import Cadence.Composed.Liveness
 
 -- The fallback receipt/propose leg: the shipped design, verified.
 import Cadence.FallbackReceipt.Totality
@@ -324,6 +326,34 @@ Each entry is the result, the file its statement lives in, and what it says.
   left is `ACSSafety`, the ACS primitive the Conductor runs once per window;
   beyond it, what is assumed is the three modules' configurations and that
   the Conductor and Chorus agree on who is Byzantine
+* **`Composed.corollary4`** ([Composed/Corollary4.lean](Cadence/Composed/Corollary4.lean)) —
+  **Corollary 4** (`cor:chorus-correctness-within-cadence`),
+  `Corollary4Claim`: in every composed run meeting its timing model
+  (`SysSync`: the glue's rows, the Conductor's timing model on its part,
+  Chorus's on every started slot's part), every slot's Chorus part meets
+  every condition Chorus's timed contract takes from its caller —
+  Δ-synchronized participation, C1 and C2. So
+  **`Composed.corollary4_bounded_termination`**,
+  **`Composed.corollary4_totality`** and **`Composed.corollary4_termination`**
+  hold of every slot with no caller premise left. The other direction of the
+  loop is discharged too: the Conductor's (R-tot) and (R-term) from Chorus
+  (`Composed.caller_totality`, `Composed.caller_termination`), and with them
+  Lemma 15 within Cadence (`Composed.openings_sync`)
+* **`Composed.boundedConcurrency`** ([Composed/Concurrency.lean](Cadence/Composed/Concurrency.lean)) —
+  **Lemma 5** (`lemma:cadence-bounded-concurrency`) at `𝓑 = 2W − p`
+  (`BoundedConcurrencyClaim`): at every reachable state of the composed
+  system, no correct validator actively participates in `𝓑 + 1` slot
+  instances. One premise, the windows' shape
+* **`Composed.liveness`** ([Composed/Liveness.lean](Cadence/Composed/Liveness.lean)) —
+  **`𝓡`-Liveness of the composed system** (Definition 2 (`def:liveness`),
+  Lemma 2 (`lemma:cadence-liveness`)) at the paper's `𝓡 = 2Wτ`
+  (`LivenessClaim`): every slot starting at least `2Wτ` after GST ends up,
+  as a vector of its slot, in every correct validator's local log. Through
+  Recovery within Cadence (`Composed.recovery_in`, Lemma 16 with its caller
+  conditions discharged). **`Composed.liveness_sharp`** proves the same at
+  `(W + p − 1)τ` (P18). The premises are the composed run's timing model,
+  the Conductor's configuration premises and the ACS's constants and fault
+  bound ([docs/Premises.md](docs/Premises.md) §0)
 * **`FallbackReceipt.invariants_of_reachable`**
   ([FallbackReceipt/Certify.lean](Cadence/FallbackReceipt/Certify.lean)) — every reachable state of the
   fallback receipt/propose layer satisfies its declared invariants
@@ -815,6 +845,78 @@ info: 'Conductor.conductorFullNat' depends on axioms: [propext, Classical.choice
 /-- info: 'Conductor.startsUnbounded_of_startTimes' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Conductor.startsUnbounded_of_startTimes
+
+/--
+info: 'Composed.caller_totality' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.caller_totality
+
+/--
+info: 'Composed.caller_termination' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.caller_termination
+
+/--
+info: 'Composed.openings_sync' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.openings_sync
+
+/--
+info: 'Composed.corollary4' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.corollary4
+
+/--
+info: 'Composed.corollary4_bounded_termination' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.corollary4_bounded_termination
+
+/--
+info: 'Composed.corollary4_totality' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.corollary4_totality
+
+/--
+info: 'Composed.corollary4_termination' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.corollary4_termination
+
+/--
+info: 'Composed.boundedConcurrency' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.boundedConcurrency
+
+/--
+info: 'Composed.recovery_in' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.recovery_in
+
+/--
+info: 'Composed.recovery_sharp_in' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.recovery_sharp_in
+
+/--
+info: 'Composed.liveness' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.liveness
+
+/--
+info: 'Composed.liveness_sharp' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Composed.liveness_sharp
 
 /--
 info: 'Cadence.acs_median_bracket' depends on axioms: [propext, Classical.choice, Quot.sound]
