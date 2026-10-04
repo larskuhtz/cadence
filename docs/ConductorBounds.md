@@ -11,8 +11,8 @@ are K2, the model's timing completion (2026-10-03, R26; F21 closed), K3,
 the contract edit and the claims stated (2026-10-03, R27; §9), K4, the
 window induction with Boundedness and Totality proven (2026-10-03, R28;
 §9), K5, Recovery proven (2026-10-03, R29; §9), K6, the contract
-instances (2026-10-03, R30; §9), and K7, the composed claims, except
-censorship resistance (2026-10-03, R31; §9, F31).*
+instances (2026-10-03, R30; §9), and K7, the composed claims (2026-10-03,
+R31; censorship resistance 2026-10-04, R31.2, after F31; §9).*
 
 ## 1. In short, for an auditor
 
@@ -73,8 +73,9 @@ instantiated the full orchestrator contract
 ([Composed/](../Cadence/Composed/Corollary4.lean)): every condition each
 side takes from its caller is a theorem, Corollary 4 is proven
 (`Composed.corollary4`), and so are Lemma 5 at `2W − p`
-(`Composed.boundedConcurrency`) and `𝓡`-Liveness at `2Wτ`
-(`Composed.liveness`). Censorship resistance waits on F31.
+(`Composed.boundedConcurrency`), `𝓡`-Liveness at `2Wτ`
+(`Composed.liveness`) and censorship resistance at `2Wτ`
+(`Composed.censorship`, after F31).
 
 **What the timed claims would assume.** The same timing model as the MVBA and
 Chorus claims: one clock, one time theory and one Δ for the whole system.
@@ -994,6 +995,18 @@ paper's module.
   composed claim also needs two plain configuration ties: the glue's
   proposer assignment is Chorus's, and a correct proposer has a
   well-encoded root.
+  **Closed (R31.2, decided by Lars 2026-10-04, option A):** the tie-break
+  is a standalone premise of Chorus's timing model, (P-incl)
+  `DeadlineInclusive` ([Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)):
+  a chunk a correct validator holds at a clock at or before `D` is
+  recorded. It is not part of `SyncAtMvba`, so no existing claim takes it;
+  the Chorus witness meets it (`Chorus.Witness.deadlineInclusive`). The
+  milestone is `Chorus.within_proposal_recorded_incl`
+  ([Chorus/Inclusion.lean](../Cadence/Chorus/Inclusion.lean)), and
+  censorship resistance is proven (`Composed.censorship`). The proposer
+  tie is definitional: the claim's glue configuration takes Chorus's
+  proposer set for every slot. What stays a premise is a well-encoded root
+  for the proposer. P19 records the paper side.
 
 ## 8. Premises and non-vacuity from the start
 
@@ -1444,10 +1457,12 @@ parallel with K1. Everything else is in order.
   completed) and `OrchestratorTemporal.boundedness` at the instance K6
   provides (take the least of `𝓑 + 1` active slots: the other `𝓑` are
   opened above an opened, uncompleted slot). Possibly two sessions.
-  * **Done (2026-10-03, R31), except censorship resistance (F31).** Five
-    new files under [Composed/](../Cadence/Composed/Schedule.lean), every
-    theorem pinned at the standard trio, and no shared statement file
-    edited. What is proven:
+  * **Done (2026-10-03, R31; censorship resistance 2026-10-04, R31.2).**
+    Six new files under [Composed/](../Cadence/Composed/Schedule.lean) and
+    [Chorus/Inclusion.lean](../Cadence/Chorus/Inclusion.lean), every
+    theorem pinned at the standard trio. One shared statement file edited,
+    by Lars's decision on F31: [Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)
+    gains the standalone premise (P-incl). What is proven:
 
     | the paper | Lean | at |
     |---|---|---|
@@ -1459,6 +1474,8 @@ parallel with K1. Everything else is in order.
     | Lemma 5 (`lemma:cadence-bounded-concurrency`) | `Composed.boundedConcurrency` (`BoundedConcurrencyClaim`) | `𝓑 = 2W − p` |
     | Lemma 16 (`lemma:conductor-recovery`) within Cadence | `Composed.recovery_in`, `Composed.recovery_sharp_in` | `2Wτ`; `(W + p − 1)τ` |
     | `𝓡`-Liveness (Definition 2 (`def:liveness`), Lemma 2 (`lemma:cadence-liveness`)) | `Composed.liveness`, `Composed.liveness_sharp` (`LivenessClaim`) | `2Wτ`; `(W + p − 1)τ` |
+    | Proposition 3 (`prop:honest-positive-entry`), timed | `Chorus.within_proposal_recorded_incl` | by the deadline, under (P-incl) |
+    | `𝓡`-Censorship resistance (Definition 3 (`def:censorship-resistance`)) | `Composed.censorship`, `Composed.censorship_sharp` (`CensorshipClaim`) | `2Wτ`; `(W + p − 1)τ` |
 
     Differences from the plan:
     * **the parts are stutter-lifted, both of them**: the orchestrator's
@@ -1481,18 +1498,22 @@ parallel with K1. Everything else is in order.
     * **System.lean is unchanged.** The composed timed claims sit in
       [Composed/](../Cadence/Composed/Liveness.lean), indexed in
       [Cadence.lean](../Cadence.lean) next to the safety theorem;
-    * **censorship resistance is not proven** (F31): its timed premise
-      ties with the deadline in Chorus's timing model. It is put to Lars;
-      R31.2 takes it with his decision.
+    * **censorship resistance needed F31's decision** (R31.2): the
+      tie-break premise (P-incl), a proof that a proposer has not
+      abandoned before proposing (`Chorus.committed_post_deadline`: a
+      finalization postdates the deadline), and that a correct proposer's
+      proposals are its own inputs (`Composed.run_proposed_of`, from the
+      contract's frames), for the root's well-encodedness.
 
     **Premises** ([Premises.md](Premises.md) §0, each with its "Used
     in"): the union of the parts' environment premises (the glue's rows,
     the Conductor's `Sync` on its part, Chorus's `Admissible` on every
     started slot's part, the configuration, the assumed ACS), with every
-    caller condition discharged. Two are reported, not removed: the glue's
-    `propose` row is used by no proven claim yet (only censorship would
-    use it), and Chorus's non-empty proposer set (`hprop`) enters only to
-    form Chorus's contract instance.
+    caller condition discharged; censorship resistance adds (P-incl) on
+    every started slot and a well-encoded root. One is reported, not
+    removed: Chorus's non-empty proposer set (`hprop`) enters only to form
+    Chorus's contract instance. The glue's `propose` row, reported in R31,
+    is used by censorship resistance since R31.2.
 * **K8: non-vacuity.** The periodic composed witness (§8.2), and the
   ledger moved to the premises page. Probably two sessions.
 

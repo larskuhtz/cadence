@@ -376,8 +376,7 @@ those classes are stated over the fragment's own `init` / `trans` /
 not of restatements: there is no second place where these obligations are
 written down. What stays assumed is the ACS, which the Conductor consumes
 as a module (both levels of `ACS`, an arbitrary instance). The composed
-timed claims are proven from these instances (§6, stage K7), except
-censorship resistance (§7 item 6).
+timed claims are proven from these instances (§6, stage K7).
 
 **`OrchestratorTemporal … (S := Conductor.orchestratorSafety th)` is
 proven**, as `Conductor.conductorTemporal`
@@ -574,9 +573,10 @@ On that footing: Corollary 4 (`cor:chorus-correctness-within-cadence`)
 (`Composed.corollary4`, with Chorus's three claims per slot and no caller
 premise left), Lemma 5 (`lemma:cadence-bounded-concurrency`) at `2W − p`
 (`Composed.boundedConcurrency`), Lemma 16 within Cadence
-(`Composed.recovery_in`), and `𝓡`-Liveness (Definition 2
-(`def:liveness`)) at `2Wτ` and at `(W + p − 1)τ` (`Composed.liveness`,
-`Composed.liveness_sharp`). The premise list, each with its use, is
+(`Composed.recovery_in`), `𝓡`-Liveness (Definition 2
+(`def:liveness`)) and censorship resistance (Definition 3
+(`def:censorship-resistance`)) at `2Wτ` and at `(W + p − 1)τ`
+(`Composed.liveness`, `Composed.censorship`, and their `_sharp` forms). The premise list, each with its use, is
 [Premises.md](Premises.md) §0. [System.lean](../Cadence/System.lean)'s
 safety theorem is unchanged; it stays generic in the slot order, the time
 and the fault-pattern transport, which the timed claims fix.
@@ -645,13 +645,13 @@ and the fault-pattern transport, which the timed claims fix.
 5. **The two fault patterns** meet in `hbyz` (§6) — a hypothesis, not a proof.
    The composed timed claims avoid it by stating the Conductor and the ACS
    at Chorus's fault pattern.
-6. **Censorship resistance waits on a timing convention** (F31,
+6. **Censorship resistance rests on a timing convention** (F31,
    [ConductorBounds.md](ConductorBounds.md) §7; P19). A correct proposer's
    chunk, sent at the slot's starting time `D − Δ`, may arrive exactly at
    the deadline `D`, where Chorus's punctual deadline marker may fire
    first; the paper counts the chunk as on time without saying so. The
-   composed censorship-resistance claim is not stated until that is
-   decided.
+   model states that reading as a premise, (P-incl), and proves censorship
+   resistance under it ([Premises.md](Premises.md) §4.8).
 7. **The composed claims' joint satisfiability** is stage K8's witness
    ([ConductorBounds.md](ConductorBounds.md) §8.2): until it exists, the
    composed premises are type-checked and each is used, but not yet shown

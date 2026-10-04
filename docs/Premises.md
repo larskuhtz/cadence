@@ -80,11 +80,11 @@ is the one open item of this section.*
 | `Composed.Corollary4Claim` — Corollary 4 (`cor:chorus-correctness-within-cadence`) | in every admissible composed run, every slot's Chorus part meets every condition Chorus's timed contract takes from its caller: Δ-synchronized participation, C1, C2. Chorus's `ℓ`-Termination, `d_tot`-Totality and Termination then hold of every slot with no caller premise left | `Composed.corollary4`; `Composed.corollary4_bounded_termination`, `…_totality`, `…_termination` ([Composed/Corollary4.lean](../Cadence/Composed/Corollary4.lean)) |
 | `Composed.BoundedConcurrencyClaim` — Lemma 5 (`lemma:cadence-bounded-concurrency`) at `𝓑 = 2W − p` | at every reachable state, no correct validator actively participates in `𝓑 + 1` slot instances | `Composed.boundedConcurrency` ([Composed/Concurrency.lean](../Cadence/Composed/Concurrency.lean)) |
 | `Composed.LivenessClaim 𝓡` — `𝓡`-Liveness (Definition 2 (`def:liveness`), Lemma 2 (`lemma:cadence-liveness`)) | for every slot `s` with `s.deadline − Δ ≥ GST + 𝓡`, every correct validator appends a vector of slot `s` to its local log | `Composed.liveness` at the paper's `2Wτ`, `Composed.liveness_sharp` at `(W + p − 1)τ` ([Composed/Liveness.lean](../Cadence/Composed/Liveness.lean)) |
+| `Composed.CensorshipClaim 𝓡` — `𝓡`-Censorship resistance (Definition 3 (`def:censorship-resistance`)) | for every slot `s` with `s.deadline − Δ ≥ GST + 𝓡` and every correct proposer `j` of `s`, `j` proposes some `P`, and every correct validator appends a vector of slot `s` that holds `P` for `j` | `Composed.censorship` at `2Wτ`, `Composed.censorship_sharp` at `(W + p − 1)τ` ([Composed/Censorship.lean](../Cadence/Composed/Censorship.lean)) |
 
-Censorship resistance (Definition 3 (`def:censorship-resistance`)) is not
-yet among them: its timed premise meets a tie at the deadline
-([ConductorBounds.md](ConductorBounds.md) §7, F31), which waits for a
-decision.
+Censorship resistance takes Liveness's premises and two more, marked (CR)
+below: (P-incl) on every started slot, and a well-encoded root for a
+correct proposer to propose.
 
 ### 0.2 The instance and the configuration
 
@@ -102,6 +102,17 @@ below; Liveness takes all of them.
   (§2.6). *Used in:* Chorus's bounded termination (the MVBA's termination
   inside it) in `Composed.caller_termination`; its totality in
   `Composed.caller_totality`. (C4)
+* **The proposers.** The glue's per-slot proposer assignment is Chorus's,
+  by construction in the censorship claim (`is_proposer j` in every slot),
+  so no tie between the two is assumed. Chorus's configuration has one
+  proposer set for all slots; per-slot rotation is out of scope
+  ([ConductorDesign.md](ConductorDesign.md) §7).
+* **A well-encoded root exists** (`∃ m, well_encoded m`) (CR) — *Role:*
+  a correct proposer has a proposal to submit. *Plausible:* the paper's
+  correct proposer encodes its ciphertext into a valid erasure encoding
+  (the recovery guarantee). *Used in:* the `on_propose` row's
+  enabledness (`Chorus.propose_exists` in `Composed.censorship_of`).
+  *Paper:* Algorithm 2 (`alg:proposer-dissemination`).
 * **The slot has a proposer** (`hprop`, §2.10) — *Role:* forms Chorus's
   contract instance. *Used in:* only through that instance
   (`Chorus.chorusTemporal`'s `admissible_exists`); no step of the composed
@@ -142,8 +153,8 @@ below; Liveness takes all of them.
     `Composed.appended_of_all_open`;
   * `skip`: `Composed.liveness_of_opens`;
   * `append`: `Composed.appended_of_all_open`;
-  * `propose`: **no proven claim yet**. Only censorship resistance would
-    use it (F31). Reported, not removed.
+  * `propose` (CR): `Composed.censorship_of`, the proposer's proposal at
+    the slot's starting time.
 
   *Paper:* the glue's handlers, Algorithm 1, lines 16–26
   (`line:implicit-skip`–`line:pending-remove`).
@@ -158,6 +169,12 @@ below; Liveness takes all of them.
   §3.1, §3.2, §4.1–§4.3 and §5.1 at the slot's deadline. *Used in:* every
   use of a Chorus field (`Composed.caller_totality`,
   `Composed.caller_termination`, `Composed.appended_of_all_open`). (C4)
+
+* **`SlotInclusive`** (CR) — *Role:* (P-incl), Chorus's
+  `DeadlineInclusive` (§4.8), on every started slot's part of the run.
+  *Used in:* `Chorus.within_proposal_recorded_incl` in
+  `Composed.censorship_of`: the proposer's chunk, delivered by the
+  deadline, is recorded by every correct validator.
 
 ### 0.4 What is not a premise: the caller conditions
 
@@ -195,7 +212,7 @@ premise; their hypotheses are §2's and the trust items of
 | `Mvba.bounded_termination`, `Mvba.timed_termination` — every correct validator decides by `max(t, GST) + ℓ_MVBA` | §2.1–§2.7; `Mvba.Sync` §4.4–§4.7; the timed caller conditions §6.5 | `Mvba.timedTermination_premises_satisfiable` |
 | `Mvba.mvbaTemporal`, `Mvba.mvbaFull` — Mvba ⊨ the full `MVBA` contract | the row above (`Admissible` is `Mvba.Sync`) | `Mvba.admissible_exists` (every initial state) |
 | `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` — the Conductor's Totality, `(2W − p)`-Boundedness and `(2Wτ)`-Recovery | §9.1–§9.4 | the composed witness of stage K8 (planned, [ConductorBounds.md](ConductorBounds.md) §8.2) |
-| `Composed.corollary4`, `Composed.boundedConcurrency`, `Composed.liveness`, `Composed.liveness_sharp` — Corollary 4, Lemma 5 at `2W − p`, `𝓡`-Liveness at `2Wτ` and `(W + p − 1)τ`, for the composed system | §0, with every caller condition discharged (§0.4) | the composed witness of stage K8 (planned) |
+| `Composed.corollary4`, `Composed.boundedConcurrency`, `Composed.liveness`, `Composed.liveness_sharp`, `Composed.censorship`, `Composed.censorship_sharp` — Corollary 4, Lemma 5 at `2W − p`, `𝓡`-Liveness and censorship resistance at `2Wτ` and `(W + p − 1)τ`, for the composed system | §0, with every caller condition discharged (§0.4) | the composed witness of stage K8 (planned) |
 | `Conductor.conductorTemporal`, `Conductor.conductorWithTotality`, `Conductor.conductorFull` — the Conductor ⊨ the full `Orchestrator` contract, for an arbitrary ACS | the three rows above (`Admissible` is `Conductor.Sync`); the instance's hypotheses are §9.5 | `Conductor.admissible_exists` (every initial state) |
 | `Cadence.system_positional_log_safety` — two correct validators never disagree on a log position, in the composed system | `ACSSafety` (the ACS primitive, assumed: [Architecture.md](Architecture.md) §4 item 3); the quorum classes of §2.1; the three modules' configurations, with the models' assumptions of §2.4; that the Conductor and Chorus agree on who is Byzantine (`hbyz`, [CompositionContracts.md](CompositionContracts.md) §7) | — (a safety claim: it holds in every reachable state) |
 
@@ -583,6 +600,25 @@ after GST.
 * **Used in:** `within_decided_ref` (the last `Δ + ρ` of `ℓ_MVBA`). Inside
   Cadence it is derived (§8).
 * **Paper:** Supplement, Lemma 13 (`lem:decision-propagation`).
+
+### 4.8 `DeadlineInclusive`, (P-incl)
+
+A chunk a correct validator holds, under a signed root of a proposer, at a
+clock at or before the deadline `D` is recorded.
+
+* **Role:** the paper's "by the deadline" read inclusively: a message
+  delivered by the deadline is processed before the deadline handler. A
+  chunk sent at `D − Δ` may arrive exactly at `D`, where the deadline
+  marker may also fire (F31).
+* **Plausible:** the paper's Proposition 3 reads it so; an implementation
+  processes its inbox before the timer that closes it at the same instant.
+* **Satisfiable:** `Chorus.Witness.deadlineInclusive`: the Chorus witness
+  of §1 meets it, at any schedule.
+* **Used in:** `Chorus.within_proposal_recorded_incl`, hence censorship
+  resistance (§0). No other claim takes it: it is not part of
+  `SyncAtMvba`.
+* **Paper:** Proposition 3 (`prop:honest-positive-entry`), "by the
+  deadline"; the tie is P19 ([PaperAlignment.md](PaperAlignment.md) §6).
 
 ## 5. The seam between Chorus and the MVBA
 

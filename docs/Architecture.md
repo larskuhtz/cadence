@@ -418,10 +418,10 @@ relations, and it takes a human to confirm each use is positive.
    hypotheses and the run premises are [Premises.md](Premises.md) §1–§6
    and §9. The composed timed claims are proven from these instances
    ([Cadence/Composed/](../Cadence/Composed/Schedule.lean), stage K7):
-   Corollary 4, Lemma 5 at `2W − p` and `𝓡`-Liveness, with every caller
-   condition discharged and their premises one list,
-   [Premises.md](Premises.md) §0. Censorship resistance is not yet claimed
-   (F31). The models are untimed; the latency bounds proven,
+   Corollary 4, Lemma 5 at `2W − p`, `𝓡`-Liveness and censorship
+   resistance, with every caller condition discharged and their premises
+   one list, [Premises.md](Premises.md) §0. The models are untimed; the
+   latency bounds proven,
    `Mvba.bounded_termination`, `Chorus.totality`,
    `Chorus.timed_termination`, `Conductor.totality` and
    `Conductor.recovery`, are over timed runs, which carry the clock
