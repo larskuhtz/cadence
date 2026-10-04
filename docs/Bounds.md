@@ -2223,9 +2223,9 @@ timeout `T = 4Δ + max{Δ, Δ_sync}` is still `5`, and the ramp holds,
 exists to remove.
 
 *(e) The pin.* One action leaves, and no invariant or step property is
-added: `A = 48`, `I = 100`, `S = 1`, so `#veil_status Chorus` is
-`(A + 1)(I + S) + A = 49 · 101 + 48 = 4997` (from `5099`, one action's
-`101 + 1` cells and its does-not-throw cell). Mvba `1507` and
+added: `A = 48`, `I = 100`, `S = 1`, so `#veil_status Chorus`, which is
+`(A + 1)(I + S) + A`, loses one action's `101 + 1` cells and its
+does-not-throw cell (the counts are [History.md](History.md)'s R19 row). Mvba `1507` and
 FallbackReceipt `220` are unchanged. The Mvba model file does not change,
 so NoLock needs no mirror.
 
@@ -2279,7 +2279,8 @@ decisions:
 | after | the delivery reads the send (`msg_proposer_signed j m`) and nothing of the proposer's later state |
 
 * **The model.** One action fewer; no invariant changed; no manual cell.
-  `#veil_status Chorus` **5099 → 4997** (= 49 · 101 + 48), as predicted.
+  `#veil_status Chorus` lost that action's cells, as predicted (the
+  counts: [History.md](History.md), the R19 row).
   The family re-solved cold, with an empty proof cache: lake exit 0, 4 978 ✅
   / 0 ❌ / 0 💥 / 0 ⏱, no cache hit, 505 s for the proof family after
   407 s for the model.
@@ -3061,8 +3062,8 @@ after its step 2.
    design" and "F15 closed"). A model session between S4 and S5. The
    fallback signer re-disseminates inside `fb_sign_pos`, the proposer's
    chunk delivery no longer requires the proposer to be active, and
-   `redisseminate_chunk` is gone: `#veil_status Chorus` 5099 → 4997, the
-   family re-solved cold. (Δ-avail) is derived
+   `redisseminate_chunk` is gone: `#veil_status Chorus` lost that action's
+   cells ([History.md](History.md), the R19 row), the family re-solved cold. (Δ-avail) is derived
    (`availWithin_of_timedJustice`), and the claim at the system's MVBA
    (`TimedTerminationClaimAtMvba`) assumes only the MVBA's own two clauses.
    Changes to the plan:

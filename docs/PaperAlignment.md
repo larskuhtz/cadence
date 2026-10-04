@@ -538,7 +538,7 @@ the Lean development of this repository.*
 | P12 | The MVBA's availability crosses Module 3's interface | module interface | open; the model states the dependency |
 | P13 | Module 1 states Termination without the conditions Chorus needs | module interface | open; the model's contract carries the conditions as antecedents, and Chorus's instance proves the fields under them |
 | P14 | A slot's proposer set may be empty | unstated assumption | open; the model's instance assumes a non-empty proposer set |
-| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the contract states them as antecedents (C4, C5, R27), and both are proven under them (R28, R29) |
+| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the contract states them as antecedents (C4, C5, R27), both are proven under them (R28, R29), and the full instance carries them (R30) |
 | P16 | Module 4's Validity lacks the per-validator bound the median argument needs | module interface, proof gap | open for the paper; the contract carries the bound since R25 (C6), and the median bridge's justification is a theorem from it |
 | P17 | The ACS the Conductor uses is unspecified | missing instantiation | open; the plan keeps the ACS as an assumed module |
 | P18 | The recovery chain needs less than Algorithm 7's assumptions (1)–(3), and `𝓡 = 2Wτ` is not tight | slack | open; **confirmed by proof**: the model proves Lemma 16 at `2Wτ` and at `(W + p − 1)τ` |
@@ -883,7 +883,8 @@ conditions the module does not state.**
   [ConductorBounds.md](ConductorBounds.md) §2.3, F16, F17). Under these
   two antecedents the Conductor's Totality and Recovery are proven
   (`Conductor.totality`, R28; `Conductor.recovery`, R29), so the two
-  conditional facts suffice.
+  conditional facts suffice. The full contract instance carries them as
+  the fields' antecedents (`Conductor.conductorFull`, R30).
 
 **P16. Module 4 (`mod:acs`)'s Validity lacks the per-validator bound the
 median argument needs.**
@@ -1194,8 +1195,9 @@ build decided are §8.2.
   expose. The interface check is §8.2 (h).
 * Families: Chorus cold; Mvba warm (instance proofs and liveness in plain
   Lean); FallbackReceipt warm.
-* Pins: `#veil_status Chorus` 4840 → **5099** (§8.2 (i)); Mvba 1507 and
-  FallbackReceipt 220 unchanged.
+* Pins: `#veil_status Chorus` moved with the route's actions and
+  properties (§8.2 (i); the counts are [History.md](History.md)'s R16
+  row); the Mvba and FallbackReceipt pins unchanged.
 * Re-established at `[propext, Classical.choice, Quot.sound]`:
   `Chorus.slotConsensusSafety`, `Chorus.termination`, the timeline,
   `Chorus.totality`, the three Chorus witnesses, System.lean's end theorems
@@ -1213,7 +1215,8 @@ build decided are §8.2.
   held values) and the owed condition `availOwed`. Both read the MVBA's
   internal `accepted` (P12).
 * **The gates.** The plan did not foresee them. Dropping them deleted two
-  helper invariants, so the pin is 5099, not the designed 5199.
+  helper invariants, so the pin came out two invariants' cells below the
+  design ([History.md](History.md), the R30 row).
 * **Contract shape.** `availReady_markAvail_frame` was added after the
   first cold solve found it missing (❌). `markAvail_enabled` was dropped,
   because no cell reads it and the monitor stub could not satisfy it.
@@ -1946,8 +1949,9 @@ MVBA-internal state. The model states that dependency rather than hiding
 it.
 
 **(i) The pins, after the build.** `A = 49`, `I = 100` (101 + 1 new − 2
-deleted), `S = 1`: **`50 · 101 + 49 = 5099`**. `#veil_status Mvba` 1507
-and `#veil_status FallbackReceipt` 220, both warm.
+deleted), `S = 1`, counted `(A + 1)(I + S) + A`; the count is
+[History.md](History.md)'s R16 row (R19 later removed one action). The
+Mvba and FallbackReceipt pins unchanged, both warm.
 
 ## 9. Scope and access
 
