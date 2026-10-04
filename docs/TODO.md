@@ -21,11 +21,8 @@ order worth taking:
   Chorus's MVBA constraint with a stub that never decides, so no fallback-path
   trace can be checked ([Monitor.md](Monitor.md) §8).
 
-Two smaller items fall out of the same work: **defining the Conductor's
-`Admissible`** from the premises K3 stated
-([Cadence/Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean),
-`Conductor.Sync`) when K6 builds the instance (Chorus's is
-`Chorus.Admissible`); and a
+One smaller item falls out of the same work (the Conductor's
+`Admissible`, the other, is done: `Conductor.Admissible`, R30): a
 **composed bounded-concurrency corollary** — from the glue's
 `bounded_concurrency_interval` and `OrchestratorTemporal.boundedness`,
 "at most `B` slots actively participated in", which needs a finite
@@ -33,8 +30,9 @@ minimum-extraction argument over slots that is not written yet. It uses
 only the direction the glue states (an active instance is opened and not
 completed): take the least of `B + 1` active slots; the other `B` are opened
 above an opened, uncompleted slot, which `boundedness` forbids. Planned
-as a deliverable of K7 ([ConductorBounds.md](ConductorBounds.md) §9), once
-K6 provides the `OrchestratorTemporal` instance.
+as a deliverable of K7 ([ConductorBounds.md](ConductorBounds.md) §9), at
+the instance K6 provides (`Conductor.conductorTemporal`; at `window := ℕ`,
+`Conductor.conductorFullNat`).
 
 ## Soundness — guarding against vacuous claims
 
@@ -277,10 +275,21 @@ come first.
      one statement edit that adds `StartsUnbounded` (F28) and
      `WindowsUnbounded` (F30, every window has a successor). The proof
      shows the paper's assumptions (1)–(3) and `𝓡` are not tight (P18).
-     Next is K6, the contract instances (`OrchestratorTemporal`,
-     `OrchestratorWithTotality`, the join), which carry both new premises.
-     The model header of [Conductor.lean](../Cadence/Conductor.lean) still
-     lists `B`-Boundedness as unproven; K6 rewrites that status text.
+     K6 is done (R30): `Conductor.conductorTemporal`,
+     `Conductor.conductorWithTotality` and the full `Conductor.conductorFull`,
+     every field proven, for an arbitrary ACS
+     ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)).
+     **Next is K7**, the composed timed claims: the composed run, the
+     glue's rows, (R-tot)/(R-term) discharged from Chorus, **Corollary 4
+     (`cor:chorus-correctness-within-cadence`)** as a theorem, the timed
+     `𝓡`-Liveness and censorship resistance, and **Lemma 5
+     (`lemma:cadence-bounded-concurrency`)'s bound** from
+     `OrchestratorTemporal.boundedness`. Then K8, the composed witness.
+     Left from K6: the liveness section of
+     [Conductor.lean](../Cadence/Conductor.lean) ("Liveness —
+     meta-argument") still narrates totality and recovery as meta-axioms;
+     it is a model file, so it waits for the next edit there (comment
+     only, the sweep re-runs warm).
 
   F13 is closed (R15, [Bounds.md](Bounds.md) §6.4.2, "F13 closed"): the
   fallback commit vote waits under the FallbackQC entries of the validator's

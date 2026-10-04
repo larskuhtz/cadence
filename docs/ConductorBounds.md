@@ -1342,6 +1342,66 @@ parallel with K1. Everything else is in order.
   [CLAUDE.md](../CLAUDE.md)'s status text,
   [Architecture.md](Architecture.md) §4 (after R21), and
   [CompositionContracts.md](CompositionContracts.md) §5.
+  * **Done (2026-10-03, R30).** One new file,
+    [Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean), every
+    declaration pinned (at the standard trio, except
+    `Conductor.startsUnbounded_of_startTimes` at `[propext, Quot.sound]`).
+    No class, claim or model statement changed; the model file's header
+    and the shared files' status text were edited, comment only. What is
+    proven:
+
+    | field | value | proven by |
+    |---|---|---|
+    | `Admissible` | `Conductor.Admissible`: `contractRun` of a labelled run meeting `Sync` | — (a definition: the claims' run premises by name) |
+    | `admissible_exists` | | `Conductor.admissible_exists`, the idle run (`Conductor.idleRun_sync`) |
+    | `clock_agrees` | | `ClockAgrees`, a conjunct of `Sync` |
+    | `caller_d_tot`, `caller_ℓ` | `d_tot`, `ℓ_chorus` | `rfl` (`Conductor.conductorTemporal_caller`) |
+    | `totality` | | `Conductor.totality` (Lemma 15) |
+    | `bound`, `boundedness` | `2W − p` | `Conductor.boundedness` (Lemma 14); `rfl` (`Conductor.conductorTemporal_bound`) |
+    | `recovery_time`, `recovery` | `2Wτ` | `Conductor.recovery` (Lemma 16); `rfl` (`Conductor.conductorTemporal_recovery_time`) |
+    | `OrchestratorWithTotality.d_tot`, `.totality` | `d_tot`, the paper's `Δ` at `δ = 0` | `Conductor.totality`; `rfl` (`Conductor.conductorWithTotality_d_tot`), and `Conductor.conductorWithTotality_d_tot_paper` by rewriting |
+
+    `Conductor.conductorFull` is the join, and `Conductor.conductorFull_toSafety`
+    hands back `Conductor.orchestratorSafety th` by `rfl`. The sharper
+    `Conductor.recovery_sharp` and P18's slack stay separate theorems; the
+    class carries the paper's values. Differences from the plan:
+    * **the instance's hypotheses are the claims' configuration
+      premises**, by name (`StartTimes`, `WindowShifts`, `StartsUnbounded`,
+      `WindowsUnbounded`, the ACS's `Δ`, `ℓ` and fault bound), as R20 took
+      Chorus's; `Admissible` is the run premises only, so that
+      `admissible_exists` needs no configuration it cannot build;
+    * **the idle run opens window 1's slots.** The plan said it "moves
+      only the clock and fires `open_slot`". (P-open) obliges every
+      scheduled slot to open at its starting time, so the run proceeds in
+      blocks, one per slot: a `tick` to the slot's starting time, then
+      one step per validator, which opens the slot there if the validator
+      is correct and the slot lies in window 1, and is a `tick` in place
+      otherwise. Its clock is the model's `now`, unbounded because the
+      starting times are (`StartsUnbounded`, used here a second time);
+    * **the rows stay shut because `p ≥ 2`**, which assumption (4) implies
+      (`ConductorSchedule.two_le_p`: `0 ≤ d_tot` and `0 < ℓ`, so
+      `(p − 1)τ > 0`). Window 1's first slot then lies below its readiness
+      boundary (`WindowShifts`, `Conductor.genesis_boundary_pos`) and is
+      never completed, so no correct validator is ready; at `p = 0` the
+      proposal row would be owed at once. So `admissible_exists` takes
+      `WindowShifts` and `StartsUnbounded`, both already premises;
+    * **two configuration premises are discharged at the system's types**
+      (task 4): `WindowsUnbounded` at `window := ℕ`
+      (`Conductor.windowsUnbounded_nat`), and `StartsUnbounded` from
+      `StartTimes` over an Archimedean time once `0 ≤ start₀`
+      (`Conductor.startsUnbounded_of_startTimes`; F28's example shows the
+      condition is needed). `Conductor.conductorFullNat` is the full
+      contract with both discharged, available to K7;
+    * **[System.lean](../Cadence/System.lean) keeps the fragments.** Its
+      theorem is safety, generic in the slot order and the time; the full
+      instance would narrow it to `slot := ℕ`, an ordered time, a schedule
+      and an `ACSTemporal`, which changes its statement and adds nothing
+      safety needs;
+    * the model file's header ([Conductor.lean](../Cadence/Conductor.lean),
+      comment only) is updated, so the Conductor's sweep re-ran warm. Its
+      liveness section ("Liveness — meta-argument") still narrates
+      totality and recovery as meta-axioms. It is not the header, so it
+      is left for a later model edit ([TODO.md](TODO.md)).
 * **K7: the composed timed claims.** The composed run, the per-slot Chorus
   projections, C1/C2/participation/synchronized participation discharged,
   (R-tot)/(R-term) from Chorus, **Corollary 4 as a theorem**, and the timed
