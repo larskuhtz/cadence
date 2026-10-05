@@ -213,7 +213,7 @@ fair label is ever enabled (`not_enabled_of_quiet`), at index `N`
 itself, which is inside every window. (T1) is vacuous because the timer never
 fires, (T2) because nobody enters a view, and (Δ-avail) because nobody
 accepts. This covers the three labels no proof uses (the two view-zero
-labels and `sync_view_adopt`, §6.2.8's step-3 reassessment): they are fair
+labels and `sync_view_adopt`, [Bounds.md](../../docs/Bounds.md) §6.2.8): they are fair
 labels like the rest, and vacuously so. -/
 theorem witnessRun_sync [IsOrderedAddMonoid time] [Archimedean time] (sch : Schedule view time)
     {th : Theory node nodeset value evec view}
