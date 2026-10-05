@@ -36,8 +36,10 @@ easy to introduce and both are avoided here:
   things about.
 
 The design below removes the first by making contracts **consumable as type
-class constraints**, and the second by making the unproven obligations
-**fields of a class that has no instance**.
+class constraints**, and the second by making the temporal obligations
+**fields of a class**: an implementation discharges them by providing an
+instance, and a class with no instance is an obligation left open, stated
+once. Today that is only the ACS's, the assumed module.
 
 ## 2. The design: one skeleton, two levels
 
@@ -204,15 +206,15 @@ from an immutable `mvba_init_state` (`assumption [mvba_init]`) and carried as
 `mvba_step`; the driven input `mvba_propose` (the paper's
 `MVBA[s].propose(B_i)`, under the proposer's own trigger and with `Valid B_i`
 as guards); the forwarded `abandon`; the **decision handoff**
-`accept_mvba_commitqc` (since R8), which hands a transferred valid commit
+`accept_mvba_commitqc`, which hands a transferred valid commit
 certificate to a validator's MVBA through the contract's input `accept`; the
-**availability report** `mvba_avail_ready` (since R16), which drives the
+**availability report** `mvba_avail_ready`, which drives the
 contract's input `markAvail` once the validator holds its assigned chunk
 under every positive FallbackQC entry of a representation; two
 **per-entry decision handlers** `on_mvba_decide_pos` / `on_mvba_decide_neg`
 that transport a correct validator's decision `mvba.decided mvba_st i v` into
 the module's per-proposer records; and the two handlers of the **`CommitQC`
-route** `on_mvba_commitqc_pos` / `on_mvba_commitqc_neg` (since R16), which
+route** `on_mvba_commitqc_pos` / `on_mvba_commitqc_neg`, which
 record the entries of a valid certificate `mvba.certifies mvba_st c
 (mvba.entries v)` in the same records, so that a validator finalizes on the
 MVBA's own commit certificate (Supplement, Section 1.2
@@ -236,7 +238,7 @@ stating that every record is the projection of some correct validator's
 decision or of a valid certificate.
 
 **The decision handoff** is the supplement's strengthened Module 3 (`mod:mvba`)
-interface (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"), added to `MVBASafety` in R8 and
+interface (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"), and
 nothing else: `certifies st c e` (a valid commitment proof for the entry
 vector `e`, since the certificate is over entries), the field
 `decided_certified` (**decide exposes its certificate**), the input `accept`
@@ -248,8 +250,8 @@ representation of the certified entries). Beside them sit the
 (`certified_decided`), with a valid representation (`certified_valid`) and
 with the availability its correct signers established
 (`certified_available`, over the observable `availReady`), and it stays
-valid (`certified_mono`, R16: the certificate is transferable). **The
-availability input** (R16) is `markAvail` with `markAvail_trans`,
+valid (`certified_mono`: the certificate is transferable). **The
+availability input** is `markAvail` with `markAvail_trans`,
 `markAvail_effect`, `availReady_markAvail_frame`, `init_availReady` and the
 four frames saying that no other transition changes `availReady`. The
 supplement makes `AvailReady` a predicate on the dissemination layer's
@@ -376,7 +378,7 @@ those classes are stated over the fragment's own `init` / `trans` /
 not of restatements: there is no second place where these obligations are
 written down. What stays assumed is the ACS, which the Conductor consumes
 as a module (both levels of `ACS`, an arbitrary instance). The composed
-timed claims are proven from these instances (§6, stage K7).
+timed claims are proven from these instances (§6).
 
 **`OrchestratorTemporal … (S := Conductor.orchestratorSafety th)` is
 proven**, as `Conductor.conductorTemporal`
@@ -431,16 +433,16 @@ composition discharges both from `Chorus.chorusWithTotality`'s
 (`Composed.caller_totality`, `Composed.caller_termination`, §6), and each
 side is a conditional statement about one slot, so the composition is not
 circular.
-The statements the Conductor's proofs (K4, K5) meet are
+The statements the Conductor's proofs meet are
 `Conductor.TotalityClaim`, `Conductor.BoundednessClaim` and
 `Conductor.RecoveryClaim` ([Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean)),
 whose conclusions are these fields at the Conductor's fragment, and the
-instance (K6) consumes them as stated. K4 proved the count `2W − p`, from the interval form
-`safety [bounded_tail]` and the window widths (`[win_bounds_shift]`, over
-the model's shift functions) at the instance at `slot := ℕ`
-(`Conductor.boundedness`), and `d_tot`-Totality by the window induction
-(`Conductor.totality`). K5 proved `(2Wτ)`-Recovery through Propositions
-14–19 (`Conductor.recovery`). Integrity's timing half is first-order and the Conductor proves
+instance consumes them as stated. `Conductor.boundedness` proves the count
+`2W − p`, from the interval form `safety [bounded_tail]` and the window
+widths (`[win_bounds_shift]`, over the model's shift functions) at the
+instance at `slot := ℕ`; `Conductor.totality` proves `d_tot`-Totality by
+the window induction; `Conductor.recovery` proves `(2Wτ)`-Recovery through
+Propositions 14–19. Integrity's timing half is first-order and the Conductor proves
 it, so it sits in `OrchestratorSafety` (`integrity_timing`, from `safety
 [opened_after_start]`) — which is why that fragment carries `time`.
 
@@ -551,8 +553,8 @@ timed instance (`LeaderRotation`), not of the safety instance
 No temporal obligation enters: MCP Safety is a safety property and needs only
 the proven fragments.
 
-**The composed timed claims** ([Composed/](../Cadence/Composed/Schedule.lean),
-stage K7) consume the temporal levels. They are stated for the glue at the
+**The composed timed claims** ([Composed/](../Cadence/Composed/Schedule.lean))
+consume the temporal levels. They are stated for the glue at the
 Conductor and at Chorus's system configuration, on one clock, with one time
 theory, one `Δ` and `δ = 0`, and **one fault pattern, Chorus's** (`fmF`), at
 which the Conductor and the ACS are stated too, so no `hbyz` transport is
@@ -589,14 +591,15 @@ and the fault-pattern transport, which the timed claims fix.
    bridge, not a restatement: the paper's `Valid B` checks the certificates
    the meta-block *carries* — publicly verifiable objects any receiver can
    re-check — while a class parameter declared before `#gen_state` cannot
-   mention Chorus's state. It is stated in exactly three places: the two
-   handlers, and as the caller's obligation in `mvba_propose`'s validity
-   guards. It is sound in both directions that matter: it removes no
+   mention Chorus's state. It is stated at the two decision handlers, at
+   the two handlers of the `CommitQC` route, and as the caller's obligation
+   in `mvba_propose`'s validity guards. It is sound in both directions that matter: it removes no
    behaviour of a correct MVBA (by `external_validity` plus public
    verifiability), and if the MVBA were wrong the handler would not fire,
-   which is safety-conservative. The liveness argument has to name its
+   which is safety-conservative. The liveness argument names its
    *completeness* direction — that a decided entry's certificate is
-   network-visible — which is what enables the handler.
+   network-visible, which is what enables the handler — as the premise
+   `Chorus.ValidBridge` of `Chorus.termination`.
 
    **The bridge is load-bearing for non-vacuity.** The MVBA *enforces*
    validity on `propose` (`require valid e` on `Mvba.propose`), so at the
@@ -620,7 +623,7 @@ and the fault-pattern transport, which the timed claims fix.
    §3.5 step 4). The bridge is what makes Chorus's `mvba_propose` enabled at
    the composed instance — the Chorus liveness leg's `Chorus.ValidBridge`
    premise ([Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)).
-2. **The glue drives Chorus's inputs: closed (R25).** The three inputs are
+2. **The glue drives Chorus's inputs.** The three inputs are
    fields of `SlotConsensusSafety` and the glue's handlers give them (§3),
    so the records the glue reads are the instance's own and the composed
    system's Chorus is not inert. No glue-side copy of a call remains to
@@ -652,7 +655,7 @@ and the fault-pattern transport, which the timed claims fix.
    first; the paper counts the chunk as on time without saying so. The
    model states that reading as a premise, (P-incl), and proves censorship
    resistance under it ([Premises.md](Premises.md) §4.8).
-7. **The composed claims are non-vacuous** (K8): one model of the whole
+7. **The composed claims are non-vacuous**: one model of the whole
    composed system meets every premise of Corollary 4, Lemma 5,
    `𝓡`-Liveness and censorship resistance at once, and its orchestrator's
    part every premise of the Conductor's three

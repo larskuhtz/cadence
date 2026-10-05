@@ -66,11 +66,14 @@ representation to its entries (`mvbaTheory`).
 Nothing about the temporal obligations enters here — MCP Safety is a safety
 property, and its proof needs only the proven `…Safety` fragments. The
 temporal levels (`OrchestratorTemporal`, `SlotConsensusTemporal`,
-`MVBATemporal`) are consumed by nothing in this file. Two of them have
+`MVBATemporal`) are consumed by nothing in this file. All three have
 instances in this development, from named hypotheses: `Mvba.mvbaTemporal`
-([Mvba/Temporal.lean](Mvba/Temporal.lean)) and `Chorus.chorusTemporal`
-([Chorus/Temporal.lean](Chorus/Temporal.lean)), the latter at the concrete
-quorum family and the configurations below. The theorem here keeps the
+([Mvba/Temporal.lean](Mvba/Temporal.lean)), `Chorus.chorusTemporal`
+([Chorus/Temporal.lean](Chorus/Temporal.lean)), at the concrete quorum
+family and the configurations below, and `Conductor.conductorTemporal`
+([Conductor/Temporal.lean](Conductor/Temporal.lean)), for an arbitrary ACS
+meeting its contract. The composed system's timed claims are proven from
+them in [Composed/](Composed/Schedule.lean). The theorem here keeps the
 fragments: it holds for every Chorus theory, and safety needs nothing more.
 
 The one composition claim this file does *not* make is the one declared out

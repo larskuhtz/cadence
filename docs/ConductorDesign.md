@@ -85,10 +85,11 @@ consumed module's transitions appear as an oracle step (`orch_step`,
 the consumer-driven input transitions.
 
 The paper's liveness and quantitative properties are fields of the
-`…Temporal` class over the safety instance, stated over runs; each
-implementation's unproven subset is exactly the field list of that class, of
-which it has no instance. Each module is verified independently against the
-contract; the instances and the composed theorem are §5.
+`…Temporal` class over the safety instance, stated over runs. The
+Conductor, Chorus and the MVBA each have an instance of theirs, proven from
+named hypotheses; the ACS is an assumed module and has none. Each module is
+verified independently against the contract; the instances and the
+composed theorem are §5.
 
 Two consumptions leave a stated **bridge** — a guard that interprets a class
 parameter in the consumer's own vocabulary, because the parameter is fixed
@@ -116,8 +117,10 @@ fields, not substitutes for them.
   strengthenings (Proposition 4 (`prop:chorus-totality`), Lemma 11 (`lemma:chorus-termination`)) that
   Conductor's proofs consume (Lemma 15 (`lemma:conductor-totality`), via
   Φ_oc = ℓ_chorus + d_tot) — and live in `SlotConsensusWithTotality`.
-  Instance: `Chorus.slotConsensusSafety` (§5); no instance of
-  `SlotConsensusTemporal` at it.
+  Instances: `Chorus.slotConsensusSafety` (§5), and the temporal and timing
+  levels `Chorus.chorusTemporal` and `Chorus.chorusWithTotality`, joined as
+  `Chorus.slotConsensusFull`
+  ([Cadence/Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean)).
 * `ACS` — agreement, genuine validity, integrity, the `propose` input in
   the fragment; quantitative validity, ℓ-termination, Δ-totality,
   quiescence in the full class (Module 4 (`mod:acs`)). No instance (standard
@@ -126,8 +129,11 @@ fields, not substitutes for them.
   at-most-once half, the `complete` input in the fragment; Integrity's
   totality, B-boundedness and R-recovery in the temporal class
   (Module 2 (`mod:orchestrator_2`)); Integrity's timing half is first-order and sits in
-  the fragment. Instance: `Conductor.orchestratorSafety`; no instance of
-  `OrchestratorTemporal` at it.
+  the fragment. Instances: `Conductor.orchestratorSafety`, and the temporal
+  and `d_tot` levels `Conductor.conductorTemporal` and
+  `Conductor.conductorWithTotality`, joined as `Conductor.conductorFull`
+  ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)),
+  for an arbitrary ACS meeting its contract.
 * `MVBA` — agreement, integrity, external validity, the two inputs and
   one-step quiescence in the fragment; ℓ_MVBA-termination in the temporal
   class (Module 3 (`mod:mvba`)). Instance: `Mvba.mvbaSafety`
@@ -165,22 +171,20 @@ fields, not substitutes for them.
   trivial given the clock-guard on the open action (see §4, clocks);
   the real content is the clock-synchronization assumption.
 
-### What stays meta (documented axioms + fair-progress invariants)
+### What is proven over timed runs
 
-The split is the same as in Chorus.
-
-* **Totality** (d_tot) and **(2Wτ)-Recovery** are genuinely temporal in the
-  paper: a per-window induction ("if all windows before ω went well…"), the
-  four parameter assumptions (`(p−1)τ + Φ_oc + ℓ ≤ Wτ` and the rest), and
-  T₁/T_p bookkeeping. The induction is mirrored as conditional meta-axioms,
-  and the fair-progress content is SMT-checked: "once all slots through the
-  sync boundary of ω are completed and ACS[ω+1] has decided, the
-  enter-window action is enabled"; "the ACS propose guard is eventually
-  satisfiable"; and the (A-acs) axiom, that ACS decides once all correct
-  validators propose.
-* The **parameter assumptions** (lines `assumption-one..four`) are
-  arithmetic side conditions on constants. They are documented assumptions
-  and feed only the timing lemmas.
+* **Totality** (d_tot) and **(2Wτ)-Recovery** are temporal in the paper: a
+  per-window induction ("if all windows before ω went well…"), the four
+  parameter assumptions (`(p−1)τ + Φ_oc + ℓ ≤ Wτ` and the rest), and
+  T₁/T_p bookkeeping. They are proven in plain Lean over timed runs of the
+  model (`Conductor.totality`, `Conductor.recovery`;
+  [ConductorBounds.md](ConductorBounds.md)), with the model's invariants as
+  the state-level facts. The ACS's termination and totality are the
+  assumed module's.
+* The **parameter assumptions** (Algorithm 7, lines 7–10
+  (`line:assumption-one`–`line:assumption-four`)) are fields of the
+  schedule and feed only the timing lemmas
+  ([Premises.md](Premises.md) §9.2).
 
 ### Modelling ingredients beyond Chorus's
 
@@ -335,10 +339,11 @@ each implementation's *own transition system* — its `init`, `next`,
 instance of the fragment. The state-predicate fields are the persisted
 reachable-state theorems, `exact`-level; the two-state fields (monotonicity
 of the observables, frames, the paper's Monotonicity) are proven action by
-action from Veil's pre-computed transition bodies. What each implementation
-does *not* prove of the full contract is the field list of the `…Temporal`
-class it supplies no instance of, with a definition (`…_of_temporal`) that
-joins the two levels when one is supplied.
+action from Veil's pre-computed transition bodies. The temporal level is
+the `…Temporal` class, instantiated for each implementation from named
+hypotheses, and a definition (`…_of_temporal`) joins the two levels into
+the full contract
+([CompositionContracts.md](CompositionContracts.md) §5).
 Trace-level refinement — that the implementation's runs *implement* the
 consumer's oracle steps — remains the [ChorusDesign.md](ChorusDesign.md) §10.1 research
 item; here the oracle steps *are* the implementation's transitions, which
@@ -351,7 +356,11 @@ instantiates the glue's positional MCP Safety at the two instances: the
 statement is about the glue running the Conductor's and Chorus's transition
 systems. Its hypotheses are the modules' configurations, their agreement
 on the fault pattern, and one contract: `ACSSafety`, the ACS the Conductor
-runs per window, which this development does not implement.
+runs per window, which this development does not implement. The composed
+system's timed claims (Corollary 4, bounded concurrency, `𝓡`-Liveness,
+censorship resistance) are proven over its timed runs in
+[Cadence/Composed/](../Cadence/Composed/Schedule.lean)
+([CompositionContracts.md](CompositionContracts.md) §6).
 
 ## 6. Stake weighting
 

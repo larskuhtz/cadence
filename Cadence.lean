@@ -198,8 +198,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   `δ` later (`Chorus.within_input_of_fast`), so every correct validator has
   proposed to the MVBA by `M + 3Δ + 3δ` (`Chorus.within_all_input`); and a
   correct proposer's chunk
-  delivered and recorded (`Chorus.within_proposal_recorded`). Stage S3 of
-  [Bounds.md](docs/Bounds.md) §6.4.6
+  delivered and recorded (`Chorus.within_proposal_recorded`).
+  [Bounds.md](docs/Bounds.md) §6.4.3 has the route
 * **`Chorus.timed_termination`** ([Chorus/TimedTermination.lean](Cadence/Chorus/TimedTermination.lean)) —
   **Chorus's ℓ-termination** (Lemma 11 (`lemma:chorus-termination`)), the second
   timed claim of [Chorus/Schedule.lean](Cadence/Chorus/Schedule.lean)

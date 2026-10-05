@@ -426,7 +426,7 @@ variable [AddCommMonoid time]
 of its gate opening ([Premises.md](../../docs/Premises.md) §9.3).
 
 The timed form of (F-justice) for the Conductor
-([Conductor.lean](../Conductor.lean), "Meta-axioms"): Chorus's
+([Conductor.lean](../Conductor.lean), "The rows"): Chorus's
 `TimedJustice` shape (`BufferedFairFamily`) with every row local, so the
 message part is `δ` too and nothing is owed but the gate. The paper's
 handlers run instantaneously, and at the schedule's `δ = 0` the clause says

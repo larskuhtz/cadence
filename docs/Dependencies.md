@@ -344,9 +344,11 @@ without restating it — and what makes a badly-shaped field fatal.
   verifies, and each check command reports the withheld fields once per
   module — so the trust statement stays one line ("every axiom of the
   instantiated classes except these"). It applies to `Prop` fields only; a
-  data field is never a hypothesis. This project does not withhold
-  anything today; the attribute is the escape hatch for a field that must
-  live in the class but need not reach the solver. **The measurement
+  data field is never a hypothesis. The attribute is the escape hatch for
+  a field that must live in the class but need not reach the solver; this
+  project uses it for the `MVBASafety` fields with an `∃` in their
+  conclusion that no Chorus cell reads (the `attribute` line after the
+  class in [Interfaces.lean](../Cadence/Interfaces.lean)). **The measurement
   behind that "nothing"** — every `MVBASafety` axiom is a hypothesis of
   every Chorus cell — is CI's cold solve of the Chorus family
   on the 4-core runner at `BATCH=1`, without the MVBA constraint (run
@@ -370,7 +372,7 @@ without restating it — and what makes a badly-shaped field fatal.
   `veil.cache.proofs false`, two runs each): **10.4 / 9.8 s with every
   axiom, 10.0 / 9.8 s with the twelve withheld** — no effect. The cost is
   the sorts, the class's load-bearing axioms and the larger clump, not the
-  unused fields, so nothing is withheld. The step cells measured here no
+  unused fields, so none of those twelve is withheld. The step cells measured here no
   longer reach the solver: the step rung of § 2 closes them, with the
   clump, the class's axioms and the assumptions all cleared.
 * **A readable rejection for an `assumption` over mutable state.** An

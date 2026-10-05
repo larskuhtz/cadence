@@ -205,9 +205,10 @@ obligation it leaves open.
 
 The rows marked _assumed_ are the whole of what this development owes: each
 temporal class is stated over its fragment's own relations, so there is no
-second place where these obligations are written down. The MVBA's temporal
-level is provided, from named hypotheses, at the fragment the composed
-system runs.
+second place where these obligations are written down. The temporal
+levels of the MVBA, Chorus and the Conductor are provided, from named
+hypotheses, at the fragments the composed system runs; the ACS is an
+assumed module.
 
 # What no machine checks
 

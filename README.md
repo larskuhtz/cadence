@@ -80,9 +80,10 @@ implemented contract is proven whole, from named hypotheses: a full `MVBA`
 configuration, and a full `Orchestrator` with `d_tot`-Totality
 (`Conductor.conductorFull`, `Conductor.conductorWithTotality`) for an
 arbitrary ACS meeting its contract; see
-[docs/CompositionContracts.md](docs/CompositionContracts.md) §5. What stays
-assumed is the ACS, and the glue's composed timed claims are not yet
-stated.
+[docs/CompositionContracts.md](docs/CompositionContracts.md) §5. The
+composed system's timed claims are proven from them (the table below). What
+stays assumed is the ACS: an assumed module, consumed through its
+contract.
 
 ---
 

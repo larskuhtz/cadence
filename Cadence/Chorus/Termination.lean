@@ -4,7 +4,7 @@ import Cadence.System
 
 /-! # Chorus/Termination — the run-level proof of Chorus's termination claim
 
-[Liveness.md](../../docs/Liveness.md) §4, stages 3–5, against the
+[Liveness.md](../../docs/Liveness.md) §4.4–§4.7, against the
 claim and premises stated in [Liveness.lean](Liveness.lean). This file
 holds the proof; that one holds the statement, and nothing here adds a
 premise to it.

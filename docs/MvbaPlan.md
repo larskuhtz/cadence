@@ -629,7 +629,7 @@ none of the work below blocks on the fork's liveness branch.
 | Fair-progress invariants | sweep cells | Mirroring Chorus's "Fair progress" invariants |
 | `leader_honest_cofinal` | model `assumption` — **landed** | The one new axiom (§3.3), inventory name (A-leader-rotation). Changed every VC statement; the family re-solved green and `#veil_status Mvba` stayed at 725 (an assumption changes statements, not cells). **Removed in R23**, unused (§3.3) |
 | The ranking and its decrease | plain Lean — **landed**, [Mvba/Rank.lean](../Cadence/Mvba/Rank.lean) | `rank` = (view gap, view-local residual) in `Prod.Lex`, the second component a sum of seven counts of one shape — three quorum assemblies over `q`, four chain steps over `q`'s honest core. `rank_noninc` over *every* transition (Byzantine included), one strict-decrease theorem per kind of progress, and a "rank zero is exactly the guard" lemma per count, down to "some correct validator has decided". No scheduling assumption enters |
-| "Every correct validator eventually decides" | plain-Lean theorem over a labelled run — **stated**, [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) | `TerminationClaim`, a `Prop`-valued *definition*: the target and its six premises are type-checked and citable before the proof exists. Bound-erased sibling of `MVBATemporal.termination`. The fairness vocabulary it is built from is [Fairness.lean](../Cadence/Fairness.lean) |
+| "Every correct validator eventually decides" | plain-Lean theorem over a labelled run — **proven**, `Mvba.termination`, [Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean) | `TerminationClaim`, a `Prop`-valued *definition*: the target and its six premises are type-checked and citable before the proof exists. Bound-erased sibling of `MVBATemporal.termination`. The fairness vocabulary it is built from is [Fairness.lean](../Cadence/Fairness.lean) |
 
 **The seam, stated once.** The run-level theorem takes (F-justice), (F-byz),
 (A-viewsync) and (F-avail) as **explicit Lean hypotheses**. Nothing
@@ -648,8 +648,9 @@ absent.
    [Liveness.md](Liveness.md) §2 now scopes Chorus's monotone-enabledness
    justification to Chorus, so the two models' arguments are not conflated.
    It cost no verification conditions (see §3.4).
-2. ~~**The plain-Lean core.**~~ **Landed.** `leader_honest_cofinal` is in
-   the model and [Mvba/Rank.lean](../Cadence/Mvba/Rank.lean) has the
+2. ~~**The plain-Lean core.**~~ **Landed.** `leader_honest_cofinal` was
+   added to the model (since removed, unused: §3.3) and
+   [Mvba/Rank.lean](../Cadence/Mvba/Rank.lean) has the
    ranking, its well-foundedness, its non-increase over every transition,
    four strict-decrease theorems and the rank-zero-is-the-guard lemmas.
    The finiteness questions are settled three ways, and one of them is a
@@ -672,8 +673,9 @@ absent.
    the statements survive the tool growing that syntax. Writing it first is
    what exposed §3.2's fairness-class error, and it is what should drive
    step 3: an invariant costs one cell per action, so the list is better
-   derived from the proof's stuck points than guessed. **Open:** the six
-   premises are argued consistent, not proven so.
+   derived from the proof's stuck points than guessed. The six premises
+   are jointly satisfiable: `Mvba.termination_premises_satisfiable`
+   ([Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)).
 
    **The proof has started, from the end of the chain backwards.** Two links
    are proven, and both report the same thing to step 3 — *no invariant
@@ -835,9 +837,9 @@ absent.
    `MVBASafety.propose`, and Chorus's `mvba_propose` enforces it with three
    `require` clauses. What is missing is only the *transmission*:
    `Mvba.propose` does not record validity, so this side restates it as the
-   named premise `InputsValid`. Whether to close that with a
-   `require valid e` on `Mvba.propose` or to discharge the premise at the
-   composition is a decision, recorded in [TODO.md](TODO.md) § Liveness.
+   named premise `InputsValid`. It was closed with a `require valid e` on
+   `Mvba.propose`, so `InputsValid` is no premise
+   ([CompositionContracts.md](CompositionContracts.md) §7 item 1).
 
    **The view change.** The other half of liveness, and the one the decision
    chain cannot supply: what carries a run *out of* a stalled view.
@@ -1326,9 +1328,9 @@ unproven: `propose := propose i e`'s transition, `proposed := input i e`,
 over the `msg_*` rows. Quiescence is then a *two-state* fact — a correct
 party's new `sent` row at step `n` implies `input` by `n+1` and `¬ abandoned`
 at `n` — which is exactly the shape the step-facts technique proves. What
-must stay unproven is `clock`, `Admissible`, `admissible_exists`, `ℓ` and
-`termination`: the fields of `MVBATemporal`, joined to the fragment by
-`mvba_of_temporal`. Since 2026-09-09 the inputs, their observables, the
+stays at the temporal level is `clock`, `Admissible`, `admissible_exists`,
+`ℓ` and `termination`: the fields of `MVBATemporal`, proven by
+`Mvba.mvbaTemporal` and joined to the fragment by `mvba_of_temporal`. Since 2026-09-09 the inputs, their observables, the
 frames and one-step Quiescence sit in `MVBASafety` itself, so nothing
 safety-shaped is left at the temporal level.
 *Landed as predicted (2026-09-08; step 5 below).* One consumer-facing

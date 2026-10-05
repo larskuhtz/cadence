@@ -88,9 +88,9 @@ The paper establishes six slot-consensus properties for Chorus
   requires `participating i ∧ ¬ abandoned i` of its sender, and `abandon`
   forwards to the MVBA's `abandon()` (Algorithm 5, line 48 (`line:fb-abandon`)), whose own
   Quiescence (a field of `MVBASafety`) confines the MVBA's messages. The
-  one-step statement of the contract's `quiescence` over these gates is
-  not proven yet; it belongs with the `SlotConsensusTemporal` instance
-  ([Bounds.md](../docs/Bounds.md) §6.4.6, S5).
+  contract's one-step `quiescence` over these gates is proven in the
+  `SlotConsensusTemporal` instance (`Chorus.own_sent_new`,
+  `Chorus.mvba_sent_new`; [Chorus/Temporal.lean](Chorus/Temporal.lean)).
 
 Additionally, `safety [speculative_agreement_pos]` / `[..._pos_neg]` check
 the paper's speculative-finality claim (Section 4.2
@@ -2446,7 +2446,7 @@ invariant [spec_fastqc_pos_mvba_pos_unique]
   ∀ (I J : node) (M M' : merkle_root),
     ¬ is_byz I ∧ local_fastqc_pos I J M ∧ mvba_decided_pos J M' → M = M'
 
-/-! ## Liveness — meta-argument and fair-progress invariants
+/-! ## Liveness — fairness and the fair-progress invariants
 
 This section formalises the safety-invariant ingredients of the protocol's
 liveness claim:
@@ -2467,14 +2467,16 @@ deductive verification of distributed protocols; for a recent high-level
 account see Kenneth L. McMillan, *"Toward Liveness Proofs at Scale"*, CAV
 2024, §2 (Background and related work).
 
-### Meta-argument structure
+### The argument's structure
 
-The argument has three ingredients, of which (1) and (2) are meta-level and
-(3) is SMT-discharged here.
+The argument has three ingredients: (1) is a premise of the theorem, (2)
+is structural, and (3) is SMT-discharged here.
 
-**(1) Fairness as meta-axioms.** Veil has no first-class fairness annotations
-on actions. We attach the standard scheduling assumptions externally to the
-model, indexed by the action's category:
+**(1) Fairness, a premise of the theorem.** Veil has no first-class
+fairness annotations on actions, so the scheduling assumptions are stated
+outside the model, as named hypotheses of `Chorus.termination`
+([Chorus/Liveness.lean](Chorus/Liveness.lean)), indexed by the action's
+category:
 
 * **(F-justice)** — every phase-advancement action (`advance_to_*`), every
   delivery, aggregation and observation action (`deliver_chunk_assigned`,
@@ -2517,8 +2519,7 @@ model, indexed by the action's category:
 * **(F-byz)** — Byzantine actions (`byz_*`) carry no scheduling preference;
   they are unfair. That includes the adversary's use of the two anonymous
   capabilities, `byz_broadcast_commitqc_*` and `byz_redisseminate_chunk`.
-* **The MVBA's termination** — formerly the meta-axiom (A-mvba), now
-  retired. It is a theorem of the `Mvba` model, `Mvba.termination`
+* **The MVBA's termination** — a theorem of the `Mvba` model, `Mvba.termination`
   ([Mvba/Liveness.lean](Mvba/Liveness.lean)), which `Chorus.termination`
   ([Chorus/Termination.lean](Chorus/Termination.lean)) applies to the run's MVBA
   projection. What `Chorus.termination` assumes about the MVBA is how the

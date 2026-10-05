@@ -227,9 +227,26 @@ quantitative obligation over explicit runs
   [Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)),
   with the sharper `4Δ + ℓ_MVBA` from the same premises
   (`Chorus.timed_termination_tight`), under the timing model of
-  [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean). The
-  contract field `SlotConsensusTemporal.termination` still has no instance
-  (S5).
+  [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean); they
+  are the timing fields of `Chorus.chorusWithTotality`;
+* **the Conductor's timed claims over timed runs**: `d_tot`-Totality
+  (`Conductor.totality`), `(2W − p)`-Boundedness (`Conductor.boundedness`)
+  and `(2Wτ)`-Recovery (`Conductor.recovery`), under the timing model of
+  [Cadence/Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean),
+  for an arbitrary ACS meeting its contract;
+* **the composed system's timed claims**: Corollary 4, Lemma 5,
+  `𝓡`-Liveness and censorship resistance (`Composed.corollary4`,
+  `Composed.boundedConcurrency`, `Composed.liveness`, `Composed.censorship`,
+  [Cadence/Composed/](../Cadence/Composed/Schedule.lean)), with every
+  condition each module takes from its caller discharged as a theorem
+  about the composed run;
+* **non-vacuity of every liveness claim**: one model and run per leg
+  meeting all of a claim's premises at once — the MVBA's
+  ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)), Chorus's
+  ([Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean)) and the
+  composed system's, which covers the Conductor's claims too
+  ([Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean));
+  [Premises.md](Premises.md) has the ledgers.
 
 **Method 4 — documented meta-theory.** What is deliberately *not*
 inside Lean is stated as named assumptions and audited by hand (§4).
@@ -249,8 +266,7 @@ The paper's headline properties and their formal counterparts:
 | Speculative-finality revertibility claim | `safety [speculative_agreement_pos]`, `[..._pos_neg]` (conditional on `no_equivocation` and `no_invalid_encoding`) | sweep |
 | Chorus termination (Lemma 11 (`lemma:chorus-termination`)), bound-erased: every correct validator finalizes the slot, at every `n = 3f+1` | `Chorus.termination` ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), from the premises `FJustice`, `MvbaAdmissible`, `ValidBridge` of [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) (§4 item 2); consumes `Mvba.termination`; untimed (no `5Δ + ℓ_MVBA` bound) | sweep + Lean over runs |
 | Chorus ℓ-termination, timed (Lemma 11 (`lemma:chorus-termination`)): every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA` (plus `9δ` local steps), at every `n = 3f+1`; and by `4Δ + ℓ_MVBA + 8δ` from the same premises (F4) | `Chorus.timed_termination`, `Chorus.timed_termination_tight` ([Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)), from the timing model of [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean), `ValidBridge` and the caller's four conditions; consumes the MVBA contract's `T.termination`; at the system's MVBA `Chorus.timed_termination_atMvba` | Lean over timed runs |
-| Chorus `d_tot`-totality (Proposition 4 (`prop:chorus-totality`)): `Δ + 2δ` after the first correct finalization, at a participation tolerance `d` in general | `Composed.Witness.corollary4_premises_satisfiable`, `…boundedConcurrency…`, `…liveness…`, `…censorship…`, `…conductor…` ([Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean)) | same | ✓ |
-| `Chorus.totality`, `Chorus.totality_paper` ([Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)) | Lean over timed runs |
+| Chorus `d_tot`-totality (Proposition 4 (`prop:chorus-totality`)): `Δ + 2δ` after the first correct finalization, at a participation tolerance `d` in general | `Chorus.totality`, `Chorus.totality_paper` ([Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)) | Lean over timed runs |
 | "Fallback meta-block valid by construction" (Algorithm 5 (`alg:fallback`) build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
 | Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of Lemma 11 (`lemma:chorus-termination`)'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
 | Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of Lemma 11 (`lemma:chorus-termination`)'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
@@ -259,7 +275,8 @@ The paper's headline properties and their formal counterparts:
 | Conductor as the paper's orchestrator, state-level: open-prefix agreement, Monotonicity, Integrity (at most once), the observables' monotonicity and frames; boundedness in interval form | Conductor sweep + `Conductor.orchestratorSafety` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | sweep + composition |
 | MCP Safety, positional form (Definition 1 (`def:safety`)) — for the glue over any contract instances, and for the composed system | `positional_log_safety` ([Cadence/Composition.lean](../Cadence/Composition.lean)); `system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | composition |
 | Conductor temporal claims (Totality, `d_tot`-Totality, `(2W − p)`-Boundedness, `(2Wτ)`-Recovery; Lemmas 14–16) | `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` ([Cadence/Conductor/Induction.lean](../Cadence/Conductor/Induction.lean), [Boundedness.lean](../Cadence/Conductor/Boundedness.lean), [Recovery.lean](../Cadence/Conductor/Recovery.lean)); the contract fields in `Conductor.conductorTemporal` and `Conductor.conductorWithTotality` ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)), for an arbitrary ACS meeting its contract, under the timing model of §4 item 4 | Lean over timed runs |
-| The glue's composed timed claims (ℓ-liveness, recovery and censorship resistance of the composed system, Corollary 4) | not stated yet (stage K7, [ConductorBounds.md](ConductorBounds.md) §9) | not proven — §4 item 4 |
+| The composed system's timed claims: Corollary 4 (`cor:chorus-correctness-within-cadence`), bounded concurrency (Lemma 5 (`lemma:cadence-bounded-concurrency`)), `𝓡`-Liveness (Lemma 2 (`lemma:cadence-liveness`)) and `𝓡`-censorship resistance (Definition 3 (`def:censorship-resistance`)) | `Composed.corollary4`, `Composed.boundedConcurrency`, `Composed.liveness`, `Composed.censorship` and the `_sharp` forms ([Cadence/Composed/](../Cadence/Composed/Schedule.lean)), under the premises of [Premises.md](Premises.md) §0 | Lean over timed runs |
+| Non-vacuity: every premise of a liveness claim holds together with the others | `Mvba.*_premises_satisfiable`, `Chorus.*_premises_satisfiable`, `Composed.Witness.*_premises_satisfiable` ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean), [Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean), [Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean)) | Lean (one model and run each) |
 | MVBA agreement, integrity, external validity (Module 3 (`mod:mvba`); the internal Supplement, Theorem 1 (`thm:agreement`) at the entries level and Supplement, Lemma 9 (`lem:external-validity`), for its leader-based instantiation — [Cadence/Mvba.lean](../Cadence/Mvba.lean)'s header pins the referent) | `safety [agreement]`, `[integrity]`, `[external_validity]` in [Cadence/Mvba.lean](../Cadence/Mvba.lean); instance fields of `Mvba.mvbaSafety` in [Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean) | sweep + composition |
 | MVBA Quiescence (Module 3 (`mod:mvba`)), and the module's inputs and their observables | proven in `Mvba.mvbaSafety` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) from the transition bodies | composition |
 | MVBA `ℓ_MVBA`-Termination (Module 3 (`mod:mvba`); the internal Supplement, Theorem 2 (`thm:termination`), `O(fΔ)` at `k = f + 1`) | `Mvba.bounded_termination` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)); the contract field in `Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), under the timing model and hypotheses of §4 item 4 | Lean over timed runs |
