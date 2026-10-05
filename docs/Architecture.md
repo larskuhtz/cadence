@@ -290,11 +290,13 @@ the rest is re-derived by the machine on every build (see §6 and the pins
 in [Cadence.lean](../Cadence.lean)).
 
 The list is meant to be *checkable for completeness* rather than taken on
-trust. Every assumption below has a **name**, and the named fairness and
-oracle axioms — (F-justice), (F-byz), (A-sc-termination),
-(A-sc-totality), (A-leader-rotation-k) — appear verbatim in the Lean sources at the points where
-they are consumed, so `grep -rn '(A-' Cadence/` enumerates the consumers
-and would expose an axiom that had crept in without being listed here. The
+trust. Every assumption below has a **name**. The premises of the liveness
+theorems are named definitions, listed on one page (item 2), and the
+assumption names — (A-viewsync), (A-leader-rotation-k), and the assumed
+ACS's (A-acs-termination) and (A-acs-totality) — appear verbatim in the
+Lean sources where they are consumed, so `grep -rn '(A-' Cadence/`
+enumerates the consumers and would expose an assumption that had crept in
+without being listed here. The
 network contract (item 1) is the exception and the reason item 1 comes
 first: its names live in [ChorusDesign.md](ChorusDesign.md) §3.1.1 rather
 than in the code, and no tool checks it — the sources speak of "monotone"
@@ -326,21 +328,24 @@ relations, and it takes a human to confirm each use is positive.
    a word here:
    * **(F-byz)** is the absence of a premise: no fairness is asked of the
      `byz_*` labels, so no progress relies on adversarial help.
-   * **(A-mvba) is retired.** Chorus's claims apply `Mvba.termination`
-     (and the MVBA contract's timed `termination`) to the run's MVBA steps,
-     and derive that theorem's caller premises. The Lean sources name it
-     only as retired ([Cadence/Chorus.lean](../Cadence/Chorus.lean)'s
-     liveness section).
+   * **The MVBA's termination is a theorem, not a premise.** Chorus's
+     claims apply `Mvba.termination` (and the MVBA contract's timed
+     `termination`) to the run's MVBA steps, and derive that theorem's
+     caller premises.
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive;
    [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS`
    module contract ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean))
-   — a standard primitive whose implementation is out of scope, so no
-   instance exists and every field is assumed. What *is* machine-checked
-   is the consumption side for ACS: the Conductor takes `ACSSafety` as a
-   class constraint, so it assumes exactly the class, with one stated
-   bridge (the median-range `require` of `acs_decide`, justified by the
-   class's quantitative validity through [Windows.lean](../Cadence/Windows.lean)). The `MVBA`
+   — an assumed module: the target leaves the ACS unspecified (P17), so
+   no protocol here implements it and every field is assumed. A plain-Lean
+   ideal ACS (`Cadence.IdealAcs.acsSafety`, `acsTemporal`) shows the
+   contract satisfiable; it is a model, not a protocol. What *is*
+   machine-checked is the consumption side: the Conductor takes the ACS's
+   two levels as class constraints and hypotheses, so it assumes exactly
+   the class, with one stated bridge (the median-range `require` of
+   `acs_decide`), whose justification is a theorem from the contract and
+   the fault bound (`Cadence.acs_median_bracket`,
+   [AcsMedian.lean](../Cadence/AcsMedian.lean)). The `MVBA`
    contract is **not** on this list, on either side: `Mvba.mvbaSafety`
    ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) instantiates
    its state-level fragment from the leader-based protocol of the paper
@@ -351,10 +356,12 @@ relations, and it takes a human to confirm each use is positive.
    [Cadence/System.lean](../Cadence/System.lean) filling it with that instance, so no MVBA
    property is assumed anywhere in the composed system. What that
    consumption leaves is **one stated bridge**, of the
-   same kind as the ACS median bridge: Chorus's decision handlers
-   `require` the decided entry's certificate against Chorus's own network
-   relations (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, resp.
-   the negative form), which is what the class's `Valid` — a parameter
+   same kind as the ACS median bridge: Chorus's decision handlers and the
+   handlers of the `CommitQC` route `require` the certificate the
+   representation names for an entry against Chorus's own network
+   relations (a vote quorum for a `FastQC` entry, a fallback quorum and the
+   `FBCert` for a `FallbackQC` entry, resp. the negative form), which is
+   what the class's `Valid` — a parameter
    fixed before the module's state exists — *means* in a model whose
    signatures are network relations. It is documented at the handlers
    ([Cadence/Chorus.lean](../Cadence/Chorus.lean)), in [ChorusDesign.md](ChorusDesign.md) §4 and in
@@ -400,8 +407,8 @@ relations, and it takes a human to confirm each use is positive.
    `SlotConsensusWithTotality`, `ACS`, `MVBA` in
    [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), stated over timed
    runs with an implementation-defined admissible-execution model.
-   **(A-orch-totality), (A-orch-boundedness) and (A-orch-recovery) are
-   discharged, modulo the assumed ACS module.** `OrchestratorTemporal` and
+   **The orchestrator's Totality, Boundedness and Recovery are proven,
+   modulo the assumed ACS module.** `OrchestratorTemporal` and
    `OrchestratorWithTotality` have instances, `Conductor.conductorTemporal`
    and `Conductor.conductorWithTotality`
    ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)),
@@ -416,8 +423,8 @@ relations, and it takes a human to confirm each use is positive.
    The ACS stays assumed: (A-acs-termination) and (A-acs-totality) are the
    `ACS` contract's fields, which no protocol in this development
    implements (the target leaves the ACS unspecified, P17).
-   **(A-sc-termination) and (A-sc-totality) are discharged.**
-   `SlotConsensusTemporal` and `SlotConsensusWithTotality` have instances,
+   **Chorus's Termination, ℓ-termination and `d_tot`-totality are
+   proven.** `SlotConsensusTemporal` and `SlotConsensusWithTotality` have instances,
    `Chorus.chorusTemporal` and `Chorus.chorusWithTotality`
    ([Cadence/Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean)), at
    `Chorus.slotConsensusSafety` and the system's configuration, joined into
@@ -435,13 +442,13 @@ relations, and it takes a human to confirm each use is positive.
    each proves that admissible runs exist from every initial state. The
    hypotheses and the run premises are [Premises.md](Premises.md) §1–§6
    and §9. The composed timed claims are proven from these instances
-   ([Cadence/Composed/](../Cadence/Composed/Schedule.lean), stage K7):
+   ([Cadence/Composed/](../Cadence/Composed/Schedule.lean)):
    Corollary 4, Lemma 5 at `2W − p`, `𝓡`-Liveness and censorship
    resistance, with every caller condition discharged and their premises
    one list, [Premises.md](Premises.md) §0. That list holds together in one
    model of the composed system
    ([Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean),
-   stage K8, [Premises.md](Premises.md) §0.5). The models are untimed; the
+   [Premises.md](Premises.md) §0.5). The models are untimed; the
    latency bounds proven,
    `Mvba.bounded_termination`, `Chorus.totality`,
    `Chorus.timed_termination`, `Conductor.totality` and

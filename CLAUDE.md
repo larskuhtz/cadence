@@ -498,11 +498,9 @@ is a change to what this project *claims*, not a refactor.
 
     A new temporal instance takes the same form, with its hypotheses listed
     in `Cadence.lean`'s row, and its `Admissible` is a run model defined
-    before its proof. One contract statement was corrected on the way, not
-    weakened to fit: `SlotConsensusTemporal.quiescence` (and
-    `ACSTemporal.quiescence`) quantified over unreachable states, which was
-    our mis-statement of a property about executions
-    ([CompositionContracts.md](docs/CompositionContracts.md) §5).
+    before its proof. A contract field may be *corrected* when it misstates
+    the paper (its record goes to [docs/History.md](docs/History.md)), never
+    weakened to fit an instance.
 
   Proving a field means one of two things. Either move it from `XTemporal`
   to `XSafety` (if it is first-order and every implementation proves it) and

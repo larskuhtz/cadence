@@ -511,10 +511,9 @@ transition bodies. A run carries its own clock (`TimedRun.clk`), which is
 what lets an untimed model's fragment carry a timed contract.
 
 [Architecture.md](Architecture.md) §4 item 4 points at these field lists
-by name; the meta-axiom names (A-orch-totality), (A-orch-boundedness),
-(A-orch-recovery) are the fields' docstrings, discharged by
-`Conductor.conductorTemporal` modulo the assumed ACS, and
-(A-sc-termination) is discharged by `Chorus.chorusTemporal`.
+by name: the orchestrator's are proven by `Conductor.conductorTemporal`
+modulo the assumed ACS, Chorus's by `Chorus.chorusTemporal` and
+`Chorus.chorusWithTotality`, and the MVBA's by `Mvba.mvbaTemporal`.
 
 ## 6. The composed system
 

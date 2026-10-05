@@ -47,6 +47,7 @@ flowchart BT
     GLUE["Cadence — extreme-pipelining glue<br/>Cadence/Cadence.lean<br/>consumes OrchestratorSafety,<br/>SlotConsensusSafety"]
     POS["MCP Safety for the glue over any<br/>modules meeting the contracts<br/>Cadence/Composition.lean"]
     SYS["MCP Safety for the composed system<br/>conditional only on ACSSafety<br/>Cadence/System.lean"]
+    TIMED["the composed system's timed claims:<br/>Corollary 4, bounded concurrency,<br/>𝓡-Liveness, censorship resistance<br/>Cadence/Composed/"]
 
     MVBA --> CHOR
     ACS -.-> COND
@@ -54,6 +55,7 @@ flowchart BT
     COND --> GLUE
     GLUE --> POS
     POS --> SYS
+    GLUE --> TIMED
 
     classDef assumed stroke-dasharray:4 3
     class ACS assumed
