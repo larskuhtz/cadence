@@ -500,50 +500,68 @@ model over-approximates.
 
 ## 6. Findings for the paper's authors
 
-*This section can be sent to the authors as it stands. It lists what the
-machine-checked development found on the paper side, at the paper
-repository's revision `48cac9a` (§0): the main body and the internal
-supplement. Each finding quotes the paper and cites it as the rendered PDF
-shows it, with the LaTeX label in parentheses; a citation that starts with
-"Supplement" is to the supplement, every other one to the main body. Each
-finding then says why it matters for a claim, and gives its status: open
-for the authors, and how the formal development handles it. "The model" is
-the Lean development of this repository.*
+*This section is written to be sent to the authors as it stands.*
 
-| # | Finding | Kind | Status |
-|---|---|---|---|
-| P1 | Module 3's Integrity was not revised with its Agreement | main body vs supplement | open |
-| P2 | Two proofs argue from a common `B′` and from two commitment proofs | proof gap | open; the model proves the claims without either |
-| P3 | The supplement contradicts itself on `EquivCert` construction | supplement, internal | open; the model follows the main body |
-| P4 | A Part I obligation cites a Part II argument | supplement, internal | open |
-| P5 | Lemma 11 claims `5Δ + ℓ_MVBA`; its proof gives `4Δ + ℓ_MVBA` | statement vs proof | open; **confirmed by proof**: the model proves the paper's bound and the sharper one |
-| P6 | No convention says how often an `upon` handler runs | missing convention | open; the model reads "once" |
-| P7 | A stale backup of the supplement is in the tree | source hygiene | open |
-| P8 | A stub still lists a backoff policy for the MVBA timeout | stale text | open |
-| P9 | The practical Conductor assumes `2 ≤ p ≤ W−1` without saying so | unstated assumption | open; outside the verified surface |
-| P10 | arXiv v2's Algorithm 6 and Algorithm 2 hash chunks differently | fixed at `48cac9a` | for the next public version |
-| P11 | What Chorus does with a redelivered MVBA decision is not stated | missing rule | open; the model is safe under every reading |
-| P12 | The MVBA's availability crosses Module 3's interface | module interface | open; the model states the dependency |
-| P13 | Module 1 states Termination without the conditions Chorus needs | module interface | open; the model's contract carries the conditions as antecedents, and Chorus's instance proves the fields under them |
-| P14 | A slot's proposer set may be empty | unstated assumption | open; the model's instance assumes a non-empty proposer set |
-| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | module interface | open; the contract states them as antecedents (C4, C5, R27), both are proven under them (R28, R29), and the full instance carries them (R30) |
-| P16 | Module 4's Validity lacks the per-validator bound the median argument needs | module interface, proof gap | open for the paper; the contract carries the bound since R25 (C6), and the median bridge's justification is a theorem from it |
-| P17 | The ACS the Conductor uses is unspecified | missing instantiation | open; the plan keeps the ACS as an assumed module |
-| P18 | The recovery chain needs less than Algorithm 7's assumptions (1)–(3), and `𝓡 = 2Wτ` is not tight | slack | open; **confirmed by proof**: the model proves Lemma 16, and the composed `𝓡`-Liveness, at `2Wτ` and at `(W + p − 1)τ` |
-| P19 | A chunk that arrives exactly at the deadline is counted as on time without a stated rule | missing convention | open; the model states the inclusive reading as a premise, (P-incl), and proves censorship resistance under it ([ConductorBounds.md](ConductorBounds.md) F31) |
+The Cadence protocol has a machine-checked formal development in Lean 4:
+Chorus, the Conductor, the extreme-pipelining layer that composes them, the
+supplement's leader-based MVBA and the fallback receipt rules are modelled,
+and the paper's safety properties, its timed liveness lemmas, Corollary 4
+(`cor:chorus-correctness-within-cadence`), Lemma 2
+(`lemma:cadence-liveness`) and censorship resistance are proven, with every
+proof checked by Lean's kernel. The ACS is taken as a module meeting
+Module 4 (`mod:acs`). The development is against one revision of the paper
+repository, **`48cac9a`** (2026-10-02): the main body, whose public
+versions are `arXiv:2607.02275`, together with the internal supplement. The
+findings concern statements, proofs, module interfaces and conventions, not
+the protocol: the properties above are proven of the modelled protocol, and
+where a finding names a condition the paper uses without stating it, they
+are proven under that condition.
+
+Each finding below quotes the paper and cites it as the rendered PDF shows
+it, with the LaTeX label in parentheses; a citation that starts with
+"Supplement" is to the supplement, every other one to the main body. Each
+then says why it matters for a claim, and gives its status: whether it is
+open on the paper side, and how the formal development handles it ("the
+model" is the Lean development). The findings fall into three groups:
+
+* **They affect the paper's correctness argument** — a proof step rests on
+  something the cited statement or module does not provide, although the
+  claim itself holds: P1, P2, P12, P13, P15, P16, P19.
+* **They are open questions for the authors** — the paper leaves a rule, a
+  convention or a choice unstated, and the model takes one reading: P3, P6,
+  P9, P11, P14, P17.
+* **They are presentation, source hygiene or slack** — the claims and their
+  proofs stand as written: P4, P7, P8, P10; and two places where the proof
+  gives more than the statement says, both confirmed by proof in the model,
+  P5 (a bound one `Δ` loose) and P18 (assumptions and a recovery time that
+  are not tight).
+
+| # | Finding | Group | Kind | Status |
+|---|---|---|---|---|
+| P1 | Module 3's Integrity was not revised with its Agreement | correctness argument | main body vs supplement | open; the model states Integrity over entries |
+| P2 | Two proofs argue from a common `B′` and from two commitment proofs | correctness argument | proof gap | open; the model proves the claims without either |
+| P3 | The supplement contradicts itself on `EquivCert` construction | open question | supplement, internal | open; the model follows the main body |
+| P4 | A Part I obligation cites a Part II argument | presentation | supplement, internal | open; the model proves the main body's form |
+| P5 | Lemma 11 claims `5Δ + ℓ_MVBA`; its proof gives `4Δ + ℓ_MVBA` | slack | statement vs proof | open; **confirmed by proof**: the model proves the paper's bound and the sharper one |
+| P6 | No convention says how often an `upon` handler runs | open question | missing convention | open; the model reads "once" |
+| P7 | A stale backup of the supplement is in the tree | hygiene | source hygiene | open |
+| P8 | A stub still lists a backoff policy for the MVBA timeout | presentation | stale text | open; the model uses the fixed timeout |
+| P9 | The practical Conductor assumes `2 ≤ p ≤ W−1` without saying so | open question | unstated assumption | open; outside the verified surface |
+| P10 | arXiv v2's Algorithm 6 and Algorithm 2 hash chunks differently | presentation | fixed at `48cac9a` | for the next public version |
+| P11 | What Chorus does with a redelivered MVBA decision is not stated | open question | missing rule | open; the model is safe under every reading |
+| P12 | The MVBA's availability crosses Module 3's interface | correctness argument | module interface | open; the model states the dependency |
+| P13 | Module 1 states Termination without the conditions Chorus needs | correctness argument | module interface | open; the model's contract carries the conditions as antecedents, and Chorus's instance proves the fields under them |
+| P14 | A slot's proposer set may be empty | open question | unstated assumption | open; the model's instance assumes a non-empty proposer set |
+| P15 | Module 2's Totality and Recovery rest on conditions the module does not state | correctness argument | module interface | open; the model's contract states them as antecedents, and the Conductor's Totality and Recovery are proven under them |
+| P16 | Module 4's Validity lacks the per-validator bound the median argument needs | correctness argument | module interface, proof gap | open; the model's contract carries the bound, and the median argument is a theorem from it |
+| P17 | The ACS the Conductor uses is unspecified | open question | missing instantiation | open; the model takes the ACS as a module meeting Module 4 |
+| P18 | The recovery chain needs less than Algorithm 7's assumptions (1)–(3), and `𝓡 = 2Wτ` is not tight | slack | slack | open; **confirmed by proof**: the model proves Lemma 16, and the composed `𝓡`-Liveness, at `2Wτ` and at `(W + p − 1)τ` |
+| P19 | A chunk that arrives exactly at the deadline is counted as on time without a stated rule | correctness argument | missing convention | open; the model states the inclusive reading as a premise and proves censorship resistance under it |
 
 P1–P4 are inconsistencies between the main body and the supplement, or
-within the supplement. P5 and P6 date from the review of arXiv v2 and hold
-at `48cac9a`. P7–P11 and P14 are smaller. P12, P13, P15 and P16 are about
-module boundaries: a claim takes from a module something the module's
-interface does not state. §6.1 checks every module boundary the
-development's claims cross. P17 is about a module the target does not
-instantiate. P15–P17 come from the Conductor leg's kick-off record
-([ConductorBounds.md](ConductorBounds.md)), written before any Lean, and
-P15 is since borne out by the proofs (R28, R29). P18 is slack, as P5 is:
-the paper's bounds hold, and the proof shows weaker assumptions suffice.
-P19 is a timing convention, found by the composition leg (R31), as P6 is
-an execution convention.
+within the supplement. P12, P13, P15 and P16 are about module boundaries:
+a claim takes from a module something the module's interface does not
+state; §6.1 checks every module boundary the development's claims cross.
 
 **P1. Module 3 (`mod:mvba`) Integrity was not revised with Agreement.**
 * *Quote.* The supplement (Supplement, Section 1.2
@@ -645,7 +663,7 @@ proof gives `4Δ + ℓ_MVBA`.**
   commented-out draft next to the lemma states that bound. The Conductor's
   timing (`Φ_oc = ℓ_chorus + d_tot`) inherits the extra `Δ`.
 * *Status.* Open for the authors; the lemma is unchanged since arXiv v2.
-  **Confirmed by proof** (R18, 2026-10-02). The model proves the lemma as
+  **Confirmed by proof.** The model proves the lemma as
   stated, `ℓ = 5Δ + ℓ_MVBA` plus the local steps (`Chorus.timed_termination`,
   `5Δ + ℓ_MVBA + 9δ`), and from the same premises the sharper bound
   `4Δ + ℓ_MVBA` plus local steps (`Chorus.timed_termination_tight`,
@@ -702,8 +720,8 @@ proof gives `4Δ + ℓ_MVBA`.**
   practical Conductor, so its relation to Algorithm 7
   (`algorithm:conductor`) covers only `p ≥ 2`, without saying so.
 * *Status.* Open. Outside the verified surface: the development verifies
-  Algorithm 7 (`algorithm:conductor`) (§9). One note from R22: the main
-  body's own recovery assumptions force `p ≥ 2` too. Assumption (4),
+  Algorithm 7 (`algorithm:conductor`) (§9). One note: the main body's own
+  recovery assumptions force `p ≥ 2` too. Assumption (4),
   Algorithm 7, line 10 (`line:assumption-four`), `d_tot + ℓ ≤ (p − 1)τ`, has
   a positive left side, because assumption (3) makes `ℓ > Δ`. So the wider
   range only matters for the safety properties
@@ -772,7 +790,7 @@ through state Module 3 (`mod:mvba`) does not expose.**
   internal accepted value at the system's instance, the honest form: the
   fairness owed to the availability report, and the validity bridge at a
   held value. The timed form of the assumption, (Δ-avail), is **derived**
-  since R19 (`Chorus.availWithin_of_timedJustice`). It follows from
+  (`Chorus.availWithin_of_timedJustice`). It follows from
   Chorus's timed rows and the bridge under one property of the composed
   timing model, that the MVBA's availability window covers one Chorus
   network hop (`Δ ≤ Δ_sync`, `Chorus.Schedule.Δ_le_Δsync`). The proven
@@ -811,7 +829,7 @@ conditions Chorus needs.**
   assumed-behaviour block (the open-to-complete delay `Φ_oc`) is commented
   out the same way.
 * *Status.* Open. The model's contract states both conditions as
-  antecedents, and Chorus's instance proves the fields under them (R20).
+  antecedents, and Chorus's instance proves the fields under them.
   `SlotConsensusTemporal.termination` requires that no correct validator
   abandons before finalizing (C1), and `Chorus.chorusTemporal` proves it
   from `Chorus.termination`, which takes C1 as a caller's premise
@@ -870,12 +888,12 @@ conditions the module does not state.**
   facts as antecedents of its Totality and Recovery
   (`OrchestratorSafety.CallerTotality`, `CallerTermination`), and a
   Conductor-specific level, `OrchestratorWithTotality`, carries the `d_tot`
-  form ([Interfaces.lean](../Cadence/Interfaces.lean), R27;
+  form ([Interfaces.lean](../Cadence/Interfaces.lean);
   [ConductorBounds.md](ConductorBounds.md) §2.3, F16, F17). Under these
   two antecedents the Conductor's Totality and Recovery are proven
-  (`Conductor.totality`, R28; `Conductor.recovery`, R29), so the two
-  conditional facts suffice. The full contract instance carries them as
-  the fields' antecedents (`Conductor.conductorFull`, R30).
+  (`Conductor.totality`, `Conductor.recovery`), so the two conditional
+  facts suffice. The full contract instance carries them as the fields'
+  antecedents (`Conductor.conductorFull`).
 
 **P16. Module 4 (`mod:acs`)'s Validity lacks the per-validator bound the
 median argument needs.**
@@ -900,8 +918,7 @@ median argument needs.**
   validator meets it. Stating "at most one pair per validator" in Validity
   would settle it.
 * *Status.* Open for the paper. The development's contract carries the
-  bound since R25 (C6, [ConductorBounds.md](ConductorBounds.md) §3.4,
-  F18): `ACSSafety.decided_unique` ("a correct decider's set holds at most
+  bound (C6, [ConductorBounds.md](ConductorBounds.md) §3.4, F18): `ACSSafety.decided_unique` ("a correct decider's set holds at most
   one slot per validator"), and `ACSTemporal.validity_quantitative` counts
   `2f + 1` distinct validators. The median bracket stays a stated bridge
   (a `require` on `acs_decide`), and its justification, that it removes no
@@ -924,7 +941,7 @@ median argument needs.**
   achieves the module, or with which `ℓ`. As with the MVBA before the
   supplement's instantiation, the module is an idealisation with a
   deterministic bound ([Bounds.md](Bounds.md) §1).
-* *Status.* Open. The plan keeps the ACS as an assumed module: the timed
+* *Status.* Open. The model takes the ACS as an assumed module: the timed
   claims are relative to an instance of its contract, and a plain-Lean ideal
   ACS shows that the premises are consistent
   ([ConductorBounds.md](ConductorBounds.md) §3).
@@ -966,17 +983,17 @@ and `𝓡 = 2Wτ` is not tight.**
   With P5's `ℓ_chorus = 4Δ + ℓ_MVBA` as well, (1) and (2) would read with
   `4Δ + ℓ_MVBA` where the paper has `Φ_oc = 6Δ + ℓ_MVBA`. Smaller windows
   and an earlier recovery then satisfy the assumptions.
-* *Status.* Open for the authors. **Confirmed by proof** (R29,
-  2026-10-03): `Conductor.recovery` proves Lemma 16 at `2Wτ` from (1)–(4)
+* *Status.* Open for the authors. **Confirmed by proof:**
+  `Conductor.recovery` proves Lemma 16 at `2Wτ` from (1)–(4)
   as stated, and `Conductor.recovery_sharp` proves it at `(W + p − 1)τ`
   from the same premises. Both use (1) and (2) only in their `ℓ_chorus`
   form and (3) only as `ℓ > 0`
-  ([ConductorBounds.md](ConductorBounds.md) §9, K5). **Suggested
+  ([ConductorBounds.md](ConductorBounds.md) §9). **Suggested
   correction:** state (1) and (2) with `ℓ_chorus` and (3) as `ℓ > 0`, and
   `𝓡 = (W + p − 1)τ`, or note that they are sufficient, not tight. The
   sharper value carries through the composition: the composed system's
   `𝓡`-Liveness (Lemma 2 (`lemma:cadence-liveness`)) is proven at
-  `(W + p − 1)τ` too (`Composed.liveness_sharp`, R31).
+  `(W + p − 1)τ` too (`Composed.liveness_sharp`).
 
 **P19. A chunk that arrives exactly at the deadline is counted as on time
 without a stated rule.**
@@ -996,12 +1013,12 @@ without a stated rule.**
   other order the validator votes without the entry, and Proposition 3's
   conclusion fails for that run. Censorship resistance at any `c` rests on
   it, since the proposal is always made exactly `Δ` before the deadline.
-* *Status.* Open for the authors, found by R31 (2026-10-03). The model's
+* *Status.* Open for the authors. The model's
   punctual deadline marker may fire at clock `D`, so the existing
   milestone needs the recording strictly before `D`
   (`Chorus.within_proposal_recorded`). The model states the paper's
   inclusive reading as a premise of Chorus's timing model, (P-incl)
-  `DeadlineInclusive` (decided by Lars, R31.2), and proves censorship
+  `DeadlineInclusive`, and proves censorship
   resistance under it (`Composed.censorship`;
   [ConductorBounds.md](ConductorBounds.md) F31). **Suggested
   correction:** state the convention, e.g. that messages delivered at the
@@ -1020,7 +1037,7 @@ finding, unless the fact is the development's own stated bridge.
 | The MVBA's commit certificate: `certifies`, `decided_certified`, `accept` and its effect, `certified_mono`, `certified_unique`, `certified_decided`, `certified_valid` | the `CommitQC` finalization route (Chorus safety); the decision handoff (`Chorus.termination`) | not by Module 3 (`mod:mvba`), whose `decide` outputs the meta-block alone; by the supplement's Part I ("`decide(x, CommitQC)`", a transferable certificate the MVBA accepts from any view) | P2 |
 | `availReady`, the input `markAvail`, their frames; `certified_available` | Chorus's availability report; the MVBA's termination | no: the supplement states `AvailReady` over the dissemination layer's state | P12 |
 | `availOwed` and the validity bridge at a held value, both reading the MVBA's accepted value | `Chorus.termination` (premises `FJustice`, `ValidBridge`) | no: neither document exposes `x_v` | P12 |
-| (Δ-avail), the MVBA's timing premise on its caller | the timed Chorus claim at the system's MVBA (`Chorus.timed_termination_atMvba`), derived there from Chorus's rows (`availWithin_of_timedJustice`) under `Δ ≤ Δ_sync` | no: the supplement's assumption is triggered by `x_v` | P12; derived since R19 (it was blocked by F15, §5.10) |
+| (Δ-avail), the MVBA's timing premise on its caller | the timed Chorus claim at the system's MVBA (`Chorus.timed_termination_atMvba`), derived there from Chorus's rows (`availWithin_of_timedJustice`) under `Δ ≤ Δ_sync` | no: the supplement's assumption is triggered by `x_v` | P12 |
 | No correct validator abandons before finalizing | `Chorus.termination`, `Chorus.totality` | not by Module 1 (`mod:slotconsensus`) (commented out); the composition meets it (Algorithm 1, line 23 (`line:abandon`)), as the glue's invariant `[abandoned_after_finalize]` over the instance's own record | P13 |
 | No correct validator starts before `s.deadline − Δ` | the timed Chorus claims and `SlotConsensusWithTotality.bounded_termination` | not by Module 1 (`mod:slotconsensus`) (commented out); by Module 2 (`mod:orchestrator_2`)'s Integrity, through the glue's invariant `[participating_opened]` | P13 |
 | A slot has at least one proposer | `admissible_exists` of Chorus's contract instance | no: `s.proposers` is any subset of the validators | P14 |
@@ -1028,13 +1045,13 @@ finding, unless the fact is the development's own stated bridge.
 | The MVBA's abandon antecedent and Quiescence | `Chorus.termination` (through `Mvba.termination`) | yes, Module 3 (`mod:mvba`) | — |
 | ACS Agreement, Validity (genuine pairs), Integrity | `Conductor ⊨ OrchestratorSafety` | yes, Module 4 (`mod:acs`) | — |
 | At most `f` Byzantine-attributed pairs in a decided ACS set | the justification of the median bridge at `acs_decide` (`Cadence.acs_median_bracket`); `Conductor.recovery`, for a correct pair in a decided set (`Conductor.correct_pair`, from `validity_quantitative`'s `2f + 1` distinct validators) | no: Module 4 (`mod:acs`) bounds the set's size, not the pairs per validator; the contract adds the bound (`decided_unique`) | P16 |
-| The Orchestrator's `d_tot`-Totality of openings | Corollary 4 (`cor:chorus-correctness-within-cadence`); the Conductor's recovery (`Conductor.recovery`, through `Conductor.open_sync`) | not by Module 2 (`mod:orchestrator_2`), whose Totality is eventual; Lemma 15 (`lemma:conductor-totality`) proves it of the Conductor within Cadence, as does `Conductor.totality` (R28) | P15 |
+| The Orchestrator's `d_tot`-Totality of openings | Corollary 4 (`cor:chorus-correctness-within-cadence`); the Conductor's recovery (`Conductor.recovery`, through `Conductor.open_sync`) | not by Module 2 (`mod:orchestrator_2`), whose Totality is eventual; Lemma 15 (`lemma:conductor-totality`) proves it of the Conductor within Cadence, as does `Conductor.totality` | P15 |
 | The conditional completion guarantees of the Orchestrator's caller | the Conductor's Totality (`Conductor.totality`, through (R-tot)) and Recovery (`Conductor.recovery`, through (R-tot) and (R-term)) | no: Module 2 (`mod:orchestrator_2`)'s assumed-behaviour block is commented out, and is unconditional | P15 |
-| Unbounded starting times: whatever the time, some slot has not started (`StartsUnbounded`) | `Conductor.totality`, for the ACS proposal's `s*`, and `Conductor.recovery`, which also needs a window of the chain after GST | yes, implicitly: the slots are infinitely many and τ-spaced on the real line (Appendix A.1 (`subsection:mcp-preliminaries`)), and Algorithm 7, line 39 (`line:sstar-compute`)'s `s*` presumes one | none: the development's statement lacked it (F28, R28) |
-| Every window has a successor (`WindowsUnbounded`) | `Conductor.recovery`: the chain of windows Propositions 15–19 run along | yes: the windows are the numbers `ω ∈ ℕ≥1`, one ACS instance for each `ω ≥ 2` (Algorithm 7, line 12 (`line:acs-instances`)) | none: the development's statement lacked it (F30, R29) |
-| The ACS accepts its two inputs (`ACSTemporal.propose_enabled`, `abandon_enabled`) | the Conductor's timed claims, through its handlers' rows (`Conductor.totality`) | yes, implicitly: Module 4 (`mod:acs`)'s interface makes `propose(s)` and `abandon()` inputs, which the caller invokes, and the module formalism has no refusal; the proofs (Proposition 15 (`prop:enters-every-window`): "`p_j` proposes to `ACS[ω]`") rely on exactly that | none: the module convention states it, the contract spells it out (F26, R27) |
+| Unbounded starting times: whatever the time, some slot has not started (`StartsUnbounded`) | `Conductor.totality`, for the ACS proposal's `s*`, and `Conductor.recovery`, which also needs a window of the chain after GST | yes, implicitly: the slots are infinitely many and τ-spaced on the real line (Appendix A.1 (`subsection:mcp-preliminaries`)), and Algorithm 7, line 39 (`line:sstar-compute`)'s `s*` presumes one | none: the development's own statement first lacked it (F28) |
+| Every window has a successor (`WindowsUnbounded`) | `Conductor.recovery`: the chain of windows Propositions 15–19 run along | yes: the windows are the numbers `ω ∈ ℕ≥1`, one ACS instance for each `ω ≥ 2` (Algorithm 7, line 12 (`line:acs-instances`)) | none: the development's own statement first lacked it (F30) |
+| The ACS accepts its two inputs (`ACSTemporal.propose_enabled`, `abandon_enabled`) | the Conductor's timed claims, through its handlers' rows (`Conductor.totality`) | yes, implicitly: Module 4 (`mod:acs`)'s interface makes `propose(s)` and `abandon()` inputs, which the caller invokes, and the module formalism has no refusal; the proofs (Proposition 15 (`prop:enters-every-window`): "`p_j` proposes to `ACS[ω]`") rely on exactly that | none: the module convention states it, the contract spells it out (F26) |
 | Open-prefix agreement of the Orchestrator | the glue's safety | derived: the safety residue of Module 2 (`mod:orchestrator_2`)'s Totality and Monotonicity | — |
-| "A correct validator decides only after proposing", for the MVBA | nothing since R16 (the two helper invariants that needed it were deleted) | not by Module 3 (`mod:mvba`); Module 4 (`mod:acs`)'s Integrity states it for the ACS | none: no claim uses it |
+| "A correct validator decides only after proposing", for the MVBA | nothing | not by Module 3 (`mod:mvba`); Module 4 (`mod:acs`)'s Integrity states it for the ACS | none: no claim uses it |
 
 ## 7. Implementation variants the models cover
 
