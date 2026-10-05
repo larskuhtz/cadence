@@ -112,10 +112,11 @@ scratch file (see [Working on the models](#working-on-the-models) below).
 
 The script `scripts/container.sh check` re-runs **Lean's kernel over every
 declaration in the development** — every reconstructed Chorus proof
-included — in **4 minutes**, with no SMT solver, no tactic execution and no
-elaboration. Forcing the elaborator to redo the whole project from source on
-top of that is a further 9 minutes; re-solving every verification condition
-with cvc5 from scratch, about 90 minutes. What each of those does and does not
+included — in minutes, with no SMT solver, no tactic execution and no
+elaboration. Forcing the elaborator to redo the whole project from source
+costs a few minutes more; re-solving every verification condition with cvc5
+from scratch, over an hour (the measured times are
+[docs/Container.md](docs/Container.md) §4). What each of those does and does not
 establish — and how both differ from simply *importing* prebuilt `.olean`
 files, which are trusted rather than re-checked — is the audit ladder in
 [docs/Container.md](docs/Container.md) §3–§4.
@@ -230,7 +231,7 @@ and `linux/amd64`. [scripts/container.sh](scripts/container.sh) pulls what
 it needs on first use (~4 GiB, once):
 
 ```bash
-RUNTIME=podman scripts/container.sh check    # kernel-re-check every proof — 4 min, no solver
+RUNTIME=podman scripts/container.sh check    # kernel-re-check every proof — minutes, no solver
 RUNTIME=podman scripts/container.sh verify   # re-verify against the checkout's sources
 ```
 
@@ -296,8 +297,8 @@ flag; `LEAN_NUM_THREADS` is the only control.
 
 **Memory.** `lake build` runs as many `lean` processes at once as
 `LEAN_NUM_THREADS` allows, which defaults to the core count. A *cold* proof
-file peaks at 2–4 GB of resident memory (one reaches 9 GB), so on most
-machines the core count is too many. The script sets the cap from the
+file takes several GB of resident memory, so on most machines the core count
+is too many. The script sets the cap from the
 memory available:
 
 ```bash
@@ -307,9 +308,8 @@ BATCH=1 scripts/revalidate.sh  # staged build, one proof file at a time
 scripts/revalidate.sh /tmp     # ... and write the RSS sample log there
 ```
 
-`JOBS` is the number of concurrent `lean` processes, at roughly 4 GB each.
-The default is 8 on a 14-core / 36 GB machine, which ran the whole suite in
-about 7 min warm and 11 min cold. Past that, more slots do not help, because
+`JOBS` is the number of concurrent `lean` processes. Past the default more
+slots do not help, because
 the build is bound by its longest dependency chain. On few cores keep `JOBS`
 low (CI's 4-core runner uses `JOBS=2`), since concurrent solvers slow each
 other enough to push a near-budget cell over its timeout. The staged `BATCH`
@@ -320,7 +320,7 @@ Individual pieces, for iteration:
 
 ```bash
 lake build Cadence.Chorus                    # the per-slot consensus MODEL (no sweep) — ~2 min
-lake build Cadence.Chorus.Proofs.Vote        # one Chorus action's ~100 proof cells
+lake build Cadence.Chorus.Proofs.Vote        # one Chorus action's proof cells
 lake build Cadence.Chorus.Certify            # composition certificate + the #veil_status audit pin
 lake build Cadence.Mvba Cadence.Mvba.Certify # the MVBA model and its certificate
 lake build Cadence.Cadence Cadence.Conductor # the two small models, sweeps included
@@ -378,7 +378,7 @@ Cadence/Chorus.lean          the MODEL: state, actions, invariants. Elaborating 
    │                         persists every VC statement (the "VC registry") — it
    │                         runs no invariant sweep and persists no proofs
    ▼ imported by
-Cadence/Chorus/Proofs/*.lean one file per action (41): #prove_action re-proves every
+Cadence/Chorus/Proofs/*.lean one file per action: #prove_action re-proves every
    │                         registered VC statement of that action → real
    │                         kernel-checked proofs, plus one exported preservation
    │                         lemma ("this action preserves all invariants"). The
@@ -455,7 +455,7 @@ Cadence/
                                     persists the VC registry (both proof encodings of
                                     each obligation); the audited cell count is the
                                     #veil_status pin in Chorus/Certify.lean
-  Chorus/Proofs/                    one proof file per action (41): #prove_action —
+  Chorus/Proofs/                    one proof file per action: #prove_action —
                                     persisted real proofs + one preservation lemma each;
                                     the manual cells live here
   Chorus/Certify.lean               #gen_composition: reachability induction + named
@@ -500,7 +500,7 @@ Cadence/
   Mvba.lean                        leader-based MVBA MODEL — the internal supplement's
                                     instantiation (the supplement at the paper target); no sweep,
                                     VC registry, three sat trace witnesses
-  Mvba/Proofs/, Mvba/Certify.lean  the MVBA family's proof files (26; manual cells counted in docs/Architecture.md) and
+  Mvba/Proofs/, Mvba/Certify.lean  the MVBA family's proof files (manual cells counted in docs/Architecture.md) and
                                     certificate (axiom- and audit-pinned)
   Mvba/Compose.lean                Mvba ⊨ MVBASafety + the join toward the full MVBA
                                     (axiom-pinned)

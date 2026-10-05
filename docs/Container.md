@@ -49,8 +49,9 @@ podman volume rm cadence-lake-verified       # was seeded from the old image
 aggressively per worker thread, and at the default (one per core) it wants
 ~19 GB and is OOM-killed inside a 20 GB container 11 seconds in. Measured on
 the Chorus model alone: 12 threads → killed; 4 threads → 131 s at an 11.0 GB
-peak; 2 threads → 226 s at 4.8 GB. All 66 modules at `LEAN_NUM_THREADS=4`
-take 4 min 12 s with a 12.9 GB peak, which is what the script sets. Lower it
+peak; 2 threads → 226 s at 4.8 GB. The whole development at
+`LEAN_NUM_THREADS=4` takes the tier-1 time of §4 at a 12.9 GB peak, which
+is what the script sets. Lower it
 if you have less memory. `verify` needs no such care —
 [scripts/revalidate.sh](../scripts/revalidate.sh) bounds its own concurrency and is comfortable at
 12 CPUs / 20 GB.
@@ -144,8 +145,8 @@ tier 1 is 13 min at `LEAN_NUM_THREADS=4`, and tier 2b about 11 min.
 | 2b | as 2a, but the elaborator actually redoes the project rather than trusting a trace file | delete the project oleans, then re-verify (below) — needs `verified-cache` | **9 min 12 s** |
 | 3 | as 2b with no cached proof reused: every verification condition re-solved by cvc5 and re-reconstructed | as 2b from `verified`, whose image has no cache | ~90 min |
 
-Tier 1 is what makes a published image worth having: Lean's kernel over all 66
-modules — every reconstructed Chorus proof included — in four minutes, with
+Tier 1 is what makes a published image worth having: Lean's kernel over every
+module — every reconstructed Chorus proof included — in minutes, with
 **no** SMT solver, no tactic execution and no elaboration. Silence is success.
 
 CI runs tiers 1 and 2a on every commit, as parallel jobs of the same workflow:

@@ -114,11 +114,11 @@ here rather than repeating them.
 
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
-| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 46 | 9 safety + 92 invariants + 1 step property | 4 840 | cvc5, **proof-reconstructed** (kernel-checked), + 14 manual Lean proofs for e-matching-divergent cells (three of them the Byzantine assembly actions' copies of the collector's cells), and one cell that runs the automatic solver step with the Bool-atom fold off rather than a hand proof (`vote × fastqc_complete_implies_mvba_evidence`; [Dependencies.md](Dependencies.md) § "Native shared libraries"); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
-| [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 28 | 3 safety + 47 invariants + 1 step property | 1 507 | cvc5, **proof-reconstructed** (kernel-checked), + 5 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate; cross-view certificate agreement, at both actions that create a commit certificate; and agreement at the decision `form_own_commitqc` makes) |
-| [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
-| [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 15 invariants + 3 step properties | 189 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
-| [Cadence/Cadence.lean](../Cadence/Cadence.lean) | 6 | 4 safety + 21 invariants | 182 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
+| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 48 | 9 safety + 91 invariants + 1 step property | pinned: `#veil_status Chorus` in [Chorus/Certify.lean](../Cadence/Chorus/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 18 manual Lean proofs for e-matching-divergent cells (three of them the Byzantine assembly actions' copies of the collector's cells), and one cell that runs the automatic solver step with the Bool-atom fold off rather than a hand proof (`vote × fastqc_complete_implies_mvba_evidence`; [Dependencies.md](Dependencies.md) § "Native shared libraries"); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
+| [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 28 | 3 safety + 47 invariants + 1 step property | pinned: `#veil_status Mvba` in [Mvba/Certify.lean](../Cadence/Mvba/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 5 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate; cross-view certificate agreement, at both actions that create a commit certificate; and agreement at the decision `form_own_commitqc` makes) |
+| [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | pinned: `#veil_status FallbackReceipt` in [FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
+| [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 17 invariants + 3 step properties | 205 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
+| [Cadence/Cadence.lean](../Cadence/Cadence.lean) | 7 | 4 safety + 22 invariants | 216 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
 
 The VC count is not arbitrary and can be recomputed from the model: one
 condition per (label × safety-or-invariant), where the labels are the actions
@@ -508,12 +508,12 @@ table can be read off one file:
 |---|---|---|
 | `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_temporal` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | `propext, Classical.choice, Quot.sound` | ✓ |
 | `Cadence.system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | same | ✓ |
-| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 4997/4997 real |
-| `FallbackReceipt.invariants_of_reachable` ([Cadence/FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean)) | same | ✓ + `#veil_status`: 220/220 real |
+| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: every cell real |
+| `FallbackReceipt.invariants_of_reachable` ([Cadence/FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean)) | same | ✓ + `#veil_status`: every cell real |
 | `FallbackReceipt.build_totality_of_reachable` ([Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean)) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)) | same | ✓ |
 | `Chorus.evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)) | same | ✓ |
-| `Mvba.invariants_of_reachable` + per-property projections ([Cadence/Mvba/Certify.lean](../Cadence/Mvba/Certify.lean)) | same | ✓ + `#veil_status`: 1507/1507 real |
+| `Mvba.invariants_of_reachable` + per-property projections ([Cadence/Mvba/Certify.lean](../Cadence/Mvba/Certify.lean)) | same | ✓ + `#veil_status`: every cell real |
 | `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` ([Cadence/Conductor/Induction.lean](../Cadence/Conductor/Induction.lean), [Boundedness.lean](../Cadence/Conductor/Boundedness.lean), [Recovery.lean](../Cadence/Conductor/Recovery.lean)); `Conductor.conductorTemporal`, `Conductor.conductorWithTotality`, `Conductor.conductorFull` ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)) | same | ✓ |
 | `Mvba.mvbaSafety`, `Mvba.mvba_of_temporal` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) | same | ✓ |
 | `Mvba.bounded_termination`, `Mvba.aViewSync_of_sync` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)) | same | ✓ |
@@ -541,7 +541,7 @@ registry — statements identical to what the model declares, by
 construction — discharges them (cvc5 + reconstruction), persists every
 proof as a kernel-checked theorem in its own small olean, and exports
 one "this action preserves the invariants" lemma; keeping each action's
-proofs in their own process/olean is what bounds memory (~5 GB per file
+proofs in their own process/olean is what bounds memory (a few GB per file
 cold). The quorum-intersection cells that SMT cannot find are manual
 `#prove_vc … by <tactic>` cells in their actions' proof files, consumed
 after a statement check — the statement itself always comes from the

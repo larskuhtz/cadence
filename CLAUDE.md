@@ -50,7 +50,7 @@ Four Veil models plus support files, mirroring the paper's architecture:
   cold).
 * **`Cadence/FallbackReceipt.lean`** (+ `Totality.lean`) — the
   per-validator fallback receipt/propose layer (`docs/ChorusDesign.md`
-  §7.2 explains its rules). Same family shape as Chorus at 1/17 the scale,
+  §7.2 explains its rules). Same family shape as Chorus at a small fraction of the scale,
   so it is the architecture's **cheap validation leg**: try any pipeline
   change here first.
 * **`Cadence/Mvba.lean`** (+ `Mvba/Proofs/`, `Mvba/Certify.lean`,
@@ -155,18 +155,16 @@ History: [docs/History.md](./docs/History.md).
   ~3 s — the audit walk reads each imported olean's stored axiom sets rather
   than traversing proof terms, so it does not grow with proof size).
 * **Where the time actually goes, before optimising anything.** A warm
-  re-validation is kernel replay almost in full: building one Chorus proof
-  file costs 39.7 s, and elaborating it *without* writing its olean costs the
-  same, so serialization is free. Per cell that is ~400 ms of replay, and
-  replay is proportional to stored proof-term size — so the lever is term
-  size, not native code — which is why `veil.smt.foldBoolAtoms` is on: it
-  takes per-cell replay from 402 ms to 79 ms and a warm re-validation from
-  654 s to 389 s. `precompileModules`, by contrast, was measured three ways
-  and is a dead end here (654 / 688 / 702 s).
-  [docs/Dependencies.md](./docs/Dependencies.md) § "Native shared libraries"
-  has both tables. All of that is the **warm** path. The **cold** path has a
-  different and much larger lever, and since 2026-09-10 it is already pulled:
-  `veil.vc.cheapRung` closes 80–91% of a Chorus proof file's cells without
+  re-validation is kernel replay almost in full: building a Chorus proof
+  file costs the same with or without writing its olean, so serialization
+  is free, and replay is proportional to stored proof-term size — so the
+  lever is term size, not native code — which is why
+  `veil.smt.foldBoolAtoms` is on: it cuts per-cell replay several-fold.
+  `precompileModules`, by contrast, was measured three ways and is a dead
+  end here. [docs/Dependencies.md](./docs/Dependencies.md) § "Native shared
+  libraries" has both tables. All of that is the **warm** path. The
+  **cold** path has a different and much larger lever, and it is pulled:
+  `veil.vc.cheapRung` closes most of a Chorus proof file's cells without
   calling cvc5 at all, because they are frame obligations
   ([docs/Dependencies.md](./docs/Dependencies.md) § 2 has the per-file A/B).
   `step_property` cells get their own rung under the same option
@@ -208,20 +206,11 @@ History: [docs/History.md](./docs/History.md).
   checking. Since the cheap rung (above) the cache holds only the
   *solver-touched* cells — a cell the rung closes was never searched for, so
   there is nothing to store — which is why a build log now reads mostly `✅`
-  where it used to read mostly `♻`. Measured 2026-09-26 on this machine
-  (Veil on upstream `517f2bad`): a **cold** re-validation of the whole suite
-  is 19 min 58 s at `BATCH=3` (28 774 ✅ / 349 ♻, peak 13.0 GB) and stores
-  792 entries; a **warm** one — every project olean deleted, cache kept — is
-  12 min 58 s at `BATCH=6` (peak 15.3 GB), of which 477 s is the three model
-  rebuilds plus the root audit module rather than proof-family work. The cold
-  figure grew from 15 min 25 s (2026-09-10) with the workload (the MVBA grew
-  from 725 to 1 325 cells), not with the re-port: on the same workload the old
-  pin measured the same within noise ([docs/History.md](./docs/History.md)).
-  Those are *staged* runs, and both are superseded for local builds by the
-  JOBS mode (`scripts/revalidate.sh`'s header has the 2026-09-29 table). Their
-  ✅ counts are also inflated: every stage's `lake build` re-prints the
-  stored logs of the already-built modules it passes through, and a single
-  `lake build` of the suite prints about 5 350 ✅.
+  where it used to read mostly `♻`. The cold and warm suite times are
+  `scripts/revalidate.sh`'s header table. A *staged* run's ✅ count is
+  inflated: every stage's `lake build` re-prints the stored logs of the
+  already-built modules it passes through, so compare ✅ counts only
+  between runs of the same mode.
 * **The cache hides derivation drift.** Entries are keyed by VC statement,
   not by proof script: a kernel-replay hit consumes a `#prove_vc … by <tac>`
   cell *without elaborating the tactic*, so a warm green build proves the
@@ -429,7 +418,7 @@ measurements and the audit ladder:
   in the model, for a fact that needs the guards or the invariants at the
   pre-state; it is checked per action like an invariant and exported as
   `<Module>.<name>_step` / `<Module>.reachable_<name>_step`. It costs one
-  cell per action — 48 on Chorus — so state them for what the contracts
+  cell per action, so state them for what the contracts
   need, not for every monotone relation. (3) **By hand from the transition
   bodies**, only for what neither covers (a single-action effect, a pointwise
   frame): dispatch the label, expose the body with `simp only [trSimp]`, and
@@ -463,11 +452,13 @@ is a change to what this project *claims*, not a refactor.
 * **No `sorryAx` anywhere.** Every axiom pin stays at exactly
   `[propext, Classical.choice, Quot.sound]`, in every per-result pin and
   in [`Cadence.lean`](./Cadence.lean).
-* **The audit pins stay complete**: `#veil_status Chorus` at `4997/4997 real`,
-  `#veil_status FallbackReceipt` at `220/220 real` and `#veil_status Mvba`
-  at `1507/1507 real`. If an invariant **or a `step_property`** is added, these
+* **The audit pins stay complete**: `#veil_status Chorus`,
+  `#veil_status FallbackReceipt` and `#veil_status Mvba` each pinned at every
+  cell real (`n/n real`; the counts are the pins in each model's
+  `Certify.lean`). If an invariant **or a `step_property`** is added, these
   numbers change — a step property costs one cell per action — so update the
-  pins, and check the new numbers are the ones you expect.
+  pins, and check the new numbers are the ones you expect
+  ([docs/Architecture.md](./docs/Architecture.md) §2 has the formula).
 * **No full contract instance is fabricated.** `Orchestrator`,
   `SlotConsensus` and `MVBA` (the full classes) are built only as
   `{ theSafetyInstance, temporalInstance with }` and nothing more. Two kinds

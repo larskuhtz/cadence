@@ -33,7 +33,7 @@ veil_large_clump_budgets
 namespace Mvba.Proofs
 
 /- **Manual cell — the lock-persistence step.** The solver does find this
-proof (43 s cold on 14 cores, at 71 % of the 60 s budget), but it is the
+proof (43 s cold on 14 cores, 71 % of Veil's default 60 s budget), but it is the
 one cell whose search is a genuine argument rather than a lookup, and at
 that margin it times out on a 4-core CI runner. Written out, it is Supplement, Lemma 8 (`lem:lock-persistence`) for one view transition: the new
 certificate's honest preparer `a` accepted `e` in `v > V` under a timeout

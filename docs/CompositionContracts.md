@@ -305,7 +305,7 @@ gives the availability report its chunks) — [Liveness.md](Liveness.md)
   `proposal_inclusion` are the model's proofs through the named reachability
   projections; `on_time` is `all_honest_recorded`; the step-level fields
   (`finalized_mono`, `on_time_mono`, `init_finalized`) rest on four uniform
-  two-state lemmas over all 42 actions — including that a committed
+  two-state lemmas over all actions — including that a committed
   validator's entries are *frozen*, because `commit_assign_*` require
   `¬ local_committed i`.
 * **`Mvba.mvbaSafety th : MVBASafety node value evec (Mvba.Msg …) (Mvba.State …)

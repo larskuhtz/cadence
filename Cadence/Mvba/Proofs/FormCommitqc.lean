@@ -33,7 +33,7 @@ veil_large_clump_budgets
 namespace Mvba.Proofs
 
 /- **Manual cell — agreement at the certificate level.** The solver finds
-this proof too (25 s cold on 14 cores, at 41 % of the budget); it is
+this proof too (25 s cold on 14 cores, 41 % of Veil's default 60 s budget); it is
 written out for the same reason as `form_prepqc`'s: it is a real argument,
 and the margin is not one a slower runner keeps. It is Supplement, Theorem 1 (`thm:agreement`) for the new certificate `(v, e)` against every commit
 certificate `(V0, E0)` already on the wire. Same view: the two `2f+1`
