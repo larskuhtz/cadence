@@ -41,8 +41,9 @@ the `.olean`s that `lake build` produced and computes, rather than restates:
 * **which contracts have an instance**, in three states that the page is
   careful to distinguish — *proven* outright, *proven relative to* another
   contract that is itself assumed, and *no instance*, which is what
-  "unproven" means. The four `…Temporal` classes and `ACSSafety` are in the
-  last state, and that is the whole of what this development owes
+  "unproven" means. The MVBA's, Chorus's and the Conductor's contracts are
+  proven in full; the ACS is the one module this development does not
+  implement, an assumed module consumed through its contract
   ([CompositionContracts.md](CompositionContracts.md) §5).
 
 Because it is derived, a claim that has drifted from the code cannot survive

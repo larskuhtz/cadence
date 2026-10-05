@@ -302,8 +302,7 @@ variable [LinearOrder time] [AddCommMonoid time]
 /-- **The glue's rows** — each of the glue's handlers fires within `δ` of
 its gate opening ([ConductorBounds.md](../../docs/ConductorBounds.md) §6.4).
 
-The timed form of the glue's (F-justice) ([Cadence.lean](../Cadence.lean),
-"Meta-axioms"), in the shape of the Conductor's `TimedRows`: every row is
+The glue's rows ([Cadence.lean](../Cadence.lean), "The rows"), in the shape of the Conductor's `TimedRows`: every row is
 local, so the message part is `δ` too and nothing is owed but the gate. In
 the paper each handler runs atomically with the event it handles, and at
 the schedule's `δ = 0` the clause says exactly that. -/

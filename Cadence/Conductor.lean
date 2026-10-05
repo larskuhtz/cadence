@@ -77,7 +77,7 @@ imports):
   `(2Wτ)`-recovery (Lemma 16 (`lemma:conductor-recovery`)) — the paper's
   per-window induction, under the four parameter assumptions (Algorithm 7,
   lines 7–10 (`line:assumption-one`–`line:assumption-four`)), which are
-  fields of the schedule;
+  fields of the schedule.
 
 Meta (assumed; the ACS is an assumed module):
 * `ℓ`-termination / `Δ`-totality of ACS — **(A-acs-termination)** /
@@ -123,8 +123,10 @@ opening may stay unfired while the clock advances. Two consequences:
   documented here; it is the Conductor analogue of Chorus's `Phase`
   ordering.
 * The clock (`now`, advanced by `tick`) exists only to make the guards
-  "not before the starting time" (`open_slot`) expressible; all
-  quantitative timing stays meta.
+  "not before the starting time" (`open_slot`) expressible. Quantitative
+  timing is stated over timed runs of this model
+  ([Conductor/Schedule.lean](Conductor/Schedule.lean)), whose punctual
+  opening row closes the freedom.
 
 ## Adversary
 
@@ -764,69 +766,55 @@ invariant [acs_abandoned_decided]
   ∀ (i : node) (w : window),
     ¬ fm.byz i ∧ acs.abandoned (acs_state w) i → acs.has_decided (acs_state w) i
 
-/-! ## Liveness — meta-argument (totality & recovery)
+/-! ## Liveness — totality, boundedness and recovery
 
-Totality and `(2Wτ)`-recovery are genuinely temporal: the paper proves
-them **only for Conductor run within Cadence** (they hinge on slots
-actually completing — Lemma 15 (`lemma:conductor-totality`) intro), by an intricate
-per-window induction. Following the Chorus doctrine
-([ChorusDesign.md](../docs/ChorusDesign.md) §7), the temporal glue lives here
-as named meta-axioms over the composed system, and the state-level content
-they need is exactly the invariant set above.
+Totality and `(2Wτ)`-recovery are temporal: the paper proves them only for
+the Conductor run within Cadence, because they hinge on slots actually
+completing (the introduction of Lemma 15 (`lemma:conductor-totality`)).
+They are proven outside this model, in plain Lean over its timed runs, and
+consume the invariants above as the state-level facts:
 
-### Meta-axioms
+* **Totality**, Lemma 15 (`lemma:conductor-totality`), is
+  `Conductor.totality` ([Conductor/Induction.lean](Conductor/Induction.lean)):
+  the paper's per-window induction, Proposition 13
+  (`prop:window-synchronization`), as `Conductor.window_synchronized`.
+* **`(2W − p)`-Boundedness**, Lemma 14 (`lem:boundedness`), is
+  `Conductor.boundedness` ([Conductor/Boundedness.lean](Conductor/Boundedness.lean)),
+  from `safety [bounded_tail]` and the window widths.
+* **`(2Wτ)`-Recovery**, Lemma 16 (`lemma:conductor-recovery`), is
+  `Conductor.recovery` ([Conductor/Recovery.lean](Conductor/Recovery.lean)),
+  through Propositions 14–19 (`Conductor.open_to_complete`,
+  `Conductor.enters_every_window`, `Conductor.window_open_time`,
+  `Conductor.window_progression`, `Conductor.smooth_windows`,
+  `Conductor.first_post_gst_window_time`), and `Conductor.recovery_sharp`
+  at `(W + p − 1)τ`. The four parameter assumptions of Algorithm 7,
+  lines 7–10 (`line:assumption-one`–`line:assumption-four`), are fields of
+  the schedule.
 
-* **(F-justice)** — the honest actions `acs_propose`, `enter_window`,
-  `open_slot`, `complete_slot`'s *upstream* (the glue's finalize chain),
-  and `tick`, when continuously enabled, eventually fire. Enabledness is
-  monotone for all of them (positive stable guards; `ready_next` is
-  monotone because `completed` only grows and the scheduled set grows
-  only with entry, which preserves readiness of *past* windows —
-  boundaries of later windows lie above, `[win_bounds_ordered]`).
-* **(A-acs-termination)** (Module 4 (`mod:acs`) ℓ-Termination) — once every honest
-  validator has proposed to `ACS[w]`, the `acs_decide w` oracle
-  eventually fires (with witnesses supplied by the median lemma,
-  [Windows.lean](Windows.lean) `lowerMedian_between_correct`).
-* **(A-acs-totality)** (Module 4 (`mod:acs`) Δ-Totality) — `enter_window`
-  waits for the validator's *own* decision, so every correct validator
-  needs its instance to decide; Δ-Totality bounds when that happens once
-  one correct validator has decided. Its two assumptions are met by the
-  model: no premature abandonment is `[acs_abandoned_decided]`, and
-  Δ-synchronized proposals is a timing fact (Corollary 2
-  (`cor:proposal-synchronization`)).
-* **(A-sc-totality)**, **(A-sc-termination)** — completions propagate:
-  within Cadence, `completed` is Chorus finalization, which is
-  `d_tot`-total (Proposition 4 (`prop:chorus-totality`)) and `ℓ_chorus`-terminating.
-  These enter through `complete_slot`'s occurrence, not its guard.
+### The rows
 
-### The paper's induction, mirrored
+The honest handlers — the ACS proposal (`acs_propose`), window entry
+(`enter_window`), the recording of the decided interval (`acs_decide`),
+and the openings
+(`open_slot`) — are held to their timing by the timed runs' rows
+(`TimedRows`, `OpenPunctual`), the timed form of weak fairness. Their
+guards are stable once true: they read positive observables and local
+relations, and `ready_next` stays true because `completed` only grows and
+the scheduled set grows only with entry, which preserves the readiness of
+past windows (later windows' boundaries lie above, `[win_bounds_ordered]`).
 
-Proposition 15 (`prop:enters-every-window`) (every correct validator enters every window):
-induction over windows. In window `w`, either some correct validator
-decides `ACS[w+1]` — global here, so all see it — or none does, in which
-case every correct validator stays in `w`, eventually opens every slot of
-its scheduled prefix (`open_slot` enabled once `tick` passes the starting
-times — (F-justice) twice), completes them ((A-sc-termination) via the
-glue), becomes ready, proposes ((F-justice) on `acs_propose`), and
-(A-acs-termination) decides — then `enter_window` is enabled at every
-correct validator and (F-justice) fires it.
-
-`(2Wτ)`-recovery (Proposition 16 (`prop:window-open-time`) → Proposition 18 (`prop:smooth-windows`) →
-Proposition 19 (`prop:first-post-gst-window-time`)) additionally tracks *when*: it needs
-the four parameter assumptions (Algorithm 7, lines 7–10
-(`line:assumption-one`–`line:assumption-four`))
-
-1. `(p−1)τ + Φ_oc + ℓ ≤ Wτ`
-2. `(p−1)τ + Φ_oc ≤ (W−1)τ`
-3. `Δ < ℓ`
-4. `d_tot + ℓ ≤ (p−1)τ`
-
-with `Φ_oc = ℓ_chorus + d_tot` (Proposition 14 (`prop:conductor-open-to-complete`)).
-These are arithmetic side conditions on real-time constants that do not
-exist at this abstraction; they are recorded here as the assumptions the
-meta-argument consumes. The quantitative conclusions (`d_tot`-totality of
-openings, on-time opening from the second post-GST window) are theorems
-*about the timed system*, out of scope for the untimed model by design. -/
+The premises are stated in [Conductor/Schedule.lean](Conductor/Schedule.lean)
+and listed, each with its role and its use, in
+[Premises.md](../docs/Premises.md) §9: the timing model `Sync` (the rows,
+punctual openings, one clock, each started window's ACS admissible for its
+contract), the configuration, and the caller's
+conditions (R-tot) and (R-term), which within Cadence are theorems about
+Chorus (`Composed.caller_totality`, `Composed.caller_termination`). The
+ACS's Termination and Δ-Totality are the assumed module's, the fields of
+its `ACSTemporal` instance; this model meets that module's
+no-premature-abandonment assumption as `[acs_abandoned_decided]`. The full
+contract instance is `Conductor.conductorFull`
+([Conductor/Temporal.lean](Conductor/Temporal.lean)). -/
 
 /- The `Enumeration`/`FinEncodable` derivation over the action `Label`
 sum must traverse `acs_decide`'s 10-nested parameter sigma, which exceeds

@@ -977,8 +977,7 @@ CAV 2024): every state-level step is a kernel-checked theorem, and the
 premises contribute only *temporal* content — finitely many instances of
 the single rule "*a continuously enabled fair action eventually fires*",
 plus the MVBA's own termination theorem. The model-side encoding is the
-"Liveness" section of [Cadence/Chorus.lean](../Cadence/Chorus.lean) (whose prose
-still names (A-mvba)); the state-level theorems live in
+"Liveness" section of [Cadence/Chorus.lean](../Cadence/Chorus.lean); the state-level theorems live in
 [Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean),
 [Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean) and
 [Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean), and the temporal steps are
@@ -1123,8 +1122,10 @@ scheduled by its own premises (`MvbaAdmissible`), not by (F-justice).
 Everything state-level — enabledness, counting, certificate formation,
 the case analysis — is theorems, and so is the temporal chain, so the
 premises are consumed at exactly the seams the chain names and nowhere
-else. Whether they can all hold at once is the open non-vacuity question
-([TODO.md](TODO.md) § Liveness).
+else. They hold together: one model and run meets all of them at once
+(`Chorus.termination_premises_satisfiable`,
+[Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean);
+[Premises.md](Premises.md)).
 
 Outside the models: the temporal layer is proven over runs of the
 generated transition system in plain Lean, not by Veil's pipeline.
@@ -1336,8 +1337,9 @@ See §7.1: the one thing not encoded is the temporal rule itself. The
 designed extension — ω-acceptance annotations on actions, discharged
 via a liveness-to-safety (L2S) reduction reusing the existing
 safety-VC machinery — is Veil work and lives in the fork
-([Liveness.md](Liveness.md) §3 points to it). Out of scope even
-then: real-time / GST-style bounded delivery, and probabilistic
-termination (axiomatise the randomised primitive, discharge the
-probability argument on paper — the treatment the retired (A-mvba) gave
-it).
+([Liveness.md](Liveness.md) §3 points to it). Bounded delivery after
+GST is not part of that extension: the timed claims are proven over timed
+runs of the generated transition system, in plain Lean
+([Bounds.md](Bounds.md)). Out of scope either way: probabilistic
+termination, whose treatment would be to axiomatise the randomised
+primitive and discharge the probability argument on paper.

@@ -3,7 +3,7 @@ import Cadence.Mvba.Liveness
 
 /-! # Chorus/Liveness — the run-level target for Chorus, and the premises it rests on
 
-[Liveness.md](../../docs/Liveness.md) §4, stage 2. This file states
+[Liveness.md](../../docs/Liveness.md) §4.3. This file states
 the run-level termination claim for Chorus at the system's instantiation —
 the MVBA constraint filled by the `Mvba` model, as in
 [System.lean](../System.lean) — **and every premise it takes**, as named
@@ -21,8 +21,8 @@ a docstring, and appears as an explicit hypothesis of `TerminationClaim`.
 
 ## What this makes formal
 
-[Chorus.lean](../Chorus.lean)'s liveness section states three meta-axioms in
-prose — (F-justice), (F-byz), (A-mvba) — over the state-level theorems
+[Chorus.lean](../Chorus.lean)'s liveness section states the fairness classes in
+prose — (F-justice), (F-byz), and the MVBA's own termination — over the state-level theorems
 ([Chorus/Progress.lean](Progress.lean), [Chorus/Counting.lean](Counting.lean),
 [Chorus/Pigeonhole.lean](Pigeonhole.lean)). Here (F-justice) and (F-byz) become the label classification below and one
 named premise, exactly as in the MVBA file; and (A-mvba) — "the MVBA

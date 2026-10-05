@@ -114,11 +114,11 @@ here rather than repeating them.
 
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
-| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 46 | 9 safety + 92 invariants + 1 step property | 4 840 | cvc5, **proof-reconstructed** (kernel-checked), + 14 manual Lean proofs for e-matching-divergent cells (three of them the Byzantine assembly actions' copies of the collector's cells), and one cell that runs the automatic solver step with the Bool-atom fold off rather than a hand proof (`vote × fastqc_complete_implies_mvba_evidence`; [Dependencies.md](Dependencies.md) § "Native shared libraries"); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
-| [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 28 | 3 safety + 47 invariants + 1 step property | 1 507 | cvc5, **proof-reconstructed** (kernel-checked), + 5 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate; cross-view certificate agreement, at both actions that create a commit certificate; and agreement at the decision `form_own_commitqc` makes) |
-| [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | 220 | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
-| [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 15 invariants + 3 step properties | 189 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
-| [Cadence/Cadence.lean](../Cadence/Cadence.lean) | 6 | 4 safety + 21 invariants | 182 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
+| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 48 | 9 safety + 91 invariants + 1 step property | pinned: `#veil_status Chorus` in [Chorus/Certify.lean](../Cadence/Chorus/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 18 manual Lean proofs for e-matching-divergent cells (three of them the Byzantine assembly actions' copies of the collector's cells), and one cell that runs the automatic solver step with the Bool-atom fold off rather than a hand proof (`vote × fastqc_complete_implies_mvba_evidence`; [Dependencies.md](Dependencies.md) § "Native shared libraries"); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
+| [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 28 | 3 safety + 47 invariants + 1 step property | pinned: `#veil_status Mvba` in [Mvba/Certify.lean](../Cadence/Mvba/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 5 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate; cross-view certificate agreement, at both actions that create a commit certificate; and agreement at the decision `form_own_commitqc` makes) |
+| [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | pinned: `#veil_status FallbackReceipt` in [FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
+| [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 17 invariants + 3 step properties | 205 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
+| [Cadence/Cadence.lean](../Cadence/Cadence.lean) | 7 | 4 safety + 22 invariants | 216 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
 
 The VC count is not arbitrary and can be recomputed from the model: one
 condition per (label × safety-or-invariant), where the labels are the actions
@@ -227,9 +227,26 @@ quantitative obligation over explicit runs
   [Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)),
   with the sharper `4Δ + ℓ_MVBA` from the same premises
   (`Chorus.timed_termination_tight`), under the timing model of
-  [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean). The
-  contract field `SlotConsensusTemporal.termination` still has no instance
-  (S5).
+  [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean); they
+  are the timing fields of `Chorus.chorusWithTotality`;
+* **the Conductor's timed claims over timed runs**: `d_tot`-Totality
+  (`Conductor.totality`), `(2W − p)`-Boundedness (`Conductor.boundedness`)
+  and `(2Wτ)`-Recovery (`Conductor.recovery`), under the timing model of
+  [Cadence/Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean),
+  for an arbitrary ACS meeting its contract;
+* **the composed system's timed claims**: Corollary 4, Lemma 5,
+  `𝓡`-Liveness and censorship resistance (`Composed.corollary4`,
+  `Composed.boundedConcurrency`, `Composed.liveness`, `Composed.censorship`,
+  [Cadence/Composed/](../Cadence/Composed/Schedule.lean)), with every
+  condition each module takes from its caller discharged as a theorem
+  about the composed run;
+* **non-vacuity of every liveness claim**: one model and run per leg
+  meeting all of a claim's premises at once — the MVBA's
+  ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)), Chorus's
+  ([Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean)) and the
+  composed system's, which covers the Conductor's claims too
+  ([Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean));
+  [Premises.md](Premises.md) has the ledgers.
 
 **Method 4 — documented meta-theory.** What is deliberately *not*
 inside Lean is stated as named assumptions and audited by hand (§4).
@@ -249,8 +266,7 @@ The paper's headline properties and their formal counterparts:
 | Speculative-finality revertibility claim | `safety [speculative_agreement_pos]`, `[..._pos_neg]` (conditional on `no_equivocation` and `no_invalid_encoding`) | sweep |
 | Chorus termination (Lemma 11 (`lemma:chorus-termination`)), bound-erased: every correct validator finalizes the slot, at every `n = 3f+1` | `Chorus.termination` ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), from the premises `FJustice`, `MvbaAdmissible`, `ValidBridge` of [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) (§4 item 2); consumes `Mvba.termination`; untimed (no `5Δ + ℓ_MVBA` bound) | sweep + Lean over runs |
 | Chorus ℓ-termination, timed (Lemma 11 (`lemma:chorus-termination`)): every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA` (plus `9δ` local steps), at every `n = 3f+1`; and by `4Δ + ℓ_MVBA + 8δ` from the same premises (F4) | `Chorus.timed_termination`, `Chorus.timed_termination_tight` ([Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)), from the timing model of [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean), `ValidBridge` and the caller's four conditions; consumes the MVBA contract's `T.termination`; at the system's MVBA `Chorus.timed_termination_atMvba` | Lean over timed runs |
-| Chorus `d_tot`-totality (Proposition 4 (`prop:chorus-totality`)): `Δ + 2δ` after the first correct finalization, at a participation tolerance `d` in general | `Composed.Witness.corollary4_premises_satisfiable`, `…boundedConcurrency…`, `…liveness…`, `…censorship…`, `…conductor…` ([Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean)) | same | ✓ |
-| `Chorus.totality`, `Chorus.totality_paper` ([Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)) | Lean over timed runs |
+| Chorus `d_tot`-totality (Proposition 4 (`prop:chorus-totality`)): `Δ + 2δ` after the first correct finalization, at a participation tolerance `d` in general | `Chorus.totality`, `Chorus.totality_paper` ([Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)) | Lean over timed runs |
 | "Fallback meta-block valid by construction" (Algorithm 5 (`alg:fallback`) build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
 | Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of Lemma 11 (`lemma:chorus-termination`)'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
 | Certificate formation (`FBCert`/`fbCommitQC` from all-honest participation; a per-proposer commitQC from any supermajority of honest fast commit votes — the counting steps of Lemma 11 (`lemma:chorus-termination`)'s other branches) | `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)), all `n = 3f+1` | Lean (commitQC leg: sweep + Lean) |
@@ -259,7 +275,8 @@ The paper's headline properties and their formal counterparts:
 | Conductor as the paper's orchestrator, state-level: open-prefix agreement, Monotonicity, Integrity (at most once), the observables' monotonicity and frames; boundedness in interval form | Conductor sweep + `Conductor.orchestratorSafety` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | sweep + composition |
 | MCP Safety, positional form (Definition 1 (`def:safety`)) — for the glue over any contract instances, and for the composed system | `positional_log_safety` ([Cadence/Composition.lean](../Cadence/Composition.lean)); `system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | composition |
 | Conductor temporal claims (Totality, `d_tot`-Totality, `(2W − p)`-Boundedness, `(2Wτ)`-Recovery; Lemmas 14–16) | `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` ([Cadence/Conductor/Induction.lean](../Cadence/Conductor/Induction.lean), [Boundedness.lean](../Cadence/Conductor/Boundedness.lean), [Recovery.lean](../Cadence/Conductor/Recovery.lean)); the contract fields in `Conductor.conductorTemporal` and `Conductor.conductorWithTotality` ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)), for an arbitrary ACS meeting its contract, under the timing model of §4 item 4 | Lean over timed runs |
-| The glue's composed timed claims (ℓ-liveness, recovery and censorship resistance of the composed system, Corollary 4) | not stated yet (stage K7, [ConductorBounds.md](ConductorBounds.md) §9) | not proven — §4 item 4 |
+| The composed system's timed claims: Corollary 4 (`cor:chorus-correctness-within-cadence`), bounded concurrency (Lemma 5 (`lemma:cadence-bounded-concurrency`)), `𝓡`-Liveness (Lemma 2 (`lemma:cadence-liveness`)) and `𝓡`-censorship resistance (Definition 3 (`def:censorship-resistance`)) | `Composed.corollary4`, `Composed.boundedConcurrency`, `Composed.liveness`, `Composed.censorship` and the `_sharp` forms ([Cadence/Composed/](../Cadence/Composed/Schedule.lean)), under the premises of [Premises.md](Premises.md) §0 | Lean over timed runs |
+| Non-vacuity: every premise of a liveness claim holds together with the others | `Mvba.*_premises_satisfiable`, `Chorus.*_premises_satisfiable`, `Composed.Witness.*_premises_satisfiable` ([Cadence/Mvba/Witness.lean](../Cadence/Mvba/Witness.lean), [Cadence/Chorus/Witness.lean](../Cadence/Chorus/Witness.lean), [Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean)) | Lean (one model and run each) |
 | MVBA agreement, integrity, external validity (Module 3 (`mod:mvba`); the internal Supplement, Theorem 1 (`thm:agreement`) at the entries level and Supplement, Lemma 9 (`lem:external-validity`), for its leader-based instantiation — [Cadence/Mvba.lean](../Cadence/Mvba.lean)'s header pins the referent) | `safety [agreement]`, `[integrity]`, `[external_validity]` in [Cadence/Mvba.lean](../Cadence/Mvba.lean); instance fields of `Mvba.mvbaSafety` in [Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean) | sweep + composition |
 | MVBA Quiescence (Module 3 (`mod:mvba`)), and the module's inputs and their observables | proven in `Mvba.mvbaSafety` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) from the transition bodies | composition |
 | MVBA `ℓ_MVBA`-Termination (Module 3 (`mod:mvba`); the internal Supplement, Theorem 2 (`thm:termination`), `O(fΔ)` at `k = f + 1`) | `Mvba.bounded_termination` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)); the contract field in `Mvba.mvbaTemporal` ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), under the timing model and hypotheses of §4 item 4 | Lean over timed runs |
@@ -273,11 +290,13 @@ the rest is re-derived by the machine on every build (see §6 and the pins
 in [Cadence.lean](../Cadence.lean)).
 
 The list is meant to be *checkable for completeness* rather than taken on
-trust. Every assumption below has a **name**, and the named fairness and
-oracle axioms — (F-justice), (F-byz), (A-sc-termination),
-(A-sc-totality), (A-leader-rotation-k) — appear verbatim in the Lean sources at the points where
-they are consumed, so `grep -rn '(A-' Cadence/` enumerates the consumers
-and would expose an axiom that had crept in without being listed here. The
+trust. Every assumption below has a **name**. The premises of the liveness
+theorems are named definitions, listed on one page (item 2), and the
+assumption names — (A-viewsync), (A-leader-rotation-k), and the assumed
+ACS's (A-acs-termination) and (A-acs-totality) — appear verbatim in the
+Lean sources where they are consumed, so `grep -rn '(A-' Cadence/`
+enumerates the consumers and would expose an assumption that had crept in
+without being listed here. The
 network contract (item 1) is the exception and the reason item 1 comes
 first: its names live in [ChorusDesign.md](ChorusDesign.md) §3.1.1 rather
 than in the code, and no tool checks it — the sources speak of "monotone"
@@ -309,21 +328,24 @@ relations, and it takes a human to confirm each use is positive.
    a word here:
    * **(F-byz)** is the absence of a premise: no fairness is asked of the
      `byz_*` labels, so no progress relies on adversarial help.
-   * **(A-mvba) is retired.** Chorus's claims apply `Mvba.termination`
-     (and the MVBA contract's timed `termination`) to the run's MVBA steps,
-     and derive that theorem's caller premises. The Lean sources name it
-     only as retired ([Cadence/Chorus.lean](../Cadence/Chorus.lean)'s
-     liveness section).
+   * **The MVBA's termination is a theorem, not a premise.** Chorus's
+     claims apply `Mvba.termination` (and the MVBA contract's timed
+     `termination`) to the run's MVBA steps, and derive that theorem's
+     caller premises.
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
    hiding — genuinely an assumption, as for any crypto primitive;
    [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS`
    module contract ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean))
-   — a standard primitive whose implementation is out of scope, so no
-   instance exists and every field is assumed. What *is* machine-checked
-   is the consumption side for ACS: the Conductor takes `ACSSafety` as a
-   class constraint, so it assumes exactly the class, with one stated
-   bridge (the median-range `require` of `acs_decide`, justified by the
-   class's quantitative validity through [Windows.lean](../Cadence/Windows.lean)). The `MVBA`
+   — an assumed module: the target leaves the ACS unspecified (P17), so
+   no protocol here implements it and every field is assumed. A plain-Lean
+   ideal ACS (`Cadence.IdealAcs.acsSafety`, `acsTemporal`) shows the
+   contract satisfiable; it is a model, not a protocol. What *is*
+   machine-checked is the consumption side: the Conductor takes the ACS's
+   two levels as class constraints and hypotheses, so it assumes exactly
+   the class, with one stated bridge (the median-range `require` of
+   `acs_decide`), whose justification is a theorem from the contract and
+   the fault bound (`Cadence.acs_median_bracket`,
+   [AcsMedian.lean](../Cadence/AcsMedian.lean)). The `MVBA`
    contract is **not** on this list, on either side: `Mvba.mvbaSafety`
    ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) instantiates
    its state-level fragment from the leader-based protocol of the paper
@@ -334,10 +356,12 @@ relations, and it takes a human to confirm each use is positive.
    [Cadence/System.lean](../Cadence/System.lean) filling it with that instance, so no MVBA
    property is assumed anywhere in the composed system. What that
    consumption leaves is **one stated bridge**, of the
-   same kind as the ACS median bridge: Chorus's decision handlers
-   `require` the decided entry's certificate against Chorus's own network
-   relations (`vote_quorum_pos j m ∨ (fb_quorum_pos j m ∧ fbcert)`, resp.
-   the negative form), which is what the class's `Valid` — a parameter
+   same kind as the ACS median bridge: Chorus's decision handlers and the
+   handlers of the `CommitQC` route `require` the certificate the
+   representation names for an entry against Chorus's own network
+   relations (a vote quorum for a `FastQC` entry, a fallback quorum and the
+   `FBCert` for a `FallbackQC` entry, resp. the negative form), which is
+   what the class's `Valid` — a parameter
    fixed before the module's state exists — *means* in a model whose
    signatures are network relations. It is documented at the handlers
    ([Cadence/Chorus.lean](../Cadence/Chorus.lean)), in [ChorusDesign.md](ChorusDesign.md) §4 and in
@@ -383,8 +407,8 @@ relations, and it takes a human to confirm each use is positive.
    `SlotConsensusWithTotality`, `ACS`, `MVBA` in
    [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), stated over timed
    runs with an implementation-defined admissible-execution model.
-   **(A-orch-totality), (A-orch-boundedness) and (A-orch-recovery) are
-   discharged, modulo the assumed ACS module.** `OrchestratorTemporal` and
+   **The orchestrator's Totality, Boundedness and Recovery are proven,
+   modulo the assumed ACS module.** `OrchestratorTemporal` and
    `OrchestratorWithTotality` have instances, `Conductor.conductorTemporal`
    and `Conductor.conductorWithTotality`
    ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)),
@@ -399,8 +423,8 @@ relations, and it takes a human to confirm each use is positive.
    The ACS stays assumed: (A-acs-termination) and (A-acs-totality) are the
    `ACS` contract's fields, which no protocol in this development
    implements (the target leaves the ACS unspecified, P17).
-   **(A-sc-termination) and (A-sc-totality) are discharged.**
-   `SlotConsensusTemporal` and `SlotConsensusWithTotality` have instances,
+   **Chorus's Termination, ℓ-termination and `d_tot`-totality are
+   proven.** `SlotConsensusTemporal` and `SlotConsensusWithTotality` have instances,
    `Chorus.chorusTemporal` and `Chorus.chorusWithTotality`
    ([Cadence/Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean)), at
    `Chorus.slotConsensusSafety` and the system's configuration, joined into
@@ -418,13 +442,13 @@ relations, and it takes a human to confirm each use is positive.
    each proves that admissible runs exist from every initial state. The
    hypotheses and the run premises are [Premises.md](Premises.md) §1–§6
    and §9. The composed timed claims are proven from these instances
-   ([Cadence/Composed/](../Cadence/Composed/Schedule.lean), stage K7):
+   ([Cadence/Composed/](../Cadence/Composed/Schedule.lean)):
    Corollary 4, Lemma 5 at `2W − p`, `𝓡`-Liveness and censorship
    resistance, with every caller condition discharged and their premises
    one list, [Premises.md](Premises.md) §0. That list holds together in one
    model of the composed system
    ([Cadence/Composed/Witness.lean](../Cadence/Composed/Witness.lean),
-   stage K8, [Premises.md](Premises.md) §0.5). The models are untimed; the
+   [Premises.md](Premises.md) §0.5). The models are untimed; the
    latency bounds proven,
    `Mvba.bounded_termination`, `Chorus.totality`,
    `Chorus.timed_termination`, `Conductor.totality` and
@@ -491,12 +515,12 @@ table can be read off one file:
 |---|---|---|
 | `Cadence.positional_log_safety`, `Conductor.orchestratorSafety`, `Conductor.orchestrator_of_temporal` ([Cadence/Composition.lean](../Cadence/Composition.lean)) | `propext, Classical.choice, Quot.sound` | ✓ |
 | `Cadence.system_positional_log_safety` ([Cadence/System.lean](../Cadence/System.lean)) | same | ✓ |
-| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: 4997/4997 real |
-| `FallbackReceipt.invariants_of_reachable` ([Cadence/FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean)) | same | ✓ + `#veil_status`: 220/220 real |
+| `Chorus.invariants_of_reachable` + per-property projections ([Cadence/Chorus/Certify.lean](../Cadence/Chorus/Certify.lean)) | same | ✓ + `#veil_status`: every cell real |
+| `FallbackReceipt.invariants_of_reachable` ([Cadence/FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean)) | same | ✓ + `#veil_status`: every cell real |
 | `FallbackReceipt.build_totality_of_reachable` ([Cadence/FallbackReceipt/Totality.lean](../Cadence/FallbackReceipt/Totality.lean)) | same | ✓ |
 | `Chorus.slotConsensusSafety`, `Chorus.slotConsensus_of_temporal` ([Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)) | same | ✓ |
 | `Chorus.evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)) | same | ✓ |
-| `Mvba.invariants_of_reachable` + per-property projections ([Cadence/Mvba/Certify.lean](../Cadence/Mvba/Certify.lean)) | same | ✓ + `#veil_status`: 1507/1507 real |
+| `Mvba.invariants_of_reachable` + per-property projections ([Cadence/Mvba/Certify.lean](../Cadence/Mvba/Certify.lean)) | same | ✓ + `#veil_status`: every cell real |
 | `Conductor.totality`, `Conductor.boundedness`, `Conductor.recovery` ([Cadence/Conductor/Induction.lean](../Cadence/Conductor/Induction.lean), [Boundedness.lean](../Cadence/Conductor/Boundedness.lean), [Recovery.lean](../Cadence/Conductor/Recovery.lean)); `Conductor.conductorTemporal`, `Conductor.conductorWithTotality`, `Conductor.conductorFull` ([Cadence/Conductor/Temporal.lean](../Cadence/Conductor/Temporal.lean)) | same | ✓ |
 | `Mvba.mvbaSafety`, `Mvba.mvba_of_temporal` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) | same | ✓ |
 | `Mvba.bounded_termination`, `Mvba.aViewSync_of_sync` ([Cadence/Mvba/BoundedTermination.lean](../Cadence/Mvba/BoundedTermination.lean)) | same | ✓ |
@@ -524,7 +548,7 @@ registry — statements identical to what the model declares, by
 construction — discharges them (cvc5 + reconstruction), persists every
 proof as a kernel-checked theorem in its own small olean, and exports
 one "this action preserves the invariants" lemma; keeping each action's
-proofs in their own process/olean is what bounds memory (~5 GB per file
+proofs in their own process/olean is what bounds memory (a few GB per file
 cold). The quorum-intersection cells that SMT cannot find are manual
 `#prove_vc … by <tactic>` cells in their actions' proof files, consumed
 after a statement check — the statement itself always comes from the

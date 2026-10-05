@@ -150,8 +150,8 @@ ensure_image() {
   (offline, PULL=never, or a registry problem — try '$RUNTIME login ghcr.io').
   To build it locally instead (docs/Images.md):
     RUNTIME=$RUNTIME scripts/container.sh build verified
-  That builds this project inside the image: ~15 min with a proof-cache seed,
-  ~90 min without. Point VEILCACHE=<dir> at an existing cache to seed it." ;;
+  That builds this project inside the image: ~11 min with a proof-cache seed,
+  ~90 min without (docs/Images.md has the measurements). Point VEILCACHE=<dir> at an existing cache to seed it." ;;
     *)
       echo "==> could not pull; building $IMAGE locally (slow the first time)"
       do_build dev ;;
@@ -164,7 +164,7 @@ do_build() {
   # the smaller stages do build, and someone with more RAM may get further.
   if [ "$RUNTIME" = container ] && [ "${1:-dev}" != toolchain ]; then
     echo "warning: building '${1:-dev}' with Apple container is not expected to" >&2
-    echo "         succeed (its builder VM OOMs on the ~13 GB deps layer)." >&2
+    echo "         succeed (its builder VM OOMs on the ~12 GB deps layer)." >&2
     echo "         Use RUNTIME=podman or RUNTIME=docker to build; either" >&2
     echo "         runtime's images run under Apple container afterwards." >&2
   fi
@@ -175,8 +175,8 @@ do_build() {
   # must not be used unguarded — doing so produced an untagged image.
   local tag="${IMAGE:-cadence-${target}}"
   local extra=()
-  # An optional proof-cache seed makes the `verified` image ~15 min instead of
-  # ~90: without it every verification condition is re-solved from scratch.
+  # An optional proof-cache seed makes the `verified` image ~11 min instead of
+  # ~90 (docs/Images.md): without it every verification condition is re-solved from scratch.
   # The `build` stage reads .veilcache-seed from the build context as a
   # build-time bind mount (it never enters a layer); `verified-cache` ships
   # the cache that stage *produced* — the seed plus everything solved fresh —
@@ -306,8 +306,8 @@ PAYLOAD
     #
     # It is not, however, free once they are there: the renderer re-elaborates
     # each module it publishes, because highlighting needs the info trees an
-    # `.olean` does not carry. That is the 25 selected modules, not the 76
-    # proof files — docs/Documentation.md § "What it costs".
+    # `.olean` does not carry. That is the selected modules, not the proof
+    # files — docs/Documentation.md § "What it costs".
     #
     # Needs network the first time, to resolve the `-Kenv=dev` documentation
     # dependency. The site is rendered inside the container and copied out
@@ -388,8 +388,8 @@ if [ -z "$PRESENT" ]; then
 fi
 # Cap Lean's worker threads. leanchecker allocates aggressively per thread and
 # at the default (one per core) it needs ~19 GB and gets OOM-killed inside a
-# 20 GB container 11 seconds in. Measured on all 66 modules: 4 threads =>
-# 4 min 12 s and a 12.9 GB peak; 2 threads => 4.8 GB but 226 s for the Chorus
+# 20 GB container 11 seconds in. Measured on the whole development: 4 threads =>
+# the tier-1 time of docs/Container.md §4 and a 12.9 GB peak; 2 threads => 4.8 GB but 226 s for the Chorus
 # model alone. Four is the sweet spot; lower it if you have less memory.
 export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-4}"
 echo "==> leanchecker over $(echo $PRESENT | wc -w) modules (LEAN_NUM_THREADS=$LEAN_NUM_THREADS)"

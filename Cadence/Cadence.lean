@@ -89,9 +89,11 @@ plain-Lean / meta layer ([Composition.lean](Composition.lean)), never inside SMT
   lists) follows from these two by the paper's own case split — a list
   lemma over the slot-indexed relations, deferred to the composition layer
   because list positions are arithmetic the Veil layer deliberately avoids.
-* **ℓ-Liveness** (Definition 2 (`def:liveness`), Lemma 2 (`lemma:cadence-liveness`)) — genuinely
-  temporal (GST, `R`-recovery, ℓ-termination); meta-level, see the
-  fair-progress section at the end of this file.
+* **ℓ-Liveness** (Definition 2 (`def:liveness`), Lemma 2 (`lemma:cadence-liveness`)) — temporal
+  (GST, `R`-recovery, ℓ-termination): proven for the composed system over
+  its timed runs, `Composed.liveness`
+  ([Composed/Liveness.lean](Composed/Liveness.lean)); the state-level
+  content it uses is the fair-progress section at the end of this file.
 * **c-Censorship resistance** (Definition 3 (`def:censorship-resistance`)) — its
   protocol-level residue is `safety [inclusion_lift]`: every appended
   proposal vector contains the on-time proposal of a correct proposer for
@@ -99,7 +101,8 @@ plain-Lean / meta layer ([Composition.lean](Composition.lean)), never inside SMT
   `on_time` observable (for Chorus, `all_honest_recorded`), the conclusion
   the contract's `includes`. From `SlotConsensusSafety.proposal_inclusion`.
   The real-time trigger of the premise (`s.deadline − Δ ≥ GST + c`, on-time
-  opening via `R`-recovery) is the meta-level half.
+  opening via `R`-recovery) is proven for the composed system,
+  `Composed.censorship` ([Composed/Censorship.lean](Composed/Censorship.lean)).
 * **Hiding** (Definition 4 (`def:hiding`)) — the paper's composition lemma is one line
   ("proposal contents are observable only through the per-slot
   instances"); at this abstraction the module has *no other channel* by
@@ -116,7 +119,9 @@ plain-Lean / meta layer ([Composition.lean](Composition.lean)), never inside SMT
   *orchestrator's own* `completed` observable — so the orchestrator's
   `Orchestrator.boundedness` obligation applies to it directly, with no
   bridge between two notions of "completed". The numeric bound
-  (`B = 2W − p` for Conductor) is that obligation's `bound`.
+  (`B = 2W − p` for Conductor) is that obligation's `bound`; for the
+  composed system the lemma is `Composed.boundedConcurrency`
+  ([Composed/Concurrency.lean](Composed/Concurrency.lean)).
 
 ## State locality contract (glue edition)
 
@@ -636,63 +641,63 @@ invariant [proposed_proposer_opened]
   ∀ (i : node) (s : slot),
     ¬ fm.byz i ∧ proposed i s → is_proposer i s ∧ opened i s
 
-/-! ## Liveness — meta-argument and fair-progress invariants
+/-! ## Liveness — the rows and the fair-progress invariants
 
-The glue inherits the Chorus liveness doctrine ([ChorusDesign.md](../docs/ChorusDesign.md) §7; McMillan,
-*"Toward Liveness Proofs at Scale"*, CAV 2024): temporal glue as named
-meta-axioms, safety content SMT-discharged. The claim mirrored is
-Lemma 2 (`lemma:cadence-liveness`):
+The claim is Lemma 2 (`lemma:cadence-liveness`):
 
 > **(ℓ-Liveness)** for every slot `s` with `s.deadline − Δ ≥ GST + R`,
 > every honest validator eventually appends a proposal vector for `s`.
 
-### Meta-axioms
+It is proven for the composed system, in plain Lean over its timed runs:
+`Composed.liveness` ([Composed/Liveness.lean](Composed/Liveness.lean)),
+with its premises in [Premises.md](../docs/Premises.md) §0. This section
+holds the model's side: which actions the timed runs must schedule, and
+the state-level content the proof uses.
 
-* **(F-justice)** — the handler and protocol actions `on_open`,
-  `on_finalize`, `on_propose`, `record_skip` and `append`, when continuously
-  enabled, fire eventually (per honest validator). Enabledness is monotone
-  for all of them: their guards are positive observables and local
-  relations, except the once-guards (`¬ participating`, `¬ delivered`,
-  `¬ proposed`, `¬ opened i s` in `record_skip`), each of which is *stable*
-  — the first three because the action itself is what falsifies them (the
-  contract's frames keep every other step from doing so), the last by the
-  orchestrator's `monotonicity` once the witness exists. The handlers that
-  drive an input are enabled only when the instance accepts it (a
-  post-state exists): for Chorus, `participate` and `propose` have such a
-  state whenever the glue's own guards hold, and `abandon` whenever the
-  MVBA's `abandon()` has one. The handler relaxation (module header) is
-  what puts the handlers on this list; in the paper they are atomic with
-  the output.
-* **(A-orch-totality)**, **(A-orch-recovery)** — `Orchestrator.totality` and
-  `.recovery` ([Interfaces.lean](Interfaces.lean)): the orchestrator
-  eventually opens, at every honest validator, every slot any honest
-  validator opened, and — from `GST + R` on — every upcoming slot.
-  Discharge: unproven for the Conductor (`OrchestratorTemporal`,
-  [Composition.lean](Composition.lean)); the paper's
-  Lemma 15 (`lemma:conductor-totality`) and `(2Wτ)`-recovery.
-* **(A-sc-termination)** — `SlotConsensus.termination`: once every honest
-  validator participates in `S[s]`, every honest validator's instance
-  eventually finalizes. Discharge: unproven for Chorus
-  (`SlotConsensusTemporal`, [Chorus/Compose.lean](Chorus/Compose.lean));
-  its untimed form is `Chorus.termination`
-  ([Chorus/Termination.lean](Chorus/Termination.lean)).
+### The rows
 
-### The induction (paper's proof of Lemma 2 (`lemma:cadence-liveness`))
+The handler and protocol actions `on_open`, `on_finalize`, `on_propose`,
+`record_skip` and `append` fire within their bound once enabled, per
+honest validator: the glue's rows of the composed run's timing model
+(`Composed.GlueRows`, [Composed/Schedule.lean](Composed/Schedule.lean)).
+Their enabledness is stable: their guards are positive observables and
+local relations, except the once-guards (`¬ participating`, `¬ delivered`,
+`¬ proposed`, `¬ opened i s` in `record_skip`), each of which is *stable*
+— the first three because the action itself is what falsifies them (the
+contract's frames keep every other step from doing so), the last by the
+orchestrator's `monotonicity` once the witness exists. The handlers that
+drive an input are enabled only when the instance accepts it (a
+post-state exists): for Chorus, `participate` and `propose` have such a
+state whenever the glue's own guards hold, and `abandon` whenever the
+MVBA's `abandon()` has one. The handler relaxation (module header) is
+what puts the handlers on this list; in the paper they are atomic with
+the output.
 
-By (A-orch-recovery) every honest validator opens `s`; by open-prefix
-agreement + (A-orch-totality), for every `s' ≤ s` either all honest
-validators open `s'` — then all participate ((F-justice) on `on_open`)
-and (A-sc-termination) finalizes it everywhere, (F-justice) delivers it
-(`on_finalize`) — or none does, and each records it skipped once it opens
-anything higher (`record_skip`, enabled from that point on and fired by
-(F-justice)). Either way `s'` is resolved at every honest validator;
-induction on slot order (well-founded: only finitely many slots below `s`)
-then satisfies `ready_to_append`, and (F-justice) on `append` appends `s`.
-The per-step SMT content is `[pending_append_enabled]` below; the ranking is
-structural — every local relation and every observable is monotone (the
-paper's `pending \ {V}` deletion is modelled as the monotone pair
-`delivered`/`appended`), so the residual count of unresolved slots below `s`
-decreases with every helpful firing. -/
+The sub-protocols' temporal levels are proven instances: the
+orchestrator's Totality and Recovery (`Conductor.conductorTemporal`,
+[Conductor/Temporal.lean](Conductor/Temporal.lean)) and Chorus's
+Termination (`Chorus.chorusTemporal`,
+[Chorus/Temporal.lean](Chorus/Temporal.lean)). Each takes conditions
+from its caller, and within Cadence those are theorems about the composed
+run (`Composed.corollary4`, `Composed.caller_totality`,
+`Composed.caller_termination`).
+
+### The induction (the paper's proof of Lemma 2 (`lemma:cadence-liveness`))
+
+By Recovery every honest validator opens `s`; by open-prefix agreement and
+Totality, for every `s' ≤ s` either all honest validators open `s'` — then
+all participate (the `on_open` row) and Chorus's Termination finalizes it
+everywhere, and the `on_finalize` row delivers it — or none does, and each
+records it skipped once it opens anything higher (`record_skip`, enabled
+from that point on and fired by its row). Either way `s'` is resolved at
+every honest validator; induction on slot order (well-founded: only
+finitely many slots below `s`) then satisfies `ready_to_append`, and the
+`append` row appends `s`. The per-step state content is
+`[pending_append_enabled]` below; the ranking is structural — every local
+relation and every observable is monotone (the paper's `pending \ {V}`
+deletion is modelled as the monotone pair `delivered`/`appended`), so the
+residual count of unresolved slots below `s` decreases with every helpful
+firing. -/
 
 /-- Fair progress — the append chain: a pending vector whose slot prefix
 is resolved satisfies *all* of `append`'s preconditions. The one

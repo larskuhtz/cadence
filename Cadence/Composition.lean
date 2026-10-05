@@ -327,8 +327,9 @@ as in the `Cadence` namespace above. -/
 The instance theorem of [CompositionContracts.md](../docs/CompositionContracts.md) §4: the Conductor's own
 transition system, packaged as the state-level orchestrator contract that
 the `Cadence` glue module consumes. Every field is proven; the temporal
-fields of the full `Orchestrator` are the `OrchestratorTemporal` class that
-follows, of which this development has no instance. -/
+fields of the full `Orchestrator` are the `OrchestratorTemporal` class,
+instantiated by `Conductor.conductorTemporal`
+([Conductor/Temporal.lean](Conductor/Temporal.lean)). -/
 
 /-- The `TotalOrder` a `TotalOrderWithMinimum` carries: the contract classes
 are stated over Veil's plain `TotalOrder`, the Conductor over the richer

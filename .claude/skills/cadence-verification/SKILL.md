@@ -33,7 +33,7 @@ still rebuilds its proof family warm.
 ## 1. How a verified module is laid out
 
 Both large models use the same three-layer shape. `Chorus` is the reference;
-`FallbackReceipt` is the same thing at 1/17 the scale, which makes it the
+`FallbackReceipt` is the same thing at a small fraction of the scale, which makes it the
 right place to try anything structural first.
 
 ```
@@ -41,7 +41,7 @@ Cadence/Chorus.lean            MODEL — state, actions, invariants.
    │                           Elaborating it persists every VC *statement*
    │                           in the module's registry. No sweep, no proofs.
    ▼ imported by
-Cadence/Chorus/Proofs/*.lean   ONE FILE PER ACTION (49, incl. Init.lean).
+Cadence/Chorus/Proofs/*.lean   ONE FILE PER ACTION (plus Init.lean).
    │                           `#prove_action Chorus <action>` re-creates that
    │                           action's registered VCs, discharges them with
    │                           reconstruction, persists real kernel-checked
@@ -59,7 +59,7 @@ Cadence/Chorus/Pigeonhole.lean     own axiom pin.
 
 Why the per-action layer exists: persisting a module's reconstructed proofs
 requires holding them all in one process's environment, which exceeds 32 GB at
-Chorus's scale. One small file per action bounds each process (~5 GB cold),
+Chorus's scale. One small file per action bounds each process (a few GB cold),
 and the composition only needs one lemma per action. The files were scaffolded
 once by `#gen_proof_files Chorus` and are hand-owned since.
 

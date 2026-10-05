@@ -232,7 +232,7 @@ The MVBA's caller conditions (§6.5) are derived inside Chorus's claims
 
 ### 0.5 The composed witness: every line at once
 
-[Composed/Witness.lean](../Cadence/Composed/Witness.lean), stage K8
+[Composed/Witness.lean](../Cadence/Composed/Witness.lean)
 ([ConductorBounds.md](ConductorBounds.md) §8.2). One model of the composed
 system meets every line of §0.2 and §0.3 together:
 
@@ -753,7 +753,7 @@ comment edit would rebuild the Chorus family.
 * **Composition:** its state form is the glue's invariant
   `[abandoned_after_finalize]`, over the instance's own record of the
   input ([Cadence.lean](../Cadence/Cadence.lean)); the run form follows in
-  the composed run ([ConductorBounds.md](ConductorBounds.md) §4.2, K7).
+  the composed run ([ConductorBounds.md](ConductorBounds.md) §4.2).
 
 ### 6.3 `NoEarlyStart`, C2
 
@@ -768,7 +768,7 @@ comment edit would rebuild the Chorus family.
   correct validator participates only in an opened slot) with the
   orchestrator's `integrity_timing` is its state form; the deadline tie
   `D = start_time + Δ` and the run form come with the composed run
-  ([ConductorBounds.md](ConductorBounds.md) §4.2, K7).
+  ([ConductorBounds.md](ConductorBounds.md) §4.2).
 
 ### 6.4 `SyncParticipationWithin d`
 
@@ -825,9 +825,10 @@ it can miss an unused premise but not invent one. It finds the one
 antecedent a proof discards by name (the first exception below), and the
 proof steps named in the "Used in" lines were read besides.
 
-**Result (R21, acted on in R23).** Every premise of every claim in §1 is
-used, with three exceptions. One is kept by decision, and the other two
-are gone from the claims' statements:
+**Result.** Every premise of every claim in §1 is used, with one
+exception, kept by decision. Two premises the analysis found redundant are
+no longer premises (the analysis and the change are recorded in
+[History.md](History.md)):
 
 * **Unused: the timed MVBA claim's `Valid` antecedent.**
   `Mvba.timed_termination` (and so `Mvba.mvbaTemporal`'s `termination`)
@@ -841,16 +842,12 @@ are gone from the claims' statements:
   Chorus claims at the system's MVBA.** `Chorus.timed_termination_atMvba`
   and `Chorus.timed_termination_tight_atMvba` took it as a hypothesis,
   but at the family they are stated at it is a theorem (`Chorus.hqeFin`).
-  The two theorems derive it inside and no longer take it (R23).
-* **Unused and implied, and now removed: the model assumption
-  `leader_honest_cofinal`** ("above every view there is a correct-led
-  one"). No proof of a claim in §1 read it, and `LeaderRotation` (§2.5)
-  implies it. As a model `assumption` it was a conjunct of every reachable
-  state's premises, so the MVBA's safety claims were stated for leader
-  schedules with cofinally many correct leaders. R23 removed it from
-  [Mvba.lean](../Cadence/Mvba.lean), together with its one reader
-  (`Mvba.exists_honest_leader_above`, itself unused): the MVBA's safety
-  claims now hold for every leader schedule.
+  The two theorems derive it inside and do not take it.
+* **Unused and implied, and so not an assumption: "above every view there
+  is a correct-led one".** No proof of a claim in §1 needs it, and
+  `LeaderRotation` (§2.5) implies it. [Mvba.lean](../Cadence/Mvba.lean)
+  does not assume it, so the MVBA's safety claims hold for every leader
+  schedule.
 
 Where a premise is a conjunction, the analysis sees the whole. The parts
 are accounted for in the "Used in" lines; the one part no termination
@@ -889,16 +886,15 @@ Chorus model); the reasons for the fairness classes are
 
 *The premises are fixed and type-checked in
 [Conductor/Schedule.lean](../Cadence/Conductor/Schedule.lean). All three
-claims are proven (K4, R28; K5, R29), and the contract instance consumes
-them (K6, R30; §9.5): "Used in" names the Lean lemma that uses each
-premise. All of them hold together on the orchestrator's part of the
-composed witness, (R-tot) and (R-term) included:
-`Composed.Witness.conductor_premises_satisfiable` (§0.5, K8).*
+claims are proven, and the contract instance consumes them (§9.5): "Used
+in" names the Lean lemma that uses each premise. All of them hold together
+on the orchestrator's part of the composed witness, (R-tot) and (R-term)
+included: `Composed.Witness.conductor_premises_satisfiable` (§0.5).*
 
 ### 9.1 The claims
 
 Each claim is a `Prop`; its conclusion is the orchestrator contract's
-field at the Conductor's fragment, so the contract instance (K6) consumes
+field at the Conductor's fragment, so the contract instance consumes
 it as stated.
 
 | Claim | Premises | Proven by |
@@ -936,8 +932,8 @@ it as stated.
     (3) only for `0 < ℓ` (`ConductorSchedule.ℓ_pos`); (4) Proposition 18
     (`prop:smooth-windows`), `Conductor.smooth_windows`, and Proposition 19.
     (1) and (2) are used with `ℓ_chorus` in place of `Φ_oc`. This slack is
-    recorded for the authors ([ConductorBounds.md](ConductorBounds.md) §9,
-    K5). Totality and Boundedness need none of them. *Paper:* Algorithm 7,
+    recorded for the authors ([ConductorBounds.md](ConductorBounds.md) §9;
+    P18). Totality and Boundedness need none of them. *Paper:* Algorithm 7,
     lines 7–10 (`line:assumption-one`–`line:assumption-four`).
   * **`δ_zero`** — *Role:* local computation takes no time. *Plausible:*
     the paper's model throughout. *Used in:* the window induction, whose

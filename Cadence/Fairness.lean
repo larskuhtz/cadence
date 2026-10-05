@@ -737,9 +737,9 @@ def WeaklyFairIn (l' : lbl') : Prop :=
 /-- **Weak fairness survives the projection, in both directions.** The
 direction a consumer needs is right-to-left: a fairness premise about the
 part, stated over the composed run, gives `WeaklyFair` on the projected run,
-which is what the part's liveness theorem consumes. Its content is exactly
-[Liveness.md](../docs/Liveness.md) §4's "a label continuously enabled in the projection was
-continuously enabled in the composed run": between the part's steps its
+which is what the part's liveness theorem consumes ([Liveness.md](../docs/Liveness.md)
+§4.2): a label continuously enabled in the projection was continuously
+enabled in the composed run. Between the part's steps its
 state does not change (`proj_eq_run_cover`), so enabledness from
 projected index `K` on is enabledness from composed index `C.idx r K`
 on. The other direction

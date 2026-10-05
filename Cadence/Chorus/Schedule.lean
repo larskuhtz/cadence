@@ -564,9 +564,9 @@ The phase markers are punctual timers. For each landmark `L`:
   at most `L`.
 
 The clocks are synchronized throughout, so the clause holds before GST too,
-as the MVBA's (T-timer) does. Termination uses only (P2). (P1) is part of
-the timing model and is what a timed proposal-inclusion corollary would need
-(the phase is `pre_deadline` until `D`). The untimed claim keeps the markers
+as the MVBA's (T-timer) does. Termination uses only (P2). Censorship
+resistance uses (P1): the phase is `pre_deadline` until `D`
+(`Chorus.phase_pre_of_lt`, in `Composed.censorship`). The untimed claim keeps the markers
 weakly fair; the two classifications are separate. -/
 def PhasePunctual (sch : Schedule view time) (r : TChorusRun thS thM time) : Prop :=
   ∀ L : Landmark,
