@@ -594,7 +594,7 @@ Lars's answers to the review questions of the first draft (2026-10-06).
 | Q5 | Audit table coverage | **All 48 Chorus actions**, by hand until the V checker lands. |
 | Q6 | Diagram format | **One SVG per content diagram**, shown in the guide and on GitHub; **mermaid stays only for the README's import graph**. |
 | Q7 | [Scenario.md](Scenario.md) | **Kept as a record**, linked from the README's documentation table, its opener pointing to the guide. |
-| Q8 | The ACS overstatement on the trust boundary page (M7) | **Fixed ahead of the line**, in its own change, D1.2, which touches [TrustSurface.lean](../scripts/TrustSurface.lean) and [Audit.lean](guide/CadenceGuide/Audit.lean) only. |
+| Q8 | The ACS overstatement on the trust boundary page (M7) | **Fixed ahead of the line**, in its own change, D1.2 (PR #88), which touches [TrustSurface.lean](../scripts/TrustSurface.lean) and [Audit.lean](guide/CadenceGuide/Audit.lean) only. |
 | Q9 | How the SVGs are made | **By hand**, reviewed in the local render. |
 | Q10 | This plan when the line ends | **A pointer in [History.md](History.md)**; the file is removed. |
 | — | Reading paths per audience | **None.** The guide is one story that readers drill into or skip by interest; navigation comes from the structure (§2). |
