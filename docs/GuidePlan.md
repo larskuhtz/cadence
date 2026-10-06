@@ -2,17 +2,17 @@
 
 *The design for growing the Verso guide ([CadenceGuide.lean](guide/CadenceGuide.lean))
 into the entry point for every reader of this project. Written by session
-D1 of the documentation line, for review before any chapter is written.
-§3, the claims box, is for word-by-word review; everything else is the plan
-the sessions D2 onwards follow. §10 lists the open questions, each with a
-recommendation. This page is a plan: once the last D session lands, it moves
+D1 of the documentation line and revised after Lars's review: §3 is the
+claims box as the front page will carry it, §10 records the decisions, and
+everything else is the plan the sessions D2 onwards follow. This page is a
+plan: once the last D session lands, it moves
 to [History.md](History.md) as a pointer, and the guide and the README
 describe the result.*
 
 ## Contents
 
 1. [Information architecture](#1-information-architecture)
-2. [Reading paths](#2-reading-paths)
+2. [Navigation by structure](#2-navigation-by-structure)
 3. [The claims box](#3-the-claims-box)
 4. [The running example](#4-the-running-example)
 5. [Curated items from docs/](#5-curated-items-from-docs)
@@ -49,11 +49,11 @@ and status boxes come on top.
 
 | # | Chapter | Sections | Length | Goal |
 |---|---|---|---|---|
-| 0 | **The Cadence verification** (the front page) | the claims box (§3); one paragraph on what the project is; the overview diagram; "where to start" by reader (§2) | 700 words | 1 |
+| 0 | **Cadence Verification** (the front page) | the claims box (§3); one paragraph on what the project is; the overview diagram; the chapter list with each chapter's opener (§2) | 700 words | 1 |
 | 1 | **How the verification is built** | the approach in one paragraph (protocol models in Veil, proven by induction, composed through the paper's module specifications); the modules and their contracts (overview diagram, a table: paper module → contract class → model → instance); the composition: how a model consumes a contract and how instances fill it; where the paper fits (the target revision, the citation form); the four kinds of evidence (inductive invariants, composition, timed runs, the model checker) in one table | 1 500 | 2 |
 | 2 | **Claims, premises, witnesses** | the composed claims, each with its statement embedded; the claim → premise → witness picture; the premises in plain words (a simplified list, §5 item 1); what "non-vacuous" means here; the paper target and the findings for the authors, summarised (§5 items 2–3) | 1 800 | 5, 8 |
 | 3 | **Reading a model: Chorus** | what a Veil model is (state, actions, properties); Chorus's state (§4.1); four honest actions; one network relation; one adversary action; the MVBA as a consumed contract; one safety property with its proof; one liveness claim with its premises; where the rest is | 2 500 | 2 |
-| 4 | **What a model asks you to accept** | one flat state space, and how distribution is encoded; the monotone network; the adversary as explicit actions, and why it must be at least that strong; how a departure from the idiom makes a theorem true for the wrong reason, with an example of each kind; what an auditor checks; the Chorus audit table (§4.2) | 1 800 + table | 3 |
+| 4 | **What a model asks you to accept** | one flat state space, and how distribution is encoded; Chorus's shared `phase`, a global read every validator's timer guards make, and why it stands for local clocks; the monotone network; the adversary as explicit actions, and why it must be at least that strong; how a departure from the idiom makes a theorem true for the wrong reason, with an example of each kind; what an auditor checks; the Chorus audit table (§4.2) | 1 800 + table | 3 |
 | 5 | **Reviewing the contracts** | what a contract is (a class over an abstract state, two levels); the escape-hatch question; the checklist, one table per contract with a "proven by" column (§8, M3); the ACS, assumed, and its ideal instance; what a machine check of this would need (the V line) | 1 500 + tables | 4 |
 | 6 | **The components** | one section each: Chorus, the MVBA, the Conductor, the glue, the receipt layer, the composition. Each: what the paper says, what the model covers and abstracts, the end results (embedded), where the details are | 1 800 | 6 |
 | 7 | **How the proofs are checked** | the pipeline from model to pinned theorem (diagram); solver discharge with kernel reconstruction; the axiom pins and the `#veil_status` pins; the proof cache, and why a hit is still checked; the mutation test; the monitor (outside every trust base); the docs checks; CI; re-checking it yourself (the container commands, the audit ladder) | 1 300 | 7 |
@@ -65,13 +65,13 @@ go; chapters 6–8 are reference.
 
 ### 1.3 Narrative order
 
-0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. The order answers the reader's
-questions in the order they come: what is claimed (0), how it is put
-together (1), what exactly it rests on (2), how to check the models (3–4)
-and the contracts between them (5), where each part is (6), why the machine
-part can be trusted (7), and what is left (8). Chapter 2 comes before the
-model chapters because it needs no Lean and is where a protocol researcher
-stops.
+0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8, one story. The order answers the
+reader's questions in the order they come: what is claimed (0), how it is
+put together (1), what exactly it rests on (2), how to check the models
+(3–4) and the contracts between them (5), where each part is (6), why the
+machine part can be trusted (7), and what is left (8). Chapter 2 comes
+before the model chapters because it needs no Lean, so a reader who does
+not need the models has the whole claim and its premises by then.
 
 ### 1.4 The README
 
@@ -127,62 +127,45 @@ citations. Keeping both avoids any model-file edit (§9).
 | Working on the models, Building natively | **stay** | |
 | How the proof fits together: the commands | **moves to the guide**, chapter 7 | the README keeps a two-line pointer for developers |
 | How the files feed each other (ASCII) | **moves to the guide**, chapter 7, as the pipeline diagram (§7) | |
-| What depends on what (import graph, mermaid) | **stays** in the README, as developer material (it is about build dependencies), redrawn as SVG or kept as mermaid (§10, Q6) | |
+| What depends on what (import graph, mermaid) | **stays** in the README, as developer material (it is about build dependencies), kept as mermaid (§10, Q6) | |
 | What is where (the file tree) | **stays** | developer material; refreshed |
 | Model-conformance monitor | **stays**, shortened to the commands; the guide's chapter 7 explains what it is | |
-| Reading guide (levels 1–4, records) | **replaced** by the guide's reading paths (§2); README keeps a short "Documentation" table pointing at the guide and at the developer docs (Container, Images, Dependencies, Documentation, VersoIssues, Monitor, CLAUDE.md, History) | |
+| Reading guide (levels 1–4, records) | **replaced** by the guide, whose chapter list is the map (§2); README keeps a short "Documentation" table pointing at the guide and at the developer docs (Container, Images, Dependencies, Documentation, VersoIssues, Monitor, CLAUDE.md, History) | |
 | The protocol paper, the target, access, Conductor scope, receipt layer and v1 | **target and access move to the guide**, chapter 2; the citation record stays in the README | the v1 paragraph shortens to the tag pointer |
 | Resolving a citation | **stays** | developers write citations; two model headers link here |
 
-## 2. Reading paths
+## 2. Navigation by structure
 
-Each path is an ordered list. "Skip" names what that reader can leave out.
+The guide is one story, read front to back, and every reader drills in or
+skips by interest. There are no per-audience paths; the audiences (protocol
+researchers such as the paper's authors, security auditors, Lean-literate
+verifiers) shape the writing, not the navigation. Navigation comes from the
+structure itself:
 
-**A protocol researcher** (for example the paper's authors).
+* **Chapter titles that name the content**, listed on the front page.
+* **A one-line opener per chapter**, in italics under its title: what the
+  chapter covers, and what it assumes of the reader. The front page's
+  chapter list shows the same line, so the list doubles as the map.
+* **Signposts to deeper material** at the end of a section, never in the
+  middle of an argument: "The full list: [Premises.md] §0", "Every action:
+  the rendered model". The story reads without following them.
+* **Stopping points.** Each chapter ends where its question is answered;
+  the opener of the next says what it adds, so a reader can tell whether to
+  go on.
 
-| Step | Page | Why |
+The openers, as the chapter sessions start from them:
+
+| # | Title | Opener |
 |---|---|---|
-| 1 | Guide 0, the claims box | what is proven of the paper, and what it rests on |
-| 2 | Guide 1, "How the verification is built", up to "where the paper fits" | the modules and contracts in the paper's own vocabulary |
-| 3 | Guide 2, "Claims, premises, witnesses" | the premises in plain words; which of them the paper does not state |
-| 4 | [PaperAlignment.md](PaperAlignment.md) §6, the findings P1–P19 | written to be sent to the authors |
-| 5 | Guide 6, the sections for Chorus, the MVBA and the Conductor | what each model covers and abstracts |
-| 6 (optional) | Guide 3, up to the first action | enough Veil to read an action against the paper's pseudocode |
-
-Skip: chapters 4, 5 and 7, and all of docs/ except PaperAlignment and
-[Premises.md](Premises.md).
-
-**A security auditor.**
-
-| Step | Page | Why |
-|---|---|---|
-| 1 | Guide 0 and 1 | the claims and the structure |
-| 2 | Guide 3, "Reading a model: Chorus" | how to read state, actions and properties |
-| 3 | Guide 4, "What a model asks you to accept", with the audit table | the trust surface of a model, and what to check per action |
-| 4 | Guide 5, "Reviewing the contracts" | the escape-hatch checklist, per contract field |
-| 5 | Guide 2, then [Premises.md](Premises.md) §0 | every premise of the end claims, with its role and witness |
-| 6 | Guide 7, last section | re-checking the proofs yourself |
-| 7 | [ChorusDesign.md](ChorusDesign.md) §3, [Architecture.md](Architecture.md) §4 | the network contract and the full assumption inventory |
-
-Skip: chapter 6 beyond the model under audit; Bounds.md and
-ConductorBounds.md unless a timing premise is in question.
-
-**A Lean-literate verifier.**
-
-| Step | Page | Why |
-|---|---|---|
-| 1 | Guide 0, then the trust boundary page | the claims, and the derived axiom and contract status |
-| 2 | Guide 7 | what the pipeline trusts: Veil's VC generation and the kernel; the cache; the pins |
-| 3 | Guide 1 and 5 | the two-level contract classes and how instances join |
-| 4 | [Cadence.lean](../Cadence.lean), then [Interfaces.lean](../Cadence/Interfaces.lean) and [Composed/Schedule.lean](../Cadence/Composed/Schedule.lean) in the rendered sources | the end results and the premise definitions as written |
-| 5 | [CompositionContracts.md](CompositionContracts.md) §5–§7 | the temporal instances and the named seams |
-| 6 | Guide 4 | the modelling idioms, which no Lean check covers |
-
-Skip: chapter 3's introduction to Veil (read its declarations only), and
-chapter 2's plain-words premise list (read Premises.md directly).
-
-The front page carries these three paths as a short "where to start" table,
-one line per reader.
+| 0 | Cadence Verification | What is proven about the Cadence protocol, and what it rests on. |
+| 1 | How the verification is built | The modules, the contracts between them, and how the proofs compose; no Lean needed. |
+| 2 | Claims, premises, witnesses | Each end claim with its premises in plain words, the model that meets them all, and what the review found in the paper; no Lean needed. |
+| 3 | Reading a model: Chorus | How a Veil model states a protocol, taught on selected parts of Chorus; assumes chapter 1, no prior Lean. |
+| 4 | What a model asks you to accept | The modelling idioms a theorem relies on, how a model can break them, and the per-action table that checks Chorus; assumes chapter 3. |
+| 5 | Reviewing the contracts | How to check that each module contract asks only for what a real protocol delivers, field by field; assumes chapters 1 and 3. |
+| 6 | The components | One section per model: what it covers, what it abstracts, its results, and where its details are. |
+| 7 | How the proofs are checked | What the machine checks and how, what is trusted, and how to re-check it yourself. |
+| 8 | Open issues and further work | What is open, and what is planned. |
 
 ## 3. The claims box
 
@@ -253,8 +236,11 @@ by `scripts/paper-cites.sh` like every other.
 >   message-passing protocol that meets it is outside this development.
 > * **Environment premises**, for every claim except MCP Safety: partial
 >   synchrony, in which every step a correct validator owes after GST
->   happens within `Δ`; timers that fire on time; local steps that take no
->   time; and the configuration's constraints on the window parameters.
+>   happens within `Δ`; timers that fire on time; and the configuration's
+>   constraints on the window parameters. The composed claims and the
+>   Conductor's bounds also take local steps to need no time (`δ = 0`), as
+>   the paper does; Chorus's bounds are proven with an explicit `δ` term
+>   and are quoted above at `δ = 0`, and the MVBA's bound holds for any `δ`.
 >   Censorship resistance also reads "by the deadline" as inclusive
 >   (finding P19). The full list is one page, [Premises.md](Premises.md) §0,
 >   and one model of the composed system meets all of it at once.
@@ -265,7 +251,10 @@ by `scripts/paper-cites.sh` like every other.
 > * **Modelling idioms**, which chapter 4 explains: the network keeps every
 >   message once sent, and protocol steps react only to the presence of
 >   messages; the state of all validators is one global state, in which each
->   step reads its own validator's records and the network; Byzantine
+>   step reads its own validator's records and the network; Chorus's timers
+>   are one shared phase that the environment advances and every
+>   validator's guards read, a global read standing for each validator's
+>   own clock; Byzantine
 >   validators act through explicit adversary actions; Chorus is modelled
 >   for one slot, with erasure coding abstracted.
 > * **Trusted tools**: Lean's kernel, and Veil's translation of each model
@@ -282,9 +271,11 @@ proven too; that is the one misreading the box most needs to prevent.
 "Signatures cannot be forged" is the plain form of the unforgeability
 assumption and has no shorter positive form.
 
-**Choices the box makes, to check in review.** It lists MCP Safety, which
-the brief's list of composed claims leaves out, because it is the safety
-headline and the only claim with no environment premise (§10, Q4). It
+**Choices the box makes.** It lists MCP Safety first, because it is the
+safety headline and the only claim with no environment premise (§10, Q4).
+It names Chorus's shared `phase` among the idioms because every timer guard
+of every validator reads it, a global read the auditor has to accept;
+chapter 4 explains it. It
 states Corollary 4 by its consequences (termination and totality for every
 slot) rather than its literal statement (every caller condition holds),
 because the consequences are what a reader cares about; chapter 2 gives the
@@ -519,6 +510,7 @@ composed witness's instance of it count as implementations. The published
 site at master carries the same rows. The fix is a classification, not a
 special case: providers in ideal-model or witness modules are reported as
 "consistency witness", and a contract with only such providers as assumed.
+Session D1.2 makes that fix, ahead of the rest of the line (§10, Q8).
 
 M3 and M7 share one list of ideal-model modules, kept in
 [Audit.lean](guide/CadenceGuide/Audit.lean) next to the contract classes,
@@ -534,14 +526,14 @@ needs Lars's approval in that session.
 
 | Session | Topic | Files | Size | Depends on |
 |---|---|---|---|---|
-| **D2** · Guide machinery | M1–M5 (§8), and M7 unless Q8's separate fix has landed first; the guide split into one Lean file per chapter, each a stub with its section headings, so that chapter sessions never edit the same file; [Documentation.md](Documentation.md) "The guide" updated | [CadenceGuide.lean](guide/CadenceGuide.lean), [Audit.lean](guide/CadenceGuide/Audit.lean) and new chapter files under docs/guide/CadenceGuide; [GuideMain.lean](guide/GuideMain.lean); [guide.sh](../scripts/guide.sh), [docs.sh](../scripts/docs.sh) and [TrustSurface.lean](../scripts/TrustSurface.lean) (shared); [Documentation.md](Documentation.md), [VersoIssues.md](VersoIssues.md) | L | Lars's review of this plan |
+| **D2** · Guide machinery | M1–M5 (§8), reusing D1.2's ideal-model list for M3 (M7 itself is D1.2); the guide split into one Lean file per chapter, each a stub with its section headings, so that chapter sessions never edit the same file; [Documentation.md](Documentation.md) "The guide" updated | [CadenceGuide.lean](guide/CadenceGuide.lean), [Audit.lean](guide/CadenceGuide/Audit.lean) and new chapter files under docs/guide/CadenceGuide; [GuideMain.lean](guide/GuideMain.lean); [guide.sh](../scripts/guide.sh), [docs.sh](../scripts/docs.sh) and [TrustSurface.lean](../scripts/TrustSurface.lean) (shared); [Documentation.md](Documentation.md), [VersoIssues.md](VersoIssues.md) | L | Lars's review of this plan |
 | **D3** · Diagrams | the SVG files of §7, one source each; nothing embeds them yet | new files under docs/diagrams | M | Lars's review of this plan |
-| **D4** · Front page and approach | chapters 0 and 1: the claims box as reviewed, the reading paths, the overview diagram, the module and contract table | the two chapter files | M | D2, D3 |
+| **D4** · Front page and approach | chapters 0 and 1: the claims box as reviewed, the chapter list with the openers of §2, the overview diagram, the module and contract table | the two chapter files | M | D2, D3 |
 | **D5** · Reading a model | chapters 3 and 4, and the Chorus audit table (all 48 actions, by hand) | the two chapter files; the audit table's data file | L | D2 |
 | **D6** · Claims and contracts | chapters 2 and 5: the claim → premise → witness picture, the plain-words premise list, the findings summary, the contract checklists | the two chapter files | M | D2, D3 (the picture) |
 | **D7** · Components, checking, status | chapters 6, 7 and 8 | the three chapter files | M | D2, D3 (the pipeline) |
 | **D8** · README and docs/ | the README per §1.4; the openers and stale content of §6; the overview SVG in the README and in [Architecture.md](Architecture.md) §1.1; the comment edits of §9.3 | [README.md](../README.md), [Architecture.md](Architecture.md), [TODO.md](TODO.md), [Cadence.lean](../Cadence.lean), [CLAUDE.md](../CLAUDE.md) (all shared); the docs/ files of §6 | M | D4–D7 merged (the README links into their pages) |
-| **D9** · Read-through | read the guide along each reading path of §2 and fix seams and cross-links; this plan becomes a pointer in [History.md](History.md) (shared) | chapter files; [History.md](History.md) | S | D8 |
+| **D9** · Read-through | read the guide front to back as one story; check that each chapter delivers what its opener says, and fix seams, signposts and cross-links; this plan becomes a pointer in [History.md](History.md) (shared) | chapter files; [History.md](History.md) | S | D8 |
 
 ### 9.2 Launch order
 
@@ -589,17 +581,20 @@ into D8:
   is what Lars reviews.
 * Report to "cadence docs coordinator".
 
-## 10. Open questions
+## 10. Decisions
 
-| # | Question | Recommendation |
+Lars's answers to the review questions of the first draft (2026-10-06).
+
+| # | Question | Decision |
 |---|---|---|
-| Q1 | One page or one page per chapter? Today's guide is one page, because its links into the sources are relative and assume one depth. | **One page per chapter** (M1). At about 13 000 words a single page is hard to navigate, and the reading paths name chapters. The depth problem is a rewrite in [guide.sh](../scripts/guide.sh). |
-| Q2 | The guide's title. Today: "Auditing the Cadence formalization". | **"The Cadence verification"**, with the subtitle "A guide to what is proven, and how to check it". The guide now serves researchers as well as auditors. |
-| Q3 | Drop the README's "What is proven" table? It repeats [Cadence.lean](../Cadence.lean)'s index. | **Yes.** The claims box and chapter 6 carry the content for readers; Cadence.lean stays the index. |
-| Q4 | Put MCP Safety in the claims box? The brief's list of composed claims names only the timed ones. | **Yes**, first: it is the safety headline and the one claim without environment premises. |
-| Q5 | Audit table coverage: all 48 Chorus actions by hand now, or a representative dozen until the V checker lands? | **All 48.** The table is the evidence chapter 4 teaches with; a partial one invites the question what the other rows would say. The `byz_*` block is compact. |
-| Q6 | Diagrams: SVG files as the one source, shown in the guide and on GitHub, with the mermaid charts removed? | **Yes for the content diagrams** (overview, claim → premise → witness, the proof pipeline). **Keep mermaid for the README's import graph**, which is build documentation for developers on GitHub and never appears on the site. |
-| Q7 | [Scenario.md](Scenario.md): it describes a target workflow, partly realised. Keep, rewrite, or drop? | **Keep as a record**, linked from the README's documentation table only, with its opener pointing to the guide. |
-| Q8 | Fix the ideal-model classification (M7) ahead of the line? The published trust boundary page marks the ACS contract "proven" (§8). | **Yes, as a small separate change before D2**, touching [TrustSurface.lean](../scripts/TrustSurface.lean) and [Audit.lean](guide/CadenceGuide/Audit.lean) only: it is the one place where the published site states more than the development proves, and it should not wait for the guide. D2 then reuses the list for M3. |
-| Q9 | How are the SVGs made: by hand, or generated from a description (for example from a Lean definition of the module graph)? | **By hand**, four or five files, reviewed visually in the local render. A generator pays off only if the module graph changes often, and it does not. |
-| Q10 | What happens to this plan when the line ends? | **A pointer in [History.md](History.md)**, and the file is removed, so the living docs tell the current story. |
+| Q1 | One page or one page per chapter? | **One page per chapter** (M1). |
+| Q2 | The guide's title | **"Cadence Verification"**, no subtitle. |
+| Q3 | Drop the README's "What is proven" table? | **Yes.** The claims box and chapter 6 carry the content; [Cadence.lean](../Cadence.lean) stays the index. |
+| Q4 | MCP Safety in the claims box? | **Yes**, first. |
+| Q5 | Audit table coverage | **All 48 Chorus actions**, by hand until the V checker lands. |
+| Q6 | Diagram format | **One SVG per content diagram**, shown in the guide and on GitHub; **mermaid stays only for the README's import graph**. |
+| Q7 | [Scenario.md](Scenario.md) | **Kept as a record**, linked from the README's documentation table, its opener pointing to the guide. |
+| Q8 | The ACS overstatement on the trust boundary page (M7) | **Fixed ahead of the line**, in its own change, D1.2, which touches [TrustSurface.lean](../scripts/TrustSurface.lean) and [Audit.lean](guide/CadenceGuide/Audit.lean) only. |
+| Q9 | How the SVGs are made | **By hand**, reviewed in the local render. |
+| Q10 | This plan when the line ends | **A pointer in [History.md](History.md)**; the file is removed. |
+| — | Reading paths per audience | **None.** The guide is one story that readers drill into or skip by interest; navigation comes from the structure (§2). |
