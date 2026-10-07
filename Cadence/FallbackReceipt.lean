@@ -67,12 +67,15 @@ over honest entries, [ChorusDesign.md](../docs/ChorusDesign.md) §7; the
 per-validator argument is what the receipt restriction of §7.2 makes
 work.)
 
-## Integration seam (the implementability of `Mvba.termination`'s caller premise)
+## Integration seam (the per-validator refinement of Chorus's MVBA proposal)
 
-This module discharges the per-validator implementability of
-`Mvba.termination`'s caller premise, *every correct validator proposes*
-([ChorusDesign.md](../docs/ChorusDesign.md) §7, [Chorus.lean](Chorus.lean) liveness section): network-global
-evidence → every correct validator proposes a *valid* meta-block.
+`Chorus.termination` derives `Mvba.termination`'s caller premise, *every
+correct validator proposes*, at Chorus's grain: `mvba_propose` builds the
+meta-block from network-global evidence
+([ChorusDesign.md](../docs/ChorusDesign.md) §7,
+[Termination.lean](Chorus/Termination.lean)). This module refines that
+build step per validator: from the evidence it has received, every correct
+validator proposes a *valid* meta-block.
 *Assumed* from Chorus (facts proven there over the shared vocabulary):
 
 Each entry is what this model calls something and what it corresponds to in

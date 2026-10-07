@@ -1,5 +1,10 @@
 # Auditing and developing in a container
 
+*Using the published images, to re-check the proofs or to work on them.
+[The guide's chapter 7](https://larskuhtz.github.io/cadence/guide/checking/) says what each tier of the audit
+ladder establishes; this page is the authority for the commands and the
+measured times.*
+
 Everything in this repository can be re-checked and developed inside a Linux
 container, and for most readers that is the easiest path: the published images
 already contain the built dependency tree, so nothing has to be compiled

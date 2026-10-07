@@ -33,8 +33,10 @@
 # commit's images land, and that run's own `docs` then cancels this one
 # (the `pages` group below).
 #
-# A manual dispatch renders master's head against `:latest`; start one only
-# when no `publish-images` run is in flight, or the gate will stop it.
+# A manual dispatch renders the dispatched ref against `:latest`; start one
+# only when no `publish-images` run is in flight, or the gate will stop it.
+# Dispatched from a branch, it builds the site (a test of this workflow) and
+# does not deploy it.
 name: docs
 
 on:
@@ -51,8 +53,10 @@ permissions:
   id-token: write
 
 # Never let two deployments race; the later commit's site is the correct one.
+# Keyed by ref, so a test dispatch from a branch neither cancels master's run
+# nor is cancelled by it; master's own runs still share one group.
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 defaults:
@@ -67,7 +71,7 @@ jobs:
       github.event_name == 'workflow_dispatch'
       || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       # Same arithmetic as verify.yml: the runner ships with ~14 GB free, and
       # the image plus the volume copy of its `.lake` need roughly 25 GB.
@@ -90,6 +94,17 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
 
+      # The module renderings of earlier runs (scripts/docs.sh, stage 2). An
+      # entry is reused only when its key still matches — lake's input hash
+      # for the module, the renderer binary, the script's filters — so a
+      # stale one is rendered again, never published. The newest entry wins.
+      - name: Restore the render cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .literate-cache
+          key: literate-${{ runner.arch }}-${{ github.run_id }}
+          restore-keys: literate-${{ runner.arch }}-
+
       - name: Log in to the container registry
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
@@ -109,8 +124,37 @@ jobs:
           CPUS: '4'
           MEMORY: 13G
           LEAN_NUM_THREADS: 4
+          # Concurrent module renders (scripts/docs.sh, stage 2). Memory is
+          # the limit: docs/Documentation.md § "What it costs".
+          JOBS: '2'
         run: |
           scripts/container.sh docs 2>&1 | tee docs.log
+
+      # The renderings live in the container's `.lake` volume, which outlives
+      # the container; copy them out for the next run. Saved after a failed
+      # render too, since every entry carries its own key.
+      - name: Collect the render cache
+        id: collect
+        if: success() || failure()
+        run: |
+          set -euo pipefail
+          vol="$(docker volume inspect -f '{{ .Mountpoint }}' cadence-lake-verified)"
+          sudo rm -rf .literate-cache
+          if sudo test -d "$vol/build/literate/json"; then
+            sudo cp -a "$vol/build/literate/json" .literate-cache
+            sudo chown -R "$(id -u):$(id -g)" .literate-cache
+            echo "keyed renderings: $(find .literate-cache -name '*.json.key' | wc -l)"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Only when there is something to save: an empty entry would be the
+      # newest, and the next run would restore it instead of a full one.
+      - name: Save the render cache
+        if: (success() || failure()) && steps.collect.outputs.found == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .literate-cache
+          key: literate-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload the site
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
@@ -127,6 +171,8 @@ jobs:
 
   deploy:
     needs: build
+    # Only master's site is published; a branch dispatch stops at the build.
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     environment:

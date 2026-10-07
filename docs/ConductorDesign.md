@@ -1,15 +1,19 @@
 # Conductor & Cadence — module decomposition and design
 
-*The design rationale for the two smaller Veil models and the composition
+*The design of the Conductor and glue models. [The guide's chapter
+6](https://larskuhtz.github.io/cadence/guide/components/) introduces both; this page is the authority for their
+module decomposition.*
+
+The design rationale for the two smaller Veil models and the composition
 layer that joins them to Chorus: §1 how the paper describes the Conductor,
 §2 the module decomposition and the class layer, §3 what is safety-shaped in
 the Conductor versus what stays meta, §4 the Cadence glue module and where
 the top-level properties live, §5 how "Chorus ⊨ SlotConsensus" is discharged.
-Lean sources cite these sections by number. For what is proven read
-[README.md](../README.md) and [Architecture.md](Architecture.md); the
-models' own headers ([Cadence/Conductor.lean](../Cadence/Conductor.lean),
+Lean sources cite these sections by number. What is proven is the
+subject of [the guide](https://larskuhtz.github.io/cadence/guide/); the models' own headers
+([Cadence/Conductor.lean](../Cadence/Conductor.lean),
 [Cadence/Cadence.lean](../Cadence/Cadence.lean)) are authoritative where
-they and this document disagree.*
+they and this document disagree.
 
 ## 1. Source map (what to read)
 

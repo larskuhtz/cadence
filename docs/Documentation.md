@@ -1,8 +1,8 @@
 # The rendered documentation site
 
-*How the Lean sources are published as a browsable site, what is on it, and
-what it is worth as evidence. For what is proven, read
-[README.md](../README.md); this document is about the rendering.*
+*How the documentation site is built: the guide, the rendered sources and
+the trust boundary, and what each is worth as evidence. For what is proven,
+read [the guide](https://larskuhtz.github.io/cadence/guide/); this document is about the rendering.*
 
 ## Why
 
@@ -61,10 +61,15 @@ change that makes one of them stale fails the build.
 ### Pages and files
 
 One page per chapter. [CadenceGuide.lean](guide/CadenceGuide.lean) holds the
-front page and the chapter order (`{include 1 …}`); each chapter is a file of
-its own under [Chapters](guide/CadenceGuide/Chapters), so chapters are
-written independently. A chapter's `%%% file := "…" %%%` fixes its page's
-address, `site/guide/<file>/`, so a retitled chapter keeps its URL. Two
+front page — the claims box, the overview diagram and the chapter list — and
+the chapter order (`{include 1 …}`); each chapter is a file of its own under
+[Chapters](guide/CadenceGuide/Chapters), so chapters are written
+independently. A chapter file says three things about itself, and the front
+page's chapter list reads them from it: its title (`#doc (Manual) "…"`), its
+address (`%%% file := "…" %%%`, the page `site/guide/<file>/`, so a retitled
+chapter keeps its URL), and its opener, the italic paragraph after the
+metadata saying what the chapter covers and what it assumes. A file whose
+title starts with "Appendix" is an appendix and stays out of the list. Two
 appendix pages are temporary: *the earlier walk-through* holds the text of
 the single-page guide until the chapters take it over, and *the guide's
 elements* shows one specimen of each element below.
@@ -83,9 +88,13 @@ shared, and an edit to one rebuilds every chapter.
 | `{claim X}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a theorem or instance: its docstring, a status box (the kernel's axioms, the contracts it is conditional on and what discharges them), the signature, collapsed | `X` has no docstring, or uses an axiom beyond Lean's standard three |
 | `{model M "safety [x]"}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a Veil model declaration, quoted from the rendered sources; `(proven := L)` adds `L`'s status box | the text matches no declaration of `M`, or more than one |
 | `{contracts}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | every contract class with what provides it | — (derived; an unprovided contract shows as assumed) |
+| `{pin "file" "command"}` | [Pin.lean](guide/CadenceGuide/Pin.lean) | a `#guard_msgs` pin quoted as written — the expected output, `#guard_msgs in`, the command — linked to its module's page | the file is not a module of the development, or has no pin of the command, or more than one |
 | `{cite}`label`` | [Cite.lean](guide/CadenceGuide/Cite.lean) | a paper citation, "Lemma 9 (`lemma:chorus-agreement`)", rendered from [paper-labels.tsv](paper-labels.tsv) | the label is not in the map |
 | `{figure "docs/diagrams/x.svg"}` | [Figure.lean](guide/CadenceGuide/Figure.lean) | an SVG diagram, inlined, without its dark-scheme block; `(caption := "…")` | the file is missing, has no `<title>`, uses a class or id without the `dg-` prefix, or names a declaration that does not resolve (below) |
 | `:::claims` | [ClaimsBox.lean](guide/CadenceGuide/ClaimsBox.lean) | a set-off box, `(title := "…")`, for the claims and "what you check" boxes | — (presentation; its contents carry the checks) |
+| `:::premises (claims := "A B …")` | [PremiseCover.lean](guide/CadenceGuide/PremiseCover.lean) | a plain-words list of the premises of the named claims, rendered as written | a named premise of one of the claims — the development's constant at the head of an explicit hypothesis, or a parameter whose structure carries conditions — is not mentioned by a `{decl}` inside the block |
+| `{chapterList}` | [ChapterList.lean](guide/CadenceGuide/ChapterList.lean) | the front page's chapter list: each chapter the root includes, numbered, its title linked to its page, and its opener; appendices left out | an included chapter is missing or has no title, address or opener; a chapter file is neither included nor an appendix |
+| `{chapter Claims}[text]` | [ChapterList.lean](guide/CadenceGuide/ChapterList.lean) | `text` linked to the chapter in `Chapters/Claims.lean`; with no text, the chapter's title | the chapter file does not exist |
 | `{contractFields C}` | [ContractFields.lean](guide/CadenceGuide/ContractFields.lean) | a contract's checklist: per field, its docstring's first sentence, its level (safety fragment or temporal) and what proves it (a protocol instance, or *assumed* with the consistency witnesses) | a field has no docstring; a field has no protocol instance and its class is not in `assumedContracts`; a module of `witnessModules` is gone |
 | `{auditTable M "file.tsv"}` | [AuditTable.lean](guide/CadenceGuide/AuditTable.lean) | a model's audit table, from its data file (below); `+sample` for a deliberate selection | an action is not a constructor of `M.Label`, has two rows, or (without `+sample`) has none; a relation named in a derived column is not part of `M`; a paper label is not in the map |
 
@@ -117,6 +126,13 @@ A resolved `<text>` or `<tspan>` becomes a link to the declaration in the
 rendered sources when its module has a page there; a declaration of Lean's
 own, such as `propext`, is checked and left unlinked. The SVG conventions themselves are in
 [docs/diagrams](diagrams/README.md).
+
+**One file, two routes.** Each diagram is one hand-written SVG file under
+[docs/diagrams](diagrams/README.md). The guide inlines it with `{figure}`;
+the README and the pages under docs/ show the same file as a Markdown image,
+`![…](diagrams/x.svg)`, which GitHub renders, and the file's own
+`prefers-color-scheme` block follows the reader's scheme there. The
+rendered sources carry no diagrams.
 
 ### The audit table's data file
 
@@ -312,15 +328,38 @@ the source as well as on the page, and needs nothing from upstream.
 
 ## What it costs
 
-Two costs are specific to this project and worth knowing before changing
+Three costs are specific to this project and worth knowing before changing
 anything here.
 
 * **The renderer re-elaborates every module it publishes.** Highlighting
   needs the elaborator's info trees, which an `.olean` does not carry, so
-  having built the project is a precondition rather than a substitute. The
-  published modules take about nine minutes in total, and `Cadence.Chorus`
-  is around three minutes of that on its own, at a peak near 10 GB; most of
-  the rest are under twenty seconds each (measured 2026-09-29). Rendering is serial for that reason.
+  having built the project is a precondition rather than a substitute. On
+  CI's 4-vCPU runner the 67 published modules take 57 minutes one after
+  another; `Cadence.Chorus` is 21 of them on its own, `Cadence.Mvba.Compose`
+  and `Cadence.Mvba` about four each, and 57 of the 67 are under a minute
+  (run 37593789847, 2026-10-07). Locally the three largest renders peak at
+  6.4, 2.6 and 2.3 GB (`Chorus`, `Mvba`, `Mvba.Compose`; 408, 85 and 97 s).
+  Two things keep this off the critical path:
+  * *Renders run `JOBS` at a time*, largest first (default 2; CI uses 2,
+    which keeps `Chorus` and its companion inside the 13 GB container with
+    room to spare). The `Chorus` render is then the floor.
+  * *A rendering is reused while its inputs are unchanged.* Each module's
+    JSON carries a key: lake's own input hash for the module (its source,
+    the toolchain, every imported `.olean` by content), the source's hash,
+    the renderer binary's hash, and the text of the script's filters. Only a
+    module whose key changed is rendered again, so a commit that touches no
+    Lean source renders nothing, and one that touches a leaf module renders
+    that module. CI carries the renderings between runs in an
+    `actions/cache` entry; the key, not the entry, decides what is reused.
+
+  Locally (2026-10-07), a full `scripts/docs.sh` with `JOBS=2` and nothing
+  to reuse took 12.5 minutes, `Chorus` 7.3 of them; run again, with all 67
+  renderings reused, 1.4 minutes, and the same site.
+* **The guide computes its status boxes from the environment while it
+  builds**, so a per-element cost multiplies by the number of elements. An
+  element that walks the environment walks this development's modules only
+  (`providersOf` in [Audit.lean](guide/CadenceGuide/Audit.lean) says why);
+  the whole guide builds in about 20 s locally.
 * **`scripts/docs.sh` refuses to start unless the project is up to date**
   (`lake build --no-build`). That is a hard gate, not a convenience: the
   rendering stage runs with `VEIL_NO_VERIFY=1`, and an out-of-date module

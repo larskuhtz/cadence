@@ -57,8 +57,10 @@ build-checked pin. If any end theorem ever came to depend on an extra axiom
 hand-added assumption — this file would stop compiling.
 
 Reading it top to bottom answers one question: *what exactly has been
-proven, and what is it proven from?* [README.md](README.md) is the
-orientation document; the verification architecture, the methods, and the
+proven, and what is it proven from?* The guide,
+[CadenceGuide.lean](docs/guide/CadenceGuide.lean), rendered on the
+documentation site, introduces the claims and how they are put together;
+the verification architecture, the methods, and the
 complete inventory of what is **not** in Lean are
 [docs/Architecture.md](docs/Architecture.md).
 

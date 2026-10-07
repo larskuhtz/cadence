@@ -1,9 +1,9 @@
 # History — how the verification reached its current state
 
 **This is a historical ledger, not a status document.** For what is proven
-now, and its trust base, read [`../README.md`](../README.md),
-[`Architecture.md`](./Architecture.md) and the audit root
-[`../Cadence.lean`](../Cadence.lean). Statements below describe the state at
+now, read [the guide](https://larskuhtz.github.io/cadence/guide/) and the audit root
+[`../Cadence.lean`](../Cadence.lean); the architecture and its trust bases
+are [`Architecture.md`](./Architecture.md). Statements below describe the state at
 the time they were written; where an old reading has since been superseded
 that is said explicitly, but nothing here should be taken as current.
 

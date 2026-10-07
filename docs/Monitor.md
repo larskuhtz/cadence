@@ -1,5 +1,9 @@
 # The model-conformance monitor
 
+*The monitor that replays implementation traces against the Chorus model.
+[The guide's chapter 7](https://larskuhtz.github.io/cadence/guide/checking/) places it outside every trust base;
+this page is the authority for its design and its flags.*
+
 The proofs in this repository establish Chorus's safety invariants over *all*
 reachable states of the **model**. That leaves a complementary question, and
 it is the one an auditor of a running system asks next:
@@ -28,16 +32,17 @@ the model's own guards, it catches ordering and prerequisite bugs that
 hand-written assertions in an implementation test suite would not, and it
 reports them in the vocabulary of the proven properties.
 
-It carries one further load: the fixture run is the build's **non-vacuity
-witness for Chorus**. [Cadence.lean](../Cadence.lean) and [Conductor.lean](../Cadence/Conductor.lean) carry in-build
-`sat trace` witnesses; Chorus cannot ([TODO.md](TODO.md) § Soundness has
-the two blockers), so `traces/fast_path_positive.jsonl` — which drives three
-honest validators through the full fast path to `finalize_commit` against the
-model's extracted actions — is what shows the Chorus safety properties are
-not vacuously true. CI runs the monitor suites on every commit
-(`scripts/container.sh monitor`, in
-[.github/workflows/verify.yml](../.github/workflows/verify.yml)), so an
-edit that made finalization unreachable turns that step red.
+The fixture run is also a reachability check on the model:
+`traces/fast_path_positive.jsonl` drives three honest validators through the
+full fast path to `finalize_commit` against the model's extracted actions.
+CI runs the monitor suites on every commit (`scripts/container.sh monitor`,
+in [.github/workflows/verify.yml](../.github/workflows/verify.yml)), so an
+edit that made finalization unreachable turns that step red. The
+non-vacuity witness for Chorus is in the build:
+[Chorus/Witness.lean](../Cadence/Chorus/Witness.lean) exhibits one model
+and run meeting every premise of the Chorus liveness claims, in which a
+correct validator finalizes. Chorus carries no in-build `sat trace`
+([TODO.md](TODO.md) § Soundness has the two blockers).
 
 ## 2. How the pieces fit together
 

@@ -90,17 +90,14 @@ echo "    $(grep -c . < "$WORK/plan.txt") of $(wc -l < "$WORK/modules.txt" | tr 
 # still present (`mvbaSafety`, `mvba_of_temporal`, all 13 `theorem`s
 # unchanged; only the 1 870 occurrences of `decided` *inside hypotheses* go).
 #
-# Idempotent, so a cached module is not re-stripped.
+# Applied once, to a fresh rendering. The render key (stage 2) includes the
+# text of this filter and the next, so editing either re-renders every module.
 strip_proof_states() {
   local f="$1" tmp="$1.tmp"
   jq -c '.items.code |= with_entries(
            if (.value | type == "object") and (.value.tactics != null)
            then .value.tactics.info = [] else . end)
          | .items.goals = {}' "$f" > "$tmp"
-  # Carry the original timestamp across: these filters rewrite the file on
-  # every run, and a bumped mtime would make the JSON permanently look newer
-  # than the module it was rendered from, disabling the staleness check below.
-  touch -r "$f" "$tmp"
   mv "$tmp" "$f"
 }
 
@@ -129,7 +126,6 @@ fix_docstring_markers() {
              then .markdown[2].blocks[0].p |=
                     (if (.[1].softbr? != null) then .[2:] else .[1:] end)
              else . end))' "$f" > "$tmp"
-  touch -r "$f" "$tmp"
   mv "$tmp" "$f"
 }
 
@@ -158,60 +154,119 @@ echo "=== 2/6  rendering each module"
 # reason: the `jq` pass above has to run between the two stages, and the
 # facet does both in one job. Everything else is Verso's — the planner above
 # and the renderer below are its executables, and `literate.toml` governs
-# both. Serial by choice: `Cadence.Chorus` is the largest single render
-# (docs/Dependencies.md § "The Chorus model's memory" has its peak).
+# both.
 complete_json() { [ -s "$1" ] && jq -e . "$1" > /dev/null 2>&1; }
+sha256() {
+  if command -v sha256sum > /dev/null; then sha256sum | cut -d' ' -f1
+  else shasum -a 256 | cut -d' ' -f1; fi
+}
 
-# A rendered module is reused when its JSON still parses, which makes a
-# re-run after a failure cheap. That test says nothing about *what* produced
-# the file, though, so a newer renderer would otherwise be ignored for every
-# module rendered before it — the table flag landed that way once, visible on
-# one page and stale on the rest. Tie the cache to the binary: if it is newer
-# than the JSON, re-render.
-if [ -n "$(find "$WORK/json" -name '*.json' ! -newer "$VBIN/verso-literate" -print -quit 2>/dev/null)" ]; then
-  echo "    (renderer is newer than the cached JSON — re-rendering all modules)"
-  rm -rf "$WORK/json"
+plan_mods=()
+while IFS= read -r m; do [ -n "$m" ] && plan_mods+=("$m"); done < "$WORK/plan.txt"
+
+# Every planned module must be up to date, not only what `Cadence` imports:
+# the render key below reads lake's record of what a module was built from,
+# and that record describes the files on disk only for a module lake
+# considers built. (Same reason as stage 0 otherwise: nothing is rebuilt
+# under `VEIL_NO_VERIFY`.)
+if ! lake -Kenv=dev build --no-build "${plan_mods[@]}" > /dev/null 2>&1; then
+  echo "error: a planned module is not up to date — run 'lake build' first" >&2
+  exit 1
 fi
 
-: > "$WORK/map.txt"
-while IFS= read -r m; do
-  [ -n "$m" ] || continue
-  json="$WORK/json/${m//.//}.json"
-  src="${m//.//}.lean"
-  mkdir -p "$(dirname "$json")"
-  # Re-render when the module's own source is newer than its JSON, as well as
-  # when there is no usable JSON at all. Without this the cache answers only
-  # "does a rendering exist", not "does it match the file" — editing a module
-  # header then left the site showing the previous text, which is the failure
-  # this check exists to prevent (the renderer-timestamp check above is the
-  # same idea for the other input).
-  if ! complete_json "$json" || [ "$src" -nt "$json" ]; then
-    rm -f "$json"
-    printf '    %-42s ' "$m"
-    start=$(date +%s)
-    if ! VEIL_NO_VERIFY=1 lake -Kenv=dev env "$VBIN/verso-literate" "$m" "$json" \
-         > "$WORK/render.log" 2>&1 < /dev/null; then
-      echo "FAILED"
-      sed -n '1,10p' "$WORK/render.log" >&2
-      exit 1
-    fi
-    # Judge by the artefact as well as the exit code: the renderer reports a
-    # parse or elaboration failure in its output rather than always in its
-    # status.
-    if ! complete_json "$json"; then
-      echo "FAILED (no parseable output)"
-      sed -n '1,10p' "$WORK/render.log" >&2
-      exit 1
-    fi
-    printf 'ok  %3ds\n' "$(( $(date +%s) - start ))"
+# The render cache. A module's JSON is reused only when the key stored beside
+# it (`<module>.json.key`) equals the key computed now, and the key covers
+# everything the JSON is a function of:
+#
+#  * what the module elaborates against — lake's input hash for it, the
+#    `depHash` of its `.trace`, which is the hash lake compares to decide
+#    whether to rebuild: the source, the toolchain, every imported `.olean`
+#    (transitively, by content), the options and the plugins — and, belt and
+#    braces, the source's own hash;
+#  * what renders it: the hash of the `verso-literate` binary;
+#  * what this script does to the result: the text of the two filters above,
+#    and the `VEIL_NO_VERIFY=1` the renderer runs under.
+#
+# A module with no readable trace gets no key, and is rendered every time.
+# The check above guarantees the traces are current. A rendering that
+# predates the keys has no key file, so it is rendered again.
+#
+# CI carries the renderings from one run to the next: docs.yml restores them
+# into `.literate-cache/` (which reaches the container with the sources), and
+# a file there whose key matches is copied in rather than rendered.
+SEED=".literate-cache"
+render_id="$( { sha256 < "$VBIN/verso-literate"
+                declare -f strip_proof_states fix_docstring_markers
+                echo "VEIL_NO_VERIFY=1"; } | sha256)"
+module_key() {
+  local rel="${1//.//}" dep
+  dep="$(jq -r '.depHash // empty' ".lake/build/lib/lean/$rel.trace" 2>/dev/null || true)"
+  [ -n "$dep" ] && [ -f "$rel.lean" ] || return 0
+  { echo "$render_id"; echo "$dep"; sha256 < "$rel.lean"; } | sha256
+}
+
+# One module, rendered and filtered, then keyed. Exit status 255 makes xargs
+# stop starting new renders after a failure.
+render_one() {
+  local m="$1" rel json log start key
+  rel="${m//.//}"; json="$WORK/json/$rel.json"; log="$WORK/logs/$m.log"
+  start=$(date +%s)
+  # Judge by the artefact as well as the exit code: the renderer reports a
+  # parse or elaboration failure in its output rather than always in its
+  # status.
+  if ! VEIL_NO_VERIFY=1 lake -Kenv=dev env "$VBIN/verso-literate" "$m" "$json.tmp" \
+         > "$log" 2>&1 < /dev/null || ! complete_json "$json.tmp"; then
+    printf '    %-42s FAILED\n' "$m"
+    sed -n '1,10p' "$log" >&2
+    exit 255
   fi
-  # Outside the branch above, so that a cached module is treated too: both
-  # filters are idempotent, and running them only on a fresh render would
-  # leave an edited filter unapplied to everything already on disk — the same
-  # staleness the renderer check above exists to prevent.
-  strip_proof_states "$json"
-  fix_docstring_markers "$json"
-done < "$WORK/plan.txt"
+  strip_proof_states "$json.tmp"
+  fix_docstring_markers "$json.tmp"
+  mv "$json.tmp" "$json"
+  key="$(module_key "$m")"
+  [ -z "$key" ] || printf '%s\n' "$key" > "$json.key"
+  printf '    %-42s ok  %3ds\n' "$m" "$(( $(date +%s) - start ))"
+}
+
+mkdir -p "$WORK/logs"
+todo=()
+reused=0
+for m in "${plan_mods[@]}"; do
+  rel="${m//.//}"
+  json="$WORK/json/$rel.json"
+  mkdir -p "$(dirname "$json")"
+  key="$(module_key "$m")"
+  if [ -n "$key" ] && [ "$(cat "$json.key" 2>/dev/null)" = "$key" ] && complete_json "$json"; then
+    reused=$((reused + 1))
+  elif [ -n "$key" ] && [ "$(cat "$SEED/$rel.json.key" 2>/dev/null)" = "$key" ] \
+       && complete_json "$SEED/$rel.json"; then
+    cp "$SEED/$rel.json" "$json"
+    printf '%s\n' "$key" > "$json.key"
+    reused=$((reused + 1))
+  else
+    rm -f "$json" "$json.key" "$json.tmp"
+    todo+=("$m")
+  fi
+done
+
+# Concurrent, `JOBS` renders at a time (default 2), largest first: the
+# critical path is `Cadence.Chorus`, by far the longest render, so it starts
+# at once and the rest share the other slots. The `.olean` size is the
+# proxy for how long a module takes. Memory sets the limit, not cores:
+# docs/Documentation.md § "What it costs" has the peaks.
+JOBS="${JOBS:-2}"
+echo "    $reused of ${#plan_mods[@]} modules reused from the render cache;" \
+     "rendering ${#todo[@]}, $JOBS at a time"
+if [ "${#todo[@]}" -gt 0 ]; then
+  export WORK VBIN render_id
+  export -f render_one module_key complete_json sha256 \
+    strip_proof_states fix_docstring_markers
+  for m in "${todo[@]}"; do
+    printf '%s\t%s\n' "$(wc -c < ".lake/build/lib/lean/${m//.//}.olean" 2>/dev/null || echo 0)" "$m"
+  done | sort -rn | cut -f2 \
+    | xargs -P "$JOBS" -I{} bash -c 'render_one "$1"' _ {} \
+    || { echo "error: rendering failed (log above)" >&2; exit 1; }
+fi
 
 # Where every relative link goes. The sources write a file reference as a
 # Markdown link relative to the file it is in (`CLAUDE.md`, "Documentation

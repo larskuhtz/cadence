@@ -3,8 +3,7 @@ import Mathlib.Algebra.Order.Archimedean.Basic
 
 /-! # IdealAcs — the ACS contract's model, the consistency witness
 
-[ConductorBounds.md](../../docs/ConductorBounds.md) §3.3, option (c1),
-decided 2026-10-03. The Conductor's timed claims are stated for an
+The Conductor's timed claims are stated for an
 arbitrary ACS meeting its contract, `ACSSafety` and `ACSTemporal`
 ([Interfaces.lean](../Interfaces.lean)): the target leaves the ACS
 unspecified (P17, [PaperAlignment.md](../../docs/PaperAlignment.md) §6), so
@@ -34,11 +33,12 @@ frames, the inputs accepted, the timing, and admissible runs from every initial 
 together. It also meets the condition the Conductor's claims add: a finished
 instance can stutter (`trans_refl`, F24).
 
-What it is used for: the consistency of the premises of the Conductor's
-timed claims, in the composed witness of K8
-([ConductorBounds.md](../../docs/ConductorBounds.md) §8.2). Once a paper
-revision specifies an ACS, option (a) replaces the assumption with a proof
-and this file stays a witness. -/
+What it is used for: it is the ACS of the composed system's witness
+([Witness.lean](../Composed/Witness.lean)), which shows that the premises of
+the composed claims, the Conductor's among them, hold together
+([ConductorBounds.md](../../docs/ConductorBounds.md) §8.2). A
+message-passing protocol meeting the contract would replace the assumption
+with a proof; this file would stay a witness. -/
 
 namespace Cadence.IdealAcs
 

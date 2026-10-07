@@ -1,5 +1,8 @@
 # Open items
 
+*The project's open items. [The guide's chapter 8](https://larskuhtz.github.io/cadence/guide/open-issues/)
+summarises them; this page is the authority for the list.*
+
 Everything *claimed* in this repository is proven and axiom-pinned, and
 the premises of every claim are shown to hold together
 ([Premises.md](Premises.md)). The items below are places the development
@@ -56,9 +59,10 @@ What has been done, and when, is [History.md](History.md).
   trace pipeline needs the label enumeration that
   [Chorus.lean](../Cadence/Chorus.lean) disables for size, and every
   finalizing run passes through `vote`, whose bulk update uses a `decide`
-  the trace pipeline cannot translate. Either fix is a model refactor. The
-  standing reachability witness is the monitor's fast-path fixture, run in
-  CI ([Monitor.md](Monitor.md)).
+  the trace pipeline cannot translate. Either fix is a model refactor.
+  Finalization is shown reachable in the build by the run of
+  [Chorus/Witness.lean](../Cadence/Chorus/Witness.lean), and again in CI by
+  the monitor's fast-path fixture ([Monitor.md](Monitor.md)).
 
 ## The Veil fork
 

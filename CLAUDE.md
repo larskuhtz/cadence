@@ -7,9 +7,11 @@ decision here: claims are stated in the paper's vocabulary, evidence is
 machine-derived rather than narrated, and what has to be believed by a human
 is a short named list rather than an exercise in reading proofs.
 
-Read first: [README.md](./README.md) (what is proven, and the audit/trust
-split) and [`Cadence.lean`](./Cadence.lean) (the end theorems and their axiom
-pins on one page). This file carries the development workflow and the
+Read first: [the guide](https://larskuhtz.github.io/cadence/guide/) (what is
+proven, what it rests on, and how to audit it; its sources are
+[docs/guide/](./docs/guide/CadenceGuide.lean)), [README.md](./README.md)
+(building, development, CI, the images) and [`Cadence.lean`](./Cadence.lean)
+(the end theorems and their axiom pins on one page). This file carries the development workflow and the
 hard-learned rules. The detailed working guide for touching the models is the
 `cadence-verification` skill in [`.claude/skills/`](./.claude/skills).
 
@@ -23,7 +25,9 @@ Four Veil models plus support files, mirroring the paper's architecture:
   it runs no invariant sweep and persists no theorems — its VC statements live
   in a persistent registry, the real kernel-checked proofs are produced per
   action by `Cadence/Chorus/Proofs/<Action>.lean`, and
-  `Cadence/Chorus/Certify.lean` composes them. Model-only build ~2 min. It
+  `Cadence/Chorus/Certify.lean` composes them. Its model-only build takes
+  minutes and heads the build's critical path (`scripts/revalidate.sh`'s
+  header has the measurements). It
   consumes the MVBA as the class constraint `instantiate mvba : MVBASafety
   …` over an abstract state (`docs/CompositionContracts.md` §3), with
   per-entry decision handlers and `CommitQC`-route handlers whose
@@ -150,7 +154,7 @@ History: [docs/History.md](./docs/History.md).
   staged build, which the image build uses; CI's verify job runs `JOBS=2`.
   The measurements are in the script's header.
 * Per-module: `lake build Cadence.<Module>` — e.g. `Cadence.Chorus` (model
-  only, ~2 min), `Cadence.Chorus.Proofs.Vote` (one action's ~102 cells, ~16 s
+  only, minutes), `Cadence.Chorus.Proofs.Vote` (one action's ~102 cells, ~16 s
   warm), `Cadence.Chorus.Certify` (composition + the `#veil_status` audit pin,
   ~3 s — the audit walk reads each imported olean's stored axiom sets rather
   than traversing proof terms, so it does not grow with proof size).

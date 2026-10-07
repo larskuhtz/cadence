@@ -1,11 +1,16 @@
 # The premises
 
-*The page to read first. Every liveness claim of this development is
-conditional: it holds in every run that meets its premises. The premises
-play the role of the claim's axioms, so they are what an auditor has to
-believe. This page lists each one once, says what it is for and why it is
-plausible, and points to the evidence for the two properties the machine
-can check.*
+*The ledger of the premises of every claim, each listed once.
+[The guide's chapter 2](https://larskuhtz.github.io/cadence/guide/claims/) introduces them in plain words; this
+page is the authority for the list.*
+
+Every liveness claim of this development is conditional: it holds in every
+run that meets its premises. The premises play the role of the claim's
+axioms, so they are what an auditor has to believe. This page lists each
+one once, says what it is for and why it is plausible, and points to the
+evidence for the two properties the machine can check.
+
+![One claim, its premises, the proof step that uses each, and the witness model that meets all of them; plausibility is the auditor's judgement.](diagrams/claim-premise-witness.svg)
 
 **What is machine-checked about the premises, and what is not.**
 
