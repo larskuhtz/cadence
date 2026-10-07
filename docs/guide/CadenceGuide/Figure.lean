@@ -18,7 +18,8 @@ that breaks the conventions an inlined SVG depends on fails the build:
   `{model}` finds one; an enum value is `"Chorus Phase.pre_deadline"`, and
   must be listed by the enum's declaration), so a renamed declaration cannot leave a diagram
   stale. A resolved `<text>` or `<tspan>` becomes a link to the declaration
-  in the rendered sources.
+  in the rendered sources, when its module has a page there; Lean's own
+  declarations (`propext`) are checked and left unlinked.
 
 The file's `@media (prefers-color-scheme: dark)` block, which GitHub's dark
 mode needs, is dropped on the way in: the site is light-only, and that block
@@ -160,20 +161,21 @@ def resolveDecls (svg : String) : DocElabM (Except (Array String) String) := do
       let some vEnd := findFrom s #['"'] vStart | break
       pos := vEnd
       let value := String.ofList (s.extract vStart vEnd).toList
-      let url : Except String String ← if attr == "data-decl" then
-          pure <| match declUrl env a value.toName with
-            | some u => if env.contains value.toName then .ok u
-                        else .error s!"{attr}=\"{value}\" names no declaration"
-            | none => .error s!"{attr}=\"{value}\" names no declaration of a compiled module"
+      -- `.ok none`: the name resolves, but its module has no page on the site
+      -- (Lean's `propext`, say), so the text stays as it is, unlinked.
+      let url : Except String (Option String) ← if attr == "data-decl" then
+          pure <| if env.contains value.toName then .ok (declUrl env a value.toName)
+            else .error s!"{attr}=\"{value}\" names no declaration"
         else match value.splitOn " " with
           | [m, item] => do
             match ← veilItemUrl a m item with
-            | .ok u => pure (.ok u)
+            | .ok u => pure (.ok (some u))
             | .error e => pure (.error s!"{attr}=\"{value}\": {e}")
           | _ => pure (.error s!"{attr}=\"{value}\" is not `<Model> <item>`")
       match url with
       | .error e => errors := errors.push e
-      | .ok u =>
+      | .ok none => continue
+      | .ok (some u) =>
         -- The element carrying the attribute, if it is a text run to link.
         let some lt := findBefore s #['<'] at_ | continue
         let tag := String.ofList ((s.extract (lt + 1) at_).toList.takeWhile (· != ' '))

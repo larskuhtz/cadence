@@ -66,12 +66,19 @@ def moduleUrl (m : Name) : String :=
 
 /-- The anchors the rendered pages carry, as [docs.sh](../../../scripts/docs.sh) stage 2 read
 them back from the renderer: the declarations that have an id of their own,
-and per module the module-doc blocks, by starting line. -/
+and per module the module-doc blocks, by starting line; and, from stage 1's
+plan, the modules that have a page at all. -/
 structure Anchors where
   defs : NameSet := {}
   sections : Lean.NameMap (Array (Nat × String)) := {}
+  rendered : NameSet := {}
 
 def anchorsFile : System.FilePath := ".lake/build/literate/anchors.tsv"
+
+/-- The modules the site renders, one per line, as [docs.sh](../../../scripts/docs.sh)
+stage 1 planned them. Lean's own modules and this development's proof files
+are imported but have no page. -/
+def planFile : System.FilePath := ".lake/build/literate/plan.txt"
 
 def loadAnchors : IO Anchors := do
   unless ← anchorsFile.pathExists do
@@ -85,6 +92,11 @@ def loadAnchors : IO Anchors := do
       let secs := (a.sections.find? m.toName).getD #[] |>.push (l.toNat!, id)
       a := { a with sections := a.sections.insert m.toName secs }
     | _ => pure ()
+  unless ← planFile.pathExists do
+    throw <| IO.userError s!"{planFile} is missing: run `scripts/docs.sh`, whose \
+      stage 1 writes it, before building the guide"
+  for line in (← IO.FS.lines planFile) do
+    unless line.isEmpty do a := { a with rendered := a.rendered.insert line.toName }
   return a
 
 /-- The module-doc section of `m` that source line `line` falls in. -/
@@ -107,9 +119,10 @@ def anchorOf (env : Environment) (a : Anchors) (m n : Name) : Option String :=
 def ownAnchor (a : Anchors) (n : Name) : Bool := a.defs.contains n
 
 /-- The link to `n` in the rendered sources; computed, and checked against
-the pages by [docs.sh](../../../scripts/docs.sh). -/
+the pages by [docs.sh](../../../scripts/docs.sh). `none` when `n`'s module
+has no page: Lean's own declarations (`propext`), and those of a proof file. -/
 def declUrl (env : Environment) (a : Anchors) (n : Name) : Option String :=
-  (moduleOf env n).map fun m =>
+  (moduleOf env n).filter a.rendered.contains |>.map fun m =>
     moduleUrl m ++ ((anchorOf env a m n).map ("#" ++ ·)).getD ""
 
 def declLinkHtml (env : Environment) (a : Anchors) (n : Name) : String :=
@@ -206,8 +219,10 @@ def decl : RoleExpanderOf Unit
   | (), inls => do
     let some s ← oneCodeStr? inls | `(Verso.Doc.Inline.empty)
     let n ← realizeGlobalConstNoOverloadWithInfo (mkIdentFrom s s.getString.toName)
+    -- A declaration with no page on the site (Lean's own, a proof file's) is
+    -- shown as code: it resolved, and there is nothing to link to.
     let some url := declUrl (← getEnv) (← loadAnchors) n
-      | throwErrorAt s "{n} is not from a compiled module, so it has no source page"
+      | ``(Verso.Doc.Inline.code $(quote n.toString))
     ``(Verso.Doc.Inline.link #[Verso.Doc.Inline.code $(quote n.toString)] $(quote url))
 
 /-! ## `{claim X}` -/
