@@ -1,18 +1,22 @@
 # Cadence verification — architecture
 
-*Top-level design document for this formalisation. For orientation, build
-instructions, and the evidence-auditing guide, start at
-[README.md](../README.md); for the end theorems and their trust base on
-one page, [Cadence.lean](../Cadence.lean). This file explains how the
-formalisation is structured, what each part establishes and by what
-method, and exactly where its trust boundaries and meta-theoretic seams
-lie — **§4 is the audit checklist**: everything the machine does not
-establish, in one place. The per-model design rationale lives one level
-down: [ChorusDesign.md](ChorusDesign.md) for the Chorus model, and
+*The architecture of the verification: its structure, its methods and its
+trust bases. [The guide's chapter 1](https://larskuhtz.github.io/cadence/guide/approach/) introduces the structure;
+this page is the authority for the per-module counts (§2) and for the
+assumption inventory (§4).*
+
+This file explains how the formalisation is structured, what each part
+establishes and by what method, and where its trust boundaries and
+meta-theoretic seams lie. **§4 is the audit checklist**: everything the
+machine does not establish, in one place; [the guide's chapter
+4](https://larskuhtz.github.io/cadence/guide/modelling-idioms/) explains the modelling idioms it lists. The end
+theorems and their trust base are on one page,
+[Cadence.lean](../Cadence.lean). The per-model design rationale lives one
+level down: [ChorusDesign.md](ChorusDesign.md) for the Chorus model, and
 [ConductorDesign.md](ConductorDesign.md) plus the module headers of
 [Cadence/Cadence.lean](../Cadence/Cadence.lean) and
 [Cadence/Conductor.lean](../Cadence/Conductor.lean) for the
-composition-layer models.*
+composition-layer models.
 
 ## 1. What is being verified
 
@@ -38,13 +42,12 @@ reasoning is most intricate: the **fallback receipt/propose layer**
 rules by which each validator turns the evidence it has received into a
 valid proposal (§5).
 
-A further model goes one level *below* the published paper: the **MVBA
+A further model goes one level below the paper's main body: the **MVBA
 instantiation** ([Cadence/Mvba.lean](../Cadence/Mvba.lean) and companions).
-Module 3 (`mod:mvba`) is an interface in the paper; the leader-based protocol that
-implements it lives in the paper repository's *internal supplement*, which
-is not yet part of the published paper and has neither tags nor versions,
-so the model pins the paper-repository commit it was read against in its
-header ([MvbaPlan.md](MvbaPlan.md) §0). Its safety properties are the
+Module 3 (`mod:mvba`) is an interface in the main body; the leader-based
+protocol that implements it is specified in the paper repository's
+internal supplement, which is part of the paper target
+([PaperAlignment.md](PaperAlignment.md) §0). Its safety properties are the
 three of Module 3 (`mod:mvba`), proven as for Chorus. It supplies the `MVBA` contract's
 instance, which Chorus consumes as a class constraint and
 [Cadence/System.lean](../Cadence/System.lean) fills in (§4 item 3).
@@ -54,38 +57,18 @@ instance, which Chorus consumes as a class constraint and
 Each paper module is a type class in
 [Cadence/Interfaces.lean](../Cadence/Interfaces.lean); each layer of the
 protocol is a Veil model that *implements* one contract and *consumes* the
-contracts below it. The implication chain runs bottom-up: each arrow reads
-"fills the contract constraint above it", and each is a Lean instance rather
-than a correspondence argued in prose. The one dashed arrow marks the one
-contract this development does not implement.
+contracts below it. Each arrow reads "fills the contract constraint above
+it", and each is a Lean instance rather than a correspondence argued in
+prose. The dashed box is the ACS, an assumed module (§4 item 3).
 
-```mermaid
-flowchart BT
-    MVBA["Mvba.mvbaSafety<br/>Mvba.lean + Mvba/Proofs/"]
-    ACS["ACS — no implementation<br/>a standard primitive; its contract<br/>is assumed (§4 item 3)"]
-    CHOR["Chorus.slotConsensusSafety<br/>Chorus.lean + Chorus/Proofs/<br/>instantiate mvba : MVBASafety"]
-    COND["Conductor.orchestratorSafety<br/>Conductor.lean<br/>instantiate acs : ACSSafety"]
-    GLUE["Cadence — the pipelining glue<br/>Cadence.lean<br/>instantiate orch : OrchestratorSafety<br/>instantiate sc : SlotConsensusSafety"]
-    POS["Cadence.positional_log_safety<br/>Composition.lean<br/>MCP Safety over any modules<br/>meeting the contracts"]
-    SYS["Cadence.system_positional_log_safety<br/>System.lean<br/>MCP Safety for the composed system;<br/>conditional only on ACSSafety"]
+![The modules and their contracts: the composed claims on top; the glue, which consumes the Orchestrator and SlotConsensus contracts; the Conductor, which meets Orchestrator and consumes the assumed ACS; Chorus, which meets SlotConsensus and consumes the MVBA contract, met by the MVBA model; the receipt layer beside Chorus.](diagrams/modules-contracts.svg)
 
-    MVBA -- "fills mvba" --> CHOR
-    ACS -. "fills acs" .-> COND
-    CHOR -- "fills sc" --> GLUE
-    COND -- "fills orch" --> GLUE
-    GLUE --> POS
-    POS -- "instantiated at the instances below" --> SYS
-
-    classDef assumed stroke-dasharray:4 3
-    class ACS assumed
-```
-
-| Paper module | Contract class | Implementation | Instance | Still owed |
-|---|---|---|---|---|
-| Module 1 (`mod:slotconsensus`) | `SlotConsensusSafety` / `SlotConsensus` | [Cadence/Chorus.lean](../Cadence/Chorus.lean) | `Chorus.slotConsensusSafety` | `SlotConsensusTemporal` |
-| Module 2 (`mod:orchestrator_2`) | `OrchestratorSafety` / `Orchestrator` | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | `Conductor.orchestratorSafety`, `Conductor.conductorTemporal`, the full `Conductor.conductorFull` | nothing (the ACS it consumes is assumed) |
-| Module 3 (`mod:mvba`) | `MVBASafety` / `MVBA` | [Cadence/Mvba.lean](../Cadence/Mvba.lean) | `Mvba.mvbaSafety`, `Mvba.mvbaTemporal`, the full `Mvba.mvbaFull` | nothing |
-| Module 4 (`mod:acs`) | `ACSSafety` / `ACS` | — (out of scope) | — | the whole contract |
+| Paper module | Contract class | Implementation | Instances |
+|---|---|---|---|
+| Module 1 (`mod:slotconsensus`) | `SlotConsensusSafety` / `SlotConsensus` | [Cadence/Chorus.lean](../Cadence/Chorus.lean) | `Chorus.slotConsensusSafety`, `Chorus.chorusTemporal`, the full `Chorus.slotConsensusFull` |
+| Module 2 (`mod:orchestrator_2`) | `OrchestratorSafety` / `Orchestrator` | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | `Conductor.orchestratorSafety`, `Conductor.conductorTemporal`, the full `Conductor.conductorFull`, for every ACS meeting its contract |
+| Module 3 (`mod:mvba`) | `MVBASafety` / `MVBA` | [Cadence/Mvba.lean](../Cadence/Mvba.lean) | `Mvba.mvbaSafety`, `Mvba.mvbaTemporal`, the full `Mvba.mvbaFull` |
+| Module 4 (`mod:acs`) | `ACSSafety` / `ACS` | assumed module | the ideal model `Cadence.IdealAcs.acsSafety`, `Cadence.IdealAcs.acsTemporal` ([IdealAcs.lean](../Cadence/Conductor/IdealAcs.lean)), a consistency witness |
 
 The fallback receipt/propose layer
 ([Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean)) implements
@@ -537,8 +520,9 @@ Lean's kernel. No composition consumes a stub: every pinned artefact rests on
 persisted, kernel-checked proof terms.
 
 The mechanism that makes this fit on a 32 GB machine is the
-**verified-module file family**, sketched as a diagram in
-[README.md](../README.md) § "How the files feed each other". A model file
+**verified-module file family**, drawn in
+[model-to-theorem.svg](diagrams/model-to-theorem.svg) and explained in
+[the guide's chapter 7](https://larskuhtz.github.io/cadence/guide/checking/). A model file
 ([Cadence/Chorus.lean](../Cadence/Chorus.lean), [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean), [Cadence/Mvba.lean](../Cadence/Mvba.lean))
 elaborates the transition system and persists
 its VC *statements* in an olean-carried registry — it runs no solver

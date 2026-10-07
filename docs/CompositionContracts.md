@@ -1,6 +1,11 @@
 # Module contracts and the composition
 
-*How the paper's module specifications are stated in Lean, how each Veil model
+*How the module contracts are stated and composed.
+[The guide's chapter 5](https://larskuhtz.github.io/cadence/guide/contracts/) introduces the contracts and how to
+review them; this page is the authority for the composition's design and its
+named seams (§7).*
+
+How the paper's module specifications are stated in Lean, how each Veil model
 consumes the modules below it and proves the module it implements, and what
 the composition does **not** establish. The code is
 [Cadence/Interfaces.lean](../Cadence/Interfaces.lean) (the contracts),
@@ -11,8 +16,6 @@ the composition does **not** establish. The code is
 [Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean) and
 [Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean) (the instances),
 and [Cadence/System.lean](../Cadence/System.lean) (the composed theorem).
-For what is proven overall, read [README.md](../README.md) and
-[Architecture.md](Architecture.md).*
 
 **§5 and §7 are the audit-relevant sections**: what each implementation proves
 of its module contract and what stays assumed, and the seams the
@@ -38,8 +41,10 @@ easy to introduce and both are avoided here:
 The design below removes the first by making contracts **consumable as type
 class constraints**, and the second by making the temporal obligations
 **fields of a class**: an implementation discharges them by providing an
-instance, and a class with no instance is an obligation left open, stated
-once. Today that is only the ACS's, the assumed module.
+instance, and a class with no protocol instance is an obligation left
+open, stated once. Today that is only the ACS's, the assumed module; its one
+instance is an ideal model ([IdealAcs.lean](../Cadence/Conductor/IdealAcs.lean)),
+a consistency witness.
 
 ## 2. The design: one skeleton, two levels
 
@@ -127,7 +132,7 @@ contract's safety fragment, advances the state only through the contract's
 own transitions, and reads observables through the class. No contract
 property appears as a `require` or an `invariant`.
 
-### The glue ([Cadence.lean](../Cadence.lean))
+### The glue ([Cadence.lean](../Cadence/Cadence.lean))
 
 ```
 instantiate fm   : FaultModel node

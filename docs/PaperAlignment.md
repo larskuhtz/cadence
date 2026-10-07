@@ -1,14 +1,18 @@
 # Paper alignment — the target revision, and the review against it
 
-*What an auditor asks first: the models claim to verify the Cadence paper,
-but which paper, and is it still that paper? §0 names the target revision.
-§1 gives the mechanical check anyone can re-run against it. §§3–5 hold the
+*The paper target and the review of the models against it.
+[The guide's chapters 1](https://larskuhtz.github.io/cadence/guide/approach/) and [2](https://larskuhtz.github.io/cadence/guide/claims/) introduce the target and
+summarise the findings; this page is the authority for the target (§0) and
+for the findings for the paper's authors (§6).*
+
+The models claim to verify the Cadence paper: which paper, and is it still
+that paper? §0 names the target revision. §1 gives the mechanical check anyone can re-run against it. §§3–5 hold the
 review of what the models rest on, item by item, and §5.10 what still
 differs and why. §6 is the page of findings for the paper's authors. §8
 states the design of the two largest changes the target asked of the
 models. Earlier targets, and the sessions that moved the models onto this
 one, are recorded in [History.md](History.md) § "Paper alignment before the
-single target".*
+single target".
 
 ## 0. The target
 
@@ -31,7 +35,8 @@ target, arXiv v2 with the MVBA from the supplement at `eb1bb51`, is tagged
 
 This section is the one home of the target revision. Model headers point
 here and name no revision, so a later re-pin edits this section, the label
-map, and the status sentence of the README and of
+map, the README (its opening and § "The protocol paper"), the guide (the claims
+box in [CadenceGuide.lean](guide/CadenceGuide.lean), and chapters 1 and 2) and
 [Cadence.lean](../Cadence.lean), and no model file.
 
 The target does not follow the paper repository's `master`. A later paper

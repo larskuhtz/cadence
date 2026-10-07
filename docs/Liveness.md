@@ -1,12 +1,17 @@
 # Liveness — what is proven, what is assumed
 
-*The audit summary for the untimed liveness claims, and how
+*The untimed liveness claims, and the walk-through of the proof of
+`Chorus.termination`. [The guide's chapter 6](https://larskuhtz.github.io/cadence/guide/components/) introduces
+the claims.*
+
+The audit summary for the untimed liveness claims, and how
 `Chorus.termination` is proven (§4). The premises of every liveness claim,
 timed and untimed, are listed once in [Premises.md](Premises.md). The
 model-level narrative — how the theorems and assumptions compose against
 Chorus's actions and invariants — is [ChorusDesign.md](ChorusDesign.md) §7;
 the assumption inventory is [Architecture.md](Architecture.md) §4 items 2
-and 4; the timed claims are [Bounds.md](Bounds.md).*
+and 4; the timed claims are [Bounds.md](Bounds.md). §4 is a proof
+walk-through, step by step.
 
 ## 1. The shape of the claim
 

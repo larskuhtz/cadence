@@ -1,6 +1,10 @@
 # Conductor bounds — the timed claims of the Conductor and the composed system
 
-*This document explains how the development states and proves the paper's
+*The timed claims of the Conductor and of the composed system: their
+timing models and their findings. [The guide's chapter
+6](https://larskuhtz.github.io/cadence/guide/components/) introduces the claims.*
+
+This document explains how the development states and proves the paper's
 timed claims about the Conductor (Algorithm 7 (`algorithm:conductor`)) and
 about the composed system that runs it together with Chorus: what the paper
 claims, how the module contract states it, what is assumed of the ACS, the
@@ -11,7 +15,7 @@ claim here is proven. The theorems with their axiom pins are indexed in
 own). [Bounds.md](Bounds.md) §6.2 and §6.4 have the timing machinery this
 document reuses (the MVBA's and Chorus's). How the leg was planned and built,
 session by session, is [History.md](History.md) § "Records moved out of the
-living documents (R33)".*
+living documents (R33)".
 
 ## 1. In short, for an auditor
 
