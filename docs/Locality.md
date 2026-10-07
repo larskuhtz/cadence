@@ -49,15 +49,25 @@ declaration.
 
 | Kind | What it is | How a checker recognises it |
 |---|---|---|
-| **Local** | one validator's state | an owner index in a fixed position: `local_*` with the owner first, and each model's named list (§6) |
+| **Local** | one validator's state | an owner index in a fixed position: `local_*` with the owner first, and each model's named list (§7) |
 | **Network** | a message on the network | `msg_*`, with the **sender** at a fixed index position and, for a point-to-point message, the **recipient** at another |
 | **Environment** | global time | the declared time components: Chorus `phase`, Conductor `now` |
 | **Sub-protocol** | the state of a consumed contract | the abstract state of an `instantiate`d contract class, read and changed only through the contract's operations |
+| **Auxiliary** | a history record for the proofs, not protocol state | the `aux_` prefix |
 
 Immutable configuration, the action's parameters, and ghost relations (each
 of the kind it unfolds to) complete the vocabulary. **No other mutable
 global state exists**: in particular no record that several validators
 write, and no network relation without a sender.
+
+**Auxiliary relations** record what happened so that invariants can refer to
+it afterwards — which certified entries the MVBA produced, which vote quorum
+a validator signed a negative entry against. Any action may write one; **no
+action reads one**, in a guard or in an update's right-hand side, so they
+cannot change which runs exist: deleting every auxiliary relation from a
+model leaves its transitions on the other state unchanged. Invariants and
+proofs read them freely. *Check*: syntactic — no action body mentions an
+`aux_` relation except as the target of an assignment.
 
 ## 3. The actors
 
@@ -150,6 +160,14 @@ decides is then recorded in its own local state, never left to be derived
 again from the network by a later step.
 
 ## 7. The models against the rules
+
+The auxiliary relations of every model:
+
+| Model | Auxiliary relations |
+|---|---|
+| Chorus | `aux_mvba_decided_pos`, `aux_mvba_decided_neg` (the certified entries), `aux_fb_neg_qv` (the vote quorum behind a negative fallback entry) |
+| Conductor | `opened_win` (the window a slot was opened in; to be renamed `aux_opened_win`) |
+| Cadence (glue), FallbackReceipt, Mvba | none |
 
 | Model | Local rows (§2) | Status |
 |---|---|---|

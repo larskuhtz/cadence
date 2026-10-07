@@ -288,16 +288,16 @@ def RecordedAs (thS : Chorus.Theory slot node nodeset merkle_root
     (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)
     (v : MetaBlock node merkle_root)
     (st : StateAtMvba slot node nodeset merkle_root view Phase PathChoice) (J : node) : Prop :=
-  (∃ M, thS.mval_pos (thM.ent v) J M = true ∧ st.mvba_decided_pos J M = true) ∨
-    (thS.mval_neg (thM.ent v) J = true ∧ st.mvba_decided_neg J = true)
+  (∃ M, thS.mval_pos (thM.ent v) J M = true ∧ st.aux_mvba_decided_pos J M = true) ∨
+    (thS.mval_neg (thM.ent v) J = true ∧ st.aux_mvba_decided_neg J = true)
 
 omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
 theorem RecordedAs.step {r : TChorusRun thS thM time} {n : Nat} {v : MetaBlock node merkle_root}
     {J : node} (h : RecordedAs thS thM v (r.at' n) J) : RecordedAs thS thM v (r.at' (n + 1)) J := by
   mvba_inst
   rcases h with ⟨M, hM, hd⟩ | ⟨hM, hd⟩
-  · exact Or.inl ⟨M, hM, Chorus.mvba_decided_pos.mono (r.steps n) J M hd⟩
-  · exact Or.inr ⟨hM, Chorus.mvba_decided_neg.mono (r.steps n) J hd⟩
+  · exact Or.inl ⟨M, hM, Chorus.aux_mvba_decided_pos.mono (r.steps n) J M hd⟩
+  · exact Or.inr ⟨hM, Chorus.aux_mvba_decided_neg.mono (r.steps n) J hd⟩
 
 /-- **Milestone: the decision handlers, `δ` after a correct decision.** From
 an index `N` at which a correct validator `i0` has decided `v0`, every

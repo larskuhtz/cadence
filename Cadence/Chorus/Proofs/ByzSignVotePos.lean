@@ -36,7 +36,7 @@ namespace Chorus.Proofs
   veil_inv_have h_fb_neg_qv_is_proposer := fb_neg_qv_is_proposer
   veil_inv_have h_fb_neg_qv_no_pos_quorum := fb_neg_qv_no_pos_quorum
   veil_inv_have h_vote_cast_entries := vote_cast_entries
-  intro _hbyz_r _hchunk hne1 hne2 hne3 hnie R J M hbyzR hfb x hsup_x
+  intro _hbyz_r _sender _hchunk hne1 hne2 hne3 hnie R J M hbyzR hfb x hsup_x
   -- Pre-state no-equivocation from the post-state hypotheses (pre-state
   -- signatures persist into the post state).
   have hne1' : ∀ a b c1 c2, st.msg_vote_pos_sig a b c1 = true →

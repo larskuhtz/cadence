@@ -1,29 +1,21 @@
 import Cadence.Chorus
 import Cadence.ProofPrelude
 
-/-! # `Chorus` proofs — action `on_mvba_decide_neg`
+/-! # `Chorus` proofs — action `commit_assign_neg_mvba`
 
 Scaffolded by `#gen_proof_files Chorus`; yours to edit. Proves every
-registered VC of `on_mvba_decide_neg` cross-file from the module's persisted VC registry
+registered VC of `commit_assign_neg_mvba` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 [Certify.lean](../Certify.lean)'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Chorus on_mvba_decide_neg <property> by <tac>` lines
+Manual cells go on `#prove_vc Chorus commit_assign_neg_mvba <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
 false` is written out below, and the shared blocks from
 [ProofPrelude.lean](../../ProofPrelude.lean) record what each of the other options is
-for.
-
-The two manual cells ([MvbaPlan.md](../../../docs/MvbaPlan.md) §6) take the
-handler's guards and then its bridge `require`, the evidence hypothesis
-`hev`: the commitQC-versus-negative-decision quorum
-intersection, and the proposal-inclusion step that a negative decision for
-an on-time correct proposer is impossible — its evidence would contain an
-honest negative vote or fallback entry, or an EquivCert on a proposer that
-signed one root. -/
+for. -/
 
 open Veil Chorus
 
@@ -36,14 +28,19 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
-#prove_vc Chorus on_mvba_decide_neg commitqc_pos_mvba_neg_excl by
+/- Ported from the former `on_mvba_commitqc_*` handlers, which wrote the same
+record: the bridge's certificate meets the commit certificate's quorums. A
+solved cell, but at two thirds of the budget and more on this machine, so it
+is written out. -/
+
+#prove_vc Chorus commit_assign_neg_mvba commitqc_pos_mvba_neg_excl by
   unveil_local
   veil_inv_have h_msg_commitqc_pos_votes := msg_commitqc_pos_votes
   veil_inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
   veil_inv_have h_msg_commitqc_pos_backed := msg_commitqc_pos_backed
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_pos_mvba_neg_excl := commitqc_pos_mvba_neg_excl
-  intro _hbyz _hprop _hdec _hval hev _hfresh C J M hqc
+  intro _hbyz _hpart _hab _hcom _hprop _hmsg _hcert _hval hev _hfresh _hneg C J M hqc
   refine ⟨?_, h_commitqc_pos_mvba_neg_excl C J M hqc⟩
   rintro rfl
   rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩
@@ -58,30 +55,6 @@ namespace Chorus.Proofs
     have hy := hqf c hc2
     rw [hcf] at hy; simp at hy
 
-#prove_vc Chorus on_mvba_decide_neg inclusion_no_mvba_neg by
-  unveil_local
-  veil_inv_have h_inclusion_no_honest_vote_neg := inclusion_no_honest_vote_neg
-  veil_inv_have h_inclusion_no_honest_fb_neg := inclusion_no_honest_fb_neg
-  veil_inv_have h_proposer_unique_root := proposer_unique_root
-  veil_inv_have h_inclusion_no_mvba_neg := inclusion_no_mvba_neg
-  intro _hbyz _hprop _hdec _hval hev _hfresh J M hbyzJ hpropJ hall hwe
-  refine ⟨?_, h_inclusion_no_mvba_neg J M hbyzJ hpropJ hall hwe⟩
-  rintro rfl
-  rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨harm, -⟩
-  · obtain ⟨a, ha_mem, ha_hon⟩ :=
-      nset.greater_than_third_one_honest Qn (nset.supermajority_greater_than_third Qn hQn_sup)
-    have hx :=
-      h_inclusion_no_honest_vote_neg j a M hbyzJ hpropJ hall hwe (Bool.eq_false_iff.mpr ha_hon)
-    have hy := hQn a ha_mem
-    rw [hx] at hy; simp at hy
-  · rcases harm with ⟨qn, hqn_gtt, hqn⟩ | ⟨m1, m2, hm12, hp1, hp2⟩
-    · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qn hqn_gtt
-      have hx :=
-        h_inclusion_no_honest_fb_neg j a M hbyzJ hpropJ hall hwe (Bool.eq_false_iff.mpr ha_hon)
-      have hy := hqn a ha_mem
-      rw [hx] at hy; simp at hy
-    · exact hm12 (h_proposer_unique_root j m1 m2 hbyzJ hp1 hp2)
-
-#prove_action Chorus on_mvba_decide_neg
+#prove_action Chorus commit_assign_neg_mvba
 
 end Chorus.Proofs

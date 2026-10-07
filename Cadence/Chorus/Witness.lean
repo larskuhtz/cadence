@@ -202,8 +202,8 @@ def st (n : Nat) : CS where
   local_fastqc_pos i j _ := decide (j.val = 0 ∧ i.val < 3 ∧ 16 + i.val < n)
   local_fastqc_neg _ _ := false
   mvba_st := mst n
-  mvba_decided_pos _ _ := false
-  mvba_decided_neg _ := false
+  aux_mvba_decided_pos _ _ := false
+  aux_mvba_decided_neg _ := false
   local_mvba_complete _ := false
   local_entry_pos i j _ := decide (j.val = 0 ∧ i.val < 3 ∧ 8 + i.val < n)
   local_entry_neg _ _ := false
@@ -212,7 +212,7 @@ def st (n : Nat) : CS where
   local_committed i := decide (i.val < 3 ∧ 31 + i.val < n)
   local_committed_pos i j _ := decide (j.val = 0 ∧ i.val < 3 ∧ 28 + i.val < n)
   local_committed_neg _ _ := false
-  local_fb_neg_qv _ _ _ := false
+  aux_fb_neg_qv _ _ _ := false
   local_chunk_sent k i j _ := decide (j.val = 0 ∧ k.val = 0 ∧ 4 + i.val < n)
   local_commit_entry i j := decide (j.val = 0 ∧ i.val < 3 ∧ 19 + i.val < n)
   local_fb_entry _ _ := false

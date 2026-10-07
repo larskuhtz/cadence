@@ -265,11 +265,15 @@ failing them are discarded on receipt and thus never observable as valid). -/
 /-- Proposer `j` has signed a chunk header `⟨s, j, m⟩` (Algorithm 2 (`alg:proposer-dissemination`)). -/
 relation msg_proposer_signed (j : node) (m : merkle_root)
 
-/-- A chunk from proposer `j` for slot `s` under root `m` has been
-delivered to validator `i` (the network "in-flight" relation; see
-[ChorusDesign.md](../docs/ChorusDesign.md) §3.5.1 for why chunks are the only per-recipient network
-relation). -/
-relation msg_chunk_received (i : node) (j : node) (m : merkle_root)
+/-- Sender `s` has sent validator `i` its assigned chunk under proposer `j`'s
+root `m`: the proposer's own send (Algorithm 2 (`alg:proposer-dissemination`),
+`s = j`), or a re-dissemination (Algorithm 5, line 12
+(`line:fb-redisseminate`)). The only point-to-point message of the model,
+indexed by its sender first and its recipient second; a correct validator
+reads it only as its recipient ([Locality.md](../docs/Locality.md) R2, and
+[ChorusDesign.md](../docs/ChorusDesign.md) §3.5.1 for why chunks are
+point-to-point). -/
+relation msg_chunk (s : node) (i : node) (j : node) (m : merkle_root)
 
 /-- Validator `r` has signed a positive `vote`-tagged entry `⟨s, j, m⟩`. -/
 relation msg_vote_pos_sig (r : node) (j : node) (m : merkle_root)
@@ -301,37 +305,45 @@ relation msg_commit_neg_sig (r : node) (j : node)
 commit signatures count toward a commitQC. -/
 relation msg_commit_cast (r : node)
 
-/-- An assembled positive fast commit certificate for `(j, m)` has been
-broadcast (Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)):
-an aggregate of `2f+1` matching *broadcast* commit votes. Anyone holding
-the underlying signatures — honest or Byzantine — can assemble it, and
-every receiver can verify it, so its existence is a network fact; the
-assembly step is the `broadcast_commitqc_*` action, whose precondition
-is exactly the certificate's validity check. -/
-relation msg_commitqc_pos (j : node) (m : merkle_root)
+/-- Sender `c` has broadcast a positive fast commit certificate for `(j, m)`
+(Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)): an aggregate of
+`2f+1` matching *broadcast* commit votes, formed by `c` from the votes it
+received (`broadcast_commitqc_pos`), or re-broadcast by a validator that
+finalized on it (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`),
+`commit_assign_pos_fast`). -/
+relation msg_commitqc_pos (c : node) (j : node) (m : merkle_root)
 /-- The negative counterpart. -/
-relation msg_commitqc_neg (j : node)
+relation msg_commitqc_neg (c : node) (j : node)
 
 /-- TIBE extraction (decryption) share released by validator `r` for the slot
 (Algorithm 3 (`alg:voting`): released together with the proposal vote). -/
 relation msg_decrypt_share (r : node)
 
 /-- Validator `r` has signed and broadcast a fallback commit vote
-`⟨FallbackCommitVote, s, entries(B'), σ_r⟩` (Algorithm 5, line 41 (`line:fb-commitvote`)) — the extra commit round the fallback path runs
-after an MVBA decision (an MVBA decision does not finalize by itself).
-The entry vector is left implicit in the
-relation: an honest validator signs exactly the MVBA-decided entries
-(Algorithm 5, line 37 (`line:fb-mvba-decide`) binds `E = entries(B')`), which the contract's
-agreement makes unique, so "2f+1 votes carrying the *same*
-entries" (Algorithm 5, line 42 (`line:fb-collect-commit`)) needs no vote-level argument. A
-Byzantine signer's vote on any *other* vector could never aggregate
-into an fbCommitQC in the paper (2f+1 matching votes contain an honest
-co-signer); dropping the vector from the relation lets such votes count
-toward the model's `fbcommitqc` ghost, which only *over-approximates*
-adversary power — the sound direction for safety — and `commit_assign_*`
-requires the MVBA decision itself in conjunction, so a commit's
-*content* always comes from the decided vector. -/
-relation msg_fbcommit_sig (r : node)
+`⟨FallbackCommitVote, s, e, σ_r⟩` over the entry vector `e`
+(Algorithm 5, line 41 (`line:fb-commitvote`)) — the extra commit round the
+fallback path runs after an MVBA decision (an MVBA decision does not
+finalize by itself). A correct validator signs the entries of its own
+decision (Algorithm 5, line 37 (`line:fb-mvba-decide`) binds
+`E = entries(B′)`); a Byzantine one signs any vector. -/
+relation msg_fbcommit_sig (r : node) (e : mentries)
+
+/-- Sender `c` has broadcast a fallback commit certificate
+`fbCommitQC = ⟨FallbackCommit, s, e, Σ⟩` over the entry vector `e`
+(Algorithm 5, line 44 (`line:fb-commit-broadcast`)): `2f+1` fallback commit
+votes over the same `e`, formed by `c` from the votes it received
+(`broadcast_fbcommitqc`), or re-broadcast by a validator that finalized on
+it (Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)). The receiver
+finalizes on the entries the certificate carries (Algorithm 5, line 45
+(`line:fb-recv-commit`)). -/
+relation msg_fbcommitqc (c : node) (e : mentries)
+
+/-- Sender `i` has broadcast the MVBA's commit certificate `c`: the
+certificate its own decision outputs (`decide(x, CommitQC)`, Supplement,
+Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"), or one
+it finalized on and re-broadcasts. A receiver checks it with the contract's
+validity predicate `mvba.certifies` and finalizes on the certified entries. -/
+relation msg_mvba_cert (i : node) (c : mmsg)
 
 /-! ## Per-validator certificate state
 
@@ -365,23 +377,26 @@ pattern of the glue's `sc_state` and the Conductor's `acs_state`: the
 oracle action `mvba_step` advances it by any internal transition the
 contract allows, `mvba_propose` drives the contract's `propose` input, and
 the two **decision handlers** `on_mvba_decide_pos` / `on_mvba_decide_neg`
-transport a correct validator's decision, entry by entry, into the
-per-proposer records below — which every downstream action reads exactly
-as before. `mvba_terminate i` records that `i`'s full decision vector has been
-transported (Algorithm 5, line 37 (`line:fb-mvba-decide`) delivers the whole vector at once), and
-gates `i`'s fallback commit vote.
+handle a correct validator's decision entry by entry, each in its own
+fired-once row `local_mvba_recorded i j`. `mvba_terminate i` records that
+`i` has handled every entry of its decision (Algorithm 5, line 37
+(`line:fb-mvba-decide`) delivers the whole vector at once), and gates `i`'s
+fallback commit vote, which signs the decided entries themselves.
 
-The records' agreement — `mvba_decided_pos_unique`,
-`mvba_decided_pos_neg_excl` — is not enforced by the handlers' guards: it is
-*proven* from the class's `agreement` at the reachable abstract state,
-through the two tie invariants (`mvba_decided_pos_tied`,
-`mvba_decided_neg_tied`) that every record is the projection of some correct
-validator's decision. This is how `Mvba.mvbaSafety` enters Chorus's trust
+The entries the MVBA certified are also kept in two **auxiliary records**,
+`aux_mvba_decided_pos` / `aux_mvba_decided_neg`, which no action reads
+([Locality.md](../docs/Locality.md) §2): the invariants state agreement
+between the commit routes over them. Their agreement —
+`mvba_decided_pos_unique`, `mvba_decided_pos_neg_excl` — is *proven* from
+the class's `agreement` at the reachable abstract state, through the two tie
+invariants (`mvba_decided_pos_tied`, `mvba_decided_neg_tied`) that every
+record is the projection of some correct validator's decision or of a valid
+commit certificate. This is how `Mvba.mvbaSafety` enters Chorus's trust
 base.
 
-`mvba_st` is oracle state (category (A) of the state-locality contract,
-[ChorusDesign.md](../docs/ChorusDesign.md) §3.5): it is consulted only through the contract's
-observables, and only in positive position. -/
+`mvba_st` is the consumed sub-protocol's state: actions use it only through
+the contract's operations at the actor's index, or to check a certificate
+the actor holds ([Locality.md](../docs/Locality.md) §5). -/
 
 /-- The instance's initial state: per-execution data, constrained by the
 assumption `[mvba_init]` (an `assumption` may mention immutable
@@ -389,12 +404,15 @@ components only, so the mutable `mvba_st` is seeded from this). -/
 immutable individual mvba_init_state : mstate
 /-- The abstract MVBA state. -/
 individual mvba_st : mstate
-/-- Chorus's record that the MVBA decided the positive entry `⟨s, j, m⟩`,
-written by the decision handler `on_mvba_decide_pos`. -/
-relation mvba_decided_pos (j : node) (m : merkle_root)
-/-- Chorus's record that the MVBA decided the negative entry `⟨s, j, ⊥⟩`,
-written by `on_mvba_decide_neg`. -/
-relation mvba_decided_neg (j : node)
+/-- Auxiliary record ([Locality.md](../docs/Locality.md) §2) that the MVBA
+certified the positive entry `⟨s, j, m⟩`: written by a correct validator's
+decision handler `on_mvba_decide_pos`, and by finalization on an MVBA commit
+certificate (`commit_assign_pos_mvba`). No action reads it; the invariants
+use it to state agreement between the commit routes. -/
+relation aux_mvba_decided_pos (j : node) (m : merkle_root)
+/-- Auxiliary record that the MVBA certified the negative entry `⟨s, j, ⊥⟩`;
+see `aux_mvba_decided_pos`. -/
+relation aux_mvba_decided_neg (j : node)
 
 /-! ## Validator-local state -/
 
@@ -425,14 +443,23 @@ relation local_committed_pos (i : node) (j : node) (m : merkle_root)
 /-- Validator `i` committed the negative entry `⟨s, j, ⊥⟩` (`commit_assign_neg`). -/
 relation local_committed_neg (i : node) (j : node)
 
-/-- Auxiliary (proof-only) history variable: the witnessed quorum of
-broadcast votes against which validator `i` cast its negative fallback
-entry for proposer `j` (the `qv` parameter of `fb_sign_neg` at firing
-time). Written by `fb_sign_neg`, read by no action — it exists so that
-the speculative-safety argument can refer to the quorum after the fact
-without an `∃ qv (… ∧ ∀ …)` invariant, whose quantifier alternation
-sends the SMT matcher into a loop on the bulk-update actions. -/
-relation local_fb_neg_qv (i : node) (j : node) (qv : nodeset)
+/-- Auxiliary record ([Locality.md](../docs/Locality.md) §2): the quorum of
+received votes against which validator `i` cast its negative fallback entry
+for proposer `j` (the `qv` parameter of `fb_sign_neg` at firing time).
+Written by `fb_sign_neg`, read by no action — it exists so that the
+speculative-safety argument can refer to the quorum after the fact without
+an `∃ qv (… ∧ ∀ …)` invariant, whose quantifier alternation sends the SMT
+matcher into a loop on the bulk-update actions. -/
+relation aux_fb_neg_qv (i : node) (j : node) (qv : nodeset)
+
+/-- Validator `i` has received sender `r`'s vote, whose entry for proposer
+`j` is positive on root `m`. A vote is one message per sender
+(Algorithm 3, line 14 (`line:vote-broadcast`)), so `i` keeps one entry per
+sender and proposer: the first it receives (`receive_vote_pos`). -/
+relation local_vote_rcv_pos (i : node) (r : node) (j : node) (m : merkle_root)
+/-- Validator `i` has received sender `r`'s vote, whose entry for proposer
+`j` is negative (`receive_vote_neg`). -/
+relation local_vote_rcv_neg (i : node) (r : node) (j : node)
 
 /-! ## Fired-once records
 
@@ -440,22 +467,16 @@ The paper's handlers run once: a validator sends its commit vote, its
 fallback vote or its fallback commit vote once,
 and handles its MVBA decision once. The model splits several of those
 handlers into per-proposer steps (the Veil idiom for a `for each` loop),
-and the effect of such a step is a network tuple or a shared record, which
-the acting validator must not read negatively
-([ChorusDesign.md](../docs/ChorusDesign.md) §3.1.1). So each of them keeps a
-record of its own that it has already fired, and its guard is that record's
-absence. A negative read of one's own local state is sound (category (L)).
+and the effect of such a step is a network tuple, which the acting
+validator may not read negatively unless it is its own send. So each of
+them keeps a record of its own that it has already fired, and its guard is
+that record's absence: a read of its own local state
+([Locality.md](../docs/Locality.md) R1).
 The records remove only steps that would change nothing else, so they
 remove no reachable network state; what they buy is that no fair action
 stays enabled after it has fired ([Bounds.md](../docs/Bounds.md) §6.4.7,
 `Chorus.justice_enabledMove`). -/
 
-/-- Validator `i` has received sender `k`'s chunk for it under proposer `j`'s
-root `m`: the delivery of the proposer's own send (`deliver_chunk_assigned`,
-`k = j`, the step's fired-once record), or the re-dissemination inside the
-fallback-entry rule, which sends and delivers at once (`fb_sign_pos`, `k`
-the signer, Algorithm 5, line 12 (`line:fb-redisseminate`)). -/
-relation local_chunk_sent (k : node) (i : node) (j : node) (m : merkle_root)
 /-- Validator `i` has signed its fast commit vote's entry for proposer `j`
 (`commit_sign_pos` / `commit_sign_neg`): the commit vote carries one entry
 per proposer (Algorithm 4, line 24 (`line:fast-commitvote`)). -/
@@ -467,6 +488,12 @@ relation local_fb_entry (i : node) (j : node)
 `j` (`broadcast_commitqc_pos` / `broadcast_commitqc_neg`,
 Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)). -/
 relation local_commitqc_sent (c : node) (j : node)
+/-- Collector `c` has broadcast a fallback commit certificate
+(`broadcast_fbcommitqc`, Algorithm 5, line 44 (`line:fb-commit-broadcast`)). -/
+relation local_fbcommitqc_sent (c : node)
+/-- Validator `i` has broadcast the commit certificate its MVBA decision
+output (`send_mvba_cert`). -/
+relation local_mvba_cert_sent (i : node)
 /-- Validator `i` has recorded entry `j` of its MVBA decision
 (`on_mvba_decide_pos` / `on_mvba_decide_neg`, Algorithm 5, line 37 (`line:fb-mvba-decide`)). -/
 relation local_mvba_recorded (i : node) (j : node)
@@ -584,27 +611,25 @@ ghost relation commitqc_neg (j : node) :=
   ∃ q, nset.supermajority q ∧
     ∀ r, nset.member r q → msg_commit_neg_sig r j ∧ msg_commit_cast r
 
-/-- The fallback commit certificate `fbCommitQC` (Algorithm 5, line 42 (`line:fb-collect-commit`) / Algorithm 5, line 43 (`line:fb-formcommitqc`)): `2f+1` fallback
-commit votes over the same entries. Transferable
-(Algorithm 5, line 44 (`line:fb-commit-broadcast`)); finalization fires on its receipt
-(Algorithm 5, line 45 (`line:fb-recv-commit`) / Algorithm 5, line 47 (`line:fb-finalize`)). The entries it carries
-are the MVBA-decided vector — see `msg_fbcommit_sig` for why the
-vector is implicit in the signature relation. -/
-ghost relation fbcommitqc :=
-  ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_fbcommit_sig r
+/-- The fallback commit certificate `fbCommitQC` over the entry vector `e`
+(Algorithm 5, line 42 (`line:fb-collect-commit`) / Algorithm 5, line 43
+(`line:fb-formcommitqc`)): `2f+1` fallback commit votes over the same
+entries. Its validity check, which `broadcast_fbcommitqc` performs when it
+forms one. -/
+ghost relation fbcommitqc (e : mentries) :=
+  ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_fbcommit_sig r e
 
-/-- A valid MVBA commit certificate exists: the transferable commitment
-proof that `decide(x, CommitQC)` outputs and Chorus broadcasts
-(Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and
-handoff"). Its entries are the certified entry vector, which the records
-`mvba_decided_*` hold. -/
-ghost relation mvba_commitqc :=
-  ∃ C E, mvba.certifies mvba_st C E
+/-- Validator `i` has received its assigned chunk under proposer `j`'s root
+`m`, from some sender. -/
+ghost relation chunk_received (i : node) (j : node) (m : merkle_root) :=
+  ∃ s, msg_chunk s i j m
 
-/-- Data availability for `(j, m)`: `f+1` delivered chunks — the erasure-code
-reconstruction threshold (Algorithm 6 (`alg:da`) `isDecoded`). -/
+/-- Data availability for `(j, m)`: `f+1` validators hold their assigned
+chunk — the erasure-code reconstruction threshold (Algorithm 6 (`alg:da`)
+`isDecoded`). A statement about the run, read by no correct validator's
+action. -/
 ghost relation chunk_quorum (j : node) (m : merkle_root) :=
-  ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_chunk_received r j m
+  ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → chunk_received r j m
 
 /-- The slot key can be reconstructed: `f+1` extraction shares released
 (Appendix C.2 (`appendix:encryption`)). -/
@@ -685,13 +710,13 @@ this component count it needs more than the module's default heartbeat
 budget. The raise is scoped by hand: it is set here and restored to Veil's
 module default (500000) right after the block, so no later command sees it
 (a `set_option … in` around a Veil command breaks the module state). -/
-set_option maxHeartbeats 1000000
+set_option maxHeartbeats 3000000
 
 after_init {
   phase := pre_deadline
 
   msg_proposer_signed J M := false
-  msg_chunk_received I J M := false
+  msg_chunk S I J M := false
   msg_vote_pos_sig R J M := false
   msg_vote_neg_sig R J := false
   msg_vote_cast R := false
@@ -701,17 +726,19 @@ after_init {
   msg_commit_pos_sig R J M := false
   msg_commit_neg_sig R J := false
   msg_commit_cast R := false
-  msg_commitqc_pos J M := false
-  msg_commitqc_neg J := false
+  msg_commitqc_pos C J M := false
+  msg_commitqc_neg C J := false
   msg_decrypt_share R := false
-  msg_fbcommit_sig R := false
+  msg_fbcommit_sig R E := false
+  msg_fbcommitqc C E := false
+  msg_mvba_cert I C := false
 
   local_fastqc_pos I J M := false
   local_fastqc_neg I J := false
 
   mvba_st := mvba_init_state
-  mvba_decided_pos J M := false
-  mvba_decided_neg J := false
+  aux_mvba_decided_pos J M := false
+  aux_mvba_decided_neg J := false
 
   local_entry_pos I J M := false
   local_entry_neg I J := false
@@ -720,12 +747,15 @@ after_init {
   local_committed I := false
   local_committed_pos I J M := false
   local_committed_neg I J := false
-  local_fb_neg_qv I J QV := false
+  aux_fb_neg_qv I J QV := false
+  local_vote_rcv_pos I R J M := false
+  local_vote_rcv_neg I R J := false
 
-  local_chunk_sent K I J M := false
   local_commit_entry I J := false
   local_fb_entry I J := false
   local_commitqc_sent C J := false
+  local_fbcommitqc_sent C := false
+  local_mvba_cert_sent I := false
   local_mvba_recorded I J := false
   local_mvba_qc_accepted I := false
   local_mvba_complete I := false
@@ -771,27 +801,23 @@ to be actively participating, `participating i ∧ ¬ abandoned i`. These are:
 * `propose` (at the proposer; it sends every chunk);
 * `vote`;
 * `commit_sign_*` and `cast_fast_commit`;
-* `broadcast_commitqc_*` (at the collector);
+* `broadcast_commitqc_*` and `broadcast_fbcommitqc` (at the collector);
 * `fb_sign_*` (`fb_sign_pos` also sends every validator its chunk) and
   `cast_fallback_vote`;
 * `mvba_propose`, which the convention names explicitly;
+* `send_mvba_cert`, the broadcast of the MVBA's commit certificate;
 * `cast_fb_commit`;
 * `commit_assign_*` and `finalize_commit`, because the paper's
   finalization rules re-broadcast the commitment proof
   (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)).
 
-The rules that only process a received message are exempt: the delivery
-of a proposer's chunk `deliver_chunk_assigned` (a delivery of a send that
-`propose` made, so not a send of its own), `record_chunk`,
-`aggregate_fastqc_*`, the decision handlers `on_mvba_decide_*` and
-`mvba_terminate`, the certificate handlers `on_mvba_commitqc_*`, and the
-availability report `mvba_avail_ready`. So are the phase markers and the MVBA's oracle step,
-which are not a validator's rules. `broadcast_commitqc_*` takes its correct
-sender as a parameter; the same capability in Byzantine hands is the
-unconstrained `byz_broadcast_commitqc_*`, and the re-dissemination a
-Byzantine holder of `f+1` chunks can do is `byz_redisseminate_chunk`. The
-gates read only the acting validator's own local state, so they add no
-network read in any position (ChorusDesign.md §3.1.1).
+The rules that only process a received message are exempt: `record_chunk`,
+the vote receipts `receive_vote_*`, `aggregate_fastqc_*`, the decision
+handlers `on_mvba_decide_*` and `mvba_terminate`, the certificate handoff
+`accept_mvba_commitqc`, and the availability report `mvba_avail_ready`. So
+are the phase markers and the MVBA's oracle step, which are not a
+validator's rules. The gates read only the acting validator's own local
+state ([Locality.md](../docs/Locality.md) R1).
 
 **Forwarding to the MVBA.** `abandon i` also invokes the MVBA's `abandon()`
 at `i` (Algorithm 5, line 48 (`line:fb-abandon`)), through the contract's `mvba.abandon` input, the
@@ -816,37 +842,23 @@ action abandon (i : node) (mvba_next : mstate) {
 
 /-! ## Phase I — Proposer dissemination (Algorithm 2 (`alg:proposer-dissemination`))
 
-An honest proposer `j` commits to a single Merkle root `m` and produces a
-chunk per validator under that root. At the protocol level we only observe
-two effects: the proposer's signature `msg_proposer_signed j m` and the
-per-recipient chunk arrival `msg_chunk_received i j m` (see
-[ChorusDesign.md](../docs/ChorusDesign.md) §3.5.1).
+An honest proposer `j` commits to a single Merkle root `m` and sends every
+validator its chunk under that root, in one step: the `send` of
+Algorithm 2 (`alg:proposer-dissemination`)'s "for each validator `p_r`"
+loop. Its effects are the proposer's signature `msg_proposer_signed j m` and
+one point-to-point message `msg_chunk j I j m` per validator `I`. Honest
+proposers are bound to a *single* `m` per slot by the precondition
+`∀ m2, msg_proposer_signed j m2 → m2 = m`, a read of the proposer's own
+sends; Byzantine proposers can equivocate via `byz_sign_proposer` and
+`byz_send_chunk`.
 
-We split the paper's atomic "propose" into two actions to surface the
-per-recipient nature of chunk delivery:
-
-* `propose j m` — proposer's root commitment. Sets only `msg_proposer_signed`.
-  Honest proposers are bound to a *single* `m` per slot via the precondition
-  `∀ m2, msg_proposer_signed j m2 → m2 = m`; Byzantine proposers can
-  equivocate via `byz_sign_proposer` / `byz_deliver_chunk`.
-* `deliver_chunk_assigned i j m` — the chunk assigned to validator `i` under
-  root `m` is delivered to `i`. The paper sends every chunk in the proposing
-  step itself, in the `send` of Algorithm 2 (`alg:proposer-dissemination`)'s
-  "for each validator `p_r`" loop. So the send is `propose`, and its record
-  is `msg_proposer_signed j m`: for honest `j` the delivery requires it, so
-  honest delivery cannot fabricate chunks, and it requires nothing else of
-  the proposer. A chunk in flight is delivered whatever the proposer does
-  after proposing; in particular after it abandons (a delivery of an
-  earlier send is not a new send). Byzantine proposer delivery is covered by the
-  separate `byz_deliver_chunk` action (which lifts the
-  `msg_proposer_signed` requirement, modelling chunk equivocation; see §5
-  of [ChorusDesign.md](../docs/ChorusDesign.md)).
-
-Note that `deliver_chunk_assigned` is unguarded by `phase`: chunks may
-arrive at any time (the DA module continues to ingest and decode them
-post-deadline). `record_chunk` (which turns chunk delivery into the
-validator's `local_entry_pos`) is the action that enforces the
-`pre_deadline` cutoff. -/
+A chunk may reach its recipient at any time, or never: the network is
+monotone, and nothing forces a validator to act on a message
+([Locality.md](../docs/Locality.md) §1). `record_chunk`, the recipient's
+step, is what turns a received chunk into its positive entry, and it
+enforces the `pre_deadline` cutoff. That an on-time chunk is recorded in
+time is a premise about runs (the receiver's row of the timing premise),
+not a step of the model. -/
 action propose (j : node) (m : merkle_root) {
   require ¬ is_byz j
   require participating j
@@ -859,19 +871,11 @@ action propose (j : node) (m : merkle_root) {
   require phase = pre_deadline
   require ∀ m2, msg_proposer_signed j m2 → m2 = m
   msg_proposer_signed j m := true
+  -- Send every validator its chunk under `m`.
+  msg_chunk j I j m := true
 }
 
-action deliver_chunk_assigned (i : node) (j : node) (m : merkle_root) {
-  require ¬ is_byz j
-  -- The send: `j`'s proposal (Algorithm 2 (`alg:proposer-dissemination`)).
-  require msg_proposer_signed j m
-  -- Fired once: `j`'s chunk for `i` has not been delivered yet.
-  require ¬ local_chunk_sent j i j m
-  msg_chunk_received i j m := true
-  local_chunk_sent j i j m := true
-}
-
-/-- A chunk that arrives at honest validator `i` before the deadline is recorded
+/-- A chunk that reaches honest validator `i` before the deadline is recorded
 as a positive local entry (Algorithm 6 (`alg:da`) `tryIngestChunk` → Algorithm 3 (`alg:voting`)
 `onChunkValidated`, Algorithm 3, line 5 (`line:vote-positive`)). An honest validator only records
 the first chunk per proposer; subsequent chunks are ignored. -/
@@ -880,7 +884,8 @@ action record_chunk (i : node) (j : node) (m : merkle_root) {
   -- `tryIngestChunk` rejects chunks whose sender is not a proposer of the
   -- slot (Algorithm 6 (`alg:da`): "if j ∉ s.proposers … return false").
   require is_proposer j
-  require msg_chunk_received i j m
+  -- A chunk addressed to `i`, from any sender, under a root `j` signed.
+  require chunk_received i j m
   require msg_proposer_signed j m
   require phase = pre_deadline
   require ∀ m2, ¬ local_entry_pos i j m2
@@ -1013,13 +1018,13 @@ action cast_fast_commit (i : node) {
 /-- Assemble and broadcast a fast commit certificate entry
 (Algorithm 4, line 31 (`line:fast-collect-commit`) / Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)): `2f+1`
 matching broadcast commit votes aggregate into a transferable certificate.
-The collector `c` is a correct sender. It sends only while actively
-participating, like every other sending rule, and once per proposer: the
-`upon` handler runs once (`local_commitqc_sent`). Apart from those, the
-action's precondition is the validity check itself. A Byzantine holder of
-the signatures can assemble the same (valid) certificate at any time, and
-receivers verify it against the signatures: that is the adversary's
-capability `byz_broadcast_commitqc_*` below, which is not fair. -/
+The collector `c` is a correct validator that forms the certificate from
+the commit votes it has received and broadcasts it under its own name. It
+sends only while actively participating, like every other sending rule, and
+once per proposer: the `upon` handler runs once (`local_commitqc_sent`).
+Apart from those, the action's precondition is the validity check itself.
+A Byzantine validator can form and send the same (valid) certificate at any
+time: `byz_broadcast_commitqc_*` below, which is not fair. -/
 action broadcast_commitqc_pos (c : node) (j : node) (m : merkle_root) (q : nodeset) {
   require ¬ is_byz c
   require participating c
@@ -1028,7 +1033,7 @@ action broadcast_commitqc_pos (c : node) (j : node) (m : merkle_root) (q : nodes
   require ∀ r, nset.member r q → msg_commit_pos_sig r j m ∧ msg_commit_cast r
   -- Fired once: `c` has not broadcast a certificate entry for `j` yet.
   require ¬ local_commitqc_sent c j
-  msg_commitqc_pos j m := true
+  msg_commitqc_pos c j m := true
   local_commitqc_sent c j := true
 }
 
@@ -1039,7 +1044,7 @@ action broadcast_commitqc_neg (c : node) (j : node) (q : nodeset) {
   require nset.supermajority q
   require ∀ r, nset.member r q → msg_commit_neg_sig r j ∧ msg_commit_cast r
   require ¬ local_commitqc_sent c j
-  msg_commitqc_neg j := true
+  msg_commitqc_neg c j := true
   local_commitqc_sent c j := true
 }
 
@@ -1064,19 +1069,55 @@ of *broadcast* votes (`msg_vote_cast`). This guard is load-bearing for
 proposal inclusion (Proposition 3 (`prop:honest-positive-entry`)): any 2f+1 broadcast votes
 contain f+1 honest ones, which pin an on-time honest proposer's entry. -/
 
+/-- Vote receipt, positive entry: validator `i` receives sender `r`'s vote
+(Algorithm 3, line 14 (`line:vote-broadcast`)), whose entry for proposer
+`j` is positive on `m`, and keeps it. A vote is one message per sender, so
+a correct receiver keeps one entry per sender and proposer: the first it
+receives. A Byzantine sender that signed conflicting entries reaches
+different receivers with different votes, and each receiver keeps the one
+it got. The read of the network is positive, and the record is `i`'s own
+([Locality.md](../docs/Locality.md) R1, R2). It sends nothing, so it is
+not participation-gated. The receipt is what `fb_sign_neg` reads: "among
+the votes it received" is a statement about `i`'s own state. -/
+action receive_vote_pos (i : node) (r : node) (j : node) (m : merkle_root) {
+  require ¬ is_byz i
+  require is_proposer j
+  require msg_vote_cast r
+  require msg_vote_pos_sig r j m
+  -- Fired once per sender and proposer: the first entry received is kept.
+  require ∀ m2, ¬ local_vote_rcv_pos i r j m2
+  require ¬ local_vote_rcv_neg i r j
+  local_vote_rcv_pos i r j m := true
+}
+
+/-- Vote receipt, negative entry; see `receive_vote_pos`. -/
+action receive_vote_neg (i : node) (r : node) (j : node) {
+  require ¬ is_byz i
+  require is_proposer j
+  require msg_vote_cast r
+  require msg_vote_neg_sig r j
+  require ∀ m2, ¬ local_vote_rcv_pos i r j m2
+  require ¬ local_vote_rcv_neg i r j
+  local_vote_rcv_neg i r j := true
+}
+
 /-- Per-proposer fallback signing, positive case (Algorithm 5, line 11 (`line:fb-positive-entry`)).
 Per the paper an honest validator's fallback signed entry for proposer `j`
 is positive `⟨s, j, m⟩` iff *all* of:
 
   (b) it collected `f+1` valid positive votes for `(j, m)`;
-  (c) the data is reconstructible — `alg:da.isDecoded(m)` — i.e. `f+1`
-      chunks for `(j, m)` are available (delivered somewhere on the
-      network, in the monotone chunk-delivery abstraction of
-      [ChorusDesign.md](../docs/ChorusDesign.md) §3.5.2);
+  (c) the data is reconstructible — `alg:da.isDecoded(m)`;
   (d) the reconstructed data re-encodes to `m` (Algorithm 6, line 24 (`line:da-reencode`); the paper's proof sketch: an honest validator
       casts fallback-yes only after reconstructing the proposal and
       checking that it re-encodes to the root) — the model's
       `well_encoded m`.
+
+(c) needs no guard of its own: a valid positive vote carries its signer's
+assigned chunk (Algorithm 4 (`alg:fast-path-certification`), receive
+handler; `byz_sign_vote_pos` mirrors the check), so the `f+1` positive votes
+of (b) put `f+1` distinct chunks in the validator's hands, which is
+`isDecoded(m)`. The network-level shadow of that step is the invariant
+`vote_pos_quorum_implies_decodable`.
 
 The signer needs no positive entry of its own (`local_entry_pos i j m`): a
 validator that missed its assigned chunk before the deadline may still
@@ -1086,24 +1127,13 @@ signature `σ_p` the positive entry carries is the network fact
 ≥ 1 honest voter whose `local_entry_pos` implies `msg_proposer_signed`
 (`local_entry_pos_signed`).
 
-Note that (c) is implied by (b) at the network level (invariant
-`vote_pos_quorum_implies_decodable`): every *valid* positive vote carries
-its chunk, so f+1 positive votes put f+1 chunks on the network. We keep (c)
-as an explicit precondition because `isDecoded` is a real check the
-protocol performs.
-
 **The rule re-disseminates in the same step** (Algorithm 5, line 12
 (`line:fb-redisseminate`)): having decoded the proposal, the signer
-re-encodes it and sends every validator its assigned chunk under `m`. The
-paper's rule does both at once, so the model does too: two bulk updates,
-the deliveries `msg_chunk_received I j m` and the signer's record
-`local_chunk_sent i I j m`. The sends happen while `i` actively
-participates, inside this gated step, and never after it abandons. A
-relation holds from the send, as every broadcast relation of the model
-does; the rules that read a re-disseminated chunk time its delivery in
-their own rows ([Bounds.md](../docs/Bounds.md) §6.4.2, "F15: the
-design"). -/
-action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q qc : nodeset) {
+re-encodes it and sends every validator its assigned chunk under `m`, one
+point-to-point message per validator under its own name,
+`msg_chunk i I j m`. The sends happen while `i` actively participates,
+inside this gated step, and never after it abandons. -/
+action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q : nodeset) {
   require ¬ is_byz i
   require participating i
   require ¬ abandoned i
@@ -1114,12 +1144,9 @@ action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q qc : nodeset) {
   require is_proposer j
   -- (guard) ≥ 2f+1 proposal votes received (Algorithm 5, line 7 (`line:fb-pathvote-guard`)).
   require ∃ qv, nset.supermajority qv ∧ ∀ r, nset.member r qv → msg_vote_cast r
-  -- (b) f+1 positive votes for (j, m).
+  -- (b) f+1 positive votes for (j, m), which carry their chunks: (c).
   require nset.greater_than_third q
   require ∀ r, nset.member r q → msg_vote_pos_sig r j m
-  -- (c) Data-availability threshold (`isDecoded`): f+1 chunks for (j, m).
-  require nset.greater_than_third qc
-  require ∀ r, nset.member r qc → msg_chunk_received r j m
   -- (d) Re-encode consistency: the decoded data reproduces `m`.
   require well_encoded m
   -- Fired once: `i` has not signed its fallback entry for `j` yet.
@@ -1128,18 +1155,19 @@ action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q qc : nodeset) {
   local_fb_entry i j := true
   -- Re-encode, and send every validator its assigned chunk under `m`
   -- (Algorithm 5, line 12 (`line:fb-redisseminate`)).
-  msg_chunk_received I j m := true
-  local_chunk_sent i I j m := true
+  msg_chunk i I j m := true
 }
 
 /-- Per-proposer fallback signing, negative case. The paper's validator signs
 negative for `j` iff, *among the ≥ 2f+1 votes it received*, no root has
-f+1 positive votes with decodable data that re-encodes to the root. The
-witnessed quorum `qv` of broadcast votes stands for the votes the validator
-has received; the complement condition is stated relative to `qv`. (A
-validator may have received more than `qv`; behaviours in which it
-negative-signs although a positive quorum exists outside `qv` are
-deliberately retained — they are real under asynchrony.)
+f+1 positive votes with decodable data that re-encodes to the root
+(Algorithm 5, line 8 (`line:fb-cast-entry`), else-branch). The votes it
+received are its own receipt rows (`receive_vote_*`): the parameter `qv` is
+a supermajority of senders whose votes `i` has received, and the condition
+reads `i`'s receipts, negatively, which is a read of its own state
+([Locality.md](../docs/Locality.md) R1). As in `fb_sign_pos`, `f+1`
+received positive votes carry `f+1` chunks, so "with decodable data" adds
+no condition.
 
 The `well_encoded M` conjunct inside the negation admits the paper's
 re-encode-failure case (Section 4.5 (`subsection:chorus-proof`), closing parenthetical):
@@ -1157,21 +1185,20 @@ action fb_sign_neg (i : node) (j : node) (qv : nodeset) {
   require ¬ msg_commit_cast i
   require local_path i ≠ fallback
   require is_proposer j
-  -- (guard) ≥ 2f+1 proposal votes received (Algorithm 5, line 7 (`line:fb-pathvote-guard`)).
+  -- (guard) ≥ 2f+1 proposal votes received (Algorithm 5, line 7 (`line:fb-pathvote-guard`)):
+  -- `i` holds the entry for `j` of every vote in `qv`.
   require nset.supermajority qv
-  require ∀ r, nset.member r qv → msg_vote_cast r
-  -- Negative iff no root has, within the received votes, an f+1 positive
-  -- quorum with decodable data that re-encodes to the root (the `else`
-  -- branch of Algorithm 5, line 8 (`line:fb-cast-entry`), with Algorithm 6, line 24 (`line:da-reencode`) marking
-  -- ill-encoded roots invalid).
-  require ∀ M q qc, ¬ (nset.greater_than_third q ∧
-    (∀ r, nset.member r q → nset.member r qv ∧ msg_vote_pos_sig r j M) ∧
-    nset.greater_than_third qc ∧
-    (∀ r, nset.member r qc → msg_chunk_received r j M) ∧
+  require ∀ r, nset.member r qv → ((∃ m2, local_vote_rcv_pos i r j m2) ∨ local_vote_rcv_neg i r j)
+  -- Negative iff no root has, within the received votes, f+1 positive
+  -- entries that re-encode to the root (the `else` branch of
+  -- Algorithm 5, line 8 (`line:fb-cast-entry`), with Algorithm 6, line 24
+  -- (`line:da-reencode`) marking ill-encoded roots invalid).
+  require ∀ M q, ¬ (nset.greater_than_third q ∧
+    (∀ r, nset.member r q → nset.member r qv ∧ local_vote_rcv_pos i r j M) ∧
     well_encoded M)
   require ¬ local_fb_entry i j
   msg_fb_neg_sig i j := true
-  local_fb_neg_qv i j qv := true
+  aux_fb_neg_qv i j qv := true
   local_fb_entry i j := true
 }
 
@@ -1241,28 +1268,28 @@ and the module consumes the state-level fragment as the class constraint
   (`mvba.decided mvba_st i v`, read off the abstract state), entry `j` of
   `entries(v)` is `⟨s, j, m⟩` resp. `⟨s, j, ⊥⟩`
   (`mval_pos (mvba.entries v) j m` / `mval_neg (mvba.entries v) j`), and
-  the handler records it in `mvba_decided_pos j m` / `mvba_decided_neg j`.
-  The records are shared: they hold the agreed entries, which every correct
-  decision has.
-  Per entry rather than as a bulk transport of the vector, so every update
-  stays a monotone `:= true` and every downstream invariant keeps its
+  the handler marks entry `j` handled in its own row `local_mvba_recorded
+  i j`, and the entry in the auxiliary records `aux_mvba_decided_*`.
+  Per entry rather than in one step for the vector, so every update
+  stays a `:= true` and every downstream invariant keeps its
   form. The handler has no condition beyond the decision itself, as the
   paper's handler is "upon `MVBA[s].decide(B′)`" (Algorithm 5, line 37
   (`line:fb-mvba-decide`)): no phase gate, since a case-2 proposal can be
   decided before the MVBA arm, and no requirement that the MVBA was invoked,
   since Module 3 (`mod:mvba`) does not order a decision after a proposal.
-* **`on_mvba_commitqc_pos` / `on_mvba_commitqc_neg`** — the `CommitQC`
-  route of the supplement's handoff: a correct validator holding a valid
-  MVBA commit certificate records its entries in the same shared records,
-  after the same bridge check on a representation of them, and finalizes
-  on them. The records now hold the *certified* entries, from a correct
-  decision or from a certificate. The tie invariants say which, and their
-  uniqueness comes from `mvba.agreement`, `mvba.certified_decided` and
-  `mvba.certified_unique`.
+* **`send_mvba_cert`** — the `CommitQC` route of the supplement's handoff:
+  a correct validator's decision outputs the commit certificate that
+  commits it, and the validator broadcasts it (`msg_mvba_cert i c`). A
+  receiver hands it to its own MVBA (`accept_mvba_commitqc`), and finalizes
+  on the entries it certifies (`commit_assign_*_mvba`), after the same
+  bridge check on a representation of them. The auxiliary records then hold
+  the *certified* entries, from a correct decision or from a certificate;
+  the tie invariants say which, and their uniqueness comes from
+  `mvba.agreement`, `mvba.certified_decided` and `mvba.certified_unique`.
 * **`mvba_avail_ready`** — the contract's availability input, driven by
   Chorus with its chunk wait as the guard (`avail_ready_chunks`).
-* **The one stated bridge.** Before acting on an entry, each handler, the
-  `CommitQC` route's included,
+* **The one stated bridge.** Before acting on an entry, each handler, and
+  the finalization on an MVBA commit certificate,
   verifies the certificate its own representation names for the entry
   against the network: a vote quorum for a `FastQC`, `fb_quorum_pos j m ∧
   fbcert` for a `FallbackQC` (`mval_fb v j`), resp. the negative form. This is a **bridge, not a restatement**
@@ -1277,16 +1304,12 @@ and the module consumes the state-level fragment as the class constraint
   re-check, and a correct MVBA's decision passes the check), and if the
   MVBA were wrong the handler would simply not fire — safety-conservative.
   `mvba_decided_pos_backed` / `mvba_decided_neg_backed` persist the
-  evidence the record carried.
-* **`mvba_terminate`** — records that `i` has its full vector: `i`'s
-  decision `v` whose every proposer entry is already recorded
+  evidence in the auxiliary records.
+* **`mvba_terminate`** — records that `i` has its full vector: `i` has
+  decided `v` and has handled every proposer's entry in its own rows
   (`local_mvba_complete i`). This is the model shadow of
   Algorithm 5, line 37 (`line:fb-mvba-decide`) delivering `B'` at once, and it is what gates `i`'s
   fallback commit vote (`cast_fb_commit i` requires `local_mvba_complete i`).
-  The records it reads are shared, and it reads them positively and against
-  `i`'s own `v`: a record holds the agreed entry, the one `i`'s own handler
-  would write, so another validator's record only lets `i` skip a step that
-  would write the same tuple.
 * **What the class buys.** No handler asserts an agreement property of its
   own. `mvba_decided_pos_unique` and `mvba_decided_pos_neg_excl` are kept as
   invariants (downstream cells e-match on them) and are *proven* from
@@ -1309,8 +1332,9 @@ common member would have had to vote both paths — structurally
 impossible.
 
 Every read of `mvba.decided` and of the network here is in positive
-position; `mvba_st` is oracle state ([ChorusDesign.md](../docs/ChorusDesign.md) §3.5,
-category (A)). -/
+position, and every operation of the contract is used at the actor's index
+or to check a certificate the actor holds
+([Locality.md](../docs/Locality.md) §5). -/
 
 action mvba_step (mvba_next : mstate) {
   require mvba.step mvba_st mvba_next
@@ -1338,24 +1362,39 @@ action mvba_propose (i : node) (v : mvalue) (mvba_next : mstate) {
   mvba_st := mvba_next
 }
 
-/-- **The decision handoff** (the supplement's "Decision output and
-handoff", Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)). A correct validator's MVBA decision
-outputs the commit certificate that commits it (`mvba.decided_certified`),
-and Chorus broadcasts it. A correct validator that receives a valid one
-hands it to its own MVBA through the contract's transfer input
-`mvba.accept`, which accepts a valid certificate of any view and decides
-its value. The broadcast is the decision output itself: nothing here writes
-a network relation, and the only thing read about the certificate is the
-MVBA's own monotone record that it is valid, inside `mvba.accept`. The
-re-broadcast the supplement asks for needs no step either, since a
-validator that has accepted has decided. The finalization the supplement
-attaches to the certificate is the `CommitQC` route
-(`on_mvba_commitqc_pos` / `_neg` below), beside the main body's fallback
-commit round. Fired once (`local_mvba_qc_accepted`). -/
-action accept_mvba_commitqc (i : node) (c : mmsg) (mvba_next : mstate) {
+/-- **The decision output** (the supplement's "Decision output and handoff",
+Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)). A correct
+validator's MVBA decision outputs the commit certificate that commits it
+(`decide(x, CommitQC)`, the contract's `mvba.decided_certified`), and Chorus
+broadcasts it: `i` sends, under its own name, a certificate `c` that
+certifies the entries of its own decision `v`. A send, so gated on
+participation; once (`local_mvba_cert_sent`). -/
+action send_mvba_cert (i : node) (c : mmsg) (v : mvalue) {
+  require ¬ is_byz i
+  require participating i
+  require ¬ abandoned i
+  require mvba.decided mvba_st i v
+  require mvba.certifies mvba_st c (mvba.entries v)
+  require ¬ local_mvba_cert_sent i
+  msg_mvba_cert i c := true
+  local_mvba_cert_sent i := true
+}
+
+/-- **The decision handoff** (Supplement, Section 1.2
+(`subsec:mvba-protocol`), "Decision output and handoff"). A correct
+validator that receives a commit certificate `c` from sender `s` hands it to
+its own MVBA through the contract's transfer input `mvba.accept`, which
+accepts a valid certificate of any view and decides its value. The read of
+the message is positive, and the input is at `i`'s index. The finalization
+the supplement attaches to the certificate is `commit_assign_*_mvba` below,
+beside the main body's fallback commit round. Fired once
+(`local_mvba_qc_accepted`). -/
+action accept_mvba_commitqc (i : node) (s : node) (c : mmsg) (mvba_next : mstate) {
   require ¬ is_byz i
   -- Fired once: `i` has not handed a certificate to its MVBA yet.
   require ¬ local_mvba_qc_accepted i
+  -- `i` has received the certificate `c`.
+  require msg_mvba_cert s c
   -- `MVBA[s]` accepts the transferred certificate `c`.
   require mvba.accept mvba_st i c mvba_next
   mvba_st := mvba_next
@@ -1378,7 +1417,7 @@ is not participation-gated. Fired once per representation
 (`local_avail_marked`). -/
 action mvba_avail_ready (i : node) (v : mvalue) (mvba_next : mstate) {
   require ¬ is_byz i
-  require ∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J → msg_chunk_received i J M
+  require ∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J → chunk_received i J M
   require ¬ local_avail_marked i v
   require mvba.markAvail mvba_st i v mvba_next
   mvba_st := mvba_next
@@ -1396,7 +1435,7 @@ action on_mvba_decide_pos (i : node) (j : node) (m : merkle_root) (v : mvalue) {
   require (¬ mval_fb v j ∧ vote_quorum_pos j m) ∨ (mval_fb v j ∧ fb_quorum_pos j m ∧ fbcert)
   -- Fired once: `i` has not recorded entry `j` of its decision yet.
   require ¬ local_mvba_recorded i j
-  mvba_decided_pos j m := true
+  aux_mvba_decided_pos j m := true
   local_mvba_recorded i j := true
 }
 
@@ -1410,63 +1449,21 @@ action on_mvba_decide_neg (i : node) (j : node) (v : mvalue) {
   -- proposer, Appendix C.3 (`subsection:fallback_path`)).
   require vote_quorum_neg j ∨ ((fb_quorum_neg j ∨ equiv_evidence j) ∧ fbcert)
   require ¬ local_mvba_recorded i j
-  mvba_decided_neg j := true
+  aux_mvba_decided_neg j := true
   local_mvba_recorded i j := true
 }
 
-/-- **The `CommitQC` route** (Supplement, Section 1.2
-(`subsec:mvba-protocol`), "Decision output and handoff"): "A correct
-validator that receives a valid such certificate re-broadcasts it and
-finalizes the certified outcome, recovering a matching meta-block or the
-underlying proposals as required by the ordinary commitment-proof recovery
-path." Validator `i` holds the valid certificate `c`, and `v` is a
-representation of its entries (`Recover(e)`). Before acting on entry `j`
-the handler checks the certificate `v` names for it against the network,
-the same bridge as the decision handlers', and records the entry in the
-shared records, which hold the certified entries. Finalization is then the
-ordinary `commit_assign_*` / `finalize_commit` on a valid commit
-certificate (`mvba_commitqc`). The re-broadcast needs no step: a valid
-certificate stays valid (`mvba.certified_mono`), so it is available to
-every validator. No phase gate, as the rule has none. Fired once per entry,
-from either source (`local_mvba_recorded`). -/
-action on_mvba_commitqc_pos (i : node) (j : node) (m : merkle_root) (c : mmsg) (v : mvalue) {
-  require ¬ is_byz i
-  require is_proposer j
-  -- `i` holds a valid commit certificate for the entries of `v`, whose
-  -- entry for `j` is `m`.
-  require mvba.certifies mvba_st c (mvba.entries v)
-  require mval_pos (mvba.entries v) j m
-  -- The bridge: the certificate `v` names for the entry verifies against
-  -- the network.
-  require (¬ mval_fb v j ∧ vote_quorum_pos j m) ∨ (mval_fb v j ∧ fb_quorum_pos j m ∧ fbcert)
-  -- Fired once: `i` has not recorded entry `j` yet.
-  require ¬ local_mvba_recorded i j
-  mvba_decided_pos j m := true
-  local_mvba_recorded i j := true
-}
-
-/-- The `CommitQC` route, negative entry; see `on_mvba_commitqc_pos`. -/
-action on_mvba_commitqc_neg (i : node) (j : node) (c : mmsg) (v : mvalue) {
-  require ¬ is_byz i
-  require is_proposer j
-  require mvba.certifies mvba_st c (mvba.entries v)
-  require mval_neg (mvba.entries v) j
-  -- The bridge, negative form.
-  require vote_quorum_neg j ∨ ((fb_quorum_neg j ∨ equiv_evidence j) ∧ fbcert)
-  require ¬ local_mvba_recorded i j
-  mvba_decided_neg j := true
-  local_mvba_recorded i j := true
-}
-
+/-- Validator `i` has handled every proposer's entry of its decision `v`,
+each in its own row (`on_mvba_decide_*`): the model shadow of the decision
+delivering `B′` at once (Algorithm 5, line 37 (`line:fb-mvba-decide`)). It
+reads only `i`'s own state and its own decision. -/
 action mvba_terminate (i : node) (v : mvalue) {
   require ¬ is_byz i
   -- Fired once: `i` has not transported its decision yet.
   require ¬ local_mvba_complete i
   require mvba.decided mvba_st i v
-  -- Every proposer's entry of `i`'s decided vector has been recorded.
-  require ∀ J, is_proposer J →
-    ((∃ M, mval_pos (mvba.entries v) J M ∧ mvba_decided_pos J M) ∨
-      (mval_neg (mvba.entries v) J ∧ mvba_decided_neg J))
+  -- `i` has handled every proposer's entry of its decision.
+  require ∀ J, is_proposer J → local_mvba_recorded i J
   local_mvba_complete i := true
 }
 
@@ -1491,11 +1488,11 @@ Modelling notes:
   correct signer of a positive entry has decoded the proposal, and in the
   same step it re-encodes it and sends every validator its assigned chunk.
   Without it the DA wait below could starve for a *Byzantine* proposer's
-  decided root: honest `deliver_chunk_assigned` requires an honest proposer,
-  and `byz_deliver_chunk` is unfair ((F-byz)). The re-broadcast of
+  decided root: only a correct proposer is bound to send every chunk, and
+  `byz_send_chunk` is unfair ((F-byz)). The re-broadcast of
   Algorithm 5, line 39 (`line:fb-commit-wait`) sends the validator's *own*
-  chunk, which `msg_chunk_received` already records as on the network and
-  `chunk_quorum` already counts, so it changes no relation and has no step.
+  chunk, which `chunk_quorum` already counts once the validator holds it,
+  so it changes no relation and has no step.
   A Byzantine holder of `f+1` chunks can re-disseminate at any time, unfairly,
   as `byz_redisseminate_chunk`.
 * **The DA wait is the paper's, under the `FallbackQC` entries of the
@@ -1538,39 +1535,62 @@ action cast_fb_commit (i : node) (v : mvalue) {
   -- positive entry ⟨s, J, M⟩ of `B′` held by a FallbackQC, wait until the
   -- own assigned chunk for `M` is received and validated. An entry held by
   -- a FastQC needs no wait.
-  require ∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J → msg_chunk_received i J M
+  require ∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J → chunk_received i J M
   -- Fired once: `i` has not cast its fallback commit vote yet.
   require ¬ local_fbcommit_voted i
-  msg_fbcommit_sig i := true
+  -- The vote signs the decided entries `entries(B′)`.
+  msg_fbcommit_sig i (mvba.entries v) := true
   local_fbcommit_voted i := true
+}
+
+/-- Form and broadcast a fallback commit certificate (Algorithm 5, line 42
+(`line:fb-collect-commit`) – Algorithm 5, line 44
+(`line:fb-commit-broadcast`)): collector `c` has received `2f+1` fallback
+commit votes over the same entries `e`, aggregates them into
+`fbCommitQC = ⟨FallbackCommit, s, e, Σ⟩`, and broadcasts it under its own
+name. The guard is the certificate's validity check. A send, so gated on
+participation; once (`local_fbcommitqc_sent`). A Byzantine validator can
+form and send a valid certificate at any time
+(`byz_broadcast_fbcommitqc`). -/
+action broadcast_fbcommitqc (c : node) (e : mentries) (q : nodeset) {
+  require ¬ is_byz c
+  require participating c
+  require ¬ abandoned c
+  require nset.supermajority q
+  require ∀ r, nset.member r q → msg_fbcommit_sig r e
+  require ¬ local_fbcommitqc_sent c
+  msg_fbcommitqc c e := true
+  local_fbcommitqc_sent c := true
 }
 
 /-! ## Commit decision (finalization)
 
 A validator finalizes only on a *commitment proof* (Lemma 9 (`lemma:chorus-agreement`)
-proof): a fast commit certificate (Algorithm 4, line 34 (`line:fast-recv-commitqc`) /
-Algorithm 4, line 36 (`line:fast-finalize`)) or a fallback commit certificate `fbCommitQC`
-(Algorithm 5, line 45 (`line:fb-recv-commit`) / Algorithm 5, line 47 (`line:fb-finalize`)). Both are transferable, so
-the certificate precondition is its existence on the network. Finalizing
-is also a sending rule: the paper's finalization re-broadcasts the
-commitment proof (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`),
-Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)), and its totality proof relies on that
-re-broadcast being gated. So `commit_assign_*` and `finalize_commit`
-require the validator to be actively participating, like every other
-sending rule ("Participation inputs" above). A validator that has
-abandoned the slot therefore does not finalize it afterwards; the caller
-abandons only after finalizing (Algorithm 1, line 23 (`line:abandon`)).
+proof) it has received, and the certificate carries the entries it
+commits. There are three, one per receive handler, so each per-proposer
+assignment comes in three routes:
 
-The fallback path has two commitment proofs, so two finalization routes. The
-main body's is the fallback commit round above: the entries an
-`fbCommitQC` carries are the MVBA-decided vector (see `msg_fbcommit_sig`),
-so the route is the conjunction `fbcommitqc ∧ mvba_decided_*`. The
-supplement's is the MVBA's own commit certificate: "A correct validator
-that receives a valid such certificate re-broadcasts it and finalizes the
-certified outcome" (Supplement, Section 1.2 (`subsec:mvba-protocol`),
-"Decision output and handoff"). Its entries are the certified vector,
-which the records hold (`on_mvba_commitqc_*`), so the route is
-`mvba_commitqc ∧ mvba_decided_*`.
+* `commit_assign_*_fast` — a fast commit certificate for the entry
+  (Algorithm 4, line 34 (`line:fast-recv-commitqc`) / Algorithm 4, line 36 (`line:fast-finalize`));
+* `commit_assign_*_fb` — a fallback commit certificate
+  `fbCommitQC = ⟨FallbackCommit, s, e, Σ⟩` whose entry vector `e` has the
+  entry (Algorithm 5, line 45 (`line:fb-recv-commit`) / Algorithm 5, line 47 (`line:fb-finalize`));
+* `commit_assign_*_mvba` — the MVBA's own commit certificate, checked with
+  the contract's `mvba.certifies` against a representation `v` of the
+  entries it certifies, and with the bridge on the entry's certificate:
+  "A correct validator that receives a valid such certificate re-broadcasts
+  it and finalizes the certified outcome" (Supplement, Section 1.2
+  (`subsec:mvba-protocol`), "Decision output and handoff").
+
+Every route reads a message the validator received, from any sender,
+positively ([Locality.md](../docs/Locality.md) R2), and **re-broadcasts the
+certificate under its own name** in the same step (Algorithm 4, line 35
+(`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46 (`line:fb-commit-rebroadcast`),
+and the supplement's "re-broadcasts it"). Finalizing is therefore a sending
+rule, gated on participation like every other ("Participation inputs"
+above). A validator that has abandoned the slot does not finalize it
+afterwards; the caller abandons only after finalizing (Algorithm 1, line 23
+(`line:abandon`)).
 
 Holding a FastQC for every proposer without a commitQC permits only a
 *speculative* commit (Algorithm 4 (`alg:fast-path-certification`), "speculatively commit"),
@@ -1579,44 +1599,116 @@ deliberately *not* a finalization route here. See the speculative-safety
 invariants below for the checked claim about when speculation is safe.
 
 The per-entries finalization is decomposed into per-proposer assignment
-actions `commit_assign_pos` / `commit_assign_neg` followed by a
-`finalize_commit` umbrella action (the standard Veil idiom for atomic
-for-loops). -/
+actions followed by a `finalize_commit` umbrella action (the standard Veil
+idiom for atomic for-loops). -/
 
-/-- Validator `i` commits the positive entry `⟨s, j, m⟩`, on a fast commit
-certificate or on a fallback commit certificate over the decided entries. -/
-action commit_assign_pos (i : node) (j : node) (m : merkle_root) {
+/-- Validator `i` commits the positive entry `⟨s, j, m⟩` on a fast commit
+certificate received from `c`, and re-broadcasts it. -/
+action commit_assign_pos_fast (i : node) (j : node) (m : merkle_root) (c : node) {
   require ¬ is_byz i
   require participating i
   require ¬ abandoned i
   require ¬ local_committed i
   require is_proposer j
-  -- A broadcast fast commit certificate for (j, m), or a fallback commitment
-  -- proof over the decided entries: a fallback commit certificate
-  -- (Algorithm 5, line 45 (`line:fb-recv-commit`)) or the MVBA's commit certificate
-  -- (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff").
-  require msg_commitqc_pos j m ∨ ((fbcommitqc ∨ mvba_commitqc) ∧ mvba_decided_pos j m)
+  require msg_commitqc_pos c j m
   -- Per-proposer single choice, and fired once: `i` has committed no
-  -- positive entry for `j` yet.
+  -- entry for `j` yet.
   require ∀ m', ¬ local_committed_pos i j m'
-  -- Cannot conflict with an already-decided negative.
   require ¬ local_committed_neg i j
   local_committed_pos i j m := true
+  msg_commitqc_pos i j m := true
 }
 
-/-- Validator `i` commits the negative entry `⟨s, j, ⊥⟩`. -/
-action commit_assign_neg (i : node) (j : node) {
+/-- Validator `i` commits the positive entry `⟨s, j, m⟩` of the entry vector
+`e` a fallback commit certificate received from `c` carries, and
+re-broadcasts the certificate. -/
+action commit_assign_pos_fb (i : node) (j : node) (m : merkle_root) (c : node) (e : mentries) {
   require ¬ is_byz i
   require participating i
   require ¬ abandoned i
   require ¬ local_committed i
   require is_proposer j
-  require msg_commitqc_neg j ∨ ((fbcommitqc ∨ mvba_commitqc) ∧ mvba_decided_neg j)
-  -- Cannot conflict with an already-decided positive entry.
+  require msg_fbcommitqc c e
+  require mval_pos e j m
+  require ∀ m', ¬ local_committed_pos i j m'
+  require ¬ local_committed_neg i j
+  local_committed_pos i j m := true
+  msg_fbcommitqc i e := true
+}
+
+/-- Validator `i` commits the positive entry `⟨s, j, m⟩` certified by an
+MVBA commit certificate `c` received from `s`, for the entries of the
+representation `v`, after the bridge check on the entry's certificate, and
+re-broadcasts the certificate. -/
+action commit_assign_pos_mvba (i : node) (j : node) (m : merkle_root) (s : node) (c : mmsg) (v : mvalue) {
+  require ¬ is_byz i
+  require participating i
+  require ¬ abandoned i
+  require ¬ local_committed i
+  require is_proposer j
+  require msg_mvba_cert s c
+  require mvba.certifies mvba_st c (mvba.entries v)
+  require mval_pos (mvba.entries v) j m
+  -- The bridge: the certificate `v` names for the entry verifies against
+  -- the network.
+  require (¬ mval_fb v j ∧ vote_quorum_pos j m) ∨ (mval_fb v j ∧ fb_quorum_pos j m ∧ fbcert)
+  require ∀ m', ¬ local_committed_pos i j m'
+  require ¬ local_committed_neg i j
+  local_committed_pos i j m := true
+  msg_mvba_cert i c := true
+  aux_mvba_decided_pos j m := true
+}
+
+/-- Validator `i` commits the negative entry `⟨s, j, ⊥⟩` on a fast commit
+certificate received from `c`, and re-broadcasts it. -/
+action commit_assign_neg_fast (i : node) (j : node) (c : node) {
+  require ¬ is_byz i
+  require participating i
+  require ¬ abandoned i
+  require ¬ local_committed i
+  require is_proposer j
+  require msg_commitqc_neg c j
   require ∀ m, ¬ local_committed_pos i j m
-  -- Fired once.
   require ¬ local_committed_neg i j
   local_committed_neg i j := true
+  msg_commitqc_neg i j := true
+}
+
+/-- Validator `i` commits the negative entry `⟨s, j, ⊥⟩` of the entry vector
+`e` a fallback commit certificate received from `c` carries, and
+re-broadcasts the certificate. -/
+action commit_assign_neg_fb (i : node) (j : node) (c : node) (e : mentries) {
+  require ¬ is_byz i
+  require participating i
+  require ¬ abandoned i
+  require ¬ local_committed i
+  require is_proposer j
+  require msg_fbcommitqc c e
+  require mval_neg e j
+  require ∀ m, ¬ local_committed_pos i j m
+  require ¬ local_committed_neg i j
+  local_committed_neg i j := true
+  msg_fbcommitqc i e := true
+}
+
+/-- Validator `i` commits the negative entry `⟨s, j, ⊥⟩` certified by an
+MVBA commit certificate; see `commit_assign_pos_mvba`. -/
+action commit_assign_neg_mvba (i : node) (j : node) (s : node) (c : mmsg) (v : mvalue) {
+  require ¬ is_byz i
+  require participating i
+  require ¬ abandoned i
+  require ¬ local_committed i
+  require is_proposer j
+  require msg_mvba_cert s c
+  require mvba.certifies mvba_st c (mvba.entries v)
+  require mval_neg (mvba.entries v) j
+  -- The bridge, negative form.
+  require vote_quorum_neg j ∨ ((fb_quorum_neg j ∨ equiv_evidence j) ∧ fbcert)
+  require ∀ m, ¬ local_committed_pos i j m
+  require ¬ local_committed_neg i j
+  local_committed_neg i j := true
+  msg_mvba_cert i c := true
+  aux_mvba_decided_neg j := true
 }
 
 /-- Validator `i` finalizes the slot once it has committed an entry for
@@ -1649,7 +1741,7 @@ that bound the adversary is *fully Byzantine*:
   actions therefore mirror the receivers' validity checks:
   - a positive vote entry must carry the signer's valid assigned chunk
     (Algorithm 4 (`alg:fast-path-certification`), receive handler) — `byz_sign_vote_pos`
-    requires `msg_chunk_received r j m`;
+    requires `chunk_received r j m`;
   - a broadcast vote must carry an entry for every proposer —
     `byz_cast_vote` requires per-proposer signatures;
   - a positive fallback entry must carry a verifying proposer signature
@@ -1658,15 +1750,14 @@ that bound the adversary is *fully Byzantine*:
   signed chunk headers `⟨s, j, m₁⟩` and `⟨s, j, m₂⟩` with `m₁ ≠ m₂` (two
   firings of `byz_sign_proposer`), and may selectively deliver the
   corresponding chunks to disjoint subsets of validators via
-  `byz_deliver_chunk`. The protocol-level evidence of this equivocation is
+  `byz_send_chunk`. The protocol-level evidence of this equivocation is
   the `equiv_evidence` certificate, which lets the MVBA decide negative on
   `j`'s output. A Byzantine *validator* may likewise cast inconsistent
   votes / fallback signatures / commit votes through the per-relation
   actions below.
-* It has **no power over** honest validators' local state, aggregated
-  honest certificates, Chorus's records of correct validators' MVBA
-  decisions, or the phase — these are set only by their explicit honest
-  actions and handlers. Inside the MVBA instance the adversary's power is
+* It has **no power over** honest validators' local state or the phase,
+  and it sends messages only under its own name
+  ([Locality.md](../docs/Locality.md) §4). Inside the MVBA instance the adversary's power is
   whatever `MVBASafety` leaves unconstrained: Byzantine parties' inputs
   and outputs, which the handlers never read (`¬ is_byz i`).
 
@@ -1685,9 +1776,11 @@ action byz_sign_proposer (j : node) (m : merkle_root) {
   msg_proposer_signed j m := true
 }
 
-action byz_deliver_chunk (i : node) (j : node) (m : merkle_root) {
+/- A Byzantine proposer sends any validator any chunk under its own name:
+selective delivery, and chunks of roots it never signed. -/
+action byz_send_chunk (i : node) (j : node) (m : merkle_root) {
   require is_byz j
-  msg_chunk_received i j m := true
+  msg_chunk j i j m := true
 }
 
 /- A Byzantine sender re-disseminates a decodable chunk (the capability any
@@ -1698,7 +1791,7 @@ action byz_redisseminate_chunk (r : node) (i : node) (j : node) (m : merkle_root
   require is_proposer j
   require msg_proposer_signed j m
   require chunk_quorum j m
-  msg_chunk_received i j m := true
+  msg_chunk r i j m := true
 }
 
 action byz_sign_vote_pos (r : node) (j : node) (m : merkle_root) {
@@ -1710,7 +1803,7 @@ action byz_sign_vote_pos (r : node) (j : node) (m : merkle_root) {
   -- and match the entry's root). This is what makes `f+1` accepted
   -- positive votes pin `f+1` *distinct* chunks, i.e.
   -- `vote_pos_quorum_implies_decodable` honest about `isDecoded`.
-  require msg_chunk_received r j m
+  require chunk_received r j m
   msg_vote_pos_sig r j m := true
 }
 
@@ -1764,30 +1857,46 @@ action byz_cast_commit (r : node) {
   msg_commit_cast r := true
 }
 
-/- A Byzantine holder of `2f+1` broadcast commit votes assembles and
-broadcasts the (valid) commit certificate, at any time and any number of
-times (the capability of `broadcast_commitqc_*`). -/
+/- A Byzantine holder of `2f+1` broadcast commit votes forms and broadcasts
+the (valid) commit certificate under its own name, at any time and any
+number of times (the capability of `broadcast_commitqc_*`). -/
 action byz_broadcast_commitqc_pos (r : node) (j : node) (m : merkle_root) (q : nodeset) {
   require is_byz r
   require nset.supermajority q
   require ∀ a, nset.member a q → msg_commit_pos_sig a j m ∧ msg_commit_cast a
-  msg_commitqc_pos j m := true
+  msg_commitqc_pos r j m := true
 }
 
 action byz_broadcast_commitqc_neg (r : node) (j : node) (q : nodeset) {
   require is_byz r
   require nset.supermajority q
   require ∀ a, nset.member a q → msg_commit_neg_sig a j ∧ msg_commit_cast a
-  msg_commitqc_neg j := true
+  msg_commitqc_neg r j := true
 }
 
-action byz_sign_fbcommit (r : node) {
+action byz_sign_fbcommit (r : node) (e : mentries) {
   require is_byz r
-  -- No validity requirement: receivers verify only the signature, and
-  -- "matching entries" is enforced at aggregation — which the nullary
-  -- relation over-approximates in the adversary's favour (see
-  -- `msg_fbcommit_sig`).
-  msg_fbcommit_sig r := true
+  -- Any entry vector: receivers verify only the signature, and "matching
+  -- entries" is enforced when a certificate is formed.
+  msg_fbcommit_sig r e := true
+}
+
+/- A Byzantine holder of `2f+1` fallback commit votes over the same entries
+forms and broadcasts the (valid) fallback commit certificate under its own
+name (the capability of `broadcast_fbcommitqc`). -/
+action byz_broadcast_fbcommitqc (r : node) (e : mentries) (q : nodeset) {
+  require is_byz r
+  require nset.supermajority q
+  require ∀ a, nset.member a q → msg_fbcommit_sig a e
+  msg_fbcommitqc r e := true
+}
+
+/- A Byzantine validator sends any MVBA message as a commit certificate
+under its own name: a receiver checks it (`mvba.certifies`, `mvba.accept`)
+before acting on it. -/
+action byz_send_mvba_cert (r : node) (c : mmsg) {
+  require is_byz r
+  msg_mvba_cert r c := true
 }
 
 action byz_release_msg_decrypt_share (r : node) {
@@ -1932,7 +2041,7 @@ invariant [local_entry_pos_neg_excl]
 (`record_chunk` requires delivery). Basis of the data-availability chain. -/
 invariant [local_entry_pos_chunk]
   ∀ (I : node) (J : node) (M : merkle_root),
-    ¬ is_byz I ∧ local_entry_pos I J M → msg_chunk_received I J M
+    ¬ is_byz I ∧ local_entry_pos I J M → chunk_received I J M
 
 /-! The atomic `vote` action sets `local_voted R` together with the per-proposer
 `msg_vote_*_sig` entries and `local_entry_neg`, so the link "`local_voted ↔
@@ -2024,7 +2133,7 @@ threshold (c) a consequence of the vote threshold (b) at the network
 level. -/
 invariant [vote_pos_sig_chunk]
   ∀ (R : node) (J : node) (M : merkle_root),
-    msg_vote_pos_sig R J M → msg_chunk_received R J M
+    msg_vote_pos_sig R J M → chunk_received R J M
 
 /-! "Backing-quorum" auxiliaries link each aggregated FastQC to a supermajority
 of underlying signed votes. These are *not* in EPR (they have an `∃ q :
@@ -2174,40 +2283,40 @@ the two quorums those arguments intersect: the aggregated cast commit
 votes, and the vote supermajority behind the honest signers' FastQCs. -/
 
 invariant [msg_commitqc_pos_backed]
-  ∀ (J : node) (M : merkle_root),
-    msg_commitqc_pos J M → commitqc_pos J M
+  ∀ (C J : node) (M : merkle_root),
+    msg_commitqc_pos C J M → commitqc_pos J M
 
 invariant [msg_commitqc_neg_backed]
-  ∀ (J : node),
-    msg_commitqc_neg J → commitqc_neg J
+  ∀ (C J : node),
+    msg_commitqc_neg C J → commitqc_neg J
 
 invariant [msg_commitqc_pos_votes]
-  ∀ (J : node) (M : merkle_root),
-    msg_commitqc_pos J M → vote_quorum_pos J M
+  ∀ (C J : node) (M : merkle_root),
+    msg_commitqc_pos C J M → vote_quorum_pos J M
 
 invariant [msg_commitqc_neg_votes]
-  ∀ (J : node),
-    msg_commitqc_neg J → vote_quorum_neg J
+  ∀ (C J : node),
+    msg_commitqc_neg C J → vote_quorum_neg J
 
 invariant [commitqc_pos_unique]
-  ∀ (J : node) (M1 M2 : merkle_root),
-    msg_commitqc_pos J M1 ∧ msg_commitqc_pos J M2 → M1 = M2
+  ∀ (C1 C2 J : node) (M1 M2 : merkle_root),
+    msg_commitqc_pos C1 J M1 ∧ msg_commitqc_pos C2 J M2 → M1 = M2
 
 invariant [commitqc_pos_neg_excl]
-  ∀ (J : node) (M : merkle_root),
-    ¬ (msg_commitqc_pos J M ∧ msg_commitqc_neg J)
+  ∀ (C1 C2 J : node) (M : merkle_root),
+    ¬ (msg_commitqc_pos C1 J M ∧ msg_commitqc_neg C2 J)
 
 invariant [commitqc_pos_mvba_consistent]
-  ∀ (J : node) (M1 M2 : merkle_root),
-    msg_commitqc_pos J M1 ∧ mvba_decided_pos J M2 → M1 = M2
+  ∀ (C J : node) (M1 M2 : merkle_root),
+    msg_commitqc_pos C J M1 ∧ aux_mvba_decided_pos J M2 → M1 = M2
 
 invariant [commitqc_pos_mvba_neg_excl]
-  ∀ (J : node) (M : merkle_root),
-    ¬ (msg_commitqc_pos J M ∧ mvba_decided_neg J)
+  ∀ (C J : node) (M : merkle_root),
+    ¬ (msg_commitqc_pos C J M ∧ aux_mvba_decided_neg J)
 
 invariant [commitqc_neg_mvba_pos_excl]
-  ∀ (J : node) (M : merkle_root),
-    ¬ (msg_commitqc_neg J ∧ mvba_decided_pos J M)
+  ∀ (C J : node) (M : merkle_root),
+    ¬ (msg_commitqc_neg C J ∧ aux_mvba_decided_pos J M)
 
 /-! ### MVBA correctness, from the class
 
@@ -2228,32 +2337,32 @@ invariant [mvba_reachable] mvba.reachable mvba_st
 
 invariant [mvba_decided_pos_tied]
   ∀ (J : node) (M : merkle_root),
-    mvba_decided_pos J M →
+    aux_mvba_decided_pos J M →
     (∃ I V, ¬ is_byz I ∧ mvba.decided mvba_st I V ∧ mval_pos (mvba.entries V) J M) ∨
     (∃ C E, mvba.certifies mvba_st C E ∧ mval_pos E J M)
 
 invariant [mvba_decided_neg_tied]
   ∀ (J : node),
-    mvba_decided_neg J →
+    aux_mvba_decided_neg J →
     (∃ I V, ¬ is_byz I ∧ mvba.decided mvba_st I V ∧ mval_neg (mvba.entries V) J) ∨
     (∃ C E, mvba.certifies mvba_st C E ∧ mval_neg E J)
 
 invariant [mvba_decided_pos_unique]
   ∀ (J : node) (M1 M2 : merkle_root),
-    mvba_decided_pos J M1 ∧ mvba_decided_pos J M2 → M1 = M2
+    aux_mvba_decided_pos J M1 ∧ aux_mvba_decided_pos J M2 → M1 = M2
 
 invariant [mvba_decided_pos_neg_excl]
   ∀ (J : node) (M : merkle_root),
-    ¬ (mvba_decided_pos J M ∧ mvba_decided_neg J)
+    ¬ (aux_mvba_decided_pos J M ∧ aux_mvba_decided_neg J)
 
 invariant [mvba_decided_pos_backed]
   ∀ (J : node) (M : merkle_root),
-    mvba_decided_pos J M →
+    aux_mvba_decided_pos J M →
     vote_quorum_pos J M ∨ (fb_quorum_pos J M ∧ fbcert)
 
 invariant [mvba_decided_neg_backed]
   ∀ (J : node),
-    mvba_decided_neg J →
+    aux_mvba_decided_neg J →
     vote_quorum_neg J ∨ ((fb_quorum_neg J ∨ equiv_evidence J) ∧ fbcert)
 
 /-- **What `AvailReady` means** (Supplement, Section 1.2
@@ -2265,14 +2374,14 @@ say nothing else sets it. -/
 invariant [avail_ready_chunks]
   ∀ (I : node) (V : mvalue) (J : node) (M : merkle_root),
     ¬ is_byz I ∧ mvba.availReady mvba_st I V →
-    mval_pos (mvba.entries V) J M → mval_fb V J → msg_chunk_received I J M
+    mval_pos (mvba.entries V) J M → mval_fb V J → chunk_received I J M
 
 /-- MVBA decisions exist only for proposers (the meta-block has one entry
 per proposer; the handlers require `is_proposer`). Excludes
 unreachable non-proposer decisions from the inductive state space. -/
 invariant [mvba_decided_is_proposer]
   ∀ (J : node) (M : merkle_root),
-    (mvba_decided_pos J M ∨ mvba_decided_neg J) → is_proposer J
+    (aux_mvba_decided_pos J M ∨ aux_mvba_decided_neg J) → is_proposer J
 
 /-- Recorded MVBA entries postdate the deadline (phase timestamping, used by
 the proposal-inclusion preservation argument). The decision handler has no
@@ -2282,19 +2391,19 @@ deadline follows from the certificate every record is backed by, which has
 a correct signer who signed after the deadline. -/
 invariant [mvba_decided_phase]
   ∀ (J : node) (M : merkle_root),
-    (mvba_decided_pos J M ∨ mvba_decided_neg J) → phase ≠ pre_deadline
+    (aux_mvba_decided_pos J M ∨ aux_mvba_decided_neg J) → phase ≠ pre_deadline
 
 /-! ### Commit backing -/
 
 invariant [local_committed_pos_backed]
   ∀ (I : node) (J : node) (M : merkle_root),
     ¬ is_byz I ∧ local_committed_pos I J M →
-    msg_commitqc_pos J M ∨ mvba_decided_pos J M
+    (∃ C, msg_commitqc_pos C J M) ∨ aux_mvba_decided_pos J M
 
 invariant [local_committed_neg_backed]
   ∀ (I : node) (J : node),
     ¬ is_byz I ∧ local_committed_neg I J →
-    msg_commitqc_neg J ∨ mvba_decided_neg J
+    (∃ C, msg_commitqc_neg C J) ∨ aux_mvba_decided_neg J
 
 invariant [local_committed_pos_unique]
   ∀ (I : node) (J : node) (M1 M2 : merkle_root),
@@ -2326,11 +2435,11 @@ invariant [local_fastqc_pos_chunks_decodable]
 
 invariant [mvba_decided_pos_chunks_decodable]
   ∀ (J : node) (M : merkle_root),
-    mvba_decided_pos J M → chunk_quorum J M
+    aux_mvba_decided_pos J M → chunk_quorum J M
 
 invariant [msg_commitqc_pos_chunks_decodable]
-  ∀ (J : node) (M : merkle_root),
-    msg_commitqc_pos J M → chunk_quorum J M
+  ∀ (C J : node) (M : merkle_root),
+    msg_commitqc_pos C J M → chunk_quorum J M
 
 invariant [local_committed_pos_implies_decodable]
   ∀ (I : node) (J : node) (M : merkle_root),
@@ -2380,20 +2489,20 @@ invariant [inclusion_fastqc_pos_unique]
     all_honest_recorded J M ∧ ¬ is_byz I ∧ local_fastqc_pos I J M' → M' = M
 
 invariant [inclusion_no_commitqc_neg]
-  ∀ (J : node) (M : merkle_root),
-    all_honest_recorded J M → ¬ msg_commitqc_neg J
+  ∀ (C J : node) (M : merkle_root),
+    all_honest_recorded J M → ¬ msg_commitqc_neg C J
 
 invariant [inclusion_commitqc_pos_root]
-  ∀ (J : node) (M M' : merkle_root),
-    all_honest_recorded J M ∧ msg_commitqc_pos J M' → M' = M
+  ∀ (C J : node) (M M' : merkle_root),
+    all_honest_recorded J M ∧ msg_commitqc_pos C J M' → M' = M
 
 invariant [inclusion_no_mvba_neg]
   ∀ (J : node) (M : merkle_root),
-    all_honest_recorded J M → ¬ mvba_decided_neg J
+    all_honest_recorded J M → ¬ aux_mvba_decided_neg J
 
 invariant [inclusion_mvba_pos_unique]
   ∀ (J : node) (M M' : merkle_root),
-    all_honest_recorded J M ∧ mvba_decided_pos J M' → M' = M
+    all_honest_recorded J M ∧ aux_mvba_decided_pos J M' → M' = M
 
 /-! ### Speculative finality — inductive support
 
@@ -2403,7 +2512,7 @@ contradicts an existing FastQC can be certified. The one non-obvious step
 is the negative fallback entry: an honest validator signs negative for `J`
 only against a witnessed 2f+1-vote quorum `qv` in which no root had an f+1
 positive sub-quorum with decodable, well-encoded data. `qv` is recorded as
-the auxiliary history variable `local_fb_neg_qv`, and under
+the auxiliary history variable `aux_fb_neg_qv`, and under
 `no_equivocation` its content is pinned: every member of `qv` had cast a
 complete vote, votes are monotone, and a signer has at most one entry per
 proposer — so the absence of a positive sub-quorum *within qv* persists
@@ -2419,21 +2528,50 @@ sub-quorum of `qv` — contradiction. -/
 
 invariant [fb_neg_sig_has_witness]
   ∀ (R J : node),
-    ¬ is_byz R ∧ msg_fb_neg_sig R J → ∃ qv, local_fb_neg_qv R J qv
+    ¬ is_byz R ∧ msg_fb_neg_sig R J → ∃ qv, aux_fb_neg_qv R J qv
 
 invariant [fb_neg_qv_is_proposer]
   ∀ (R J : node) (QV : nodeset),
-    ¬ is_byz R ∧ local_fb_neg_qv R J QV → is_proposer J
+    ¬ is_byz R ∧ aux_fb_neg_qv R J QV → is_proposer J
 
 invariant [fb_neg_qv_backed]
   ∀ (R J : node) (QV : nodeset),
-    ¬ is_byz R ∧ local_fb_neg_qv R J QV →
+    ¬ is_byz R ∧ aux_fb_neg_qv R J QV →
     nset.supermajority QV ∧ (∀ r, nset.member r QV → msg_vote_cast r)
+
+/-- A correct validator's vote receipt holds what the sender signed and
+broadcast. -/
+invariant [vote_rcv_pos_backed]
+  ∀ (I R J : node) (M : merkle_root),
+    ¬ is_byz I ∧ local_vote_rcv_pos I R J M → msg_vote_cast R ∧ msg_vote_pos_sig R J M
+
+invariant [vote_rcv_neg_backed]
+  ∀ (I R J : node),
+    ¬ is_byz I ∧ local_vote_rcv_neg I R J → msg_vote_cast R ∧ msg_vote_neg_sig R J
+
+/-- The negative entry was signed against votes `R` had received: one entry
+of each sender in `QV`. Receipts are never withdrawn. -/
+invariant [fb_neg_qv_received]
+  ∀ (R J : node) (QV : nodeset),
+    ¬ is_byz R ∧ aux_fb_neg_qv R J QV →
+    ∀ r, nset.member r QV → ((∃ M, local_vote_rcv_pos R r J M) ∨ local_vote_rcv_neg R r J)
+
+/-- What the negative entry's guard saw stays true: among the received
+votes of `QV`, no root has `f+1` positive entries that re-encode to it.
+Every sender in `QV` has already been received from, and a receipt is kept
+once (the receive steps' fired-once guards), so the receipts of `QV` are
+frozen. -/
+invariant [fb_neg_qv_no_rcv_quorum]
+  ∀ (R J : node) (QV q : nodeset) (M : merkle_root),
+    ¬ is_byz R ∧ aux_fb_neg_qv R J QV →
+    ¬ (nset.greater_than_third q ∧
+       (∀ r, nset.member r q → (nset.member r QV ∧ local_vote_rcv_pos R r J M)) ∧
+       well_encoded M)
 
 invariant [fb_neg_qv_no_pos_quorum]
   no_equivocation → no_invalid_encoding →
   ∀ (R J : node) (QV q : nodeset) (M : merkle_root),
-    ¬ is_byz R ∧ local_fb_neg_qv R J QV →
+    ¬ is_byz R ∧ aux_fb_neg_qv R J QV →
     ¬ (nset.greater_than_third q ∧
        ∀ r, nset.member r q → (nset.member r QV ∧ msg_vote_pos_sig r J M))
 
@@ -2450,12 +2588,12 @@ invariant [fb_neg_no_pos_quorum]
 invariant [spec_fastqc_pos_no_mvba_neg]
   no_equivocation → no_invalid_encoding →
   ∀ (I J : node) (M : merkle_root),
-    ¬ is_byz I ∧ local_fastqc_pos I J M → ¬ mvba_decided_neg J
+    ¬ is_byz I ∧ local_fastqc_pos I J M → ¬ aux_mvba_decided_neg J
 
 invariant [spec_fastqc_pos_mvba_pos_unique]
   no_equivocation → no_invalid_encoding →
   ∀ (I J : node) (M M' : merkle_root),
-    ¬ is_byz I ∧ local_fastqc_pos I J M ∧ mvba_decided_pos J M' → M = M'
+    ¬ is_byz I ∧ local_fastqc_pos I J M ∧ aux_mvba_decided_pos J M' → M = M'
 
 /-! ## Liveness — fairness and the fair-progress invariants
 
@@ -2489,22 +2627,22 @@ outside the model, as named hypotheses of `Chorus.termination`
 ([Chorus/Liveness.lean](Chorus/Liveness.lean)), indexed by the action's
 category:
 
-* **(F-justice)** — every phase-advancement action (`advance_to_*`), every
-  delivery, aggregation and observation action (`deliver_chunk_assigned`,
-  `aggregate_fastqc_*`, `broadcast_commitqc_*`, `record_chunk`), and every per-validator honest action (`vote`,
-  `fb_sign_*`, `cast_fallback_vote`, `commit_sign_*`, `cast_fast_commit`,
+* **(F-justice)** — every phase-advancement action (`advance_to_*`), and
+  every correct validator's action — the receipts and aggregations
+  (`record_chunk`, `receive_vote_*`, `aggregate_fastqc_*`), the
+  certificate sends (`broadcast_commitqc_*`, `broadcast_fbcommitqc`,
+  `send_mvba_cert`), and the protocol rules (`vote`, `fb_sign_*`,
+  `cast_fallback_vote`, `commit_sign_*`, `cast_fast_commit`,
   `mvba_propose`, the handoff `accept_mvba_commitqc`, the handlers
   `on_mvba_decide_*`, `mvba_terminate`, `cast_fb_commit`,
-  `commit_assign_*`, `finalize_commit`) that is *continuously enabled*,
+  `commit_assign_*`, `finalize_commit`) — that is *continuously enabled*,
   and whose messages came from correct senders (`Chorus.Owed`: the paper's
-  network delivers only between correct validators), is fired eventually. That is every action that is
-  neither Byzantine, nor the oracle step, nor one of the module's three
-  inputs, which is how `Chorus.JusticeLabel`
-  ([Chorus/Liveness.lean](Chorus/Liveness.lean)) states it.
-  `deliver_chunk_assigned` and `broadcast_commitqc_*` are on the list as
-  honest network capabilities: eventual delivery of a correct proposer's
-  chunk, and assembly of a certificate whose signatures are all present
-  by a correct collector ([ChorusDesign.md](../docs/ChorusDesign.md) §7).
+  network delivers only between correct validators), is fired eventually.
+  That is every action that is neither Byzantine, nor the oracle step, nor
+  one of the module's three inputs, which is how `Chorus.JusticeLabel`
+  ([Chorus/Liveness.lean](Chorus/Liveness.lean)) states it. A message is
+  acted on by its receiver's own step, so the eventual delivery of a
+  correct sender's message is the fairness of that step.
   Every action on the list disables itself once it has fired (its
   "not already" guard, "Fired-once records"), so "continuously enabled"
   here means the same as "continuously able to change the state"
@@ -2528,8 +2666,7 @@ category:
   flips false, after which the action is *permanently* disabled — so weak
   (F-justice) suffices.
 * **(F-byz)** — Byzantine actions (`byz_*`) carry no scheduling preference;
-  they are unfair. That includes the adversary's use of the two anonymous
-  capabilities, `byz_broadcast_commitqc_*` and `byz_redisseminate_chunk`.
+  they are unfair.
 * **The MVBA's termination** — a theorem of the `Mvba` model, `Mvba.termination`
   ([Mvba/Liveness.lean](Mvba/Liveness.lean)), which `Chorus.termination`
   ([Chorus/Termination.lean](Chorus/Termination.lean)) applies to the run's MVBA
@@ -2664,18 +2801,16 @@ safety content. -/
 /-! ### MVBA completion implies per-proposer decision -/
 
 /-- Lifted postcondition of `mvba_terminate` (whose guard is that every
-proposer's entry of the decided vector is recorded): the link between
-the MVBA's decision and the commit route — once some validator has transported
-its decision (`mvba_complete`), every honest
-non-committed validator has, for every proposer, a recorded MVBA decision
-supplying the `mvba_decided_*` leg of the `commit_assign_*` precondition. The
-certificate leg (`fbcommitqc`) is produced by the fallback commit round
-((F-justice) on `cast_fb_commit`; see the "Fallback commit round"
-invariant block below). -/
+proposer's entry of the decision is handled): once some validator has
+transported its decision (`mvba_complete`), every proposer has a certified
+entry in the auxiliary records. The certificate that carries the entries to
+the other validators is produced by the fallback commit round ((F-justice)
+on `cast_fb_commit` and `broadcast_fbcommitqc`; see the "Fallback commit
+round" invariant block below). -/
 invariant [mvba_complete_per_proposer]
   mvba_complete →
     ∀ J, is_proposer J →
-      ((∃ M, mvba_decided_pos J M) ∨ mvba_decided_neg J)
+      ((∃ M, aux_mvba_decided_pos J M) ∨ aux_mvba_decided_neg J)
 
 /-! ### Fair progress — voting -/
 
@@ -2694,25 +2829,23 @@ invariant [progress_voting]
 
 /-! ### Fair progress — fallback signing -/
 
-/-- Once some 2f+1 validators have broadcast votes, an honest validator on the
-fallback path can always cast its per-proposer fallback entry: for any
-witnessed quorum `qv`, either some root has an f+1 positive sub-quorum
-within `qv` with decodable (`chunk_quorum`; implied at the network level,
-`vote_pos_quorum_implies_decodable`), well-encoded data — then
-`fb_sign_pos` is enabled — or no root has all three, which is
-`fb_sign_neg`'s guard for `qv` (its `qc` witness is the `chunk_quorum`
-witness). Excluded middle over the guard's evidence shape, stated to make
-the case analysis explicit. -/
+/-- Once an honest validator on the fallback path has received the votes of
+some supermajority `qv`, it can always cast its per-proposer fallback entry:
+either some root has `f+1` received positive entries within `qv` that
+re-encode to it — then `fb_sign_pos` is enabled, since the receipts are
+backed by the signatures (`vote_rcv_pos_backed`) — or no root has, which
+is `fb_sign_neg`'s guard for `qv`. Excluded middle over the guard's
+evidence shape, stated to make the case analysis explicit. -/
 invariant [progress_fallback_signing]
   ∀ (I J : node) (qv : nodeset),
-    ¬ is_byz I ∧ is_proposer J ∧
-    nset.supermajority qv ∧ (∀ r, nset.member r qv → msg_vote_cast r) →
+    ¬ is_byz I ∧ is_proposer J ∧ nset.supermajority qv ∧
+    (∀ r, nset.member r qv → ((∃ M, local_vote_rcv_pos I r J M) ∨ local_vote_rcv_neg I r J)) →
     (∃ (M : merkle_root) (q : nodeset), nset.greater_than_third q ∧
-      (∀ r, nset.member r q → nset.member r qv ∧ msg_vote_pos_sig r J M) ∧
-      chunk_quorum J M ∧ well_encoded M) ∨
+      (∀ r, nset.member r q → nset.member r qv ∧ local_vote_rcv_pos I r J M) ∧
+      well_encoded M) ∨
     (∀ (M : merkle_root) (q : nodeset), ¬ (nset.greater_than_third q ∧
-      (∀ r, nset.member r q → nset.member r qv ∧ msg_vote_pos_sig r J M) ∧
-      chunk_quorum J M ∧ well_encoded M))
+      (∀ r, nset.member r q → nset.member r qv ∧ local_vote_rcv_pos I r J M) ∧
+      well_encoded M))
 
 /-! ### Path-fast implies the validator's own FastQCs for every proposer -/
 
@@ -2771,17 +2904,62 @@ each FallbackQC entry met when it signed: `fb_sign_pos` sends every
 validator its chunk (Algorithm 5, line 12 (`line:fb-redisseminate`)). The round has no
 phase gate: the paper's handler is "upon `MVBA[s].decide(B′)`"
 (Algorithm 5, line 37 (`line:fb-mvba-decide`)). (F-justice) on `cast_fb_commit`
-then yields `2f+1` honest commit votes, i.e.
-`fbcommitqc` (the counting is `fbcommitqc_of_honest_commit_votes`,
-[Chorus/Counting.lean](Chorus/Counting.lean)); `fbcommitqc_implies_mvba_complete` +
-`mvba_complete_per_proposer` hand the per-proposer `commit_assign_*`
-preconditions over, exactly as in the pre-round argument. -/
+then yields `2f+1` honest commit votes over the decided entries, i.e.
+`fbcommitqc e` (the counting is `fbcommitqc_of_honest_commit_votes`,
+[Chorus/Counting.lean](Chorus/Counting.lean)); a correct collector forms and
+sends the certificate (`broadcast_fbcommitqc`), and every validator
+finalizes on the entries it carries (`commit_assign_*_fb`). -/
 
 /-- An honest fallback commit vote exists only after its signer decided
 and transported its complete decision vector
 (Algorithm 5, line 37 (`line:fb-mvba-decide`) precedes Algorithm 5, line 41 (`line:fb-commitvote`)). -/
 invariant [fbcommit_sig_backed]
-  ∀ (R : node), ¬ is_byz R ∧ msg_fbcommit_sig R → local_mvba_complete R
+  ∀ (R : node) (E : mentries), ¬ is_byz R ∧ msg_fbcommit_sig R E → local_mvba_complete R
+
+/-- A correct validator's fallback commit vote signs certified entries: every
+proposer's entry of the signed vector is in the auxiliary records. From its
+own decision, whose every proposer entry its handlers recorded
+(`mvba_recorded_entries`). -/
+invariant [fbcommit_sig_entries]
+  ∀ (R : node) (E : mentries) (J : node) (M : merkle_root),
+    ¬ is_byz R ∧ msg_fbcommit_sig R E ∧ is_proposer J →
+    (mval_pos E J M → aux_mvba_decided_pos J M) ∧ (mval_neg E J → aux_mvba_decided_neg J)
+
+/-- A correct validator that has handled entry `J` of its decision has that
+entry in the auxiliary records, for every representation it decided. Agreement
+of the correct decisions (`mvba.agreement`) makes them one entry vector. -/
+invariant [mvba_recorded_entries]
+  ∀ (I J : node) (V : mvalue) (M : merkle_root),
+    ¬ is_byz I ∧ local_mvba_recorded I J ∧ mvba.decided mvba_st I V →
+    (mval_pos (mvba.entries V) J M → aux_mvba_decided_pos J M) ∧
+    (mval_neg (mvba.entries V) J → aux_mvba_decided_neg J)
+
+/-- A correct validator's handled entry is recorded (`on_mvba_decide_*` write
+both rows). -/
+invariant [local_mvba_recorded_backed]
+  ∀ (I J : node),
+    ¬ is_byz I ∧ local_mvba_recorded I J →
+    (∃ M, aux_mvba_decided_pos J M) ∨ aux_mvba_decided_neg J
+
+/-- A correct validator that has transported its decision has handled every
+proposer's entry (`mvba_terminate`'s guard). -/
+invariant [mvba_complete_recorded]
+  ∀ (I J : node),
+    ¬ is_byz I ∧ local_mvba_complete I ∧ is_proposer J → local_mvba_recorded I J
+
+/-- A broadcast fallback commit certificate is valid: `2f+1` matching votes
+(the guard of every action that sends one). -/
+invariant [msg_fbcommitqc_backed]
+  ∀ (C : node) (E : mentries), msg_fbcommitqc C E → fbcommitqc E
+
+/-- A fallback commit certificate carries certified entries: its `2f+1`
+votes contain a correct one (`supermajority_greater_than_third` +
+`greater_than_third_one_honest`), whose entries are recorded
+(`fbcommit_sig_entries`). -/
+invariant [fbcommitqc_entries]
+  ∀ (E : mentries) (J : node) (M : merkle_root),
+    fbcommitqc E ∧ is_proposer J →
+    (mval_pos E J M → aux_mvba_decided_pos J M) ∧ (mval_neg E J → aux_mvba_decided_neg J)
 
 /-- An `fbCommitQC` certifies the MVBA decision vector: any `2f+1` commit
 votes contain an honest one (`supermajority_greater_than_third` +
@@ -2789,16 +2967,16 @@ votes contain an honest one (`supermajority_greater_than_third` +
 (`fbcommit_sig_backed`). Bridges the certificate to the per-proposer
 `commit_assign_*` preconditions via `mvba_complete_per_proposer`. -/
 invariant [fbcommitqc_implies_mvba_complete]
-  fbcommitqc → mvba_complete
+  ∀ (E : mentries), fbcommitqc E → mvba_complete
 
 /-- Every decided-positive root is proposer-signed: chunk validation for a
 decided root. Derivable on the fly — a decision
 is backed by a vote or fallback quorum whose honest member's entry pins
 the proposer signature — but materialised so downstream VCs need not
-re-derive it (the `msg_commitqc_*` / `local_fb_neg_qv` pattern). -/
+re-derive it (the `msg_commitqc_*` / `aux_fb_neg_qv` pattern). -/
 invariant [mvba_decided_pos_proposer_signed]
   ∀ (J : node) (M : merkle_root),
-    mvba_decided_pos J M → msg_proposer_signed J M
+    aux_mvba_decided_pos J M → msg_proposer_signed J M
 
 /- The model-check scaffolding (FinEncodableInjOnly / Enumeration deriving on
 the action Label, EnumerableTransitionSystem assembly) is off: Chorus does
@@ -2821,6 +2999,9 @@ pre-simplification succeeds. -/
 set_option synthInstance.maxHeartbeats 2000000
 set_option synthInstance.maxSize 4096
 set_option maxRecDepth 8192
+-- The `simp` inside that instance's construction runs under the general
+-- heartbeat budget, which the clump's size exceeds at the module default.
+set_option maxHeartbeats 2000000
 
 /- Witness-size instrumentation (diagnostic, cheap): the sweep reports the
 per-VC proof-witness sizes, quantifying the O(action × clump) blow-up that

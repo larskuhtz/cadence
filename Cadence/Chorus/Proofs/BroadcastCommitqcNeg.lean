@@ -36,10 +36,10 @@ namespace Chorus.Proofs
   veil_inv_have h_vote_unique_pos_neg := vote_unique_pos_neg
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_neg_mvba_pos_excl := commitqc_neg_mvba_pos_excl
-  intro _hbyz _hpart _hab hsup_q hq _hfresh J M hqcneg
+  intro _hbyz _hpart _hab hsup_q hq _hfresh C J M hqcneg
   refine Bool.eq_false_iff.mpr fun hb => ?_
-  by_cases hnew : j = J
-  · subst hnew
+  by_cases hnew : c = C ∧ j = J
+  · obtain ⟨rfl, rfl⟩ := hnew
     obtain ⟨a, ha_mem, ha_hon⟩ :=
       nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hsup_q)
     have ha_hon' : ByzNodeSet.is_byz a = false := Bool.eq_false_iff.mpr ha_hon
@@ -54,7 +54,7 @@ namespace Chorus.Proofs
       have hcf := h_commit_cast_fallback_sig_excl c (Bool.eq_false_iff.mpr hc_hon) (hq c hc1).2
       have hy := hqf c hc2
       rw [hcf] at hy; simp at hy
-  · have hz := h_commitqc_neg_mvba_pos_excl J M (hqcneg hnew)
+  · have hz := h_commitqc_neg_mvba_pos_excl C J M (hqcneg (fun h1 h2 => hnew ⟨h1, h2⟩))
     rw [hz] at hb; simp at hb
 
 #prove_action Chorus broadcast_commitqc_neg

@@ -31,7 +31,7 @@ namespace Chorus.Proofs
 /- Manual discharge of the one VC the SMT pipeline cannot solve
 automatically: `vote` preserves `fb_neg_no_pos_quorum`. The proof applies
 `supermajorities_share_third` once — to the recorded
-witness quorum (`local_fb_neg_qv`) and the claimed post-state vote
+witness quorum (`aux_fb_neg_qv`) and the claimed post-state vote
 supermajority — and closes with `fb_neg_qv_no_pos_quorum`; against `vote`'s
 bulk signature update, cvc5's e-matching diverges instead of finding this
 single instantiation. The `#prove_action` below consumes this cell as-is
