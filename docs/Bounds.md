@@ -1,6 +1,10 @@
 # Bounds — the paper's Δ-bounds and the timed claims
 
-*This document is the design behind the timed claims of the MVBA and of
+*The timed claims of the MVBA and of Chorus: their timing models and
+their findings. [The guide's chapter 6](https://larskuhtz.github.io/cadence/guide/components/) introduces the
+claims.*
+
+This document is the design behind the timed claims of the MVBA and of
 Chorus: how the paper's bounded statements map onto theorems, the timing
 model each claim assumes and why it has that shape, and the findings the
 work produced (F1–F15). The claims themselves and their axiom pins are in
@@ -8,7 +12,7 @@ work produced (F1–F15). The claims themselves and their axiom pins are in
 role and its witness, in [Premises.md](Premises.md). The Conductor's timed
 claims and the composed system's are [ConductorBounds.md](ConductorBounds.md).
 How the work was planned and staged is in [History.md](History.md)
-§ "From Bounds.md".*
+§ "From Bounds.md".
 
 ## 1. What the paper proves, and what is proven here
 

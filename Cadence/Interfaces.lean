@@ -13,8 +13,9 @@ implements it in this development.
 
 * Module 1 (`mod:slotconsensus`), per-slot consensus — `SlotConsensus`; Chorus ([Chorus.lean](Chorus.lean))
 * Module 2 (`mod:orchestrator_2`), slot scheduling — `Orchestrator`; Conductor ([Conductor.lean](Conductor.lean))
-* Module 4 (`mod:acs`), agreement on a core set — `ACS`; out of scope (a standard
-  primitive)
+* Module 4 (`mod:acs`), agreement on a core set — `ACS`; an assumed module, consumed by
+  the Conductor; its ideal model ([IdealAcs.lean](Conductor/IdealAcs.lean)) is
+  a consistency witness
 * Module 3 (`mod:mvba`), multi-valued Byzantine agreement — `MVBA`; Mvba ([Mvba.lean](Mvba.lean) — the
   leader-based protocol of the paper repository's internal supplement;
   consumed by Chorus as its `mvba` constraint, instantiated in [System.lean](System.lean))
@@ -887,10 +888,13 @@ participate), `abandon()`; output `decide(set)`, exposed relationally as
 `decided st i p s` ("`i` has decided, with `(p, s)` in its set") plus the
 event marker `has_decided st i`.
 
-No implementation is in scope — the target leaves the ACS unspecified
-([ConductorBounds.md](../docs/ConductorBounds.md) §3) — so no instance
-exists here: every field is an assumption of the composition
-([Architecture.md](../docs/Architecture.md) §4 item 3). What is
+The ACS is an assumed module: the target leaves its protocol unspecified
+([ConductorBounds.md](../docs/ConductorBounds.md) §3), so every field is an
+assumption of the composition ([Architecture.md](../docs/Architecture.md)
+§4 item 3). Its one instance is an ideal model, global and without an
+adversary ([IdealAcs.lean](Conductor/IdealAcs.lean)): it shows that the
+fields can be met together, and it is the ACS of the composed system's
+witness. What is
 machine-checked is that the Conductor consumes exactly this class
 ([Conductor.lean](Conductor.lean) `instantiate acs`), with one documented
 bridge: the median-range guard of its `acs_decide` action. Cardinality is

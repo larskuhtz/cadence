@@ -4,7 +4,7 @@
 the proofs, and what an auditor is being asked to trust. This describes a target
 workflow. Parts of it are realised today — the model / proof-file split, the
 machine-derived audit pins — and parts are not yet. For what is proven, read
-[../README.md](../README.md).*
+[the guide](https://larskuhtz.github.io/cadence/guide/).*
 
 ## Summary
 
