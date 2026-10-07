@@ -23,7 +23,7 @@ noncomputable local instance scInst : SlotConsensusSafety ℕ (Fin 4) Unit (ℕ 
     (SlotSt Unit ℕ Ph PC 4) (@FaultModel.byz (Fin 4) FM) := SCI
 
 /-- The last index of plateau `t`, the one the clock moves after. -/
-abbrev pEnd (N : ℕ) : ℕ := N / 56 * 56 + 55
+abbrev pEnd (N : ℕ) : ℕ := N / 61 * 61 + 60
 
 theorem pEnd_ge (N : ℕ) : N ≤ pEnd N := by have := idx_eq N; have := pos_lt N; simp only [pEnd]; omega
 
@@ -31,7 +31,7 @@ theorem pEnd_clk (N : ℕ) : run.clk (pEnd N) = run.clk N := by
   simp only [run_clk, pEnd]; omega
 
 theorem glue_open (t : ℕ) (i : Fin 4) (x : ℕ) :
-    ¬ openGate (orch := OSI) (sc := SCI) i x (gs (t * 56 + 55)) := by
+    ¬ openGate (orch := OSI) (sc := SCI) i x (gs (t * 61 + 60)) := by
   rintro ⟨ho, hp⟩
   have := i.isLt
   change decide _ = true at ho
@@ -41,7 +41,7 @@ theorem glue_open (t : ℕ) (i : Fin 4) (x : ℕ) :
   omega
 
 theorem glue_propose (t : ℕ) (i : Fin 4) (x : ℕ) :
-    ¬ proposeGate (orch := OSI) (sc := SCI) (ℕ × (Fin 4 → Option Unit)) thG i x (gs (t * 56 + 55)) := by
+    ¬ proposeGate (orch := OSI) (sc := SCI) (ℕ × (Fin 4 → Option Unit)) thG i x (gs (t * 61 + 60)) := by
   rintro ⟨ho, -, hpr, hnp⟩
   have := i.isLt
   change decide _ = true at ho
@@ -53,7 +53,7 @@ theorem glue_propose (t : ℕ) (i : Fin 4) (x : ℕ) :
   omega
 
 theorem glue_finalize (t : ℕ) (i : Fin 4) (x : ℕ) (hi : i.val < 3) :
-    ¬ finalizeGate (orch := OSI) (sc := SCI) i x (gs (t * 56 + 55)) := by
+    ¬ finalizeGate (orch := OSI) (sc := SCI) i x (gs (t * 61 + 60)) := by
   rintro ⟨ho, ⟨v, hf, -⟩, hnd⟩
   change decide _ = true at ho
   change (cst (loc x _)).local_committed i = true at hf
@@ -66,7 +66,7 @@ theorem glue_finalize (t : ℕ) (i : Fin 4) (x : ℕ) (hi : i.val < 3) :
 
 theorem glue_skip (t : ℕ) (i : Fin 4) (x : ℕ) :
     ¬ skipGate (slot_ord := TotalOrderWithMinimum.toTotalOrder) (orch := OSI) i x
-      (gs (t * 56 + 55)) := by
+      (gs (t * 61 + 60)) := by
   rintro ⟨⟨w, hw, hle, hne⟩, hno, -⟩
   have hle : x ≤ w := hle
   change decide _ = true at hw
@@ -76,7 +76,7 @@ theorem glue_skip (t : ℕ) (i : Fin 4) (x : ℕ) :
 
 theorem glue_append (t : ℕ) (i : Fin 4) (x : ℕ) :
     ¬ appendGate (slot_ord := TotalOrderWithMinimum.toTotalOrder) i x
-      (gs (t * 56 + 55)) := by
+      (gs (t * 61 + 60)) := by
   rintro ⟨⟨v, hd⟩, hna, -⟩
   have ha := hna v
   change decide _ = true at hd
@@ -92,33 +92,33 @@ theorem row_propose (i : Fin 4) (x : ℕ) :
         (ℕ × (Fin 4 → Option Unit)) thG i x)
       (fun l => ∃ p a, l = .on_propose i x p a) :=
   bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
-    ⟨pEnd N, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ => glue_propose (N / 56) i x hg⟩
+    ⟨pEnd N, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ => glue_propose (N / 61) i x hg⟩
 
 theorem row_open (i : Fin 4) (x : ℕ) :
     BufferedFairFamily run sch.δ sch.δ (fun _ => True) (openGate (orch := OSI) (sc := SCI) i x)
       (fun l => ∃ a, l = .on_open i x a) :=
   bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
-    ⟨pEnd N, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ => glue_open (N / 56) i x hg⟩
+    ⟨pEnd N, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ => glue_open (N / 61) i x hg⟩
 
 theorem row_finalize (i : Fin 4) (x : ℕ) (hi : i.val < 3) :
     BufferedFairFamily run sch.δ sch.δ (fun _ => True) (finalizeGate (orch := OSI) (sc := SCI) i x)
       (fun l => ∃ v a b, l = .on_finalize i x v a b) :=
   bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
-    ⟨pEnd N, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ => glue_finalize (N / 56) i x hi hg⟩
+    ⟨pEnd N, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ => glue_finalize (N / 61) i x hi hg⟩
 
 theorem row_skip (i : Fin 4) (x : ℕ) :
     BufferedFairFamily run sch.δ sch.δ (fun _ => True)
       (skipGate (slot_ord := TotalOrderWithMinimum.toTotalOrder) (orch := OSI) i x)
       (fun l => ∃ w, l = .record_skip i x w) :=
   bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
-    ⟨pEnd N, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ => glue_skip (N / 56) i x hg⟩
+    ⟨pEnd N, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ => glue_skip (N / 61) i x hg⟩
 
 theorem row_append (i : Fin 4) (x : ℕ) :
     BufferedFairFamily run sch.δ sch.δ (fun _ => True)
       (appendGate (slot_ord := TotalOrderWithMinimum.toTotalOrder) i x)
       (fun l => ∃ v, l = .append i x v) :=
   bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
-    ⟨pEnd N, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ => glue_append (N / 56) i x hg⟩
+    ⟨pEnd N, pEnd_ge N, pEnd_clk N, fun ⟨_, hg, _⟩ => glue_append (N / 61) i x hg⟩
 
 /-- **The glue's rows**: each fires within `δ = 0` of its gate, because
 every gate is closed at the end of every plateau. -/

@@ -1263,7 +1263,7 @@ def FJustice (r : ChorusRun thS thM) : Prop :=
     WeaklyFairWhen r (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l) l) ∧
   (∀ i v, WeaklyFairFamilyWhen r (proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i)
     (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)) ∧
-  (∀ i, WeaklyFairFamilyWhen r (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
+  (∀ i, WeaklyFairFamilyWhen r (relayOwed (nset := nset))
     (fun l => ∃ r c mvba_next, l = .accept_mvba_commitqc i r c mvba_next)) ∧
   ∀ i v, WeaklyFairFamilyWhen r (availOwed i v)
     (fun l => ∃ mvba_next, l = .mvba_avail_ready i v mvba_next)
@@ -1278,7 +1278,7 @@ theorem fJustice_iff_move (r : ChorusRun thS thM) :
         WeaklyFairWhenMove r (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l) l) ∧
       (∀ i v, WeaklyFairFamilyWhenMove r (proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i)
         (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)) ∧
-      (∀ i, WeaklyFairFamilyWhenMove r (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
+      (∀ i, WeaklyFairFamilyWhenMove r (relayOwed (nset := nset))
         (fun l => ∃ r c mvba_next, l = .accept_mvba_commitqc i r c mvba_next)) ∧
       ∀ i v, WeaklyFairFamilyWhenMove r (availOwed i v)
         (fun l => ∃ mvba_next, l = .mvba_avail_ready i v mvba_next) := by

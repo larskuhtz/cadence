@@ -14,11 +14,6 @@ the system's MVBA, `T := Mvba.mvbaTemporal`, where that holds
 (`mvbaSchedule_ℓ_nonneg`) and the MVBA instance's correct supermajority is
 a theorem of the family (`hqeFin`).
 
-**`Chorus.timed_termination_tight`** — F4, confirmed: the same premises give
-`4Δ + ℓ_MVBA + 8δ` (`Ltight`), one `Δ` inside the paper's bound, and
-`4Δ + ℓ_MVBA` at `δ = 0`. The paper's claim follows from it
-(`Ltight_le_Lchorus`).
-
 ## The milestones
 
 From `M := max(t, GST)`, on the branch where no correct validator has
@@ -28,35 +23,39 @@ Up to the proposals the milestones are [Timeline.lean](Timeline.lean)'s.
 
 | milestone | lemma | by | `δ`s |
 |---|---|---|---|
-| every correct validator saturated | `within_all_saturated` | `M + 2Δ + 2δ` | 2 |
-| every correct validator's MVBA proposal | `within_all_input` | `t_M = M + 3Δ + 3δ` | 3 |
-| a FallbackQC signer's chunk, sent to every validator | `fb_pos_sig_at_cast`, `fb_pos_sig_chunks` | (saturation; its hop due `M + 3Δ + 2δ`) | 2 |
-| every correct validator decides in the MVBA | `within_all_decided` (`T.termination`) | `X_d = t_M + ℓ_MVBA` | 3 |
-| a correct decision's entries recorded | `within_recorded` | `X_d + δ` | 4 |
-| each correct validator's termination record `local_mvba_complete` | `within_complete` | `X_d + 2δ` | 5 |
-| each fallback commit vote, under its own `B′` | `within_fbcommit_sig` | `X_v = X_d + 3δ` | 6 |
-| a correct fbCommitQC | (the honest quorum's votes, collapsed) | `X_v` | 6 |
-| every proposer's entry assigned | `within_assigned` | `X_v + Δ` | 6 |
-| finalized | `within_finalized` | `T₀ = M + 4Δ + ℓ_MVBA + 7δ` | 7 |
+| every correct validator saturated | `within_all_saturated` | `M + 2Δ + 3δ` | 3 |
+| every correct validator's MVBA proposal | `within_all_input` | `t_M = M + 3Δ + 4δ` | 4 |
+| a FallbackQC signer's chunk, sent to every validator | `fb_pos_sig_at_cast`, `fb_pos_sig_chunks` | (saturation; its hop due `M + 3Δ + 3δ`) | 3 |
+| every correct validator decides in the MVBA | `within_all_decided` (`T.termination`) | `X_d = t_M + ℓ_MVBA` | 4 |
+| each correct validator's decision handled, entry by entry | `within_recorded` | `X_d + δ` | 5 |
+| each correct validator's termination record `local_mvba_complete` | `within_complete` | `X_d + 2δ` | 6 |
+| each fallback commit vote, under its own `B′` | `within_fbcommit_sig` | `X_v = X_d + 3δ` | 7 |
+| the honest quorum's votes over the decided entries | (collapsed, the MVBA's agreement) | `X_v` | 7 |
+| the finalizer's own fallback commit certificate | `within_fbcommitqc_sent` | `X_v + Δ` | 7 |
+| every proposer's entry assigned | `within_assigned` | `X_v + 2Δ` | 7 |
+| finalized | `within_finalized` | `T₀ = M + 5Δ + ℓ_MVBA + 8δ` | 8 |
 
-`within_finalized_late` is that chain. `T₀` is §6.4.6's (R12) expectation,
-confirmed.
+`within_finalized_late` is that chain. Every message is acted on by its
+receiver's own step, so the chain counts the vote receipts before the
+negative fallback entry (a `δ`, [Timeline.lean](Timeline.lean)) and the
+fallback commit certificate's two hops: formed from the votes, then
+received.
 
-**The split** (`within_finalized_tight`) is made once, at `X_v`: a correct
+**The split** (`within_finalized_split`) is made once, at `X_v`: a correct
 validator that finalized by `X_v` gives everyone totality's `Δ + 2δ`
-(`totality`), `M + 4Δ + ℓ_MVBA + 8δ`; otherwise the chain above finalizes
-everyone by `T₀`. The paper splits at `T₀` instead and adds totality's `Δ`
-after it, which gives `M + 5Δ + ℓ_MVBA + 9δ`, exactly `Lchorus`: the
-`δ`-multiple fixed before the proof stands.
+(`totality`), `M + 4Δ + ℓ_MVBA + 9δ`; otherwise the chain above finalizes
+everyone by `T₀ = M + 5Δ + ℓ_MVBA + 8δ`. Both are within
+`M + 5Δ + ℓ_MVBA + 9δ`, `Lchorus`: the `δ`-multiple fixed before the proof
+stands. The paper's own split, at `T₀` with totality's `Δ` after it, would
+now give one `Δ` more, so the split point is the vote deadline.
 
 ## What the round needs, and what it does not
 
 * **No common `B′`** (P2 of [PaperAlignment.md](../../docs/PaperAlignment.md)
-  §6). Each validator casts its fallback commit vote under its own decision,
-  after the wait under that decision's FallbackQC entries; the votes agree
-  on entries only, which is all the fbCommitQC and the assignments read.
-  The decision handlers run on one correct decision, and the MVBA's
-  agreement makes every correct decision's entries the recorded ones.
+  §6). Each validator handles its own decision and casts its fallback commit
+  vote under it, after the wait under that decision's FallbackQC entries;
+  the votes sign entries only, which the MVBA's agreement makes one vector,
+  and that is all the fbCommitQC and the assignments read.
 * **The chunks arrive before the decision.** A FallbackQC entry of any
   correct decision has a correct signer, which signed before its own
   second-round vote (`fb_pos_sig_flip`: `fb_sign_pos` requires that the
@@ -80,11 +79,13 @@ after it, which gives `M + 5Δ + ℓ_MVBA + 9δ`, exactly `Lchorus`: the
   correct supermajority, which the family proves (`hqeFin`).
 * **Nothing new of the model**, and no Veil cell: plain Lean over the
   existing step lemmas and invariants.
-* **At the system's MVBA nothing Chorus provides is assumed.** The MVBA's
-  two clauses on its caller are derived from the rows: the handoff
-  (`relayed_of_timedJustice`) and (Δ-avail) (`availWithin_of_timedJustice`,
-  with the schedule's `Δ ≤ Δ_sync`). `timed_termination_atMvba` takes
-  `SyncAtMvba`, whose MVBA premise is the MVBA's own two clauses. -/
+* **At the system's MVBA the MVBA's clauses on its caller are derived.**
+  The handoff from the decider's certificate broadcast and the handoff row
+  (`relayed_of_timedJustice`, with `DecisionOutput` and the schedule's
+  `δ ≤ ρ`), and (Δ-avail) from the availability row
+  (`availWithin_of_timedJustice`, with the schedule's `Δ ≤ Δ_sync`).
+  `timed_termination_atMvba` takes `SyncAtMvba`, whose MVBA premise is the
+  MVBA's own two clauses. -/
 
 namespace Chorus
 
@@ -126,16 +127,6 @@ variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathCh
 local notation "RTS" => Chorus.relationalTransitionSystem slot node nodeset merkle_root
   mstate mvalue mentries mmsg Phase PathChoice
 
-open Lean in
-/-- One `case <action> => have <h> := Chorus.<action>.frame_<field> <htr>; <tac>`
-line per listed action — [Termination.lean](Termination.lean)'s local macro. -/
-local macro "frame_cases " htr:ident fld:ident hfr:ident "[" acts:ident,* "]" "=>" tac:tactic : tactic => do
-  let mut acc ← `(tactic| skip)
-  for a in acts.getElems do
-    let lem := mkIdent (`Chorus ++ a.getId ++ Name.mkSimple ("frame_" ++ fld.getId.toString))
-    acc ← `(tactic| ($acc; case $a:ident => (have $hfr := $lem:ident $htr; $tac)))
-  return acc
-
 set_option maxHeartbeats 1000000 in
 /-- **A correct validator signs a positive fallback entry only before its
 second-round vote**: the step that sets `msg_fb_pos_sig k j m` for a correct
@@ -146,9 +137,9 @@ theorem fb_pos_sig_flip {l} {k j : node} {m : merkle_root}
     (h0 : ¬ s.msg_fb_pos_sig k j m = true) (h1 : s'.msg_fb_pos_sig k j m = true) :
     ¬ s.msg_commit_cast k = true ∧ s.local_path k ≠ PathChoice_EnumClass.fallback := by
   cases l
-  case fb_sign_pos i' j' m' q qc =>
+  case fb_sign_pos i' j' m' q =>
     chorus_tr htr
-    obtain ⟨-, -, -, -, -, hc, hp, -, -, -, -, -, -, -, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, -, hc, hp, -, -, -, -, -, -, rfl⟩ := htr
     chorus_field_simp
     by_cases hik : i' = k
     · subst hik
@@ -162,18 +153,7 @@ theorem fb_pos_sig_flip {l} {k j : node} {m : merkle_root}
     · subst hrk
       simp_all
     · simp_all
-  frame_cases htr msg_fb_pos_sig hfr
-    [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose,
-     deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg,
-     commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos,
-     broadcast_commitqc_neg, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose,
-     accept_mvba_commitqc, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_avail_ready,
-     on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit,
-     commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk,
-     byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote,
-     byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit,
-     byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit,
-     byz_release_msg_decrypt_share] => exact absurd (hfr ▸ h1) h0
+  frame_rest htr msg_fb_pos_sig hfr=> exact absurd (hfr ▸ h1) h0
 
 end Steps
 
@@ -280,87 +260,51 @@ theorem within_all_decided
     (P := fun st => (Mvba.mvbaSafety (nset := nset) thM).decided st q v) hk hv
   exact ⟨n, hn, v, hP⟩
 
-/-- Entry `J` of the decided value `v` is recorded: the goal of one decision
-handler, monotone. -/
-def RecordedAs (thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
-      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)
-    (thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)
-    (v : MetaBlock node merkle_root)
-    (st : StateAtMvba slot node nodeset merkle_root view Phase PathChoice) (J : node) : Prop :=
-  (∃ M, thS.mval_pos (thM.ent v) J M = true ∧ st.aux_mvba_decided_pos J M = true) ∨
-    (thS.mval_neg (thM.ent v) J = true ∧ st.aux_mvba_decided_neg J = true)
-
-omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
-theorem RecordedAs.step {r : TChorusRun thS thM time} {n : Nat} {v : MetaBlock node merkle_root}
-    {J : node} (h : RecordedAs thS thM v (r.at' n) J) : RecordedAs thS thM v (r.at' (n + 1)) J := by
-  mvba_inst
-  rcases h with ⟨M, hM, hd⟩ | ⟨hM, hd⟩
-  · exact Or.inl ⟨M, hM, Chorus.aux_mvba_decided_pos.mono (r.steps n) J M hd⟩
-  · exact Or.inr ⟨hM, Chorus.aux_mvba_decided_neg.mono (r.steps n) J hd⟩
-
 /-- **Milestone: the decision handlers, `δ` after a correct decision.** From
-an index `N` at which a correct validator `i0` has decided `v0`, every
-proposer's entry of `v0` is
-recorded by `ref N + δ`: each handler `on_mvba_decide_*` is a `δ`-row with no
-gate, enabled — its bridge check is `ValidBridge`'s completeness at the
-decision — until the entry is recorded. Its fired-once record could stand in
-the way only if `i0` had recorded that entry of its decision already, which
-by the MVBA's agreement is the entry of `v0` (`mvba_recorded_entry`). The
-handlers of different proposers run in parallel (`withinFrom_forall`). -/
+an index `N` at which a correct validator `i` has decided `w`, it has handled
+every proposer's entry of `w` by `ref N + δ`: each handler `on_mvba_decide_*`
+is a `δ`-row with no gate, enabled — its bridge check is `ValidBridge`'s
+completeness at the decision — until `i` has handled the entry, which is
+the handler's own fired-once record. The handlers of different proposers run
+in parallel (`withinFrom_forall`). -/
 theorem within_recorded [Fintype node] (sch : Schedule view time) {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) (hbr : ValidBridge r.toLRun) {N : Nat}
-    {i0 : node} (hi0 : ¬ nset.is_byz i0 = true) {v0 : MetaBlock node merkle_root}
-    (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' N).mvba_st i0 v0) :
+    {i : node} (hi : ¬ nset.is_byz i = true) {w : MetaBlock node merkle_root}
+    (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' N).mvba_st i w) :
     r.WithinFrom N (r.ref N + sch.δ)
-      (fun st => ∀ J, thS.is_proposer J = true → RecordedAs thS thM v0 st J) := by
+      (fun st => ∀ J, thS.is_proposer J = true → st.local_mvba_recorded i J = true) := by
   mvba_inst
   have hdec := decided_persists r.toLRun hd
-  have hcert : ∀ n, N ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) v0 :=
-    r.mono (P := fun st => Certified (thS := thS) (thM := thM) st v0)
-      (fun n h => h.step (r.steps n)) (hbr.2.1 N i0 v0 hi0 hd)
+  have hcert : ∀ n, N ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) w :=
+    r.mono (P := fun st => Certified (thS := thS) (thM := thM) st w)
+      (fun n h => h.step (r.steps n)) (hbr.2.1 N i w hi hd)
   have hx : r.clk N ≤ r.ref N + sch.δ :=
     le_trans (r.clk_le_ref N) (le_add_of_nonneg_right sch.mvba.δ_nonneg)
   have hW : r.bufWindow N N sch.δ sch.δ ≤ r.ref N + sch.δ := r.bufWindow_le le_rfl le_rfl
-  -- While entry `J` of `v0` is unrecorded, `i0` has recorded nothing for `J`.
-  have hfresh : ∀ J n, N ≤ n → ¬ RecordedAs thS thM v0 (r.at' n) J →
-      ¬ (r.at' n).local_mvba_recorded i0 J = true := by
-    intro J n hn hnr hf
-    obtain ⟨e', hs', he'⟩ := mvba_recorded_entry r.toLRun n hf
-    have hreach := Chorus.reachable_mvba_reachable (r.reachable n)
-    have heq : e' = thM.ent v0 := by
-      rcases hs' with ⟨v', hd', rfl⟩ | ⟨c, hc⟩
-      · exact (Mvba.mvbaSafety (nset := nset) thM).agreement _ hreach i0 i0 v' v0 hi0 hi0 hd' (hdec n hn)
-      · exact ((Mvba.mvbaSafety (nset := nset) thM).certified_decided _ hreach c e' i0 v0 hc hi0
-          (hdec n hn)).symm
-    rw [heq] at he'
-    exact hnr he'
   obtain ⟨n, hn, hc, hall⟩ := r.withinFrom_forall
-    (fun J st => thS.is_proposer J = true → RecordedAs thS thM v0 st J)
-    (fun J k h hJ => RecordedAs.step (r := r) (h hJ)) N (r.ref N + sch.δ) hx
+    (fun J st => thS.is_proposer J = true → st.local_mvba_recorded i J = true)
+    (fun J k h hJ => Chorus.local_mvba_recorded.mono (r.steps k) i J (h hJ)) N (r.ref N + sch.δ) hx
     (Finset.univ : Finset node).toList
     (fun J _ => by
       by_cases hJ : thS.is_proposer J = true
       · obtain ⟨-, -, hent⟩ := hcert N le_rfl
         rcases hent J hJ with ⟨M, hM⟩ | hM
         · obtain ⟨k, hk, hck, hP⟩ := r.withinFrom_of_bufferedFair
-            (P := fun st => RecordedAs thS thM v0 st J)
-            (hTJ.rows (.on_mvba_decide_pos i0 J M v0) .loc rfl (fun h => h)) le_rfl hW
-            (fun _ _ h => Or.inl ⟨M, hM, on_mvba_decide_pos_effect h⟩)
+            (P := fun st => st.local_mvba_recorded i J = true)
+            (hTJ.rows (.on_mvba_decide_pos i J M w) .loc rfl (fun h => h)) le_rfl hW
+            (fun _ _ h => (on_mvba_decide_pos_effect h).2)
             (fun n hn _ hnr => ⟨trivial, fun _ => by
               obtain ⟨hp, -, -⟩ := hcert n hn
-              exact enabled_on_mvba_decide_pos hi0 hJ (hdec n hn) hM (hp J M hM).2
-                (hfresh J n hn hnr)⟩)
+              exact enabled_on_mvba_decide_pos hi hJ (hdec n hn) hM (hp J M hM).2 hnr⟩)
             (fun _ _ _ _ => trivial)
           exact ⟨k, hk, hck, fun _ => hP⟩
         · obtain ⟨k, hk, hck, hP⟩ := r.withinFrom_of_bufferedFair
-            (P := fun st => RecordedAs thS thM v0 st J)
-            (hTJ.rows (.on_mvba_decide_neg i0 J v0) .loc rfl (fun h => h)) le_rfl hW
-            (fun _ _ h => Or.inr ⟨hM, on_mvba_decide_neg_effect h⟩)
+            (P := fun st => st.local_mvba_recorded i J = true)
+            (hTJ.rows (.on_mvba_decide_neg i J w) .loc rfl (fun h => h)) le_rfl hW
+            (fun _ _ h => (on_mvba_decide_neg_effect h).2)
             (fun n hn _ hnr => ⟨trivial, fun _ => by
               obtain ⟨-, hng, -⟩ := hcert n hn
-              exact enabled_on_mvba_decide_neg hi0 hJ (hdec n hn) hM (hng J hM).2
-                (hfresh J n hn hnr)⟩)
+              exact enabled_on_mvba_decide_neg hi hJ (hdec n hn) hM (hng J hM).2 hnr⟩)
             (fun _ _ _ _ => trivial)
           exact ⟨k, hk, hck, fun _ => hP⟩
       · exact ⟨N, le_rfl, hx, fun h => absurd h hJ⟩)
@@ -368,34 +312,35 @@ theorem within_recorded [Fintype node] (sch : Schedule view time) {r : TChorusRu
 
 omit [IsOrderedAddMonoid time] in
 /-- **Milestone: the termination record, `δ` after the decision handlers.**
-With every proposer's entry of a correct validator's decision recorded at
+With every proposer's entry of a correct validator's decision handled at
 `N`, its `mvba_terminate` is a `δ`-row with no gate, enabled until its own
 `local_mvba_complete`. -/
 theorem within_complete (sch : Schedule view time) {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) {N : Nat}
-    {i0 : node} (hi0 : ¬ nset.is_byz i0 = true) {v0 : MetaBlock node merkle_root}
-    (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' N).mvba_st i0 v0)
-    (hrec : ∀ J, thS.is_proposer J = true → RecordedAs thS thM v0 (r.at' N) J) :
-    r.WithinFrom N (r.ref N + sch.δ) (fun st => st.local_mvba_complete i0 = true) := by
+    {i : node} (hi : ¬ nset.is_byz i = true) {w : MetaBlock node merkle_root}
+    (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' N).mvba_st i w)
+    (hrec : ∀ J, thS.is_proposer J = true → (r.at' N).local_mvba_recorded i J = true) :
+    r.WithinFrom N (r.ref N + sch.δ) (fun st => st.local_mvba_complete i = true) := by
   mvba_inst
   have hdec := decided_persists r.toLRun hd
-  refine r.withinFrom_of_bufferedFair (hTJ.rows (.mvba_terminate i0 v0) .loc rfl (fun h => h))
+  refine r.withinFrom_of_bufferedFair (hTJ.rows (.mvba_terminate i w) .loc rfl (fun h => h))
     le_rfl (r.bufWindow_le le_rfl le_rfl) (fun _ _ h => mvba_terminate_effect h)
-    (fun n hn _ hnc => ⟨trivial, fun _ => enabled_mvba_terminate hi0 hnc (hdec n hn)
-      (fun J hJ => r.mono (P := fun st => RecordedAs thS thM v0 st J)
-        (fun m h => RecordedAs.step (r := r) h) (hrec J hJ) n hn)⟩)
+    (fun n hn _ hnc => ⟨trivial, fun _ => enabled_mvba_terminate hi hnc (hdec n hn)
+      (fun J hJ => r.mono (P := fun st => st.local_mvba_recorded i J = true)
+        (fun m h => Chorus.local_mvba_recorded.mono (r.steps m) i J h) (hrec J hJ) n hn)⟩)
     (fun _ _ _ _ => trivial)
 
 omit [IsOrderedAddMonoid time] in
 /-- **Milestone: the fallback commit vote, `δ` after the termination record**
 (Algorithm 5, line 41 (`line:fb-commitvote`)). `cast_fb_commit i w` is a
 `Δ`-row split at its trigger (`TimedJustice.fbCommit`). Its message part is
-`i`'s chunks under the positive `FallbackQC` entries of `w` (the DA wait,
-Algorithm 5, line 39 (`line:fb-commit-wait`)), present from `Nc` on and due
-`Δ` after it. Its gate is the trigger: from `N` on, `i` is active, has
-decided `w`, its own `B′` and nothing else (the MVBA's integrity), and
-holds its own `local_mvba_complete`. So the vote is cast by `max(ref Nc + Δ, ref N + δ)`.
-No common `B′` is assumed: each validator waits under its own decision. -/
+the chunks sent to `i` under the positive `FallbackQC` entries of `w` (the
+DA wait, Algorithm 5, line 39 (`line:fb-commit-wait`)), present from `Nc` on
+and due `Δ` after it. Its gate is the trigger: from `N` on, `i` is active,
+has decided `w`, its own `B′` and nothing else (the MVBA's integrity), and
+holds its own `local_mvba_complete`. So the vote is cast by
+`max(ref Nc + Δ, ref N + δ)`. No common `B′` is assumed: each validator
+waits under its own decision. -/
 theorem within_fbcommit_sig (sch : Schedule view time) {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) {N₀ Nc N : Nat} (hN : N₀ ≤ N) (hNc : Nc ≤ N) {B : time}
     (hBc : r.ref Nc + sch.Δ ≤ B) (hB : r.ref N + sch.δ ≤ B) (hact : ActiveUntil r N₀ B)
@@ -403,20 +348,54 @@ theorem within_fbcommit_sig (sch : Schedule view time) {r : TChorusRun thS thM t
     (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' N).mvba_st i w)
     (hc : (r.at' N).local_mvba_complete i = true)
     (hda : ∀ J M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
-      (r.at' Nc).msg_chunk_received i J M = true) :
-    r.WithinFrom Nc B (fun st => st.msg_fbcommit_sig i = true) := by
+      Chorus.chunk_received (nset := nset) (mvba := Mvba.mvbaSafety thM) i J M thS (r.at' Nc)) :
+    r.WithinFrom Nc B (fun st => ∃ e, st.msg_fbcommit_sig i e = true) := by
   mvba_inst
   have hdec := decided_persists r.toLRun hd
   refine r.withinFrom_of_bufferedFair (hTJ.fbCommit i w) hNc (r.bufWindow_le hBc hB)
-    (fun _ _ h => cast_fb_commit_effect h)
+    (fun _ _ h => ⟨_, cast_fb_commit_effect h⟩)
     (fun n hn _ hnv => ⟨trivial, fun hg => enabled_cast_fb_commit hi hg.1 hg.2.1 hg.2.2.2
-        (fun J M hM hfb => r.mono (P := fun st => st.msg_chunk_received i J M = true)
-          (fun m h => Chorus.msg_chunk_received.mono (r.steps m) i J M h) (hda J M hM hfb) n hn)
+        (fun J M hM hfb => r.mono
+          (P := fun st => Chorus.chunk_received (nset := nset) (mvba := Mvba.mvbaSafety thM) i J M thS st)
+          (fun m h => chunk_received_step (r.steps m) h) (hda J M hM hfb) n hn)
         (fun hf => hnv (fbcommit_voted_sig r.toLRun n hf))⟩)
     (fun n hn hcl _ => ⟨hact n (by omega) hcl i hi, hdec n hn, fun w' h => Mvba.reachable_integrity
         (Chorus.reachable_mvba_reachable (r.reachable n)) i w' w hi h (hdec n hn),
       r.mono (P := fun st => st.local_mvba_complete i = true)
         (fun m h => Chorus.local_mvba_complete.mono (r.steps m) i h) hc n hn⟩)
+
+omit [IsOrderedAddMonoid time] in
+/-- **Milestone: a correct validator's fallback commit certificate, `Δ` after
+the votes** (Algorithm 5, lines 42–44
+(`line:fb-collect-commit`–`line:fb-commit-broadcast`)). From an index `N` at
+which a correct quorum `H`'s fallback commit votes over `e` are on the
+network, `broadcast_fbcommitqc c e H` is a `Δ`-row owed on them (their
+senders are correct), with `c`'s active participation as its gate (from its
+participation at `P` on, until it finalizes, by C1), and enabled until `c`
+has sent a certificate. So by any `B` bounding the buffered window, `c` has
+sent a fallback commit certificate, or has finalized. -/
+theorem within_fbcommitqc_sent (sch : Schedule view time) {r : TChorusRun thS thM time}
+    (hTJ : TimedJustice sch r) (hab : NoAbandonBeforeFinalizing r.toLRun)
+    {c : node} (hc : ¬ nset.is_byz c = true) {e : node → Option merkle_root}
+    {H : nodeset} (hH : nset.supermajority H)
+    (hHh : ∀ a, nset.member a H = true → ¬ nset.is_byz a = true)
+    {N P : Nat} (hvotes : ∀ a, nset.member a H = true → (r.at' N).msg_fbcommit_sig a e = true)
+    (hP : (r.at' P).participating c = true) {B : time}
+    (hB : r.bufWindow N (max N P) sch.Δ sch.δ ≤ B) :
+    r.WithinFrom N B
+      (fun st => (∃ e', st.msg_fbcommitqc c e' = true) ∨ st.local_committed c = true) := by
+  mvba_inst
+  have hvotes' : ∀ n, N ≤ n → ∀ a, nset.member a H = true → (r.at' n).msg_fbcommit_sig a e = true :=
+    fun n hn a ha => r.mono (P := fun st => st.msg_fbcommit_sig a e = true)
+      (fun k h => Chorus.msg_fbcommit_sig.mono (r.steps k) a e h) (hvotes a ha) n hn
+  refine r.withinFrom_of_bufferedFair
+    (hTJ.rows (.broadcast_fbcommitqc c e H) .net rfl (fun h => h)) (le_max_left _ _) hB
+    (fun _ _ h => Or.inl ⟨e, broadcast_fbcommitqc_effect h⟩)
+    (fun n hn _ hnot => ⟨hHh, fun hg => enabled_broadcast_fbcommitqc hc hg hH (hvotes' n hn)
+      (fun hs => hnot (Or.inl (fbcommitqc_sent_msg r.toLRun n hs)))⟩)
+    (fun n hn _ hnot => ⟨r.mono (P := fun st => st.participating c = true)
+        (fun k hk => Chorus.participating.mono (r.steps k) c hk) hP n (by omega),
+      fun h => hnot (Or.inr (hab c hc n h))⟩)
 
 /-! ### The assembly -/
 
@@ -440,34 +419,37 @@ def Evidence (thS : Chorus.Theory slot node nodeset merkle_root
 
 set_option maxHeartbeats 4000000 in
 /-- **The late branch: nobody finalized by the vote deadline, everyone
-finalizes by `T₀ = M + 4Δ + ℓ_MVBA + 7δ`** (`M = max(t, GST)`), the timeline
+finalizes by `T₀ = M + 5Δ + ℓ_MVBA + 8δ`** (`M = max(t, GST)`), the timeline
 of Proposition 5 (`prop:chorus-finalization-time`) with every local step counted.
 
 If no correct validator has finalized at any index whose clock is at most
-`X_v = M + 3Δ + ℓ_MVBA + 6δ`, none has abandoned there (C1), so every correct
+`X_v = M + 3Δ + ℓ_MVBA + 7δ`, none has abandoned there (C1), so every correct
 validator is active on that window (`activeUntil_of_not_finalized`), and:
 
-* every correct validator is saturated by `M + 2Δ + 2δ`
+* every correct validator is saturated by `M + 2Δ + 3δ`
   (`within_all_saturated`), where the evidence certifies one vector `v` that
   is `Valid` (`ValidBridge`'s soundness), and proposes to the MVBA by
-  `t_M = M + 3Δ + 3δ` (`within_all_input`);
+  `t_M = M + 3Δ + 4δ` (`within_all_input`);
 * every correct validator decides in the MVBA by `X_d = t_M + ℓ_MVBA`
   (`within_all_decided`, nobody having abandoned);
-* a correct decision's entries are recorded by `X_d + δ` (`within_recorded`),
-  which by the MVBA's agreement are every correct decision's, and every
-  correct validator has transported its own decision by `X_d + 2δ`
+* each handles every entry of its own decision by `X_d + δ`
+  (`within_recorded`), and records its termination by `X_d + 2δ`
   (`within_complete`);
 * every correct validator holds its chunk under each positive FallbackQC
-  entry of its own decision by `M + 3Δ + 2δ`: the entry's FallbackQC has a
+  entry of its own decision by `M + 3Δ + 3δ`: the entry's FallbackQC has a
   correct signer, whose signature was there at its second-round vote
   (`fb_pos_sig_at_cast`), and it sent every validator its chunk when it
-  signed (`fb_pos_sig_chunks`); the chunks' hop is due by `M + 3Δ + 2δ`;
+  signed (`fb_pos_sig_chunks`); the chunks' hop is due by `M + 3Δ + 3δ`;
 * every correct validator casts its fallback commit vote under its own `B′`
-  by `X_v = X_d + 3δ` (`within_fbcommit_sig`), so the honest quorum's votes
-  form a correct fbCommitQC;
-* each assignment is then a `Δ`-row owed on the fbCommitQC and the record,
-  by `X_v + Δ` (`within_assigned`), and the finalization a `δ`-row, by
-  `X_v + Δ + δ = T₀` (`within_finalized`). The last two use only the
+  by `X_v = X_d + 3δ` (`within_fbcommit_sig`), over its decided entries,
+  which agree (the MVBA's agreement), so the honest quorum's votes are on
+  the network over one entry vector;
+* the finalizing validator forms and sends its fallback commit certificate,
+  a `Δ`-row on those votes, by `X_v + Δ` (`within_fbcommitqc_sent`), which is
+  over the decided entries (`fbcommitqc_decided`);
+* each assignment is then a `Δ`-row owed on that certificate, from a correct
+  sender, by `X_v + 2Δ` (`within_assigned`), and the finalization a `δ`-row,
+  by `X_v + 2Δ + δ = T₀` (`within_finalized`). The last three use only the
   finalizing validator's own gate: it is active until it finalizes (C1).
 
 `0 ≤ ℓ_MVBA` orders the MVBA's decision after the proposals' deadline on the
@@ -494,10 +476,10 @@ theorem within_finalized_late [Fintype node] (sch : Schedule view time)
     {t : time} {N₀ : Nat} (hN₀ : r.clk N₀ ≤ t)
     (hpart : ∀ i, ¬ nset.is_byz i = true → (r.at' N₀).participating i = true)
     (hnf : ∀ n i, ¬ nset.is_byz i = true →
-      r.clk n ≤ max t r.gst + 3 • sch.Δ + 3 • sch.δ + T.ℓ + 3 • sch.δ →
+      r.clk n ≤ max t r.gst + 3 • sch.Δ + 4 • sch.δ + T.ℓ + 3 • sch.δ →
         ¬ (r.at' n).local_committed i = true)
     {j : node} (hj : ¬ nset.is_byz j = true) :
-    ∃ n, r.clk n ≤ max t r.gst + 4 • sch.Δ + T.ℓ + 7 • sch.δ ∧
+    ∃ n, r.clk n ≤ max t r.gst + 5 • sch.Δ + T.ℓ + 8 • sch.δ ∧
       (r.at' n).local_committed j = true := by
   mvba_inst
   obtain ⟨hTJ, hPP, hadm⟩ := hsync
@@ -507,13 +489,13 @@ theorem within_finalized_late [Fintype node] (sch : Schedule view time)
   set M := max t r.gst with hMdef
   have hgM : r.gst ≤ M := le_max_right _ _
   -- The time line's points, and their order.
-  set P2 := M + 2 • sch.Δ + 2 • sch.δ with hP2
-  set P3 := M + 3 • sch.Δ + 2 • sch.δ with hP3
-  set tM := M + 3 • sch.Δ + 3 • sch.δ with htM
+  set P2 := M + 2 • sch.Δ + 3 • sch.δ with hP2
+  set P3 := M + 3 • sch.Δ + 3 • sch.δ with hP3
+  set tM := M + 3 • sch.Δ + 4 • sch.δ with htM
   set Xd := tM + T.ℓ with hXd
   set Xv := Xd + 3 • sch.δ with hXv
   have hMP2 : M ≤ P2 := by
-    rw [hP2, add_assoc]; exact le_add_of_nonneg_right (add_nonneg (nsmul_nonneg hΔ 2) (nsmul_nonneg hδ 2))
+    rw [hP2, add_assoc]; exact le_add_of_nonneg_right (add_nonneg (nsmul_nonneg hΔ 2) (nsmul_nonneg hδ 3))
   have hP2P3 : P2 ≤ P3 := by
     rw [hP2, hP3]; exact add_le_add (add_le_add le_rfl (nsmul_le_nsmul_left hΔ (by norm_num))) le_rfl
   have hP3tM : P3 ≤ tM := by
@@ -522,11 +504,12 @@ theorem within_finalized_late [Fintype node] (sch : Schedule view time)
   have hXd1 : Xd ≤ Xd + sch.δ := le_add_of_nonneg_right hδ
   have hXd2 : Xd + sch.δ ≤ Xd + 2 • sch.δ := by
     refine add_le_add le_rfl ?_; rw [two_nsmul]; exact le_add_of_nonneg_right hδ
-  have hXd3 : Xd + 2 • sch.δ + sch.δ = Xv := by rw [hXv]; abel
+  have hXd3 : Xd + 2 • sch.δ + sch.δ = Xv := by
+    rw [hXv]; abel
   have hXdXv : Xd + 2 • sch.δ ≤ Xv := by rw [← hXd3]; exact le_add_of_nonneg_right hδ
   have hP3Xv : P3 ≤ Xv := le_trans hP3tM (le_trans htMXd (le_trans hXd1 (le_trans hXd2 hXdXv)))
   have hgXv : r.gst ≤ Xv := le_trans hgM (le_trans hMP2 (le_trans hP2P3 hP3Xv))
-  have hsat_le : M + 2 • sch.Δ + 2 • sch.δ ≤ Xv := le_trans hP2P3 hP3Xv
+  have hsat_le : P2 ≤ Xv := le_trans hP2P3 hP3Xv
   have hnfv : ∀ n i, ¬ nset.is_byz i = true → r.clk n ≤ Xv → ¬ (r.at' n).local_committed i = true :=
     fun n i hi hc => hnf n i hi hc
   -- The gate: everyone active until `X_v`.
@@ -558,131 +541,138 @@ theorem within_finalized_late [Fintype node] (sch : Schedule view time)
   have hrefle : ∀ {n : Nat} {X : time}, r.clk n ≤ X → r.gst ≤ X → r.ref n ≤ X :=
     fun hc hg => r.ref_le hc hg
   have hgXd : r.gst ≤ Xd := le_trans hgM (le_trans hMP2 (le_trans hP2P3 (le_trans hP3tM htMXd)))
-  have hcsXd : r.clk Ns ≤ Xd := le_trans hcs (le_trans hP2P3 (le_trans hP3tM htMXd))
-  -- The decision handlers, on `i0`'s decision.
+  have hgXd2 : r.gst ≤ Xd + 2 • sch.δ := le_trans hgXd (le_trans hXd1 hXd2)
+  -- `i0`'s decision, whose entries every correct decision has.
   obtain ⟨n0, hc0, v0, hd0⟩ := hdec i0 hi0
   have hd0' := decided_persists r.toLRun hd0
-  set N1 := max n0 Ns with hN1
-  obtain ⟨N2, hN2, hc2, hrec⟩ := within_recorded sch hTJ hbr hi0 (hd0' N1 (le_max_left _ _))
-  have hc2' : r.clk N2 ≤ Xd + sch.δ :=
-    le_trans hc2 (add_le_add (hrefle (r.clk_max_le' hc0 hcsXd) hgXd) le_rfl)
-  have hc2v : r.clk N2 ≤ Xv := le_trans hc2' (le_trans hXd2 hXdXv)
-  have hgXd2 : r.gst ≤ Xd + 2 • sch.δ := le_trans hgXd (le_trans hXd1 hXd2)
-  -- Every correct validator's fallback commit vote, by `X_v`.
+  -- Every correct validator's fallback commit vote over `entries(v0)`, by `X_v`.
   have hvote : ∀ i, ¬ nset.is_byz i = true →
-      ∃ n, N2 ≤ n ∧ r.clk n ≤ Xv ∧ (r.at' n).msg_fbcommit_sig i = true := by
+      ∃ n, Ns ≤ n ∧ r.clk n ≤ Xv ∧ (r.at' n).msg_fbcommit_sig i (thM.ent v0) = true := by
     intro i hi
     obtain ⟨ni, hci, w, hdw⟩ := hdec i hi
     have hdw' := decided_persists r.toLRun hdw
-    -- `i`'s own decision has `v0`'s entries (the MVBA's agreement), which
-    -- are recorded, so `i` transports it by `X_d + 2δ`.
-    set Nw := max ni N2 with hNw
-    have hent_eq : thM.ent w = thM.ent v0 :=
-      (Mvba.mvbaSafety (nset := nset) thM).agreement _
-        (Chorus.reachable_mvba_reachable (r.reachable Nw)) i i0 w v0 hi hi0
-        (hdw' Nw (le_max_left _ _)) (hd0' Nw (by omega))
-    have hrecw : ∀ J, thS.is_proposer J = true → RecordedAs thS thM w (r.at' Nw) J := fun J hJ => by
-      have h := r.mono (P := fun st => RecordedAs thS thM v0 st J)
-        (fun m h => RecordedAs.step (r := r) h) (hrec J hJ) Nw (le_max_right _ _)
-      unfold RecordedAs at h ⊢
-      rw [hent_eq]
-      exact h
-    obtain ⟨N3, hN3, hc3, hcomp⟩ := within_complete sch hTJ hi (hdw' Nw (le_max_left _ _)) hrecw
-    have hcw2 : r.clk Nw ≤ Xd + sch.δ := r.clk_max_le' (le_trans hci hXd1) hc2'
+    -- `i` handles its own decision's entries by `X_d + δ`, and transports it by `X_d + 2δ`.
+    set Nw := max ni Ns with hNw
+    have hcw : r.clk Nw ≤ Xd :=
+      r.clk_max_le' hci (le_trans hcs (le_trans hP2P3 (le_trans hP3tM htMXd)))
+    obtain ⟨N2, hN2, hc2, hrec⟩ := within_recorded sch hTJ hbr hi (hdw' Nw (le_max_left _ _))
+    have hc2' : r.clk N2 ≤ Xd + sch.δ := le_trans hc2 (add_le_add (hrefle hcw hgXd) le_rfl)
+    obtain ⟨N3, hN3, hc3, hcomp⟩ := within_complete sch hTJ hi (hdw' N2 (by omega)) hrec
     have hc3' : r.clk N3 ≤ Xd + 2 • sch.δ := by
       refine le_trans hc3 ?_
-      calc r.ref Nw + sch.δ ≤ Xd + sch.δ + sch.δ :=
-            add_le_add (hrefle hcw2 (le_trans hgXd hXd1)) le_rfl
+      calc r.ref N2 + sch.δ ≤ Xd + sch.δ + sch.δ :=
+            add_le_add (hrefle hc2' (le_trans hgXd hXd1)) le_rfl
         _ = Xd + 2 • sch.δ := by rw [two_nsmul, add_assoc]
-    have hcomp' : ∀ n, N3 ≤ n → (r.at' n).local_mvba_complete i = true :=
-      r.mono (P := fun st => st.local_mvba_complete i = true)
-        (fun m h => Chorus.local_mvba_complete.mono (r.steps m) i h) hcomp
-    have hcw : Certified (thS := thS) (thM := thM) (r.at' ni) w := hbr.2.1 ni i w hi hdw
+    have hcwc : Certified (thS := thS) (thM := thM) (r.at' ni) w := hbr.2.1 ni i w hi hdw
     -- The chunks under `w`'s FallbackQC entries, at saturation already: each
     -- entry's correct signer signed before its second-round vote, and sent
     -- every validator its chunk when it signed.
     have hchunks : ∀ J M', thS.mval_pos (thM.ent w) J M' = true → thS.mval_fb w J = true →
-        (r.at' Ns).msg_chunk_received i J M' = true := fun J M' hM hfb => by
-      obtain ⟨-, hkind⟩ := hcw.1 J M' hM
-      obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
-      obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
-      have hcastk : Cast (r.at' Ns) k := by
-        rcases hsat k hkh with ⟨h, -⟩ | ⟨h, -⟩
-        · exact Or.inl h
-        · exact Or.inr h
-      exact fb_pos_sig_chunks r.toLRun hkh Ns (fb_pos_sig_at_cast hkh hcastk (hallq k hkq)) i
-    set Nv := max ni N3 with hNv
-    have hcv : r.clk Nv ≤ Xd + 2 • sch.δ :=
-      r.clk_max_le' (le_trans hci (le_trans hXd1 hXd2)) hc3'
-    -- The vote: the chunks' hop is due by `M + 3Δ + 2δ`, before the decision.
-    obtain ⟨n, -, hcn, h⟩ := within_fbcommit_sig sch hTJ (N₀ := N₀) (Nc := Ns) (N := Nv)
+        Chorus.chunk_received (nset := nset) (mvba := Mvba.mvbaSafety thM) i J M' thS (r.at' Ns) :=
+      fun J M' hM hfb => by
+        obtain ⟨-, hkind⟩ := hcwc.1 J M' hM
+        obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
+        obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
+        have hcastk : Cast (r.at' Ns) k := by
+          rcases hsat k hkh with ⟨h, -⟩ | ⟨h, -⟩
+          · exact Or.inl h
+          · exact Or.inr h
+        exact ⟨k, fb_pos_sig_chunks r.toLRun hkh Ns (fb_pos_sig_at_cast hkh hcastk (hallq k hkq)) i⟩
+    -- The vote: the chunks' hop is due by `M + 3Δ + 3δ`, before the decision.
+    obtain ⟨n, hn, hcn, e, he⟩ := within_fbcommit_sig sch hTJ (N₀ := N₀) (Nc := Ns) (N := N3)
       (by omega) (by omega) (B := Xv)
       (le_trans (le_trans (add_le_add (hrefle hcs (le_trans hgM hMP2)) le_rfl)
-        (le_of_eq (by rw [hP3, hMdef]; abel))) hP3Xv)
-      (by rw [← hXd3]; exact add_le_add (hrefle hcv hgXd2) le_rfl) hact hi
-      (hdw' Nv (le_max_left _ _)) (hcomp' Nv (by omega)) hchunks
-    exact ⟨max n N2, le_max_right _ _, r.clk_max_le' hcn hc2v,
-      r.mono (P := fun st => st.msg_fbcommit_sig i = true)
-        (fun m h => Chorus.msg_fbcommit_sig.mono (r.steps m) i h) h _ (le_max_left _ _)⟩
-  -- The honest quorum's votes, at one index: a correct fbCommitQC.
+        (le_of_eq (by rw [hP3, hMdef]; abel)))
+        hP3Xv)
+      (by rw [← hXd3]; exact add_le_add (hrefle hc3' hgXd2) le_rfl) hact hi
+      (hdw' N3 (by omega)) hcomp hchunks
+    -- It signs `i`'s decided entries, which are `v0`'s.
+    obtain ⟨w', hdw'', rfl⟩ := fbcommit_sig_decided r.toLRun hi n he
+    have heq : thM.ent w' = thM.ent v0 :=
+      (Mvba.mvbaSafety (nset := nset) thM).agreement _
+        (Chorus.reachable_mvba_reachable (r.reachable (max n n0))) i i0 w' v0 hi hi0
+        (decided_persists r.toLRun hdw'' _ (le_max_left _ _)) (hd0' _ (le_max_right _ _))
+    exact ⟨n, hn, hcn, heq ▸ he⟩
+  -- The honest quorum's votes, at one index.
   obtain ⟨N4, hN4, hc4, hq4⟩ := r.withinFrom_forall
-    (fun a st => nset.member a H = true → st.msg_fbcommit_sig a = true)
-    (fun a n h hm => Chorus.msg_fbcommit_sig.mono (r.steps n) a (h hm)) N2 Xv
-    hc2v (Finset.univ : Finset node).toList
+    (fun a st => nset.member a H = true → st.msg_fbcommit_sig a (thM.ent v0) = true)
+    (fun a n h hm => Chorus.msg_fbcommit_sig.mono (r.steps n) a _ (h hm)) Ns Xv
+    (le_trans hcs hsat_le) (Finset.univ : Finset node).toList
     (fun a _ => by
       by_cases hm : nset.member a H = true
       · obtain ⟨n, hn, hcn, h⟩ := hvote a (hHh a hm)
         exact ⟨n, hn, hcn, fun _ => h⟩
-      · exact ⟨N2, le_rfl, hc2v, fun h => absurd h hm⟩)
-  have hqc : CorrectFbCommitQC (nset := nset) (r.at' N4) :=
-    ⟨H, hH, hHh, fun a ha => hq4 a (by simp) ha⟩
-  -- The assignments, by `X_v + Δ`.
+      · exact ⟨Ns, le_rfl, le_trans hcs hsat_le, fun h => absurd h hm⟩)
   have hP : (r.at' N₀).participating j = true := hpart j hj
   have hrefN4 : r.ref N4 ≤ Xv := hrefle hc4 hgXv
-  obtain ⟨N5, hN5, hc5, hall5⟩ := r.withinFrom_forall
+  have hmax4 : max N4 N₀ = N4 := max_eq_left (by omega)
+  have hbound : Xv + 2 • sch.Δ + sch.δ = M + 5 • sch.Δ + T.ℓ + 8 • sch.δ := by
+    rw [hXv, hXd, htM]; abel
+  have hXΔ : Xv + sch.Δ ≤ Xv + 2 • sch.Δ := by
+    refine add_le_add le_rfl ?_; rw [two_nsmul]; exact le_add_of_nonneg_right hΔ
+  have hX2 : Xv + 2 • sch.Δ ≤ Xv + 2 • sch.Δ + sch.δ := le_add_of_nonneg_right hδ
+  -- `j` sends its own fallback commit certificate by `X_v + Δ`, or has finalized.
+  obtain ⟨N5, hN5, hc5, h5⟩ := within_fbcommitqc_sent sch hTJ hab hj hH hHh
+    (fun a ha => hq4 a (by simp) ha) hP (B := Xv + sch.Δ)
+    (r.bufWindow_le (add_le_add hrefN4 le_rfl) (by rw [hmax4]; exact add_le_add hrefN4 hδΔ))
+  rcases h5 with ⟨e', he'⟩ | hdone5
+  swap
+  · exact ⟨N5, by rw [← hbound]; exact le_trans hc5 (le_trans hXΔ hX2), hdone5⟩
+  -- The certificate is over `entries(v0)`, which has an entry for every proposer.
+  have he0 : e' = thM.ent v0 := fbcommitqc_decided r.toLRun hi0 hd0 he'
+  subst he0
+  obtain ⟨-, -, htot⟩ := hbr.2.1 n0 i0 v0 hi0 hd0
+  have hrefN5 : r.ref N5 ≤ Xv + sch.Δ := hrefle hc5 (le_trans hgXv (le_add_of_nonneg_right hΔ))
+  have hmax5 : max N5 N₀ = N5 := max_eq_left (by omega)
+  -- The assignments, by `X_v + 2Δ`.
+  obtain ⟨N6, hN6, hc6, hall6⟩ := r.withinFrom_forall
     (fun J st => thS.is_proposer J = true → AssignedOrDone st j J)
-    (fun J k h hJ => (h hJ).step) N4 (Xv + sch.Δ) (le_trans hc4 (le_add_of_nonneg_right hΔ))
+    (fun J k h hJ => (h hJ).step) N5 (Xv + 2 • sch.Δ) (le_trans hc5 hXΔ)
     (Finset.univ : Finset node).toList
     (fun J _ => by
       by_cases hJ : thS.is_proposer J = true
-      · have hrJ : RecordedAs thS thM v0 (r.at' N4) J :=
-          r.mono (P := fun st => RecordedAs thS thM v0 st J)
-            (fun m h => RecordedAs.step (r := r) h) (hrec J hJ) N4 (by omega)
-        have hproof : (∃ m, ProofPos (nset := nset) (r.at' N4) J m) ∨ ProofNeg (nset := nset) (r.at' N4) J := by
-          rcases hrJ with ⟨M', -, hM⟩ | ⟨-, hM⟩
-          · exact Or.inl ⟨M', Or.inr ⟨hqc, hM⟩⟩
-          · exact Or.inr (Or.inr ⟨hqc, hM⟩)
-        have hmax : max N4 N₀ = N4 := max_eq_left (by omega)
-        obtain ⟨k, hk, hck, hk'⟩ := within_assigned sch hTJ hab hj hJ hproof hP (B := Xv + sch.Δ)
-          (r.bufWindow_le (add_le_add hrefN4 le_rfl)
-            (by rw [hmax]; exact add_le_add hrefN4 hδΔ))
+      · have hproof : (∃ m c, ¬ nset.is_byz c = true ∧
+              CertPos (mvba := Mvba.mvbaSafety thM) thS (r.at' N5) c J m) ∨
+            (∃ c, ¬ nset.is_byz c = true ∧ CertNeg (mvba := Mvba.mvbaSafety thM) thS (r.at' N5) c J) := by
+          rcases htot J hJ with ⟨M', hM⟩ | hM
+          · exact Or.inl ⟨M', j, hj, Or.inr (Or.inl ⟨_, he', hM⟩)⟩
+          · exact Or.inr ⟨j, hj, Or.inr (Or.inl ⟨_, he', hM⟩)⟩
+        obtain ⟨k, hk, hck, hk'⟩ := within_assigned sch hTJ hab hj hJ hproof hP (B := Xv + 2 • sch.Δ)
+          (r.bufWindow_le
+            (by
+              calc r.ref N5 + sch.Δ ≤ Xv + sch.Δ + sch.Δ := add_le_add hrefN5 le_rfl
+                _ = Xv + 2 • sch.Δ := by rw [two_nsmul, add_assoc])
+            (by
+              rw [hmax5]
+              calc r.ref N5 + sch.δ ≤ Xv + sch.Δ + sch.Δ := add_le_add hrefN5 hδΔ
+                _ = Xv + 2 • sch.Δ := by rw [two_nsmul, add_assoc]))
         exact ⟨k, hk, hck, fun _ => hk'⟩
-      · exact ⟨N4, le_rfl, le_trans hc4 (le_add_of_nonneg_right hΔ), fun h => absurd h hJ⟩)
-  have hbound : Xv + sch.Δ + sch.δ = M + 4 • sch.Δ + T.ℓ + 7 • sch.δ := by
-    rw [hXv, hXd, htM]; abel
-  by_cases hdone : (r.at' N5).local_committed j = true
-  · exact ⟨N5, by rw [← hbound]; exact le_trans hc5 (le_add_of_nonneg_right hδ), hdone⟩
+      · exact ⟨N5, le_rfl, le_trans hc5 hXΔ, fun h => absurd h hJ⟩)
+  by_cases hdone : (r.at' N6).local_committed j = true
+  · exact ⟨N6, by rw [← hbound]; exact le_trans hc6 hX2, hdone⟩
   · have hall : ∀ J, thS.is_proposer J = true →
-        (∃ m, (r.at' N5).local_committed_pos j J m = true) ∨
-          (r.at' N5).local_committed_neg j J = true := fun J hJ => by
-      rcases hall5 J (by simp) hJ with h | h | h
+        (∃ m, (r.at' N6).local_committed_pos j J m = true) ∨
+          (r.at' N6).local_committed_neg j J = true := fun J hJ => by
+      rcases hall6 J (by simp) hJ with h | h | h
       · exact Or.inl h
       · exact Or.inr h
       · exact absurd h hdone
-    have hrefN5 : r.ref N5 ≤ Xv + sch.Δ := hrefle hc5 (le_trans hgXv (le_add_of_nonneg_right hΔ))
-    have hmax : max N5 N₀ = N5 := max_eq_left (by omega)
+    have hrefN6 : r.ref N6 ≤ Xv + 2 • sch.Δ :=
+      hrefle hc6 (le_trans hgXv (le_trans (le_add_of_nonneg_right hΔ) hXΔ))
+    have hmax6 : max N6 N₀ = N6 := max_eq_left (by omega)
     obtain ⟨k, -, hck, hk⟩ := within_finalized sch hTJ hab hj hall hP
-      (B := Xv + sch.Δ + sch.δ)
-      (r.bufWindow_le (add_le_add hrefN5 le_rfl) (by rw [hmax]; exact add_le_add hrefN5 le_rfl))
+      (B := Xv + 2 • sch.Δ + sch.δ)
+      (r.bufWindow_le (add_le_add hrefN6 le_rfl) (by rw [hmax6]; exact add_le_add hrefN6 le_rfl))
     exact ⟨k, by rw [← hbound]; exact hck, hk⟩
 
 set_option maxHeartbeats 1000000 in
-/-- **The single split** (F4): at the vote deadline `X_v = M + 3Δ + ℓ_MVBA + 6δ`.
+/-- **The single split**, at the vote deadline `X_v = M + 3Δ + ℓ_MVBA + 7δ`.
 If a correct validator has finalized by `X_v`, totality finalizes everyone
-by `X_v + Δ + 2δ` (`totality` at the tolerance `Δ`); otherwise the late
-branch finalizes everyone by `T₀ = X_v + Δ + δ` (`within_finalized_late`).
-Either way by `M + 4Δ + ℓ_MVBA + 8δ`. -/
-theorem within_finalized_tight [Fintype node] (sch : Schedule view time)
+by `X_v + Δ + 2δ = M + 4Δ + ℓ_MVBA + 9δ` (`totality` at the tolerance `Δ`);
+otherwise the late branch finalizes everyone by
+`T₀ = M + 5Δ + ℓ_MVBA + 8δ` (`within_finalized_late`). Either way by
+`M + 5Δ + ℓ_MVBA + 9δ`, the paper's bound with the local steps counted. -/
+theorem within_finalized_split [Fintype node] (sch : Schedule view time)
     (T : MVBATemporal node (MetaBlock node merkle_root) (node → Option merkle_root)
       (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
       (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
@@ -703,7 +693,7 @@ theorem within_finalized_tight [Fintype node] (sch : Schedule view time)
     (hab : NoAbandonBeforeFinalizing r.toLRun) (hC2 : NoEarlyStart sch r)
     {t : time} (hall : AllParticipateBy t r)
     {j : node} (hj : ¬ nset.is_byz j = true) :
-    ∃ n, r.clk n ≤ max t r.gst + 4 • sch.Δ + T.ℓ + 8 • sch.δ ∧
+    ∃ n, r.clk n ≤ max t r.gst + 5 • sch.Δ + T.ℓ + 9 • sch.δ ∧
       (r.at' n).local_committed j = true := by
   mvba_inst
   have hδ : 0 ≤ sch.δ := sch.mvba.δ_nonneg
@@ -711,7 +701,7 @@ theorem within_finalized_tight [Fintype node] (sch : Schedule view time)
   obtain ⟨i0, hH0, hi0⟩ := ByzNodeSet.greater_than_third_one_honest H
     (ByzNodeSet.supermajority_greater_than_third _ hH)
   obtain ⟨N₀, hN₀, hpart⟩ := exists_start ⟨i0, hHh i0 hH0⟩ hall
-  set Xv := max t r.gst + 3 • sch.Δ + 3 • sch.δ + T.ℓ + 3 • sch.δ with hXv
+  set Xv := max t r.gst + 3 • sch.Δ + 4 • sch.δ + T.ℓ + 3 • sch.δ with hXv
   by_cases hA : ∃ n i, ¬ nset.is_byz i = true ∧ r.clk n ≤ Xv ∧ (r.at' n).local_committed i = true
   · -- An early finalization: totality.
     obtain ⟨n, i, hi, hcn, hci⟩ := hA
@@ -722,12 +712,15 @@ theorem within_finalized_tight [Fintype node] (sch : Schedule view time)
       refine le_trans (le_max_right t r.gst) ?_
       simp only [add_assoc]
       exact le_add_of_nonneg_right (add_nonneg (nsmul_nonneg hΔ 3)
-        (add_nonneg (nsmul_nonneg hδ 3) (add_nonneg hℓ (nsmul_nonneg hδ 3))))
+        (add_nonneg (nsmul_nonneg hδ 4) (add_nonneg hℓ (nsmul_nonneg hδ 3))))
     calc max (r.clk n) r.gst + sch.dtot sch.Δ ≤ Xv + (sch.Δ + 2 • sch.δ) := by
           refine add_le_add (max_le hcn hgXv) ?_
           simp only [Schedule.dtot, Ltot, max_self]
           exact le_rfl
-      _ = max t r.gst + 4 • sch.Δ + T.ℓ + 8 • sch.δ := by rw [hXv]; abel
+      _ = max t r.gst + 4 • sch.Δ + T.ℓ + 9 • sch.δ := by
+          rw [hXv]; abel
+      _ ≤ max t r.gst + 5 • sch.Δ + T.ℓ + 9 • sch.δ :=
+          add_le_add (add_le_add (add_le_add le_rfl (nsmul_le_nsmul_left hΔ (by norm_num))) le_rfl) le_rfl
   · -- No early finalization: the late branch, by `T₀`.
     push Not at hA
     obtain ⟨n, hcn, hn⟩ := within_finalized_late sch T hℓ hmp hmn hent hmf hH hHh hevid hsync hbr hab
@@ -770,11 +763,12 @@ theorem availWithin_of_timedJustice (sch : Schedule view time) {r : TChorusRun t
         (fun _ _ _ htr h => Mvba.accepted.mono htr i V e h) n h) hacc'
   -- The chunk wait is met from the holding on.
   have hda : ∀ n, N₀ ≤ n → ∀ J M, thS.mval_pos (thM.ent e) J M = true → thS.mval_fb e J = true →
-      (r.at' n).msg_chunk_received i J M = true := fun n hn J M hM hfb => by
+      Chorus.chunk_received (nset := nset) (mvba := Mvba.mvbaSafety thM) i J M thS (r.at' n) :=
+      fun n hn J M hM hfb => by
     obtain ⟨-, hkind⟩ := (hcert n hn).1 J M hM
     obtain ⟨q, hq, hallq⟩ := (hkind.resolve_left fun h => h.1 hfb).2.1
     obtain ⟨k, hkq, hkh⟩ := ByzNodeSet.greater_than_third_one_honest q hq
-    exact fb_pos_sig_chunks r.toLRun hkh n (hallq k hkq) i
+    exact ⟨k, fb_pos_sig_chunks r.toLRun hkh n (hallq k hkq) i⟩
   -- The report's `Δ`-row, from the holding.
   have hW : r.bufWindow N₀ N₀ sch.Δ sch.δ ≤ r.ref N₀ + sch.mvba.Δsync :=
     r.bufWindow_le (add_le_add le_rfl sch.Δ_le_Δsync)
@@ -806,63 +800,36 @@ omit [IsOrderedAddMonoid time] in
 clauses.** A projection whose timed run satisfies (Δ-justice) and
 (T-timer), together with (Δδ-justice) and the bridge of the composed run,
 gives the MVBA premise at `T := Mvba.mvbaTemporal`: its two clauses on the
-caller are derived, the handoff by `relayed_of_timedJustice` (its
-`δ ≤ Δ + ρ` from `δ ≤ Δ`) and (Δ-avail) by `availWithin_of_timedJustice`. -/
+caller are derived, the handoff by `relayed_of_timedJustice` (from the
+decision output, `DecisionOutput`, and the schedule's `δ ≤ ρ`) and
+(Δ-avail) by `availWithin_of_timedJustice`. -/
 theorem timedMvbaAdmissible_of_rows [IsOrderedCancelAddMonoid time] [Archimedean time]
     [Fintype node] (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : Mvba.LeaderRotation vfin sch.mvba.k thM)
-    {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r) (hbr : ValidBridge r.toLRun)
+    {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r) (hout : DecisionOutput sch r)
+    (hbr : ValidBridge r.toLRun)
     (p : (mvbaComponent thS thM).Projection r.toLRun)
     (hown : Mvba.BoundedJustice sch.mvba p.timed ∧ Mvba.TimerPunctual sch.mvba p.timed) :
     TimedMvbaAdmissible (Mvba.mvbaTemporal thM hqe sch.mvba vfin hrot) r :=
   timedMvbaAdmissible_of_sync hqe sch vfin hrot p
     ⟨hown.1, hown.2, availWithin_of_timedJustice sch hTJ hbr p,
-      relayed_of_timedJustice sch
-        (le_trans sch.δ_le_Δ (le_add_of_nonneg_right sch.mvba.ρ_nonneg)) hTJ p⟩
+      relayed_of_timedJustice sch hTJ hout p⟩
 
 omit [IsOrderedAddMonoid time] in
 /-- **The timing model at the system's MVBA gives `Sync`.** `SyncAtMvba` and
 the bridge imply `Sync` at `T := Mvba.mvbaTemporal`: what is assumed of the
-MVBA is its own scheduling only. -/
+MVBA is its own scheduling only, and of the decider its decision output. -/
 theorem sync_of_syncAtMvba [IsOrderedCancelAddMonoid time] [Archimedean time]
     [Fintype node] (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : Mvba.LeaderRotation vfin sch.mvba.k thM)
     {r : TChorusRun thS thM time} (hs : SyncAtMvba sch r) (hbr : ValidBridge r.toLRun) :
     Sync sch (Mvba.mvbaTemporal thM hqe sch.mvba vfin hrot) r :=
-  ⟨hs.1, hs.2.1, let ⟨p, hp⟩ := hs.2.2; timedMvbaAdmissible_of_rows hqe sch vfin hrot hs.1 hbr p hp⟩
+  ⟨hs.1, hs.2.1, let ⟨p, hp⟩ := hs.2.2.1
+    timedMvbaAdmissible_of_rows hqe sch vfin hrot hs.1 hs.2.2.2 hbr p hp⟩
 
 end Round
-
-/-! ## The constants -/
-
-section Constants
-
-variable {time : Type} [LinearOrder time] [AddCommMonoid time]
-
-/-- **The tight latency** (F4): `4Δ + ℓ_MVBA + 8δ`, one `Δ` (and one `δ`)
-inside `Lchorus`. The single split at the vote deadline: the late branch's
-`T₀ = M + 4Δ + ℓ_MVBA + 7δ`, or totality's `Δ + 2δ` after the deadline
-`M + 3Δ + ℓ_MVBA + 6δ`. -/
-def Ltight (Δ δ ℓM : time) : time :=
-  4 • Δ + ℓM + 8 • δ
-
-omit [LinearOrder time] in
-/-- At `δ = 0` the tight latency is `4Δ + ℓ_MVBA`: the bound of the
-commented-out draft beside Lemma 11 (`lemma:chorus-termination`). -/
-theorem Ltight_paper (Δ ℓM : time) : Ltight Δ 0 ℓM = 4 • Δ + ℓM := by
-  simp [Ltight]
-
-/-- The tight latency is within the paper's (`Lchorus`) whenever the two
-bounds are non-negative: the claim follows from the tight theorem. -/
-theorem Ltight_le_Lchorus [IsOrderedAddMonoid time] {Δ δ : time} (hΔ : 0 ≤ Δ) (hδ : 0 ≤ δ)
-    (ℓM : time) : Ltight Δ δ ℓM ≤ Lchorus Δ δ ℓM := by
-  unfold Ltight Lchorus
-  refine add_le_add (add_le_add (nsmul_le_nsmul_left hΔ (by norm_num)) le_rfl)
-    (nsmul_le_nsmul_left hδ (by norm_num))
-
-end Constants
 
 /-! ## At the concrete quorum family, at the system's configurations -/
 
@@ -892,50 +859,6 @@ local notation "thC" => Cadence.chorusTheory (slot := slot) (Phase := Phase) (Pa
 local notation "thMC" => Cadence.mvbaTheory (nodeset := ByzNSet n) mvalid mleader
 
 set_option maxHeartbeats 1600000 in
-/-- **F4, confirmed: Chorus finalizes within `4Δ + ℓ_MVBA + 8δ`** — one `Δ`
-inside Lemma 11 (`lemma:chorus-termination`)'s `5Δ + ℓ_MVBA`. At every
-`n = 3f+1` with at most `f` Byzantine validators, at the system's
-configurations, for every MVBA contract `T` at the fragment Chorus consumes
-whose latency is non-negative: under the timing model, the bridge, and the
-caller's four conditions, if every correct validator participates by `t`,
-every correct validator finalizes by `max(t, GST) + 4Δ + ℓ_MVBA + 8δ`
-(`Ltight`); at `δ = 0`, `max(t, GST) + 4Δ + ℓ_MVBA`.
-
-The premises are `TimedTerminationClaim`'s, exactly. The proof splits once,
-at the fallback commit votes' deadline `M + 3Δ + ℓ_MVBA + 6δ`
-(`within_finalized_tight`): the paper's outer split at `T₀` is not needed,
-because its inner split already covers the early finalizers and C1 keeps
-everyone active until then. -/
-theorem timed_termination_tight (sch : Schedule view time)
-    (T : MVBATemporal (Fin n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)
-      (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root))
-      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view))
-      (ByzNSet n) time (byzNodeSetFin n f hf is_byz hbyz)
-      (fun i => (byzNodeSetFin n f hf is_byz hbyz).is_byz i = true)
-      (S := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thMC))
-    (hℓ : 0 ≤ T.ℓ) :
-    ∀ r : TChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thC thMC time,
-      Sync (nset := byzNodeSetFin n f hf is_byz hbyz) sch T r →
-      ValidBridge (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun →
-      SyncParticipationWithin (nset := byzNodeSetFin n f hf is_byz hbyz) sch.Δ r →
-      NoAbandonBeforeFinalizing (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun →
-      NoEarlyStart (nset := byzNodeSetFin n f hf is_byz hbyz) sch r →
-      ∀ t : time, AllParticipateBy (nset := byzNodeSetFin n f hf is_byz hbyz) t r →
-        ∀ j, ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz j = true →
-          ∃ m, r.clk m ≤ max t r.gst + Ltight sch.Δ sch.δ T.ℓ ∧
-            (r.at' m).local_committed j = true := by
-  intro r hsync hbr hsp hab hC2 t hall j hj
-  obtain ⟨H, hH, hHh⟩ := honest_quorum_fin n f hf is_byz hbyz
-  obtain ⟨m, hm, hc⟩ := within_finalized_tight (nset := byzNodeSetFin n f hf is_byz hbyz) (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
-    sch T hℓ (fun _ _ _ => decide_eq_true_iff) (fun _ _ => decide_eq_true_iff) (fun _ => rfl)
-    (fun _ _ => decide_eq_true_iff) hH hHh
-    (fun N hsat => mvba_evidence_of_saturation
-      (mvba := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thMC) n f hf is_byz hbyz
-      (r.reachable N) (fun i hi => hsat i (fun hb => hi (by simpa +instances [byzNodeSetFin] using hb))))
-    hsync hbr hsp hab hC2 hall hj
-  exact ⟨m, by rw [Ltight, ← add_assoc, ← add_assoc]; exact hm, hc⟩
-
-set_option maxHeartbeats 1600000 in
 /-- **ℓ-termination, proven** (Lemma 11 (`lemma:chorus-termination`)):
 `TimedTerminationClaim` at the paper's bound `ℓ = 5Δ + ℓ_MVBA + 9δ`
 (`Lchorus`), which is the paper's `5Δ + ℓ_MVBA` at `δ = 0`
@@ -943,10 +866,12 @@ set_option maxHeartbeats 1600000 in
 validators, at the system's configurations, for every MVBA contract `T` at
 the fragment Chorus consumes whose latency is non-negative.
 
-It follows from the tight bound (`timed_termination_tight`,
-`Ltight_le_Lchorus`). The paper's route — the outer split at
-`T₀ = M + 4Δ + ℓ_MVBA + 7δ`, totality's `Δ + 2δ` after it — gives exactly
-`Lchorus`'s `9δ`, so the δ-multiple R7 fixed and S3 restated stands. -/
+The proof splits once, at the fallback commit votes' deadline
+`M + 3Δ + ℓ_MVBA + 7δ` (`within_finalized_split`): an early finalizer gives
+everyone totality's `Δ + 2δ` after it, `M + 4Δ + ℓ_MVBA + 9δ`; otherwise C1
+keeps everyone active until then and the late branch finalizes everyone by
+`T₀ = M + 5Δ + ℓ_MVBA + 8δ`, with the fallback commit certificate's two
+hops (formed from the votes, then received). -/
 theorem timed_termination (sch : Schedule view time)
     (T : MVBATemporal (Fin n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)
       (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root))
@@ -958,10 +883,15 @@ theorem timed_termination (sch : Schedule view time)
     TimedTerminationClaim (nset := byzNodeSetFin n f hf is_byz hbyz)
       (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz) sch T thC := by
   intro r hsync hbr hsp hab hC2 t hall j hj
-  obtain ⟨m, hm, hc⟩ := timed_termination_tight n f hf is_byz hbyz sch T hℓ r hsync hbr hsp hab hC2 t
-    hall j hj
-  exact ⟨m, le_trans hm (add_le_add le_rfl
-    (Ltight_le_Lchorus sch.mvba.Δ_pos.le sch.mvba.δ_nonneg T.ℓ)), hc⟩
+  obtain ⟨H, hH, hHh⟩ := honest_quorum_fin n f hf is_byz hbyz
+  obtain ⟨m, hm, hc⟩ := within_finalized_split (nset := byzNodeSetFin n f hf is_byz hbyz) (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
+    sch T hℓ (fun _ _ _ => decide_eq_true_iff) (fun _ _ => decide_eq_true_iff) (fun _ => rfl)
+    (fun _ _ => decide_eq_true_iff) hH hHh
+    (fun N hsat => mvba_evidence_of_saturation
+      (mvba := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thMC) n f hf is_byz hbyz
+      (r.reachable N) (fun i hi => hsat i (fun hb => hi (by simpa +instances [byzNodeSetFin] using hb))))
+    hsync hbr hsp hab hC2 hall hj
+  exact ⟨m, by rw [Schedule.ℓ, Lchorus, ← add_assoc, ← add_assoc]; exact hm, hc⟩
 
 end Concrete
 
@@ -1044,27 +974,6 @@ theorem timed_termination_atMvba (sch : Schedule view time)
         (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
         (hqeFin n f hf is_byz hbyz) sch vfin hrot hs hbr) hbr hsp hab hC2 t ht j hj
 
-/-- **The tight bound at the system's MVBA**: `timed_termination_tight` with
-`T := Mvba.mvbaTemporal`, under `SyncAtMvba`. -/
-theorem timed_termination_tight_atMvba (sch : Schedule view time)
-    (vfin : ViewOrderEnum view vord)
-    (hrot : Mvba.LeaderRotation (nset := byzNodeSetFin n f hf is_byz hbyz) vfin sch.mvba.k thMC) :
-    ∀ r : TChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thC thMC time,
-      SyncAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz) sch r →
-      ValidBridge (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun →
-      SyncParticipationWithin (nset := byzNodeSetFin n f hf is_byz hbyz) sch.Δ r →
-      NoAbandonBeforeFinalizing (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun →
-      NoEarlyStart (nset := byzNodeSetFin n f hf is_byz hbyz) sch r →
-      ∀ t : time, AllParticipateBy (nset := byzNodeSetFin n f hf is_byz hbyz) t r →
-        ∀ j, ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz j = true →
-          ∃ m, r.clk m ≤ max t r.gst + Ltight sch.Δ sch.δ (sch.mvba.ℓ vfin) ∧
-            (r.at' m).local_committed j = true :=
-  fun r hs hbr =>
-    timed_termination_tight n f hf is_byz hbyz sch _ (mvbaSchedule_ℓ_nonneg sch.mvba vfin) r
-      (sync_of_syncAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz)
-        (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
-        (hqeFin n f hf is_byz hbyz) sch vfin hrot hs hbr) hbr
-
 end AtMvba
 
 end Chorus
@@ -1111,36 +1020,26 @@ info: 'Chorus.within_fbcommit_sig' depends on axioms: [propext, Classical.choice
 #print axioms Chorus.within_fbcommit_sig
 
 /--
+info: 'Chorus.within_fbcommitqc_sent' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.within_fbcommitqc_sent
+
+/--
 info: 'Chorus.within_finalized_late' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Chorus.within_finalized_late
 
 /--
-info: 'Chorus.within_finalized_tight' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Chorus.within_finalized_split' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Chorus.within_finalized_tight
-
-/-- info: 'Chorus.Ltight_paper' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Chorus.Ltight_paper
-
-/--
-info: 'Chorus.Ltight_le_Lchorus' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Chorus.Ltight_le_Lchorus
+#print axioms Chorus.within_finalized_split
 
 /-- info: 'Chorus.mvbaSchedule_ℓ_nonneg' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms Chorus.mvbaSchedule_ℓ_nonneg
-
-/--
-info: 'Chorus.timed_termination_tight' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Chorus.timed_termination_tight
 
 /--
 info: 'Chorus.timed_termination' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -1153,12 +1052,6 @@ info: 'Chorus.timed_termination_atMvba' depends on axioms: [propext, Classical.c
 -/
 #guard_msgs in
 #print axioms Chorus.timed_termination_atMvba
-
-/--
-info: 'Chorus.timed_termination_tight_atMvba' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Chorus.timed_termination_tight_atMvba
 
 /--
 info: 'Chorus.availWithin_of_timedJustice' depends on axioms: [propext, Classical.choice, Quot.sound]

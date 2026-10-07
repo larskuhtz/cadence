@@ -5,7 +5,7 @@
 // a positive verdict).
 //
 // OBSERVABLE actions only: the model's internal `commit_sign_pos` (part of
-// casting) and `commit_assign_pos` (part of finalizing) are NOT listed — the
+// casting) and `commit_assign_pos_fast` (part of finalizing) are NOT listed — the
 // monitor inserts them (Stage-B saturation). Expected verdict: ACCEPTED.
 //
 // --- Participation: every node opens the slot (the `participate()` input) ---
@@ -13,11 +13,8 @@
 {"action": "participate", "args": [1]}
 {"action": "participate", "args": [2]}
 {"action": "participate", "args": [3]}
-// --- Phase I: proposer dissemination (pre_deadline) ---
+// --- Phase I: proposer dissemination (pre_deadline); `propose` sends every chunk ---
 {"action": "propose", "args": [0, 0]}
-{"action": "deliver_chunk_assigned", "args": [0, 0, 0]}
-{"action": "deliver_chunk_assigned", "args": [1, 0, 0]}
-{"action": "deliver_chunk_assigned", "args": [2, 0, 0]}
 {"action": "record_chunk", "args": [0, 0, 0]}
 {"action": "record_chunk", "args": [1, 0, 0]}
 {"action": "record_chunk", "args": [2, 0, 0]}

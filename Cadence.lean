@@ -189,16 +189,16 @@ Each entry is the result, the file its statement lives in, and what it says.
   model (`TimedJustice`, `PhasePunctual`) and every correct validator
   participating on the window: first-round votes by `M + Δ + δ`
   (`Chorus.within_all_voted`); every correct validator's second-round vote,
-  fast or fallback, by `M + 2Δ + 2δ` (`Chorus.within_all_saturated`), at
+  fast or fallback, by `M + 2Δ + 3δ` (`Chorus.within_all_saturated`), at
   which the MVBA's trigger holds from correct senders
   (`Chorus.correctTrigger_of_saturated`); a correct fast voter's FastQCs
-  adopted by everyone by `M + 3Δ + 2δ` (`Chorus.within_complete_fast_metablock_by`);
-  the proposal on a correct `FBCert` by `M + 3Δ + 2δ`
+  adopted by everyone by `M + 3Δ + 3δ` (`Chorus.within_complete_fast_metablock_by`);
+  the proposal on a correct `FBCert` by `M + 3Δ + 3δ`
   (`Chorus.within_input_of_fbcert`), or on the proposer's own fast meta-block
   `δ` later (`Chorus.within_input_of_fast`), so every correct validator has
-  proposed to the MVBA by `M + 3Δ + 3δ` (`Chorus.within_all_input`); and a
+  proposed to the MVBA by `M + 3Δ + 4δ` (`Chorus.within_all_input`); and a
   correct proposer's chunk
-  delivered and recorded (`Chorus.within_proposal_recorded`).
+  recorded (`Chorus.within_proposal_recorded`).
   [Bounds.md](docs/Bounds.md) §6.4.3 has the route
 * **`Chorus.timed_termination`** ([Chorus/TimedTermination.lean](Cadence/Chorus/TimedTermination.lean)) —
   **Chorus's ℓ-termination** (Lemma 11 (`lemma:chorus-termination`)), the second
@@ -216,20 +216,17 @@ Each entry is the result, the file its statement lives in, and what it says.
   claim at the system's MVBA (`TimedTerminationClaimAtMvba`), with that
   hypothesis discharged, the MVBA instance's correct supermajority derived
   for the family (`Chorus.hqeFin`), and the MVBA's timing premise reduced to its own two
-  clauses (`SyncAtMvba`): the MVBA's two clauses on its caller, the handoff
-  and the availability shares (Δ-avail), are derived from Chorus's rows
-  (`Chorus.sync_of_syncAtMvba`; **`Chorus.availWithin_of_timedJustice`**,
-  with the schedule's `Δ ≤ Δ_sync`, F15). The MVBA tail
+  clauses and the decision output (`SyncAtMvba`): the MVBA's two clauses on
+  its caller, the handoff and the availability shares (Δ-avail), are derived
+  from Chorus's rows (`Chorus.sync_of_syncAtMvba`, the handoff through a
+  decider's `send_mvba_cert` with the schedule's `δ ≤ ρ`;
+  **`Chorus.availWithin_of_timedJustice`**, with the schedule's
+  `Δ ≤ Δ_sync`, F15). The MVBA tail
   is `T.termination` on the projection (`Chorus.within_all_decided`), and
   the fallback commit round is a chain of milestones, each a lemma with its
-  deadline, to `T₀ = M + 4Δ + ℓ_MVBA + 7δ` (`Chorus.within_finalized_late`)
-* **`Chorus.timed_termination_tight`** ([Chorus/TimedTermination.lean](Cadence/Chorus/TimedTermination.lean)) —
-  **the same premises give `max(t, GST) + 4Δ + ℓ_MVBA + 8δ`**, one `Δ`
-  inside the paper's bound (finding F4, confirmed): a single split at the
-  fallback commit votes' deadline suffices, where the paper splits again at
-  `T₀`. `Chorus.timed_termination` follows from it
-  (`Chorus.Ltight_le_Lchorus`); **`Chorus.timed_termination_tight_atMvba`**
-  is the bound at the system's MVBA
+  deadline, to `T₀ = M + 5Δ + ℓ_MVBA + 8δ` (`Chorus.within_finalized_late`);
+  a single split at the fallback commit votes' deadline gives the bound
+  (`Chorus.within_finalized_split`)
 * **`Chorus.termination_premises_satisfiable`,
   `Chorus.timedTermination_premises_satisfiable`,
   `Chorus.totality_premises_satisfiable`**
@@ -650,18 +647,6 @@ info: 'Chorus.availWithin_of_timedJustice' depends on axioms: [propext, Classica
 -/
 #guard_msgs in
 #print axioms Chorus.availWithin_of_timedJustice
-
-/--
-info: 'Chorus.timed_termination_tight' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Chorus.timed_termination_tight
-
-/--
-info: 'Chorus.timed_termination_tight_atMvba' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Chorus.timed_termination_tight_atMvba
 
 /--
 info: 'Chorus.own_sent_new' depends on axioms: [propext, Classical.choice, Quot.sound]

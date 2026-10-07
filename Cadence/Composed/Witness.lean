@@ -46,12 +46,13 @@ and one slot's trajectory, [Slot.lean](Witness/Slot.lean).
   (`ℓ_MVBA = 24`), `ℓ_ACS = 2`, `p = 4`, `W = p + Φ_oc + ℓ_ACS = 36`; slot
   `s` starts at time `s`, its deadline `s + 1`.
 * **The assumed ACS** is the ideal one ([Conductor/IdealAcs.lean](../Conductor/IdealAcs.lean)).
-* **The run.** Every clock `t` is a block of 56 steps. Each correct validator
-  opens slot `t`, participates in it, and validator 0 proposes; its chunk
-  reaches everyone and the correct validators record it. At `t + 1`, the
+* **The run.** Every clock `t` is a block of 61 steps. Each correct validator
+  opens slot `t`, participates in it, and validator 0 proposes, sending
+  everyone its chunk; the correct validators record it. At `t + 1`, the
   slot's deadline, it goes through the fast path, each correct validator
-  finalizes it, completes it at the Conductor, abandons it, and appends its
-  vector; at `t + 2` and `t + 3` its arm markers fire on a quiet instance.
+  finalizes it, completes it at the Conductor, abandons it, appends its
+  vector, and receives the correct validators' votes; at `t + 2` and `t + 3`
+  its arm markers fire on a quiet instance.
   At each window's readiness boundary `36k + 4`, every correct validator
   proposes slot `36(k + 1)` to the next window's ACS, which decides at once,
   the interval `[36(k + 1), 36(k + 1) + 35]` is recorded, and everyone enters

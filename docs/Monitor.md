@@ -308,6 +308,22 @@ send was its `propose`). Both decoders dropped the label. An emitter maps a
 fallback signer's chunk sends to its `fb_sign_pos` event, not to events of
 their own. The fixtures are fast-path only and pass unchanged.
 
+**The locality idiom** ([Locality.md](Locality.md)). Every message now names
+its sender, and a validator acts only on its own state and what it received.
+For the alphabet that means: `propose` sends every validator its chunk in
+the same step, so `deliver_chunk_assigned` is gone and a positive fixture
+goes straight from `propose` to `record_chunk` (the adversary's chunk send is
+`byz_send_chunk`); a vote is received by `receive_vote_pos`/`receive_vote_neg`
+before the fallback-entry rule reads it, so `fb_sign_pos` lost its vote-set
+argument; the commit step is six routes, `commit_assign_{pos,neg}_{fast,fb,mvba}`,
+each naming the certificate's sender, and the MVBA handoff is
+`send_mvba_cert` then `accept_mvba_commitqc` with its sender (the
+`on_mvba_commitqc_*` handlers are gone). The fallback commit certificate is
+`broadcast_fbcommitqc` over an entry vector, the new sort `mentries` (four
+entries, each null or a root index). Stage B inserts the two fast routes,
+over every collector; the other four routes are internal too but cannot
+fire under the silent MVBA. Both fixtures pass with the one edit above.
+
 Future scope, in rough order: positive-path emission; finer per-message
 emission (individual votes and casts observed at the network boundary rather
 than derived from the certificates); the MVBA leg above; multi-slot

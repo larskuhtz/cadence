@@ -187,7 +187,7 @@ theorem censorship_of (hs : SysSync n f hf is_byz hbyz (A := A) sch TA r)
     rw [hgst, show (partRun ps).gst = r.gst from rfl, max_eq_left hgs, hD]
     exact le_rfl
   have hrec := fun i (hi : ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz i = true) =>
-    Chorus.within_proposal_recorded_incl (sch.toFamilySchedule.at s) hTJ hDI hj hJ ((hcov np).2.trans hcnp') hsig hX hi
+    Chorus.within_proposal_recorded_incl (sch.toFamilySchedule.at s) hDI hj hJ ((hcov np).2.trans hcnp') hsig hX hi
   obtain ⟨K, -, hK⟩ := r'.toLRun.eventually_forall
     (P := fun i st => ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz i = true → st.local_entry_pos i j P = true)
     (fun a k h hi => Chorus.local_entry_pos.mono (r'.steps k) a j P (h hi)) 0 (List.finRange n)

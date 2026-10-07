@@ -14,7 +14,7 @@ step the slot takes, and the facts about them that the composed proofs read:
   validator 0 has not abandoned, a re-issued `abandon` after (F24);
 * the initial local state has **no** stutter (`no_stutter_init`), so a slot's
   part starts moving exactly at its first step;
-* at the five **quiet** local states (`0`, `11`, `36`, `37`, `38`), where the
+* at the five **quiet** local states (`0`, `7`, `41`, `42`, `43`), where the
   composed run's clock may advance, no row of Chorus's hop table is enabled,
   the availability report aside (`quiet`), and at the final one no fair label
   at all (`justice_final`);
@@ -26,18 +26,21 @@ the MVBA theory with `valid := (· = v⋆)` and validator 0 leading every view)
 is the Chorus witness's, reused by name. The local trajectory is the Chorus
 witness's run without its oracle ticks: the composed run's clock moves on the
 Conductor's `tick`, so no Byzantine `Pre-Prepare` is needed to advance time,
-and validator 3 sends nothing at all.
+and validator 3 sends nothing at all. The vote receipts come last, after the
+abandonments (a receipt sends nothing and is not participation-gated), so
+that the composed run fits them into the plateau of the slot's deadline.
 
 The step that sets each record (with `x < 3` a correct validator):
 
-* `participating x`: `x`; the proposer's root: `3`; the chunk to validator
-  `y` (any of the four): `4 + y`; `local_entry_pos x`: `8 + x`;
-* the deadline marker at `11`;
-* the vote of `x`: `12 + x`; its FastQC: `15 + x`; its commit signature:
-  `18 + x`; its fast commit vote: `21 + x`; its commit certificate:
-  `24 + x`; its committed entry: `27 + x`; its finalization: `30 + x`; its
-  abandonment (Chorus's and the MVBA's): `33 + x`;
-* the fallback-arm marker at `36`, the MVBA-arm marker at `37`; from `38` on
+* `participating x`: `x`; the proposer's root and its chunks to all four
+  validators: `3`; `local_entry_pos x`: `4 + x`;
+* the deadline marker at `7`;
+* the vote of `x`: `8 + x`; its FastQC: `11 + x`; its commit signature:
+  `14 + x`; its fast commit vote: `17 + x`; its commit certificate:
+  `20 + x`; its committed entry, on validator 0's certificate: `23 + x`; its
+  finalization: `26 + x`; its abandonment (Chorus's and the MVBA's): `29 + x`;
+* its receipt of the vote of the correct validator `y`: `32 + 3x + y`;
+* the fallback-arm marker at `41`, the MVBA-arm marker at `42`; from `43` on
   the state no longer changes. -/
 
 namespace Composed.Witness
@@ -62,7 +65,7 @@ abbrev CL := LabelAtMvba ℕ (Fin 4) (ByzNSet 4) Unit ℕ Ph PC
 abbrev thM : Mvba.Theory (Fin 4) (ByzNSet 4) V E ℕ := Chorus.Witness.thM
 
 /-- The MVBA's state at local index `m`: quiet, and abandoned by the three
-correct validators (`33 + x`). -/
+correct validators (`29 + x`). -/
 def mst (m : Nat) : MS where
   msg_preprepare _ _ _ := false
   msg_prepare _ _ _ := false
@@ -83,7 +86,7 @@ def mst (m : Nat) : MS where
   commit_sent _ _ := false
   proposed_in _ _ := false
   decided _ _ := false
-  abandoned i := decide (i.val < 3 ∧ 33 + i.val < m)
+  abandoned i := decide (i.val < 3 ∧ 29 + i.val < m)
   avail_ready _ _ := false
   timer_expired _ _ := false
   tc_formed _ _ := false
@@ -100,95 +103,106 @@ noncomputable abbrev sys := atMvba (slot := ℕ) (Phase := Ph) (PathChoice := PC
 open Phase_IndT PathChoice_IndT in
 /-- A slot's Chorus state at local index `m`. -/
 def cst (m : Nat) : CS where
-  phase := if m ≤ 11 then pre_deadline else if m ≤ 36 then post_deadline
-    else if m ≤ 37 then post_fb_arm else post_mvba_arm
+  phase := if m ≤ 7 then pre_deadline else if m ≤ 41 then post_deadline
+    else if m ≤ 42 then post_fb_arm else post_mvba_arm
   msg_proposer_signed j _ := decide (j.val = 0 ∧ 3 < m)
-  msg_chunk_received i j _ := decide (j.val = 0 ∧ 4 + i.val < m)
-  msg_vote_pos_sig r j _ := decide (j.val = 0 ∧ r.val < 3 ∧ 12 + r.val < m)
+  msg_chunk k _ j _ := decide (k.val = 0 ∧ j.val = 0 ∧ 3 < m)
+  msg_vote_pos_sig r j _ := decide (j.val = 0 ∧ r.val < 3 ∧ 8 + r.val < m)
   msg_vote_neg_sig _ _ := false
-  msg_vote_cast r := decide (r.val < 3 ∧ 12 + r.val < m)
+  msg_vote_cast r := decide (r.val < 3 ∧ 8 + r.val < m)
   msg_fb_pos_sig _ _ _ := false
   msg_fb_neg_sig _ _ := false
   msg_fallback_sig _ := false
-  msg_commit_pos_sig r j _ := decide (j.val = 0 ∧ r.val < 3 ∧ 18 + r.val < m)
+  msg_commit_pos_sig r j _ := decide (j.val = 0 ∧ r.val < 3 ∧ 14 + r.val < m)
   msg_commit_neg_sig _ _ := false
-  msg_commit_cast r := decide (r.val < 3 ∧ 21 + r.val < m)
-  msg_commitqc_pos j _ := decide (j.val = 0 ∧ 24 < m)
-  msg_commitqc_neg _ := false
-  msg_decrypt_share r := decide (r.val < 3 ∧ 12 + r.val < m)
-  msg_fbcommit_sig _ := false
-  local_fastqc_pos i j _ := decide (j.val = 0 ∧ i.val < 3 ∧ 15 + i.val < m)
+  msg_commit_cast r := decide (r.val < 3 ∧ 17 + r.val < m)
+  msg_commitqc_pos c j _ := decide (j.val = 0 ∧ c.val < 3 ∧ 20 + c.val < m)
+  msg_commitqc_neg _ _ := false
+  msg_decrypt_share r := decide (r.val < 3 ∧ 8 + r.val < m)
+  msg_fbcommit_sig _ _ := false
+  msg_fbcommitqc _ _ := false
+  msg_mvba_cert _ _ := false
+  local_fastqc_pos i j _ := decide (j.val = 0 ∧ i.val < 3 ∧ 11 + i.val < m)
   local_fastqc_neg _ _ := false
   mvba_st := mst m
   aux_mvba_decided_pos _ _ := false
   aux_mvba_decided_neg _ := false
   local_mvba_complete _ := false
-  local_entry_pos i j _ := decide (j.val = 0 ∧ i.val < 3 ∧ 8 + i.val < m)
+  local_entry_pos i j _ := decide (j.val = 0 ∧ i.val < 3 ∧ 4 + i.val < m)
   local_entry_neg _ _ := false
-  local_voted i := decide (i.val < 3 ∧ 12 + i.val < m)
-  local_path i := if i.val < 3 ∧ 21 + i.val < m then fast else none
-  local_committed i := decide (i.val < 3 ∧ 30 + i.val < m)
-  local_committed_pos i j _ := decide (j.val = 0 ∧ i.val < 3 ∧ 27 + i.val < m)
+  local_voted i := decide (i.val < 3 ∧ 8 + i.val < m)
+  local_path i := if i.val < 3 ∧ 17 + i.val < m then fast else none
+  local_committed i := decide (i.val < 3 ∧ 26 + i.val < m)
+  local_committed_pos i j _ := decide (j.val = 0 ∧ i.val < 3 ∧ 23 + i.val < m)
   local_committed_neg _ _ := false
   aux_fb_neg_qv _ _ _ := false
-  local_chunk_sent k i j _ := decide (j.val = 0 ∧ k.val = 0 ∧ 4 + i.val < m)
-  local_commit_entry i j := decide (j.val = 0 ∧ i.val < 3 ∧ 18 + i.val < m)
+  local_vote_rcv_pos i r j _ :=
+    decide (j.val = 0 ∧ i.val < 3 ∧ r.val < 3 ∧ 32 + 3 * i.val + r.val < m)
+  local_vote_rcv_neg _ _ _ := false
+  local_commit_entry i j := decide (j.val = 0 ∧ i.val < 3 ∧ 14 + i.val < m)
   local_fb_entry _ _ := false
-  local_commitqc_sent c j := decide (j.val = 0 ∧ c.val < 3 ∧ 24 + c.val < m)
+  local_commitqc_sent c j := decide (j.val = 0 ∧ c.val < 3 ∧ 20 + c.val < m)
+  local_fbcommitqc_sent _ := false
+  local_mvba_cert_sent _ := false
   local_mvba_recorded _ _ := false
   local_mvba_qc_accepted _ := false
   local_fbcommit_voted _ := false
   local_avail_marked _ _ := false
   participating i := decide (i.val < 3 ∧ i.val < m)
-  abandoned i := decide (i.val < 3 ∧ 33 + i.val < m)
+  abandoned i := decide (i.val < 3 ∧ 29 + i.val < m)
 
 /-- The quorum of the three correct validators, the Chorus witness's. -/
 abbrev Q : ByzNSet 4 := Chorus.Witness.Q
 
-/-- The label of the local step out of local index `m < 38`. -/
+/-- The label of the local step out of local index `m < 43`. -/
 def lab : Nat → CL
   | 0 => .participate 0
   | 1 => .participate 1
   | 2 => .participate 2
   | 3 => .propose 0 ()
-  | 4 => .deliver_chunk_assigned 0 0 ()
-  | 5 => .deliver_chunk_assigned 1 0 ()
-  | 6 => .deliver_chunk_assigned 2 0 ()
-  | 7 => .deliver_chunk_assigned 3 0 ()
-  | 8 => .record_chunk 0 0 ()
-  | 9 => .record_chunk 1 0 ()
-  | 10 => .record_chunk 2 0 ()
-  | 11 => .advance_to_deadline
-  | 12 => .vote 0
-  | 13 => .vote 1
-  | 14 => .vote 2
-  | 15 => .aggregate_fastqc_pos 0 0 () Q
-  | 16 => .aggregate_fastqc_pos 1 0 () Q
-  | 17 => .aggregate_fastqc_pos 2 0 () Q
-  | 18 => .commit_sign_pos 0 0 ()
-  | 19 => .commit_sign_pos 1 0 ()
-  | 20 => .commit_sign_pos 2 0 ()
-  | 21 => .cast_fast_commit 0
-  | 22 => .cast_fast_commit 1
-  | 23 => .cast_fast_commit 2
-  | 24 => .broadcast_commitqc_pos 0 0 () Q
-  | 25 => .broadcast_commitqc_pos 1 0 () Q
-  | 26 => .broadcast_commitqc_pos 2 0 () Q
-  | 27 => .commit_assign_pos 0 0 ()
-  | 28 => .commit_assign_pos 1 0 ()
-  | 29 => .commit_assign_pos 2 0 ()
-  | 30 => .finalize_commit 0
-  | 31 => .finalize_commit 1
-  | 32 => .finalize_commit 2
-  | 33 => .abandon 0 (mst 34)
-  | 34 => .abandon 1 (mst 35)
-  | 35 => .abandon 2 (mst 36)
-  | 36 => .advance_to_fb_arm
+  | 4 => .record_chunk 0 0 ()
+  | 5 => .record_chunk 1 0 ()
+  | 6 => .record_chunk 2 0 ()
+  | 7 => .advance_to_deadline
+  | 8 => .vote 0
+  | 9 => .vote 1
+  | 10 => .vote 2
+  | 11 => .aggregate_fastqc_pos 0 0 () Q
+  | 12 => .aggregate_fastqc_pos 1 0 () Q
+  | 13 => .aggregate_fastqc_pos 2 0 () Q
+  | 14 => .commit_sign_pos 0 0 ()
+  | 15 => .commit_sign_pos 1 0 ()
+  | 16 => .commit_sign_pos 2 0 ()
+  | 17 => .cast_fast_commit 0
+  | 18 => .cast_fast_commit 1
+  | 19 => .cast_fast_commit 2
+  | 20 => .broadcast_commitqc_pos 0 0 () Q
+  | 21 => .broadcast_commitqc_pos 1 0 () Q
+  | 22 => .broadcast_commitqc_pos 2 0 () Q
+  | 23 => .commit_assign_pos_fast 0 0 () 0
+  | 24 => .commit_assign_pos_fast 1 0 () 0
+  | 25 => .commit_assign_pos_fast 2 0 () 0
+  | 26 => .finalize_commit 0
+  | 27 => .finalize_commit 1
+  | 28 => .finalize_commit 2
+  | 29 => .abandon 0 (mst 30)
+  | 30 => .abandon 1 (mst 31)
+  | 31 => .abandon 2 (mst 32)
+  | 32 => .receive_vote_pos 0 0 0 ()
+  | 33 => .receive_vote_pos 0 1 0 ()
+  | 34 => .receive_vote_pos 0 2 0 ()
+  | 35 => .receive_vote_pos 1 0 0 ()
+  | 36 => .receive_vote_pos 1 1 0 ()
+  | 37 => .receive_vote_pos 1 2 0 ()
+  | 38 => .receive_vote_pos 2 0 0 ()
+  | 39 => .receive_vote_pos 2 1 0 ()
+  | 40 => .receive_vote_pos 2 2 0 ()
+  | 41 => .advance_to_fb_arm
   | _ => .advance_to_mvba_arm
 
 /-- **The stutter at local index `m ≥ 1`**: validator 0's `participate`
 re-issued before it abandons, its `abandon` re-issued after (F24). -/
-def stut (m : Nat) : CL := if m < 34 then .participate 0 else .abandon 0 (mst m)
+def stut (m : Nat) : CL := if m < 30 then .participate 0 else .abandon 0 (mst m)
 
 /-! The enum classes' constants are the generated inductive's constructors. -/
 
@@ -259,18 +273,18 @@ local macro "mexpose" : tactic =>
 
 /-! ## The MVBA's steps -/
 
-/-- Chorus's `abandon i` forwards to the MVBA's `abandon()`: at `33 + i` it
+/-- Chorus's `abandon i` forwards to the MVBA's `abandon()`: at `29 + i` it
 records it, after that it is a stutter. -/
-theorem abandon_tr (i : Fin 4) (m : Nat) (hi : i.val < 3) (hm : 33 + i.val ≤ m) :
+theorem abandon_tr (i : Fin 4) (m : Nat) (hi : i.val < 3) (hm : 29 + i.val ≤ m) :
     (Mvba.relationalTransitionSystem (Fin 4) (ByzNSet 4) V E ℕ).tr thM (mst m)
-      (.abandon i) (mst (max m (34 + i.val))) := by
+      (.abandon i) (mst (max m (30 + i.val))) := by
   mexpose
   intro a
   simp only [← Bool.decide_and, ← Bool.decide_or, decide_eq_decide, Fin.ext_iff]
   omega
 
-/-- From local index 36 on the MVBA's state no longer changes. -/
-theorem mst_stable {m : Nat} (h : 36 ≤ m) : mst m = mst 36 := by
+/-- From local index 32 on the MVBA's state no longer changes. -/
+theorem mst_stable {m : Nat} (h : 32 ≤ m) : mst m = mst 32 := by
   simp only [mst, Mvba.State.mk.injEq, funext_iff, decide_eq_decide]
   and_intros <;> intros <;> first | trivial | omega
 
@@ -329,47 +343,48 @@ theorem starts : sys.init thS (cst 0) := by
       instIsSubReaderOfRefl.readFrom_id,
       Veil.FieldRepresentation.get, cst, thS, Cadence.chorusTheory, Chorus.State.mk.injEq, funext_iff]
 
-theorem steps_0 (m : Nat) (h : m < 33) : sys.tr thS (cst m) (lab m) (cst (m + 1)) := by
+theorem steps_0 (m : Nat) (h : m < 29) : sys.tr thS (cst m) (lab m) (cst (m + 1)) := by
   interval_cases m <;> simp only [lab] <;> wstep
 
-theorem step_33 : sys.tr thS (cst 33) (lab 33) (cst 34) := by
-  simp only [lab]; wmvba abandon_tr 0 33 (by decide) (by decide)
-theorem step_34 : sys.tr thS (cst 34) (lab 34) (cst 35) := by
-  simp only [lab]; wmvba abandon_tr 1 34 (by decide) (by decide)
-theorem step_35 : sys.tr thS (cst 35) (lab 35) (cst 36) := by
-  simp only [lab]; wmvba abandon_tr 2 35 (by decide) (by decide)
-theorem step_36 : sys.tr thS (cst 36) (lab 36) (cst 37) := by simp only [lab]; wstep
-theorem step_37 : sys.tr thS (cst 37) (lab 37) (cst 38) := by simp only [lab]; wstep
+theorem step_29 : sys.tr thS (cst 29) (lab 29) (cst 30) := by
+  simp only [lab]; wmvba abandon_tr 0 29 (by decide) (by decide)
+theorem step_30 : sys.tr thS (cst 30) (lab 30) (cst 31) := by
+  simp only [lab]; wmvba abandon_tr 1 30 (by decide) (by decide)
+theorem step_31 : sys.tr thS (cst 31) (lab 31) (cst 32) := by
+  simp only [lab]; wmvba abandon_tr 2 31 (by decide) (by decide)
+
+theorem steps_1 (m : Nat) (h₁ : 32 ≤ m) (h : m < 43) : sys.tr thS (cst m) (lab m) (cst (m + 1)) := by
+  interval_cases m <;> simp only [lab] <;> wstep
 
 /-- **Every local step is a transition.** -/
-theorem cstep (m : Nat) (h : m < 38) : sys.tr thS (cst m) (lab m) (cst (m + 1)) := by
-  by_cases h33 : m < 33
-  · exact steps_0 m h33
-  have : m = 33 ∨ m = 34 ∨ m = 35 ∨ m = 36 ∨ m = 37 := by omega
-  rcases this with rfl | rfl | rfl | rfl | rfl
-  · exact step_33
-  · exact step_34
-  · exact step_35
-  · exact step_36
-  · exact step_37
+theorem cstep (m : Nat) (h : m < 43) : sys.tr thS (cst m) (lab m) (cst (m + 1)) := by
+  by_cases h29 : m < 29
+  · exact steps_0 m h29
+  by_cases h32 : 32 ≤ m
+  · exact steps_1 m h32 h
+  have : m = 29 ∨ m = 30 ∨ m = 31 := by omega
+  rcases this with rfl | rfl | rfl
+  · exact step_29
+  · exact step_30
+  · exact step_31
 
-/-- From local index 38 on the state no longer changes. -/
-theorem cst_stable {m : Nat} (h : 38 ≤ m) : cst m = cst 38 := by
-  simp only [cst, Chorus.State.mk.injEq, mst_stable (show 36 ≤ m by omega),
-    mst_stable (show 36 ≤ 38 by omega), if_neg (show ¬ m ≤ 11 by omega),
-    if_neg (show ¬ m ≤ 36 by omega), if_neg (show ¬ m ≤ 37 by omega), funext_iff, decide_eq_decide]
+/-- From local index 43 on the state no longer changes. -/
+theorem cst_stable {m : Nat} (h : 43 ≤ m) : cst m = cst 43 := by
+  simp only [cst, Chorus.State.mk.injEq, mst_stable (show 32 ≤ m by omega),
+    mst_stable (show 32 ≤ 43 by omega), if_neg (show ¬ m ≤ 7 by omega),
+    if_neg (show ¬ m ≤ 41 by omega), if_neg (show ¬ m ≤ 42 by omega), funext_iff, decide_eq_decide]
   and_intros <;> intros <;> first | trivial | rfl | omega | (split_ifs <;> first | rfl | omega)
 
 /-- **Every local state from 1 on can stutter**: validator 0 already
 participates, so its `participate` changes nothing, and once it has
 abandoned, neither does its `abandon`. -/
 theorem stut_tr (m : Nat) (h : 1 ≤ m) : sys.tr thS (cst m) (stut m) (cst m) := by
-  by_cases h34 : m < 34
-  · simp only [stut, if_pos h34]
+  by_cases h30 : m < 30
+  · simp only [stut, if_pos h30]
     wstep
-  · simp only [stut, if_neg h34]
+  · simp only [stut, if_neg h30]
     have := abandon_tr 0 m (by decide) (by simp; omega)
-    rw [show max m (34 + (0 : Fin 4).val) = m by simp; omega] at this
+    rw [show max m (30 + (0 : Fin 4).val) = m by simp; omega] at this
     wmvba this
 
 /-! ## The initial local state has no stutter
@@ -428,7 +443,7 @@ theorem no_stutter_init (l : CL) : ¬ sys.tr thS (cst 0) l (cst 0) := by
 
 /-! ## No row is enabled at a quiet local state
 
-At `11` (the end of the slot's first clock), `36`, `37` and from `38` on
+At `7` (the end of the slot's first clock), `41`, `42` and from `43` on
 (the ends of the next three), and at the initial state, no row of the hop
 table is enabled, the availability report aside, which nobody owes since
 nobody holds a meta-block. -/
@@ -467,7 +482,7 @@ local macro "wquiet" : tactic =>
     cases l
     all_goals first | (simp [hop] at hh; done) | skip
     all_goals first | exact absurd ⟨_, _, _, rfl⟩ ha | skip
-    case accept_mvba_commitqc i c mn =>
+    case accept_mvba_commitqc i r c mn =>
       obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
       exact Mvba.not_enabled_decide_of_quiet (mquiet _) ⟨_, h⟩
     case on_mvba_decide_pos =>
@@ -478,14 +493,18 @@ local macro "wquiet" : tactic =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
       obtain ⟨-, -, hdec, -⟩ := htr
       exact not_decided _ _ _ hdec
-    case on_mvba_commitqc_pos i j m c v =>
+    case commit_assign_pos_mvba =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
-      obtain ⟨-, -, hc, -⟩ := htr
+      obtain ⟨-, -, -, -, -, -, hc, -⟩ := htr
       exact not_certified _ _ _ hc
-    case on_mvba_commitqc_neg i j c v =>
+    case commit_assign_neg_mvba =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
-      obtain ⟨-, -, hc, -⟩ := htr
+      obtain ⟨-, -, -, -, -, -, hc, -⟩ := htr
       exact not_certified _ _ _ hc
+    case send_mvba_cert =>
+      simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
+      obtain ⟨-, -, -, hdec, -⟩ := htr
+      exact not_decided _ _ _ hdec
     case mvba_terminate =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
       obtain ⟨-, -, hdec, -⟩ := htr
@@ -505,26 +524,26 @@ def IsAvail (l : CL) : Prop := ∃ i v n, l = .mvba_avail_ready i v n
 
 theorem quiet0 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
     ¬ Enabled sys thS (cst 0) l := by wquiet
-theorem quiet11 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
-    ¬ Enabled sys thS (cst 11) l := by wquiet
-theorem quiet36 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
-    ¬ Enabled sys thS (cst 36) l := by wquiet
-theorem quiet37 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
-    ¬ Enabled sys thS (cst 37) l := by wquiet
-theorem quiet38 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
-    ¬ Enabled sys thS (cst 38) l := by wquiet
+theorem quiet7 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
+    ¬ Enabled sys thS (cst 7) l := by wquiet
+theorem quiet41 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
+    ¬ Enabled sys thS (cst 41) l := by wquiet
+theorem quiet42 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
+    ¬ Enabled sys thS (cst 42) l := by wquiet
+theorem quiet43 {l : CL} {hd : Mvba.Hop} (hh : hop l = some hd) (ha : ¬ IsAvail l) :
+    ¬ Enabled sys thS (cst 43) l := by wquiet
 
 /-- At the final local state no fair label is enabled, the availability
-report aside: the rows by `quiet38`, and the three phase markers because the
+report aside: the rows by `quiet43`, and the three phase markers because the
 phase is past the last landmark. -/
-theorem justice38 (l : CL) (hj : JusticeLabel l) (ha : ¬ IsAvail l) :
-    ¬ Enabled sys thS (cst 38) l := by
+theorem justice43 (l : CL) (hj : JusticeLabel l) (ha : ¬ IsAvail l) :
+    ¬ Enabled sys thS (cst 43) l := by
   by_cases hm : MarkerLabel l
   · obtain ⟨L, rfl⟩ := (markerLabel_iff l).mp hm
     rintro ⟨s', htr⟩
     cases L <;> simp only [Landmark.marker] at htr <;> wunfold htr
   · obtain ⟨h, hh⟩ := Option.isSome_iff_exists.mp ((hop_isSome_iff l).mpr ⟨hj, hm⟩)
-    exact quiet38 hh ha
+    exact quiet43 hh ha
 
 /-! ## The bridge -/
 
