@@ -135,6 +135,7 @@ Byzantine. A Veil module instantiates this once and passes `fm.byz` to every
 module contract it consumes, so all of them speak about the same set of
 correct validators. -/
 class FaultModel (validator : Type) where
+  /-- `byz i`: validator `i` is Byzantine; every other validator is correct. -/
   byz : validator → Prop
 
 /-- **The transition-system skeleton shared by all four module contracts.**
@@ -152,6 +153,7 @@ parent arrives as a projection field and is destructured into the solver's
 hypotheses like any other, which the fork's `VeilTest/DestructParentClass.lean`
 pins and [spikes/07_sc_state_tag_ok.lean](../spikes/07_sc_state_tag_ok.lean) exercises here. -/
 class TransitionSystemSafety (state : Type) where
+  /-- The module's initial states. -/
   init : state → Prop
   /-- Internal (module-driven) transitions. -/
   step : state → state → Prop
@@ -159,16 +161,22 @@ class TransitionSystemSafety (state : Type) where
   trans : state → state → Prop
   /-- The over-approximated reachable states. -/
   reachable : state → Prop
+  /-- Every internal step is a transition. -/
   step_trans : ∀ st st', step st st' → trans st st'
+  /-- Every initial state is reachable. -/
   reachable_init : ∀ st, init st → reachable st
+  /-- A transition from a reachable state reaches a reachable state. -/
   reachable_trans : ∀ st st', reachable st → trans st st' → reachable st'
 
 /-- A run of a module: an infinite sequence of states, starting in an initial
 state, each consecutive pair a transition. The temporal obligations of the
 module contracts quantify over these. -/
 structure Run (state : Type) (init : state → Prop) (trans : state → state → Prop) where
+  /-- The state at each index. -/
   at' : Nat → state
+  /-- The run starts in an initial state. -/
   starts : init (at' 0)
+  /-- Each consecutive pair of states is a transition. -/
   steps : ∀ n, trans (at' n) (at' (n + 1))
 
 namespace Run
@@ -188,8 +196,12 @@ structure TimedRun (state time : Type) [TotalOrder time]
     extends Run state init trans where
   /-- The clock reading at each index. -/
   clk : Nat → time
+  /-- The clock never runs backwards. -/
   clock_mono : ∀ n, TotalOrder.le (clk n) (clk (n + 1))
+  /-- The clock passes every time: the run is not Zeno. -/
   clock_unbounded : ∀ t, ∃ n, TotalOrder.le t (clk n)
+  /-- The run's global stabilisation time (GST); each implementation's
+      `Admissible` says what holds after it. -/
   gst : time
 
 namespace TimedRun
@@ -337,6 +349,7 @@ class SlotConsensusSafety (slot validator proposal pvector state : Type)
 
   /-- A finalization, once output, stands. -/
   finalized_mono : ∀ st st' i V, reachable st → trans st st' → finalized st i V → finalized st' i V
+  /-- The synchrony premise, once established, stays established. -/
   on_time_mono : ∀ st st' j P, reachable st → trans st st' → on_time st j P → on_time st' j P
   /-- Nothing is finalized before the instance runs. -/
   init_finalized : ∀ st i V, init st → ¬ finalized st i V
@@ -384,8 +397,11 @@ class SlotConsensusSafety (slot validator proposal pvector state : Type)
   /-- Input `propose(P)` by (proposer) `i`: "a proposer submits its proposal
       `P`". -/
   propose : state → validator → proposal → state → Prop
+  /-- Giving the `participate()` input is a transition of the instance. -/
   participate_trans : ∀ st i st', participate st i st' → trans st st'
+  /-- Giving the `abandon()` input is a transition of the instance. -/
   abandon_trans : ∀ st i st', abandon st i st' → trans st st'
+  /-- Giving the `propose(P)` input is a transition of the instance. -/
   propose_trans : ∀ st i P st', propose st i P st' → trans st st'
 
   /-- Input record: `i` has started participating. -/
@@ -395,17 +411,25 @@ class SlotConsensusSafety (slot validator proposal pvector state : Type)
   /-- Input record: `i` has proposed `P`. -/
   proposed : state → validator → proposal → Prop
 
+  /-- `participating` only ever becomes true. -/
   participating_mono : ∀ st st' i, trans st st' → participating st i → participating st' i
+  /-- `abandoned` only ever becomes true. -/
   abandoned_mono : ∀ st st' i, trans st st' → abandoned st i → abandoned st' i
+  /-- `proposed` only ever becomes true. -/
   proposed_mono : ∀ st st' i P, trans st st' → proposed st i P → proposed st' i P
+  /-- `participate()` at `i` records that `i` participates. -/
   participate_effect : ∀ st i st', participate st i st' → participating st' i
+  /-- `abandon()` at `i` records that `i` has abandoned. -/
   abandon_effect : ∀ st i st', abandon st i st' → abandoned st' i
+  /-- `propose(P)` by `i` records that `i` has proposed `P`. -/
   propose_effect : ∀ st i P st', propose st i P st' → proposed st' i P
   /-- Internal steps do not fabricate a correct validator's inputs. -/
   participating_step_frame : ∀ st st' i, step st st' → ¬ byz i →
     (participating st' i ↔ participating st i)
+  /-- Internal steps leave a correct validator's abandonment unchanged. -/
   abandoned_step_frame : ∀ st st' i, step st st' → ¬ byz i →
     (abandoned st' i ↔ abandoned st i)
+  /-- Internal steps leave a correct validator's proposals unchanged. -/
   proposed_step_frame : ∀ st st' i P, step st st' → ¬ byz i →
     (proposed st' i P ↔ proposed st i P)
   /-- An input records itself and nothing else: `participate()` at `i`
@@ -424,18 +448,26 @@ class SlotConsensusSafety (slot validator proposal pvector state : Type)
       abandonment. -/
   participate_abandoned_frame : ∀ st i st' j, participate st i st' → ¬ byz j →
     (abandoned st' j ↔ abandoned st j)
+  /-- `participate()` leaves every correct validator's proposals unchanged. -/
   participate_proposed_frame : ∀ st i st' j P, participate st i st' → ¬ byz j →
     (proposed st' j P ↔ proposed st j P)
+  /-- `abandon()` leaves every correct validator's participation unchanged. -/
   abandon_participating_frame : ∀ st i st' j, abandon st i st' → ¬ byz j →
     (participating st' j ↔ participating st j)
+  /-- `abandon()` leaves every correct validator's proposals unchanged. -/
   abandon_proposed_frame : ∀ st i st' j P, abandon st i st' → ¬ byz j →
     (proposed st' j P ↔ proposed st j P)
+  /-- `propose(P)` leaves every correct validator's participation unchanged. -/
   propose_participating_frame : ∀ st i P st' j, propose st i P st' → ¬ byz j →
     (participating st' j ↔ participating st j)
+  /-- `propose(P)` leaves every correct validator's abandonment unchanged. -/
   propose_abandoned_frame : ∀ st i P st' j, propose st i P st' → ¬ byz j →
     (abandoned st' j ↔ abandoned st j)
+  /-- No validator participates initially. -/
   init_participating : ∀ st i, init st → ¬ participating st i
+  /-- No validator has abandoned initially. -/
   init_abandoned : ∀ st i, init st → ¬ abandoned st i
+  /-- No validator has proposed initially. -/
   init_proposed : ∀ st i P, init st → ¬ proposed st i P
 
 /-- The temporal level of Module 1 (`mod:slotconsensus`), over a safety instance `S`:
@@ -446,6 +478,7 @@ class SlotConsensusTemporal (slot validator proposal pvector state time message 
     [S : SlotConsensusSafety slot validator proposal pvector state byz] where
   /-- `i` has sent protocol message `m` of this instance. -/
   sent : state → validator → message → Prop
+  /-- `sent` only ever becomes true. -/
   sent_mono : ∀ st st' i m, S.trans st st' → sent st i m → sent st' i m
 
   /-- The executions under which the temporal guarantees hold: the
@@ -517,6 +550,10 @@ class SlotConsensusWithTotality (slot validator proposal pvector state time mess
       participating at time `t`, every correct validator does so by
       `max(t, GST) + Δ`. -/
   SyncParticipation : TimedRun state time S.init S.trans → Prop
+  /-- `SyncParticipation` is exactly Δ-synchronized participation (Definition 5
+      (`def:delta-synchronized-participation`)): once a correct validator
+      participates at `t`, every correct validator participates by
+      `max(t, GST) + Δ`. -/
   syncParticipation_def : ∀ r : TimedRun state time S.init S.trans,
     SyncParticipation r ↔
       ∀ n i, ¬ byz i → S.participating (r.at' n) i →
@@ -658,6 +695,7 @@ class OrchestratorSafety (validator slot state time : Type) [ord : TotalOrder sl
     extends TransitionSystemSafety state where
   /-- Input `complete(s)` at validator `i`. -/
   complete : state → validator → slot → state → Prop
+  /-- Giving the `complete(s)` input is a transition of the module. -/
   complete_trans : ∀ st i s st', complete st i s st' → trans st st'
 
   /-- Output `open(s)`: the orchestrator has output `open(s)` at validator `i`. -/
@@ -672,7 +710,9 @@ class OrchestratorSafety (validator slot state time : Type) [ord : TotalOrder sl
   /-- **Integrity, first half.** An `open(s)` output stands; hence the event
       happens at most once per `(i, s)`. -/
   opened_mono : ∀ st st' i s, reachable st → trans st st' → opened st i s → opened st' i s
+  /-- `completed` only ever becomes true. -/
   completed_mono : ∀ st st' i s, reachable st → trans st st' → completed st i s → completed st' i s
+  /-- `complete(s)` at `i` records that `i` has completed `s`. -/
   complete_effect : ∀ st i s st', complete st i s st' → completed st' i s
   /-- An input records itself and nothing else: `complete(s)` at `i` leaves
       every other correct validator's `completed` record unchanged. -/
@@ -681,7 +721,9 @@ class OrchestratorSafety (validator slot state time : Type) [ord : TotalOrder sl
   /-- Internal steps do not fabricate a correct validator's `complete` inputs. -/
   completed_step_frame : ∀ st st' i s, step st st' → ¬ byz i →
     (completed st' i s ↔ completed st i s)
+  /-- No slot is opened initially. -/
   init_opened : ∀ st i s, init st → ¬ opened st i s
+  /-- No slot is completed initially. -/
   init_completed : ∀ st i s, init st → ¬ completed st i s
 
   /-- **Integrity, second half** — no slot is opened before its starting
@@ -751,6 +793,8 @@ class OrchestratorTemporal (validator slot state time : Type) [ord : TotalOrder 
   /-- The executions under which the temporal guarantees hold, defined by the
       implementation (see the file header). -/
   Admissible : TimedRun state time S.init S.trans → Prop
+  /-- Admissibility is not vacuous: every initial state starts some admissible
+      run. -/
   admissible_exists : ∀ st, S.init st →
     ∃ r : TimedRun state time S.init S.trans, Admissible r ∧ r.at' 0 = st
   /-- In an admissible run the run's clock is the module's own (`S.clock`,
@@ -913,7 +957,9 @@ class ACSSafety (validator slot state : Type) (byz : validator → Prop)
   /-- Input `abandon()` at validator `i`: "a validator stops
       participating". -/
   abandon : state → validator → state → Prop
+  /-- Giving the `propose(s)` input is a transition of the module. -/
   propose_trans : ∀ st p s st', propose st p s st' → trans st st'
+  /-- Giving the `abandon()` input is a transition of the module. -/
   abandon_trans : ∀ st i st', abandon st i st' → trans st st'
 
   /-- `p` has proposed slot `s`. -/
@@ -925,11 +971,17 @@ class ACSSafety (validator slot state : Type) (byz : validator → Prop)
   /-- Input record: `i` has abandoned. -/
   abandoned : state → validator → Prop
 
+  /-- `proposed` only ever becomes true. -/
   proposed_mono : ∀ st st' p s, trans st st' → proposed st p s → proposed st' p s
+  /-- `decided` only ever becomes true. -/
   decided_mono : ∀ st st' i p s, trans st st' → decided st i p s → decided st' i p s
+  /-- `has_decided` only ever becomes true. -/
   has_decided_mono : ∀ st st' i, trans st st' → has_decided st i → has_decided st' i
+  /-- `abandoned` only ever becomes true. -/
   abandoned_mono : ∀ st st' i, trans st st' → abandoned st i → abandoned st' i
+  /-- `propose(s)` by `p` records that `p` has proposed `s`. -/
   propose_effect : ∀ st p s st', propose st p s st' → proposed st' p s
+  /-- `abandon()` at `i` records that `i` has abandoned. -/
   abandon_effect : ∀ st i st', abandon st i st' → abandoned st' i
   /-- An input records itself and nothing else: `propose(s)` by `p` leaves
       every other correct validator's proposals unchanged… -/
@@ -941,18 +993,25 @@ class ACSSafety (validator slot state : Type) (byz : validator → Prop)
   /-- …and neither input records the other. -/
   propose_abandoned_frame : ∀ st p s st' j, propose st p s st' → ¬ byz j →
     (abandoned st' j ↔ abandoned st j)
+  /-- `abandon()` leaves every correct validator's proposals unchanged. -/
   abandon_proposed_frame : ∀ st i st' q s, abandon st i st' → ¬ byz q →
     (proposed st' q s ↔ proposed st q s)
   /-- Internal steps do not fabricate a correct validator's inputs
       (Byzantine proposals are unconstrained and may appear at any step). -/
   proposed_step_frame : ∀ st st' p s, step st st' → ¬ byz p →
     (proposed st' p s ↔ proposed st p s)
+  /-- Internal steps leave a correct validator's abandonment unchanged. -/
   abandoned_step_frame : ∀ st st' i, step st st' → ¬ byz i →
     (abandoned st' i ↔ abandoned st i)
+  /-- No validator has proposed initially. -/
   init_proposed : ∀ st p s, init st → ¬ proposed st p s
+  /-- No validator has decided initially. -/
   init_has_decided : ∀ st i, init st → ¬ has_decided st i
+  /-- No validator has abandoned initially. -/
   init_abandoned : ∀ st i, init st → ¬ abandoned st i
 
+  /-- A correct validator with a pair in its decided set has decided:
+      `has_decided` marks every decision. -/
   decided_has_decided : ∀ st, reachable st → ∀ i p s,
     ¬ byz i → decided st i p s → has_decided st i
   /-- **Agreement** — no two correct validators decide different sets: a pair
@@ -978,9 +1037,14 @@ class ACSTemporal (validator slot state time message : Type)
     [S : ACSSafety validator slot state byz] where
   /-- `i` has sent protocol message `m` of this instance. -/
   sent : state → validator → message → Prop
+  /-- `sent` only ever becomes true. -/
   sent_mono : ∀ st st' i m, S.trans st st' → sent st i m → sent st' i m
 
+  /-- The executions under which the temporal guarantees hold, defined by the
+      implementation (see the file header). -/
   Admissible : TimedRun state time S.init S.trans → Prop
+  /-- Admissibility is not vacuous: every initial state starts some admissible
+      run. -/
   admissible_exists : ∀ st, S.init st →
     ∃ r : TimedRun state time S.init S.trans, Admissible r ∧ r.at' 0 = st
 
@@ -1006,18 +1070,26 @@ class ACSTemporal (validator slot state time message : Type)
     ∃ g : Fin (2 * fault_bound + 1) → validator,
       Function.Injective g ∧ ∀ k, ∃ s, S.decided st i (g k) s
 
+  /-- The bound of Δ-Totality, which is also the tolerance of the first
+      assumption, Δ-synchronized proposals (Module 4 (`mod:acs`)). -/
   Δ : time
+  /-- The latency of ℓ-Termination (Module 4 (`mod:acs`)). -/
   ℓ : time
   /-- The module's first assumption, **Δ-synchronized proposals**: if a correct
       validator proposes at `t`, every correct validator proposes by
       `max(t, GST) + Δ`. -/
   SyncProposals : TimedRun state time S.init S.trans → Prop
+  /-- `SyncProposals` is exactly Δ-synchronized proposals: once a correct
+      validator proposes at `t`, every correct validator proposes by
+      `max(t, GST) + Δ`. -/
   syncProposals_def : ∀ r : TimedRun state time S.init S.trans, SyncProposals r ↔
     ∀ n p s, ¬ byz p → S.proposed (r.at' n) p s →
       ∀ q, ¬ byz q → r.byGstBound (r.clk n) Δ (fun st => ∃ s', S.proposed st q s')
   /-- The module's second assumption, **no premature abandonment**: a correct
       validator that has proposed does not abandon before deciding. -/
   NoPrematureAbandon : TimedRun state time S.init S.trans → Prop
+  /-- `NoPrematureAbandon` is exactly no premature abandonment: a correct
+      validator that has abandoned has decided. -/
   noPrematureAbandon_def : ∀ r : TimedRun state time S.init S.trans,
     NoPrematureAbandon r ↔
       ∀ n i, ¬ byz i → S.abandoned (r.at' n) i → S.has_decided (r.at' n) i
@@ -1184,28 +1256,43 @@ class MVBASafety (party value entryvec message state pset : Type)
   propose : state → party → value → state → Prop
   /-- Input `abandon()` at party `p`. -/
   abandon : state → party → state → Prop
+  /-- Giving the `propose(v)` input is a transition of the module. -/
   propose_trans : ∀ st p v st', propose st p v st' → trans st st'
+  /-- Giving the `abandon()` input is a transition of the module. -/
   abandon_trans : ∀ st p st', abandon st p st' → trans st st'
 
   /-- Output `decide(v)`: `p` has decided the representation `v`. -/
   decided : state → party → value → Prop
+  /-- Input record: `p` has proposed `v`. -/
   proposed : state → party → value → Prop
+  /-- Input record: `p` has abandoned. -/
   abandoned : state → party → Prop
   /-- `p` has sent protocol message `m`. -/
   sent : state → party → message → Prop
 
+  /-- `decided` only ever becomes true. -/
   decided_mono : ∀ st st' p v, trans st st' → decided st p v → decided st' p v
+  /-- `proposed` only ever becomes true. -/
   proposed_mono : ∀ st st' p v, trans st st' → proposed st p v → proposed st' p v
+  /-- `abandoned` only ever becomes true. -/
   abandoned_mono : ∀ st st' p, trans st st' → abandoned st p → abandoned st' p
+  /-- `sent` only ever becomes true. -/
   sent_mono : ∀ st st' p m, trans st st' → sent st p m → sent st' p m
+  /-- `propose(v)` by `p` records that `p` has proposed `v`. -/
   propose_effect : ∀ st p v st', propose st p v st' → proposed st' p v
+  /-- `abandon()` at `p` records that `p` has abandoned. -/
   abandon_effect : ∀ st p st', abandon st p st' → abandoned st' p
+  /-- Internal steps leave a correct party's proposals unchanged. -/
   proposed_step_frame : ∀ st st' p v, step st st' → ¬ byz p →
     (proposed st' p v ↔ proposed st p v)
+  /-- Internal steps leave a correct party's abandonment unchanged. -/
   abandoned_step_frame : ∀ st st' p, step st st' → ¬ byz p →
     (abandoned st' p ↔ abandoned st p)
+  /-- No party has decided initially. -/
   init_decided : ∀ st p v, init st → ¬ decided st p v
+  /-- No party has proposed initially. -/
   init_proposed : ∀ st p v, init st → ¬ proposed st p v
+  /-- No party has abandoned initially. -/
   init_abandoned : ∀ st p, init st → ¬ abandoned st p
 
   /-- **Quiescence** — no protocol message before proposing or after
@@ -1243,18 +1330,23 @@ class MVBASafety (party value entryvec message state pset : Type)
       so the caller decides when `p` holds its shares, and this input is how
       it says so. -/
   markAvail : state → party → value → state → Prop
+  /-- Reporting availability is a transition of the module. -/
   markAvail_trans : ∀ st p v st', markAvail st p v st' → trans st st'
+  /-- The report for `p` and `v` makes `AvailReady_p(v)` hold. -/
   markAvail_effect : ∀ st p v st', markAvail st p v st' → availReady st' p v
   /-- The report is about `p` and `v` only. -/
   availReady_markAvail_frame : ∀ st p v st' q w, markAvail st p v st' →
     availReady st' q w → availReady st q w ∨ (q = p ∧ w = v)
+  /-- No party is `AvailReady` for any value initially. -/
   init_availReady : ∀ st p v, init st → ¬ availReady st p v
   /-- `availReady` changes only by its input: every internal step and every
       other input leaves it as it is. -/
   availReady_step_frame : ∀ st st' p v, step st st' →
     (availReady st' p v ↔ availReady st p v)
+  /-- `propose(v)` leaves `availReady` unchanged. -/
   availReady_propose_frame : ∀ st q w st' p v, propose st q w st' →
     (availReady st' p v ↔ availReady st p v)
+  /-- `abandon()` leaves `availReady` unchanged. -/
   availReady_abandon_frame : ∀ st q st' p v, abandon st q st' →
     (availReady st' p v ↔ availReady st p v)
 
@@ -1273,7 +1365,9 @@ class MVBASafety (party value entryvec message state pset : Type)
     ∃ c, certifies st c (entries v)
   /-- Input: the caller hands party `p` a transferred certificate `c`. -/
   accept : state → party → message → state → Prop
+  /-- Accepting a transferred certificate is a transition of the module. -/
   accept_trans : ∀ st p c st', accept st p c st' → trans st st'
+  /-- Accepting a certificate leaves `availReady` unchanged. -/
   availReady_accept_frame : ∀ st q c st' p v, accept st q c st' →
     (availReady st' p v ↔ availReady st p v)
   /-- Accepting a valid certificate for `e` decides a representation of `e`
@@ -1331,10 +1425,16 @@ admissible-run model, `ℓ` and Termination. -/
 class MVBATemporal (party value entryvec message state pset time : Type)
     [TotalOrder time] [Add time] (B : ByzNodeSet party pset) (byz : party → Prop)
     [S : MVBASafety party value entryvec message state pset B byz] where
+  /-- The executions under which the temporal guarantees hold, defined by the
+      implementation (see the file header). -/
   Admissible : TimedRun state time S.init S.trans → Prop
+  /-- Admissibility is not vacuous: every initial state starts some admissible
+      run. -/
   admissible_exists : ∀ st, S.init st →
     ∃ r : TimedRun state time S.init S.trans, Admissible r ∧ r.at' 0 = st
 
+  /-- The termination latency `ℓ_MVBA` (Supplement, Theorem 2
+      (`thm:termination`)). -/
   ℓ : time
   /-- **ℓ_MVBA-Termination** — if all correct parties propose valid values
       by `t` and no correct party abandons before `max(t, GST) + ℓ`, every
