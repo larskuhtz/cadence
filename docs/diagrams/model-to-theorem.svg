@@ -90,7 +90,7 @@
 <text class="dg-c" x="124" y="375">Chorus/Certify.lean</text>
 <text class="dg-c" x="34" y="395">#gen_composition</text>
 <text class="dg-s" x="158" y="395">induction over the actions:</text>
-<text class="dg-c" x="34" y="412">Chorus.invariants_of_reachable</text>
+<text class="dg-c" x="34" y="412" data-decl="Chorus.invariants_of_reachable">Chorus.invariants_of_reachable</text>
 <text class="dg-c" x="34" y="430">#veil_status Chorus</text>
 <text class="dg-s" x="172" y="430">pinned: every condition has a real proof</text>
 <rect class="dg-claim" x="500" y="362" width="240" height="24" rx="12"/>
@@ -104,9 +104,9 @@
 <text class="dg-t" x="34" y="485">Contract instances</text>
 <text class="dg-c" x="168" y="485">Chorus/Compose.lean, Chorus/Temporal.lean</text>
 <text class="dg-s" x="34" y="505">plain Lean, from the reachable-state facts and the liveness proofs:</text>
-<text class="dg-c" x="34" y="523">Chorus.slotConsensusSafety</text>
+<text class="dg-c" x="34" y="523" data-decl="Chorus.slotConsensusSafety">Chorus.slotConsensusSafety</text>
 <text class="dg-s" x="34" y="540">and the whole contract,</text>
-<text class="dg-c" x="164" y="540">Chorus.slotConsensusFull</text>
+<text class="dg-c" x="164" y="540" data-decl="Chorus.slotConsensusFull">Chorus.slotConsensusFull</text>
 <rect class="dg-claim" x="500" y="472" width="240" height="24" rx="12"/>
 <text class="dg-s" x="620" y="488" text-anchor="middle">kernel: checks every instance</text>
 <rect class="dg-human" x="500" y="504" width="240" height="24" rx="12"/>
@@ -117,8 +117,8 @@
 <rect class="dg-claim" x="20" y="574" width="450" height="70" rx="8"/>
 <text class="dg-t" x="34" y="595">Axiom pins</text>
 <text class="dg-c" x="114" y="595">Cadence.lean</text>
-<text class="dg-c" x="34" y="615">#guard_msgs in #print axioms Chorus.slotConsensusFull</text>
-<text class="dg-c" x="34" y="633">[propext, Classical.choice, Quot.sound]</text>
+<text class="dg-c" x="34" y="615">#guard_msgs in #print axioms <tspan data-decl="Chorus.slotConsensusFull">Chorus.slotConsensusFull</tspan></text>
+<text class="dg-c" x="34" y="633">[<tspan data-decl="propext">propext</tspan>, <tspan data-decl="Classical.choice">Classical.choice</tspan>, <tspan data-decl="Quot.sound">Quot.sound</tspan>]</text>
 <rect class="dg-claim" x="500" y="582" width="240" height="24" rx="12"/>
 <text class="dg-s" x="620" y="598" text-anchor="middle">kernel: Lean's three standard axioms</text>
 <text class="dg-s" x="500" y="630">the build fails on any other axiom,</text>

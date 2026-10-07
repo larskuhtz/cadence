@@ -46,7 +46,7 @@
 <rect class="dg-claim" x="20" y="14" width="720" height="80" rx="8"/>
 <text class="dg-t" x="380" y="37" text-anchor="middle">The claim: 𝓡-Liveness of the composed system, Definition 2</text>
 <text class="dg-p" x="380" y="58" text-anchor="middle">every slot that starts at least 𝓡 = 2Wτ after GST is in the log of every correct validator</text>
-<text class="dg-c" x="380" y="80" text-anchor="middle">Composed.liveness</text>
+<text class="dg-c" x="380" y="80" text-anchor="middle" data-decl="Composed.liveness">Composed.liveness</text>
 <path class="dg-e" d="M200,142 V97" marker-end="url(#dg-cpw-a)"/>
 <text class="dg-l" x="210" y="124">proven from exactly these premises: the kernel checks the proof</text>
 
@@ -58,47 +58,47 @@
 <path class="dg-rule" d="M30,172 H650"/>
 
 <text class="dg-l" x="34" y="192">the configuration</text>
-<text class="dg-c" x="34" y="212">n = 3f + 1, fmF</text>
+<text class="dg-c" x="34" y="212">n = 3f + 1, <tspan data-decl="Composed.fmF">fmF</tspan></text>
 <text class="dg-s" x="242" y="212">one fault pattern for every module</text>
 <text class="dg-s" x="464" y="212">every Chorus quorum step</text>
 <text class="dg-c" x="34" y="232">hrot</text>
 <text class="dg-s" x="242" y="232">a correct MVBA leader every k views</text>
-<text class="dg-c" x="464" y="232">Composed.caller_termination</text>
+<text class="dg-c" x="464" y="232" data-decl="Composed.caller_termination">Composed.caller_termination</text>
 <text class="dg-c" x="34" y="252">hprop</text>
 <text class="dg-s" x="242" y="252">the slot has a proposer</text>
 <text class="dg-s" x="464" y="252">Chorus's contract instance</text>
-<text class="dg-c" x="34" y="272">sch : ConductorSchedule</text>
+<text class="dg-c" x="34" y="272">sch : <tspan data-decl="Conductor.ConductorSchedule">ConductorSchedule</tspan></text>
 <text class="dg-s" x="242" y="272">one Δ, δ = 0, the window</text>
 <text class="dg-s" x="242" y="286">parameters and their bounds</text>
-<text class="dg-c" x="464" y="272">Composed.c2_slot</text>
-<text class="dg-c" x="464" y="286">Composed.recovery_in</text>
-<text class="dg-c" x="34" y="306">StartTimes</text>
+<text class="dg-c" x="464" y="272" data-decl="Composed.c2_slot">Composed.c2_slot</text>
+<text class="dg-c" x="464" y="286" data-decl="Composed.recovery_in">Composed.recovery_in</text>
+<text class="dg-c" x="34" y="306" data-decl="Conductor.StartTimes">StartTimes</text>
 <text class="dg-s" x="242" y="306">slots start τ apart</text>
-<text class="dg-c" x="464" y="306">Composed.c2_slot</text>
-<text class="dg-c" x="34" y="326">WindowShifts</text>
+<text class="dg-c" x="464" y="306" data-decl="Composed.c2_slot">Composed.c2_slot</text>
+<text class="dg-c" x="34" y="326" data-decl="Conductor.WindowShifts">WindowShifts</text>
 <text class="dg-s" x="242" y="326">the windows' shape</text>
-<text class="dg-c" x="464" y="326">Composed.recovery_in</text>
-<text class="dg-c" x="34" y="346">StartsUnbounded</text>
+<text class="dg-c" x="464" y="326" data-decl="Composed.recovery_in">Composed.recovery_in</text>
+<text class="dg-c" x="34" y="346" data-decl="Conductor.StartsUnbounded">StartsUnbounded</text>
 <text class="dg-s" x="242" y="346">slot starting times grow without bound</text>
-<text class="dg-c" x="464" y="346">Composed.openings_sync</text>
-<text class="dg-c" x="34" y="366">WindowsUnbounded</text>
+<text class="dg-c" x="464" y="346" data-decl="Composed.openings_sync">Composed.openings_sync</text>
+<text class="dg-c" x="34" y="366" data-decl="Conductor.WindowsUnbounded">WindowsUnbounded</text>
 <text class="dg-s" x="242" y="366">every window has a successor</text>
-<text class="dg-c" x="464" y="366">Composed.recovery_in</text>
+<text class="dg-c" x="464" y="366" data-decl="Composed.recovery_in">Composed.recovery_in</text>
 <text class="dg-c" x="34" y="386">TA.Δ, TA.ℓ, fault bound</text>
 <text class="dg-k" x="242" y="386">the assumed ACS: its constants</text>
-<text class="dg-c" x="464" y="386">Composed.openings_sync</text>
-<text class="dg-c" x="464" y="400">Composed.recovery_in</text>
+<text class="dg-c" x="464" y="386" data-decl="Composed.openings_sync">Composed.openings_sync</text>
+<text class="dg-c" x="464" y="400" data-decl="Composed.recovery_in">Composed.recovery_in</text>
 
-<text class="dg-l" x="34" y="428">the run: Composed.SysSync</text>
-<text class="dg-c" x="34" y="448">GlueRows</text>
+<text class="dg-l" x="34" y="428">the run: <tspan data-decl="Composed.SysSync">Composed.SysSync</tspan></text>
+<text class="dg-c" x="34" y="448" data-decl="Composed.GlueRows">GlueRows</text>
 <text class="dg-s" x="242" y="448">the glue's handlers fire within δ</text>
-<text class="dg-c" x="464" y="448">Composed.participating_by</text>
-<text class="dg-c" x="34" y="468">OrchAdmissible</text>
+<text class="dg-c" x="464" y="448" data-decl="Composed.participating_by">Composed.participating_by</text>
+<text class="dg-c" x="34" y="468" data-decl="Composed.OrchAdmissible">OrchAdmissible</text>
 <text class="dg-s" x="242" y="468">the Conductor's timing model</text>
-<text class="dg-c" x="464" y="468">Composed.openings_sync</text>
-<text class="dg-c" x="34" y="488">SlotAdmissible</text>
+<text class="dg-c" x="464" y="468" data-decl="Composed.openings_sync">Composed.openings_sync</text>
+<text class="dg-c" x="34" y="488" data-decl="Composed.SlotAdmissible">SlotAdmissible</text>
 <text class="dg-s" x="242" y="488">Chorus's timing model, every slot</text>
-<text class="dg-c" x="464" y="488">Composed.caller_totality</text>
+<text class="dg-c" x="464" y="488" data-decl="Composed.caller_totality">Composed.caller_totality</text>
 
 <!-- Plausibility: the auditor's judgement -->
 <rect class="dg-human" x="672" y="142" width="68" height="370" rx="8"/>
@@ -108,7 +108,7 @@
 <!-- The witness -->
 <rect class="dg-wit" x="20" y="560" width="640" height="94" rx="8"/>
 <text class="dg-t" x="340" y="582" text-anchor="middle">Consistency: one model meets every premise at once</text>
-<text class="dg-c" x="340" y="602" text-anchor="middle">Composed.Witness.liveness_premises_satisfiable</text>
+<text class="dg-c" x="340" y="602" text-anchor="middle" data-decl="Composed.Witness.liveness_premises_satisfiable">Composed.Witness.liveness_premises_satisfiable</text>
 <text class="dg-s" x="340" y="622" text-anchor="middle">four validators, one Byzantine and silent · Δ = τ = 1, δ = 0 · p = 4, W = 36 · the ideal ACS</text>
 <text class="dg-s" x="340" y="640" text-anchor="middle">one infinite run in which every slot takes the fast path; the proven claim is applied to it</text>
 <path class="dg-e" d="M340,560 V515" marker-end="url(#dg-cpw-a)"/>

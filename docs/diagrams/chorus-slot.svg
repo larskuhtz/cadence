@@ -48,32 +48,32 @@
 <rect class="dg-box" x="330" y="10" width="130" height="24"/>
 <rect class="dg-box" x="460" y="10" width="140" height="24"/>
 <rect class="dg-box" x="600" y="10" width="140" height="24"/>
-<text class="dg-c" x="230" y="26" text-anchor="middle">pre_deadline</text>
-<text class="dg-c" x="395" y="26" text-anchor="middle">post_deadline</text>
-<text class="dg-c" x="530" y="26" text-anchor="middle">post_fb_arm</text>
-<text class="dg-c" x="670" y="26" text-anchor="middle">post_mvba_arm</text>
+<text class="dg-c" x="230" y="26" text-anchor="middle" data-decl-veil="Chorus Phase.pre_deadline">pre_deadline</text>
+<text class="dg-c" x="395" y="26" text-anchor="middle" data-decl-veil="Chorus Phase.post_deadline">post_deadline</text>
+<text class="dg-c" x="530" y="26" text-anchor="middle" data-decl-veil="Chorus Phase.post_fb_arm">post_fb_arm</text>
+<text class="dg-c" x="670" y="26" text-anchor="middle" data-decl-veil="Chorus Phase.post_mvba_arm">post_mvba_arm</text>
 <text class="dg-p" x="330" y="50" text-anchor="middle">D</text>
 <text class="dg-p" x="460" y="50" text-anchor="middle">D + Δ</text>
 <text class="dg-p" x="600" y="50" text-anchor="middle">D + 2Δ</text>
-<text class="dg-cs" x="330" y="64" text-anchor="middle">advance_to_deadline</text>
-<text class="dg-cs" x="460" y="64" text-anchor="middle">advance_to_fb_arm</text>
-<text class="dg-cs" x="600" y="64" text-anchor="middle">advance_to_mvba_arm</text>
+<text class="dg-cs" x="330" y="64" text-anchor="middle" data-decl-veil="Chorus advance_to_deadline">advance_to_deadline</text>
+<text class="dg-cs" x="460" y="64" text-anchor="middle" data-decl-veil="Chorus advance_to_fb_arm">advance_to_fb_arm</text>
+<text class="dg-cs" x="600" y="64" text-anchor="middle" data-decl-veil="Chorus advance_to_mvba_arm">advance_to_mvba_arm</text>
 <path class="dg-dash" d="M330,72 V344 M460,72 V344 M600,72 V344"/>
 
 <!-- Proposal -->
 <text class="dg-t" x="20" y="98">proposal</text>
 <text class="dg-s" x="20" y="113">before the deadline</text>
 <rect class="dg-box" x="142" y="86" width="64" height="22" rx="11"/>
-<text class="dg-c" x="174" y="101" text-anchor="middle">propose</text>
+<text class="dg-c" x="174" y="101" text-anchor="middle" data-decl-veil="Chorus propose">propose</text>
 <path class="dg-e" d="M206,97 H220" marker-end="url(#dg-cs-a)"/>
 <rect class="dg-box" x="222" y="86" width="98" height="22" rx="11"/>
-<text class="dg-c" x="271" y="101" text-anchor="middle">record_chunk</text>
+<text class="dg-c" x="271" y="101" text-anchor="middle" data-decl-veil="Chorus record_chunk">record_chunk</text>
 
 <!-- Vote -->
 <text class="dg-t" x="20" y="146">vote</text>
 <text class="dg-s" x="20" y="161">from the deadline</text>
 <rect class="dg-box" x="342" y="134" width="52" height="22" rx="11"/>
-<text class="dg-c" x="368" y="149" text-anchor="middle">vote</text>
+<text class="dg-c" x="368" y="149" text-anchor="middle" data-decl-veil="Chorus vote">vote</text>
 
 <!-- Fast path -->
 <text class="dg-t" x="20" y="196">fast path</text>
@@ -85,7 +85,7 @@
 <text class="dg-s" x="445" y="199" text-anchor="middle">commitQC</text>
 <path class="dg-e" d="M480,195 H486" marker-end="url(#dg-cs-a)"/>
 <rect class="dg-box" x="488" y="184" width="112" height="22" rx="11"/>
-<text class="dg-c" x="544" y="199" text-anchor="middle">finalize_commit</text>
+<text class="dg-c" x="544" y="199" text-anchor="middle" data-decl-veil="Chorus finalize_commit">finalize_commit</text>
 
 <!-- Fallback path -->
 <text class="dg-t" x="20" y="246">fallback path</text>
@@ -94,31 +94,31 @@
 <text class="dg-s" x="519" y="249" text-anchor="middle">fallback votes</text>
 <path class="dg-e" d="M566,245 H578" marker-end="url(#dg-cs-a)"/>
 <rect class="dg-box" x="580" y="234" width="100" height="22" rx="11"/>
-<text class="dg-c" x="630" y="249" text-anchor="middle">mvba_propose</text>
+<text class="dg-c" x="630" y="249" text-anchor="middle" data-decl-veil="Chorus mvba_propose">mvba_propose</text>
 <path class="dg-e" d="M680,245 H730 V264 H530 V272" marker-end="url(#dg-cs-a)"/>
 <rect class="dg-box" x="472" y="274" width="124" height="22" rx="4"/>
-<text class="dg-c" x="534" y="289" text-anchor="middle">mvba : MVBASafety</text>
+<text class="dg-c" x="534" y="289" text-anchor="middle" data-decl-veil="Chorus mvba">mvba : <tspan data-decl="MVBASafety">MVBASafety</tspan></text>
 <path class="dg-e" d="M596,285 H604" marker-end="url(#dg-cs-a)"/>
 <rect class="dg-box" x="606" y="274" width="132" height="22" rx="11"/>
-<text class="dg-c" x="672" y="289" text-anchor="middle">on_mvba_decide_pos</text>
+<text class="dg-c" x="672" y="289" text-anchor="middle" data-decl-veil="Chorus on_mvba_decide_pos">on_mvba_decide_pos</text>
 <path class="dg-e" d="M672,296 V304 H530 V312" marker-end="url(#dg-cs-a)"/>
 <rect class="dg-wit" x="472" y="314" width="134" height="22" rx="11"/>
 <text class="dg-s" x="539" y="329" text-anchor="middle">fallback commit votes</text>
 <path class="dg-e" d="M606,325 H614" marker-end="url(#dg-cs-a)"/>
 <rect class="dg-box" x="616" y="314" width="112" height="22" rx="11"/>
-<text class="dg-c" x="672" y="329" text-anchor="middle">finalize_commit</text>
+<text class="dg-c" x="672" y="329" text-anchor="middle" data-decl-veil="Chorus finalize_commit">finalize_commit</text>
 
 <!-- The adversary -->
 <text class="dg-t" x="20" y="368">adversary</text>
 <text class="dg-s" x="20" y="383">at any phase</text>
 <rect class="dg-rule" x="130" y="352" width="610" height="36" rx="6"/>
 <rect class="dg-box" x="142" y="359" width="124" height="22" rx="11"/>
-<text class="dg-c" x="204" y="374" text-anchor="middle">byz_sign_vote_pos</text>
+<text class="dg-c" x="204" y="374" text-anchor="middle" data-decl-veil="Chorus byz_sign_vote_pos">byz_sign_vote_pos</text>
 <text class="dg-s" x="278" y="374">and the other byz_ actions: Byzantine signers only, any phase</text>
 
 <!-- Notes -->
-<text class="dg-s" x="20" y="418"><tspan class="dg-c">phase</tspan> is one global value: every validator's timer guards read it, standing for each validator's own clock.</text>
-<text class="dg-s" x="20" y="436"><tspan class="dg-c">mvba_propose</tspan> fires from D + Δ on an FBCert, or from D + 2Δ on the validator's own complete fast meta-block.</text>
-<text class="dg-s" x="20" y="454"><tspan class="dg-c">on_mvba_decide_pos</tspan> is the one stated bridge: it checks a decided entry's certificate against the network.</text>
+<text class="dg-s" x="20" y="418"><tspan class="dg-c" data-decl-veil="Chorus phase">phase</tspan> is one global value: every validator's timer guards read it, standing for each validator's own clock.</text>
+<text class="dg-s" x="20" y="436"><tspan class="dg-c" data-decl-veil="Chorus mvba_propose">mvba_propose</tspan> fires from D + Δ on an FBCert, or from D + 2Δ on the validator's own complete fast meta-block.</text>
+<text class="dg-s" x="20" y="454"><tspan class="dg-c" data-decl-veil="Chorus on_mvba_decide_pos">on_mvba_decide_pos</tspan> is the one stated bridge: it checks a decided entry's certificate against the network.</text>
 <text class="dg-l" x="20" y="472">Code font: a declaration of the model. Dotted: a step summarised in words.</text>
 </svg>

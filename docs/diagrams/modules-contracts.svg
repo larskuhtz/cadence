@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 690" width="760" height="690" style="max-width:100%;height:auto" role="img" aria-labelledby="dg-mc-title dg-mc-desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 704" width="760" height="704" style="max-width:100%;height:auto" role="img" aria-labelledby="dg-mc-title dg-mc-desc">
 <title id="dg-mc-title">Modules and contracts</title>
-<desc id="dg-mc-desc">The composed claims sit on top: MCP Safety (Cadence.system_positional_log_safety) and the timed claims Corollary 4, Lemma 5, R-Liveness and R-Censorship resistance (Composed.corollary4, Composed.boundedConcurrency, Composed.liveness, Composed.censorship). They are proven about the glue, Algorithm 1, which consumes two contracts, orch : OrchestratorSafety and sc : SlotConsensusSafety. The Conductor meets Module 2 (Conductor.conductorFull) and fills orch; Chorus meets Module 1 (Chorus.slotConsensusFull) and fills sc. Chorus consumes mvba : MVBASafety, filled by the supplement's MVBA, which meets Module 3 (Mvba.mvbaFull). The Conductor consumes acs : ACSSafety, filled by any ACS meeting Module 4: the ACS is an assumed module, drawn dashed, and its ideal model Cadence.IdealAcs is a consistency witness, not a protocol. The receipt layer, Algorithm 5, sits beside Chorus: it refines one step of Chorus's fallback path and fills no contract.</desc>
+<desc id="dg-mc-desc">The composed claims sit on top: MCP Safety (Cadence.system_positional_log_safety) and the timed claims Corollary 4, Lemma 5, R-Liveness and R-Censorship resistance (Composed.corollary4, Composed.boundedConcurrency, Composed.liveness, Composed.censorship). They are proven about the glue, Algorithm 1, which consumes two contracts, orch : OrchestratorSafety and sc : SlotConsensusSafety. The Conductor meets Module 2 (Conductor.conductorFull) and fills orch; Chorus meets Module 1 (Chorus.slotConsensusFull) and fills sc. Chorus consumes mvba : MVBASafety, filled by the supplement's MVBA, which meets Module 3 (Mvba.mvbaFull). The Conductor consumes acs : ACSSafety, filled by any ACS meeting Module 4: the ACS is an assumed module, drawn dashed, and its ideal model, Cadence.IdealAcs.acsSafety and Cadence.IdealAcs.acsTemporal, is a consistency witness, not a protocol. The receipt layer, Algorithm 5, sits beside Chorus: it refines one step of Chorus's fallback path and fills no contract.</desc>
 <style>
 .dg-t{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#10131a}
 .dg-tk{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#6f42c1}
@@ -49,18 +49,18 @@
 <path class="dg-rule" d="M300,50 V128"/>
 <text class="dg-s" x="160" y="62" text-anchor="middle">Safety, in every reachable state</text>
 <text class="dg-p" x="160" y="82" text-anchor="middle">MCP Safety, Definition 1</text>
-<text class="dg-c" x="160" y="102" text-anchor="middle">Cadence.system_positional_log_safety</text>
+<text class="dg-c" x="160" y="102" text-anchor="middle" data-decl="Cadence.system_positional_log_safety">Cadence.system_positional_log_safety</text>
 <text class="dg-s" x="520" y="62" text-anchor="middle">Timed, in every run that meets the premises</text>
 <text class="dg-p" x="520" y="82" text-anchor="middle">Corollary 4 · Lemma 5 · 𝓡-Liveness · 𝓡-Censorship resistance</text>
-<text class="dg-c" x="520" y="102" text-anchor="middle">Composed.corollary4 · Composed.boundedConcurrency</text>
-<text class="dg-c" x="520" y="118" text-anchor="middle">Composed.liveness · Composed.censorship</text>
+<text class="dg-c" x="520" y="102" text-anchor="middle"><tspan data-decl="Composed.corollary4">Composed.corollary4</tspan> · <tspan data-decl="Composed.boundedConcurrency">Composed.boundedConcurrency</tspan></text>
+<text class="dg-c" x="520" y="118" text-anchor="middle"><tspan data-decl="Composed.liveness">Composed.liveness</tspan> · <tspan data-decl="Composed.censorship">Composed.censorship</tspan></text>
 
 <!-- The glue -->
 <rect class="dg-box" x="150" y="180" width="340" height="88" rx="8"/>
 <text class="dg-t" x="320" y="202" text-anchor="middle">The glue: extreme pipelining</text>
 <text class="dg-s" x="320" y="220" text-anchor="middle">Algorithm 1</text>
-<text class="dg-c" x="320" y="240" text-anchor="middle">instantiate orch : OrchestratorSafety …</text>
-<text class="dg-c" x="320" y="256" text-anchor="middle">instantiate sc : SlotConsensusSafety …</text>
+<text class="dg-c" x="320" y="240" text-anchor="middle" data-decl-veil="Cadence orch">instantiate orch : <tspan data-decl="OrchestratorSafety">OrchestratorSafety</tspan> …</text>
+<text class="dg-c" x="320" y="256" text-anchor="middle" data-decl-veil="Cadence sc">instantiate sc : <tspan data-decl="SlotConsensusSafety">SlotConsensusSafety</tspan> …</text>
 <path class="dg-e" d="M320,180 V143" marker-end="url(#dg-mc-a)"/>
 <text class="dg-l" x="330" y="166">proves</text>
 
@@ -68,9 +68,9 @@
 <rect class="dg-box" x="20" y="320" width="280" height="102" rx="8"/>
 <text class="dg-t" x="160" y="342" text-anchor="middle">Conductor ⊨ Orchestrator</text>
 <text class="dg-s" x="160" y="360" text-anchor="middle">Module 2 · Algorithm 7</text>
-<text class="dg-c" x="160" y="380" text-anchor="middle">Conductor.conductorFull</text>
+<text class="dg-c" x="160" y="380" text-anchor="middle" data-decl="Conductor.conductorFull">Conductor.conductorFull</text>
 <path class="dg-rule" d="M34,392 H286"/>
-<text class="dg-c" x="160" y="410" text-anchor="middle">instantiate acs : ACSSafety …</text>
+<text class="dg-c" x="160" y="410" text-anchor="middle" data-decl-veil="Conductor acs">instantiate acs : <tspan data-decl="ACSSafety">ACSSafety</tspan> …</text>
 <path class="dg-e" d="M160,320 V294 H240 V271" marker-end="url(#dg-mc-a)"/>
 <text class="dg-l" x="168" y="311">fills orch</text>
 
@@ -78,9 +78,9 @@
 <rect class="dg-box" x="330" y="320" width="270" height="102" rx="8"/>
 <text class="dg-t" x="465" y="342" text-anchor="middle">Chorus ⊨ SlotConsensus</text>
 <text class="dg-s" x="465" y="360" text-anchor="middle">Module 1</text>
-<text class="dg-c" x="465" y="380" text-anchor="middle">Chorus.slotConsensusFull</text>
+<text class="dg-c" x="465" y="380" text-anchor="middle" data-decl="Chorus.slotConsensusFull">Chorus.slotConsensusFull</text>
 <path class="dg-rule" d="M344,392 H586"/>
-<text class="dg-c" x="465" y="410" text-anchor="middle">instantiate mvba : MVBASafety …</text>
+<text class="dg-c" x="465" y="410" text-anchor="middle" data-decl-veil="Chorus mvba">instantiate mvba : <tspan data-decl="MVBASafety">MVBASafety</tspan> …</text>
 <path class="dg-e" d="M465,320 V294 H400 V271" marker-end="url(#dg-mc-a)"/>
 <text class="dg-l" x="473" y="311">fills sc</text>
 
@@ -94,14 +94,15 @@
 <path class="dg-rule" d="M600,371 H620"/>
 
 <!-- The ACS: assumed, with its consistency witness -->
-<rect class="dg-human" x="20" y="482" width="280" height="150" rx="8"/>
+<rect class="dg-human" x="20" y="482" width="280" height="164" rx="8"/>
 <text class="dg-tk" x="160" y="504" text-anchor="middle">ACS: an assumed module</text>
 <text class="dg-s" x="160" y="522" text-anchor="middle">Module 4 · the paper leaves the protocol open</text>
 <text class="dg-s" x="160" y="542" text-anchor="middle">every result holds for any ACS meeting</text>
-<text class="dg-c" x="160" y="558" text-anchor="middle">ACSSafety, ACSTemporal</text>
-<rect class="dg-wit" x="36" y="570" width="248" height="50" rx="6"/>
+<text class="dg-c" x="160" y="558" text-anchor="middle"><tspan data-decl="ACSSafety">ACSSafety</tspan>, <tspan data-decl="ACSTemporal">ACSTemporal</tspan></text>
+<rect class="dg-wit" x="36" y="570" width="248" height="64" rx="6"/>
 <text class="dg-s" x="160" y="590" text-anchor="middle">consistency witness, an ideal model:</text>
-<text class="dg-c" x="160" y="608" text-anchor="middle">Cadence.IdealAcs</text>
+<text class="dg-c" x="160" y="608" text-anchor="middle" data-decl="Cadence.IdealAcs.acsSafety">Cadence.IdealAcs.acsSafety</text>
+<text class="dg-c" x="160" y="624" text-anchor="middle" data-decl="Cadence.IdealAcs.acsTemporal">Cadence.IdealAcs.acsTemporal</text>
 <path class="dg-e dg-e-h" d="M160,482 V425" marker-end="url(#dg-mc-ah)"/>
 <text class="dg-k" x="168" y="458">fills acs</text>
 
@@ -109,17 +110,17 @@
 <rect class="dg-box" x="330" y="482" width="270" height="76" rx="8"/>
 <text class="dg-t" x="465" y="504" text-anchor="middle">Mvba ⊨ MVBA</text>
 <text class="dg-s" x="465" y="522" text-anchor="middle">Module 3 · the supplement</text>
-<text class="dg-c" x="465" y="542" text-anchor="middle">Mvba.mvbaFull</text>
+<text class="dg-c" x="465" y="542" text-anchor="middle" data-decl="Mvba.mvbaFull">Mvba.mvbaFull</text>
 <path class="dg-e" d="M465,482 V425" marker-end="url(#dg-mc-a)"/>
 <text class="dg-l" x="473" y="458">fills mvba</text>
 
 <!-- Legend -->
-<rect class="dg-box" x="20" y="656" width="26" height="16" rx="3"/>
-<text class="dg-s" x="54" y="668">proven model</text>
-<rect class="dg-human" x="150" y="656" width="26" height="16" rx="3"/>
-<text class="dg-s" x="184" y="668">assumed module</text>
-<rect class="dg-wit" x="296" y="656" width="26" height="16" rx="3"/>
-<text class="dg-s" x="330" y="668">consistency witness</text>
-<path class="dg-e" d="M468,664 H498" marker-end="url(#dg-mc-a)"/>
-<text class="dg-s" x="506" y="668">a Lean instance fills a contract constraint</text>
+<rect class="dg-box" x="20" y="670" width="26" height="16" rx="3"/>
+<text class="dg-s" x="54" y="682">proven model</text>
+<rect class="dg-human" x="150" y="670" width="26" height="16" rx="3"/>
+<text class="dg-s" x="184" y="682">assumed module</text>
+<rect class="dg-wit" x="296" y="670" width="26" height="16" rx="3"/>
+<text class="dg-s" x="330" y="682">consistency witness</text>
+<path class="dg-e" d="M468,678 H498" marker-end="url(#dg-mc-a)"/>
+<text class="dg-s" x="506" y="682">a Lean instance fills a contract constraint</text>
 </svg>

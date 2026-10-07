@@ -61,6 +61,25 @@ renamed, the diagram changes with it.
   other and leave the page's own styles alone. An `id` starts with the
   file's own prefix (`dg-mc-`, `dg-cpw-`, `dg-mt-`, `dg-cs-`), so ids stay
   unique on a page.
+* **Every declaration a diagram names carries its name in an attribute**,
+  so that the guide can resolve it when it builds and a rename cannot leave
+  a diagram stale:
+  * a Lean declaration: `data-decl` with its fully qualified name, also
+    where the visible text is shorter
+    (`<tspan data-decl="Composed.fmF">fmF</tspan>`);
+  * an item of a Veil model, whose Lean name the sources do not spell out:
+    `data-decl-veil` with the module and the item as the model declares
+    it, `"Chorus vote"`, `"Cadence orch"` for an `instantiate`, and
+    `"Chorus Phase.pre_deadline"` for a value of an `enum`;
+  * the attribute sits on the `<text>` when it names one declaration, and
+    on a `<tspan>` per name when it names several, or a declaration inside
+    other text (`instantiate mvba : MVBASafety …` carries
+    `data-decl-veil="Chorus mvba"` and a `<tspan data-decl="MVBASafety">`);
+  * no attribute: formulas and prose in code style (`n = 3f + 1`,
+    `TA.Δ`), a theorem's section hypotheses (`hrot`, `hprop`), files,
+    commands and options.
+
+  A new name in a diagram gets its attribute in the same edit.
 * **A `<title>` and a `<desc>`** in every file: the title is the diagram's
   name, the description says in prose everything the diagram shows, for a
   screen reader and for GitHub's image text.
