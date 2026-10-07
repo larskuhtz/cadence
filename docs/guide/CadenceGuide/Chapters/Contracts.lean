@@ -50,7 +50,7 @@ model that consumes the contract hands every field of it to the SMT solver.
 The *temporal level* ({decl}`SlotConsensusTemporal` and its siblings) holds
 everything stated over runs: termination, the timing bounds, and the
 execution model under which they hold. The full class, {decl}`SlotConsensus`
-for Module 1 ({cite}`mod:slotconsensus`), is the two together.
+for {cite}`mod:slotconsensus`, is the two together.
 
 A contract has a guarantee side and a rely side. The guarantee side is the
 fields. The rely side is explicit at the temporal level, in two places: what
@@ -115,7 +115,8 @@ Strength of this kind hides in three places.
 3. Could a message-passing protocol meet it, run by validators that know
    only their own state and the messages they received, against Byzantine
    validators?
-4. What proves it? A protocol model, whose own audit is chapter 4's; an ideal
+4. What proves it? A protocol model, whose own audit is
+   {chapter ModelIdioms}[chapter 4]'s; an ideal
    model, which shows only that the field can be met; or nothing, which makes
    the field an assumption of every claim above it.
 :::
@@ -138,7 +139,7 @@ execution model, and they carry the weight of the review.
 
 ## Slot consensus: Chorus
 
-Module 1 ({cite}`mod:slotconsensus`), one instance per slot. The temporal
+{cite}`mod:slotconsensus`, one instance per slot. The temporal
 level's termination takes two caller conditions as antecedents, every
 correct validator participating and none abandoning before it finalizes:
 Chorus's termination needs both and the module does not state them (finding
@@ -154,7 +155,7 @@ level of their own:
 
 ## Slot scheduling: the Conductor
 
-Module 2 ({cite}`mod:orchestrator_2`). Totality and recovery hold only
+{cite}`mod:orchestrator_2`. Totality and recovery hold only
 "when run within Cadence": a caller that never completes a slot keeps every
 validator in the first window. The contract states the two conditions the
 paper's proofs take from the caller as antecedents (finding P15).
@@ -165,7 +166,7 @@ paper's proofs take from the caller as antecedents (finding P15).
 
 ## The MVBA
 
-Module 3 ({cite}`mod:mvba`), as the supplement's leader-based protocol
+{cite}`mod:mvba`, as the supplement's leader-based protocol
 meets it. Agreement is over a meta-block's entries, and the fragment includes
 the decision handoff, a decision's certificate that another validator can
 accept, and the availability the MVBA waits for, which its caller reports as
@@ -175,7 +176,7 @@ an input (finding P12).
 
 # The ACS, an assumed module
 
-The paper specifies the ACS as Module 4 ({cite}`mod:acs`) and leaves its
+The paper specifies the ACS as {cite}`mod:acs` and leaves its
 protocol open (finding P17). The Conductor and the composed claims are
 therefore proven for every ACS that meets the contract, and every field of
 it is an assumption of those claims:
@@ -247,7 +248,8 @@ distributed protocol, is not answered by the type checker; for every contract
 it is the auditor's.
 
 For the three contracts with a protocol model, the answer reduces to the
-model: the field is proven of a Veil model, and chapter 4's audit, which
+model: the field is proven of a Veil model, and
+{chapter ModelIdioms}[chapter 4]'s audit, which
 checks that every action reads only what its validator could know, is what
 makes that model distributed. For the ACS there is no such model. A tool
 that checks the locality of a model's actions, and a reference ACS built

@@ -38,8 +38,8 @@ proof; the build fails on anything beyond Lean's standard three. *Conditional
 on* lists every module contract the theorem takes as a hypothesis, with what
 discharges it. A contract with no protocol instance is an assumption of the
 claim, and for every claim here that contract is the ACS's: the paper leaves
-the ACS protocol open, so the claims hold for every ACS that meets Module 4
-({cite}`mod:acs`). Chapter 5 reviews that contract field by field.
+the ACS protocol open, so the claims hold for every ACS that meets
+{cite}`mod:acs`. {chapter Contracts}[Chapter 5] reviews that contract field by field.
 
 ## MCP Safety
 
@@ -51,8 +51,8 @@ timing premise:
 
 Besides the ACS contract, the statement takes the three modules'
 configurations and one hypothesis, `hbyz`: the Conductor and Chorus agree on
-which validators are Byzantine. The front page omits it as a configuration
-fact. The four timed claims below need no such hypothesis, because they state
+which validators are Byzantine. It is a configuration fact, so the front
+page leaves it out. The four timed claims below need no such hypothesis, because they state
 every module at one fault pattern, {decl}`Composed.fmF`.
 
 ## Corollary 4
@@ -210,7 +210,7 @@ premises: they hold in every reachable state.
 A premise set is non-vacuous when it can hold, and here that is a theorem.
 One model of the whole composed system meets every premise of the four timed
 claims at once: four validators, one of them Byzantine and silent, the ideal
-ACS of chapter 5, and a run in which every slot is opened, proposed in,
+ACS of {chapter Contracts}[chapter 5], and a run in which every slot is opened, proposed in,
 finalized and appended, and every window decided and entered. One theorem
 per claim proves that its premises hold there, and only the premises, never
 a conclusion:
@@ -234,7 +234,7 @@ proof terms found every premise of every claim consumed by some step, with
 one exception kept by decision: the timed MVBA claim does not use its
 antecedent that every proposal is valid, because the model's `propose`
 checks validity itself; the antecedent stays, as the paper's caller
-condition of Module 3 ({cite}`mod:mvba`)
+condition of {cite}`mod:mvba`
 ([Premises.md](../../../Premises.md#7-independence-every-premise-is-used) §7).
 
 That is the formal bar: one model, and every premise used. Above it, the
@@ -245,15 +245,9 @@ plain-words list and the ledger are written for that judgement.
 
 ## The target
 
-The development corresponds to one revision of the paper repository,
-`48cac9a`: the main body of _Cadence: Extreme Pipelining with Multiple
-Concurrent Proposers_ (arXiv:2607.02275), together with its internal
-supplement, which specifies the MVBA. Claims are about that revision, and a
-protocol bug found here is a bug in it. The guide cites the paper as its
-rendered PDF shows it, with the source label in parentheses: Lemma 11
-({cite}`lemma:chorus-termination`), or for the supplement,
-{cite}`lem:decision-propagation`. The target, and how a later paper commit
-becomes one, is [PaperAlignment.md](../../../PaperAlignment.md#0-the-target) §0.
+Every claim is about one revision of the paper, `48cac9a`, its main body
+together with the internal supplement; {chapter Approach}[chapter 1] says
+what that means and how the guide cites it.
 
 ## What to accept against the paper
 

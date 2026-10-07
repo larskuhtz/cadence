@@ -59,8 +59,10 @@ where
 
 /-- The named premises of a claim's statement `e`: the heads of its
 hypotheses that are constants of this development, unfolding a `…Claim`
-definition of this development at the head of the conclusion. -/
-partial def namedPremises (e : Expr) : MetaM (Array Name) := do
+definition of this development at the head of the conclusion. A structured
+parameter counts only at the top, as a parameter of the theorem: inside the
+claim, a dependent binder is the run or the slot the claim speaks of. -/
+partial def namedPremises (e : Expr) (top : Bool := true) : MetaM (Array Name) := do
   let env ← getEnv
   let e := e.consumeMData
   match e with
@@ -70,15 +72,15 @@ partial def namedPremises (e : Expr) : MetaM (Array Name) := do
       if bi.isExplicit && isOwnConst env c then
         if !b.hasLooseBVars || (← isProp t) then
           acc := acc.push c
-        else if ← carriesConditions c then
+        else if top && (← carriesConditions c) then
           acc := acc.push c
-    withLocalDecl n bi t fun x => return acc ++ (← namedPremises (b.instantiate1 x))
+    withLocalDecl n bi t fun x => return acc ++ (← namedPremises (b.instantiate1 x) top)
   | _ =>
     match e.getAppFn.constName? with
     | some c =>
       if isOwnConst env c && c.toString.endsWith "Claim" then
         match ← unfoldDefinition? e with
-        | some e' => namedPremises (← whnfCore e')
+        | some e' => namedPremises (← whnfCore e') false
         | none => return #[]
       else return #[]
     | none => return #[]
@@ -104,9 +106,12 @@ named premise of the listed claims by a `{decl}`. -/
 def premises : DirectiveExpanderOf PremisesConfig
   | ⟨claims⟩, contents => do
     let fm ← getFileMap
-    let src := String.join <| contents.toList.filterMap fun stx => do
-      let r ← stx.raw.getRange?
-      pure (String.Pos.Raw.extract fm.source r.start r.stop)
+    -- The directive's own source, its contents included.
+    let src := match (← getRef).getRange? with
+      | some r => String.Pos.Raw.extract fm.source r.start r.stop
+      | none => ""
+    if src.isEmpty then
+      throwError "premises: the block's source text is not available, so it cannot be checked"
     let mentioned := declMentions src
     let mut missing : Array (Name × Name) := #[]
     for c in (claims.splitOn " ").filter (· != "") do
