@@ -34,7 +34,7 @@ block_extension Block.claimsBox (title : Option String) where
 .cg-claims { margin: 1.2rem 0 1.8rem; padding: 0.9rem 1.2rem 0.4rem;
   border: 1px solid #d0d7de; border-left: 4px solid #0b57d0; border-radius: 4px;
   background: #f6f8fa; }
-.cg-claims-title { font-weight: 700; font-size: 1.05em; margin-bottom: 0.5rem;
+.cg-claims-title { font-family: var(--verso-structure-font-family); font-weight: 700; font-size: 1.05em; margin-bottom: 0.5rem;
   color: var(--verso-structure-color, #10131a); }
 .cg-claims > p, .cg-claims > ul, .cg-claims > ol { margin-top: 0.4rem; margin-bottom: 0.7rem; }
 "#]

@@ -1,7 +1,7 @@
 /-
 `{figure "docs/diagrams/x.svg"}` — a diagram, inlined into the page.
 
-One source per diagram, a hand-written SVG under `docs/diagrams`, shown here
+One source per diagram, a hand-written SVG under [docs/diagrams](../../diagrams), shown here
 and, as a Markdown image, on GitHub. The file is read while the chapter elaborates and its markup placed in
 the page, so it takes the page's fonts and scales with the column. A file
 that breaks the conventions an inlined SVG depends on fails the build:
@@ -15,7 +15,8 @@ that breaks the conventions an inlined SVG depends on fails the build:
   carries it in `data-decl="Composed.liveness"` (a constant, resolved in the
   guide's environment) or `data-decl-veil="Chorus vote"` (an item of a Veil
   model that is not a constant, found in the rendered sources the way
-  `{model}` finds one), so a renamed declaration cannot leave a diagram
+  `{model}` finds one; an enum value is `"Chorus Phase.pre_deadline"`, and
+  must be listed by the enum's declaration), so a renamed declaration cannot leave a diagram
   stale. A resolved `<text>` or `<tspan>` becomes a link to the declaration
   in the rendered sources.
 
@@ -101,7 +102,7 @@ def figureMarkup (svg : String) : Except String String := do
 /-- The Veil commands that declare a model item, after the modifiers
 `immutable` and `ghost`. -/
 def veilKeywords : List String :=
-  ["relation", "individual", "function", "action", "procedure", "safety", "invariant",
+  ["relation", "individual", "function", "action", "procedure", "safety", "invariant", "enum",
    "step_property", "type", "instantiate", "assumption", "trusted"]
 
 /-- Does a source line declare `item`? `relation vote_quorum_pos (j : node)`,
@@ -119,9 +120,20 @@ rendered page, or why it cannot be found. -/
 def veilItemUrl (a : Anchors) (model item : String) : DocElabM (Except String String) := do
   let mod := `Cadence ++ model.toName
   let items ← loadItems mod
+  -- An enum value, `Phase.pre_deadline`: the item declaring the enum, which
+  -- must list the value.
+  let (name, value) := match item.splitOn "." with
+    | [t, v] => (t, some v)
+    | _ => (item, none)
   let hits := items.filter fun it =>
     (itemHighlighted it).any fun hl =>
-      (hl.toString.splitOn "\n").any (declaresItem ·.trimAscii.toString item)
+      (hl.toString.splitOn "\n").any fun l =>
+        let l := l.trimAscii.toString
+        match value with
+        | none => declaresItem l item
+        | some v =>
+          let members := ((((l.splitOn "{").getD 1 "").splitOn "}").head!).splitOn ","
+          declaresItem l name && members.any (·.trimAscii.toString == v)
   let #[it] := hits
     | return .error s!"{hits.size} items of {mod} declare `{item}`; expected one"
   let frag := match it.defines.find? a.defs.contains, it.range with

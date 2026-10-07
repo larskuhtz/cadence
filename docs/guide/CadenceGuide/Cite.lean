@@ -5,8 +5,8 @@
 comments and Markdown; the guide's prose is neither, so the guide cites through
 this role instead. The author writes the label and the reader sees the
 reference as the rendered PDF shows it, with the label in parentheses
-([CLAUDE.md](../../../CLAUDE.md), "Documentation rules"): `{cite}`alg:voting``
-renders "Algorithm 3 (`alg:voting`)". The reference is read from
+([CLAUDE.md](../../../CLAUDE.md), "Documentation rules"): the role applied to
+the label of the voting algorithm renders "Algorithm 3 (`alg:voting`)". The reference is read from
 [paper-labels.tsv](../../paper-labels.tsv), so it cannot drift from the target
 revision, and a label not in the map fails the build.
 -/

@@ -1,9 +1,8 @@
 /-
 An appendix of the guide: one specimen of each element the chapters write
 with, for the chapters' authors and for review. The session that has moved
-every element into its chapter removes this page, its `include` in
-[CadenceGuide.lean](../../CadenceGuide.lean), and the specimen files under
-[specimen](../../specimen).
+every element into its chapter removes this page and its `include` in
+[CadenceGuide.lean](../../CadenceGuide.lean).
 -/
 import CadenceGuide.Elements
 
@@ -24,8 +23,8 @@ the build when what it shows has gone stale._
 # A paper citation
 
 `{cite}` takes a label of the paper's target revision and renders the
-reference a reader finds in the PDF: {cite}`lemma:chorus-agreement`, and in
-the supplement {cite}`lem:decision-propagation`. A label that is not in the
+reference a reader finds in the PDF: {cite}`lemma:chorus-agreement`, or
+{cite}`lem:decision-propagation`. A label that is not in the
 label map fails the build.
 
 # A claims box
@@ -42,9 +41,11 @@ entries at the same position of their logs. {decl}`Cadence.system_positional_log
 
 `{figure}` inlines an SVG file from the repository, without its dark-scheme
 rules. A file that is missing, has no `<title>`, or uses a class or id
-without the `dg-` prefix fails the build.
+without the `dg-` prefix fails the build, and so does a declaration the
+diagram names that no longer exists; each name that resolves links to its
+declaration in the sources.
 
-{figure "docs/guide/specimen/placeholder.svg" (caption := "A placeholder, until the diagrams exist.")}
+{figure "docs/diagrams/modules-contracts.svg" (caption := "The modules, the contracts between them, and the composed claims.")}
 
 # A contract's checklist
 

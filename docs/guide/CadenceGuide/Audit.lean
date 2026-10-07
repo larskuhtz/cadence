@@ -234,7 +234,9 @@ block_extension Block.status (html : String) where
 .cg-status .cg-assumed { color: var(--cg-bad, #b3261e); font-weight: 600; }
 .cg-note { color: #57606a; font-size: 0.92em; }
 .cg-status.cg-plain { border-left-color: var(--cg-rule, #d0d7de); }
-.cg-contracts { border-collapse: collapse; margin: 0.8rem 0 1.6rem; font-size: 0.93em; }
+.cg-contracts { border-collapse: collapse; margin: 0.8rem 0 1.6rem; font-size: 0.93em;
+  font-family: var(--verso-text-font-family); }
+.cg-fields td:nth-child(2) { min-width: 18em; }
 .cg-contracts th, .cg-contracts td { text-align: left; padding: 0.35rem 0.7rem;
   border-bottom: 1px solid #8884; vertical-align: top; }
 .cg-contracts .cg-assumed { color: var(--cg-bad, #b3261e); font-weight: 600; }
