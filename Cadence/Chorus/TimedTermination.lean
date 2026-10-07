@@ -33,7 +33,7 @@ Up to the proposals the milestones are [Timeline.lean](Timeline.lean)'s.
 | a FallbackQC signer's chunk, sent to every validator | `fb_pos_sig_at_cast`, `fb_pos_sig_chunks` | (saturation; its hop due `M + 3Δ + 2δ`) | 2 |
 | every correct validator decides in the MVBA | `within_all_decided` (`T.termination`) | `X_d = t_M + ℓ_MVBA` | 3 |
 | a correct decision's entries recorded | `within_recorded` | `X_d + δ` | 4 |
-| the termination record `mvba_complete` | `within_complete` | `X_d + 2δ` | 5 |
+| each correct validator's termination record `local_mvba_complete` | `within_complete` | `X_d + 2δ` | 5 |
 | each fallback commit vote, under its own `B′` | `within_fbcommit_sig` | `X_v = X_d + 3δ` | 6 |
 | a correct fbCommitQC | (the honest quorum's votes, collapsed) | `X_v` | 6 |
 | every proposer's entry assigned | `within_assigned` | `X_v + Δ` | 6 |
@@ -300,8 +300,8 @@ theorem RecordedAs.step {r : TChorusRun thS thM time} {n : Nat} {v : MetaBlock n
   · exact Or.inr ⟨hM, Chorus.mvba_decided_neg.mono (r.steps n) J hd⟩
 
 /-- **Milestone: the decision handlers, `δ` after a correct decision.** From
-an index `N` at which a correct validator `i0` has decided `v0` and the
-MVBA's trigger holds (`mvba_invoked`), every proposer's entry of `v0` is
+an index `N` at which a correct validator `i0` has decided `v0`, every
+proposer's entry of `v0` is
 recorded by `ref N + δ`: each handler `on_mvba_decide_*` is a `δ`-row with no
 gate, enabled — its bridge check is `ValidBridge`'s completeness at the
 decision — until the entry is recorded. Its fired-once record could stand in
@@ -311,8 +311,7 @@ handlers of different proposers run in parallel (`withinFrom_forall`). -/
 theorem within_recorded [Fintype node] (sch : Schedule view time) {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) (hbr : ValidBridge r.toLRun) {N : Nat}
     {i0 : node} (hi0 : ¬ nset.is_byz i0 = true) {v0 : MetaBlock node merkle_root}
-    (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' N).mvba_st i0 v0)
-    (hinv : Chorus.mvba_invoked (nset := nset) (mvba := Mvba.mvbaSafety thM) thS (r.at' N)) :
+    (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' N).mvba_st i0 v0) :
     r.WithinFrom N (r.ref N + sch.δ)
       (fun st => ∀ J, thS.is_proposer J = true → RecordedAs thS thM v0 st J) := by
   mvba_inst
@@ -320,8 +319,6 @@ theorem within_recorded [Fintype node] (sch : Schedule view time) {r : TChorusRu
   have hcert : ∀ n, N ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) v0 :=
     r.mono (P := fun st => Certified (thS := thS) (thM := thM) st v0)
       (fun n h => h.step (r.steps n)) (hbr.2.1 N i0 v0 hi0 hd)
-  have hinv' : ∀ n, N ≤ n → Chorus.mvba_invoked thS (r.at' n) :=
-    r.mono (P := fun st => Chorus.mvba_invoked thS st) (fun n h => mvba_invoked_step (r.steps n) h) hinv
   have hx : r.clk N ≤ r.ref N + sch.δ :=
     le_trans (r.clk_le_ref N) (le_add_of_nonneg_right sch.mvba.δ_nonneg)
   have hW : r.bufWindow N N sch.δ sch.δ ≤ r.ref N + sch.δ := r.bufWindow_le le_rfl le_rfl
@@ -352,7 +349,7 @@ theorem within_recorded [Fintype node] (sch : Schedule view time) {r : TChorusRu
             (fun _ _ h => Or.inl ⟨M, hM, on_mvba_decide_pos_effect h⟩)
             (fun n hn _ hnr => ⟨trivial, fun _ => by
               obtain ⟨hp, -, -⟩ := hcert n hn
-              exact enabled_on_mvba_decide_pos hi0 hJ (hinv' n hn) (hdec n hn) hM (hp J M hM).2
+              exact enabled_on_mvba_decide_pos hi0 hJ (hdec n hn) hM (hp J M hM).2
                 (hfresh J n hn hnr)⟩)
             (fun _ _ _ _ => trivial)
           exact ⟨k, hk, hck, fun _ => hP⟩
@@ -362,7 +359,7 @@ theorem within_recorded [Fintype node] (sch : Schedule view time) {r : TChorusRu
             (fun _ _ h => Or.inr ⟨hM, on_mvba_decide_neg_effect h⟩)
             (fun n hn _ hnr => ⟨trivial, fun _ => by
               obtain ⟨-, hng, -⟩ := hcert n hn
-              exact enabled_on_mvba_decide_neg hi0 hJ (hinv' n hn) (hdec n hn) hM (hng J hM).2
+              exact enabled_on_mvba_decide_neg hi0 hJ (hdec n hn) hM (hng J hM).2
                 (hfresh J n hn hnr)⟩)
             (fun _ _ _ _ => trivial)
           exact ⟨k, hk, hck, fun _ => hP⟩
@@ -371,22 +368,20 @@ theorem within_recorded [Fintype node] (sch : Schedule view time) {r : TChorusRu
 
 omit [IsOrderedAddMonoid time] in
 /-- **Milestone: the termination record, `δ` after the decision handlers.**
-With every proposer's entry of a correct decision recorded at `N`,
-`mvba_terminate` is a `δ`-row with no gate, enabled until `mvba_complete`. -/
+With every proposer's entry of a correct validator's decision recorded at
+`N`, its `mvba_terminate` is a `δ`-row with no gate, enabled until its own
+`local_mvba_complete`. -/
 theorem within_complete (sch : Schedule view time) {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) {N : Nat}
     {i0 : node} (hi0 : ¬ nset.is_byz i0 = true) {v0 : MetaBlock node merkle_root}
     (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' N).mvba_st i0 v0)
-    (hinv : Chorus.mvba_invoked (nset := nset) (mvba := Mvba.mvbaSafety thM) thS (r.at' N))
     (hrec : ∀ J, thS.is_proposer J = true → RecordedAs thS thM v0 (r.at' N) J) :
-    r.WithinFrom N (r.ref N + sch.δ) (fun st => st.mvba_complete = true) := by
+    r.WithinFrom N (r.ref N + sch.δ) (fun st => st.local_mvba_complete i0 = true) := by
   mvba_inst
   have hdec := decided_persists r.toLRun hd
   refine r.withinFrom_of_bufferedFair (hTJ.rows (.mvba_terminate i0 v0) .loc rfl (fun h => h))
     le_rfl (r.bufWindow_le le_rfl le_rfl) (fun _ _ h => mvba_terminate_effect h)
-    (fun n hn _ hnc => ⟨trivial, fun _ => enabled_mvba_terminate hi0 hnc
-      (r.mono (P := fun st => Chorus.mvba_invoked thS st)
-        (fun m h => mvba_invoked_step (r.steps m) h) hinv n hn) (hdec n hn)
+    (fun n hn _ hnc => ⟨trivial, fun _ => enabled_mvba_terminate hi0 hnc (hdec n hn)
       (fun J hJ => r.mono (P := fun st => RecordedAs thS thM v0 st J)
         (fun m h => RecordedAs.step (r := r) h) (hrec J hJ) n hn)⟩)
     (fun _ _ _ _ => trivial)
@@ -399,14 +394,14 @@ omit [IsOrderedAddMonoid time] in
 Algorithm 5, line 39 (`line:fb-commit-wait`)), present from `Nc` on and due
 `Δ` after it. Its gate is the trigger: from `N` on, `i` is active, has
 decided `w`, its own `B′` and nothing else (the MVBA's integrity), and
-`mvba_complete` holds. So the vote is cast by `max(ref Nc + Δ, ref N + δ)`.
+holds its own `local_mvba_complete`. So the vote is cast by `max(ref Nc + Δ, ref N + δ)`.
 No common `B′` is assumed: each validator waits under its own decision. -/
 theorem within_fbcommit_sig (sch : Schedule view time) {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) {N₀ Nc N : Nat} (hN : N₀ ≤ N) (hNc : Nc ≤ N) {B : time}
     (hBc : r.ref Nc + sch.Δ ≤ B) (hB : r.ref N + sch.δ ≤ B) (hact : ActiveUntil r N₀ B)
     {i : node} (hi : ¬ nset.is_byz i = true) {w : MetaBlock node merkle_root}
     (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' N).mvba_st i w)
-    (hc : (r.at' N).mvba_complete = true)
+    (hc : (r.at' N).local_mvba_complete i = true)
     (hda : ∀ J M, thS.mval_pos (thM.ent w) J M = true → thS.mval_fb w J = true →
       (r.at' Nc).msg_chunk_received i J M = true) :
     r.WithinFrom Nc B (fun st => st.msg_fbcommit_sig i = true) := by
@@ -420,8 +415,8 @@ theorem within_fbcommit_sig (sch : Schedule view time) {r : TChorusRun thS thM t
         (fun hf => hnv (fbcommit_voted_sig r.toLRun n hf))⟩)
     (fun n hn hcl _ => ⟨hact n (by omega) hcl i hi, hdec n hn, fun w' h => Mvba.reachable_integrity
         (Chorus.reachable_mvba_reachable (r.reachable n)) i w' w hi h (hdec n hn),
-      r.mono (P := fun st => st.mvba_complete = true)
-        (fun m h => Chorus.mvba_complete.mono (r.steps m) h) hc n hn⟩)
+      r.mono (P := fun st => st.local_mvba_complete i = true)
+        (fun m h => Chorus.local_mvba_complete.mono (r.steps m) i h) hc n hn⟩)
 
 /-! ### The assembly -/
 
@@ -458,8 +453,10 @@ validator is active on that window (`activeUntil_of_not_finalized`), and:
   `t_M = M + 3Δ + 3δ` (`within_all_input`);
 * every correct validator decides in the MVBA by `X_d = t_M + ℓ_MVBA`
   (`within_all_decided`, nobody having abandoned);
-* a correct decision's entries are recorded by `X_d + δ` (`within_recorded`)
-  and `mvba_complete` holds by `X_d + 2δ` (`within_complete`);
+* a correct decision's entries are recorded by `X_d + δ` (`within_recorded`),
+  which by the MVBA's agreement are every correct decision's, and every
+  correct validator has transported its own decision by `X_d + 2δ`
+  (`within_complete`);
 * every correct validator holds its chunk under each positive FallbackQC
   entry of its own decision by `M + 3Δ + 2δ`: the entry's FallbackQC has a
   correct signer, whose signature was there at its second-round vote
@@ -558,40 +555,48 @@ theorem within_finalized_late [Fintype node] (sch : Schedule view time)
     fun q hq => within_all_decided T hadm (le_trans hgM (le_trans hMP2 (le_trans hP2P3 hP3tM))) hprop
       (fun i hi n hc ha => hnfv n i hi (le_trans hc (le_trans hXd1 (le_trans hXd2 hXdXv)))
         (hab i hi n ha)) hq
-  -- The trigger, from saturation on.
-  have hinvs : Chorus.mvba_invoked thS (r.at' Ns) :=
-    mvba_invoked_of_correct (correctTrigger_of_saturated hH hHh hsat)
-  have hinv : ∀ n, Ns ≤ n → Chorus.mvba_invoked thS (r.at' n) :=
-    r.mono (P := fun st => Chorus.mvba_invoked thS st) (fun n h => mvba_invoked_step (r.steps n) h) hinvs
   have hrefle : ∀ {n : Nat} {X : time}, r.clk n ≤ X → r.gst ≤ X → r.ref n ≤ X :=
     fun hc hg => r.ref_le hc hg
   have hgXd : r.gst ≤ Xd := le_trans hgM (le_trans hMP2 (le_trans hP2P3 (le_trans hP3tM htMXd)))
   have hcsXd : r.clk Ns ≤ Xd := le_trans hcs (le_trans hP2P3 (le_trans hP3tM htMXd))
-  -- The decision handlers and the termination record, on `i0`'s decision.
+  -- The decision handlers, on `i0`'s decision.
   obtain ⟨n0, hc0, v0, hd0⟩ := hdec i0 hi0
   have hd0' := decided_persists r.toLRun hd0
   set N1 := max n0 Ns with hN1
   obtain ⟨N2, hN2, hc2, hrec⟩ := within_recorded sch hTJ hbr hi0 (hd0' N1 (le_max_left _ _))
-    (hinv N1 (le_max_right _ _))
   have hc2' : r.clk N2 ≤ Xd + sch.δ :=
     le_trans hc2 (add_le_add (hrefle (r.clk_max_le' hc0 hcsXd) hgXd) le_rfl)
-  obtain ⟨N3, hN3, hc3, hcomp⟩ := within_complete sch hTJ hi0 (hd0' N2 (by omega))
-    (hinv N2 (by omega)) hrec
-  have hc3' : r.clk N3 ≤ Xd + 2 • sch.δ := by
-    refine le_trans hc3 ?_
-    calc r.ref N2 + sch.δ ≤ Xd + sch.δ + sch.δ :=
-          add_le_add (hrefle hc2' (le_trans hgXd hXd1)) le_rfl
-      _ = Xd + 2 • sch.δ := by rw [two_nsmul, add_assoc]
-  have hcomp' : ∀ n, N3 ≤ n → (r.at' n).mvba_complete = true :=
-    r.mono (P := fun st => st.mvba_complete = true)
-      (fun m h => Chorus.mvba_complete.mono (r.steps m) h) hcomp
+  have hc2v : r.clk N2 ≤ Xv := le_trans hc2' (le_trans hXd2 hXdXv)
   have hgXd2 : r.gst ≤ Xd + 2 • sch.δ := le_trans hgXd (le_trans hXd1 hXd2)
   -- Every correct validator's fallback commit vote, by `X_v`.
   have hvote : ∀ i, ¬ nset.is_byz i = true →
-      ∃ n, N3 ≤ n ∧ r.clk n ≤ Xv ∧ (r.at' n).msg_fbcommit_sig i = true := by
+      ∃ n, N2 ≤ n ∧ r.clk n ≤ Xv ∧ (r.at' n).msg_fbcommit_sig i = true := by
     intro i hi
     obtain ⟨ni, hci, w, hdw⟩ := hdec i hi
     have hdw' := decided_persists r.toLRun hdw
+    -- `i`'s own decision has `v0`'s entries (the MVBA's agreement), which
+    -- are recorded, so `i` transports it by `X_d + 2δ`.
+    set Nw := max ni N2 with hNw
+    have hent_eq : thM.ent w = thM.ent v0 :=
+      (Mvba.mvbaSafety (nset := nset) thM).agreement _
+        (Chorus.reachable_mvba_reachable (r.reachable Nw)) i i0 w v0 hi hi0
+        (hdw' Nw (le_max_left _ _)) (hd0' Nw (by omega))
+    have hrecw : ∀ J, thS.is_proposer J = true → RecordedAs thS thM w (r.at' Nw) J := fun J hJ => by
+      have h := r.mono (P := fun st => RecordedAs thS thM v0 st J)
+        (fun m h => RecordedAs.step (r := r) h) (hrec J hJ) Nw (le_max_right _ _)
+      unfold RecordedAs at h ⊢
+      rw [hent_eq]
+      exact h
+    obtain ⟨N3, hN3, hc3, hcomp⟩ := within_complete sch hTJ hi (hdw' Nw (le_max_left _ _)) hrecw
+    have hcw2 : r.clk Nw ≤ Xd + sch.δ := r.clk_max_le' (le_trans hci hXd1) hc2'
+    have hc3' : r.clk N3 ≤ Xd + 2 • sch.δ := by
+      refine le_trans hc3 ?_
+      calc r.ref Nw + sch.δ ≤ Xd + sch.δ + sch.δ :=
+            add_le_add (hrefle hcw2 (le_trans hgXd hXd1)) le_rfl
+        _ = Xd + 2 • sch.δ := by rw [two_nsmul, add_assoc]
+    have hcomp' : ∀ n, N3 ≤ n → (r.at' n).local_mvba_complete i = true :=
+      r.mono (P := fun st => st.local_mvba_complete i = true)
+        (fun m h => Chorus.local_mvba_complete.mono (r.steps m) i h) hcomp
     have hcw : Certified (thS := thS) (thM := thM) (r.at' ni) w := hbr.2.1 ni i w hi hdw
     -- The chunks under `w`'s FallbackQC entries, at saturation already: each
     -- entry's correct signer signed before its second-round vote, and sent
@@ -616,19 +621,19 @@ theorem within_finalized_late [Fintype node] (sch : Schedule view time)
         (le_of_eq (by rw [hP3, hMdef]; abel))) hP3Xv)
       (by rw [← hXd3]; exact add_le_add (hrefle hcv hgXd2) le_rfl) hact hi
       (hdw' Nv (le_max_left _ _)) (hcomp' Nv (by omega)) hchunks
-    exact ⟨max n N3, le_max_right _ _, r.clk_max_le' hcn (le_trans hc3' hXdXv),
+    exact ⟨max n N2, le_max_right _ _, r.clk_max_le' hcn hc2v,
       r.mono (P := fun st => st.msg_fbcommit_sig i = true)
         (fun m h => Chorus.msg_fbcommit_sig.mono (r.steps m) i h) h _ (le_max_left _ _)⟩
   -- The honest quorum's votes, at one index: a correct fbCommitQC.
   obtain ⟨N4, hN4, hc4, hq4⟩ := r.withinFrom_forall
     (fun a st => nset.member a H = true → st.msg_fbcommit_sig a = true)
-    (fun a n h hm => Chorus.msg_fbcommit_sig.mono (r.steps n) a (h hm)) N3 Xv
-    (le_trans hc3' hXdXv) (Finset.univ : Finset node).toList
+    (fun a n h hm => Chorus.msg_fbcommit_sig.mono (r.steps n) a (h hm)) N2 Xv
+    hc2v (Finset.univ : Finset node).toList
     (fun a _ => by
       by_cases hm : nset.member a H = true
       · obtain ⟨n, hn, hcn, h⟩ := hvote a (hHh a hm)
         exact ⟨n, hn, hcn, fun _ => h⟩
-      · exact ⟨N3, le_rfl, le_trans hc3' hXdXv, fun h => absurd h hm⟩)
+      · exact ⟨N2, le_rfl, hc2v, fun h => absurd h hm⟩)
   have hqc : CorrectFbCommitQC (nset := nset) (r.at' N4) :=
     ⟨H, hH, hHh, fun a ha => hq4 a (by simp) ha⟩
   -- The assignments, by `X_v + Δ`.

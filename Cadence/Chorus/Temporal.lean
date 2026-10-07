@@ -313,11 +313,11 @@ theorem not_enabled_of_idle {s : StateAtMvba slot node nodeset merkle_root view 
     exact Mvba.not_enabled_decide_of_quiet (th := thM) hI.quiet ⟨_, h⟩
   case on_mvba_decide_pos =>
     chorus_tr htr
-    obtain ⟨-, -, -, hdec, -⟩ := htr
+    obtain ⟨-, -, hdec, -⟩ := htr
     exact hI.not_decided _ _ hdec
   case on_mvba_decide_neg =>
     chorus_tr htr
-    obtain ⟨-, -, -, hdec, -⟩ := htr
+    obtain ⟨-, -, hdec, -⟩ := htr
     exact hI.not_decided _ _ hdec
   case on_mvba_commitqc_pos =>
     chorus_tr htr
@@ -329,7 +329,7 @@ theorem not_enabled_of_idle {s : StateAtMvba slot node nodeset merkle_root view 
     exact hI.not_certified _ _ hc
   case mvba_terminate =>
     chorus_tr htr
-    obtain ⟨-, -, -, hdec, -⟩ := htr
+    obtain ⟨-, -, hdec, -⟩ := htr
     exact hI.not_decided _ _ hdec
   case aggregate_fastqc_pos =>
     chorus_tr htr

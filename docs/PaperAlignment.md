@@ -1223,10 +1223,16 @@ premise (F-avail) and the timed one (Δ-avail) are derived from Chorus's
 fairness and rows (`Chorus.fAvail_of_fJustice`,
 `Chorus.availWithin_of_timedJustice`). The coupling itself is P12.
 
-**(d) No MVBA-arm gate.** The decision handlers, `mvba_terminate` and
-`cast_fb_commit` have no phase gate, because the target's rules have none:
+**(d) No MVBA-arm gate, and no invocation gate.** The decision handlers,
+`mvba_terminate` and `cast_fb_commit` have no phase gate, and they do not
+require that the MVBA was invoked, because the target's rules have neither:
 the decision handler runs "upon `MVBA[s].decide(B′)`" (Algorithm 5, line 37
-(`line:fb-mvba-decide`)). The model's remaining phase guards are the
+(`line:fb-mvba-decide`)), and the paper's `mvbaInvoked` is the proposer's
+own flag, read by its two proposal rules and by the forwarding of
+`abandon()` (Algorithm 5, line 48 (`line:fb-abandon`)). The fallback commit
+vote reads the voter's own decision and its own transport record
+(`local_mvba_complete`), as Algorithm 5, line 41 (`line:fb-commitvote`) signs the
+voter's own `entries(B′)`. The model's remaining phase guards are the
 target's own: the deadline (`propose`, `record_chunk`, `vote`), the
 fallback arm (`fb_sign_*`, `cast_fallback_vote`), and the two triggers of
 `mvba_propose`. The one phase invariant the records need,
