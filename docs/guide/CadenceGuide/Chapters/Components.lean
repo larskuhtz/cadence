@@ -2,7 +2,7 @@
 Chapter 6 of the guide: The components.
 -/
 import CadenceGuide.Elements
-import CadenceGuide.ChapterLink
+import CadenceGuide.ChapterList
 
 open Verso.Genre Manual
 open CadenceGuide
@@ -21,7 +21,7 @@ algorithm of the paper it verifies, and a composition layer that joins them
 into the system the composed claims are about. This chapter is the
 reference for each part. A section says what the paper specifies, what the
 model covers and what it leaves out, the end results as the development
-states them, and where to read further. {chapter "approach"}[Chapter 1]
+states them, and where to read further. {chapter Approach}[Chapter 1]
 shows how the parts fit together.
 
 :::table +header
@@ -98,8 +98,8 @@ per capability of a Byzantine validator. It abstracts:
 [ChorusDesign.md](../../../ChorusDesign.md) §3.4 and §8 list each abstraction
 with its argument.
 
-{chapter "reading-a-model"}[Chapter 3] reads the model in detail, and
-{chapter "modelling-idioms"}[chapter 4] audits it action by action.
+{chapter ReadingModel}[Chapter 3] reads the model in detail, and
+{chapter ModelIdioms}[chapter 4] audits it action by action.
 
 *The end result.* Chorus meets the whole of {cite}`mod:slotconsensus` at the
 configuration the composed system runs:
@@ -149,7 +149,7 @@ The whole contract, with termination within an explicit `ℓ_MVBA` of order
 
 The supplement's proof of agreement inducts over views. The model's
 invariants replace that induction with one first-order statement, and
-the mutation test of {chapter "checking"}[chapter 7] shows that the lock
+the mutation test of {chapter Checking}[chapter 7] shows that the lock
 check they rest on is needed.
 
 *Further detail:* the [model's header](../../../../Cadence/Mvba.lean),
@@ -171,7 +171,7 @@ specification.
 rule, with the slot openings at their starting times. It abstracts:
 
 * the ACS, which enters as its contract, one abstract instance per window;
-  the ACS is an assumed module ({chapter "contracts"}[chapter 5]);
+  the ACS is an assumed module ({chapter Contracts}[chapter 5]);
 * time, as an abstract clock that only makes "not before the starting time"
   expressible; the timing lives in the timed claims, over runs;
 * punctual opening: the model lets an enabled opening wait, which only adds
@@ -289,7 +289,7 @@ The rest are {decl}`Composed.boundedConcurrency`
 ({cite}`lemma:cadence-liveness`) and {decl}`Composed.censorship`
 ({cite}`def:censorship-resistance`), each also at the sharper recovery time
 ({decl}`Composed.liveness_sharp`, {decl}`Composed.censorship_sharp`).
-{chapter "claims"}[Chapter 2] states each with its premises, and the witness
+{chapter Claims}[Chapter 2] states each with its premises, and the witness
 model, {decl}`Composed.Witness.liveness_premises_satisfiable` and its
 siblings, meets all the premises at once.
 

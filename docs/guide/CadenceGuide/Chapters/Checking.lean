@@ -2,7 +2,7 @@
 Chapter 7 of the guide: How the proofs are checked.
 -/
 import CadenceGuide.Elements
-import CadenceGuide.ChapterLink
+import CadenceGuide.ChapterList
 import CadenceGuide.Pin
 
 open Verso.Genre Manual
@@ -168,8 +168,8 @@ fails until it is updated.
 *What the pins do not say.* They say the proofs are complete and rest on
 Lean's axioms. Whether the statements are the right ones, that the model is
 the paper's protocol and its premises are plausible, is the reader's part:
-{chapter "claims"}[chapter 2], {chapter "modelling-idioms"}[chapter 4] and
-{chapter "contracts"}[chapter 5].
+{chapter Claims}[chapter 2], {chapter ModelIdioms}[chapter 4] and
+{chapter Contracts}[chapter 5].
 
 # The proof cache
 
