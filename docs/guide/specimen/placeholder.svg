@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 150" width="560" height="150" role="img" aria-labelledby="dg-ph-title dg-ph-desc">
+<title id="dg-ph-title">Placeholder figure</title>
+<desc id="dg-ph-desc">A model, Chorus, with its safety property agreement_pos, joined by the instance slotConsensusFull to the contract SlotConsensus: a placeholder that exercises the figure element until the real diagrams exist.</desc>
+<style>
+.dg-ph-box{fill:#f6f8fa;stroke:#57606a;stroke-width:1.2}
+.dg-ph-t{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#10131a}
+.dg-ph-c{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#0550ae}
+.dg-ph-e{stroke:#57606a;stroke-width:1.4;fill:none;marker-end:url(#dg-ph-a)}
+#dg-ph-a path{fill:#57606a}
+@media (prefers-color-scheme: dark){
+.dg-ph-box{fill:#161b22;stroke:#8b949e}
+.dg-ph-t{fill:#e6edf3}
+.dg-ph-c{fill:#58a6ff}
+.dg-ph-e{stroke:#8b949e}
+#dg-ph-a path{fill:#8b949e}
+}
+</style>
+<defs><marker id="dg-ph-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="dg-ph-box" x="20" y="45" width="180" height="60" rx="8"/>
+<text class="dg-ph-t" x="110" y="72" text-anchor="middle">Chorus</text>
+<text class="dg-ph-c" data-decl-veil="Chorus agreement_pos" x="110" y="92" text-anchor="middle">agreement_pos</text>
+<rect class="dg-ph-box" x="320" y="45" width="180" height="60" rx="8"/>
+<text class="dg-ph-c" data-decl="SlotConsensus" x="410" y="80" text-anchor="middle">SlotConsensus</text>
+<path class="dg-ph-e" d="M200,75 L318,75"/>
+<text class="dg-ph-c" data-decl="Chorus.slotConsensusFull" x="260" y="64" text-anchor="middle">slotConsensusFull</text>
+</svg>

@@ -32,12 +32,13 @@
 // (`site-links.js`, loaded before this script), keyed by that file. Which
 // file a comment is from: the nearest `data-cadence-source` attribute (the
 // guide marks its quotations and embedded docstrings), else the page's
-// `cadence-source` meta tag (the guide's own prose), else the page's place
-// under `sources/` (`sources/Cadence/Chorus/` is `Cadence/Chorus.lean`). The
-// same table rewrites the `href` of every link on a page that declares its
-// source — the guide, whose Markdown the renderer emits unresolved. The
-// sources pages need no such pass: their doc-comment links are rewritten
-// before rendering.
+// `cadence-source` meta tag, else the page's place under `sources/`
+// (`sources/Cadence/Chorus/` is `Cadence/Chorus.lean`). On a page that
+// declares its source with that tag, the same table also rewrites the `href`
+// of every link. No page uses the tag today: the sources pages' doc-comment
+// links are rewritten before rendering, and the guide's own links when it is
+// rendered (`scripts/guide.sh`), since each of its pages comes from a
+// different file.
 
 (function () {
   "use strict";
