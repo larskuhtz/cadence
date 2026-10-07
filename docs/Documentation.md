@@ -328,15 +328,38 @@ the source as well as on the page, and needs nothing from upstream.
 
 ## What it costs
 
-Two costs are specific to this project and worth knowing before changing
+Three costs are specific to this project and worth knowing before changing
 anything here.
 
 * **The renderer re-elaborates every module it publishes.** Highlighting
   needs the elaborator's info trees, which an `.olean` does not carry, so
-  having built the project is a precondition rather than a substitute. The
-  published modules take about nine minutes in total, and `Cadence.Chorus`
-  is around three minutes of that on its own, at a peak near 10 GB; most of
-  the rest are under twenty seconds each (measured 2026-09-29). Rendering is serial for that reason.
+  having built the project is a precondition rather than a substitute. On
+  CI's 4-vCPU runner the 67 published modules take 57 minutes one after
+  another; `Cadence.Chorus` is 21 of them on its own, `Cadence.Mvba.Compose`
+  and `Cadence.Mvba` about four each, and 57 of the 67 are under a minute
+  (run 37593789847, 2026-10-07). Locally the three largest renders peak at
+  6.4, 2.6 and 2.3 GB (`Chorus`, `Mvba`, `Mvba.Compose`; 408, 85 and 97 s).
+  Two things keep this off the critical path:
+  * *Renders run `JOBS` at a time*, largest first (default 2; CI uses 2,
+    which keeps `Chorus` and its companion inside the 13 GB container with
+    room to spare). The `Chorus` render is then the floor.
+  * *A rendering is reused while its inputs are unchanged.* Each module's
+    JSON carries a key: lake's own input hash for the module (its source,
+    the toolchain, every imported `.olean` by content), the source's hash,
+    the renderer binary's hash, and the text of the script's filters. Only a
+    module whose key changed is rendered again, so a commit that touches no
+    Lean source renders nothing, and one that touches a leaf module renders
+    that module. CI carries the renderings between runs in an
+    `actions/cache` entry; the key, not the entry, decides what is reused.
+
+  Locally (2026-10-07), a full `scripts/docs.sh` with `JOBS=2` and nothing
+  to reuse took 12.5 minutes, `Chorus` 7.3 of them; run again, with all 67
+  renderings reused, 1.4 minutes, and the same site.
+* **The guide computes its status boxes from the environment while it
+  builds**, so a per-element cost multiplies by the number of elements. An
+  element that walks the environment walks this development's modules only
+  (`providersOf` in [Audit.lean](guide/CadenceGuide/Audit.lean) says why);
+  the whole guide builds in about 20 s locally.
 * **`scripts/docs.sh` refuses to start unless the project is up to date**
   (`lake build --no-build`). That is a hard gate, not a convenience: the
   rendering stage runs with `VEIL_NO_VERIFY=1`, and an out-of-date module
