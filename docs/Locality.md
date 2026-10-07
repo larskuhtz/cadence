@@ -107,7 +107,37 @@ reads or writes a validator's state or the network. *Check*: syntactic.
 locality is the implementing model's, checked there by these same rules
 (`Mvba` for the MVBA); the contract abstracts it.
 
-## 5. Certificates
+## 5. Composition
+
+A model consumes a sub-protocol through its contract class
+([CompositionContracts.md](CompositionContracts.md)), and the contract's
+operations are the interface between a node and its part of the
+sub-protocol. The rule is the same as for state: **an operation a node
+invokes carries only information available to that node, and what it
+returns carries only information local to that node.** Concretely, every
+operation an action uses is one of:
+
+| Operation | Example | Rule |
+|---|---|---|
+| an **input** at the actor's index | `mvba.propose st x v next`, `acs.abandon st x next` | W3 |
+| an **output or record** at the actor's index | `mvba.decided st x v`, `acs.has_decided st x` | R6 |
+| a **pure function** of data the node holds | `mvba.entries v` | R5 |
+| a **check** of a message the node holds | `mvba.certifies st c e`, for a certificate `c` the node has received | R2: the check holds iff the signatures it verifies are on the sub-protocol's network, which a contract field keeps monotone (`certified_mono`) |
+
+The sub-protocol's own step (`mvba.step`) is not invoked by a node: it is the
+sub-protocol's actors, whose locality the implementing model checks.
+
+The split is between **computational content and properties**. The
+operations above are what actions compute with, and they obey these rules.
+The contract's *fields* — agreement, frames, monotonicity, the temporal
+obligations — are properties: they relate the state at several validators,
+or several states, and are used only in invariants and proofs, which are
+not bound by locality. A field never appears in a guard; that would be
+restating a contract property in a consumer, which the composition already
+forbids. *Check*: syntactic — a guard's contract terms are the operations
+above, at the actor's index where they take one.
+
+## 6. Certificates
 
 A certificate is formed in local state and travels as a message. A
 validator **forms** it in a step that reads the signatures it aggregates
@@ -119,7 +149,7 @@ aggregate as a ghost over the signatures and act on it at once; what it
 decides is then recorded in its own local state, never left to be derived
 again from the network by a later step.
 
-## 6. The models against the rules
+## 7. The models against the rules
 
 | Model | Local rows (§2) | Status |
 |---|---|---|
