@@ -47,10 +47,9 @@ certificate, a correct finalizer's commitment proof.
   voter's complete meta-block, or else the correct population's `FBCert`),
   with a certificate for every proposer.
 
-Until R8 the late branch split on the dichotomy and took a commit route on
-its left disjunct. That disjunct's commit certificates may rest on
-Byzantine commit votes nobody correct is owed, while the MVBA route is open
-at every saturated state, so the split is gone.
+The late branch does not split on the dichotomy. Its left disjunct's commit
+certificates may rest on Byzantine commit votes that nobody correct is
+owed, while the MVBA route is open at every saturated state.
 
 ## Stage 4: the MVBA arm, from the run premises and the gate
 
@@ -69,10 +68,10 @@ derived (every correct validator proposes; nobody is abandoned in the MVBA,
 because on this branch nobody invokes Chorus's `abandon`, and the MVBA's
 `abandoned` row moves only with it — `abandoned_of_mvba_abandoned`; and
 decided certificates are handed on, `fRelay_of_fJustice`, from the handoff
-`accept_mvba_commitqc`); one decision is transported into Chorus by the
-decision handlers (the bridge's completeness clause) and completed by
-`mvba_terminate`; every correct validator's own chunks arrive and it casts
-its fallback commit vote; and the correct voters' fallback commit
+`accept_mvba_commitqc`); every correct validator's decision is transported
+into Chorus by its decision handlers (the bridge's completeness clause) and
+completed by its own `mvba_terminate`; every correct validator's own chunks
+arrive and it casts its fallback commit vote; and the correct voters' fallback commit
 certificate is a commitment proof for every proposer's entry, the commit
 route's hypothesis (`eventually_committed_of_assignable`). Stage 5 is the
 case split above: `Chorus.termination`.
@@ -649,7 +648,7 @@ theorem mvba_recorded_flip {l} {i j : node}
   cases l
   case on_mvba_decide_pos i' j' m' v' =>
     chorus_tr htr
-    obtain ⟨-, -, -, hd, hv, -, -, rfl⟩ := htr
+    obtain ⟨-, -, hd, hv, -, -, rfl⟩ := htr
     chorus_field_simp
     rcases eq_or_ne i' i with rfl | hi
     · rcases eq_or_ne j' j with rfl | hj
@@ -658,7 +657,7 @@ theorem mvba_recorded_flip {l} {i j : node}
     · simp_all
   case on_mvba_decide_neg i' j' v' =>
     chorus_tr htr
-    obtain ⟨-, -, -, hd, hv, -, -, rfl⟩ := htr
+    obtain ⟨-, -, hd, hv, -, -, rfl⟩ := htr
     chorus_field_simp
     rcases eq_or_ne i' i with rfl | hi
     · rcases eq_or_ne j' j with rfl | hj
@@ -1034,62 +1033,62 @@ theorem enabled_mvba_avail_ready {i : node} {v : mvalue} {n : mstate}
 
 theorem enabled_on_mvba_decide_pos {i j : node} {m : merkle_root} {v : mvalue}
     (hi : ¬ nset.is_byz i = true)
-    (hj : th.is_proposer j = true) (hinv : Chorus.mvba_invoked th s)
+    (hj : th.is_proposer j = true)
     (hd : mvba.decided s.mvba_st i v) (hv : th.mval_pos (mvba.entries v) j m = true)
     (hc : (¬ th.mval_fb v j = true ∧ Chorus.vote_quorum_pos j m th s) ∨
       (th.mval_fb v j = true ∧ Chorus.fb_quorum_pos j m th s ∧ Chorus.fbcert th s))
     (hfr : ¬ s.local_mvba_recorded i j = true) :
     Enabled RTS th s (.on_mvba_decide_pos i j m v) := by
   chorus_enabled
-  exact ⟨_, hi, hj, hinv, hd, hv, hc, hfr, rfl⟩
+  exact ⟨_, hi, hj, hd, hv, hc, hfr, rfl⟩
 
 theorem on_mvba_decide_pos_effect {i j : node} {m : merkle_root} {v : mvalue}
     (htr : (RTS).tr th s (.on_mvba_decide_pos i j m v) s') :
     s'.mvba_decided_pos j m = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_on_mvba_decide_neg {i j : node} {v : mvalue}
     (hi : ¬ nset.is_byz i = true)
-    (hj : th.is_proposer j = true) (hinv : Chorus.mvba_invoked th s)
+    (hj : th.is_proposer j = true)
     (hd : mvba.decided s.mvba_st i v) (hv : th.mval_neg (mvba.entries v) j = true)
     (hc : Chorus.vote_quorum_neg j th s ∨
       ((Chorus.fb_quorum_neg j th s ∨ Chorus.equiv_evidence j th s) ∧ Chorus.fbcert th s))
     (hfr : ¬ s.local_mvba_recorded i j = true) :
     Enabled RTS th s (.on_mvba_decide_neg i j v) := by
   chorus_enabled
-  exact ⟨_, hi, hj, hinv, hd, hv, hc, hfr, rfl⟩
+  exact ⟨_, hi, hj, hd, hv, hc, hfr, rfl⟩
 
 theorem on_mvba_decide_neg_effect {i j : node} {v : mvalue}
     (htr : (RTS).tr th s (.on_mvba_decide_neg i j v) s') :
     s'.mvba_decided_neg j = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_mvba_terminate {i : node} {v : mvalue}
     (hi : ¬ nset.is_byz i = true)
-    (hnc : ¬ s.mvba_complete = true) (hinv : Chorus.mvba_invoked th s)
+    (hnc : ¬ s.local_mvba_complete i = true)
     (hd : mvba.decided s.mvba_st i v)
     (hall : ∀ J, th.is_proposer J = true →
       ((∃ M, th.mval_pos (mvba.entries v) J M = true ∧ s.mvba_decided_pos J M = true) ∨
         (th.mval_neg (mvba.entries v) J = true ∧ s.mvba_decided_neg J = true))) :
     Enabled RTS th s (.mvba_terminate i v) := by
   chorus_enabled
-  exact ⟨_, hi, hnc, hinv, hd, hall, rfl⟩
+  exact ⟨_, hi, hnc, hd, hall, rfl⟩
 
 theorem mvba_terminate_effect {i : node} {v : mvalue}
     (htr : (RTS).tr th s (.mvba_terminate i v) s') :
-    s'.mvba_complete = true := by
+    s'.local_mvba_complete i = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, rfl⟩ := htr
+  obtain ⟨-, -, -, -, rfl⟩ := htr
   chorus_field_simp
 
 theorem enabled_cast_fb_commit {i : node} {v : mvalue}
     (hi : ¬ nset.is_byz i = true) (ha : Active s i)
     (hd : mvba.decided s.mvba_st i v)
-    (hc : s.mvba_complete = true)
+    (hc : s.local_mvba_complete i = true)
     (hda : ∀ J M, th.mval_pos (mvba.entries v) J M = true → th.mval_fb v J = true →
       s.msg_chunk_received i J M = true)
     (hfr : ¬ s.local_fbcommit_voted i = true) :
@@ -2564,17 +2563,17 @@ set_option maxHeartbeats 1000000 in
 /-- **The decision is transported.** From a correct validator's MVBA decision
 `v`: every proposer's entry of `v` is recorded (`on_mvba_decide_pos/neg`,
 whose bridge `require` is `ValidBridge`'s completeness clause), and then
-`mvba_terminate` sets `mvba_complete`. From some index on both hold. A
+`i`'s own `mvba_terminate` sets `local_mvba_complete i`. From some index on
+both hold. A
 handler's fired-once record can stand in the way only if `i` has already
 recorded that entry of its decision, which by the MVBA's agreement is the
 entry of `v` (`mvba_recorded_entry`). -/
 theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
     (hfj : PerLabel r) (hbr : ValidBridge r)
-    (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {N : Nat}
-    (hinv : Chorus.mvba_invoked (nset := nset) (mvba := Mvba.mvbaSafety thM) thS (r.at' N))
+    (nodes : List node) (hnodes : ∀ a, a ∈ nodes) (N : Nat)
     {i : node} (hi : ¬ nset.is_byz i = true) {k : Nat} {v : MetaBlock node merkle_root}
     (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' k).mvba_st i v) :
-    ∃ T, N ≤ T ∧ ∀ n, T ≤ n → (r.at' n).mvba_complete = true ∧ ∀ J, thS.is_proposer J = true →
+    ∃ T, N ≤ T ∧ ∀ n, T ≤ n → (r.at' n).local_mvba_complete i = true ∧ ∀ J, thS.is_proposer J = true →
       ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
         (thS.mval_neg (thM.ent v) J = true ∧ (r.at' n).mvba_decided_neg J = true)) := by
   mvba_inst
@@ -2583,8 +2582,6 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
   have hcert : ∀ n, k ≤ n → Certified (thS := thS) (thM := thM) (r.at' n) v :=
     r.mono (P := fun st => Certified (thS := thS) (thM := thM) st v)
       (fun n h => h.step (r.steps n)) (hbr.2.1 k i v hi hd)
-  have hinv' : ∀ n, N ≤ n → Chorus.mvba_invoked thS (r.at' n) :=
-    r.mono (P := fun st => Chorus.mvba_invoked thS st) (fun n h => mvba_invoked_step (r.steps n) h) hinv
   -- Every proposer's entry of `v` is recorded, at one index and ever after.
   have hrec_step : ∀ J n, (thS.is_proposer J = true →
       ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
@@ -2629,7 +2626,7 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
               (thS.mval_neg (thM.ent v) J = true ∧ st.mvba_decided_neg J = true)) (N := max k (max N Nm))
             (fun _ _ h => Or.inl ⟨M, hM, on_mvba_decide_pos_effect h⟩) (fun n hn hnr => by
               obtain ⟨hp, -, -⟩ := hcert n (by omega)
-              exact enabled_on_mvba_decide_pos hi hJ (hinv' n (by omega))
+              exact enabled_on_mvba_decide_pos hi hJ
                 (hdec n (by omega)) hM (hp J M hM).2 (hfresh n (by omega) hnr))
           exact ⟨n, hn, fun _ => h⟩
         · obtain ⟨n, hn, h⟩ := eventually_of_weaklyFair
@@ -2638,7 +2635,7 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
               (thS.mval_neg (thM.ent v) J = true ∧ st.mvba_decided_neg J = true)) (N := max k (max N Nm))
             (fun _ _ h => Or.inr ⟨hM, on_mvba_decide_neg_effect h⟩) (fun n hn hnr => by
               obtain ⟨-, hng, -⟩ := hcert n (by omega)
-              exact enabled_on_mvba_decide_neg hi hJ (hinv' n (by omega))
+              exact enabled_on_mvba_decide_neg hi hJ
                 (hdec n (by omega)) hM (hng J hM).2 (hfresh n (by omega) hnr))
           exact ⟨n, hn, fun _ => h⟩
       · exact ⟨max k (max N Nm), Nat.le_refl _, fun h => absurd h hJ⟩)
@@ -2649,22 +2646,22 @@ theorem eventually_mvba_complete (r : ChorusRun (nset := nset) thS thM)
         ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ st.mvba_decided_pos J M = true) ∨
           (thS.mval_neg (thM.ent v) J = true ∧ st.mvba_decided_neg J = true)))
       (fun n h J => hrec_step J n (h J)) (fun J hJ => hall J (hnodes J) hJ)
-  -- So `mvba_terminate i v` stays enabled until `mvba_complete` holds.
-  have hc : ∃ n, Tr ≤ n ∧ (r.at' n).mvba_complete = true := by
+  -- So `mvba_terminate i v` stays enabled until `local_mvba_complete i` holds.
+  have hc : ∃ n, Tr ≤ n ∧ (r.at' n).local_mvba_complete i = true := by
     by_contra hcon
     obtain ⟨n, hn, hfire⟩ := (hfj (.mvba_terminate i v) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h)).of_forall (fun _ => trivial) Tr
       (fun n hn => (enabled_mvba_terminate hi (fun h => hcon ⟨n, hn, h⟩)
-        (hinv' n (by omega)) (hdec n (by omega)) (hrec n hn)))
+        (hdec n (by omega)) (hrec n hn)))
     exact hcon ⟨n + 1, by omega, mvba_terminate_effect (hfire ▸ r.steps n)⟩
   obtain ⟨Tc, hTc, hc⟩ := hc
   exact ⟨Tc, by omega, fun n hn =>
-    ⟨r.mono (P := fun st => st.mvba_complete = true)
-      (fun m h => Chorus.mvba_complete.mono (r.steps m) h) hc n hn, hrec n (by omega)⟩⟩
+    ⟨r.mono (P := fun st => st.local_mvba_complete i = true)
+      (fun m h => Chorus.local_mvba_complete.mono (r.steps m) i h) hc n hn, hrec n (by omega)⟩⟩
 
 set_option maxHeartbeats 1000000 in
-/-- **Every correct validator casts its fallback commit vote**, once the
-decision is transported and it has decided itself. Its own decision `w` is
-the `B′` it waits under, and the only one it has (the `Mvba` model decides
+/-- **Every correct validator casts its fallback commit vote**, once it has
+decided. Its own decision `w` is transported (`eventually_mvba_complete`)
+and is the `B′` it waits under, and the only one it has (the `Mvba` model decides
 once per validator), so `cast_fb_commit i w` is owed; its DA wait is met
 under every `FallbackQC` entry of `w`, so the vote stays enabled.
 
@@ -2676,8 +2673,8 @@ same step sent `i` its chunk (Algorithm 5, line 12 (`line:fb-redisseminate`),
 `fb_pos_sig_chunks`). -/
 theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
     (hfj : PerLabel r) (hbr : ValidBridge r)
-    {A : Nat} (hact : ActiveFrom r A) {T : Nat}
-    (hT : ∀ n, T ≤ n → (r.at' n).mvba_complete = true)
+    {A : Nat} (hact : ActiveFrom r A)
+    (nodes : List node) (hnodes : ∀ a, a ∈ nodes)
     {i : node} (hi : ¬ nset.is_byz i = true)
     (hdi : ∃ k w, (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' k).mvba_st i w) :
     ∃ n, (r.at' n).msg_fbcommit_sig i = true := by
@@ -2685,6 +2682,8 @@ theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
   obtain ⟨Nm, hNm⟩ := eventually_mvbaArm r hfj
   obtain ⟨kd, w, hdw⟩ := hdi
   have hdec := decided_persists r hdw
+  -- `i` transports its own decision.
+  obtain ⟨T, -, hT⟩ := eventually_mvba_complete r hfj hbr nodes hnodes 0 hi hdw
   -- `w` is `i`'s one decision: the `Mvba` model decides once per validator.
   have huniq : ∀ n w', (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' n).mvba_st i w' → w' = w :=
     fun n w' h => Mvba.reachable_integrity
@@ -2708,7 +2707,7 @@ theorem eventually_fbcommit_sig (r : ChorusRun (nset := nset) thS thM)
     (fun n hn => ⟨hdec n (by omega), huniq n⟩)
     (fun _ _ h => cast_fb_commit_effect h)
     (fun n hn hnv => enabled_cast_fb_commit hi (hact n (by omega) i hi)
-      (hdec n (by omega)) (hT n (by omega)) (hda n (by omega))
+      (hdec n (by omega)) (hT n (by omega)).1 (hda n (by omega))
       fun hf => hnv (fbcommit_voted_sig r n hf))
   exact ⟨n, h⟩
 
@@ -2717,10 +2716,7 @@ quorum's fallback commit votes are all on the network at one index. -/
 theorem eventually_fbcommitqc (r : ChorusRun (nset := nset) thS thM)
     (hfj : PerLabel r) (hbr : ValidBridge r)
     {A : Nat} (hact : ActiveFrom r A)
-    (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {T : Nat} {v : MetaBlock node merkle_root}
-    (hT : ∀ n, T ≤ n → (r.at' n).mvba_complete = true ∧ ∀ J, thS.is_proposer J = true →
-      ((∃ M, thS.mval_pos (thM.ent v) J M = true ∧ (r.at' n).mvba_decided_pos J M = true) ∨
-        (thS.mval_neg (thM.ent v) J = true ∧ (r.at' n).mvba_decided_neg J = true)))
+    (nodes : List node) (hnodes : ∀ a, a ∈ nodes) (T : Nat)
     {qv : nodeset} (hqv : nset.supermajority qv)
     (hqvh : ∀ a, nset.member a qv = true → ¬ nset.is_byz a = true)
     (hdec : ∀ a, ¬ nset.is_byz a = true →
@@ -2732,8 +2728,7 @@ theorem eventually_fbcommitqc (r : ChorusRun (nset := nset) thS thM)
     (fun a n h hm => Chorus.msg_fbcommit_sig.mono (r.steps n) a (h hm)) T nodes
     (fun a _ => by
       by_cases hm : nset.member a qv = true
-      · obtain ⟨n, hn⟩ := eventually_fbcommit_sig r hfj hbr hact
-          (fun n hn => (hT n hn).1) (hqvh a hm)
+      · obtain ⟨n, hn⟩ := eventually_fbcommit_sig r hfj hbr hact nodes hnodes (hqvh a hm)
           (hdec a (hqvh a hm))
         exact ⟨max T n, by omega, fun _ => r.mono (P := fun st => st.msg_fbcommit_sig a = true)
           (fun m h => Chorus.msg_fbcommit_sig.mono (r.steps m) a h) hn _ (by omega)⟩
@@ -2792,10 +2787,9 @@ theorem eventually_committed_of_mvba_arm [Fintype node]
   obtain ⟨i0, -, hi0⟩ := ByzNodeSet.greater_than_third_one_honest hqe.honestQuorum
     (ByzNodeSet.supermajority_greater_than_third _ hqe.honestQuorum_supermajority)
   obtain ⟨k0, v0, hd0⟩ := hdec i0 hi0
-  -- The decision is transported, the fallback commit certificate forms, and the entries are assignable.
-  obtain ⟨T, hNT, hT⟩ := eventually_mvba_complete r hfj.1 hbr _ hnodes
-    (by mvba_inst; exact mvba_invoked_of_correct htrig) hi0 hd0
-  obtain ⟨F, hTF, hq⟩ := eventually_fbcommitqc r hfj.1 hbr hact _ hnodes hT hqe.honestQuorum_supermajority
+  -- A decision is transported, the fallback commit certificate forms, and the entries are assignable.
+  obtain ⟨T, hNT, hT⟩ := eventually_mvba_complete r hfj.1 hbr _ hnodes N hi0 hd0
+  obtain ⟨F, hTF, hq⟩ := eventually_fbcommitqc r hfj.1 hbr hact _ hnodes T hqe.honestQuorum_supermajority
     hqe.honestQuorum_correct hdec
   obtain ⟨n, hn, h⟩ := eventually_committed_of_assignable r hfj.1 _ hnodes (N := F)
     (fun j hj => by
@@ -3085,10 +3079,10 @@ The proof splits on an early finalization, as the paper's does
   is actively participating (`activeFrom_of_never_finalized`), and the MVBA
   route is open from correct senders (`eventually_mvba_route`): the MVBA
   arm finalizes everyone. The MVBA's premise that nobody is abandoned before
-  deciding holds because nobody abandons at all. (Until R8 this branch
-  split on the progress dichotomy and took the commit route on its left
-  disjunct, whose commit certificates may rest on Byzantine votes that
-  nobody correct is owed; the MVBA arm needs no such split.)
+  deciding holds because nobody abandons at all. This branch does not
+  split on the progress dichotomy: the commit certificates of its left
+  disjunct may rest on Byzantine votes that nobody correct is owed, and
+  the MVBA arm needs no such split.
 
 The split on the dichotomy alone no longer suffices, because a validator
 that finalizes on the fast path may then abandon, which also abandons the

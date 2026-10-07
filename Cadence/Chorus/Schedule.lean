@@ -57,11 +57,12 @@ before the rule is due. So a gate that mentioned protocol progress would let
 the clause absorb it: "the rule fires `δ` after its gate opened" would then
 say that progress happens. Every gate therefore mentions **only**
 
-* the acting validator's own local state — its participation, `Active`, and
-  the output of its own MVBA instance that its rule fires upon (the decision
-  `cast_fb_commit` handles; F15, [Bounds.md](../../docs/Bounds.md) §6.4.2); and
-* the phase — the landmark its rule waits for, and the decision landmark
-  `mvba_complete` that stands for the decided vector having arrived.
+* the acting validator's own local state — its participation, `Active`, the
+  output of its own MVBA instance that its rule fires upon (the decision
+  `cast_fb_commit` handles; F15, [Bounds.md](../../docs/Bounds.md) §6.4.2),
+  and its own record `local_mvba_complete` that stands for that decided
+  vector having arrived; and
+* the phase — the landmark its rule waits for.
 
 `gate` below has one line per row, and each is checked against this list by
 reading it. Everything else a rule's guard needs is either its network part
@@ -452,12 +453,12 @@ def proposeGate (i : node) (s : StateAtMvba slot node nodeset merkle_root view P
 /-- The fallback commit vote's gate: its trigger, "upon `MVBA[s].decide(B′)`"
 (Algorithm 5, line 37 (`line:fb-mvba-decide`)). The voter actively
 participates, its own MVBA has decided `v` and nothing else (P11), and the
-decision landmark `mvba_complete` holds, the model's shadow of the decided
-vector having arrived. -/
+voter's own record `local_mvba_complete` holds, the model's shadow of the
+decided vector having arrived. -/
 def fbCommitGate (i : node) (v : MetaBlock node merkle_root)
     (s : StateAtMvba slot node nodeset merkle_root view Phase PathChoice) : Prop :=
   Active s i ∧ Mvba.Decided s.mvba_st i v ∧
-    (∀ v', Mvba.Decided s.mvba_st i v' → v' = v) ∧ s.mvba_complete = true
+    (∀ v', Mvba.Decided s.mvba_st i v' → v' = v) ∧ s.local_mvba_complete i = true
 
 /-- **The gates.** A sending rule is gated on its sender's active participation
 (Appendix C.3 (`subsection:chorus-protocol-overview`)), and a rule that waits for a landmark

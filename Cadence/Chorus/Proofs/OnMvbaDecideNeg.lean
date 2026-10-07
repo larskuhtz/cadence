@@ -43,7 +43,7 @@ namespace Chorus.Proofs
   veil_inv_have h_msg_commitqc_pos_backed := msg_commitqc_pos_backed
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_pos_mvba_neg_excl := commitqc_pos_mvba_neg_excl
-  intro _hbyz _hprop _hinvoked _hdec _hval hev _hfresh J M hqc
+  intro _hbyz _hprop _hdec _hval hev _hfresh J M hqc
   refine ⟨?_, h_commitqc_pos_mvba_neg_excl J M hqc⟩
   rintro rfl
   rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩
@@ -64,7 +64,7 @@ namespace Chorus.Proofs
   veil_inv_have h_inclusion_no_honest_fb_neg := inclusion_no_honest_fb_neg
   veil_inv_have h_proposer_unique_root := proposer_unique_root
   veil_inv_have h_inclusion_no_mvba_neg := inclusion_no_mvba_neg
-  intro _hbyz _hprop _hinvoked _hdec _hval hev _hfresh J M hbyzJ hpropJ hall hwe
+  intro _hbyz _hprop _hdec _hval hev _hfresh J M hbyzJ hpropJ hall hwe
   refine ⟨?_, h_inclusion_no_mvba_neg J M hbyzJ hpropJ hall hwe⟩
   rintro rfl
   rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨harm, -⟩

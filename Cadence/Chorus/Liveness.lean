@@ -817,7 +817,7 @@ theorem mvba_terminate_moves {i : node} {v : MetaBlock node merkle_root}
   rintro rfl
   chorus_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)
-  have h := congrArg (fun st => st.mvba_complete) htr
+  have h := congrArg (fun st => st.local_mvba_complete i) htr
   have hd := phase_distinct (Phase := Phase)
   chorus_field_simp
   simp_all
@@ -1070,8 +1070,7 @@ environment owes the step at all.
   decision with another representation the target does not say which `B′`
   the handler runs on (P11, [PaperAlignment.md](../../docs/PaperAlignment.md) §8.1 (d)), so the row
   owes nothing there, and never a vote the paper might not cast. The model's
-  guard also reads the shared `mvba_complete`, which the first validator to
-  decide sets;
+  guard also reads the voter's own transport record `local_mvba_complete i`;
 * everything else: nothing (`True`). The chunk's delivery has a correct
   proposer by its guard, the decision handlers and `mvba_terminate` fire
   on the validator's own decision by theirs, and the availability report

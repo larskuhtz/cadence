@@ -578,10 +578,10 @@ every proposer from `mvba_evidence_of_saturation`):
    `abandon` and the MVBA's `abandoned` row moves only with it
    (`abandoned_of_mvba_abandoned`); decided certificates are handed on
    (`fRelay_of_fJustice`); availability arrives (`fAvail_of_fJustice`).
-3. *One decision is transported* into Chorus by the decision handlers
-   `on_mvba_decide_pos/neg`, whose bridge `require` is the completeness
-   clause, and completed by `mvba_terminate`. One decision suffices:
-   `mvba_complete` is a single flag, so agreement is not used here.
+3. *Every correct validator's decision is transported* into Chorus by its
+   decision handlers `on_mvba_decide_pos/neg`, whose bridge `require` is the
+   completeness clause, and completed by its own `mvba_terminate`
+   (`local_mvba_complete i`, which its fallback commit vote waits for).
 4. *The fallback commit round.* Every correct validator's chunks under the
    decision's `FallbackQC` entries are on the network (sent inside the
    positive fallback signer's step, F15), so it casts its fallback commit

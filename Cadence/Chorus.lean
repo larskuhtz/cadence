@@ -367,9 +367,9 @@ contract allows, `mvba_propose` drives the contract's `propose` input, and
 the two **decision handlers** `on_mvba_decide_pos` / `on_mvba_decide_neg`
 transport a correct validator's decision, entry by entry, into the
 per-proposer records below — which every downstream action reads exactly
-as before. `mvba_terminate` records that the full decision vector has been
+as before. `mvba_terminate i` records that `i`'s full decision vector has been
 transported (Algorithm 5, line 37 (`line:fb-mvba-decide`) delivers the whole vector at once), and
-gates the fallback commit round.
+gates `i`'s fallback commit vote.
 
 The records' agreement — `mvba_decided_pos_unique`,
 `mvba_decided_pos_neg_excl` — is not enforced by the handlers' guards: it is
@@ -395,8 +395,6 @@ relation mvba_decided_pos (j : node) (m : merkle_root)
 /-- Chorus's record that the MVBA decided the negative entry `⟨s, j, ⊥⟩`,
 written by `on_mvba_decide_neg`. -/
 relation mvba_decided_neg (j : node)
-/-- The full decision vector has been transported (`mvba_terminate`). -/
-individual mvba_complete : Bool
 
 /-! ## Validator-local state -/
 
@@ -476,6 +474,10 @@ relation local_mvba_recorded (i : node) (j : node)
 MVBA (`accept_mvba_commitqc`, the supplement's "Decision output and
 handoff"). -/
 relation local_mvba_qc_accepted (i : node)
+/-- Validator `i` has transported its full MVBA decision: every proposer's
+entry of its decision is recorded (`mvba_terminate`, the model's shadow of
+Algorithm 5, line 37 (`line:fb-mvba-decide`) delivering `B′` at once). -/
+relation local_mvba_complete (i : node)
 /-- Validator `i` has cast its fallback commit vote (`cast_fb_commit`,
 Algorithm 5, line 41 (`line:fb-commitvote`)). -/
 relation local_fbcommit_voted (i : node)
@@ -499,10 +501,10 @@ inputs" below for the list). Both records are local state (category (L) of
 observable names rather than a `local_` prefix, because they are exactly
 the contract's `participating` and `abandoned`. -/
 
-/- Validator `i` has invoked `participate()` (the glue does so when it opens
+/-- Validator `i` has invoked `participate()` (the glue does so when it opens
 the slot, Algorithm 1, line 17 (`line:participate`)). -/
 relation participating (i : node)
-/- Validator `i` has invoked `abandon()` (the glue does so once it has
+/-- Validator `i` has invoked `abandon()` (the glue does so once it has
 finalized the slot, Algorithm 1, line 23 (`line:abandon`)). -/
 relation abandoned (i : node)
 
@@ -617,9 +619,17 @@ ghost relation complete_fast_metablock (i : node) :=
 two proposal triggers (Algorithm 5 (`alg:fallback`)): the fallback trigger (`|M_i| ≥
 2f+1` fallback votes, whose monotone-network shadow is `fbcert`), or the
 case-(a) trigger (a complete fast meta-block — a FastQC for every
-proposer — held at the MVBA arm time). -/
+proposer — held at the MVBA arm time). A statement about the run, read by
+no action: it ranges over every validator's FastQC rows and the fault
+pattern, which no single validator observes. -/
 ghost relation mvba_invoked :=
   fbcert ∨ (∃ i, ¬ is_byz i ∧ complete_fast_metablock i)
+
+/-- Some validator has transported its full MVBA decision
+(`local_mvba_complete`). A statement about the run, read by no action: each
+validator's fallback commit vote waits for its own record. -/
+ghost relation mvba_complete :=
+  ∃ i, local_mvba_complete i
 
 /-! ## Hypothesis predicates for conditional properties -/
 
@@ -702,7 +712,6 @@ after_init {
   mvba_st := mvba_init_state
   mvba_decided_pos J M := false
   mvba_decided_neg J := false
-  mvba_complete := false
 
   local_entry_pos I J M := false
   local_entry_neg I J := false
@@ -719,6 +728,7 @@ after_init {
   local_commitqc_sent C J := false
   local_mvba_recorded I J := false
   local_mvba_qc_accepted I := false
+  local_mvba_complete I := false
   local_fbcommit_voted I := false
   local_avail_marked I V := false
 
@@ -1236,11 +1246,11 @@ and the module consumes the state-level fragment as the class constraint
   decision has.
   Per entry rather than as a bulk transport of the vector, so every update
   stays a monotone `:= true` and every downstream invariant keeps its
-  form. The handler is gated by `mvba_invoked` (a Chorus-side listening
-  condition — no safety invariant relies on it), and not by the phase: the
-  paper's handler is "upon `MVBA[s].decide(B′)`" with no time condition
-  (Algorithm 5, line 37 (`line:fb-mvba-decide`)), and a case-2 proposal can
-  be decided before the MVBA arm.
+  form. The handler has no condition beyond the decision itself, as the
+  paper's handler is "upon `MVBA[s].decide(B′)`" (Algorithm 5, line 37
+  (`line:fb-mvba-decide`)): no phase gate, since a case-2 proposal can be
+  decided before the MVBA arm, and no requirement that the MVBA was invoked,
+  since Module 3 (`mod:mvba`) does not order a decision after a proposal.
 * **`on_mvba_commitqc_pos` / `on_mvba_commitqc_neg`** — the `CommitQC`
   route of the supplement's handoff: a correct validator holding a valid
   MVBA commit certificate records its entries in the same shared records,
@@ -1268,11 +1278,15 @@ and the module consumes the state-level fragment as the class constraint
   MVBA were wrong the handler would simply not fire — safety-conservative.
   `mvba_decided_pos_backed` / `mvba_decided_neg_backed` persist the
   evidence the record carried.
-* **`mvba_terminate`** — records that the full vector has been
-  transported: a correct validator's decision `v` whose every proposer
-  entry is already recorded. This is the model shadow of
-  Algorithm 5, line 37 (`line:fb-mvba-decide`) delivering `B'` at once, and it is what gates the
-  fallback commit round (`cast_fb_commit` requires `mvba_complete`).
+* **`mvba_terminate`** — records that `i` has its full vector: `i`'s
+  decision `v` whose every proposer entry is already recorded
+  (`local_mvba_complete i`). This is the model shadow of
+  Algorithm 5, line 37 (`line:fb-mvba-decide`) delivering `B'` at once, and it is what gates `i`'s
+  fallback commit vote (`cast_fb_commit i` requires `local_mvba_complete i`).
+  The records it reads are shared, and it reads them positively and against
+  `i`'s own `v`: a record holds the agreed entry, the one `i`'s own handler
+  would write, so another validator's record only lets `i` skip a step that
+  would write the same tuple.
 * **What the class buys.** No handler asserts an agreement property of its
   own. `mvba_decided_pos_unique` and `mvba_decided_pos_neg_excl` are kept as
   invariants (downstream cells e-match on them) and are *proven* from
@@ -1282,7 +1296,7 @@ and the module consumes the state-level fragment as the class constraint
 * *Quiescence* is a field of `MVBASafety` the instance proves. Its one
   model shadow here is `mvba_decided_phase`: a record carries a
   certificate, whose correct signers signed after the deadline. Nothing
-  places a correct decision or `mvba_complete` after the deadline: the
+  places a correct decision or `local_mvba_complete` after the deadline: the
   module promises no "a correct validator decides only after proposing"
   (Module 3 (`mod:mvba`) states Quiescence for messages only).
 
@@ -1374,7 +1388,6 @@ action mvba_avail_ready (i : node) (v : mvalue) (mvba_next : mstate) {
 action on_mvba_decide_pos (i : node) (j : node) (m : merkle_root) (v : mvalue) {
   require ¬ is_byz i
   require is_proposer j
-  require mvba_invoked
   -- The output has occurred: `i` has decided `v`, whose entry for `j` is `m`.
   require mvba.decided mvba_st i v
   require mval_pos (mvba.entries v) j m
@@ -1390,7 +1403,6 @@ action on_mvba_decide_pos (i : node) (j : node) (m : merkle_root) (v : mvalue) {
 action on_mvba_decide_neg (i : node) (j : node) (v : mvalue) {
   require ¬ is_byz i
   require is_proposer j
-  require mvba_invoked
   require mvba.decided mvba_st i v
   require mval_neg (mvba.entries v) j
   -- The bridge, negative form: a negative FastQC, or (with FBCert) a
@@ -1448,14 +1460,14 @@ action on_mvba_commitqc_neg (i : node) (j : node) (c : mmsg) (v : mvalue) {
 
 action mvba_terminate (i : node) (v : mvalue) {
   require ¬ is_byz i
-  require ¬ mvba_complete
-  require mvba_invoked
+  -- Fired once: `i` has not transported its decision yet.
+  require ¬ local_mvba_complete i
   require mvba.decided mvba_st i v
-  -- Every proposer's entry of the decided vector has been recorded.
+  -- Every proposer's entry of `i`'s decided vector has been recorded.
   require ∀ J, is_proposer J →
     ((∃ M, mval_pos (mvba.entries v) J M ∧ mvba_decided_pos J M) ∨
       (mval_neg (mvba.entries v) J ∧ mvba_decided_neg J))
-  mvba_complete := true
+  local_mvba_complete i := true
 }
 
 /-! ## Fallback commit round (Algorithm 5 (`alg:fallback`),
@@ -1520,9 +1532,8 @@ action cast_fb_commit (i : node) (v : mvalue) {
   -- decided meta-block `B′`.
   require mvba.decided mvba_st i v
   -- The decision delivers the full entry vector at once, whose model
-  -- shadow is the completed per-proposer decision relation
-  -- (`mvba_complete_per_proposer`).
-  require mvba_complete
+  -- shadow is `i`'s own transport record (`mvba_terminate i`).
+  require local_mvba_complete i
   -- DA wait (Algorithm 5, line 38 (`line:fb-commit-foreach`), Algorithm 5, line 39 (`line:fb-commit-wait`)): for each
   -- positive entry ⟨s, J, M⟩ of `B′` held by a FallbackQC, wait until the
   -- own assigned chunk for `M` is received and validated. An entry held by
@@ -2654,7 +2665,8 @@ safety content. -/
 
 /-- Lifted postcondition of `mvba_terminate` (whose guard is that every
 proposer's entry of the decided vector is recorded): the link between
-the MVBA's decision and the commit route — once `mvba_complete` holds, every honest
+the MVBA's decision and the commit route — once some validator has transported
+its decision (`mvba_complete`), every honest
 non-committed validator has, for every proposer, a recorded MVBA decision
 supplying the `mvba_decided_*` leg of the `commit_assign_*` precondition. The
 certificate leg (`fbcommitqc`) is produced by the fallback commit round
@@ -2753,7 +2765,7 @@ Support for the fallback commit round (Algorithm 5, line 37 (`line:fb-mvba-decid
 Algorithm 5, line 47 (`line:fb-finalize`)).
 
 The fair-progress leg for the round needs no dedicated `progress_*`
-case-analysis invariant: once `mvba_complete` holds, `cast_fb_commit i`'s
+case-analysis invariant: once `local_mvba_complete i` holds, `cast_fb_commit i`'s
 only non-derived precondition is the DA wait, which a correct signer of
 each FallbackQC entry met when it signed: `fb_sign_pos` sends every
 validator its chunk (Algorithm 5, line 12 (`line:fb-redisseminate`)). The round has no
@@ -2765,15 +2777,15 @@ then yields `2f+1` honest commit votes, i.e.
 `mvba_complete_per_proposer` hand the per-proposer `commit_assign_*`
 preconditions over, exactly as in the pre-round argument. -/
 
-/-- An honest fallback commit vote exists only after its signer decided,
-i.e. only once the MVBA reached its complete decision vector
+/-- An honest fallback commit vote exists only after its signer decided
+and transported its complete decision vector
 (Algorithm 5, line 37 (`line:fb-mvba-decide`) precedes Algorithm 5, line 41 (`line:fb-commitvote`)). -/
 invariant [fbcommit_sig_backed]
-  ∀ (R : node), ¬ is_byz R ∧ msg_fbcommit_sig R → mvba_complete
+  ∀ (R : node), ¬ is_byz R ∧ msg_fbcommit_sig R → local_mvba_complete R
 
 /-- An `fbCommitQC` certifies the MVBA decision vector: any `2f+1` commit
 votes contain an honest one (`supermajority_greater_than_third` +
-`greater_than_third_one_honest`), whose vote implies `mvba_complete`
+`greater_than_third_one_honest`), whose signer has transported its decision
 (`fbcommit_sig_backed`). Bridges the certificate to the per-proposer
 `commit_assign_*` preconditions via `mvba_complete_per_proposer`. -/
 invariant [fbcommitqc_implies_mvba_complete]

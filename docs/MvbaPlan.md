@@ -1350,7 +1350,10 @@ this section, both recorded there: the handlers carry no `¬ mvba_complete`
 guard (the recorded vector is frozen after termination by the invariants
 instead), and `mvba_propose`'s trigger is the proposer's own
 (`fbcert ∨ complete_fast_metablock i`, which implies `mvba_invoked`)
-rather than the derived `mvba_invoked`.*
+rather than the derived `mvba_invoked`. Since R34 (2026-10-07) the decision
+handlers and `mvba_terminate` do not require `mvba_invoked` either, and the
+completion record is per validator (`local_mvba_complete i`):
+[ChorusDesign.md](ChorusDesign.md) §4, [History.md](History.md).*
 
 *Re-planned 2026-09-10, after the Veil integration of 2026-09-09/10
 ([History.md](History.md), the three rows "the composition is emitted

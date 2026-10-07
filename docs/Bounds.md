@@ -1125,7 +1125,7 @@ with each row's gate and the condition under which it is owed at all
 | `mvba_propose i v _` on the fast meta-block (`proposeFast`, one family per `(i, v)`, F9) | `δ` | `Active i`, the MVBA arm | `i`'s own complete fast meta-block |
 | `on_mvba_decide_*`, `mvba_terminate` | `δ` | none | always (the guard reads `i`'s own decision) |
 | `accept_mvba_commitqc`, `on_mvba_commitqc_*` (the handoff and the `CommitQC` route) | `Δ` | none | a correct validator has decided (`relayOwed`) |
-| `cast_fb_commit i v` (`TimedJustice.fbCommit`, split at its trigger) | `Δ` | `fbCommitGate`: `Active i`, `i`'s own decision of `v`, `mvba_complete` | (the gate); untimed: `i` decided `v` and no other representation |
+| `cast_fb_commit i v` (`TimedJustice.fbCommit`, split at its trigger) | `Δ` | `fbCommitGate`: `Active i`, `i`'s own decision of `v`, `i`'s own `local_mvba_complete` | (the gate); untimed: `i` decided `v` and no other representation |
 | `mvba_avail_ready i v` (the family `avail`) | `Δ` | none | `i` holds `v` |
 | `commit_assign_* i j …` | `Δ` | `Active i` | a correct validator finalized with that entry, or the fallback commit certificate from correct voters over the decided entry |
 | `finalize_commit i` | `δ` | `Active i` | always |
@@ -1180,10 +1180,14 @@ reaches the proposals only after it. Four things about the table:
     `FallbackQC`'s correct signer is the paper's source of the chunks
     (Proposition 5 (`prop:chorus-finalization-time`), "by `M + 3Δ`"). Since
     F15 the send is part of the signing step.
-* **F6: `cast_fb_commit` reads a shared flag.** Its guard is
-  `mvba_complete`, which the first validator to decide sets. The paper's
-  rule fires on the voter's own decision (Algorithm 5, line 41 (`line:fb-commitvote`)). The row
-  is owed only once the voter itself has decided.
+* **F6: `cast_fb_commit` read a shared flag.** Its guard read a global
+  `mvba_complete`, which the first validator to transport its decision set.
+  The paper's rule fires on the voter's own decision (Algorithm 5, line 41
+  (`line:fb-commitvote`)). **Closed:** the record is per validator,
+  `local_mvba_complete i`, set by `i`'s own `mvba_terminate`, and both the
+  guard and `fbCommitGate` read the voter's own row. The bound is
+  unchanged: every correct validator has decided by `X_d`, so each
+  transports its own decision by `X_d + 2δ`.
 * **F9: the case-(a) proposal is a local step.** A correct validator's
   FastQCs reach every correct validator through `aggregate_fastqc_*` (F7)
   by `M + 3Δ + 2δ`, and only then is the case-(a) proposal owed, because
@@ -1517,7 +1521,7 @@ With `t_M = M + 3Δ + 3δ` and `X_d = t_M + ℓ_MVBA`:
 | its chunk sent to every validator with the signature (F8, F15) | `fb_pos_sig_chunks` | (saturation; the hop due by `M + 3Δ + 2δ`) | 2 |
 | every correct validator decides in the MVBA | `within_all_decided` (`T.termination` on the projection) | `X_d` | 3 |
 | a correct decision's entries recorded (the handlers) | `within_recorded` | `X_d + δ` | 4 |
-| `mvba_complete` (`mvba_terminate`) | `within_complete` | `X_d + 2δ` | 5 |
+| each correct validator's `local_mvba_complete` (its `mvba_terminate`) | `within_complete` | `X_d + 2δ` | 5 |
 | each fallback commit vote, under the validator's own `B′` | `within_fbcommit_sig` | `X_v = X_d + 3δ` | 6 |
 | a correct fbCommitQC (the honest quorum's votes) | (collapsed in `within_finalized_late`) | `X_v` | 6 |
 | every proposer's entry assigned | `within_assigned` | `X_v + Δ` | 6 |
@@ -1528,7 +1532,8 @@ Five facts of the proof, each in the file's header:
 
 * **No common `B′`** (P2). Each validator waits and votes under its own
   decision. The handlers run on one correct decision, and the MVBA's
-  agreement makes every correct decision's entries the recorded ones
+  agreement makes every correct decision's entries the recorded ones, so
+  each validator's own `mvba_terminate` follows
   (`mvba_recorded_entry`, as in the untimed `eventually_mvba_complete`).
 * **The chunks precede the decision.** A correct FallbackQC signer signed
   before its second-round vote (`fb_sign_pos`'s guards), so its signature is

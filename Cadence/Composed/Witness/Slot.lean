@@ -122,7 +122,7 @@ def cst (m : Nat) : CS where
   mvba_st := mst m
   mvba_decided_pos _ _ := false
   mvba_decided_neg _ := false
-  mvba_complete := false
+  local_mvba_complete _ := false
   local_entry_pos i j _ := decide (j.val = 0 ∧ i.val < 3 ∧ 8 + i.val < m)
   local_entry_neg _ _ := false
   local_voted i := decide (i.val < 3 ∧ 12 + i.val < m)
@@ -472,11 +472,11 @@ local macro "wquiet" : tactic =>
       exact Mvba.not_enabled_decide_of_quiet (mquiet _) ⟨_, h⟩
     case on_mvba_decide_pos =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
-      obtain ⟨-, -, -, hdec, -⟩ := htr
+      obtain ⟨-, -, hdec, -⟩ := htr
       exact not_decided _ _ _ hdec
     case on_mvba_decide_neg =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
-      obtain ⟨-, -, -, hdec, -⟩ := htr
+      obtain ⟨-, -, hdec, -⟩ := htr
       exact not_decided _ _ _ hdec
     case on_mvba_commitqc_pos i j m c v =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
@@ -488,7 +488,7 @@ local macro "wquiet" : tactic =>
       exact not_certified _ _ _ hc
     case mvba_terminate =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
-      obtain ⟨-, -, -, hdec, -⟩ := htr
+      obtain ⟨-, -, hdec, -⟩ := htr
       exact not_decided _ _ _ hdec
     case cast_fb_commit =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
