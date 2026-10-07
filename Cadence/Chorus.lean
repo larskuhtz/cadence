@@ -523,8 +523,8 @@ state, one row per validator, and the input actions `participate` and
 `abandon` are their only writers. The third input is the existing
 `propose j m`. Every rule that sends is gated on `participating i ∧ ¬
 abandoned i`; the rules that only process are exempt (see "Participation
-inputs" below for the list). Both records are local state (category (L) of
-[ChorusDesign.md](../docs/ChorusDesign.md) §3.5). They carry the contract's
+inputs" below for the list). Both records are local state
+([Locality.md](../docs/Locality.md) §2). They carry the contract's
 observable names rather than a `local_` prefix, because they are exactly
 the contract's `participating` and `abandoned`. -/
 
@@ -1191,8 +1191,8 @@ action fb_sign_neg (i : node) (j : node) (qv : nodeset) {
   require ∀ r, nset.member r qv → ((∃ m2, local_vote_rcv_pos i r j m2) ∨ local_vote_rcv_neg i r j)
   -- Negative iff no root has, within the received votes, f+1 positive
   -- entries that re-encode to the root (the `else` branch of
-  -- Algorithm 5, line 8 (`line:fb-cast-entry`), with Algorithm 6, line 24
-  -- (`line:da-reencode`) marking ill-encoded roots invalid).
+  -- Algorithm 5, line 8 (`line:fb-cast-entry`), with
+  -- Algorithm 6, line 24 (`line:da-reencode`) marking ill-encoded roots invalid).
   require ∀ M q, ¬ (nset.greater_than_third q ∧
     (∀ r, nset.member r q → nset.member r qv ∧ local_vote_rcv_pos i r j M) ∧
     well_encoded M)

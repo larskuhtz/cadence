@@ -99,13 +99,14 @@ module the chain is closed in Lean end-to-end
 ## Locality regime — deliberately different from [Chorus.lean](Chorus.lean)
 
 All mutable state here is *local to the receiving validator* (its
-`M_i`, its harvest, its build state) — category (L) of
-[ChorusDesign.md](../docs/ChorusDesign.md) §3.5. The monotone-network
-contract ([ChorusDesign.md](../docs/ChorusDesign.md) §3.1.1) is therefore
-**not invoked**: negative guards over this state are sound (a validator
-observes its own receipt state exactly), including the build rule's
-faithful `else if` precedence guards. Asynchrony enters solely through
-arbitrary interleavings of the delivery/acceptance actions.
+`M_i`, its harvest, its build state): its own local rows
+([Locality.md](../docs/Locality.md) §2), so negative guards over it are
+reads of its own state (R1), including the build rule's faithful
+`else if` precedence guards. The model has no network: the delivery
+actions are the validator's own receive steps, writing its own receipt
+rows, with the content of a received message left unconstrained.
+Asynchrony enters solely through arbitrary interleavings of the
+delivery/acceptance actions.
 
 ## Modelling notes / deviations
 
@@ -140,7 +141,7 @@ type merkle_root
 instantiate nset : ByzNodeSet node nodeset
 open ByzNodeSet
 
-/-! ## Wire state — receiver-verified `FallbackVote` content
+/-! ## Receipt state — the receiver's verified `FallbackVote` content
 
 `carried_* r P …` is the entry for proposer `P` in the (unique, per
 sender `r`) fallback vote that has reached the receiving validator, and
@@ -228,9 +229,10 @@ after_init {
   proposed := false
 }
 
-/-! ## Delivery — the environment presents vote content
+/-! ## Delivery — the validator receives vote content
 
-Sender-nondeterministic (honest or Byzantine — on the shipped wire both
+The validator's own receive steps, writing its own receipt rows. Content is
+sender-nondeterministic (honest or Byzantine — on the shipped wire both
 are confined to the same entry kinds), receiver-verified. One entry kind
 per proposer per vote; entries freeze once the vote is accepted. -/
 

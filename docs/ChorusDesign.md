@@ -955,7 +955,10 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
 
 1. *(temporal — (F-justice).)* Every honest validator reaches
    **saturation**: it casts its path vote, fast or fallback, carrying
-   the per-proposer entries that cast requires. Each constituent action
+   the per-proposer entries that cast requires. On the way it receives
+   every correct validator's vote (`receive_vote_*`, owed for a correct
+   voter), and its negative fallback entry reads those receipts, "among
+   the votes it received". Each constituent action
    is continuously enabled once its case applies (`progress_voting` /
    `progress_fallback_signing` state the per-proposer case analyses)
    until the step the link waits for has happened: its network guards
@@ -973,9 +976,11 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
    broadcast certificates and commits: a correct collector's
    `broadcast_commitqc_*` guard is the commitQC itself (the collector is
    the validator itself, which is actively participating on this
-   branch), `commit_assign_*`'s the broadcast
-   certificate, `finalize_commit`'s the per-proposer completeness
-   (`local_committed_complete`).
+   branch), `commit_assign_*_fast`'s the certificate a correct collector
+   sent (the route names its sender, and is owed when the sender is
+   correct), `finalize_commit`'s the per-proposer completeness
+   (`local_committed_complete`). A finalizer re-broadcasts its
+   certificates under its own name, so it is a correct sender in turn.
 4. *(temporal, MVBA route — (F-justice) on `mvba_propose`, then the
    MVBA's own termination theorem, then (F-justice) on the handlers.)* Every correct validator
    proposes: the dichotomy's evidence is `mvba_propose`'s guard, and the
@@ -989,7 +994,10 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
    applied to the run's MVBA steps under `MvbaAdmissible`;
    [docs/Liveness.md](Liveness.md) §4.6),
    and each correct validator's handlers and `mvba_terminate` record its
-   decision (`local_mvba_complete`). The handlers' one enabledness leg the class does
+   decision (`local_mvba_complete`). A decided certificate reaches an
+   undecided correct validator through Chorus: the decider broadcasts the
+   certificate its decision outputs (`send_mvba_cert`), and the receiver
+   hands it to its MVBA (`accept_mvba_commitqc`). The handlers' one enabledness leg the class does
    not give is the bridge's completeness direction — a decided entry's
    certificate is on the network, which is what "publicly verifiable"
    means; the theorem names it as `ValidBridge` ([MvbaPlan.md](MvbaPlan.md) §3).
@@ -1003,14 +1011,19 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
    (it has no phase gate); the `2f+1` honest
    commit votes are a certificate outright
    (`Chorus.fbcommitqc_of_honest_commit_votes` — the honest population
-   is itself the quorum), and `fbcommitqc_implies_mvba_complete` +
-   `mvba_complete_per_proposer` hand over the `commit_assign_*`
-   preconditions as on the commit route.
+   is itself the quorum), a correct collector forms and broadcasts it
+   (`broadcast_fbcommitqc`, Algorithm 5, lines 42–44
+   (`line:fb-collect-commit`–`line:fb-commit-broadcast`)), and the
+   receivers' route `commit_assign_*_fb` commits on it (Algorithm 5,
+   line 45 (`line:fb-recv-commit`)); `fbcommitqc_implies_mvba_complete` +
+   `mvba_complete_per_proposer` hand over its preconditions as on the
+   commit route.
 
 **The assumptions:**
 
 * **(F-justice)** — phase advancement, aggregation, and per-validator
-  honest actions are weakly fair. Weak fairness suffices *because* the
+  honest actions are weakly fair; a step that consumes a message is owed
+  only for a correct sender's message. Weak fairness suffices *because* the
   model is monotone: enabledness itself is monotone, so the
   enable/disable flicker that strong fairness exists for cannot occur.
   ((F-compassion) — strong fairness — is reserved vocabulary for the
@@ -1020,7 +1033,7 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
   strictly stronger than deadlock freedom.
 * **The MVBA's scheduling** (`MvbaAdmissible`) — the run's MVBA steps,
   read as a run of the MVBA model, satisfy that model's own scheduling
-  premises, so `Mvba.termination` applies to them. Its two caller premises
+  premises, so `Mvba.termination` applies to them. Its caller premises
   are derived, not assumed: (i) *all correct validators propose* is chain
   step 4 (the per-validator implementation refinement of the build step is
   the receipt layer — §7.2, [Architecture.md](Architecture.md) §5); (ii)
@@ -1029,7 +1042,11 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
   by the caller premise `NoAbandonBeforeFinalizing` none abandons Chorus,
   and the MVBA's `abandon()` is invoked only by Chorus's `abandon`
   (Algorithm 5, line 48 (`line:fb-abandon`)). Within Cadence the glue abandons only after
-  finalizing (Algorithm 1, line 23 (`line:abandon`)).
+  finalizing (Algorithm 1, line 23 (`line:abandon`)); (iii) *decided
+  certificates are handed on* (F-relay) holds on the same branch, where
+  every correct decider is active and sends its certificate
+  (`Chorus.fRelay_of_fJustice`); (iv) *availability* (F-avail) follows
+  from the availability report's fairness (`Chorus.fAvail_of_fJustice`).
 * **The validity bridge** (`ValidBridge`) — the MVBA's `Valid` agrees with
   Chorus's certificate check, in both directions: a certified meta-block is
   `Valid`, and a decided one is certified. This is the cryptographic seam

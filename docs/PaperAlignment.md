@@ -382,7 +382,8 @@ termination for the first route, but agreement of the second with the fast
 path and with the first is argued only in one sentence of Part I (§6, P2).
 
 **What the model does** (§8.2). It has both routes. The main
-body's is the fallback commit round (`cast_fb_commit`, `fbcommitqc`). Part
+body's is the fallback commit round (`cast_fb_commit`, the collector's
+`broadcast_fbcommitqc`, and `commit_assign_pos_fb` / `_neg_fb`). Part
 I's is the handoff into the MVBA (`accept_mvba_commitqc`) together with the
 `CommitQC` route: a correct validator broadcasts the `CommitQC` its
 decision outputs (`send_mvba_cert`), and a validator that receives one
@@ -477,7 +478,6 @@ found and removed (F15 in Chorus's chunk sending; F25, the Conductor's
 | No crashes and no persistence | Mvba, Chorus | With the state persisted before each send and reloaded atomically, a crash and restart is, to every other validator, a pause, and the model's runs pause. Termination under crashes (Supplement, Corollary 1 (`cor:mvba-recovery-termination`)) is not claimed. |
 | `propose` enters the first view, not the view of the highest retained timeout certificate | Mvba | The faithful rule needs a negative read of the network, which the monotone-network contract forbids. The model's rule adds runs, which is sound for safety, and no liveness argument uses them ([History.md](History.md) § "The supplement at `eb1bb51`, reviewed against the pin `026dc8b`", C7). |
 | `SyncView` is its own step; the view timer is a phase marker; one action covers the timer and the `f+1` echo timeout | Mvba | The same reachable states in two steps, or a guard that only removes behaviours (the [Mvba.lean](../Cadence/Mvba.lean) header, "Abstractions"). |
-| The `CommitQC` re-broadcast is folded into the handoff | Chorus | A certificate is transferable and stays valid (`certified_mono`), so its existence is its availability to every validator (§8.2 (a)). |
 | An `upon` handler runs once | Chorus | The target states no convention: P6. |
 | The glue's handlers are separate, later actions (`on_open`, `on_propose`, `on_finalize`, `record_skip`), where Algorithm 1 (`algorithm:cadence`) runs each atomically with its event | Cadence (glue) | An over-approximation: the paper's runs, in which each handler fires at once with its event, are among the model's, so every safety claim covers them. One statement follows the larger model: `[bounded_concurrency_interval]` states only that an active instance is opened and not completed, the direction Lemma 5 (`lemma:cadence-bounded-concurrency`) uses; the converse holds of the atomic runs only. |
 | A redelivered decision casts the vote once, after the wait under the `B′` it is cast for | Chorus | The target does not say: P11. Safe under each reading (§8.1 (d)). |
@@ -666,13 +666,17 @@ proof gives `4Δ + ℓ_MVBA`.**
   stated, `ℓ = 5Δ + ℓ_MVBA` plus the local steps (`Chorus.timed_termination`,
   `5Δ + ℓ_MVBA + 9δ`), and from the same premises the sharper bound
   `4Δ + ℓ_MVBA` plus local steps (`Chorus.timed_termination_tight`,
-  `4Δ + ℓ_MVBA + 8δ`), which implies it. The single split is at the
-  fallback commit votes' deadline `max(t, GST) + 3Δ + ℓ_MVBA` (plus `6δ`):
-  an earlier finalizer gives everyone totality's `Δ`, and otherwise nobody
+  `4Δ + ℓ_MVBA + 9δ`), which implies it; at `δ = 0` that is the
+  `4Δ + ℓ_MVBA` of Lemma 11's proof. The single split is at the fallback
+  commit votes' deadline `max(t, GST) + 3Δ + ℓ_MVBA` (plus `7δ`): an
+  earlier finalizer gives everyone totality's `Δ`, and otherwise nobody
   has abandoned before the votes, so Proposition 5
   (`prop:chorus-finalization-time`)'s chain finalizes everyone by
-  `T₀ = max(t, GST) + 4Δ + ℓ_MVBA`. No step of the proof uses the outer
-  split. **Suggested correction:** state Lemma 11 with
+  `T₀ = max(t, GST) + 4Δ + ℓ_MVBA`: the finalizer collects the fallback
+  commit votes into its own certificate (Algorithm 5, lines 42–44
+  (`line:fb-collect-commit`–`line:fb-commit-broadcast`)) and finalizes on
+  its own broadcast (Algorithm 5, line 45 (`line:fb-recv-commit`)), a local
+  step. No step of the proof uses the outer split. **Suggested correction:** state Lemma 11 with
   `ℓ = 4Δ + ℓ_MVBA`, the bound of the commented-out draft, and split once,
   at `T₀ − Δ`; `Φ_oc = ℓ_chorus + d_tot` then loses its extra `Δ`.
 

@@ -162,9 +162,12 @@ each.
   on the branch of the proof that needs the MVBA: there no correct
   validator ever finalizes, so by `NoAbandonBeforeFinalizing` none
   abandons, and the MVBA's `abandon()` is invoked only by Chorus's
-  `abandon` (Algorithm 5, line 48 (`line:fb-abandon`)). The third is (F-justice) on Chorus's
-  handoff `accept_mvba_commitqc` (`Chorus.fRelay_of_fJustice`; the timed
-  twin is `Chorus.relayed_of_timedJustice`). On the other branch some
+  `abandon` (Algorithm 5, line 48 (`line:fb-abandon`)). The third is (F-justice) on the
+  decider's broadcast `send_mvba_cert` and the receiver's handoff
+  `accept_mvba_commitqc`, on the same branch, where every correct decider
+  is active (`Chorus.fRelay_of_fJustice`; the timed twin is
+  `Chorus.relayedWhileActive_of_timedJustice`, for the MVBA's (Δ-relay),
+  owed while the decider takes part). On the other branch some
   correct validator has finalized, and the others finalize from its
   commitment proof without the MVBA.
 * **The bridge** (`ValidBridge`) — the MVBA's `Valid` holds exactly for
@@ -189,13 +192,15 @@ each.
   primitive of the published paper terminates with probability 1, which no
   deductive framework expresses, so that argument stays on paper, as for
   any cryptographic primitive; it is not part of this development's claim.
-* Scheduling is distinct from **network delivery**. The monotone network
-  makes broadcast signatures globally visible, so delivery surfaces only
-  as fairness on the observation actions (`deliver_chunk_assigned`,
-  `record_chunk`, `aggregate_fastqc_*`); a fallback signer's chunks are
-  sent and delivered inside its signing step (F15); the network abstraction's
-  own soundness contract is [Architecture.md](Architecture.md) §4
-  item 1.
+* Scheduling is distinct from **network delivery**. A message is on the
+  network from its send on and names its sender, so delivery surfaces only
+  as fairness on the receiving actions (`record_chunk`, the vote receipts
+  `receive_vote_*`, `aggregate_fastqc_*`, the handoff
+  `accept_mvba_commitqc`, the commit routes `commit_assign_*`), owed for
+  correct senders; a proposer's chunks are sent inside its `propose`, a
+  fallback signer's inside its signing step (F15); the network
+  abstraction's own soundness contract is
+  [Architecture.md](Architecture.md) §4 item 1.
 
 The well-founded ranking that makes the chain terminate is structural:
 per-slot state is finite and all relations are monotone, so every fair
@@ -500,10 +505,12 @@ proposer. That is the hypothesis of `progress_dichotomy_of_saturation`, so
 `eventually_progress_dichotomy` follows. The chain: the phase reaches
 `post_mvba_arm` and stays there (the three `advance_to_*` actions are
 weakly fair); every correct validator votes; the honest quorum's votes are
-on the network (`voted_implies_cast`); per proposer, `fb_sign_pos` or
-`fb_sign_neg` fires unless the validator has cast fast; then
-`cast_fallback_vote`. The case split is excluded middle on the positive
-evidence over the run: if it ever appears it persists and `fb_sign_pos`
+on the network (`voted_implies_cast`), and each correct validator receives
+them (`eventually_received`: `receive_vote_*` is owed for a correct voter);
+per proposer, `fb_sign_pos` or `fb_sign_neg` fires unless the validator has
+cast fast; then `cast_fallback_vote`. The case split is excluded middle on
+the positive evidence among the votes the validator received over the run:
+receipts are monotone, so if it ever appears it persists and `fb_sign_pos`
 fires; if it never does, its absence *is* `fb_sign_neg`'s guard, verbatim,
 at every index.
 
@@ -516,12 +523,14 @@ that casts the fallback vote. Each reads the one honest action that sets
 the flag off its transition body.
 
 **The commit route** (`eventually_committed_of_assignable`): from an index
-at which every proposer's entry has a commitment proof from correct
-senders (`ProofPos`/`ProofNeg`: a correct validator's finalization, or the
-fallback commit certificate from correct voters together with the MVBA's
-decision), every correct validator that participates and abandons only
-after finalizing eventually has `local_committed`. Nothing is assumed of the
-other validators.
+at which every proposer's entry has a commitment proof from a correct
+sender (`CertPos`/`CertNeg`: a fast commit certificate, a fallback commit
+certificate, or a valid MVBA commit certificate, each with its sender),
+every correct validator that participates and abandons only after
+finalizing eventually has `local_committed`, through the route
+`commit_assign_*_{fast,fb,mvba}` that reads the proof's form. A correct
+validator's finalization re-broadcasts its proofs under its own name
+(`proofs_of_finalized`). Nothing is assumed of the other validators.
 
 ### 4.5 What the chains take from the model
 
@@ -576,8 +585,11 @@ every proposer from `mvba_evidence_of_saturation`):
    proposes (step 1, through `Projection.proj_eq_run_cover`); nobody is
    abandoned in the MVBA, because on this branch nobody invokes Chorus's
    `abandon` and the MVBA's `abandoned` row moves only with it
-   (`abandoned_of_mvba_abandoned`); decided certificates are handed on
-   (`fRelay_of_fJustice`); availability arrives (`fAvail_of_fJustice`).
+   (`abandoned_of_mvba_abandoned`); decided certificates are handed on:
+   each active correct decider broadcasts its certificate
+   (`send_mvba_cert`, `eventually_cert_sent`) and every correct validator
+   takes it (`fRelay_of_fJustice`); availability arrives
+   (`fAvail_of_fJustice`).
 3. *Every correct validator's decision is transported* into Chorus by its
    decision handlers `on_mvba_decide_pos/neg`, whose bridge `require` is the
    completeness clause, and completed by its own `mvba_terminate`
@@ -586,8 +598,10 @@ every proposer from `mvba_evidence_of_saturation`):
    decision's `FallbackQC` entries are on the network (sent inside the
    positive fallback signer's step, F15), so it casts its fallback commit
    vote; the wait is stable once every proposer's entry is recorded
-   (`mvba_decided_pos_unique`, `mvba_decided_pos_neg_excl`). The correct
-   voters' `fbCommitQC` is a commitment proof for every entry, and the
+   (`mvba_decided_pos_unique`, `mvba_decided_pos_neg_excl`). A correct
+   collector forms the correct voters' fallback commit certificate and
+   broadcasts it (`broadcast_fbcommitqc`, `eventually_fbcommitqc_sent`); it
+   is a commitment proof for every entry from a correct sender, and the
    commit route (§4.4) finalizes everyone.
 
 Beyond the invariants the chain reads at reachable states (the FastQC
@@ -678,7 +692,7 @@ standard trio there and in [Cadence.lean](../Cadence.lean).
 finalizes on the fast path and then abandons, so the MVBA stays quiet and
 the proposal family holds with its antecedent false). The timed claims,
 `Chorus.timed_termination` at `5Δ + ℓ_MVBA + 9δ` and
-`Chorus.timed_termination_tight` at `4Δ + ℓ_MVBA + 8δ`, are proven over
+`Chorus.timed_termination_tight` at `4Δ + ℓ_MVBA + 9δ`, are proven over
 timed runs of the same model ([Bounds.md](Bounds.md) §6.4.3). The contract
 instance `Chorus.chorusTemporal`
 ([Cadence/Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean)) has
