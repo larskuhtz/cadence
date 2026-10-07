@@ -57,8 +57,9 @@ declaration.
 
 Immutable configuration, the action's parameters, and ghost relations (each
 of the kind it unfolds to) complete the vocabulary. **No other mutable
-global state exists**: in particular no record that several validators
-write, and no network relation without a sender.
+protocol state exists**: in particular no protocol record that several
+validators write, and no network relation without a sender. (Auxiliary
+records, below, are not protocol state.)
 
 **Auxiliary relations** record what happened so that invariants can refer to
 it afterwards — which certified entries the MVBA produced, which vote quorum
@@ -166,13 +167,13 @@ The auxiliary relations of every model:
 | Model | Auxiliary relations |
 |---|---|
 | Chorus | `aux_mvba_decided_pos`, `aux_mvba_decided_neg` (the certified entries), `aux_fb_neg_qv` (the vote quorum behind a negative fallback entry) |
-| Conductor | `opened_win` (the window a slot was opened in; to be renamed `aux_opened_win`) |
+| Conductor | `opened_win` (the window a slot was opened in), an auxiliary record under its old name ([TODO.md](TODO.md)) |
 | Cadence (glue), FallbackReceipt, Mvba | none |
 
 | Model | Local rows (§2) | Status |
 |---|---|---|
 | Cadence (glue) | `skipped`, `resolved`, `delivered`, `appended` | conforms |
 | FallbackReceipt | every relation (one validator) | conforms |
-| Chorus | `local_*`, `participating`, `abandoned` | conforms; checked action by action in the guide's audit table ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)) |
+| Chorus | `local_*`, `participating`, `abandoned` | conforms, checked action by action in the guide's audit table ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)), with one open item: `send_mvba_cert` sends any certificate valid for its decided entries, because the MVBA contract does not yet output the certificate a decision used at the decider's index (with the Mvba item) |
 | Mvba | every relation except `msg_*`, `tc_lock`, `tc_nolock` | open: environment-written timers, sender-less certificates |
-| Conductor | `entered`, `opened`, `opened_win`, `completed` | open: the global `acs_decided` |
+| Conductor | `entered`, `opened`, `completed` | open: the global `acs_decided` |

@@ -438,9 +438,9 @@ function local_path : node → PathChoice
 /-- Validator `i` has finalized the slot: it holds a committed entry for
 every proposer (`finalize_commit`). -/
 relation local_committed (i : node)
-/-- Validator `i` committed the positive entry `⟨s, j, m⟩` (`commit_assign_pos`). -/
+/-- Validator `i` committed the positive entry `⟨s, j, m⟩` (`commit_assign_pos_*`). -/
 relation local_committed_pos (i : node) (j : node) (m : merkle_root)
-/-- Validator `i` committed the negative entry `⟨s, j, ⊥⟩` (`commit_assign_neg`). -/
+/-- Validator `i` committed the negative entry `⟨s, j, ⊥⟩` (`commit_assign_neg_*`). -/
 relation local_committed_neg (i : node) (j : node)
 
 /-- Auxiliary record ([Locality.md](../docs/Locality.md) §2): the quorum of
@@ -807,9 +807,11 @@ to be actively participating, `participating i ∧ ¬ abandoned i`. These are:
 * `mvba_propose`, which the convention names explicitly;
 * `send_mvba_cert`, the broadcast of the MVBA's commit certificate;
 * `cast_fb_commit`;
-* `commit_assign_*` and `finalize_commit`, because the paper's
-  finalization rules re-broadcast the commitment proof
-  (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)).
+* `commit_assign_*`, because the paper's finalization rules re-broadcast
+  the commitment proof (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`),
+  Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)), and `finalize_commit`,
+  the output, so that a validator that has abandoned the slot does not
+  finalize it afterwards.
 
 The rules that only process a received message are exempt: `record_chunk`,
 the vote receipts `receive_vote_*`, `aggregate_fastqc_*`, the decision
@@ -3054,7 +3056,7 @@ a later check command does not apply — see [CLAUDE.md](../CLAUDE.md),
 /-! ## Step property -/
 
 /-- A committed validator's positive entries are frozen
-(`commit_assign_pos` requires `¬ local_committed i`). -/
+(every `commit_assign_pos_*` requires `¬ local_committed i`). -/
 step_property [committed_pos_frozen] {
   local_committed I ∧ local_committed_pos' I J M → local_committed_pos I J M }
 

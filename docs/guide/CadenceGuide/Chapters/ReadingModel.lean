@@ -163,8 +163,9 @@ chapter 4 says what that asks you to accept.
 {model Cadence.Chorus "action propose"}
 
 Read the guards in order. `¬ is_byz j` makes this an honest action: it
-belongs to a correct validator, the proposer `j`. Every action of a
-correct validator starts this way, and Byzantine validators have actions of their own. The
+belongs to a correct validator, the proposer `j`. Every protocol rule of a
+correct validator starts this way (the caller's inputs, `participate` and
+`abandon`, are labelled as inputs instead), and Byzantine validators have actions of their own. The
 next two guards are the participation gate: `j` has joined the slot and has
 not left it, which every action that sends a message requires. Then `j` is
 a proposer, its root is validly encoded, and the deadline has not passed.

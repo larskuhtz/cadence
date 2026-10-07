@@ -28,10 +28,8 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
-/- Ported from the former `on_mvba_commitqc_*` handlers, which wrote the same
-record: the bridge's certificate meets the commit certificate's quorums. A
-solved cell, but at two thirds of the budget and more on this machine, so it
-is written out. -/
+/- The bridge's certificate meets the commit certificate's quorums. The
+solver closes this cell only near its budget, so it is written out. -/
 
 #prove_vc Chorus commit_assign_pos_mvba commitqc_neg_mvba_pos_excl by
   unveil_local

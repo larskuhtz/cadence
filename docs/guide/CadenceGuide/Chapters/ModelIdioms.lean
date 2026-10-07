@@ -224,7 +224,8 @@ actions, and what the rest of this chapter is for.
 2. *Reads.* The actor's own local rows, in either polarity; its own sends,
    in either polarity; other messages and the certificates over them, in
    positive position, and a chunk only as its recipient; the phase,
-   configuration, and the MVBA class at the actor's index.
+   configuration, and the MVBA class at the actor's index, or its check of
+   a certificate the actor received.
 3. *Writes.* The actor's own local rows; messages under its own name; the
    MVBA's state through an input at its index; auxiliary records, which no
    action reads.

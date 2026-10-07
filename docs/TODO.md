@@ -27,6 +27,15 @@ What has been done, and when, is [History.md](History.md).
 
 ## Soundness instruments
 
+* **Locality, the open models** ([Locality.md](Locality.md) §7). Mvba:
+  the environment-written `timer_expired`/`avail_ready` rows become the
+  validator's own timeout step and the caller's input; the sender-less
+  certificates (`msg_prepqc`, `msg_commitqc`, `msg_tc`, `tc_lock`,
+  `tc_nolock`) get a sender; the anonymous assemblies go. With it, the MVBA
+  contract outputs the certificate a decision used at the decider's index,
+  so Chorus's `send_mvba_cert` sends that certificate rather than any valid
+  one. Conductor: `acs_decide` becomes a per-validator step writing
+  per-validator window bounds, and `opened_win` an `aux_` record.
 * **A locality checker** — the rules of [Locality.md](Locality.md) are
   checked by hand, action by action (the guide's audit table), and a
   violation would not fail the build ([Architecture.md](Architecture.md) §4

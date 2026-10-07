@@ -220,7 +220,7 @@ generated whole-system monotonicity lemmas (`<relation>.mono`, emitted at
 writes `true` to it), and `init_not_committed` is the generated
 initial-value lemma. The one fact the update records cannot give is that a
 *committed* validator's entries are frozen: that rests on
-`commit_assign_pos`'s guard `¬ local_committed i`, so it is a
+the `commit_assign_pos_*` guard `¬ local_committed i`, so it is a
 `step_property` in the model, checked per action, and reaches this file as
 `Chorus.reachable_committed_pos_frozen_step`.
 [CompositionContracts.md](../../docs/CompositionContracts.md) §4 explains the
@@ -245,8 +245,8 @@ theorem committedPos_mono
   obtain ⟨l, htr⟩ := hn
   exact Chorus.local_committed_pos.mono htr i J M h
 
-/-- A committed validator's positive entries are frozen (`commit_assign_pos`
-requires `¬ local_committed i`): from the checked `step_property
+/-- A committed validator's positive entries are frozen (every
+`commit_assign_pos_*` requires `¬ local_committed i`): from the checked `step_property
 [committed_pos_frozen]` cells, along any step from a reachable state
 (`reachable_<property>_step`, emitted by [Chorus/Certify.lean](Certify.lean)'s
 `#gen_composition`). The contract's `finalized_mono` takes the pre-state's

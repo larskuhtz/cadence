@@ -323,7 +323,8 @@ measurements and the audit ladder:
   `open_isolate`). Block comments nest, so `/-` or `-/` inside prose opens
   or closes one ("pre-/post-state").
 * **The locality rules are not enforced by the tool.** Every action of
-  every model follows [docs/Locality.md](./docs/Locality.md): a correct
+  every model must follow [docs/Locality.md](./docs/Locality.md) (its §7
+  says which models conform and what is open): a correct
   validator reads its own state, messages (`msg_*`) in **positive position
   only** except its own sends, global time, configuration and its
   sub-protocol at its own index, and writes only its own state and

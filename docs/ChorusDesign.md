@@ -112,8 +112,8 @@ exactly, so it may read it in either polarity and overwrite it
 forward.
 
 (M-update) is syntactic for every network relation: each write is the
-literal `true`, except `vote`'s bulk updates of `msg_vote_pos_sig`,
-`msg_vote_neg_sig` and `local_entry_neg`, which are disjunctions with the
+literal `true`, except `vote`'s bulk updates of `msg_vote_pos_sig` and
+`msg_vote_neg_sig` (and of the voter's own `local_entry_neg`), which are disjunctions with the
 relation's old value (`msg_vote_pos_sig i J M := msg_vote_pos_sig i J M ||
 (…)`). Veil's generated `<f>.mono` lemmas cover the literal-`true` writes
 only, so those three are proven by hand, with the same statement, in
@@ -161,7 +161,13 @@ proposer, the first, as a vote is one message per sender
 (Algorithm 3, line 14 (`line:vote-broadcast`)). `fb_sign_neg i j qv`
 requires `i` to hold the entry for `j` of every vote in the supermajority
 `qv`, and reads those receipts negatively. Decodability adds no condition:
-`f+1` received positive votes carry `f+1` chunks.
+`f+1` received positive votes carry `f+1` chunks. The positive rule
+`fb_sign_pos`, and the FastQC aggregation, read the vote signatures on the
+network directly, positively, rather than through receipts: a signature
+there may be one a Byzantine signer never cast in a vote, which only adds
+behaviours, and every receipt is backed by a cast vote's signature
+(`vote_rcv_pos_backed`), so whenever the negative rule is disabled the
+positive one is enabled.
 
 **The fallback commit vote reads only the validator's own decision.**
 `cast_fb_commit i v` requires `mvba.decided mvba_st i v` (the contract's
