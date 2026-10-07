@@ -79,7 +79,7 @@ shared, and an edit to one rebuilds every chapter.
 
 | Element | Module | Shows | Fails the build when |
 |---|---|---|---|
-| `{decl}`X`` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a declaration name, linked into the sources | the name does not resolve |
+| `{decl}`X`` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a declaration name, linked into the sources where its module has a page (Lean's own declarations, such as `propext`, stay unlinked) | the name does not resolve |
 | `{claim X}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a theorem or instance: its docstring, a status box (the kernel's axioms, the contracts it is conditional on and what discharges them), the signature, collapsed | `X` has no docstring, or uses an axiom beyond Lean's standard three |
 | `{model M "safety [x]"}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a Veil model declaration, quoted from the rendered sources; `(proven := L)` adds `L`'s status box | the text matches no declaration of `M`, or more than one |
 | `{contracts}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | every contract class with what provides it | — (derived; an unprovided contract shows as assumed) |
@@ -114,7 +114,8 @@ the diagram stale:
   declaration must list.
 
 A resolved `<text>` or `<tspan>` becomes a link to the declaration in the
-rendered sources. The SVG conventions themselves are in
+rendered sources when its module has a page there; a declaration of Lean's
+own, such as `propext`, is checked and left unlinked. The SVG conventions themselves are in
 [docs/diagrams](diagrams/README.md).
 
 ### The audit table's data file
