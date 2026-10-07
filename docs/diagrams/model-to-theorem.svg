@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 720" width="760" height="720" style="max-width:100%;height:auto" role="img" aria-labelledby="dg-mt-title dg-mt-desc">
+<title id="dg-mt-title">From model to pinned theorem</title>
+<desc id="dg-mt-desc">The pipeline for Chorus; the other models follow the same shape. The model, Cadence/Chorus.lean, declares state, actions and properties; #gen_spec turns it into one verification condition per action and property, persisted as the VC registry. One proof file per action, Chorus/Proofs/&lt;Action&gt;.lean, proves that action's conditions with #prove_action: frame cells close without the solver, cvc5 finds the other proofs and Veil rebuilds each as a Lean proof term, a few cells carry a hand-written tactic, and the proof cache skips the search but never the kernel check. #gen_composition in Chorus/Certify.lean composes the per-action lemmas into Chorus.invariants_of_reachable, and #veil_status Chorus pins that every condition has a real proof. The contract instances Chorus.slotConsensusSafety and Chorus.slotConsensusFull are built on it, and Cadence.lean pins each end result's axioms at exactly propext, Classical.choice and Quot.sound. What is trusted at each step is marked beside it: Lean's kernel checks every proof; Veil's translation of the model is a trusted tool; whether the model and the contracts state the paper is the auditor's judgement.</desc>
+<style>
+.dg-t{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#10131a}
+.dg-tk{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#6f42c1}
+.dg-p{font:12px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#1c1e21}
+.dg-s{font:11.5px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#57606a}
+.dg-k{font:italic 11.5px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#6f42c1}
+.dg-l{font:italic 11.5px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#57606a}
+.dg-c{font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#0550ae}
+.dg-cs{font:10px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#57606a}
+.dg-box{fill:#f6f8fa;stroke:#8c959f;stroke-width:1}
+.dg-claim{fill:#eef4fd;stroke:#0b57d0;stroke-width:1.2}
+.dg-human{fill:#faf7ff;stroke:#6f42c1;stroke-width:1.2;stroke-dasharray:6 4}
+.dg-wit{fill:#ffffff;stroke:#57606a;stroke-width:1;stroke-dasharray:2 3}
+.dg-rule{fill:none;stroke:#d0d7de;stroke-width:1}
+.dg-dash{fill:none;stroke:#8c959f;stroke-width:1;stroke-dasharray:3 3}
+.dg-e{fill:none;stroke:#57606a;stroke-width:1.3}
+.dg-e-h{stroke:#6f42c1;stroke-dasharray:6 4}
+.dg-head{fill:#57606a}
+.dg-head-h{fill:#6f42c1}
+@media (prefers-color-scheme: dark){
+.dg-t{fill:#e6edf3}
+.dg-tk,.dg-k{fill:#bc8cff}
+.dg-p{fill:#d1d7e0}
+.dg-s,.dg-l,.dg-cs{fill:#9198a1}
+.dg-c{fill:#79c0ff}
+.dg-box{fill:#161b22;stroke:#6e7681}
+.dg-claim{fill:#0d2142;stroke:#4493f8}
+.dg-human{fill:#1d1530;stroke:#bc8cff}
+.dg-wit{fill:#0d1117;stroke:#8b949e}
+.dg-rule{stroke:#30363d}
+.dg-dash{stroke:#6e7681}
+.dg-e{stroke:#8b949e}
+.dg-e-h{stroke:#bc8cff}
+.dg-head{fill:#8b949e}
+.dg-head-h{fill:#bc8cff}
+}
+</style>
+<defs>
+<marker id="dg-mt-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="dg-head" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+
+<text class="dg-t" x="20" y="22">the pipeline, for Chorus</text>
+<text class="dg-t" x="500" y="22">what is trusted at this step</text>
+
+<!-- 1. The model -->
+<rect class="dg-box" x="20" y="34" width="450" height="66" rx="8"/>
+<text class="dg-t" x="34" y="55">The model</text>
+<text class="dg-c" x="116" y="55">Cadence/Chorus.lean</text>
+<text class="dg-s" x="34" y="73">state, actions, safety properties and invariants, in Veil</text>
+<text class="dg-c" x="34" y="90">#gen_spec</text>
+<text class="dg-s" x="104" y="90">one verification condition per action × property</text>
+<rect class="dg-human" x="500" y="40" width="240" height="24" rx="12"/>
+<text class="dg-k" x="620" y="56" text-anchor="middle">auditor: the model states the paper</text>
+<rect class="dg-human" x="500" y="70" width="240" height="24" rx="12"/>
+<text class="dg-k" x="620" y="86" text-anchor="middle">trusted tool: Veil's translation into VCs</text>
+<path class="dg-e" d="M245,100 V122" marker-end="url(#dg-mt-a)"/>
+
+<!-- 2. The VC registry -->
+<rect class="dg-box" x="20" y="124" width="450" height="50" rx="8"/>
+<text class="dg-t" x="34" y="145">The VC registry</text>
+<text class="dg-s" x="34" y="163">every condition's statement, persisted with the model</text>
+<text class="dg-s" x="500" y="145">a proof file reads each statement from here,</text>
+<text class="dg-s" x="500" y="161">never from its own text</text>
+<path class="dg-e" d="M245,174 V196" marker-end="url(#dg-mt-a)"/>
+
+<!-- 3. The proof files -->
+<rect class="dg-box" x="20" y="198" width="450" height="132" rx="8"/>
+<text class="dg-t" x="34" y="219">One proof file per action</text>
+<text class="dg-c" x="210" y="219">Chorus/Proofs/&lt;Action&gt;.lean</text>
+<text class="dg-c" x="34" y="239">#prove_action</text>
+<text class="dg-s" x="134" y="239">proves each of the action's conditions:</text>
+<text class="dg-s" x="46" y="259">· frame cells close without the solver</text>
+<text class="dg-s" x="46" y="277">· cvc5 finds a proof; Veil rebuilds it as a Lean proof term</text>
+<text class="dg-s" x="46" y="295">· a few cells carry a hand-written tactic</text>
+<text class="dg-c" x="264" y="295">#prove_vc … by</text>
+<text class="dg-s" x="46" y="313">· the proof cache skips the search, never the kernel check</text>
+<rect class="dg-claim" x="500" y="226" width="240" height="24" rx="12"/>
+<text class="dg-s" x="620" y="242" text-anchor="middle">kernel: checks every proof term</text>
+<text class="dg-s" x="500" y="274">cvc5 is not trusted: every module</text>
+<text class="dg-s" x="500" y="290">elaborates with</text>
+<text class="dg-c" x="586" y="290">veil.smt.trust false</text>
+<path class="dg-e" d="M245,330 V352" marker-end="url(#dg-mt-a)"/>
+
+<!-- 4. Composition and the status pin -->
+<rect class="dg-box" x="20" y="354" width="450" height="86" rx="8"/>
+<text class="dg-t" x="34" y="375">Composition</text>
+<text class="dg-c" x="124" y="375">Chorus/Certify.lean</text>
+<text class="dg-c" x="34" y="395">#gen_composition</text>
+<text class="dg-s" x="158" y="395">induction over the actions:</text>
+<text class="dg-c" x="34" y="412">Chorus.invariants_of_reachable</text>
+<text class="dg-c" x="34" y="430">#veil_status Chorus</text>
+<text class="dg-s" x="172" y="430">pinned: every condition has a real proof</text>
+<rect class="dg-claim" x="500" y="362" width="240" height="24" rx="12"/>
+<text class="dg-s" x="620" y="378" text-anchor="middle">kernel: checks the induction</text>
+<text class="dg-s" x="500" y="410">the build fails if a condition has</text>
+<text class="dg-s" x="500" y="426">no proof, or a proof of another statement</text>
+<path class="dg-e" d="M245,440 V462" marker-end="url(#dg-mt-a)"/>
+
+<!-- 5. Contract instances -->
+<rect class="dg-box" x="20" y="464" width="450" height="86" rx="8"/>
+<text class="dg-t" x="34" y="485">Contract instances</text>
+<text class="dg-c" x="168" y="485">Chorus/Compose.lean, Chorus/Temporal.lean</text>
+<text class="dg-s" x="34" y="505">plain Lean, from the reachable-state facts and the liveness proofs:</text>
+<text class="dg-c" x="34" y="523">Chorus.slotConsensusSafety</text>
+<text class="dg-s" x="34" y="540">and the whole contract,</text>
+<text class="dg-c" x="164" y="540">Chorus.slotConsensusFull</text>
+<rect class="dg-claim" x="500" y="472" width="240" height="24" rx="12"/>
+<text class="dg-s" x="620" y="488" text-anchor="middle">kernel: checks every instance</text>
+<rect class="dg-human" x="500" y="504" width="240" height="24" rx="12"/>
+<text class="dg-k" x="620" y="520" text-anchor="middle">auditor: the contract is the paper's module</text>
+<path class="dg-e" d="M245,550 V572" marker-end="url(#dg-mt-a)"/>
+
+<!-- 6. Axiom pins -->
+<rect class="dg-claim" x="20" y="574" width="450" height="70" rx="8"/>
+<text class="dg-t" x="34" y="595">Axiom pins</text>
+<text class="dg-c" x="114" y="595">Cadence.lean</text>
+<text class="dg-c" x="34" y="615">#guard_msgs in #print axioms Chorus.slotConsensusFull</text>
+<text class="dg-c" x="34" y="633">[propext, Classical.choice, Quot.sound]</text>
+<rect class="dg-claim" x="500" y="582" width="240" height="24" rx="12"/>
+<text class="dg-s" x="620" y="598" text-anchor="middle">kernel: Lean's three standard axioms</text>
+<text class="dg-s" x="500" y="630">the build fails on any other axiom,</text>
+<text class="dg-s" x="500" y="646">such as the sorryAx of an unfinished proof</text>
+
+<!-- Legend -->
+<rect class="dg-claim" x="20" y="684" width="26" height="16" rx="8"/>
+<text class="dg-s" x="54" y="696">checked by Lean's kernel</text>
+<rect class="dg-human" x="230" y="684" width="26" height="16" rx="8"/>
+<text class="dg-s" x="264" y="696">trusted, or judged by a human</text>
+</svg>

@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 700" width="760" height="700" style="max-width:100%;height:auto" role="img" aria-labelledby="dg-cpw-title dg-cpw-desc">
+<title id="dg-cpw-title">Claim, premises, witness</title>
+<desc id="dg-cpw-desc">One claim, R-Liveness of the composed system (Composed.liveness), with its premises. The claim is proven from exactly these premises and the proof is kernel-checked. The premises are the configuration (n = 3f + 1 with one fault pattern fmF; hrot, a correct MVBA leader every k views; hprop, the slot has a proposer; the ConductorSchedule sch; StartTimes; WindowShifts; StartsUnbounded; WindowsUnbounded; the assumed ACS's constants TA.Δ, TA.ℓ and its fault bound) and the run, Composed.SysSync (GlueRows, OrchAdmissible, SlotAdmissible). Each premise is consumed by a named proof step, such as Composed.recovery_in or Composed.openings_sync. One model of the composed system meets all of them at once (Composed.Witness.liveness_premises_satisfiable), which shows the premises consistent. Whether each premise is plausible for a real network and a real implementation is the auditor's judgement, which no tool checks.</desc>
+<style>
+.dg-t{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#10131a}
+.dg-tk{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#6f42c1}
+.dg-p{font:12px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#1c1e21}
+.dg-s{font:11.5px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#57606a}
+.dg-k{font:italic 11.5px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#6f42c1}
+.dg-l{font:italic 11.5px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#57606a}
+.dg-c{font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#0550ae}
+.dg-cs{font:10px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#57606a}
+.dg-box{fill:#f6f8fa;stroke:#8c959f;stroke-width:1}
+.dg-claim{fill:#eef4fd;stroke:#0b57d0;stroke-width:1.2}
+.dg-human{fill:#faf7ff;stroke:#6f42c1;stroke-width:1.2;stroke-dasharray:6 4}
+.dg-wit{fill:#ffffff;stroke:#57606a;stroke-width:1;stroke-dasharray:2 3}
+.dg-rule{fill:none;stroke:#d0d7de;stroke-width:1}
+.dg-dash{fill:none;stroke:#8c959f;stroke-width:1;stroke-dasharray:3 3}
+.dg-e{fill:none;stroke:#57606a;stroke-width:1.3}
+.dg-e-h{stroke:#6f42c1;stroke-dasharray:6 4}
+.dg-head{fill:#57606a}
+.dg-head-h{fill:#6f42c1}
+@media (prefers-color-scheme: dark){
+.dg-t{fill:#e6edf3}
+.dg-tk,.dg-k{fill:#bc8cff}
+.dg-p{fill:#d1d7e0}
+.dg-s,.dg-l,.dg-cs{fill:#9198a1}
+.dg-c{fill:#79c0ff}
+.dg-box{fill:#161b22;stroke:#6e7681}
+.dg-claim{fill:#0d2142;stroke:#4493f8}
+.dg-human{fill:#1d1530;stroke:#bc8cff}
+.dg-wit{fill:#0d1117;stroke:#8b949e}
+.dg-rule{stroke:#30363d}
+.dg-dash{stroke:#6e7681}
+.dg-e{stroke:#8b949e}
+.dg-e-h{stroke:#bc8cff}
+.dg-head{fill:#8b949e}
+.dg-head-h{fill:#bc8cff}
+}
+</style>
+<defs>
+<marker id="dg-cpw-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="dg-head" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+
+<!-- The claim -->
+<rect class="dg-claim" x="20" y="14" width="720" height="80" rx="8"/>
+<text class="dg-t" x="380" y="37" text-anchor="middle">The claim: 𝓡-Liveness of the composed system, Definition 2</text>
+<text class="dg-p" x="380" y="58" text-anchor="middle">every slot that starts at least 𝓡 = 2Wτ after GST is in the log of every correct validator</text>
+<text class="dg-c" x="380" y="80" text-anchor="middle">Composed.liveness</text>
+<path class="dg-e" d="M200,142 V97" marker-end="url(#dg-cpw-a)"/>
+<text class="dg-l" x="210" y="124">proven from exactly these premises: the kernel checks the proof</text>
+
+<!-- The premises -->
+<rect class="dg-box" x="20" y="142" width="640" height="370" rx="8"/>
+<text class="dg-t" x="34" y="164">premise</text>
+<text class="dg-t" x="242" y="164">what it is for</text>
+<text class="dg-t" x="464" y="164">used in (the proof step)</text>
+<path class="dg-rule" d="M30,172 H650"/>
+
+<text class="dg-l" x="34" y="192">the configuration</text>
+<text class="dg-c" x="34" y="212">n = 3f + 1, fmF</text>
+<text class="dg-s" x="242" y="212">one fault pattern for every module</text>
+<text class="dg-s" x="464" y="212">every Chorus quorum step</text>
+<text class="dg-c" x="34" y="232">hrot</text>
+<text class="dg-s" x="242" y="232">a correct MVBA leader every k views</text>
+<text class="dg-c" x="464" y="232">Composed.caller_termination</text>
+<text class="dg-c" x="34" y="252">hprop</text>
+<text class="dg-s" x="242" y="252">the slot has a proposer</text>
+<text class="dg-s" x="464" y="252">Chorus's contract instance</text>
+<text class="dg-c" x="34" y="272">sch : ConductorSchedule</text>
+<text class="dg-s" x="242" y="272">one Δ, δ = 0, the window</text>
+<text class="dg-s" x="242" y="286">parameters and their bounds</text>
+<text class="dg-c" x="464" y="272">Composed.c2_slot</text>
+<text class="dg-c" x="464" y="286">Composed.recovery_in</text>
+<text class="dg-c" x="34" y="306">StartTimes</text>
+<text class="dg-s" x="242" y="306">slots start τ apart</text>
+<text class="dg-c" x="464" y="306">Composed.c2_slot</text>
+<text class="dg-c" x="34" y="326">WindowShifts</text>
+<text class="dg-s" x="242" y="326">the windows' shape</text>
+<text class="dg-c" x="464" y="326">Composed.recovery_in</text>
+<text class="dg-c" x="34" y="346">StartsUnbounded</text>
+<text class="dg-s" x="242" y="346">slot starting times grow without bound</text>
+<text class="dg-c" x="464" y="346">Composed.openings_sync</text>
+<text class="dg-c" x="34" y="366">WindowsUnbounded</text>
+<text class="dg-s" x="242" y="366">every window has a successor</text>
+<text class="dg-c" x="464" y="366">Composed.recovery_in</text>
+<text class="dg-c" x="34" y="386">TA.Δ, TA.ℓ, fault bound</text>
+<text class="dg-k" x="242" y="386">the assumed ACS: its constants</text>
+<text class="dg-c" x="464" y="386">Composed.openings_sync</text>
+<text class="dg-c" x="464" y="400">Composed.recovery_in</text>
+
+<text class="dg-l" x="34" y="428">the run: Composed.SysSync</text>
+<text class="dg-c" x="34" y="448">GlueRows</text>
+<text class="dg-s" x="242" y="448">the glue's handlers fire within δ</text>
+<text class="dg-c" x="464" y="448">Composed.participating_by</text>
+<text class="dg-c" x="34" y="468">OrchAdmissible</text>
+<text class="dg-s" x="242" y="468">the Conductor's timing model</text>
+<text class="dg-c" x="464" y="468">Composed.openings_sync</text>
+<text class="dg-c" x="34" y="488">SlotAdmissible</text>
+<text class="dg-s" x="242" y="488">Chorus's timing model, every slot</text>
+<text class="dg-c" x="464" y="488">Composed.caller_totality</text>
+
+<!-- Plausibility: the auditor's judgement -->
+<rect class="dg-human" x="672" y="142" width="68" height="370" rx="8"/>
+<text class="dg-tk" transform="translate(701,327) rotate(-90)" text-anchor="middle">plausible? the auditor's judgement</text>
+<text class="dg-k" transform="translate(719,327) rotate(-90)" text-anchor="middle">no tool checks this</text>
+
+<!-- The witness -->
+<rect class="dg-wit" x="20" y="560" width="640" height="94" rx="8"/>
+<text class="dg-t" x="340" y="582" text-anchor="middle">Consistency: one model meets every premise at once</text>
+<text class="dg-c" x="340" y="602" text-anchor="middle">Composed.Witness.liveness_premises_satisfiable</text>
+<text class="dg-s" x="340" y="622" text-anchor="middle">four validators, one Byzantine and silent · Δ = τ = 1, δ = 0 · p = 4, W = 36 · the ideal ACS</text>
+<text class="dg-s" x="340" y="640" text-anchor="middle">one infinite run in which every slot takes the fast path; the proven claim is applied to it</text>
+<path class="dg-e" d="M340,560 V515" marker-end="url(#dg-cpw-a)"/>
+<text class="dg-l" x="350" y="542">meets all of them</text>
+
+<!-- Legend -->
+<rect class="dg-claim" x="20" y="672" width="26" height="16" rx="3"/>
+<text class="dg-s" x="54" y="684">the claim</text>
+<rect class="dg-box" x="140" y="672" width="26" height="16" rx="3"/>
+<text class="dg-s" x="174" y="684">premises, each used by the proof</text>
+<rect class="dg-wit" x="370" y="672" width="26" height="16" rx="3"/>
+<text class="dg-s" x="404" y="684">consistency witness</text>
+<rect class="dg-human" x="538" y="672" width="26" height="16" rx="3"/>
+<text class="dg-s" x="572" y="684">a human judges it</text>
+</svg>

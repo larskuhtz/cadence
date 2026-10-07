@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 480" width="760" height="480" style="max-width:100%;height:auto" role="img" aria-labelledby="dg-cs-title dg-cs-desc">
+<title id="dg-cs-title">One Chorus slot</title>
+<desc id="dg-cs-desc">One slot of Chorus on its phase axis. phase is one global individual that environment actions advance: pre_deadline until the deadline D (advance_to_deadline), post_deadline until D + Δ (advance_to_fb_arm), post_fb_arm until D + 2Δ (advance_to_mvba_arm), then post_mvba_arm. Before the deadline the proposer runs propose and receivers run record_chunk. From the deadline on each validator runs vote. Fast path, with no further phase gate: FastQCs, then a commitQC formed from fast commit votes, then finalize_commit. Fallback path, from D + Δ: fallback votes, mvba_propose (with an FBCert from D + Δ, or on the validator's own complete fast meta-block from D + 2Δ), the MVBA as the consumed contract mvba : MVBASafety, on_mvba_decide_pos (the bridge that checks a decided entry's certificate against the network), fallback commit votes, finalize_commit. Byzantine validators act at any phase through explicit adversary actions such as byz_sign_vote_pos.</desc>
+<style>
+.dg-t{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#10131a}
+.dg-tk{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#6f42c1}
+.dg-p{font:12px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#1c1e21}
+.dg-s{font:11.5px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#57606a}
+.dg-k{font:italic 11.5px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#6f42c1}
+.dg-l{font:italic 11.5px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#57606a}
+.dg-c{font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#0550ae}
+.dg-cs{font:10px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#57606a}
+.dg-box{fill:#f6f8fa;stroke:#8c959f;stroke-width:1}
+.dg-claim{fill:#eef4fd;stroke:#0b57d0;stroke-width:1.2}
+.dg-human{fill:#faf7ff;stroke:#6f42c1;stroke-width:1.2;stroke-dasharray:6 4}
+.dg-wit{fill:#ffffff;stroke:#57606a;stroke-width:1;stroke-dasharray:2 3}
+.dg-rule{fill:none;stroke:#d0d7de;stroke-width:1}
+.dg-dash{fill:none;stroke:#8c959f;stroke-width:1;stroke-dasharray:3 3}
+.dg-e{fill:none;stroke:#57606a;stroke-width:1.3}
+.dg-e-h{stroke:#6f42c1;stroke-dasharray:6 4}
+.dg-head{fill:#57606a}
+.dg-head-h{fill:#6f42c1}
+@media (prefers-color-scheme: dark){
+.dg-t{fill:#e6edf3}
+.dg-tk,.dg-k{fill:#bc8cff}
+.dg-p{fill:#d1d7e0}
+.dg-s,.dg-l,.dg-cs{fill:#9198a1}
+.dg-c{fill:#79c0ff}
+.dg-box{fill:#161b22;stroke:#6e7681}
+.dg-claim{fill:#0d2142;stroke:#4493f8}
+.dg-human{fill:#1d1530;stroke:#bc8cff}
+.dg-wit{fill:#0d1117;stroke:#8b949e}
+.dg-rule{stroke:#30363d}
+.dg-dash{stroke:#6e7681}
+.dg-e{stroke:#8b949e}
+.dg-e-h{stroke:#bc8cff}
+.dg-head{fill:#8b949e}
+.dg-head-h{fill:#bc8cff}
+}
+</style>
+<defs>
+<marker id="dg-cs-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path class="dg-head" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+
+<!-- The phase axis -->
+<text class="dg-t" x="20" y="26">phase</text>
+<rect class="dg-box" x="130" y="10" width="200" height="24"/>
+<rect class="dg-box" x="330" y="10" width="130" height="24"/>
+<rect class="dg-box" x="460" y="10" width="140" height="24"/>
+<rect class="dg-box" x="600" y="10" width="140" height="24"/>
+<text class="dg-c" x="230" y="26" text-anchor="middle">pre_deadline</text>
+<text class="dg-c" x="395" y="26" text-anchor="middle">post_deadline</text>
+<text class="dg-c" x="530" y="26" text-anchor="middle">post_fb_arm</text>
+<text class="dg-c" x="670" y="26" text-anchor="middle">post_mvba_arm</text>
+<text class="dg-p" x="330" y="50" text-anchor="middle">D</text>
+<text class="dg-p" x="460" y="50" text-anchor="middle">D + Δ</text>
+<text class="dg-p" x="600" y="50" text-anchor="middle">D + 2Δ</text>
+<text class="dg-cs" x="330" y="64" text-anchor="middle">advance_to_deadline</text>
+<text class="dg-cs" x="460" y="64" text-anchor="middle">advance_to_fb_arm</text>
+<text class="dg-cs" x="600" y="64" text-anchor="middle">advance_to_mvba_arm</text>
+<path class="dg-dash" d="M330,72 V344 M460,72 V344 M600,72 V344"/>
+
+<!-- Proposal -->
+<text class="dg-t" x="20" y="98">proposal</text>
+<text class="dg-s" x="20" y="113">before the deadline</text>
+<rect class="dg-box" x="142" y="86" width="64" height="22" rx="11"/>
+<text class="dg-c" x="174" y="101" text-anchor="middle">propose</text>
+<path class="dg-e" d="M206,97 H220" marker-end="url(#dg-cs-a)"/>
+<rect class="dg-box" x="222" y="86" width="98" height="22" rx="11"/>
+<text class="dg-c" x="271" y="101" text-anchor="middle">record_chunk</text>
+
+<!-- Vote -->
+<text class="dg-t" x="20" y="146">vote</text>
+<text class="dg-s" x="20" y="161">from the deadline</text>
+<rect class="dg-box" x="342" y="134" width="52" height="22" rx="11"/>
+<text class="dg-c" x="368" y="149" text-anchor="middle">vote</text>
+
+<!-- Fast path -->
+<text class="dg-t" x="20" y="196">fast path</text>
+<text class="dg-s" x="20" y="211">no further gate</text>
+<rect class="dg-wit" x="340" y="184" width="62" height="22" rx="11"/>
+<text class="dg-s" x="371" y="199" text-anchor="middle">FastQCs</text>
+<path class="dg-e" d="M402,195 H408" marker-end="url(#dg-cs-a)"/>
+<rect class="dg-wit" x="410" y="184" width="70" height="22" rx="11"/>
+<text class="dg-s" x="445" y="199" text-anchor="middle">commitQC</text>
+<path class="dg-e" d="M480,195 H486" marker-end="url(#dg-cs-a)"/>
+<rect class="dg-box" x="488" y="184" width="112" height="22" rx="11"/>
+<text class="dg-c" x="544" y="199" text-anchor="middle">finalize_commit</text>
+
+<!-- Fallback path -->
+<text class="dg-t" x="20" y="246">fallback path</text>
+<text class="dg-s" x="20" y="261">from D + Δ</text>
+<rect class="dg-wit" x="472" y="234" width="94" height="22" rx="11"/>
+<text class="dg-s" x="519" y="249" text-anchor="middle">fallback votes</text>
+<path class="dg-e" d="M566,245 H578" marker-end="url(#dg-cs-a)"/>
+<rect class="dg-box" x="580" y="234" width="100" height="22" rx="11"/>
+<text class="dg-c" x="630" y="249" text-anchor="middle">mvba_propose</text>
+<path class="dg-e" d="M680,245 H730 V264 H530 V272" marker-end="url(#dg-cs-a)"/>
+<rect class="dg-box" x="472" y="274" width="124" height="22" rx="4"/>
+<text class="dg-c" x="534" y="289" text-anchor="middle">mvba : MVBASafety</text>
+<path class="dg-e" d="M596,285 H604" marker-end="url(#dg-cs-a)"/>
+<rect class="dg-box" x="606" y="274" width="132" height="22" rx="11"/>
+<text class="dg-c" x="672" y="289" text-anchor="middle">on_mvba_decide_pos</text>
+<path class="dg-e" d="M672,296 V304 H530 V312" marker-end="url(#dg-cs-a)"/>
+<rect class="dg-wit" x="472" y="314" width="134" height="22" rx="11"/>
+<text class="dg-s" x="539" y="329" text-anchor="middle">fallback commit votes</text>
+<path class="dg-e" d="M606,325 H614" marker-end="url(#dg-cs-a)"/>
+<rect class="dg-box" x="616" y="314" width="112" height="22" rx="11"/>
+<text class="dg-c" x="672" y="329" text-anchor="middle">finalize_commit</text>
+
+<!-- The adversary -->
+<text class="dg-t" x="20" y="368">adversary</text>
+<text class="dg-s" x="20" y="383">at any phase</text>
+<rect class="dg-rule" x="130" y="352" width="610" height="36" rx="6"/>
+<rect class="dg-box" x="142" y="359" width="124" height="22" rx="11"/>
+<text class="dg-c" x="204" y="374" text-anchor="middle">byz_sign_vote_pos</text>
+<text class="dg-s" x="278" y="374">and the other byz_ actions: Byzantine signers only, any phase</text>
+
+<!-- Notes -->
+<text class="dg-s" x="20" y="418"><tspan class="dg-c">phase</tspan> is one global value: every validator's timer guards read it, standing for each validator's own clock.</text>
+<text class="dg-s" x="20" y="436"><tspan class="dg-c">mvba_propose</tspan> fires from D + Δ on an FBCert, or from D + 2Δ on the validator's own complete fast meta-block.</text>
+<text class="dg-s" x="20" y="454"><tspan class="dg-c">on_mvba_decide_pos</tspan> is the one stated bridge: it checks a decided entry's certificate against the network.</text>
+<text class="dg-l" x="20" y="472">Code font: a declaration of the model. Dotted: a step summarised in words.</text>
+</svg>
