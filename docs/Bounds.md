@@ -1021,7 +1021,7 @@ Appendix C.3 (`subsection:chorus-protocol-overview`), rule for rule:
   Without the sender, Quiescence could not attribute those messages.
 
 The gates read only the acting validator's local state: no network
-relation is read negatively ([ChorusDesign.md](ChorusDesign.md) §3.1.1).
+relation is read negatively ([Locality.md](Locality.md) R1, R2).
 
 Quiescence is then proven in the paper's own two-part shape
 (Lemma 6 (`lemma:chorus-quiescence`)), in
@@ -1318,8 +1318,7 @@ Chorus's own rows carry it.
 * **The relay.** `accept_mvba_commitqc i s c mvba_next`: a correct
   validator that received `c` from `s` hands it to its MVBA through the
   contract's input `mvba.accept`, which checks it. The read of the message
-  is positive, so the monotone-network contract of
-  [ChorusDesign.md](ChorusDesign.md) §3.1.1 is untouched. Finalization on
+  is positive ([Locality.md](Locality.md) R2). Finalization on
   the certificate is the `CommitQC` route, `commit_assign_*_mvba`
   ([PaperAlignment.md](PaperAlignment.md) §5.7), which re-broadcasts it.
 * **The contract** (`MVBASafety`, first-order additions,
@@ -1927,8 +1926,7 @@ disable themselves after firing: `vote` (`¬ local_voted`), `send_commit`
   what it formed, and a guard on that record's absence disables every
   `q`-variant at once. A negative read of the actor's *own local* state is
   what every existing honest guard does; no network relation is read
-  negatively, so the monotone-network contract is untouched
-  ([ChorusDesign.md](ChorusDesign.md) §3.1.1). It also sets the network
+  negatively ([Locality.md](Locality.md) R1, R2). It also sets the network
   certificate relation, as `adopt_prepqc` sets `msg_prepqc`, where the
   certificate is carried on (timeouts, broadcasts).
 * The **anonymous forming stays**, but is **not fair**: it is the
@@ -1973,9 +1971,8 @@ proof is one lemma per action, read off the transition body.
 
 *The inventory, as the lemma found it.* Every fair action that could stay enabled after firing now has a "not
 already" guard on a record it sets itself. All the reads are negative reads
-of the acting validator's own local state (category (L)). No network
-relation is read negatively, and there is no new exception category
-([ChorusDesign.md](ChorusDesign.md) §3.1.1).
+of the acting validator's own local state ([Locality.md](Locality.md)
+R1). No network relation is read negatively.
 
 | action | old guard, in words | new guard, in words |
 |---|---|---|

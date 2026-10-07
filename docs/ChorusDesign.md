@@ -3,8 +3,8 @@
 *The design rationale of the Chorus model. [The guide's chapters
 3](https://larskuhtz.github.io/cadence/guide/reading-a-model/) and [4](https://larskuhtz.github.io/cadence/guide/modelling-idioms/) teach how to read the
 model and what it asks an auditor to accept; this page is the authority for
-the network abstraction and its exceptions (§3.1.1) and for the Chorus
-modelling choices.*
+how Chorus instantiates the locality rules of [Locality.md](Locality.md)
+(§3) and for the Chorus modelling choices.*
 
 The top-level architecture document, with the methods, the trust bases and
 the meta-assumption inventory, is [Architecture.md](Architecture.md).
