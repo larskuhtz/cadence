@@ -232,8 +232,8 @@ items are in the models (§8 states the design of the two largest):
   `FallbackQC` entries of its own `B′` (§8.1).
 * **(b) S7.** `AvailReady` is indexed by the representation
   (`avail_ready i x`).
-* **(b) S8.** Chorus finalizes on a valid MVBA `CommitQC`
-  (`on_mvba_commitqc_pos` / `_neg`), as well as on the `fbCommitQC`
+* **(b) S8.** Chorus finalizes on a received MVBA `CommitQC`
+  (`commit_assign_pos_mvba` / `_neg_mvba`), as well as on the `fbCommitQC`
   (§8.2).
 * **(c) M9/S6.** `MVBASafety` has the `entries` projection, and Agreement
   and Integrity are stated over it, in the supplement's forms.
@@ -384,12 +384,11 @@ path and with the first is argued only in one sentence of Part I (§6, P2).
 **What the model does** (§8.2). It has both routes. The main
 body's is the fallback commit round (`cast_fb_commit`, `fbcommitqc`). Part
 I's is the handoff into the MVBA (`accept_mvba_commitqc`) together with the
-`CommitQC` route: a correct validator holding a valid MVBA `CommitQC`
+`CommitQC` route: a correct validator broadcasts the `CommitQC` its
+decision outputs (`send_mvba_cert`), and a validator that receives one
 recovers a matching representation, checks the certificates it names, and
-records the certified entries (`on_mvba_commitqc_pos` / `_neg`). It then
-finalizes on them, because `commit_assign_*` accept "a valid MVBA
-`CommitQC` exists" in place of `fbcommitqc`. The re-broadcast is folded
-into the handoff, as the decision broadcast is. So the model has every run
+finalizes on the certified entries, re-broadcasting the certificate
+(`commit_assign_pos_mvba` / `_neg_mvba`). So the model has every run
 of the specified protocol, and every run of the Part II implementation as
 far as safety goes, since that implementation is the specified protocol
 without the `fbCommitQC` route.
@@ -1183,15 +1182,12 @@ certificate re-broadcasts it and finalizes the certified outcome,
 recovering a matching meta-block or the underlying proposals as required by
 the ordinary commitment-proof recovery path" (Supplement, Section 1.2
 (`subsec:mvba-protocol`), "Decision output and handoff"). In the model a
-correct validator that holds a valid MVBA certificate recovers a matching
-representation, checks the certificates it names (the same bridge as at
-the decision handlers), and records the certified entries
-(`on_mvba_commitqc_pos` / `_neg`). It then commits and finalizes by the
-ordinary `commit_assign_*` / `finalize_commit`, which accept "a valid MVBA
-`CommitQC` exists" beside the `fbCommitQC`. The re-broadcast is folded into
-the handoff (`accept_mvba_commitqc`), as the decision broadcast is: a
-certificate is transferable and stays valid (`certified_mono`), so its
-existence is its availability to every validator. The route is a handler
+correct validator broadcasts the certificate its decision outputs
+(`send_mvba_cert`, the message `msg_mvba_cert`). A validator that receives
+one recovers a matching representation, checks the certificates it names
+(the same bridge as at the decision handlers), commits the certified
+entries and re-broadcasts the certificate (`commit_assign_pos_mvba` /
+`_neg_mvba`), then finalizes by the ordinary `finalize_commit`. The route is a handler
 and not only a guard disjunct because a certificate can exist before any
 correct validator decides (the adversary can aggregate `2f+1` `Commit`s),
 and the paper's validator finalizes on it then. The handlers write the

@@ -81,21 +81,25 @@ name says which:
   * Named
   * Stands for
 *
-  * network
-  * `msg_*`
-  * a signed message exists, and every validator can see it
+  * message
+  * `msg_*`, sender first
+  * a message its sender has sent, which stays visible
 *
   * derived certificate
   * `ghost relation`
-  * a fact about the network, such as "a supermajority signed this"
+  * a fact about the messages, such as "a supermajority signed this"
 *
   * local
-  * `local_*`
+  * `local_*`, owner first
   * one validator's own record, read and written by its own actions only
 *
-  * abstract
+  * auxiliary
+  * `aux_*`
+  * a history record for the proofs, read by no action
+*
+  * global time, the MVBA
   * a bare name
-  * a landmark or an oracle that is not any one validator's: the phase, the MVBA's state
+  * the phase, which the environment moves, and the MVBA's state
 :::
 
 Configuration sits beside them, as `immutable` relations. Here is one
@@ -164,19 +168,19 @@ correct validator starts this way, and Byzantine validators have actions of thei
 next two guards are the participation gate: `j` has joined the slot and has
 not left it, which every action that sends a message requires. Then `j` is
 a proposer, its root is validly encoded, and the deadline has not passed.
-The last guard says `j` has not signed a different root; it reads `j`'s own
-row of a network relation, one of the two kinds of negative network read
-chapter 4 admits. The single update is the signature.
-
-Delivering the chunks is a separate action, `deliver_chunk_assigned`,
-because when a chunk *arrives* decides what the receiver records.
+The last guard says `j` has not signed a different root; it reads what `j`
+itself has sent, which chapter 4's rules allow in either polarity. The
+updates are the signature and the chunks: one message to each validator,
+`msg_chunk j I j m`, sent in the same step as the paper sends them. When a
+chunk reaches its validator is the receiver's step, next.
 
 ## A validator records a chunk
 
 {model Cadence.Chorus "action record_chunk"}
 
-The receiving side. The guards read the network positively (its chunk has
-arrived, and the proposer signed the root) and the validator's own rows
+The receiving side. The guards read the network positively (a chunk
+addressed to `i` from some sender, and the proposer's signature on the
+root) and the validator's own rows
 negatively (it has no entry for `j` yet). The deadline is a read of the
 phase. There is no participation gate, because recording sends nothing.
 
@@ -197,10 +201,11 @@ and releases the validator's decryption share.
 {model Cadence.Chorus "action finalize_commit"}
 
 The protocol's output, written to the validator's own row. It requires a
-committed entry for every proposer, and each of those comes from
-`commit_assign_pos` or `commit_assign_neg`, which commit only on a
-commitment proof: a fast commit certificate, a fallback commit certificate,
-or the MVBA's own commit certificate.
+committed entry for every proposer, and each of those comes from a
+`commit_assign_*` action, which commits only on a commitment proof the
+validator received: a fast commit certificate, a fallback commit
+certificate, or the MVBA's own commit certificate. Each carries its
+entries, and the validator re-broadcasts it.
 
 # The adversary
 
@@ -213,9 +218,9 @@ and a vote without one is discarded on receipt, so it could never influence
 a correct validator.
 
 The adversary is a family of such actions, `byz_*`, one per capability:
-each kind of signature, delivering a chunk, re-disseminating one, and
-assembling a commit certificate. Each writes only Byzantine
-signers' rows, so signatures cannot be forged. Chapter 4 explains why the
+each kind of signature, sending a chunk, re-disseminating one, and
+forming and sending a commit certificate. Each writes only its own
+messages, so signatures cannot be forged. Chapter 4 explains why the
 adversary has to be at least this strong.
 
 # The MVBA as a consumed contract
@@ -236,8 +241,9 @@ contracts*, is about checking such a class.
 {model Cadence.Chorus "action on_mvba_decide_pos"}
 
 The decision handler. It reads validator `i`'s own decision through the
-class (`mvba.decided mvba_st i v`), and records entry `j` in Chorus's own
-record, which the commit actions read. Before it does, it checks the
+class (`mvba.decided mvba_st i v`), and marks entry `j` handled in its own
+row; `mvba_terminate` waits for every entry, and the fallback commit vote for
+`mvba_terminate`. Before it does, it checks the
 certificate `v` names for that entry against Chorus's network. That guard
 is the *bridge*: the class's validity predicate is fixed before Chorus's
 network exists, so it cannot speak about Chorus's signatures, and the guard

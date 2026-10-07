@@ -74,50 +74,44 @@ We follow the standard Veil idealisation of asynchronous BFT:
 > Each signed message is a *monotone* relation. Once produced, it
 > remains observable forever.
 
-Concretely there are twelve signed-message / network relations
-(`msg_proposer_signed`, `msg_chunk_received`, `msg_vote_pos_sig`,
-`msg_vote_neg_sig`, `msg_vote_cast`, `msg_fb_pos_sig`, `msg_fb_neg_sig`,
-`msg_fallback_sig`, `msg_commit_pos_sig`, `msg_commit_neg_sig`,
-`msg_commit_cast`, `msg_decrypt_share`), one family of per-validator
-certificate observations (`local_fastqc_pos/neg` — the FastQC a
-validator's own commit signature is justified by), the per-validator
-protocol state (`local_entry_*`, `local_voted`, `local_path`,
-`local_committed*`, the fired-once records), and the abstract/oracle state
-(`mvba_st`, `mvba_decided_*`, `phase`). All *transferable* certificates (FallbackQC,
-EquivCert, FBCert, commitQC, chunk-decodability, the reconstructed slot
-key) are **derived predicates** (`ghost relation`s) over the signature
-relations — see §3.5.
+The rules every action follows — what a correct validator may read and
+write, what the environment and the adversary may do — are stated once, for
+every model, in [Locality.md](Locality.md). This section says how Chorus
+instantiates them: which relations are messages, which are local, and the
+few places where a reader might expect something else.
 
-### 3.1 What "monotone" actually means here
+The **messages** are the `msg_*` relations, each with its sender at the
+first index: `msg_proposer_signed`, `msg_chunk` (the one point-to-point
+message, recipient second), `msg_vote_pos_sig`, `msg_vote_neg_sig`,
+`msg_vote_cast`, `msg_decrypt_share`, `msg_fb_pos_sig`, `msg_fb_neg_sig`,
+`msg_fallback_sig`, `msg_commit_pos_sig`, `msg_commit_neg_sig`,
+`msg_commit_cast`, `msg_commitqc_pos/neg`, `msg_fbcommit_sig`,
+`msg_fbcommitqc` and `msg_mvba_cert`. The **local state** is the `local_*`
+relations, owner first, with `participating` and `abandoned`. The
+**auxiliary records**, written by actions and read by none, are
+`aux_mvba_decided_pos/neg` and `aux_fb_neg_qv`. Global time is `phase`, and
+the consumed MVBA's state is `mvba_st`. Transferable certificates
+(FastQC, FallbackQC, EquivCert, FBCert, commitQC, fbCommitQC,
+decodability, the reconstructed slot key) are also **derived predicates**
+(`ghost relation`s) over the signatures — see §3.5.
+
+### 3.1 What "monotone" means here
 
 The single word "monotone" hides two distinct properties:
 
 * **(M-update)** *Monotone update* — tuples can only be added to the
   relation, never removed.
-* **(M-frame)** *Positive-only use* — the relation appears in action
-  preconditions only in positive position (no `¬R(…)`, no
-  `∀M, ¬R(…, M)` over the relation).
+* **(M-frame)** *Positive-only use* — the relation appears in a correct
+  validator's guards and updates only in positive position, except where
+  the validator reads what it has itself sent.
 
-(M-update) and (M-frame) are independent. The standard
-"monotone-abstraction" idiom for asynchronous networks relies on
-**both**, and the soundness argument in §3.2 below uses both for the
-network relations. Auditing Chorus, the property split is:
+The network relations have both, and the soundness argument of §3.2 uses
+both. Local state needs neither: a validator observes its own state
+exactly, so it may read it in either polarity and overwrite it
+(`local_path` is a function that changes value). Global time only moves
+forward.
 
-| Relation | M-update | M-frame |
-|---|:-:|:-:|
-| `msg_chunk_received` | ✓ | ✓ |
-| `msg_proposer_signed` | ✓ | ✗ — one self-row read: `propose j` guards on its **own** row (see "Self-row negative reads" below) |
-| `msg_vote_*_sig`, `msg_vote_cast`, `msg_fb_*_sig`, `msg_fallback_sig`, `msg_commit_*_sig`, `msg_decrypt_share`, `msg_fbcommit_sig` | ✓ | ✓ (but see the note on `fb_sign_neg` below) |
-| `msg_commit_cast` | ✓ | ✗ — six self-row reads: `¬ msg_commit_cast i` for the acting validator `i` (see "Self-row negative reads" below) |
-| `local_fastqc_*` | ✓ | ✗ (negative observations of own state) |
-| `mvba_st : mstate` | (the contract's `decided_mono`: decisions only accrue along `mvba.step`/`mvba.propose`) | ✓ — consulted only through the contract's observables, in positive position: `mvba.decided` of the acting validator (the decision handlers, `mvba_terminate`, `cast_fb_commit`) and `mvba.certifies` (the `CommitQC` route, `commit_assign_*`) |
-| `mvba_decided_*` | ✓ | ✓ — read positively only, by `mvba_terminate` and `commit_assign_*` (see "Reads of the MVBA records" below). The records are written by the decision handlers and the `CommitQC` route's handlers, which never read them |
-| `phase : Phase` enum | (forward-only, see below) | ✓ |
-| `local_entry_pos/neg`, `local_voted`, `local_path`, `local_committed*` | ✓ | ✗ |
-| `participating`, `abandoned` | ✓ (written only by the inputs `participate i` / `abandon i`) | ✗ — the participation gate `participating i ∧ ¬ abandoned i` of every sending rule, read at the acting validator (for `broadcast_commitqc_*`, the sender parameter) |
-| `local_chunk_sent`, `local_commit_entry`, `local_fb_entry`, `local_commitqc_sent`, `local_mvba_recorded`, `local_mvba_qc_accepted`, `local_avail_marked`, `local_mvba_complete`, `local_fbcommit_voted` (the fired-once records) | ✓ (each written only by the actions it guards) | ✗ — each action's "not already" guard, read at its own row: the acting validator's, and for `deliver_chunk_assigned` the record of that delivery (`local_chunk_sent j i j m`), which only that delivery writes. `local_mvba_complete i` is also read positively by `cast_fb_commit i`, at its own row |
-
-(M-update) is syntactic for every relation in the table: each write is the
+(M-update) is syntactic for every network relation: each write is the
 literal `true`, except `vote`'s bulk updates of `msg_vote_pos_sig`,
 `msg_vote_neg_sig` and `local_entry_neg`, which are disjunctions with the
 relation's old value (`msg_vote_pos_sig i J M := msg_vote_pos_sig i J M ||
@@ -125,6 +119,19 @@ relation's old value (`msg_vote_pos_sig i J M := msg_vote_pos_sig i J M ||
 only, so those three are proven by hand, with the same statement, in
 [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)
 (`Chorus.msg_vote_pos_sig_mono` and its two siblings).
+
+(M-frame) is the rule R2 of [Locality.md](Locality.md), with R3 for the
+validator's own sends. The reads of Chorus that are negative and touch a
+message are all R3 — a read of a row whose sender is the acting validator:
+
+* `propose j` requires `∀ m2, msg_proposer_signed j m2 → m2 = m` — "I have
+  signed no other root";
+* `commit_sign_pos`, `commit_sign_neg`, `cast_fast_commit`, `fb_sign_pos`,
+  `fb_sign_neg` and `cast_fallback_vote` require `¬ msg_commit_cast i` —
+  "I have not cast my fast commit vote".
+
+Every other negative read is of the validator's own local rows (R1): the
+fired-once records, `local_path`, the receipts.
 
 **One relation per message type.** Each signed object is its own relation
 in the inventory above, and every guard reads the relation of the type it
@@ -139,152 +146,65 @@ votes; [PaperAlignment.md](PaperAlignment.md) §5.1). The models rest on
 non-confusability; the tags are how a deployment obtains it.
 
 `phase` is a 4-valued enum (`pre_deadline → post_deadline →
-post_fb_arm → post_mvba_arm`); it advances only through explicit
-`advance_to_*` actions whose preconditions force the forward direction.
+post_fb_arm → post_mvba_arm`); it advances only through the environment's
+`advance_to_*` actions, whose preconditions force the forward direction.
 
-**The `fb_sign_neg` guard.** One action deliberately deviates from pure
-(M-frame): the paper's validator signs a *negative* fallback entry for
-`j` exactly when, among the ≥ 2f+1 votes it received, no root has an
-f+1 positive sub-quorum with decodable data (Algorithm 5, line 8 (`line:fb-cast-entry`), else-branch). A per-validator "received" set does
-not exist in the monotone model, so the guard is stated relative to a
-*witnessed* supermajority `qv` of broadcast votes (the action's
-parameter): `∀ M q qc, ¬(q ⊆ qv ∧ q positive-signs M ∧ qc holds chunks
-of M ∧ well_encoded M)`, with `q` and `qc` of size `f+1`. The vote
-conjunct ranges over the witnessed subset only, so a validator may still
-negative-sign although a positive quorum exists outside `qv` — the
-behaviours asynchrony makes real are retained (the abstraction stays
-conservative). The chunk conjunct is the paper's `isDecoded` and is not
-scoped to `qv`, but at every reachable state it is implied by the vote
-conjunct: a positive vote signature carries the signer's chunk
-(`vote_pos_sig_chunk`), so `q` itself is such a `qc`
-(`vote_pos_quorum_implies_decodable`). The guard therefore equals the
-`qv`-scoped one, as in the paper, where `f+1` valid positive votes carry
-their chunks. A guard negating over the *global* signature state would not
-be conservative: it would exclude real behaviours.
+**A rule that reads the absence of something reads its own receipts.** The
+paper's validator signs a *negative* fallback entry for `j` exactly when,
+among the ≥ 2f+1 votes it received, no root has an f+1 positive sub-quorum
+with decodable data (Algorithm 5, line 8 (`line:fb-cast-entry`),
+else-branch). "Among the votes it received" is a statement about the
+validator's own state, so the model gives it that state: the receive steps
+`receive_vote_pos` / `receive_vote_neg` record, in the validator's own
+rows, the entry of each sender's vote it receives — one per sender and
+proposer, the first, as a vote is one message per sender
+(Algorithm 3, line 14 (`line:vote-broadcast`)). `fb_sign_neg i j qv`
+requires `i` to hold the entry for `j` of every vote in the supermajority
+`qv`, and reads those receipts negatively. Decodability adds no condition:
+`f+1` received positive votes carry `f+1` chunks.
 
 **The fallback commit vote reads only the validator's own decision.**
-`cast_fb_commit i v` requires `mvba.decided mvba_st i v` (the oracle state,
-in positive position), its own transport record `local_mvba_complete i`,
-and waits under exactly the FallbackQC entries of `v`: `∀ J M, mval_pos
-(mvba.entries v) J M → mval_fb v J → msg_chunk_received i J M`. The
-antecedents are immutable projections and the chunk receipt is read
-positively, so the action consults no network relation negatively and none
-of the shared decision records (Algorithm 5, lines 37–39
+`cast_fb_commit i v` requires `mvba.decided mvba_st i v` (the contract's
+output at `i`), its own transport record `local_mvba_complete i`, and waits
+under exactly the FallbackQC entries of `v`: `∀ J M, mval_pos
+(mvba.entries v) J M → mval_fb v J → chunk_received i J M`, the chunks
+addressed to `i` (Algorithm 5, lines 37–39
 (`line:fb-mvba-decide`–`line:fb-commit-wait`), and Algorithm 5, line 41
 (`line:fb-commitvote`), which signs `entries(B′)` of the validator's own
 `B′`; [PaperAlignment.md](PaperAlignment.md) §8.1 (d)).
 
-**Reads of the MVBA records.** The records `mvba_decided_*` are shared: any
-correct validator's handler writes them. Two kinds of guard read them, both
-positively, and each stands for information the acting validator holds
-itself.
+**A certificate carries its entries.** A validator finalizes on a
+certificate it received, and the certificate says what is committed: a
+fast commit certificate names its entry, a fallback commit certificate
+`fbCommitQC = ⟨FallbackCommit, s, E, Σ⟩` carries the vector `E`
+(Algorithm 5, line 45 (`line:fb-recv-commit`)), and the MVBA's commit
+certificate is checked against a representation of the entries it
+certifies. So the three finalization routes (`commit_assign_*_fast`,
+`_fb`, `_mvba`) read only the received message, and each re-broadcasts it
+under the finalizer's own name (Algorithm 4, line 35
+(`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46
+(`line:fb-commit-rebroadcast`)).
 
-* `mvba_terminate i v` requires every proposer's entry of `i`'s own decision
-  `v` to be recorded, comparing each record with `v`'s entry. A record
-  holds the agreed entry (`mvba_decided_pos_unique`, from the contract's
-  agreement), which is the tuple `i`'s own handler would write, and `i`'s
-  handlers are enabled from its decision on. So another validator's record
-  only lets `i` skip a step that would write the same tuple. No run of the
-  paper is lost, and nothing fires before `i`'s own decision.
-* `commit_assign_*` requires `mvba_decided_* ∧ (fbcommitqc ∨ mvba_commitqc)`.
-  The paper's commitment proof carries its entries (Algorithm 5, line 45
-  (`line:fb-recv-commit`): `fbCommitQC = ⟨FallbackCommit, s, E, Σ⟩`), and
-  so does the MVBA's commit certificate. The model's `msg_fbcommit_sig`
-  carries no vector, so the records stand for the certificate's `E`
-  (the tie invariants and `fbcommitqc_implies_mvba_complete` with
-  `mvba_complete_per_proposer` prove they are the certified entries).
+Crucially, **nothing forces a validator to act on a message**: a message
+on the network is one the validator *may* have received, and every rule
+that reads one is a step the validator *may* take. The model does not
+track delivery; when a message is acted on is the receiver's step, and the
+liveness premises say when that step is owed (§7).
 
-No guard reads the records negatively. No honest action's guard reads
-another validator's `local_*` row: the one guard on a row not indexed by
-its actor is `deliver_chunk_assigned`'s fired-once record of that very
-delivery, and the run-level ghosts that range over every validator
-(`mvba_invoked`, `mvba_complete`) appear in invariants and theorems only.
+### 3.1.1 What the tool does not check
 
-**Self-row negative reads (`msg_proposer_signed`, `msg_commit_cast`).**
-Seven guards read a network relation negatively where the row consulted
-is indexed by the **acting validator itself** and written by no one
-else:
-
-* `propose j` requires `∀ m2, msg_proposer_signed j m2 → m2 = m` — "I
-  have not already signed a different root". For honest `j` the row
-  `msg_proposer_signed j` is written only by `propose j` itself: the
-  only other writer, `byz_sign_proposer j`, requires `is_byz j`, and
-  `is_byz` is immutable configuration.
-* `commit_sign_pos`, `commit_sign_neg`, `cast_fast_commit`,
-  `fb_sign_pos`, `fb_sign_neg`, and `cast_fallback_vote` require
-  `¬ msg_commit_cast i` — "I have not already cast my fast commit
-  vote". For honest `i` the row `msg_commit_cast i` is written only by
-  `cast_fast_commit i` (the only other writer, `byz_cast_commit i`,
-  requires `is_byz i`).
-
-These reads are **sound**, for a reason distinct from the two
-exceptions above: under the §3.2 simulation the global monotone value
-of a self-row coincides with the acting validator's local knowledge in
-the asynchronous run — the row records the validator's own *production*
-history, not delivery, so no adversarial scheduling can make the
-monotone read differ from what the real validator observes about
-itself. Semantically these are the local checks "I have not already
-proposed / already cast" that any real validator performs on its own
-state. Network tuples produced by *other* participants can never
-disable these guards.
-
-The network relations satisfy **both** properties elsewhere. The
-per-validator local state relations satisfy only (M-update): they appear
-in negative position in some preconditions — e.g., `commit_assign_neg`
-requires `∀ m, ¬ local_committed_pos i j m`. This is sound because a
-validator can correctly observe its own non-decisions; what would *not*
-be sound is asking "no validator has signed this" or "no FastQC exists".
-
-Crucially, **there is no `received i σ` predicate**: nothing in the
-model *forces* validator `i` to act on a globally-visible signature.
-An honest validator may fire an action whose precondition references
-that signature; it equally may not. The model therefore does **not**
-claim "every message is received eventually" — it does not track
-delivery at all.
-
-### 3.1.1 Load-bearing contract for future edits
-
-The positive-use property of the network relations is an **assumption
-of the soundness argument**, not a property the Veil tool enforces.
-If a future edit observes a network relation negatively (via `¬R`,
-`∀ R, R(…) → …`, an `if-then-else` whose `else` branch fires on
-`¬R`, or any update expression sensitive to `¬R`), the SMT proofs may
-still go through but the claim that "safety in this model implies
-safety in an asynchronous network" will silently no longer hold.
-
-Therefore the following is a **contract**, not a documentation aid:
-
-> Actions in [Cadence/Chorus.lean](../Cadence/Chorus.lean) must consult the **network relations**
-> listed in §3.1 only in positive position, both in preconditions and
-> in update right-hand sides — with two documented exception
-> categories: (i) `fb_sign_neg`'s witnessed-quorum guard, whose
-> negation is scoped to the action's own `qv` parameter (it observes
-> the *absence of a quorum within a set the validator has received*,
-> which a real validator can observe); and (ii) the seven **self-row
-> reads** enumerated in §3.1 — a negative read of a relation row that
-> is indexed by the acting validator and written only by that
-> validator's own actions. Any new self-row read must satisfy the same
-> writer condition (audit every writer of the row, honest and
-> Byzantine) and be added to the §3.1 enumeration. The
-> **per-validator local relations** are exempt — negative observations
-> of one's own local state are sound.
-
-
-The robust semantic formulation is *action monotonicity w.r.t. network
-tuples produced by other participants*: adding such tuples to the
-pre-state should never disable an action nor change its update
-behaviour. The self-row reads satisfy this through the writer
-condition — only the acting validator's own firing adds the tuple the
-guard consults — and `fb_sign_neg` deviates knowingly: a larger
-pre-state can disable the action for a given `qv` exactly as more
-received votes can in the real protocol. When adding or modifying an
-action, audit it against this contract. A future improvement (tracked
-in [TODO.md](TODO.md) § Soundness and as §9 item 3 below) is an
-automated syntactic check — one that *classifies* every occurrence
-(positive / self-row / documented exception) rather than merely
-rejects, so that reads like the seven above are reported and
-acknowledged explicitly instead of slipping past a reject-only lint.
-
+The positive-use property of the network relations is an **assumption of
+the soundness argument**, not a property Veil enforces. If an edit
+observes a message negatively (via `¬R`, `∀ R, R(…) → …`, an
+`if-then-else` whose `else` branch fires on `¬R`, or an update sensitive to
+`¬R`) at a row that is not the actor's own send, the SMT proofs may still
+go through but the claim that "safety in this model implies safety in an
+asynchronous network" silently no longer holds. Every action is therefore
+checked by hand against [Locality.md](Locality.md), and the result is the
+audit table of the guide ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)),
+one row per action with the rule each read and write follows. The rules
+are written so that a checker can apply them by pattern matching; that
+checker is planned ([TODO.md](TODO.md), "Soundness instruments").
 ### 3.2 Why this is sound for safety
 
 The monotone model is a **conservative over-approximation** of
@@ -292,10 +212,11 @@ asynchronous behaviour with per-recipient delivery state `R_i ⊆ Σ`.
 For any async execution `E_async` we can simulate it in the monotone
 model by letting the global set be `⋃ᵢ R_i` and having validator `i`'s
 actions consult only the signatures that lay in its `R_i` at the
-corresponding step (the monotone model never *forces* anyone to
-consult anything; `fb_sign_neg`'s `qv` is instantiated with the
-validator's actual received-vote set, and the paper's guard implies
-the model's `qv`-relative guard). So
+corresponding step: the monotone model never *forces* anyone to consult
+anything, every read of another's message is positive, and where the
+paper's rule reads what `i` has *not* received, `i`'s own receipt steps
+fire at its deliveries, so its receipt rows are exactly what it received
+(`fb_sign_neg`'s `qv` is then its actual received-vote set). So
 
 > `{ reachable states in async with per-recipient delivery }` ⊆
 > `{ reachable states in monotone }`.
@@ -307,9 +228,9 @@ so they cannot mask a safety violation.
 
 Selective-revelation attacks (a Byzantine proposer sending chunks for
 `m₁` to half the validators and `m₂` to the other half) are still
-modelled correctly because **chunks are per-recipient**:
-`msg_chunk_received i j m₁` vs `msg_chunk_received i j m₂` is a
-function of `i`. The proposer's two signed headers are globally
+modelled correctly because **chunks are point-to-point**:
+`msg_chunk j i j m₁` and `msg_chunk j i' j m₂` are separate messages to
+`i` and `i'`. The proposer's two signed headers are globally
 visible (so `equiv_evidence j` can be witnessed), but who recorded
 which chunk locally is per-validator — exactly the protocol-relevant
 granularity.
@@ -414,115 +335,119 @@ establish, and prove the protocol consequence asynchronously:
   second culprit case. With `well_encoded` present they take the paper's full
   culprit set, `no_equivocation` + `no_invalid_encoding`.
 
-## 3.5 State locality contract
+## 3.5 The state, by kind
 
-Every state item in [Cadence/Chorus.lean](../Cadence/Chorus.lean) falls into one of
-four categories. The category determines what it **stands for** in the
-real protocol and what part of the soundness argument lifts it back to
-the asynchronous-network world.
+Every state item in [Cadence/Chorus.lean](../Cadence/Chorus.lean) is of one
+of the kinds of [Locality.md](Locality.md) §2. The kind determines what it
+**stands for** in the real protocol and which rules govern its use.
 
-### (N) Network state — broadcast, globally visible
+### Messages — `msg_*`, sender first
 
-Signed messages observed on the gossip overlay. Under the monotone
-idealisation of §3.1 they become globally visible the moment they
-exist. Naming convention: `msg_*`.
+Signed messages on the network. Under the monotone idealisation of §3.1
+they stay observable once sent; a validator reads them positively, and its
+own sends in either polarity.
 
 | Relation | Paper analogue |
 |---|---|
 | `msg_proposer_signed j m` | outer chunk-header signature `σ` on `⟨s, j, mroot⟩` (Algorithm 2 (`alg:proposer-dissemination`)). |
-| `msg_chunk_received i j m` | the chunk **assigned to validator `i`** has reached `i` (proposer unicast, vote-carried, fallback re-dissemination Algorithm 5, line 12 (`line:fb-redisseminate`), or commit-round broadcast Algorithm 5, line 39 (`line:fb-commit-wait`); the receive-time rebroadcast `line:da-rebroadcast`, a v1 rule, was removed in v2 — chunk redistribution is now vote-carried, matching this model's `vote_pos_sig_chunk` chain). The **only** per-recipient network relation — see §3.5.1. |
+| `msg_chunk s i j m` | sender `s` has sent validator `i` its assigned chunk under `j`'s root `m`: the proposer's send (Algorithm 2 (`alg:proposer-dissemination`)) or a fallback signer's re-dissemination (Algorithm 5, line 12 (`line:fb-redisseminate`)). The only point-to-point message — see §3.5.1. |
 | `msg_vote_pos_sig r j m`, `msg_vote_neg_sig r j` | per-proposer signed entries of the `Vote` broadcast (Algorithm 3 (`alg:voting`)). |
 | `msg_vote_cast r` | `r` has broadcast its `Vote` (Algorithm 3, line 14 (`line:vote-broadcast`)). Receivers discard votes without an entry per proposer, so a cast vote implies per-proposer signatures (`vote_cast_entries`). |
 | `msg_fb_pos_sig r j m`, `msg_fb_neg_sig r j` | per-proposer signed fallback entries in the `FallbackVote` broadcast (Algorithm 5 (`alg:fallback`)). |
 | `msg_fallback_sig r` | the `σ_r` on `⟨fallback, s⟩` in the `FallbackVote` broadcast. |
 | `msg_commit_pos_sig r j m`, `msg_commit_neg_sig r j` | per-proposer signature inside the `CommitVote` (Algorithm 4 (`alg:fast-path-certification`)). |
 | `msg_commit_cast r` | `r` has broadcast its `CommitVote` (Algorithm 4, line 24 (`line:fast-commitvote`)). Only broadcast commit signatures count toward a commitQC. |
+| `msg_commitqc_pos c j m`, `msg_commitqc_neg c j` | `c` has broadcast a fast commit certificate for the entry (Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)), formed from the votes it received or re-broadcast on finalizing (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`)). |
 | `msg_decrypt_share r` | the extraction share released with `r`'s `Vote`. |
-| `msg_fbcommit_sig r` | `r`'s `FallbackCommitVote` broadcast (Algorithm 5, line 41 (`line:fb-commitvote`)). The entry vector it signs is implicit — an honest vote is over the MVBA-decided entries, unique by the MVBA contract's agreement (§6.4); see the relation's comment in [Cadence/Chorus.lean](../Cadence/Chorus.lean) for why this over-approximates only the adversary. |
+| `msg_fbcommit_sig r e` | `r`'s `FallbackCommitVote` over the entry vector `e` (Algorithm 5, line 41 (`line:fb-commitvote`)). A correct voter signs its own decision's entries. |
+| `msg_fbcommitqc c e` | `c` has broadcast `fbCommitQC = ⟨FallbackCommit, s, e, Σ⟩` (Algorithm 5, line 44 (`line:fb-commit-broadcast`)), formed from the votes it received or re-broadcast on finalizing (Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)). |
+| `msg_mvba_cert i c` | `i` has broadcast the MVBA's commit certificate `c`: the one its decision outputs, or one it finalized on (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"). |
 
 **Positional chunks.** A chunk is identified by `(assignee, proposer,
-root)`: `msg_chunk_received i j m` is the fragment at validator `i`'s own
+root)`: `msg_chunk s i j m` carries the fragment at validator `i`'s own
 position under `j`'s root `m`, and the decode threshold `chunk_quorum`
 counts distinct assignees. That is the target's positional reading:
 Algorithm 6 (`alg:da`) stores validated fragments as pairs `(r, d_r)`, checks each leaf at
 its index, and decodes from `f+1` distinct indices, and the re-encode check
-(Algorithm 6, line 24 (`line:da-reencode`)) compares positional leaf hashes. The model never had
-an unindexed fragment to confuse, so nothing changes in it.
+(Algorithm 6, line 24 (`line:da-reencode`)) compares positional leaf hashes.
 `Primitives.ErasureCoding` states the codec at the same reading
 ([PaperAlignment.md](PaperAlignment.md) §5.2).
 
-The contract from §3.1.1 applies to all of these.
+### Derived certificates — ghost relations
 
-### (D) Derived certificates — ghost relations
-
-Transferable certificates are definitional predicates over (N):
+Transferable certificates are definitional predicates over the messages:
 `vote_quorum_pos/neg` (FastQC certificates), `fb_quorum_pos/neg`
 (FallbackQCs), `equiv_evidence` (EquivCert — the proposer's signatures
 on two distinct roots), `fbcert` (FBCert), `commitqc_pos/neg`
-(commitQC validity), `fbcommitqc` (fbCommitQC — `2f+1` fallback commit
-votes, Algorithm 5, line 43 (`line:fb-formcommitqc`)), `chunk_quorum` (`isDecoded`),
+(commitQC validity), `fbcommitqc e` (fbCommitQC validity — `2f+1` fallback
+commit votes over `e`, Algorithm 5, line 43 (`line:fb-formcommitqc`)),
+`chunk_received i j m` (a chunk addressed to `i` from any sender),
+`chunk_quorum` (`isDecoded`: `f+1` validators hold their chunk),
 `slot_key_released` (f+1 extraction shares),
 `complete_fast_metablock` / `mvba_invoked` (MVBA proposal triggers;
 `mvba_invoked`, which ranges over every correct validator, is read by no
 action), `mvba_complete` (some validator has transported its decision; read
-by no action),
-plus the hypothesis predicates `no_equivocation`,
-`no_invalid_encoding` and `all_honest_recorded`. A certificate "exists"
-iff its aggregated signatures are observable — which matches the
-protocol, where any holder of the signatures (honest or Byzantine)
-can assemble the certificate and any receiver can verify it. Nothing
-needs to *own* a transferable certificate, so they carry no validator
-index.
+by no action), plus the hypothesis predicates `no_equivocation`,
+`no_invalid_encoding` and `all_honest_recorded`. A ghost is of the kind it
+unfolds to: a guard that reads one is a positive read of the messages it
+aggregates — a validator that has received the signatures can check the
+certificate — or of the validator's own rows (`complete_fast_metablock i`).
 
-One certificate additionally has an *assembled-and-broadcast* network
-form: `msg_commitqc_pos/neg` (category (N)), set by the
-`broadcast_commitqc_*` actions whose precondition is exactly the
-certificate's validity check (Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)). Finalization (`commit_assign_*`)
-consumes the broadcast form. Verification-wise this materialisation
-matters: it keeps the deep quorum reasoning at the single assembly
-action (where the quorum is an explicit witness) instead of forcing
-every commit-side VC to re-derive it from an `∃`-quorum ghost, which
-is what sent the SMT matcher into timeouts.
+The certificates a validator *sends* are messages of their own, formed in
+the sending step from the signatures the sender received:
+`broadcast_commitqc_*` (`msg_commitqc_*`), `broadcast_fbcommitqc`
+(`msg_fbcommitqc`), and `send_mvba_cert` (`msg_mvba_cert`). A receiver
+finalizes on the certificate it received, which carries its entries (§3.1).
+Verification-wise the materialisation matters too: it keeps the deep quorum
+reasoning at the forming action (where the quorum is an explicit witness)
+instead of every commit-side VC re-deriving it from an `∃`-quorum ghost.
 
-### (L) Local state — per-validator, only `i` observes its own
+### Local state — `local_*`, owner first
 
-Naming convention: `local_*`. Honest actions read and write only the
-row indexed by the acting validator.
+Each row belongs to one validator; only that validator's actions read or
+write it.
 
 | Relation | Paper analogue |
 |---|---|
 | `local_entry_pos i j m`, `local_entry_neg i j` | validator `i`'s per-proposer `Entry(pid)` (Algorithm 3 (`alg:voting`)). |
 | `local_voted i` | `i` has executed the deadline vote handler. |
 | `local_path i : PathChoice` | `i`'s `pathVote ∈ {none, fast, fallback}`. |
-| `local_fastqc_pos i j m`, `local_fastqc_neg i j` | `i` has aggregated `Ev(j)` as a FastQC (Algorithm 4, line 18 (`line:fast-formqc`)). Kept per-validator (unlike the transferable certificates) because an honest commit signature is justified by *the signer's own* FastQC observation. |
+| `local_fastqc_pos i j m`, `local_fastqc_neg i j` | `i` has aggregated `Ev(j)` as a FastQC (Algorithm 4, line 18 (`line:fast-formqc`)). Kept per-validator because an honest commit signature is justified by *the signer's own* FastQC observation. |
+| `local_vote_rcv_pos i r j m`, `local_vote_rcv_neg i r j` | `i` has received `r`'s vote, whose entry for `j` is positive on `m`, resp. negative: the received votes the fallback rule ranges over (Algorithm 5, line 8 (`line:fb-cast-entry`)). One entry per sender and proposer, the first received. |
 | `local_committed i`, `local_committed_pos i j m`, `local_committed_neg i j` | `i`'s finalization decision. |
-| `participating i`, `abandoned i` | `i` has invoked the slot-consensus inputs `participate()` / `abandon()` (Module 1 (`mod:slotconsensus`)); written only by the input actions of the same name. Named as the contract's observables rather than `local_*`. Every sending rule reads them at its own sender (the participation gate), which is a local read. |
-| `local_chunk_sent k i j m` | `i` has received sender `k`'s chunk for it under `(j, m)`: the delivery of the proposer's send (`deliver_chunk_assigned`, `k = j`), or the re-dissemination inside a correct `fb_sign_pos` (`k` the signer, Algorithm 5, line 12 (`line:fb-redisseminate`)), which sends and delivers in one step. |
+| `participating i`, `abandoned i` | `i` has invoked the slot-consensus inputs `participate()` / `abandon()` (Module 1 (`mod:slotconsensus`)); written only by the input actions of the same name. Named as the contract's observables rather than `local_*`. Every sending rule reads them at its own sender (the participation gate). |
 | `local_commit_entry i j`, `local_fb_entry i j` | `i` has signed its commit-vote entry, resp. its fallback entry, for proposer `j` (the per-proposer steps of Algorithm 4, line 24 (`line:fast-commitvote`) and Algorithm 5, line 8 (`line:fb-cast-entry`)). |
-| `local_commitqc_sent c j` | collector `c` has broadcast its commit certificate's entry for `j` (Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)). |
-| `local_mvba_recorded i j` | `i` has recorded entry `j` of its MVBA decision (Algorithm 5, line 37 (`line:fb-mvba-decide`)). |
-| `local_mvba_qc_accepted i` | `i` has handed a transferred MVBA commit certificate to its MVBA (`accept_mvba_commitqc`). |
+| `local_commitqc_sent c j`, `local_fbcommitqc_sent c` | collector `c` has broadcast its commit certificate's entry for `j` (Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)), resp. its fallback commit certificate (Algorithm 5, line 44 (`line:fb-commit-broadcast`)). |
+| `local_mvba_recorded i j` | `i` has handled entry `j` of its MVBA decision (Algorithm 5, line 37 (`line:fb-mvba-decide`)). |
+| `local_mvba_cert_sent i` | `i` has broadcast the commit certificate its MVBA decision output. |
+| `local_mvba_qc_accepted i` | `i` has handed a received MVBA commit certificate to its MVBA (`accept_mvba_commitqc`). |
 | `local_avail_marked i v` | `i` has reported `AvailReady_i(v)` to its MVBA (`mvba_avail_ready`). |
-| `local_mvba_complete i` | `i` has transported its full MVBA decision: every proposer's entry of its decision is recorded (`mvba_terminate`, the shadow of Algorithm 5, line 37 (`line:fb-mvba-decide`) delivering `B′` at once). Its fallback commit vote waits for it. |
+| `local_mvba_complete i` | `i` has handled every proposer's entry of its decision (`mvba_terminate`, the shadow of Algorithm 5, line 37 (`line:fb-mvba-decide`) delivering `B′` at once). Its fallback commit vote waits for it. |
 | `local_fbcommit_voted i` | `i` has cast its fallback commit vote (Algorithm 5, line 41 (`line:fb-commitvote`)). |
-| `local_fb_neg_qv i j qv` | *auxiliary (proof-only) history variable*: the witnessed vote quorum against which `i` cast its negative fallback entry (the `qv` parameter of `fb_sign_neg` at firing time). Written by `fb_sign_neg`, read by no action; it lets the speculative-safety invariants refer to the quorum after the fact without a quantifier alternation that breaks the SMT matcher. |
 
 Cross-validator agreement that a "global QC" idiom would give
 definitionally is a **theorem** here — e.g.
 `local_fastqc_pos_cross_unique`, discharged from
 `local_fastqc_pos_backed` and quorum intersection.
 
-### (A) Abstract / oracle state — black-box semantics
+### Auxiliary records — `aux_*`
 
-Naming convention: bare identifier.
+History for the proofs: written by actions, read by none, so they change
+no run ([Locality.md](Locality.md) §2).
+
+| Relation | What it records |
+|---|---|
+| `aux_mvba_decided_pos j m`, `aux_mvba_decided_neg j` | the entries the MVBA certified: written by a correct validator's decision handlers `on_mvba_decide_*` and by finalization on an MVBA commit certificate (`commit_assign_*_mvba`). The invariants state agreement between the commit routes over them; their uniqueness is *proven* from the contract's agreement and certificate fields (§6.4). |
+| `aux_fb_neg_qv i j qv` | the received-vote quorum against which `i` cast its negative fallback entry for `j`; it lets the speculative-safety invariants refer to the quorum after the fact without a quantifier alternation that breaks the SMT matcher. |
+
+### Global time and the MVBA
 
 | State | Paper analogue |
 |---|---|
-| `phase : Phase` | the slot's notional time landmark. One global value: per-validator clock skew is absorbed into the gap between `advance_*` actions. |
-| `mvba_st : mstate` | the abstract state of the slot's MVBA instance (Module 3 (`mod:mvba`)), held as the glue holds `sc_state s`: an opaque sort, read only through the contract `mvba : MVBASafety …` (§4), advanced by the oracle step `mvba_step` and the driven inputs `mvba_propose`, `accept_mvba_commitqc`, `mvba_avail_ready` and `abandon`. |
-| `mvba_decided_pos j m`, `mvba_decided_neg j` | Chorus's per-proposer records of the certified entries, written by the decision handlers `on_mvba_decide_*` from a correct validator's decision `mvba.decided mvba_st i v`, and by the `CommitQC` route's handlers `on_mvba_commitqc_*` from a valid certificate `mvba.certifies mvba_st c (mvba.entries v)`, through the entry-vector projections `mval_pos`/`mval_neg`. The contract's agreement and its certificate fields make a single global view sound: `mvba_decided_pos_unique` is *proven* from them (§6.4). |
+| `phase : Phase` | the slot's notional time landmark, moved by the environment (`advance_to_*`). One global value: per-validator clock skew is absorbed into the gap between `advance_*` actions. |
+| `mvba_st : mstate` | the abstract state of the slot's MVBA instance (Module 3 (`mod:mvba`)), held as the glue holds `sc_state s`: an opaque sort, used only through the contract `mvba : MVBASafety …` (§4) — its operations at the acting validator's index, or a check of a certificate it holds ([Locality.md](Locality.md) §5) — advanced by the oracle step `mvba_step` and the driven inputs `mvba_propose`, `accept_mvba_commitqc`, `mvba_avail_ready` and `abandon`. |
 
-### 3.5.1 Why `msg_chunk_received` is the only per-recipient network relation
+### 3.5.1 Why chunks are the only point-to-point message
 
 In the paper, every other network message is broadcast on the gossip
 overlay. Once they exist, every validator eventually sees them, and the
@@ -530,62 +455,48 @@ monotone-network idealisation collapses "exists somewhere" with
 "globally visible". Chunks are different: the proposer sends *one chunk
 per validator*, point-to-point, and the per-validator distinction
 directly affects the protocol — `local_entry_pos i j m` is producible
-only when `i` received its assigned chunk before the deadline.
+only when `i` received its assigned chunk before the deadline. So
+`msg_chunk` names its recipient, and a correct validator reads only the
+chunks addressed to itself ([Locality.md](Locality.md) R2).
 
-### 3.5.2 Chunk delivery and data availability
+### 3.5.2 Chunk dissemination and data availability
 
-Chunk delivery is *not* part of `propose`: `propose` records the
-proposer's atomic root commitment (`msg_proposer_signed`), and
-`deliver_chunk_assigned` (honest proposers) / `byz_deliver_chunk`
-(Byzantine proposers, unconstrained recipient/root) deliver chunks
-per-recipient and asynchronously.
-
-The decoding threshold (`isDecoded`) is the ghost `chunk_quorum j m`
-(`f+1` delivered chunks). Two facts govern it:
-
-* A *valid* positive vote entry carries the signer's chunk — receivers
-  discard unbacked positive entries (Algorithm 4 (`alg:fast-path-certification`),
-  receive handler). The model enforces this for Byzantine signers as a
-  validity precondition on `byz_sign_vote_pos` and derives it for
-  honest signers, yielding the invariant `vote_pos_sig_chunk`: *every*
-  positive vote signature is chunk-backed. Consequently an f+1
-  positive-vote quorum is itself a chunk quorum
-  (`vote_pos_quorum_implies_decodable`) — the erasure-decode threshold
-  (c) follows from the vote threshold (b) at the network level.
-* `fb_sign_pos` nevertheless keeps (c) as an explicit precondition,
-  because `isDecoded` is a check the real protocol performs.
-
-**Who sends a chunk, and when** (F15, R19). The paper sends chunks in two
-rules, and in both the send is part of the rule's own step:
+**Who sends a chunk, and when.** The paper sends chunks in two rules, and
+in both the send is part of the rule's own step:
 
 | paper | model |
 |---|---|
-| the proposer: upon `propose`, … for each validator `p_r`: send `p_r` its chunk (Algorithm 2 (`alg:proposer-dissemination`)) | the send is `propose j m` (gated on participation; its record is `msg_proposer_signed j m`). The delivery `deliver_chunk_assigned i j m` is a step of its own, because `record_chunk` before the deadline depends on when a chunk *arrives*. It reads the send and nothing of the proposer's later state: a delivery of an earlier send is not a new send |
-| the positive fallback signer: re-encode the proposal; send each validator its assigned chunk for `ρ` (Algorithm 5, line 12 (`line:fb-redisseminate`)) | inside `fb_sign_pos i j m q qc`: `msg_chunk_received I j m := true` and `local_chunk_sent i I j m := true`, two bulk updates of the gated signing step. Nothing reads such a chunk before the deadline, so its delivery needs no step. The relation holds from the send, and the two rules that read it, `cast_fb_commit` and `mvba_avail_ready`, are `Δ`-rows of the timed premise |
+| the proposer: upon `propose`, … for each validator `p_r`: send `p_r` its chunk (Algorithm 2 (`alg:proposer-dissemination`)) | `propose j m` writes `msg_chunk j I j m` for every validator `I`, beside its signature `msg_proposer_signed j m` (gated on participation). |
+| the positive fallback signer: re-encode the proposal; send each validator its assigned chunk for `ρ` (Algorithm 5, line 12 (`line:fb-redisseminate`)) | `fb_sign_pos i j m q` writes `msg_chunk i I j m` for every `I`, in the gated signing step. |
+
+When a chunk reaches its recipient is the recipient's step: `record_chunk`
+before the deadline, and the waits of `cast_fb_commit` and
+`mvba_avail_ready` after it. The timing premise owes each of them within
+`Δ` of a correct sender's send after GST (§7). A Byzantine proposer sends
+any chunk to anyone (`byz_send_chunk`, unconstrained recipient and root),
+and a Byzantine holder of `f+1` chunks can re-disseminate at any time
+(`byz_redisseminate_chunk`); both unfair.
+
+The decoding threshold (`isDecoded`) is the ghost `chunk_quorum j m`
+(`f+1` validators hold their chunk). A *valid* positive vote entry carries
+the signer's chunk — receivers discard unbacked positive entries
+(Algorithm 4 (`alg:fast-path-certification`), receive handler). The model
+enforces this for Byzantine signers as a validity precondition on
+`byz_sign_vote_pos` and derives it for honest signers, yielding the
+invariant `vote_pos_sig_chunk`: *every* positive vote signature is
+chunk-backed. Consequently an f+1 positive-vote quorum is itself a chunk
+quorum (`vote_pos_quorum_implies_decodable`), and a validator that holds
+`f+1` valid positive votes holds `f+1` chunks: the fallback rules' "decodable
+data" condition is met by the votes they count.
 
 The decided validator's broadcast of its *own* chunk (Algorithm 5, line 39
-(`line:fb-commit-wait`)) changes no relation: `msg_chunk_received i j m`
-already records that `i`'s chunk is on the network, and `chunk_quorum`
-counts it from then on. A Byzantine holder of `f+1` chunks can
-re-disseminate at any time (`byz_redisseminate_chunk`, unfair).
+(`line:fb-commit-wait`)) changes no relation: `chunk_quorum` counts a
+validator's chunk once it holds it.
 
 The model-level DA safety theorem is
 `local_committed_pos_implies_decodable`: every honest positive commit
-has `f+1` chunks delivered for the committed root — the counterpart of
+has `f+1` chunks held for the committed root — the counterpart of
 "`recoverProposals` does not block" (Algorithm 6, line 12 (`line:da-wait`)).
-
-### 3.5.3 The faithfulness contract — summary
-
-> Every state item is one of: a network message (`msg_*`, monotone,
-> globally visible), a derived certificate (ghost relation over
-> `msg_*`), a per-validator local state (`local_*`), or an
-> abstract/oracle quantity (bare name).
->
-> Honest actions write only `local_*` rows of the acting validator,
-> `msg_*` entries the acting validator is entitled to sign, or a
-> single abstract landmark. They read any `msg_*` and any `local_*`
-> row they own; reading another validator's `local_*` is a contract
-> violation.
 
 ## 4. Cryptographic primitives
 
@@ -670,14 +581,15 @@ positive `FallbackQC` entry of `v`, the supplement's definition
 (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit availability
 condition"), and `avail_ready_chunks` proves that meaning. The
 **decision handlers** `on_mvba_decide_pos i j m v` / `on_mvba_decide_neg
-i j v` transport a correct validator's decision (`mvba.decided mvba_st i
-v`) entry by entry into the records `mvba_decided_pos j m` /
-`mvba_decided_neg j` — per entry rather than as a bulk transport, so every
-update stays a monotone `:= true` and the downstream invariants keep their
-form. `mvba_terminate i v` records that every proposer's entry of `i`'s
-own decision has been recorded (`local_mvba_complete i`), the
-model shadow of Algorithm 5, line 37 (`line:fb-mvba-decide`) delivering `B'` at once, and gates
-`i`'s fallback commit vote. None of them has a phase gate, and none requires
+i j v` handle a correct validator's decision (`mvba.decided mvba_st i v`)
+entry by entry, each marking its own row `local_mvba_recorded i j` and
+recording the entry in the auxiliary `aux_mvba_decided_*` — per entry
+rather than in one step, so every update stays a `:= true` and the
+downstream invariants keep their form. `mvba_terminate i v` records that
+`i` has handled every proposer's entry of its own decision
+(`local_mvba_complete i`), reading only its own rows: the model shadow of
+Algorithm 5, line 37 (`line:fb-mvba-decide`) delivering `B'` at once, and the
+gate of `i`'s fallback commit vote. None of them has a phase gate, and none requires
 that the MVBA was invoked: the paper's handler runs "upon
 `MVBA[s].decide(B′)`", with no further condition, and a
 decision can come before the MVBA arm (the case-2 proposal needs only the
@@ -687,22 +599,21 @@ fallback votes).
 "Decision output and handoff"): "A correct validator that receives a
 valid such certificate re-broadcasts it and finalizes the certified
 outcome, recovering a matching meta-block or the underlying proposals as
-required by the ordinary commitment-proof recovery path." The handlers
-`on_mvba_commitqc_pos i j m c v` / `on_mvba_commitqc_neg i j c v` take a
-valid certificate `c` and a representation `v` of its entries (the
-recovered meta-block), check the certificates `v` names against the
-network, the bridge below, and record the entries in the same shared
-records. Finalization is then the ordinary `commit_assign_*` /
-`finalize_commit`, whose certificate disjunct reads `fbcommitqc ∨
-mvba_commitqc` (the ghost "a valid MVBA certificate exists"). The
-re-broadcast needs no step, since a valid certificate stays valid
-(`certified_mono`). The records are fired once per entry from either
-source (`local_mvba_recorded`). The route's agreement with the fast path
-is `commitqc_pos_mvba_consistent` and its two exclusion siblings at the
-new handlers, by the main body's fast-path argument over the bridge
-evidence. Its agreement with the `fbCommitQC` route and with itself is
-the contract's `certified_unique` and `certified_decided`, through the
-restated ties.
+required by the ordinary commitment-proof recovery path." The certificate
+travels as a message: a correct validator sends the certificate its own
+decision outputs (`send_mvba_cert i c v`, guarded by `mvba.decided` at `i`
+and `mvba.certifies` for its entries; `msg_mvba_cert i c`). A receiver hands
+it to its own MVBA (`accept_mvba_commitqc`), and finalizes on it
+(`commit_assign_pos_mvba i j m s c v` / `commit_assign_neg_mvba`): the
+received certificate `c`, checked with the contract's `mvba.certifies`
+against a representation `v` of its entries (the recovered meta-block),
+the certificates `v` names checked against the network (the bridge
+below), and the certificate re-broadcast under the finalizer's own name.
+The route's agreement with the fast path is `commitqc_pos_mvba_consistent`
+and its two exclusion siblings, by the main body's fast-path argument over
+the bridge evidence. Its agreement with the `fbCommitQC` route and with
+itself is the contract's `certified_unique` and `certified_decided`,
+through the ties.
 
 **The one stated bridge.** Before acting on an entry, each handler
 verifies the entry's certificate against the network: `vote_quorum_pos j
@@ -730,14 +641,15 @@ carries, so a gate referring to honest validators' aggregated FastQCs would
 not be implementable. None is needed — with commitQC-based finalization the
 paper's own asynchronous agreement argument goes through (§6). The bridge is
 stated in five places and nowhere else: the two decision handlers and the
-two `CommitQC` route handlers in [Cadence/Chorus.lean](../Cadence/Chorus.lean), and — as the
-same disjunction — the validity guards of `mvba_propose`, where it is the
+two finalization rules on an MVBA certificate (`commit_assign_*_mvba`) in
+[Cadence/Chorus.lean](../Cadence/Chorus.lean), and — as the same
+disjunction — the validity guards of `mvba_propose`, where it is the
 caller's obligation rather than the receiver's check. At the route the
 checked representation is the recovered one, and the same soundness
 argument applies: `Recover(e)` returns a valid representation
 (`certified_valid`), and a valid one passes the check.
 
-**What the class buys.** Agreement of the records —
+**What the class buys.** Agreement of the auxiliary records —
 `mvba_decided_pos_unique`, `mvba_decided_pos_neg_excl` — is *proven* from the
 class's `agreement` at the reachable abstract state (`mvba_reachable`),
 through two **tie invariants** (`mvba_decided_pos_tied`,
@@ -778,12 +690,13 @@ The adversary controls `B ⊆ Π` with `|B| ≤ f` (captured by
 `ByzNodeSet.is_byz` and the quorum axioms). Within that bound it is
 fully Byzantine: it may sign any *network-valid* message attributed to
 a Byzantine signer, equivocate (produce two distinct signed chunk
-headers for the same proposer), selectively deliver chunks of distinct
-roots to disjoint subsets of validators (`byz_deliver_chunk`), and cast
-inconsistent votes / fallback signatures / commit votes. Cryptographic
-unforgeability prevents it from signing as an honest node; honest local
-state, MVBA decisions and the phase are updated only by their own
-actions.
+headers for the same proposer), send chunks of distinct roots to disjoint
+subsets of validators (`byz_send_chunk`), and cast inconsistent votes /
+fallback signatures / commit votes, sending different votes to different
+validators. Cryptographic unforgeability prevents it from signing as an
+honest node: a Byzantine action writes messages only under its own name.
+Honest local state and the phase are updated only by their own actions
+([Locality.md](Locality.md) §4).
 
 **Network validity is part of the threat model.** Honest receivers
 verify messages before consuming them, so a malformed message never
@@ -791,7 +704,7 @@ enters a quorum any honest validator or the MVBA observes. The
 Byzantine actions mirror the receivers' checks:
 
 * `byz_sign_vote_pos` requires the signer's chunk
-  (`msg_chunk_received r j m`) — positive vote entries without a valid
+  (`chunk_received r j m`) — positive vote entries without a valid
   chunk are discarded (Algorithm 4 (`alg:fast-path-certification`), receive handler);
 * `byz_cast_vote` requires a signed entry per proposer — incomplete
   votes are discarded;
@@ -884,10 +797,12 @@ quorum-completing updates — are discharged by manual `#prove_vc … by
 a statement check against the model's VC registry.
 
 **How agreement is proven (the paper's Proposition 1 (`prop:agreement-entries`)).**
-`local_committed_pos_backed` reduces every honest commit to a
-`commitqc_pos` or an `mvba_decided_pos`. Case commitQC–commitQC:
-`supermajorities_intersect_in_honest` + `commit_pos_sig_unique`. Case
-MVBA–MVBA: `mvba_decided_pos_unique`, itself proven from the MVBA
+`local_committed_pos_backed` reduces every honest commit to a broadcast
+commitQC or a certified entry in `aux_mvba_decided_pos` — a commit on an
+`fbCommitQC` included, whose entries are certified (`fbcommitqc_entries`).
+Case commitQC–commitQC: `supermajorities_intersect_in_honest` +
+`commit_pos_sig_unique`. Case MVBA–MVBA: `mvba_decided_pos_unique`, itself
+proven from the MVBA
 contract's `agreement` at the reachable abstract state (§6.4). Case commitQC–MVBA
 (`commitqc_pos_mvba_consistent` and the two exclusion variants): by
 `mvba_decided_pos_backed`, the decision carried either a vote
@@ -904,14 +819,15 @@ Proposition 1 (`prop:agreement-entries`) argues the fallback cases through the *
 round*: two `fbCommitQC`s intersect in an honest commit-voter, who
 commit-votes once, for the entries of its single MVBA decision (MVBA
 Integrity); an `fbCommitQC` and a `commitQC` intersect as in case 3
-above. The model reaches the same conclusion one layer lower: its
-fallback finalization route (`fbcommitqc ∧ mvba_decided_*`,
-`commit_assign_*`) consumes the *decision* directly, and decision
-agreement comes from the MVBA contract — so the model's proof does not need
-the fbCommitQC–fbCommitQC intersection at all. The commit round's own
-certificate discipline is nonetheless modelled and checked
-(`fbcommit_sig_backed`, `fbcommitqc_implies_mvba_complete`, §6.7): an
-`fbCommitQC` cannot exist before the decision vector it certifies.
+above. The model reaches the same conclusion one layer lower: an
+`fbCommitQC` over `e` has a correct voter, who voted for the entries of its
+own decision (`fbcommit_sig_entries`), so every entry of `e` is a certified
+entry (`fbcommitqc_entries`), and decision agreement comes from the MVBA
+contract — so the model's proof does not need the fbCommitQC–fbCommitQC
+intersection at all. The commit round's own certificate discipline is
+nonetheless modelled and checked (`fbcommit_sig_backed`,
+`fbcommitqc_implies_mvba_complete`, §6.7): an `fbCommitQC` cannot exist
+before the decision vector it certifies.
 
 ### 6.2 Local sanity
 
@@ -948,10 +864,11 @@ broadcast certificates (`msg_commitqc_pos/neg_backed`,
 
 `mvba_reachable` (the abstract state is reachable — `[mvba_init]` and the
 contract's closure axioms along `mvba_step`/`mvba_propose`),
-`mvba_decided_pos_tied`, `mvba_decided_neg_tied` (every record is the
-projection, through `mval_pos`/`mval_neg`, of some correct validator's
-decision on the abstract state — inductive under the oracle step because
-the contract's `decided_mono` keeps decisions decided), and from these,
+`mvba_decided_pos_tied`, `mvba_decided_neg_tied` (every auxiliary record
+is the projection, through `mval_pos`/`mval_neg`, of some correct
+validator's decision on the abstract state or of a valid commit
+certificate — inductive under the oracle step because the contract's
+`decided_mono` and `certified_mono` keep both), and from these,
 through `mvba.agreement` at the reachable state plus the two `mval_*`
 assumptions, `mvba_decided_pos_unique` and `mvba_decided_pos_neg_excl` —
 the contract's agreement *used*, not restated, and kept as invariants
@@ -963,7 +880,10 @@ because the downstream cells e-match on them. Then
 are what keeps the commitQC-consistency family inductive when commit
 votes are cast *after* a decision. `mvba_decided_pos_proposer_signed`
 materialises one consequence (a decided-positive root is proposer-signed)
-so the commit-round VCs need not re-derive it.
+so the commit-round VCs need not re-derive it. A validator's own rows
+link its decision to the records: `local_mvba_recorded_backed`,
+`mvba_recorded_entries` (an entry it handled is recorded, for every
+representation it decided) and `mvba_complete_recorded`.
 
 ### 6.5 Commit backing and data availability
 
@@ -971,7 +891,7 @@ so the commit-round VCs need not re-derive it.
 `local_committed_pos_unique`, `local_committed_pos_neg_excl`;
 `vote_pos_quorum_implies_decodable`,
 `local_fastqc_pos_chunks_decodable`,
-`mvba_decided_pos_chunks_decodable`,
+`mvba_decided_pos_chunks_decodable`, `msg_commitqc_pos_chunks_decodable`,
 `local_committed_pos_implies_decodable` (§3.5.2).
 
 ### 6.6 Conditional-property support
@@ -982,11 +902,15 @@ Proposal inclusion (all relative to `all_honest_recorded`):
 `inclusion_no_fastqc_neg`, `inclusion_fastqc_pos_unique`,
 `inclusion_no_mvba_neg`, `inclusion_mvba_pos_unique`.
 
-Speculative safety: `fb_neg_sig_has_witness`, `fb_neg_qv_is_proposer`,
-`fb_neg_qv_backed`, and (relative to `no_equivocation` +
-`no_invalid_encoding`) `fb_neg_qv_no_pos_quorum` — together the
-persistent residue of `fb_sign_neg`'s witnessed-quorum guard, anchored
-on the `local_fb_neg_qv` history variable — plus `fb_neg_no_pos_quorum`,
+Speculative safety: `vote_rcv_pos_backed`, `vote_rcv_neg_backed` (a
+receipt holds what the sender signed), `fb_neg_sig_has_witness`,
+`fb_neg_qv_is_proposer`, `fb_neg_qv_backed`, `fb_neg_qv_received`,
+`fb_neg_qv_no_rcv_quorum` — together the persistent residue of
+`fb_sign_neg`'s guard over the validator's receipts, anchored on the
+`aux_fb_neg_qv` record — and, relative to `no_equivocation` +
+`no_invalid_encoding`, `fb_neg_qv_no_pos_quorum`: without equivocation the
+entry a validator received from a sender is the sender's only entry, so no
+positive quorum within `qv` exists at all. Then `fb_neg_no_pos_quorum`,
 `spec_fastqc_pos_no_mvba_neg`, `spec_fastqc_pos_mvba_pos_unique` (same
 two hypotheses).
 
@@ -1188,7 +1112,7 @@ abstract instance and checked against network-global certificates (the
 bridge, §4). The real MVBA needs *per-validator* evidence: every correct
 validator must assemble certified evidence it holds locally into a valid
 fallback meta-block (Appendix C.3 (`subsection:fallback_path`)) and
-propose it, once (`mvbaInvoked`). The receipt rules are what carry the
+propose it, once (the paper's flag `mvbaInvoked`). The receipt rules are what carry the
 first to the second, and two rules do it.
 
 * *Receipt restriction* (Algorithm 5, line 18 (`line:fb-accept`)): a fallback vote is accepted
@@ -1220,7 +1144,7 @@ of the `2f+1` accepted votes feeds one of the three build cases.
 build alone is not enough: a validator that still *accepted* carried
 EquivCerts without counting them would leave a vote in `M_i` that feeds
 no build case, and could then propose an entry that is a bare signed
-entry rather than valid evidence — with `mvbaInvoked` once-only, never
+entry rather than valid evidence — with the paper's `mvbaInvoked` set once, never
 to re-propose. The atomic build removes the remaining race: with no
 standing upgrade rules there is nothing for the propose to overtake.
 The paper's v1 had exactly that gap — a liveness bug, reported by a
@@ -1239,7 +1163,7 @@ participation convention. The model tracks all three, and none of them
 contradicts a proven safety invariant. One guard is worth naming because
 the model depends on it: a positive vote is accepted only if it carries its
 *sender's assigned* chunk (`byz_sign_vote_pos` requires
-`msg_chunk_received r j m`), which is what makes
+`chunk_received r j m`), which is what makes
 `vote_pos_quorum_implies_decodable`'s reading of `isDecoded` honest —
 f+1 accepted positive votes pin f+1 *distinct* chunks.
 
@@ -1291,26 +1215,15 @@ f+1 accepted positive votes pin f+1 *distinct* chunks.
   paper itself treats these certificates as derived from network-visible
   signatures, which is precisely the ghost-relation view here.
 
-* **`fbCommitQC` entries are implicit.** `msg_fbcommit_sig r` records
-  that `r` broadcast a `FallbackCommitVote` (Algorithm 5, line 41 (`line:fb-commitvote`))
-  without recording the signed entry vector. An honest vote is over the
-  entries of the validator's MVBA decision, which the MVBA contract's
-  agreement makes the same for every correct validator; a Byzantine vote on a different vector — which the
-  paper's same-entries aggregation would reject — can only *add*
-  certificates in the model (`fbcommitqc` over-approximates in the
-  adversary's favour), and `commit_assign_*` conjoins `fbcommitqc` with
-  the decision itself, so commit content is unaffected. Flagged because
-  the abstraction silently leans on the MVBA's agreement: in an extension
-  with several concurrent MVBA instances or an explicit view-change,
-  the vector would have to become explicit.
+* **Byzantine chunks.** `byz_send_chunk` lets a Byzantine proposer send
+  any chunk under its own name to any recipient, capturing chunk
+  equivocation (§5).
 
-* **Byzantine chunk delivery.** `byz_deliver_chunk` lets a Byzantine
-  proposer deliver any chunk attributed to itself to any recipient,
-  capturing chunk equivocation (§5).
-
-* **`fb_sign_neg`'s witnessed quorum.** A scoped exception to the
-  positive-position contract, alongside the seven self-row reads of
-  `msg_proposer_signed`/`msg_commit_cast` — see §3.1 and §3.1.1.
+* **One entry per received vote.** A receiver keeps the first entry it
+  receives from each sender for each proposer (`receive_vote_*`); a vote is
+  one message per sender, so a Byzantine sender that signs conflicting
+  entries reaches different receivers with different votes, and each
+  receiver keeps one (§3.1).
 
 ## 9. What is left for the next iteration
 
@@ -1331,10 +1244,9 @@ list, and §§10.1–10.3 below for the bigger lifts.
    [Cadence/Primitives.lean](../Cadence/Primitives.lean). Epochs and proposer rotation stay out of
    scope (outside the papers' consensus-layer treatment).
 
-3. An automated syntactic audit of the §3.1.1 positive-position
-   contract. Per the 2026-08 external audit: it should *classify*
-   occurrences (positive / self-row / documented exception) rather than
-   merely reject — see §3.1.1.
+3. An automated check of the locality rules ([Locality.md](Locality.md)):
+   they are stated for pattern matching, with the semantic steps marked;
+   today they are checked by hand, per action (§3.1.1).
 
 4. An in-build reachability witness (`sat trace`) for Chorus. Blocked
    twice over today (the disabled model-check scaffolding; `decide` in
@@ -1348,7 +1260,7 @@ list, and §§10.1–10.3 below for the bigger lifts.
 ### 10.1 Making the network assumption explicit and proven
 
 The async-soundness argument in §3.2–§3.3 is a **meta-level claim**: it
-depends on the (M-update)+(M-frame) contract of §3.1.1, which Veil does not
+depends on the locality rules of [Locality.md](Locality.md) (§3.1.1), which Veil does not
 enforce. Making the simulation a theorem in the system would remove the
 largest item of [Architecture.md](Architecture.md) §4. Two routes:
 

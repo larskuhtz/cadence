@@ -173,6 +173,6 @@ The auxiliary relations of every model:
 |---|---|---|
 | Cadence (glue) | `skipped`, `resolved`, `delivered`, `appended` | conforms |
 | FallbackReceipt | every relation (one validator) | conforms |
-| Chorus | `local_*`, `participating`, `abandoned` | in progress: shared MVBA records, the witnessed quorum, chunk delivery by the environment |
+| Chorus | `local_*`, `participating`, `abandoned` | conforms; checked action by action in the guide's audit table ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)) |
 | Mvba | every relation except `msg_*`, `tc_lock`, `tc_nolock` | open: environment-written timers, sender-less certificates |
 | Conductor | `entered`, `opened`, `opened_win`, `completed` | open: the global `acs_decided` |

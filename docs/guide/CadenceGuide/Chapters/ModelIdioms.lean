@@ -44,23 +44,38 @@ that state, carried by the names of its components
 
 * *Local rows.* A `local_*` relation is indexed by the validator that owns
   it, its first argument: `local_entry_pos i j m` is validator `i`'s record.
-* *The network.* A `msg_*` relation is indexed by the signer, and a tuple
-  is a message that exists and is visible to everyone. Chunks are the one
-  exception: `msg_chunk_received i j m` is indexed by its receiver `i`,
-  because a proposer sends each validator its own chunk.
-* *Derived certificates.* A `ghost relation` over the network, owned by
-  nobody.
-* *Abstract state.* The phase, the MVBA's state, and Chorus's records of
-  the MVBA's decision: shared, and changed only by the environment or
-  through the MVBA class.
+* *Messages.* A `msg_*` relation is indexed by its sender, first. A tuple is
+  a message that has been sent and stays visible. Chunks are the one
+  point-to-point message: `msg_chunk s i j m` names its recipient `i`
+  second, because a proposer sends each validator its own chunk.
+* *Derived certificates.* A `ghost relation` over the messages, owned by
+  nobody: a validator that has received the signatures can check it.
+* *Auxiliary records.* An `aux_*` relation records history for the proofs.
+  Actions write it and none reads it, so it changes no run.
+* *Global time and the MVBA.* The phase, which the environment moves, and
+  the MVBA's state, used only through the MVBA class at the acting
+  validator's index.
 
-The reading becomes a rule for actions, which
-[ChorusDesign.md](../../../ChorusDesign.md) §3.5.3 states:
+# The rules
 
-> Honest actions write only `local_*` rows of the acting validator, `msg_*`
-> entries the acting validator is entitled to sign, or a single abstract
-> landmark. They read any `msg_*` and any `local_*` row they own; reading
-> another validator's `local_*` is a contract violation.
+The reading becomes rules for actions. They are stated once, for every
+model, in [Locality.md](../../../Locality.md), in a form a checker can apply
+by matching names, index positions and the sign of a read. A correct
+validator `x`
+
+* reads its own local rows, in either polarity;
+* reads messages only in positive position, and a chunk only as its
+  recipient;
+* reads its own sends in either polarity: "I have signed no other root",
+  "I have not cast my commit vote";
+* reads global time, configuration, and the MVBA class at index `x`;
+* writes its own local rows, messages under its own name, and the MVBA's
+  state only through an input at index `x`.
+
+The environment reads and writes only global time. A Byzantine validator
+may read anything, since a coalition of them is subsumed by one
+unconstrained adversary, and it writes messages only under its own name.
+There are no exceptions: a read that fits no rule is a gap in the model.
 
 # The shared phase
 
@@ -85,58 +100,40 @@ time, (P-phase) in [Premises.md](../../../Premises.md) §4.2.
 
 # The monotone network
 
-Two properties make the network *monotone*
-([ChorusDesign.md](../../../ChorusDesign.md) §3.1):
+The messages form a *monotone* network: an action only adds messages, and
+a correct validator reads another's message only in positive position — it
+can require that a message exists, never that one does not
+([Locality.md](../../../Locality.md) §1). That is how the model captures a
+network that delays or drops messages at will: a message, once sent, may
+be acted on at any later step, or never.
 
-* *(M-update)*: an action only adds tuples to a network relation, never
-  removes one;
-* *(M-frame)*: a guard reads a network relation only in positive position:
-  it can require that a message exists, never that one does not.
+This makes every asynchronous run a run of the model. Take a real run, in
+which each validator has received some of the messages sent so far. In the
+model the network holds every message sent, and each validator acts on the
+ones it has received. A positive guard satisfied by fewer messages is
+satisfied by more, so every step a real validator takes is a step of the
+model. A negative guard over other validators' messages would break this:
+"nobody signed a conflicting vote" can be true of what a validator received
+and false of the network. The model also has runs the protocol lacks, such
+as a validator acting on a message the real network would deliver later;
+extra behaviour can only make safety harder to prove. So safety in the model
+is safety under asynchrony ([ChorusDesign.md](../../../ChorusDesign.md) §3.2).
 
-Together they make every asynchronous run a run of the model. Take a real
-run, in which each validator has received some of the messages sent so
-far. In the model the network holds every message sent, and each validator
-acts on the ones it has received. A positive guard satisfied by fewer
-messages is satisfied by more, so every step a real validator takes is a
-step of the model. A negative guard would break this: "nobody signed a
-conflicting vote" can be true of what a validator received and false of
-the network. The model also has runs the protocol lacks, such as a
-validator acting on a message it has not yet received; extra behaviour can
-only make safety harder to prove. So safety in the model is safety under
-asynchrony ([ChorusDesign.md](../../../ChorusDesign.md) §3.2).
-
-(M-update) holds by the form of every update: Veil's generated
-monotonicity lemmas cover the updates that write `true`, and the three
-bulk updates of `vote` are proven monotone by hand. (M-frame) is checked by
-no tool. It is checked by reading each guard, which the audit table below
-records ([Architecture.md](../../../Architecture.md) §4, item 1).
-
-Two kinds of negative network read are documented exceptions, each sound
-for its own reason ([ChorusDesign.md](../../../ChorusDesign.md) §3.1.1):
-
-* *Self-row reads.* A guard reads negatively a row indexed by the acting
-  validator and written only by its own actions: "I have not signed a
-  different root" in `propose`, "I have not yet cast my commit vote"
-  (`¬ msg_commit_cast i`) in the signing steps of both paths. For a correct
-  validator that row is its own history, and no other participant's message
-  can disable the guard. [ChorusDesign.md](../../../ChorusDesign.md) §3.1
-  lists every one.
-* *The witnessed quorum of `fb_sign_neg`.* The paper's validator signs a
-  negative fallback entry when, among the votes it received, no root has
-  enough positive votes. The model has no "received" set, so the action
-  takes one as a parameter, `qv`, a supermajority of broadcast votes, and
-  its negation ranges over the votes in `qv` only:
+Where the paper's rule does depend on what a validator has *not* received,
+the model gives the validator that state. The fallback entry is negative
+when, among the votes the validator received, no root has enough positive
+votes. So the validator keeps a receipt of each vote it receives,
+`receive_vote_pos` and `receive_vote_neg`, and `fb_sign_neg` reads its own
+receipts:
 
 {model Cadence.Chorus "action fb_sign_neg"}
 
-A validator can observe that a quorum is absent from the votes it holds,
-so this guard is one a real validator checks. The behaviours asynchrony
-makes real stay in: a validator may sign negative although a positive
-quorum exists outside `qv`.
-
-Local rows need no exception: a validator observes its own state,
-including what it has not yet done. The guards that keep a step from
-firing twice read such records, `local_commit_entry i j` and its siblings.
+Monotone updates hold by the form of every update: Veil's generated
+monotonicity lemmas cover the updates that write `true`, and the three bulk
+updates of `vote` are proven monotone by hand. The rules on reads are
+checked by no tool. They are checked by reading each action, which the
+audit table below records ([Architecture.md](../../../Architecture.md) §4,
+item 1).
 
 # The adversary as explicit actions
 
@@ -147,30 +144,32 @@ may do anything that some correct validator could observe. In Chorus it
 can
 
 * sign any message in its own name, of every kind, as often as it likes;
-* equivocate: sign two roots as a proposer, and deliver different chunks
-  to different validators;
-* assemble a commit certificate from signatures that exist, and
+* equivocate: sign two roots as a proposer, send different chunks to
+  different validators, and send different votes to different validators;
+* form a certificate from signatures that exist and send it, and
   re-disseminate a chunk once enough are on the network;
 * act at any time, with no fairness, so no liveness argument relies on its
   help ((F-byz), [Premises.md](../../../Premises.md) §3.1).
 
 Its guards are the checks an honest receiver makes: a positive vote entry
 carries the signer's chunk, a vote has an entry for every proposer, a
-positive fallback entry carries the proposer's signature. A message failing
-them is discarded on receipt, so these guards remove only messages that
-could never influence a correct validator. What the adversary cannot do is
-write a correct validator's row, which is how the model states that
+positive fallback entry carries the proposer's signature, a certificate
+has its signatures. A message failing them is discarded on receipt, so
+these guards remove only messages that could never influence a correct
+validator. What the adversary cannot do is send under a correct
+validator's name or write its rows, which is how the model states that
 signatures cannot be forged. Inside the MVBA it can do whatever the class
 `MVBASafety` leaves unconstrained ([ChorusDesign.md](../../../ChorusDesign.md) §5).
 
 # When a model departs from an idiom
 
-Each idiom keeps the model's runs a superset of the protocol's. Here are
-three edits that would break that, one of each kind. They are outlines,
-written for this page; none is in the model.
+Each rule keeps the model's runs a superset of the protocol's. Here are
+three edits that would break one, each a different rule. They are
+outlines, written for this page; none is in the model.
 
-*A guard reading another validator's row.* Suppose `commit_assign_pos i j m`
-also required that no validator had committed the negative entry for `j`:
+*A guard reading another validator's row.* Suppose
+`commit_assign_pos_fast i j m c` also required that no validator had
+committed the negative entry for `j`:
 
 ```
 require ∀ i', ¬ local_committed_neg i' j     -- outline: not in the model
@@ -179,7 +178,8 @@ require ∀ i', ¬ local_committed_neg i' j     -- outline: not in the model
 `agreement_pos_neg` would then hold by this guard: a validator commits only
 when it sees no conflicting commit. No real validator can see another's
 commits, so the theorem would say nothing about the protocol, whose
-agreement rests on quorum intersection.
+agreement rests on quorum intersection. The rule broken: a validator reads
+only its own local rows.
 
 *A guard consulting the fault pattern.* Suppose `record_chunk i j m` also
 required `¬ is_byz j`, so that correct validators record only correct
@@ -192,12 +192,11 @@ require ¬ is_byz j                           -- outline: not in the model
 A Byzantine proposer's equivocation, different chunks to different
 validators, would never reach a correct validator's entries, and every
 property that has to survive it would hold because an oracle filtered the
-attack out. In a correct validator's action, `is_byz` names its actor and
-nobody else.
+attack out. The rule broken: a correct validator's action reads the fault
+predicate only at its actor.
 
-*Acting on knowledge no node could have.* Suppose the negation in
-`fb_sign_neg` ranged over every vote on the network instead of the votes in
-`qv`:
+*Acting on knowledge no node could have.* Suppose `fb_sign_neg` read the
+votes on the network instead of its own receipts, negatively:
 
 ```
 require ∀ M q, ¬ (nset.greater_than_third q ∧   -- outline: not in the model
@@ -206,11 +205,13 @@ require ∀ M q, ¬ (nset.greater_than_third q ∧   -- outline: not in the mode
 
 A real validator knows only the votes it received. This guard would remove
 the runs in which a validator signs negative while a positive quorum exists
-elsewhere: the runs with late messages, which asynchrony makes real, and
-which the speculative-safety argument has to survive.
+elsewhere — the runs with late messages, which asynchrony makes real, and
+which the speculative-safety argument has to survive — and a Byzantine
+validator signing a late positive entry could block a correct validator's
+step. The rule broken: messages are read only in positive position.
 
 Nothing in the build flags any of these edits. The proofs still go through,
-and may get easier. That is why the idioms are checked by reading the
+and may get easier. That is why the rules are checked by reading the
 actions, and what the rest of this chapter is for.
 
 # What an auditor checks
@@ -218,14 +219,15 @@ actions, and what the rest of this chapter is for.
 :::claims (title := "What you check, for each action")
 1. *Actor.* A correct validator's action requires `¬ is_byz` of its actor
    and of nobody else; an adversary action requires `is_byz` of its own;
-   an environment action (the clock, the network's delivery, the MVBA's
-   step) belongs to nobody.
-2. *Reads.* The actor's own local rows, in either polarity; network
-   relations and certificates, in positive position; a negative network
-   read only as a self-row read or the witnessed quorum of `fb_sign_neg`.
-3. *Writes.* The actor's own local rows; network rows the actor signs; a
-   certificate whose guard is its validity check; the shared state through
-   its own rules.
+   an environment action (the phase markers) reads and writes only the
+   phase; the MVBA's step belongs to the MVBA.
+2. *Reads.* The actor's own local rows, in either polarity; its own sends,
+   in either polarity; other messages and the certificates over them, in
+   positive position, and a chunk only as its recipient; the phase,
+   configuration, and the MVBA class at the actor's index.
+3. *Writes.* The actor's own local rows; messages under its own name; the
+   MVBA's state through an input at its index; auxiliary records, which no
+   action reads.
 4. *The adversary.* Every message a Byzantine validator could send that an
    honest receiver would accept is the update of some `byz_*` action.
 5. *The paper.* The guards and updates are the rule the Paper column
@@ -234,7 +236,8 @@ actions, and what the rest of this chapter is for.
 
 Today these checks are made by hand, and the table below records them.
 The V line is building a checker that computes the actor, read and write
-columns from the action bodies. When it lands, the table takes those
+columns from the action bodies, by the rules of
+[Locality.md](../../../Locality.md). When it lands, the table takes those
 columns from it and keeps the Paper and Note columns from this file, and
 the other models get tables of their own.
 
@@ -242,12 +245,12 @@ the other models get tables of their own.
 
 One row per action, grouped as the model groups them; actions of one shape
 share a row. *Reads, own* is the actor's own rows (negative reads marked
-`¬`); *Reads, network* is everything else the guards read, in positive
-position: network relations, certificates, and the shared state (the phase,
-the MVBA class's operations, Chorus's records of the MVBA's decision).
+`¬`); *Reads, network* is everything else the guards read, all in positive
+position: messages and certificates, the phase, and the MVBA class's
+operations. *Negative network reads* are only ever the actor's own sends.
 Configuration, such as `is_proposer`, is fixed data every validator knows
-and is left out. A note marked ⚠ is a departure beyond the documented
-exceptions, under review.
+and is left out. The note names the rules of
+[Locality.md](../../../Locality.md) each row follows.
 
 The guide's build checks that every action of the model has a row and that
 every relation the derived columns name is part of the model, so the table
@@ -256,8 +259,8 @@ hand check.
 
 {auditTable Chorus "docs/guide/audit/Chorus.tsv"}
 
-*Further detail:* the network abstraction and its contract,
-[ChorusDesign.md](../../../ChorusDesign.md) §3 (the state categories in
-§3.5); the adversary, §5; the abstractions worth a reviewer's attention,
-§8; and the full list of what has to be believed,
+*Further detail:* the rules, [Locality.md](../../../Locality.md); how Chorus
+instantiates them, [ChorusDesign.md](../../../ChorusDesign.md) §3 (the state
+by kind in §3.5); the adversary, §5; the abstractions worth a reviewer's
+attention, §8; and the full list of what has to be believed,
 [Architecture.md](../../../Architecture.md) §4.
