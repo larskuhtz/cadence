@@ -25,7 +25,7 @@ cannot be published quietly.
 | Page | Content |
 |---|---|
 | `index.html` | opens the guide |
-| `guide/` | **the walk-through for auditors**, a Verso document ([guide](guide)): what is proven, how it is assembled from the modules, what a human has to check against the paper, and what no machine checks — see below |
+| `guide/` | **the guide**, *Cadence Verification*, a Verso document ([guide](guide)), one page per chapter: what is proven, what it rests on, how to read the models and the contracts, and how the proofs are checked — see below |
 | `trust-boundary.html` | **generated from the compiled environment**: the axiom footprint of every end result, the axioms this development declares, and which module contracts have no instance |
 | `sources/` | every published module rendered in source order — prose, declarations and the code between them — with a name-and-docs search box and a hierarchical navigation bar |
 
@@ -51,44 +51,108 @@ a rebuild of the page.
 
 ## The guide
 
-The guide is the site's entry point, and the only authored page on it. It is
-a Verso document under [guide](guide) — a Lean program that imports the
-development — and it is written to one rule: it states no fact of its own.
-Three project-specific elements, in
-[Audit.lean](guide/CadenceGuide/Audit.lean), carry the
-facts instead:
+The guide, *Cadence Verification*, is the site's entry point and its only
+authored part. It is a Verso document under [guide](guide) — a Lean program
+that imports the development — written to one rule: it states no fact of its
+own. Every statement, status box, checklist and table on it is computed from
+the compiled development, or from a checked file, while it builds, so a
+change that makes one of them stale fails the build.
 
-* **`{claim X}`** shows a theorem or instance as an auditor meets it: its
-  docstring, then a status box *computed while the guide builds* — the axioms
-  the kernel recorded (the build fails on anything beyond Lean's standard
-  three), the module contracts the result is conditional on, and the
-  declarations of this development that discharge each one — and the full
-  signature, collapsed. Read in order, those boxes show how the mechanised
-  pieces plug into the argument: the glue's properties are conditional on two
-  contracts, the instances discharge them, and the composed theorem is left
-  with the one contract this development takes as out of scope.
-* **`{model M "safety [x]"}`** quotes a declaration of a Veil model from the
-  rendered sources — the same highlighted code the sources pages show, read
-  from the JSON that `scripts/docs.sh` stage 2 writes. What the modeller
-  wrote in a Veil `safety`, `action` or `relation` is the command, not the
-  declaration Veil generates from it, so this is the only way to put the real
-  text of a model on the page; with `proven := L` it adds the
-  status box of the lemma that proves the property. A quotation that no
-  longer matches exactly one declaration fails the build.
-* **`{decl}`** is a checked declaration name linking into the sources.
+### Pages and files
 
-Every link from the guide and from the trust boundary into the sources lands
-on the declaration it names. The anchors are read back from the renderer's
-output — `scripts/docs.sh` stage 2 indexes them in
-`.lake/build/literate/anchors.tsv` — and every link is checked against the
-rendered pages. A declaration written in the source, a Veil `safety`,
-`invariant` or `action` included, has an anchor of its own. A declaration a
-Veil command generates (the `reachable_*` projections,
-`invariants_of_reachable`) is not written anywhere, so it links to the
-module-doc section of the command that emits it, and is marked as generated.
+One page per chapter. [CadenceGuide.lean](guide/CadenceGuide.lean) holds the
+front page and the chapter order (`{include 1 …}`); each chapter is a file of
+its own under [Chapters](guide/CadenceGuide/Chapters), so chapters are
+written independently. A chapter's `%%% file := "…" %%%` fixes its page's
+address, `site/guide/<file>/`, so a retitled chapter keeps its URL. Two
+appendix pages are temporary: *the earlier walk-through* holds the text of
+the single-page guide until the chapters take it over, and *the guide's
+elements* shows one specimen of each element below.
 
-`scripts/guide.sh` rebuilds the guide alone, after one full `scripts/docs.sh`
-run — the fast loop for editing it.
+The elements live in [CadenceGuide](guide/CadenceGuide), one module each, and
+[Elements.lean](guide/CadenceGuide/Elements.lean) imports them all, with the
+development, for the chapters. An element a chapter needs is added as a new
+module and imported by that chapter; the existing element modules are
+shared, and an edit to one rebuilds every chapter.
+
+### The elements
+
+| Element | Module | Shows | Fails the build when |
+|---|---|---|---|
+| `{decl}`X`` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a declaration name, linked into the sources | the name does not resolve |
+| `{claim X}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a theorem or instance: its docstring, a status box (the kernel's axioms, the contracts it is conditional on and what discharges them), the signature, collapsed | `X` has no docstring, or uses an axiom beyond Lean's standard three |
+| `{model M "safety [x]"}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a Veil model declaration, quoted from the rendered sources; `(proven := L)` adds `L`'s status box | the text matches no declaration of `M`, or more than one |
+| `{contracts}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | every contract class with what provides it | — (derived; an unprovided contract shows as assumed) |
+| `{cite}`label`` | [Cite.lean](guide/CadenceGuide/Cite.lean) | a paper citation, "Lemma 9 (`lemma:chorus-agreement`)", rendered from [paper-labels.tsv](paper-labels.tsv) | the label is not in the map |
+| `{figure "docs/diagrams/x.svg"}` | [Figure.lean](guide/CadenceGuide/Figure.lean) | an SVG diagram, inlined, without its dark-scheme block; `(caption := "…")` | the file is missing, has no `<title>`, uses a class or id without the `dg-` prefix, or names a declaration that does not resolve (below) |
+| `:::claims` | [ClaimsBox.lean](guide/CadenceGuide/ClaimsBox.lean) | a set-off box, `(title := "…")`, for the claims and "what you check" boxes | — (presentation; its contents carry the checks) |
+| `{contractFields C}` | [ContractFields.lean](guide/CadenceGuide/ContractFields.lean) | a contract's checklist: per field, its docstring's first sentence, its level (safety fragment or temporal) and what proves it (a protocol instance, or *assumed* with the consistency witnesses) | a field has no docstring; a field has no protocol instance and its class is not in `assumedContracts`; a module of `witnessModules` is gone |
+| `{auditTable M "file.tsv"}` | [AuditTable.lean](guide/CadenceGuide/AuditTable.lean) | a model's audit table, from its data file (below); `+sample` for a deliberate selection | an action is not a constructor of `M.Label`, has two rows, or (without `+sample`) has none; a relation named in a derived column is not part of `M`; a paper label is not in the map |
+
+Paper citations in the guide's prose go through `{cite}`:
+[paper-cites.sh](../scripts/paper-cites.sh) reads Lean comments and
+Markdown, and a Verso chapter's text is neither.
+
+The two lists the classifications rest on are in
+[Audit.lean](guide/CadenceGuide/Audit.lean): `witnessModules`, the modules
+whose instances are consistency witnesses rather than implementations (the
+ideal ACS and the witness models; [TrustSurface.lean](../scripts/TrustSurface.lean)
+keeps the same list), and `assumedContracts`, the contracts this development
+takes as assumed modules (the ACS's).
+
+**Names in a diagram.** An SVG element that shows a Lean name carries it in
+an attribute, so a renamed declaration fails the build instead of leaving
+the diagram stale:
+
+* `data-decl="Composed.liveness"` — a constant, resolved in the guide's
+  environment;
+* `data-decl-veil="Chorus vote"` — an item of a Veil model that is not a
+  constant under that name, found in the model's rendered source (the
+  module `Cadence.Chorus`) by the command that declares it: `relation`,
+  `ghost relation`, `action`, `safety [x]` and the like;
+  `"Chorus Phase.pre_deadline"` is an enum value, which the `enum Phase`
+  declaration must list.
+
+A resolved `<text>` or `<tspan>` becomes a link to the declaration in the
+rendered sources. The SVG conventions themselves are in
+[docs/diagrams](diagrams/README.md).
+
+### The audit table's data file
+
+One file per model, under [audit](guide/audit), tab-separated:
+
+* lines starting with `#` are comments;
+* the first other line is the header, naming the columns by key, in any
+  order: `action`, `paper`, `actor`, `reads_own`, `reads_net`,
+  `reads_net_neg`, `fault`, `writes`, `note` — all of them, and no others;
+* a line `group<TAB>title` starts a group of rows under a heading;
+* every other line is a row. `action` names one action, or several
+  separated by commas for actions that share a row (the Byzantine actions,
+  say). `paper` is a comma-separated list of paper labels, or `—`; the
+  table renders each label's reference.
+
+Cells are text with `code spans`. In the derived columns — `actor`,
+`reads_own`, `reads_net`, `reads_net_neg`, `fault`, `writes` — the first
+identifier of every code span, after a leading `¬`, is checked: it must be a
+state component of the model, an immutable one, a declaration of the model
+(a ghost relation), a field of a class the model instantiates (`is_byz`),
+or a parameter of the row's action (`j`). `paper` and `note` are a human's
+and are not read for names.
+
+**When a checker supplies the derived columns.** They are the per-action
+read/write data a checker can compute from the action bodies. When one does,
+it writes the same format with the derived columns only, one row per
+action, and the table takes those columns from it and `paper` and `note`
+from the hand file, which drops the derived columns; the rendered table
+keeps its shape, and every model gets a table at no authoring cost.
+
+### Building it
+
+`scripts/guide.sh` builds the guide and renders it into `site/guide/`,
+after one full `scripts/docs.sh` run — the fast loop for editing it. It
+re-elaborates the root and every chapter each time, because they read files
+lake does not track: the model quotations' JSON, the anchors, the diagrams,
+the audit tables.
 
 ## Links
 
@@ -106,12 +170,33 @@ resolves every one — a Lean module the site renders to its page, anything
 else to the file on GitHub at the commit being rendered — and stops the
 build on a link whose target does not exist, which also makes
 `scripts/site-links.sh check` the dead-link check for the whole repository.
-The resolved links reach the pages two ways. Links in doc comments and
+The resolved links reach the pages three ways. Links in doc comments and
 module headers are rewritten in the renderer's JSON before the HTML stage,
-so the pages carry them as plain `href`s. Links in plain comments, and every
-link on the guide's page, are resolved in the browser from the same table
-(`site-links.js`), because a plain comment is a single text token whose text
-stays exactly as written.
+so the pages carry them as plain `href`s. The guide's own links are
+rewritten in its pages by `scripts/guide.sh`. Links in plain comments, and in
+the quotations and docstrings the guide embeds, are resolved in the browser
+from the same table (`site-links.js`), because a plain comment is a single
+text token whose text stays exactly as written.
+
+**On the guide.** Every guide page carries a `<base href>` at the guide's
+root, so a relative link means the same on every page, whatever its depth.
+The one link written in site layout rather than relative to its file is the
+trust boundary's, `../trust-boundary.html`, from any guide file. A page does
+not record which source file wrote it, so `scripts/guide.sh` rewrites every
+page from the link table of all the guide's files together, and stops if
+one href goes to two different places from two of them — possible, since
+the root and the chapters sit in different directories.
+
+Every link from the guide and from the trust boundary into the sources lands
+on the declaration it names, and `scripts/docs.sh` checks each one, on every
+guide page, against the rendered pages. The anchors are read back from the
+renderer's output — stage 2 indexes them in
+`.lake/build/literate/anchors.tsv`. A declaration written in the source, a
+Veil `safety`, `invariant` or `action` included, has an anchor of its own. A
+declaration a Veil command generates (the `reachable_*` projections,
+`invariants_of_reachable`) is not written anywhere, so it links to the
+module-doc section of the command that emits it, and is marked as
+generated.
 
 The commit comes from the checkout (`origin` and `HEAD`), or from
 `SITE_SOURCE_URL` where there is no history — `scripts/container.sh docs`

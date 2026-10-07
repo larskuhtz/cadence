@@ -1,0 +1,8 @@
+# The audit table of Chorus: one row per action, rendered by {auditTable}
+# (docs/guide/CadenceGuide/AuditTable.lean). The format is documented in
+# docs/Documentation.md, "The guide". A stub: two sample rows, to be
+# checked against the action bodies and completed to every action.
+action	paper	actor	reads_own	reads_net	reads_net_neg	fault	writes	note
+group	Dissemination
+propose	alg:proposer-dissemination	proposer `j`	`participating`, `abandoned`	—	`msg_proposer_signed j` (self-row)	`¬ is_byz j` (actor)	`msg_proposer_signed j m`	sign once
+record_chunk	alg:voting	`i`	`local_entry_pos i`, `local_entry_neg i`	`msg_chunk_received i j m`, `msg_proposer_signed j m`	—	`¬ is_byz i` (actor)	`local_entry_pos i j m`	reads `phase`

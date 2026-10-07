@@ -21,6 +21,12 @@ stays a text with no facts of its own.
 Deliberately small and specific to this project: the classification below
 knows this development's contract classes by name, which is the point — it is
 the vocabulary an auditor is asked to check.
+
+This module holds the shared vocabulary and the first three elements; each
+later element is a module of its own beside it, and
+[Elements.lean](Elements.lean) imports them all for the chapters. A new
+element goes in a new module, which the chapter that needs it imports:
+editing this file rebuilds every chapter.
 -/
 import VersoManual
 import VersoLiterate
@@ -34,8 +40,10 @@ namespace CadenceGuide
 
 /-! ## Where things are -/
 
-/-- The rendered sources, relative to the guide's own page. [docs.sh](../../../scripts/docs.sh)
-places the guide at `site/guide/` and the sources at `site/sources/`. -/
+/-- The rendered sources, relative to the guide's root. [docs.sh](../../../scripts/docs.sh)
+places the guide at `site/guide/` and the sources at `site/sources/`; every
+guide page, a chapter's included, carries a `<base href>` at the guide's root,
+so one relative link serves every page. -/
 def sourcesRoot : String := "../sources/"
 
 /-- The literate renderer's intermediate JSON, one file per module, written by
@@ -141,6 +149,12 @@ def witnessModules : List Name :=
 
 def isWitnessModule (m : Name) : Bool := witnessModules.any (·.isPrefixOf m)
 
+/-- The contracts this development takes as assumed modules: the paper
+leaves the ACS protocol open, so the Conductor and the composed system are
+proven for every ACS meeting Module 4. A contract here may have no protocol
+instance; any other contract without one fails `{contractFields}`. -/
+def assumedContracts : List Name := [`ACSSafety, `ACSTemporal, `ACS]
+
 /-- Head constant of a type after stripping `∀` binders syntactically — no
 `whnf`, which over proof-sized types overruns the heartbeat budget. -/
 partial def headSymbol : Expr → Option Name
@@ -220,10 +234,17 @@ block_extension Block.status (html : String) where
 .cg-status .cg-assumed { color: var(--cg-bad, #b3261e); font-weight: 600; }
 .cg-note { color: #57606a; font-size: 0.92em; }
 .cg-status.cg-plain { border-left-color: var(--cg-rule, #d0d7de); }
-.cg-contracts { border-collapse: collapse; margin: 0.8rem 0 1.6rem; font-size: 0.93em; }
+.cg-contracts { border-collapse: collapse; margin: 0.8rem 0 1.6rem; font-size: 0.93em;
+  font-family: var(--verso-text-font-family); }
+.cg-fields td:nth-child(2) { min-width: 18em; }
 .cg-contracts th, .cg-contracts td { text-align: left; padding: 0.35rem 0.7rem;
   border-bottom: 1px solid #8884; vertical-align: top; }
 .cg-contracts .cg-assumed { color: var(--cg-bad, #b3261e); font-weight: 600; }
+.cg-contracts caption { caption-side: top; text-align: left; padding: 0 0.7rem 0.4rem;
+  color: #57606a; font-size: 0.95em; }
+.cg-audit-wrap { overflow-x: auto; margin: 0.8rem 0 1.6rem; }
+.cg-audit-wrap .cg-contracts { margin: 0; font-size: 0.88em; }
+.cg-audit .cg-audit-group th { padding-top: 0.9rem; border-bottom: 2px solid #8886; }
 .cg-details { margin: 0 0 1.6rem; }
 .cg-details > summary { cursor: pointer; font-size: 0.93em; color: #57606a; }
 .cg-prose { margin: 0.8rem 0 0.4rem; }

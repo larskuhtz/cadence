@@ -200,7 +200,35 @@ plain comments and the guide ([Documentation.md](Documentation.md),
 "Links"). This one stays: a relative link that works on GitHub and on the
 site cannot be resolved by either renderer alone.
 
+## 8. A guide page cannot say which file it came from
+
+**Symptom.** On the multi-page guide, a chapter's relative links cannot be
+resolved in the browser the way the sources pages' are: the page carries no
+record of the source file that wrote it.
+
+**Cause.** Not a bug. A Manual's `extraHead` is one setting for the whole
+document, so a per-page marker (the `cadence-source` meta tag the
+single-page guide used) cannot differ between chapters, and `{include}`
+leaves no trace of the included module in the part it adds.
+
+**Our workaround.** [guide.sh](../scripts/guide.sh) rewrites every guide
+page from the link table of all the guide's files together, and stops when
+one href goes to different places from two files
+([Documentation.md](Documentation.md), "Links"). This one stays unless Verso
+records a part's source module.
+
 ## Not bugs, but sharp edges
+
+* **Every page of a multi-page Manual has a `<base href>` at the
+  document's root.** That is what makes one relative link serve every page,
+  and it applies to fragment-only links too: `#x` on a chapter page goes to
+  `#x` on the *front* page. Link within a page through Verso's own section
+  references, not a bare fragment.
+* **`{include N X}` adds `X` as a child part; it cannot splice `X`'s text into
+  the including part.** The front page's text therefore lives in the guide's
+  root file, and only the chapters are files of their own.
+* **One `#doc` per file.** `#doc` takes the rest of the file as its text, so a
+  second one in the same file is parsed as markup and fails.
 
 * **`[modules."X"] title` applies to the whole subtree.** Per-module
   configuration resolves by longest-*prefix* match, and unlike `url` — which
