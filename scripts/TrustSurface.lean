@@ -71,6 +71,19 @@ def esc (s : String) : String :=
 /-- Is `m` one of this development's own modules? -/
 def isOwnModule (m : Name) : Bool := m == `Cadence || (`Cadence).isPrefixOf m
 
+/-- The modules whose contract instances are **consistency witnesses**, not
+implementations: the ideal ACS, a model of the class with global knowledge
+and no adversary, and the concrete models that show each claim's premises
+hold together. An instance there shows a contract can be met; it does not
+discharge it. Matched by prefix, so a witness module's submodules count too.
+The guide's [Audit.lean](../docs/guide/CadenceGuide/Audit.lean) keeps the
+same list. -/
+def witnessModules : List Name :=
+  [`Cadence.Conductor.IdealAcs, `Cadence.Composed.Witness,
+   `Cadence.Chorus.Witness, `Cadence.Mvba.Witness]
+
+def isWitnessModule (m : Name) : Bool := witnessModules.any (·.isPrefixOf m)
+
 /-- The module a declaration was introduced in. -/
 def moduleOf (env : Environment) (n : Name) : Option Name :=
   match env.getModuleIdxFor? n with
@@ -146,25 +159,32 @@ partial def binderHeads : Expr → List Name
   | _ => []
 
 /-- A declaration of this development producing a contract instance, together
-with the contract classes it *requires* in order to do so. An empty
-requirement list is an unconditional witness; a non-empty one is a join, which
-proves nothing on its own. -/
+with the contract classes it *requires* in order to do so, and whether it sits
+in a witness module. An empty requirement list outside the witness modules is
+an unconditional instance; a non-empty one is a join, which proves the
+contract only relative to the ones it requires; an instance in a witness
+module shows the contract can be met and discharges nothing. -/
 structure Provider where
   name : Name
   requires : List Name
+  witness : Bool
 
 /-- One pass over this development's declarations, grouping those that produce
 a contract instance by the class they produce.
 
-Two exclusions matter, and getting them wrong inverts the page's conclusion:
+Three distinctions matter, and getting any of them wrong overstates the page's
+conclusion:
 
 * **Parent projections.** `extends` generates `X.toXSafety`, whose type has
   `XSafety` at the head for *every* `X`. It witnesses nothing, so projections
   are dropped (`getProjectionFnInfo?`).
-* **Conditional joins.** `Chorus.slotConsensus_of_temporal` produces a full
-  `SlotConsensus` — but only when handed a `SlotConsensusTemporal`, of which
-  this development has no instance. Recorded separately rather than counted
-  as a proof. -/
+* **Conditional joins.** `Conductor.orchestratorSafety` produces
+  `OrchestratorSafety`, but only when handed an `ACSSafety`. Recorded
+  separately rather than counted as a proof.
+* **Consistency witnesses.** The ideal ACS produces `ACSSafety` and
+  `ACSTemporal` with no requirement, and the composed witness instantiates
+  the Conductor at it. Both are models that show the premises can be met
+  (`witnessModules`), so they are reported apart and prove no contract. -/
 def providerMap (env : Environment) : Std.HashMap Name (Array Provider) := Id.run do
   let mut m : Std.HashMap Name (Array Provider) := {}
   for (n, ci) in env.constants.toList do
@@ -179,7 +199,7 @@ def providerMap (env : Environment) : Std.HashMap Name (Array Provider) := Id.ru
           | some cls =>
             if contractClasses.contains cls then
               let reqs := (binderHeads ci.type).filter contractClasses.contains
-              m := m.insert cls ((m.getD cls #[]).push ⟨n, reqs.eraseDups⟩)
+              m := m.insert cls ((m.getD cls #[]).push ⟨n, reqs.eraseDups, isWitnessModule mod⟩)
           | none => pure ()
         | _ => pure ()
     | none => pure ()
@@ -267,28 +287,33 @@ run_cmd liftTermElabM do
     contract outright.
     <strong>Proven relative to …</strong>: it is produced only when another
     contract is supplied — sound, but it inherits whatever that one assumes.
-    <strong>No instance</strong>: nothing produces it, which is exactly what
-    &ldquo;unproven&rdquo; means here. Because every field of a temporal class is
-    stated over the proven fragment's own transitions, that absence is the
-    complete statement of what is owed; there is no second place where these
-    obligations are written down.</p>" o
+    <strong>Assumed</strong>: no protocol of this development produces it.
+    Because every field of a temporal class is stated over the proven
+    fragment's own transitions, that is the complete statement of what is owed;
+    there is no second place where these obligations are written down.
+    A <strong>consistency witness</strong> is a model that meets the contract —
+    the ideal ACS, or one of the concrete models that show a claim's premises
+    hold together. It shows the contract can be met, and proves nothing about a
+    protocol, so it never makes a contract proven.</p>" o
   o := p "<table><tr><th>Contract</th><th>Unconditional instance</th>\
-    <th>Conditional join</th><th>Status</th></tr>" o
+    <th>Conditional join</th><th>Consistency witness</th><th>Status</th></tr>" o
   for cls in contractClasses do
     if env.contains cls then
       let provs := provMap.getD cls #[]
-      let witnesses := provs.filter (·.requires.isEmpty)
-      let joins := provs.filter (!·.requires.isEmpty)
+      let witnesses := provs.filter (·.witness)
+      let real := provs.filter (!·.witness)
+      let direct := real.filter (·.requires.isEmpty)
+      let joins := real.filter (!·.requires.isEmpty)
       -- Three states, and the difference between the last two is the whole
       -- point of the page: a contract can be proven outright, proven only
-      -- relative to another contract that is itself assumed, or not provided
-      -- at all — which is what "unproven" means here.
+      -- relative to another contract that is itself assumed, or assumed.
+      -- Witnesses are listed but decide nothing.
       let status :=
-        if !witnesses.isEmpty then "<span class=\"ok\">proven</span>"
+        if !direct.isEmpty then "<span class=\"ok\">proven</span>"
         else if !joins.isEmpty then
           let deps := (joins.toList.flatMap (·.requires)).eraseDups
           s!"proven relative to {String.intercalate ", " (deps.map (fun r => s!"<code>{esc r.toString}</code>"))}"
-        else "<span class=\"bad\">no instance — assumed</span>"
+        else "<span class=\"bad\">assumed — no protocol instance</span>"
       let fmt (a : Array Provider) (withReqs : Bool) : String :=
         if a.isEmpty then "—"
         else String.intercalate ", " (a.toList.map fun pr =>
@@ -296,12 +321,14 @@ run_cmd liftTermElabM do
             s!"{declLink env anchors pr.name} <span class=\"note\">(given \
               {String.intercalate ", " (pr.requires.map (fun r => s!"<code>{esc r.toString}</code>"))})</span>"
           else declLink env anchors pr.name)
-      o := p s!"<tr><td>{declLink env anchors cls}</td><td>{fmt witnesses false}</td>\
-        <td>{fmt joins true}</td><td>{status}</td></tr>" o
+      o := p s!"<tr><td>{declLink env anchors cls}</td><td>{fmt direct false}</td>\
+        <td>{fmt joins true}</td><td>{fmt witnesses false}</td><td>{status}</td></tr>" o
   o := p "</table>" o
-  o := p "<p>The <code>…Temporal</code> rows without an instance are the timing and
-    liveness obligations. <code>ACSSafety</code> has none because the ACS is a
-    standard primitive whose implementation is out of scope.</p>" o
+  o := p "<p>The ACS is an assumed module: the paper leaves its protocol open, so
+    <code>ACSSafety</code> and <code>ACSTemporal</code> have no protocol
+    instance, and every contract proven from them is proven relative to them.
+    The ideal ACS (<code>Cadence.IdealAcs</code>) is their consistency witness:
+    it shows the two classes can be met together.</p>" o
   o := p "<p><code>MVBATemporal</code>'s instance, <code>Mvba.mvbaTemporal</code>, is
     proven from named hypotheses that are classes and a schedule, not
     contracts: finitely many validators, an honest supermajority, the view

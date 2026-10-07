@@ -129,6 +129,18 @@ def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 
 def isOwnModule (m : Name) : Bool := m == `Cadence || (`Cadence).isPrefixOf m
 
+/-- The modules whose contract instances are consistency witnesses, not
+implementations: the ideal ACS, and the concrete models that show each
+claim's premises hold together. An instance there shows a contract can be met
+and discharges nothing. Matched by prefix. The trust boundary page,
+[TrustSurface.lean](../../../scripts/TrustSurface.lean), keeps the same
+list. -/
+def witnessModules : List Name :=
+  [`Cadence.Conductor.IdealAcs, `Cadence.Composed.Witness,
+   `Cadence.Chorus.Witness, `Cadence.Mvba.Witness]
+
+def isWitnessModule (m : Name) : Bool := witnessModules.any (·.isPrefixOf m)
+
 /-- Head constant of a type after stripping `∀` binders syntactically — no
 `whnf`, which over proof-sized types overruns the heartbeat budget. -/
 partial def headSymbol : Expr → Option Name
@@ -150,12 +162,14 @@ partial def binderHeads : Expr → List Name
   | _ => []
 
 /-- A declaration of this development producing a contract, with the
-contracts it needs in order to do so. Parent projections (`X.toXSafety`)
-are skipped: their type has the class at the head for *any* `X`, so they
-witness nothing. -/
+contracts it needs in order to do so, and whether it is a consistency
+witness (`witnessModules`). Parent projections (`X.toXSafety`) are skipped:
+their type has the class at the head for *any* `X`, so they witness
+nothing. -/
 structure Provider where
   name : Name
   requires : List Name
+  witness : Bool
 
 def providersOf (env : Environment) (cls : Name) : Array Provider := Id.run do
   let mut out := #[]
@@ -167,7 +181,7 @@ def providersOf (env : Environment) (cls : Name) : Array Provider := Id.run do
     unless ci matches .defnInfo _ | .thmInfo _ | .opaqueInfo _ do continue
     if headSymbol ci.type == some cls then
       let reqs := (binderHeads ci.type).filter contractClasses.contains |>.eraseDups
-      out := out.push ⟨n, reqs⟩
+      out := out.push ⟨n, reqs, isWitnessModule m⟩
   return out.qsort (·.name.toString < ·.name.toString)
 
 /-! ## `{decl}` -/
@@ -241,15 +255,19 @@ instance : FromArgs ClaimConfig DocElabM := ⟨ClaimConfig.mk <$> .positional `n
 /-- What a contract hypothesis is discharged by, as HTML. -/
 def dischargeHtml (env : Environment) (a : Anchors) (cls : Name) : String :=
   let provs := providersOf env cls
-  let direct := provs.filter (·.requires.isEmpty)
-  let joins := provs.filter (!·.requires.isEmpty)
+  let real := provs.filter (!·.witness)
+  let direct := real.filter (·.requires.isEmpty)
+  let joins := real.filter (!·.requires.isEmpty)
+  let wits := provs.filter (·.witness)
+  let witNote := if wits.isEmpty then "" else
+    "; consistency witness: " ++ ", ".intercalate (wits.toList.map (declLinkHtml env a ·.name))
   if !direct.isEmpty then
     "discharged by " ++ ", ".intercalate (direct.toList.map (declLinkHtml env a ·.name))
   else if !joins.isEmpty then
     "discharged by " ++ ", ".intercalate (joins.toList.map fun p =>
       declLinkHtml env a p.name ++ " — given " ++
         ", ".intercalate (p.requires.map (s!"<code>{esc ·.toString}</code>")))
-  else "<span class=\"cg-assumed\">no instance in this development — assumed</span>"
+  else "<span class=\"cg-assumed\">no protocol instance in this development — assumed</span>" ++ witNote
 
 def statusHtml (name : Name) (lead : Array String := #[]) (showSource := true) : DocElabM (String × Bool) := do
   let env ← getEnv
