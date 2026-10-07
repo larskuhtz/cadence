@@ -49,8 +49,9 @@ supplement it is the formal shape of.
   view timer, restarted on entry
 * **(Δ-avail)** — `AvailWithin`: `avail_ready` within `Δ_sync` of accepting;
   Supplement, Lemma 5 (`lem:avail-progress`)
-* **(Δ-relay)** — `Relayed`, the caller's: once a correct validator has
-  decided, a correct validator takes the transferred certificate within
+* **(Δ-relay)** — `Relayed`, the caller's: while a correct validator that
+  has decided still takes part (it has proposed and not abandoned), a
+  correct validator takes the transferred certificate within
   `Δ + ρ` (the input `decide`); the composing layer's delivery of a decided
   `CommitQC`, Supplement, Lemma 13 (`lem:decision-propagation`)
 
@@ -486,18 +487,21 @@ structure BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Pro
 correct validator within `Δ + ρ`
 ([Premises.md](../../docs/Premises.md) §4.7).
 
-Once a correct validator `j` has decided `e`, a correct validator that can
-take a transferred certificate on `e` does so within `Δ + ρ`, measured from
-`max(clk N, gst)`. The supplement's termination setting asks this of the
-composing layer (Supplement, Lemma 13 (`lem:decision-propagation`): Chorus broadcasts the
-`CommitQC` a decision outputs, and serves it again every `ρ` to whoever is
-undecided) (N3). Taking a certificate is the input `decide`, so this is a
-premise on the caller, not on the MVBA's scheduling. It is owed only for a
-correct validator's decision. The timed form of (F-relay); within Cadence
-it is derived from Chorus's rows (`Chorus.relayed_of_timedJustice`). -/
+While a correct validator `j` that has decided `e` still takes part — it
+has proposed and has not abandoned — a correct validator that can take a
+transferred certificate on `e` does so within `Δ + ρ`, measured from
+`max(clk N, gst)`. Supplement, Lemma 13 (`lem:decision-propagation`) argues
+in the termination setting, where the learner has not abandoned, and the
+decider's `decide` output causes Chorus to broadcast the `CommitQC` (N3); a
+decider that has abandoned the slot serves nothing. Taking a certificate is
+the input `decide`, so this is a premise on the caller, not on the MVBA's
+scheduling. It is owed only for a correct validator's decision. The timed
+form of (F-relay); within Cadence it is derived from Chorus's rows
+(`Chorus.relayedWhileActive_of_timedJustice`). -/
 def Relayed (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
   ∀ (i j : node) (v : view) (e : value), ¬ nset.is_byz j = true →
-    BoundedFairWhile r (sch.Δ + sch.ρ) (.decide i v e) (fun s => s.decided j e = true)
+    BoundedFairWhile r (sch.Δ + sch.ρ) (.decide i v e)
+      (fun s => s.decided j e = true ∧ (∃ E, s.input j E = true) ∧ ¬ s.abandoned j = true)
 
 omit [IsOrderedAddMonoid time] in
 /-- **The bridge, for (Δ-justice)'s local clauses.** For a fair label of this

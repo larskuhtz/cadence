@@ -216,17 +216,27 @@ Each entry is the result, the file its statement lives in, and what it says.
   claim at the system's MVBA (`TimedTerminationClaimAtMvba`), with that
   hypothesis discharged, the MVBA instance's correct supermajority derived
   for the family (`Chorus.hqeFin`), and the MVBA's timing premise reduced to its own two
-  clauses and the decision output (`SyncAtMvba`): the MVBA's two clauses on
-  its caller, the handoff and the availability shares (Δ-avail), are derived
-  from Chorus's rows (`Chorus.sync_of_syncAtMvba`, the handoff through a
-  decider's `send_mvba_cert` with the schedule's `δ ≤ ρ`;
+  clauses (`SyncAtMvba`): the MVBA's two clauses on its caller, the handoff
+  and the availability shares (Δ-avail), are derived from Chorus's rows
+  (`Chorus.sync_of_syncAtMvba`; the handoff, owed while the decider takes
+  part, through its `send_mvba_cert` with the schedule's `δ ≤ ρ`,
+  **`Chorus.relayedWhileActive_of_timedJustice`**;
   **`Chorus.availWithin_of_timedJustice`**, with the schedule's
   `Δ ≤ Δ_sync`, F15). The MVBA tail
   is `T.termination` on the projection (`Chorus.within_all_decided`), and
   the fallback commit round is a chain of milestones, each a lemma with its
-  deadline, to `T₀ = M + 5Δ + ℓ_MVBA + 8δ` (`Chorus.within_finalized_late`);
-  a single split at the fallback commit votes' deadline gives the bound
-  (`Chorus.within_finalized_split`)
+  deadline, to `T₀ = M + 4Δ + ℓ_MVBA + 9δ` (`Chorus.within_finalized_late`)
+* **`Chorus.timed_termination_tight`** ([Chorus/TimedTermination.lean](Cadence/Chorus/TimedTermination.lean)) —
+  **the same premises give `max(t, GST) + 4Δ + ℓ_MVBA + 9δ`**, one `Δ`
+  inside the paper's bound, and `4Δ + ℓ_MVBA` at `δ = 0`, the bound Lemma
+  11's proof supports (P5): a single split at the fallback commit votes'
+  deadline suffices (`Chorus.within_finalized_split`). The finalizer forms
+  its own fallback commit certificate and finalizes on its own broadcast,
+  a local read: a message a validator sent itself costs a local step
+  (`Chorus.rcvHop`). The `9δ` counts the model's vote-receipt step.
+  `Chorus.timed_termination` follows from it (`Chorus.Ltight_le_Lchorus`);
+  **`Chorus.timed_termination_tight_atMvba`** is the bound at the system's
+  MVBA
 * **`Chorus.termination_premises_satisfiable`,
   `Chorus.timedTermination_premises_satisfiable`,
   `Chorus.totality_premises_satisfiable`**
@@ -647,6 +657,24 @@ info: 'Chorus.availWithin_of_timedJustice' depends on axioms: [propext, Classica
 -/
 #guard_msgs in
 #print axioms Chorus.availWithin_of_timedJustice
+
+/--
+info: 'Chorus.relayedWhileActive_of_timedJustice' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.relayedWhileActive_of_timedJustice
+
+/--
+info: 'Chorus.timed_termination_tight' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.timed_termination_tight
+
+/--
+info: 'Chorus.timed_termination_tight_atMvba' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.timed_termination_tight_atMvba
 
 /--
 info: 'Chorus.own_sent_new' depends on axioms: [propext, Classical.choice, Quot.sound]

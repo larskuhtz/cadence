@@ -897,16 +897,12 @@ theorem mvbaOwn : Mvba.BoundedJustice schC.mvba proj.timed ∧
   rw [proj_at] at hent
   simp [mst] at hent
 
-/-- **The decision output**, vacuously: nobody decides in the MVBA. -/
-theorem decisionOutput : DecisionOutput schC run :=
-  fun j n _ ⟨v, hd⟩ => absurd hd (not_decided n j v)
-
-/-- **The timing model at the system's MVBA**: (Δδ-justice), (P-phase), the
-MVBA's own two clauses on the projection, and the decision output. The
+/-- **The timing model at the system's MVBA**: (Δδ-justice), (P-phase), and
+the MVBA's own two clauses on the projection. The
 MVBA's clauses on its caller, the handoff and (Δ-avail), are derived
 (`sync_of_syncAtMvba`, below, with the bridge). -/
 theorem syncAtMvba : SyncAtMvba schC run :=
-  ⟨timedJustice, phasePunctual, ⟨proj, mvbaOwn⟩, decisionOutput⟩
+  ⟨timedJustice, phasePunctual, ⟨proj, mvbaOwn⟩⟩
 
 /-! ## (b) The untimed premises, on the same run -/
 
@@ -1147,7 +1143,7 @@ many validators, a correct supermajority, the view order, a correct leader
 in every `k` views, a cancellative Archimedean time), the assumptions of
 `chorusTheory`, the schedule (with `δ ≤ Δ`, `δ ≤ ρ` and `Δ ≤ Δ_sync`), the
 timing model `SyncAtMvba` — (Δδ-justice), (P-phase), the MVBA's own two
-clauses on the timed projection, and the decision output — the bridge, and
+clauses on the timed projection — the bridge, and
 the caller's conditions:
 participation synchronized within `Δ`, C1, C2, and everyone participating
 by `t`. The MVBA's clauses on its caller are derived, so they are not

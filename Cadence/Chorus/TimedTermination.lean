@@ -14,6 +14,11 @@ the system's MVBA, `T := Mvba.mvbaTemporal`, where that holds
 (`mvbaSchedule_ℓ_nonneg`) and the MVBA instance's correct supermajority is
 a theorem of the family (`hqeFin`).
 
+**`Chorus.timed_termination_tight`** — the same premises give
+`4Δ + ℓ_MVBA + 9δ` (`Ltight`), one `Δ` inside the paper's bound, and
+`4Δ + ℓ_MVBA` at `δ = 0`, the bound Lemma 11's proof supports (P5). The
+paper's claim follows from it (`Ltight_le_Lchorus`).
+
 ## The milestones
 
 From `M := max(t, GST)`, on the branch where no correct validator has
@@ -32,22 +37,25 @@ Up to the proposals the milestones are [Timeline.lean](Timeline.lean)'s.
 | each fallback commit vote, under its own `B′` | `within_fbcommit_sig` | `X_v = X_d + 3δ` | 7 |
 | the honest quorum's votes over the decided entries | (collapsed, the MVBA's agreement) | `X_v` | 7 |
 | the finalizer's own fallback commit certificate | `within_fbcommitqc_sent` | `X_v + Δ` | 7 |
-| every proposer's entry assigned | `within_assigned` | `X_v + 2Δ` | 7 |
-| finalized | `within_finalized` | `T₀ = M + 5Δ + ℓ_MVBA + 8δ` | 8 |
+| every proposer's entry assigned, on that certificate | `within_assigned_from` | `X_v + Δ + δ` | 8 |
+| finalized | `within_finalized` | `T₀ = M + 4Δ + ℓ_MVBA + 9δ` | 9 |
 
 `within_finalized_late` is that chain. Every message is acted on by its
 receiver's own step, so the chain counts the vote receipts before the
-negative fallback entry (a `δ`, [Timeline.lean](Timeline.lean)) and the
-fallback commit certificate's two hops: formed from the votes, then
-received.
+negative fallback entry (a `δ`, [Timeline.lean](Timeline.lean)). The
+finalizer collects the fallback commit votes into its own certificate (a
+`Δ`-row on the votes, Algorithm 5, lines 42–44
+(`line:fb-collect-commit`–`line:fb-commit-broadcast`)) and assigns its
+entries on its own broadcast (Algorithm 5, line 45
+(`line:fb-recv-commit`)), a local read: a message a validator sent itself
+costs a local step (`rcvHop`).
 
 **The split** (`within_finalized_split`) is made once, at `X_v`: a correct
 validator that finalized by `X_v` gives everyone totality's `Δ + 2δ`
 (`totality`), `M + 4Δ + ℓ_MVBA + 9δ`; otherwise the chain above finalizes
-everyone by `T₀ = M + 5Δ + ℓ_MVBA + 8δ`. Both are within
-`M + 5Δ + ℓ_MVBA + 9δ`, `Lchorus`: the `δ`-multiple fixed before the proof
-stands. The paper's own split, at `T₀` with totality's `Δ` after it, would
-now give one `Δ` more, so the split point is the vote deadline.
+everyone by `T₀ = M + 4Δ + ℓ_MVBA + 9δ`. So everyone finalizes by
+`M + 4Δ + ℓ_MVBA + 9δ` (`Ltight`), within `Lchorus`'s
+`M + 5Δ + ℓ_MVBA + 9δ`.
 
 ## What the round needs, and what it does not
 
@@ -81,8 +89,8 @@ now give one `Δ` more, so the split point is the vote deadline.
   existing step lemmas and invariants.
 * **At the system's MVBA the MVBA's clauses on its caller are derived.**
   The handoff from the decider's certificate broadcast and the handoff row
-  (`relayed_of_timedJustice`, with `DecisionOutput` and the schedule's
-  `δ ≤ ρ`), and (Δ-avail) from the availability row
+  (`relayedWhileActive_of_timedJustice`, with the schedule's `δ ≤ ρ`),
+  and (Δ-avail) from the availability row
   (`availWithin_of_timedJustice`, with the schedule's `Δ ≤ Δ_sync`).
   `timed_termination_atMvba` takes `SyncAtMvba`, whose MVBA premise is the
   MVBA's own two clauses. -/
@@ -156,6 +164,283 @@ theorem fb_pos_sig_flip {l} {k j : node} {m : merkle_root}
   frame_rest htr msg_fb_pos_sig hfr=> exact absurd (hfr ▸ h1) h0
 
 end Steps
+
+/-! ## The MVBA's window inside Chorus's
+
+Two facts along the run, from the transition bodies: a correct validator
+that has proposed to the MVBA is participating, and Chorus's abandonment is
+the MVBA's. The handoff below needs them, and so does the MVBA half of
+Quiescence ([Temporal.lean](Temporal.lean)). -/
+
+section MvbaHalf
+
+open Classical
+
+local macro "mvba_tr" h:ident : tactic =>
+  `(tactic| (simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct] at $h:ident
+             simp only [trSimp] at $h:ident))
+
+local macro "mvba_field_simp" : tactic =>
+  `(tactic| simp +unfoldPartialApp [Mvba.Proposed, Mvba.Abandoned,
+      Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
+      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
+      Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
+      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id] at *)
+
+local macro "chorus_tr" h:ident : tactic =>
+  `(tactic| (simp only [Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct] at $h:ident
+             simp only [trSimp] at $h:ident))
+
+local macro "chorus_field_simp" : tactic =>
+  `(tactic| simp +unfoldPartialApp [
+      Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
+      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
+      Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
+      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id,
+      instIsSubReaderOfRefl.readFrom_id] at *)
+
+variable {slot node nodeset merkle_root view Phase PathChoice : Type}
+  [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root] [Inhabited view]
+  [Inhabited Phase] [Inhabited PathChoice]
+  [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
+  [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
+  [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
+  {thS : Chorus.Theory slot node nodeset merkle_root
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
+
+omit [Inhabited merkle_root] cnt in
+set_option maxHeartbeats 4000000 in
+/-- In the MVBA, a new `input` row is its `propose`. -/
+theorem mvba_proposed_new {l} {ms ms' : Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)}
+    (htr : (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM ms l ms')
+    {i : node} {v : MetaBlock node merkle_root}
+    (hnew : Mvba.Proposed ms' i v) (hold : ¬ Mvba.Proposed ms i v) : l = .propose i v := by
+  cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;> mvba_field_simp <;> simp_all
+
+variable {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)}
+
+set_option maxHeartbeats 1000000 in
+/-- `mvba_propose`'s gate: the proposer is participating. -/
+theorem mvba_propose_participating {i v mvba_next}
+    (htr : (atMvba thM).tr thS s (.mvba_propose i v mvba_next) s') : s.participating i = true := by
+  chorus_tr htr
+  obtain ⟨-, h, -⟩ := htr
+  exact h
+
+/-- **(B) A new MVBA input is Chorus's gated `mvba_propose`.** -/
+theorem mvba_proposed_new_chorus {l} {i : node} {v : MetaBlock node merkle_root}
+    (htr : (atMvba thM).tr thS s l s')
+    (hnew : Mvba.Proposed s'.mvba_st i v) (hold : ¬ Mvba.Proposed s.mvba_st i v) :
+    ∃ mn, l = .mvba_propose i v mn := by
+  by_cases hl : MvbaStepLabel l
+  · cases l with
+    | mvba_step mn =>
+      obtain ⟨l', hin, h'⟩ := mvba_step_internal htr
+      exact absurd (mvba_proposed_new h' hnew hold ▸ trivial) hin
+    | mvba_propose i' v' mn =>
+      cases mvba_proposed_new (mvba_propose_tr htr) hnew hold
+      exact ⟨mn, rfl⟩
+    | accept_mvba_commitqc i' r' c mn =>
+      obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
+      cases mvba_proposed_new h hnew hold
+    | abandon i' mn => cases mvba_proposed_new (abandon_tr htr) hnew hold
+    | mvba_avail_ready i' v' mn => cases mvba_proposed_new (mvba_avail_ready_tr htr) hnew hold
+    | _ => exact absurd hl id
+  · have h : s'.mvba_st = s.mvba_st := (mvbaComponent thS thM).frame _ _ _ htr hl
+    rw [h] at hnew
+    exact absurd hnew hold
+
+/-- The MVBA's state moves by one of its own transitions, or not at all. -/
+theorem mvba_st_tr_or_eq {l} (htr : (atMvba thM).tr thS s l s') :
+    s'.mvba_st = s.mvba_st ∨ ∃ l',
+      (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
+        s.mvba_st l' s'.mvba_st := by
+  by_cases hl : MvbaStepLabel l
+  · exact Or.inr ((mvbaComponent thS thM).step _ _ _ htr hl)
+  · exact Or.inl ((mvbaComponent thS thM).frame _ _ _ htr hl)
+
+set_option maxHeartbeats 1000000 in
+/-- Chorus's `abandoned` row is set only by `abandon`. -/
+theorem abandoned_new {l} {i : node}
+    (htr : (atMvba thM).tr thS s l s')
+    (hnew : s'.abandoned i = true) (hold : ¬ s.abandoned i = true) :
+    ∃ mn, l = .abandon i mn := by
+  letI : MVBASafety node (MetaBlock node merkle_root) (node → Option merkle_root)
+      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      nodeset nset (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM
+  cases l
+  case abandon i' mn =>
+    rcases eq_or_ne i' i with rfl | hi
+    · exact ⟨mn, rfl⟩
+    · chorus_tr htr
+      obtain ⟨-, rfl⟩ := htr
+      chorus_field_simp
+      simp_all
+  frame_rest htr abandoned hfr => exact absurd (hfr ▸ hnew) hold
+
+/-- **(I1) A correct validator that has proposed to the MVBA is
+participating.** `mvba_propose` is gated on participation, and participation
+is never revoked. -/
+theorem participating_of_mvba_proposed {s}
+    (hr : (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM).reachable thS s)
+    {i : node} {v : MetaBlock node merkle_root} (h : Mvba.Proposed s.mvba_st i v) :
+    s.participating i = true := by
+  induction hr with
+  | init s ha hi =>
+    exact absurd h (Mvba.init_not_proposed thM ((mvbaComponent thS thM).init s ha hi).2 i v)
+  | step s s' hr hn ih =>
+    obtain ⟨l, htr⟩ := hn
+    by_cases hold : Mvba.Proposed s.mvba_st i v
+    · exact Chorus.participating.mono (mvba := Mvba.mvbaSafety thM) htr i (ih hold)
+    · obtain ⟨mn, rfl⟩ := mvba_proposed_new_chorus htr h hold
+      exact Chorus.participating.mono (mvba := Mvba.mvbaSafety thM) htr i (mvba_propose_participating htr)
+
+/-- **(I2) Chorus's abandonment is forwarded to the MVBA.** -/
+theorem mvba_abandoned_of_abandoned {s}
+    (hr : (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM).reachable thS s)
+    {i : node} (h : s.abandoned i = true) : Mvba.Abandoned s.mvba_st i := by
+  induction hr with
+  | init s ha hi => exact absurd h (by simp [Chorus.abandoned.init (mvba := Mvba.mvbaSafety thM) hi i])
+  | step s s' hr hn ih =>
+    obtain ⟨l, htr⟩ := hn
+    by_cases hold : s.abandoned i = true
+    · rcases mvba_st_tr_or_eq htr with heq | ⟨l', h'⟩
+      · rw [heq]; exact ih hold
+      · exact Mvba.abandoned_mono_tr thM h' i (ih hold)
+    · obtain ⟨mn, rfl⟩ := abandoned_new htr h hold
+      exact Mvba.abandon_effect_tr thM (abandon_tr htr)
+
+end MvbaHalf
+
+/-! ## The handoff from the rows, owed by deciders still taking part
+
+The MVBA's handoff premise (`Mvba.Relayed`) is owed for every correct
+decider, for ever. Chorus's rows provide it for a decider that still takes
+part in its MVBA instance — it has proposed and has not abandoned — with no
+premise beyond the rows: its `send_mvba_cert` is a `δ`-row gated on its own
+participation, and the receiver's handoff a `Δ`-row on that send. A decider
+that has finalized may abandon before its send fires, and then nobody need
+hand its decision on; the paper's composing layer serves a decided
+certificate only while it takes part in the slot (Supplement, Lemma 13
+(`lem:decision-propagation`)). -/
+
+section RelayActive
+
+open Classical
+
+variable {slot node nodeset merkle_root view Phase PathChoice : Type}
+  [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root] [Inhabited view]
+  [Inhabited Phase] [Inhabited PathChoice]
+  [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
+  [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
+  [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
+  {thS : Chorus.Theory slot node nodeset merkle_root
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
+  {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
+  {time : Type} [LinearOrder time] [AddCommMonoid time] [IsOrderedAddMonoid time]
+
+/-- **C15: the MVBA's handoff premise, from the rows alone.** In every run
+satisfying (Δδ-justice), at every schedule (`Schedule.δ_le_ρ`), every
+projection's timed run satisfies `Mvba.Relayed`, the handoff owed while the
+correct decider `j` has proposed and has not abandoned: if
+`decide i v e` stayed enabled for `Δ + ρ` while `j` had decided `e` and took
+part, `j`'s `send_mvba_cert` (a `δ`-row with `j`'s participation as its
+gate, open on the window since `j` has proposed and not abandoned) put a
+valid certificate on the network within `δ`, the handoff row for `i` fired
+within `δ + max(Δ, δ) ≤ Δ + ρ`, and `i` decided — so the clause holds with
+its antecedent false. -/
+theorem relayedWhileActive_of_timedJustice (sch : Schedule view time)
+    {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r)
+    (p : (mvbaComponent thS thM).Projection r.toLRun) : Mvba.Relayed sch.mvba p.timed := by
+  letI : MVBASafety node (MetaBlock node merkle_root) (node → Option merkle_root)
+      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
+      nodeset nset (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM
+  intro i j v e hj K hen
+  exfalso
+  have hΔ : 0 ≤ sch.Δ := sch.mvba.Δ_pos.le
+  have hδ : 0 ≤ sch.δ := sch.mvba.δ_nonneg
+  have hρ : 0 ≤ sch.mvba.ρ := sch.mvba.ρ_nonneg
+  have hK0 : p.timed.clk K ≤ p.timed.ref K + (sch.Δ + sch.mvba.ρ) :=
+    le_trans (p.timed.clk_le_ref K) (le_add_of_nonneg_right (add_nonneg hΔ hρ))
+  have hi := (decide_enabled_guards (hen K le_rfl hK0).1).1
+  -- The window opens at the composed index `N₀` at which the MVBA entered `K`.
+  set N₀ := p.entry K
+  have href : p.timed.ref K = r.ref N₀ := rfl
+  -- The antecedent, read at the composed indices of the window.
+  have hcomp : ∀ n, N₀ ≤ n → r.clk n ≤ r.ref N₀ + (sch.Δ + sch.mvba.ρ) →
+      Enabled (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)) thM
+        (r.at' n).mvba_st (.decide i v e) ∧ ((r.at' n).mvba_st.decided j e = true ∧
+          (∃ E, (r.at' n).mvba_st.input j E = true) ∧ ¬ (r.at' n).mvba_st.abandoned j = true) :=
+      fun n hn hc => by
+    have hk := hen ((mvbaComponent thS thM).cover r.toLRun n) (p.le_cover_of_entry_le hn)
+      (by rw [href]; exact le_trans (r.clk_le_of_le (p.entry_cover_le n)) hc)
+    have hst : p.timed.at' ((mvbaComponent thS thM).cover r.toLRun n) = (r.at' n).mvba_st :=
+      (p.proj_eq_run_cover n).symm
+    rw [hst] at hk
+    exact hk
+  -- `j` sends a certificate within `δ`: its `send_mvba_cert` row, its gate
+  -- open while it takes part.
+  have hδw : r.ref N₀ + sch.δ ≤ r.ref N₀ + (sch.Δ + sch.mvba.ρ) :=
+    add_le_add le_rfl (le_trans sch.δ_le_ρ (le_add_of_nonneg_left hΔ))
+  have hc0 : r.clk N₀ ≤ r.ref N₀ + (sch.Δ + sch.mvba.ρ) :=
+    le_trans (r.clk_le_ref N₀) (le_add_of_nonneg_right (add_nonneg hΔ hρ))
+  obtain ⟨-, hd0, -, -⟩ := hcomp N₀ le_rfl hc0
+  obtain ⟨c0, hc0'⟩ := (Mvba.mvbaSafety (nset := nset) thM).decided_certified _
+    (Chorus.reachable_mvba_reachable (r.reachable N₀)) j e hj hd0
+  have hcert0 := certifies_persists r.toLRun hc0'
+  obtain ⟨N₁, hN₁, hc₁, hsent⟩ := r.withinFrom_of_bufferedFair
+    (P := fun st => st.local_mvba_cert_sent j = true)
+    (hTJ.rows (.send_mvba_cert j c0 e) .loc rfl (fun h => h)) le_rfl
+    (r.bufWindow_le le_rfl le_rfl) (fun _ _ h => (send_mvba_cert_effect h).2)
+    (fun n hn hc hnot => ⟨trivial, fun hg => enabled_send_mvba_cert hj hg
+      (hcomp n hn (le_trans hc hδw)).2.1 (hcert0 n hn) hnot⟩)
+    (fun n hn hc _ => by
+      obtain ⟨-, -, ⟨E, hE⟩, hab⟩ := hcomp n hn (le_trans hc hδw)
+      exact ⟨participating_of_mvba_proposed (r.reachable n) (v := E) hE,
+        fun h => hab (mvba_abandoned_of_abandoned (r.reachable n) h)⟩)
+  obtain ⟨c, -, -, hm₁⟩ := mvba_cert_sent_msg r.toLRun N₁ hsent
+  obtain ⟨e₁, hce⟩ := mvba_cert_valid r.toLRun hj N₁ hm₁
+  have hm : ∀ n, N₁ ≤ n → (r.at' n).msg_mvba_cert j c = true :=
+    r.mono (P := fun st => st.msg_mvba_cert j c = true)
+      (fun k h => Chorus.msg_mvba_cert.mono (r.steps k) j c h) hm₁
+  have hcert := certifies_persists r.toLRun hce
+  -- The handoff's window from the send ends inside `Δ + ρ`.
+  have hrefN₁ : r.ref N₁ ≤ r.ref N₀ + sch.δ :=
+    r.ref_le hc₁ (le_trans (r.gst_le_ref N₀) (le_add_of_nonneg_right hδ))
+  have hW : r.bufWindow N₁ N₁ sch.Δ sch.δ ≤ r.ref N₀ + (sch.Δ + sch.mvba.ρ) := by
+    refine max_le ?_ ?_
+    · calc r.ref N₁ + sch.Δ ≤ r.ref N₀ + sch.δ + sch.Δ := add_le_add hrefN₁ le_rfl
+        _ ≤ r.ref N₀ + sch.mvba.ρ + sch.Δ := add_le_add (add_le_add le_rfl sch.δ_le_ρ) le_rfl
+        _ = r.ref N₀ + (sch.Δ + sch.mvba.ρ) := by abel
+    · calc r.ref N₁ + sch.δ ≤ r.ref N₀ + sch.δ + sch.δ := add_le_add hrefN₁ le_rfl
+        _ ≤ r.ref N₀ + sch.mvba.ρ + sch.Δ := add_le_add (add_le_add le_rfl sch.δ_le_ρ) sch.δ_le_Δ
+        _ = r.ref N₀ + (sch.Δ + sch.mvba.ρ) := by abel
+  -- The handoff row fires inside the window.
+  obtain ⟨m, hm', ⟨s0, c', mn, hl⟩, hcm⟩ := hTJ.relay i N₁ N₁ le_rfl
+    (fun n hn hc => by
+      obtain ⟨hen', -⟩ := hcomp n (by omega) (le_trans hc hW)
+      refine ⟨⟨j, c, hj, hm n hn⟩, fun _ => ?_⟩
+      obtain ⟨hin, hab⟩ := decide_enabled_live hen'
+      obtain ⟨st', hacc⟩ := Mvba.accept_enabled_tr thM
+        (Chorus.reachable_mvba_reachable (r.reachable n)) hi (hcert n hn) hin hab
+        (fun v' h => (decide_enabled_guards hen').2 v' h)
+      refine ⟨_, ⟨j, c, st', rfl⟩, enabled_accept_mvba_commitqc hi (fun hf => ?_) (hm n hn) hacc⟩
+      obtain ⟨w, hw⟩ := qc_accepted_decided r.toLRun n hf
+      exact (decide_enabled_guards hen').2 w hw)
+    (fun _ _ _ => trivial)
+  -- So `i` has decided inside the window, where `decide i v e` is still enabled.
+  obtain ⟨w, e', x, -, -, htr⟩ := accept_mvba_commitqc_tr (hl ▸ r.steps m)
+  exact (decide_enabled_guards (hcomp (m + 1) (by omega) (le_trans hcm hW)).1).2 x
+    (Mvba.decide_effect htr)
+
+end RelayActive
 
 /-! ## The MVBA tail and the fallback commit round, with deadlines -/
 
@@ -419,7 +704,7 @@ def Evidence (thS : Chorus.Theory slot node nodeset merkle_root
 
 set_option maxHeartbeats 4000000 in
 /-- **The late branch: nobody finalized by the vote deadline, everyone
-finalizes by `T₀ = M + 5Δ + ℓ_MVBA + 8δ`** (`M = max(t, GST)`), the timeline
+finalizes by `T₀ = M + 4Δ + ℓ_MVBA + 9δ`** (`M = max(t, GST)`), the timeline
 of Proposition 5 (`prop:chorus-finalization-time`) with every local step counted.
 
 If no correct validator has finalized at any index whose clock is at most
@@ -447,10 +732,11 @@ validator is active on that window (`activeUntil_of_not_finalized`), and:
 * the finalizing validator forms and sends its fallback commit certificate,
   a `Δ`-row on those votes, by `X_v + Δ` (`within_fbcommitqc_sent`), which is
   over the decided entries (`fbcommitqc_decided`);
-* each assignment is then a `Δ`-row owed on that certificate, from a correct
-  sender, by `X_v + 2Δ` (`within_assigned`), and the finalization a `δ`-row,
-  by `X_v + 2Δ + δ = T₀` (`within_finalized`). The last three use only the
-  finalizing validator's own gate: it is active until it finalizes (C1).
+* each assignment is then a `δ`-row on that certificate, the validator's
+  own send (`rcvHop`), by `X_v + Δ + δ` (`within_assigned_from`), and the
+  finalization a `δ`-row, by `X_v + Δ + 2δ = T₀` (`within_finalized`). The
+  last three use only the finalizing validator's own gate: it is active
+  until it finalizes (C1).
 
 `0 ≤ ℓ_MVBA` orders the MVBA's decision after the proposals' deadline on the
 time line; it is a fact about the MVBA instance, and true of the system's
@@ -479,7 +765,7 @@ theorem within_finalized_late [Fintype node] (sch : Schedule view time)
       r.clk n ≤ max t r.gst + 3 • sch.Δ + 4 • sch.δ + T.ℓ + 3 • sch.δ →
         ¬ (r.at' n).local_committed i = true)
     {j : node} (hj : ¬ nset.is_byz j = true) :
-    ∃ n, r.clk n ≤ max t r.gst + 5 • sch.Δ + T.ℓ + 8 • sch.δ ∧
+    ∃ n, r.clk n ≤ max t r.gst + 4 • sch.Δ + T.ℓ + 9 • sch.δ ∧
       (r.at' n).local_committed j = true := by
   mvba_inst
   obtain ⟨hTJ, hPP, hadm⟩ := hsync
@@ -606,48 +892,43 @@ theorem within_finalized_late [Fintype node] (sch : Schedule view time)
   have hP : (r.at' N₀).participating j = true := hpart j hj
   have hrefN4 : r.ref N4 ≤ Xv := hrefle hc4 hgXv
   have hmax4 : max N4 N₀ = N4 := max_eq_left (by omega)
-  have hbound : Xv + 2 • sch.Δ + sch.δ = M + 5 • sch.Δ + T.ℓ + 8 • sch.δ := by
+  have hbound : Xv + sch.Δ + 2 • sch.δ = M + 4 • sch.Δ + T.ℓ + 9 • sch.δ := by
     rw [hXv, hXd, htM]; abel
-  have hXΔ : Xv + sch.Δ ≤ Xv + 2 • sch.Δ := by
-    refine add_le_add le_rfl ?_; rw [two_nsmul]; exact le_add_of_nonneg_right hΔ
-  have hX2 : Xv + 2 • sch.Δ ≤ Xv + 2 • sch.Δ + sch.δ := le_add_of_nonneg_right hδ
+  have hX1 : Xv + sch.Δ ≤ Xv + sch.Δ + sch.δ := le_add_of_nonneg_right hδ
+  have hX2 : Xv + sch.Δ + sch.δ ≤ Xv + sch.Δ + 2 • sch.δ := by
+    rw [two_nsmul, ← add_assoc]; exact le_add_of_nonneg_right hδ
   -- `j` sends its own fallback commit certificate by `X_v + Δ`, or has finalized.
   obtain ⟨N5, hN5, hc5, h5⟩ := within_fbcommitqc_sent sch hTJ hab hj hH hHh
     (fun a ha => hq4 a (by simp) ha) hP (B := Xv + sch.Δ)
     (r.bufWindow_le (add_le_add hrefN4 le_rfl) (by rw [hmax4]; exact add_le_add hrefN4 hδΔ))
   rcases h5 with ⟨e', he'⟩ | hdone5
   swap
-  · exact ⟨N5, by rw [← hbound]; exact le_trans hc5 (le_trans hXΔ hX2), hdone5⟩
+  · exact ⟨N5, by rw [← hbound]; exact le_trans hc5 (le_trans hX1 hX2), hdone5⟩
   -- The certificate is over `entries(v0)`, which has an entry for every proposer.
   have he0 : e' = thM.ent v0 := fbcommitqc_decided r.toLRun hi0 hd0 he'
   subst he0
   obtain ⟨-, -, htot⟩ := hbr.2.1 n0 i0 v0 hi0 hd0
   have hrefN5 : r.ref N5 ≤ Xv + sch.Δ := hrefle hc5 (le_trans hgXv (le_add_of_nonneg_right hΔ))
   have hmax5 : max N5 N₀ = N5 := max_eq_left (by omega)
-  -- The assignments, by `X_v + 2Δ`.
+  -- The assignments on `j`'s own certificate, a local read: by `X_v + Δ + δ`.
   obtain ⟨N6, hN6, hc6, hall6⟩ := r.withinFrom_forall
     (fun J st => thS.is_proposer J = true → AssignedOrDone st j J)
-    (fun J k h hJ => (h hJ).step) N5 (Xv + 2 • sch.Δ) (le_trans hc5 hXΔ)
+    (fun J k h hJ => (h hJ).step) N5 (Xv + sch.Δ + sch.δ) (le_trans hc5 hX1)
     (Finset.univ : Finset node).toList
     (fun J _ => by
       by_cases hJ : thS.is_proposer J = true
-      · have hproof : (∃ m c, ¬ nset.is_byz c = true ∧
-              CertPos (mvba := Mvba.mvbaSafety thM) thS (r.at' N5) c J m) ∨
-            (∃ c, ¬ nset.is_byz c = true ∧ CertNeg (mvba := Mvba.mvbaSafety thM) thS (r.at' N5) c J) := by
+      · have hproof : (∃ m, CertPos (mvba := Mvba.mvbaSafety thM) thS (r.at' N5) j J m) ∨
+            CertNeg (mvba := Mvba.mvbaSafety thM) thS (r.at' N5) j J := by
           rcases htot J hJ with ⟨M', hM⟩ | hM
-          · exact Or.inl ⟨M', j, hj, Or.inr (Or.inl ⟨_, he', hM⟩)⟩
-          · exact Or.inr ⟨j, hj, Or.inr (Or.inl ⟨_, he', hM⟩)⟩
-        obtain ⟨k, hk, hck, hk'⟩ := within_assigned sch hTJ hab hj hJ hproof hP (B := Xv + 2 • sch.Δ)
-          (r.bufWindow_le
-            (by
-              calc r.ref N5 + sch.Δ ≤ Xv + sch.Δ + sch.Δ := add_le_add hrefN5 le_rfl
-                _ = Xv + 2 • sch.Δ := by rw [two_nsmul, add_assoc])
-            (by
-              rw [hmax5]
-              calc r.ref N5 + sch.δ ≤ Xv + sch.Δ + sch.Δ := add_le_add hrefN5 hδΔ
-                _ = Xv + 2 • sch.Δ := by rw [two_nsmul, add_assoc]))
+          · exact Or.inl ⟨M', Or.inr (Or.inl ⟨_, he', hM⟩)⟩
+          · exact Or.inr (Or.inr (Or.inl ⟨_, he', hM⟩))
+        obtain ⟨k, hk, hck, hk'⟩ := within_assigned_from sch hTJ hab hj hJ hj hproof hP
+          (B := Xv + sch.Δ + sch.δ)
+          (by
+            rw [rcvHop_self, hmax5]
+            exact r.bufWindow_le (add_le_add hrefN5 le_rfl) (add_le_add hrefN5 le_rfl))
         exact ⟨k, hk, hck, fun _ => hk'⟩
-      · exact ⟨N5, le_rfl, le_trans hc5 hXΔ, fun h => absurd h hJ⟩)
+      · exact ⟨N5, le_rfl, le_trans hc5 hX1, fun h => absurd h hJ⟩)
   by_cases hdone : (r.at' N6).local_committed j = true
   · exact ⟨N6, by rw [← hbound]; exact le_trans hc6 hX2, hdone⟩
   · have hall : ∀ J, thS.is_proposer J = true →
@@ -657,12 +938,14 @@ theorem within_finalized_late [Fintype node] (sch : Schedule view time)
       · exact Or.inl h
       · exact Or.inr h
       · exact absurd h hdone
-    have hrefN6 : r.ref N6 ≤ Xv + 2 • sch.Δ :=
-      hrefle hc6 (le_trans hgXv (le_trans (le_add_of_nonneg_right hΔ) hXΔ))
+    have hrefN6 : r.ref N6 ≤ Xv + sch.Δ + sch.δ :=
+      hrefle hc6 (le_trans hgXv (le_trans (le_add_of_nonneg_right hΔ) hX1))
     have hmax6 : max N6 N₀ = N6 := max_eq_left (by omega)
     obtain ⟨k, -, hck, hk⟩ := within_finalized sch hTJ hab hj hall hP
-      (B := Xv + 2 • sch.Δ + sch.δ)
-      (r.bufWindow_le (add_le_add hrefN6 le_rfl) (by rw [hmax6]; exact add_le_add hrefN6 le_rfl))
+      (B := Xv + sch.Δ + 2 • sch.δ)
+      (r.bufWindow_le
+        (by rw [two_nsmul, ← add_assoc]; exact add_le_add hrefN6 le_rfl)
+        (by rw [hmax6, two_nsmul, ← add_assoc]; exact add_le_add hrefN6 le_rfl))
     exact ⟨k, by rw [← hbound]; exact hck, hk⟩
 
 set_option maxHeartbeats 1000000 in
@@ -670,8 +953,8 @@ set_option maxHeartbeats 1000000 in
 If a correct validator has finalized by `X_v`, totality finalizes everyone
 by `X_v + Δ + 2δ = M + 4Δ + ℓ_MVBA + 9δ` (`totality` at the tolerance `Δ`);
 otherwise the late branch finalizes everyone by
-`T₀ = M + 5Δ + ℓ_MVBA + 8δ` (`within_finalized_late`). Either way by
-`M + 5Δ + ℓ_MVBA + 9δ`, the paper's bound with the local steps counted. -/
+`T₀ = M + 4Δ + ℓ_MVBA + 9δ` (`within_finalized_late`). Either way by
+`M + 4Δ + ℓ_MVBA + 9δ` (`Ltight`). -/
 theorem within_finalized_split [Fintype node] (sch : Schedule view time)
     (T : MVBATemporal node (MetaBlock node merkle_root) (node → Option merkle_root)
       (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
@@ -693,7 +976,7 @@ theorem within_finalized_split [Fintype node] (sch : Schedule view time)
     (hab : NoAbandonBeforeFinalizing r.toLRun) (hC2 : NoEarlyStart sch r)
     {t : time} (hall : AllParticipateBy t r)
     {j : node} (hj : ¬ nset.is_byz j = true) :
-    ∃ n, r.clk n ≤ max t r.gst + 5 • sch.Δ + T.ℓ + 9 • sch.δ ∧
+    ∃ n, r.clk n ≤ max t r.gst + 4 • sch.Δ + T.ℓ + 9 • sch.δ ∧
       (r.at' n).local_committed j = true := by
   mvba_inst
   have hδ : 0 ≤ sch.δ := sch.mvba.δ_nonneg
@@ -719,14 +1002,10 @@ theorem within_finalized_split [Fintype node] (sch : Schedule view time)
           exact le_rfl
       _ = max t r.gst + 4 • sch.Δ + T.ℓ + 9 • sch.δ := by
           rw [hXv]; abel
-      _ ≤ max t r.gst + 5 • sch.Δ + T.ℓ + 9 • sch.δ :=
-          add_le_add (add_le_add (add_le_add le_rfl (nsmul_le_nsmul_left hΔ (by norm_num))) le_rfl) le_rfl
   · -- No early finalization: the late branch, by `T₀`.
     push Not at hA
-    obtain ⟨n, hcn, hn⟩ := within_finalized_late sch T hℓ hmp hmn hent hmf hH hHh hevid hsync hbr hab
+    exact within_finalized_late sch T hℓ hmp hmn hent hmf hH hHh hevid hsync hbr hab
       hC2 hN₀ hpart (fun n i hi hc hci => (hA n i hi hc) hci) hj
-    refine ⟨n, le_trans hcn ?_, hn⟩
-    exact add_le_add le_rfl (nsmul_le_nsmul_left hδ (by norm_num))
 
 /-! ### The MVBA's caller clauses, derived -/
 
@@ -800,36 +1079,69 @@ omit [IsOrderedAddMonoid time] in
 clauses.** A projection whose timed run satisfies (Δ-justice) and
 (T-timer), together with (Δδ-justice) and the bridge of the composed run,
 gives the MVBA premise at `T := Mvba.mvbaTemporal`: its two clauses on the
-caller are derived, the handoff by `relayed_of_timedJustice` (from the
-decision output, `DecisionOutput`, and the schedule's `δ ≤ ρ`) and
+caller are derived, the handoff by `relayedWhileActive_of_timedJustice`
+(with the schedule's `δ ≤ ρ`) and
 (Δ-avail) by `availWithin_of_timedJustice`. -/
 theorem timedMvbaAdmissible_of_rows [IsOrderedCancelAddMonoid time] [Archimedean time]
     [Fintype node] (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : Mvba.LeaderRotation vfin sch.mvba.k thM)
-    {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r) (hout : DecisionOutput sch r)
+    {r : TChorusRun thS thM time} (hTJ : TimedJustice sch r)
     (hbr : ValidBridge r.toLRun)
     (p : (mvbaComponent thS thM).Projection r.toLRun)
     (hown : Mvba.BoundedJustice sch.mvba p.timed ∧ Mvba.TimerPunctual sch.mvba p.timed) :
     TimedMvbaAdmissible (Mvba.mvbaTemporal thM hqe sch.mvba vfin hrot) r :=
   timedMvbaAdmissible_of_sync hqe sch vfin hrot p
     ⟨hown.1, hown.2, availWithin_of_timedJustice sch hTJ hbr p,
-      relayed_of_timedJustice sch hTJ hout p⟩
+      relayedWhileActive_of_timedJustice sch hTJ p⟩
 
 omit [IsOrderedAddMonoid time] in
 /-- **The timing model at the system's MVBA gives `Sync`.** `SyncAtMvba` and
 the bridge imply `Sync` at `T := Mvba.mvbaTemporal`: what is assumed of the
-MVBA is its own scheduling only, and of the decider its decision output. -/
+MVBA is its own scheduling only. -/
 theorem sync_of_syncAtMvba [IsOrderedCancelAddMonoid time] [Archimedean time]
     [Fintype node] (hqe : ByzNodeSetHonestQuorum node nodeset nset)
     (sch : Schedule view time) (vfin : ViewOrderEnum view vord)
     (hrot : Mvba.LeaderRotation vfin sch.mvba.k thM)
     {r : TChorusRun thS thM time} (hs : SyncAtMvba sch r) (hbr : ValidBridge r.toLRun) :
     Sync sch (Mvba.mvbaTemporal thM hqe sch.mvba vfin hrot) r :=
-  ⟨hs.1, hs.2.1, let ⟨p, hp⟩ := hs.2.2.1
-    timedMvbaAdmissible_of_rows hqe sch vfin hrot hs.1 hs.2.2.2 hbr p hp⟩
+  ⟨hs.1, hs.2.1, let ⟨p, hp⟩ := hs.2.2
+    timedMvbaAdmissible_of_rows hqe sch vfin hrot hs.1 hbr p hp⟩
 
 end Round
+
+/-! ## The constants -/
+
+section Constants
+
+variable {time : Type} [LinearOrder time] [AddCommMonoid time]
+
+/-- **The tight latency**: `4Δ + ℓ_MVBA + 9δ`, one `Δ` inside `Lchorus`, the
+bound of the single split at the fallback commit votes' deadline
+`X_v = M + 3Δ + ℓ_MVBA + 7δ`: the late branch's
+`T₀ = X_v + Δ + 2δ` (the finalizer's own fallback commit certificate, a
+`Δ`-row on the votes, then the assignments on it, a local read, and the
+finalization) and totality's `Δ + 2δ` after `X_v` coincide. The `9δ`
+counts the model's vote-receipt step (`receive_vote_*`) before the negative
+fallback entry. -/
+def Ltight (Δ δ ℓM : time) : time :=
+  4 • Δ + ℓM + 9 • δ
+
+omit [LinearOrder time] in
+/-- At `δ = 0` the tight latency is `4Δ + ℓ_MVBA`, the bound the proof of
+Lemma 11 (`lemma:chorus-termination`) supports (P5 of
+[PaperAlignment.md](../../docs/PaperAlignment.md) §6). -/
+theorem Ltight_paper (Δ ℓM : time) : Ltight Δ 0 ℓM = 4 • Δ + ℓM := by
+  simp [Ltight]
+
+/-- The tight latency is within the paper's (`Lchorus`) whenever `Δ` is
+non-negative: the claim follows from the tight theorem. -/
+theorem Ltight_le_Lchorus [IsOrderedAddMonoid time] {Δ : time} (hΔ : 0 ≤ Δ) (δ ℓM : time) :
+    Ltight Δ δ ℓM ≤ Lchorus Δ δ ℓM := by
+  unfold Ltight Lchorus
+  exact add_le_add (add_le_add (nsmul_le_nsmul_left hΔ (by norm_num)) le_rfl) le_rfl
+
+end Constants
 
 /-! ## At the concrete quorum family, at the system's configurations -/
 
@@ -859,6 +1171,52 @@ local notation "thC" => Cadence.chorusTheory (slot := slot) (Phase := Phase) (Pa
 local notation "thMC" => Cadence.mvbaTheory (nodeset := ByzNSet n) mvalid mleader
 
 set_option maxHeartbeats 1600000 in
+/-- **Chorus finalizes within `4Δ + ℓ_MVBA + 9δ`** (`Ltight`) — one `Δ`
+inside Lemma 11 (`lemma:chorus-termination`)'s `5Δ + ℓ_MVBA`, and
+`4Δ + ℓ_MVBA` at `δ = 0`, the bound the lemma's proof supports (P5). At
+every `n = 3f+1` with at most `f` Byzantine validators, at the system's
+configurations, for every MVBA contract `T` at the fragment Chorus consumes
+whose latency is non-negative: under the timing model, the bridge, and the
+caller's four conditions, if every correct validator participates by `t`,
+every correct validator finalizes by `max(t, GST) + 4Δ + ℓ_MVBA + 9δ`.
+
+The premises are `TimedTerminationClaim`'s, exactly. The proof splits once,
+at the fallback commit votes' deadline `M + 3Δ + ℓ_MVBA + 7δ`
+(`within_finalized_split`). The finalizer of the late branch collects the
+fallback commit votes into its own certificate (Algorithm 5, lines 42–44
+(`line:fb-collect-commit`–`line:fb-commit-broadcast`)) and finalizes on its
+own broadcast (Algorithm 5, line 45 (`line:fb-recv-commit`)), which is a
+local read (`rcvHop`). The `9δ` counts the model's vote-receipt step. -/
+theorem timed_termination_tight (sch : Schedule view time)
+    (T : MVBATemporal (Fin n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)
+      (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root))
+      (Mvba.State (Mvba.FieldAbstractType (Fin n) (ByzNSet n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root) view))
+      (ByzNSet n) time (byzNodeSetFin n f hf is_byz hbyz)
+      (fun i => (byzNodeSetFin n f hf is_byz hbyz).is_byz i = true)
+      (S := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thMC))
+    (hℓ : 0 ≤ T.ℓ) :
+    ∀ r : TChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thC thMC time,
+      Sync (nset := byzNodeSetFin n f hf is_byz hbyz) sch T r →
+      ValidBridge (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun →
+      SyncParticipationWithin (nset := byzNodeSetFin n f hf is_byz hbyz) sch.Δ r →
+      NoAbandonBeforeFinalizing (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun →
+      NoEarlyStart (nset := byzNodeSetFin n f hf is_byz hbyz) sch r →
+      ∀ t : time, AllParticipateBy (nset := byzNodeSetFin n f hf is_byz hbyz) t r →
+        ∀ j, ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz j = true →
+          ∃ m, r.clk m ≤ max t r.gst + Ltight sch.Δ sch.δ T.ℓ ∧
+            (r.at' m).local_committed j = true := by
+  intro r hsync hbr hsp hab hC2 t hall j hj
+  obtain ⟨H, hH, hHh⟩ := honest_quorum_fin n f hf is_byz hbyz
+  obtain ⟨m, hm, hc⟩ := within_finalized_split (nset := byzNodeSetFin n f hf is_byz hbyz) (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
+    sch T hℓ (fun _ _ _ => decide_eq_true_iff) (fun _ _ => decide_eq_true_iff) (fun _ => rfl)
+    (fun _ _ => decide_eq_true_iff) hH hHh
+    (fun N hsat => mvba_evidence_of_saturation
+      (mvba := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thMC) n f hf is_byz hbyz
+      (r.reachable N) (fun i hi => hsat i (fun hb => hi (by simpa +instances [byzNodeSetFin] using hb))))
+    hsync hbr hsp hab hC2 hall hj
+  exact ⟨m, by rw [Ltight, ← add_assoc, ← add_assoc]; exact hm, hc⟩
+
+set_option maxHeartbeats 1600000 in
 /-- **ℓ-termination, proven** (Lemma 11 (`lemma:chorus-termination`)):
 `TimedTerminationClaim` at the paper's bound `ℓ = 5Δ + ℓ_MVBA + 9δ`
 (`Lchorus`), which is the paper's `5Δ + ℓ_MVBA` at `δ = 0`
@@ -866,12 +1224,8 @@ set_option maxHeartbeats 1600000 in
 validators, at the system's configurations, for every MVBA contract `T` at
 the fragment Chorus consumes whose latency is non-negative.
 
-The proof splits once, at the fallback commit votes' deadline
-`M + 3Δ + ℓ_MVBA + 7δ` (`within_finalized_split`): an early finalizer gives
-everyone totality's `Δ + 2δ` after it, `M + 4Δ + ℓ_MVBA + 9δ`; otherwise C1
-keeps everyone active until then and the late branch finalizes everyone by
-`T₀ = M + 5Δ + ℓ_MVBA + 8δ`, with the fallback commit certificate's two
-hops (formed from the votes, then received). -/
+It follows from the tight bound (`timed_termination_tight`,
+`Ltight_le_Lchorus`). -/
 theorem timed_termination (sch : Schedule view time)
     (T : MVBATemporal (Fin n) (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)
       (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root))
@@ -883,15 +1237,10 @@ theorem timed_termination (sch : Schedule view time)
     TimedTerminationClaim (nset := byzNodeSetFin n f hf is_byz hbyz)
       (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz) sch T thC := by
   intro r hsync hbr hsp hab hC2 t hall j hj
-  obtain ⟨H, hH, hHh⟩ := honest_quorum_fin n f hf is_byz hbyz
-  obtain ⟨m, hm, hc⟩ := within_finalized_split (nset := byzNodeSetFin n f hf is_byz hbyz) (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
-    sch T hℓ (fun _ _ _ => decide_eq_true_iff) (fun _ _ => decide_eq_true_iff) (fun _ => rfl)
-    (fun _ _ => decide_eq_true_iff) hH hHh
-    (fun N hsat => mvba_evidence_of_saturation
-      (mvba := Mvba.mvbaSafety (nset := byzNodeSetFin n f hf is_byz hbyz) thMC) n f hf is_byz hbyz
-      (r.reachable N) (fun i hi => hsat i (fun hb => hi (by simpa +instances [byzNodeSetFin] using hb))))
-    hsync hbr hsp hab hC2 hall hj
-  exact ⟨m, by rw [Schedule.ℓ, Lchorus, ← add_assoc, ← add_assoc]; exact hm, hc⟩
+  obtain ⟨m, hm, hc⟩ := timed_termination_tight n f hf is_byz hbyz sch T hℓ r hsync hbr hsp hab hC2 t
+    hall j hj
+  exact ⟨m, le_trans hm (add_le_add le_rfl
+    (Ltight_le_Lchorus sch.mvba.Δ_pos.le sch.δ T.ℓ)), hc⟩
 
 end Concrete
 
@@ -974,6 +1323,27 @@ theorem timed_termination_atMvba (sch : Schedule view time)
         (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
         (hqeFin n f hf is_byz hbyz) sch vfin hrot hs hbr) hbr hsp hab hC2 t ht j hj
 
+/-- **The tight bound at the system's MVBA**: `timed_termination_tight` with
+`T := Mvba.mvbaTemporal`, under `SyncAtMvba`. -/
+theorem timed_termination_tight_atMvba (sch : Schedule view time)
+    (vfin : ViewOrderEnum view vord)
+    (hrot : Mvba.LeaderRotation (nset := byzNodeSetFin n f hf is_byz hbyz) vfin sch.mvba.k thMC) :
+    ∀ r : TChorusRun (nset := byzNodeSetFin n f hf is_byz hbyz) thC thMC time,
+      SyncAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz) sch r →
+      ValidBridge (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun →
+      SyncParticipationWithin (nset := byzNodeSetFin n f hf is_byz hbyz) sch.Δ r →
+      NoAbandonBeforeFinalizing (nset := byzNodeSetFin n f hf is_byz hbyz) r.toLRun →
+      NoEarlyStart (nset := byzNodeSetFin n f hf is_byz hbyz) sch r →
+      ∀ t : time, AllParticipateBy (nset := byzNodeSetFin n f hf is_byz hbyz) t r →
+        ∀ j, ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz j = true →
+          ∃ m, r.clk m ≤ max t r.gst + Ltight sch.Δ sch.δ (sch.mvba.ℓ vfin) ∧
+            (r.at' m).local_committed j = true :=
+  fun r hs hbr =>
+    timed_termination_tight n f hf is_byz hbyz sch _ (mvbaSchedule_ℓ_nonneg sch.mvba vfin) r
+      (sync_of_syncAtMvba (nset := byzNodeSetFin n f hf is_byz hbyz)
+        (cnt := Cadence.byzNodeSetFin_counting n f hf is_byz hbyz)
+        (hqeFin n f hf is_byz hbyz) sch vfin hrot hs hbr) hbr
+
 end AtMvba
 
 end Chorus
@@ -1041,6 +1411,22 @@ info: 'Chorus.within_finalized_split' depends on axioms: [propext, Classical.cho
 #guard_msgs in
 #print axioms Chorus.mvbaSchedule_ℓ_nonneg
 
+/-- info: 'Chorus.Ltight_paper' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Chorus.Ltight_paper
+
+/--
+info: 'Chorus.Ltight_le_Lchorus' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.Ltight_le_Lchorus
+
+/--
+info: 'Chorus.timed_termination_tight' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.timed_termination_tight
+
 /--
 info: 'Chorus.timed_termination' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
@@ -1052,6 +1438,12 @@ info: 'Chorus.timed_termination_atMvba' depends on axioms: [propext, Classical.c
 -/
 #guard_msgs in
 #print axioms Chorus.timed_termination_atMvba
+
+/--
+info: 'Chorus.timed_termination_tight_atMvba' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.timed_termination_tight_atMvba
 
 /--
 info: 'Chorus.availWithin_of_timedJustice' depends on axioms: [propext, Classical.choice, Quot.sound]

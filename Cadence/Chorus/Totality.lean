@@ -29,9 +29,10 @@ finalization re-broadcast the proof). For another correct validator `j`:
   (synchronized participation). If `j` abandons, it has already finalized
   (C1). So whenever `j` has not finalized, its gate `Active j` is open from
   that index on;
-* **the assignments**, one per proposer, in parallel: `commit_assign_*` is a
-  `Δ`-row whose message part — the proof the finalizer re-broadcast, from a
-  correct sender — holds from the finalization, and whose gate opens by
+* **the assignments**, one per proposer, in parallel: `commit_assign_*` is
+  at most a `Δ`-row (a `δ`-row on `j`'s own proof, `rcvHop`) whose message
+  part — the proof the finalizer re-broadcast, from a correct sender — holds
+  from the finalization, and whose gate opens by
   `max(c, GST) + d`. (Δδ-justice) fires it by
   `max(max(c, GST) + Δ, max(c, GST) + d + δ) ≤ max(c, GST) + max(Δ, d) + δ`;
 * **the finalization**, a `δ`-row with the same gate: a further `δ`.
@@ -245,21 +246,22 @@ theorem AssignedOrDone.step {r : TChorusRun thS thM time} {n : Nat} {j J : node}
   · exact Or.inr (Or.inr (Chorus.local_committed.mono (r.steps n) j hm))
 
 omit [IsOrderedAddMonoid time] in
-/-- **The assignment link** (`commit_assign_*`, a `Δ`-row): from an index `N`
-at which `j`'s entry for proposer `J` has a commitment proof from a correct
-sender, and an index `P` at which `j` participates, `j` has an entry for `J`
-— or has finalized — by any `B` that bounds both parts of the buffered
-window: `ref N + Δ` (the proof's delivery) and `ref (max N P) + δ` (the
-gate). The route is the one that reads the proof's form. -/
-theorem within_assigned (sch : Schedule view time) {r : TChorusRun thS thM time}
+/-- **The assignment link, from one sender** (`commit_assign_*`, a
+`rcvHop`-row): from an index `N` at which `j`'s entry for proposer `J` has a
+commitment proof sent by the correct `c`, and an index `P` at which `j`
+participates, `j` has an entry for `J` — or has finalized — by any `B` that
+bounds both parts of the buffered window: `ref N` plus the proof's hop (`Δ`
+from another validator, `δ` when `c = j`, its own certificate) and
+`ref (max N P) + δ` (the gate). The route is the one that reads the proof's
+form. -/
+theorem within_assigned_from (sch : Schedule view time) {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) (hab : NoAbandonBeforeFinalizing r.toLRun)
     {j : node} (hj : ¬ nset.is_byz j = true) {J : node} (hJ : thS.is_proposer J = true)
-    {N P : Nat}
-    (hproof : (∃ m c, ¬ nset.is_byz c = true ∧
-        CertPos (mvba := Mvba.mvbaSafety thM) thS (r.at' N) c J m) ∨
-      (∃ c, ¬ nset.is_byz c = true ∧ CertNeg (mvba := Mvba.mvbaSafety thM) thS (r.at' N) c J))
+    {N P : Nat} {c : node} (hc : ¬ nset.is_byz c = true)
+    (hproof : (∃ m, CertPos (mvba := Mvba.mvbaSafety thM) thS (r.at' N) c J m) ∨
+      CertNeg (mvba := Mvba.mvbaSafety thM) thS (r.at' N) c J)
     (hP : (r.at' P).participating j = true) {B : time}
-    (hB : r.bufWindow N (max N P) sch.Δ sch.δ ≤ B) :
+    (hB : r.bufWindow N (max N P) (sch.bound (rcvHop j c)) sch.δ ≤ B) :
     r.WithinFrom N B (fun st => AssignedOrDone st j J) := by
   mvba_inst
   have hact : ∀ n, max N P ≤ n → ¬ AssignedOrDone (r.at' n) j J → Active (r.at' n) j :=
@@ -272,12 +274,12 @@ theorem within_assigned (sch : Schedule view time) {r : TChorusRun thS thM time}
     fun _ hnot m' h => hnot (Or.inl ⟨m', h⟩)
   have hnn : ∀ n, ¬ AssignedOrDone (r.at' n) j J → ¬ (r.at' n).local_committed_neg j J = true :=
     fun _ hnot h => hnot (Or.inr (Or.inl h))
-  rcases hproof with ⟨m, c, hc, hq | ⟨e, he, hme⟩ | ⟨cc, v, hmsg, hcert, hv, hb⟩⟩ |
-      ⟨c, hc, hq | ⟨e, he, hme⟩ | ⟨cc, v, hmsg, hcert, hv, hb⟩⟩
+  rcases hproof with ⟨m, hq | ⟨e, he, hme⟩ | ⟨cc, v, hmsg, hcert, hv, hb⟩⟩ |
+      (hq | ⟨e, he, hme⟩ | ⟨cc, v, hmsg, hcert, hv, hb⟩)
   · have hq' := r.mono (P := fun st => st.msg_commitqc_pos c J m = true)
       (fun k h => Chorus.msg_commitqc_pos.mono (r.steps k) c J m h) hq
     exact r.withinFrom_of_bufferedFair
-      (hTJ.rows (.commit_assign_pos_fast j J m c) .net rfl (fun h => h)) (le_max_left _ _) hB
+      (hTJ.rows (.commit_assign_pos_fast j J m c) (rcvHop j c) rfl (fun h => h)) (le_max_left _ _) hB
       (fun _ _ h => Or.inl ⟨m, (commit_assign_pos_fast_effect h).1⟩)
       (fun n hn _ hnot => ⟨hc, fun hg => enabled_commit_assign_pos_fast hj hg (hnc n hnot) hJ
         (hq' n hn) (hnp n hnot) (hnn n hnot)⟩)
@@ -285,7 +287,7 @@ theorem within_assigned (sch : Schedule view time) {r : TChorusRun thS thM time}
   · have he' := r.mono (P := fun st => st.msg_fbcommitqc c e = true)
       (fun k h => Chorus.msg_fbcommitqc.mono (r.steps k) c e h) he
     exact r.withinFrom_of_bufferedFair
-      (hTJ.rows (.commit_assign_pos_fb j J m c e) .net rfl (fun h => h)) (le_max_left _ _) hB
+      (hTJ.rows (.commit_assign_pos_fb j J m c e) (rcvHop j c) rfl (fun h => h)) (le_max_left _ _) hB
       (fun _ _ h => Or.inl ⟨m, (commit_assign_pos_fb_effect h).1⟩)
       (fun n hn _ hnot => ⟨hc, fun hg => enabled_commit_assign_pos_fb hj hg (hnc n hnot) hJ
         (he' n hn) hme (hnp n hnot) (hnn n hnot)⟩)
@@ -298,7 +300,7 @@ theorem within_assigned (sch : Schedule view time) {r : TChorusRun thS thM time}
       (fun k ⟨h1, h2, h3⟩ => ⟨Chorus.msg_mvba_cert.mono (r.steps k) c cc h1,
         certifies_step (r.steps k) h2, bridge_pos_step (r.steps k) h3⟩) ⟨hmsg, hcert, hb⟩
     exact r.withinFrom_of_bufferedFair
-      (hTJ.rows (.commit_assign_pos_mvba j J m c cc v) .net rfl (fun h => h)) (le_max_left _ _) hB
+      (hTJ.rows (.commit_assign_pos_mvba j J m c cc v) (rcvHop j c) rfl (fun h => h)) (le_max_left _ _) hB
       (fun _ _ h => Or.inl ⟨m, (commit_assign_pos_mvba_effect h).1⟩)
       (fun n hn _ hnot => ⟨hc, fun hg => enabled_commit_assign_pos_mvba hj hg (hnc n hnot) hJ
         (hall n hn).1 (hall n hn).2.1 hv (hall n hn).2.2 (hnp n hnot) (hnn n hnot)⟩)
@@ -306,7 +308,7 @@ theorem within_assigned (sch : Schedule view time) {r : TChorusRun thS thM time}
   · have hq' := r.mono (P := fun st => st.msg_commitqc_neg c J = true)
       (fun k h => Chorus.msg_commitqc_neg.mono (r.steps k) c J h) hq
     exact r.withinFrom_of_bufferedFair
-      (hTJ.rows (.commit_assign_neg_fast j J c) .net rfl (fun h => h)) (le_max_left _ _) hB
+      (hTJ.rows (.commit_assign_neg_fast j J c) (rcvHop j c) rfl (fun h => h)) (le_max_left _ _) hB
       (fun _ _ h => Or.inr (Or.inl (commit_assign_neg_fast_effect h).1))
       (fun n hn _ hnot => ⟨hc, fun hg => enabled_commit_assign_neg_fast hj hg (hnc n hnot) hJ
         (hq' n hn) (hnp n hnot) (hnn n hnot)⟩)
@@ -314,7 +316,7 @@ theorem within_assigned (sch : Schedule view time) {r : TChorusRun thS thM time}
   · have he' := r.mono (P := fun st => st.msg_fbcommitqc c e = true)
       (fun k h => Chorus.msg_fbcommitqc.mono (r.steps k) c e h) he
     exact r.withinFrom_of_bufferedFair
-      (hTJ.rows (.commit_assign_neg_fb j J c e) .net rfl (fun h => h)) (le_max_left _ _) hB
+      (hTJ.rows (.commit_assign_neg_fb j J c e) (rcvHop j c) rfl (fun h => h)) (le_max_left _ _) hB
       (fun _ _ h => Or.inr (Or.inl (commit_assign_neg_fb_effect h).1))
       (fun n hn _ hnot => ⟨hc, fun hg => enabled_commit_assign_neg_fb hj hg (hnc n hnot) hJ
         (he' n hn) hme (hnp n hnot) (hnn n hnot)⟩)
@@ -328,11 +330,31 @@ theorem within_assigned (sch : Schedule view time) {r : TChorusRun thS thM time}
       (fun k ⟨h1, h2, h3⟩ => ⟨Chorus.msg_mvba_cert.mono (r.steps k) c cc h1,
         certifies_step (r.steps k) h2, bridge_neg_step (r.steps k) h3⟩) ⟨hmsg, hcert, hb⟩
     exact r.withinFrom_of_bufferedFair
-      (hTJ.rows (.commit_assign_neg_mvba j J c cc v) .net rfl (fun h => h)) (le_max_left _ _) hB
+      (hTJ.rows (.commit_assign_neg_mvba j J c cc v) (rcvHop j c) rfl (fun h => h)) (le_max_left _ _) hB
       (fun _ _ h => Or.inr (Or.inl (commit_assign_neg_mvba_effect h).1))
       (fun n hn _ hnot => ⟨hc, fun hg => enabled_commit_assign_neg_mvba hj hg (hnc n hnot) hJ
         (hall n hn).1 (hall n hn).2.1 hv (hall n hn).2.2 (hnp n hnot) (hnn n hnot)⟩)
       (fun n hn _ hnot => hact n hn hnot)
+
+/-- **The assignment link** (`commit_assign_*`, at most a `Δ`-row): as
+`within_assigned_from`, from a proof of any correct sender, by any `B` that
+bounds `ref N + Δ` (the proof's delivery) and `ref (max N P) + δ` (the
+gate). -/
+theorem within_assigned (sch : Schedule view time) {r : TChorusRun thS thM time}
+    (hTJ : TimedJustice sch r) (hab : NoAbandonBeforeFinalizing r.toLRun)
+    {j : node} (hj : ¬ nset.is_byz j = true) {J : node} (hJ : thS.is_proposer J = true)
+    {N P : Nat}
+    (hproof : (∃ m c, ¬ nset.is_byz c = true ∧
+        CertPos (mvba := Mvba.mvbaSafety thM) thS (r.at' N) c J m) ∨
+      (∃ c, ¬ nset.is_byz c = true ∧ CertNeg (mvba := Mvba.mvbaSafety thM) thS (r.at' N) c J))
+    (hP : (r.at' P).participating j = true) {B : time}
+    (hB : r.bufWindow N (max N P) sch.Δ sch.δ ≤ B) :
+    r.WithinFrom N B (fun st => AssignedOrDone st j J) := by
+  have hB' : ∀ c : node, r.bufWindow N (max N P) (sch.bound (rcvHop j c)) sch.δ ≤ B := fun c =>
+    le_trans (max_le_max (add_le_add le_rfl (sch.bound_le_Δ _)) le_rfl) hB
+  rcases hproof with ⟨m, c, hc, h⟩ | ⟨c, hc, h⟩
+  · exact within_assigned_from sch hTJ hab hj hJ hc (Or.inl ⟨m, h⟩) hP (hB' c)
+  · exact within_assigned_from sch hTJ hab hj hJ hc (Or.inr h) hP (hB' c)
 
 omit [IsOrderedAddMonoid time] in
 /-- **The finalization link** (`finalize_commit`, a `δ`-row): from an index

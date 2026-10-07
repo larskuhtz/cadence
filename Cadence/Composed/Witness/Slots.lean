@@ -263,13 +263,9 @@ theorem timedJustice : TimedJustice (schX x) (srun x) := by
     obtain ⟨P, hP, hc, hq⟩ := qend x N
     exact ⟨P, hP, hc, fun ⟨_, ⟨_, hd, _⟩, _⟩ => not_decided _ _ _ hd⟩
 
-/-- **The decision output**, vacuously: nobody decides in the MVBA. -/
-theorem decisionOutput : DecisionOutput (schX x) (srun x) :=
-  fun j _ _ ⟨v, hd⟩ => absurd hd (not_decided _ j v)
-
 /-- **The timing model at the system's MVBA.** -/
 theorem syncAtMvba : SyncAtMvba (schX x) (srun x) :=
-  ⟨timedJustice x, phasePunctual x, ⟨mproj x, mvbaOwn x⟩, decisionOutput x⟩
+  ⟨timedJustice x, phasePunctual x, mproj x, mvbaOwn x⟩
 
 /-- No fair label is enabled once the slot is done. -/
 theorem justice_tail {k : ℕ} (hk : 140 ≤ k) (l : CL) (hj : JusticeLabel l) (ha : ¬ IsAvail l) :
