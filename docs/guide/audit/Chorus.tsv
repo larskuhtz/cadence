@@ -1,8 +1,67 @@
 # The audit table of Chorus: one row per action, rendered by {auditTable}
-# (docs/guide/CadenceGuide/AuditTable.lean). The format is documented in
-# docs/Documentation.md, "The guide". A stub: two sample rows, to be
-# checked against the action bodies and completed to every action.
+# (docs/guide/CadenceGuide/AuditTable.lean); the format is documented in
+# docs/Documentation.md, "The guide". Filled by hand from the action bodies
+# of Cadence/Chorus.lean, and checked against them: every action is a row.
+#
+# What the columns hold:
+# * reads_own: the actor's own rows read by the guards, negative reads marked ¬;
+# * reads_net: everything else the guards read, in positive position: network
+#   relations, the certificates derived from them (ghost relations), and the
+#   shared abstract state (`phase`, the MVBA contract's operations, Chorus's
+#   records of the MVBA's decision). Immutable configuration (`is_proposer`,
+#   `well_encoded`, `mval_*`) is left out: it is fixed data every validator knows;
+# * reads_net_neg: every read outside the actor's own local rows in negative
+#   position, with the category that makes it sound (ChorusDesign.md §3.1.1);
+# * fault: where `is_byz` is consulted, and whose;
+# * writes: every relation written, with the row.
+# A note marked ⚠ is a departure beyond the documented exceptions, reported
+# for review.
 action	paper	actor	reads_own	reads_net	reads_net_neg	fault	writes	note
-group	Dissemination
-propose	alg:proposer-dissemination	proposer `j`	`participating`, `abandoned`	—	`msg_proposer_signed j` (self-row)	`¬ is_byz j` (actor)	`msg_proposer_signed j m`	sign once
-record_chunk	alg:voting	`i`	`local_entry_pos i`, `local_entry_neg i`	`msg_chunk_received i j m`, `msg_proposer_signed j m`	—	`¬ is_byz i` (actor)	`local_entry_pos i j m`	reads `phase`
+group	The clock
+advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm	—	the clock	—	`phase`, at the preceding value	—	—	`phase`	environment; the phase only moves forward
+group	Participation inputs (Module 1)
+participate	mod:slotconsensus, line:participate	the caller, at `i`	—	—	—	—	`participating i`	an input: the caller invokes it, so it carries no fairness
+abandon	mod:slotconsensus, line:abandon, line:fb-abandon	the caller, at `i`	—	`mvba.abandon`, the MVBA's input	—	—	`abandoned i`, `mvba_st`	an input; it also forwards `abandon()` to the MVBA
+group	Dissemination (Algorithm 2)
+propose	alg:proposer-dissemination	proposer `j`	`participating j`, `¬ abandoned j`	`phase`, before the deadline	`msg_proposer_signed j`: no other root signed (self-row)	`¬ is_byz j` (actor)	`msg_proposer_signed j m`	the send of every chunk; one root per proposer. Self-row read, ChorusDesign §3.1
+deliver_chunk_assigned	alg:proposer-dissemination	the network, from sender `j` to `i`	`¬ local_chunk_sent j i j m`, the delivery's own record	`msg_proposer_signed j m`, the send	—	`¬ is_byz j` (the sender)	`msg_chunk_received i j m`, `local_chunk_sent j i j m`	delivers a correct proposer's send; a Byzantine proposer's chunks are `byz_deliver_chunk`
+record_chunk	alg:da, line:vote-positive	`i`	`¬ local_entry_pos i j`, `¬ local_entry_neg i j`	`msg_chunk_received i j m` (its own chunk), `msg_proposer_signed j m`, `phase` before the deadline	—	`¬ is_byz i` (actor)	`local_entry_pos i j m`	processes only, so no participation gate; the deadline is a read of `phase`
+group	Voting (Algorithm 3)
+vote	alg:voting, line:vote-broadcast	`i`	`participating i`, `¬ abandoned i`, `¬ local_voted i`, `local_entry_pos i`	`phase`, after the deadline	—	`¬ is_byz i` (actor)	`msg_vote_pos_sig i`, `msg_vote_neg_sig i`, `local_entry_neg i`, `local_voted i`, `msg_vote_cast i`, `msg_decrypt_share i`	the per-proposer loop as one step; its bulk updates only add tuples
+group	Fast path (Algorithm 4)
+aggregate_fastqc_pos	line:fast-formqc	`i`	`¬ local_fastqc_pos i j m`	`msg_vote_pos_sig` of a supermajority `q`	—	`¬ is_byz i` (actor)	`local_fastqc_pos i j m`	processes only; also stands for adopting a FastQC received in a message
+aggregate_fastqc_neg	line:fast-formqc	`i`	`¬ local_fastqc_neg i j`	`msg_vote_neg_sig` of a supermajority `q`	—	`¬ is_byz i` (actor)	`local_fastqc_neg i j`	as `aggregate_fastqc_pos`
+commit_sign_pos	line:fast-commitvote	`i`	`participating i`, `¬ abandoned i`, `local_path i`, `local_fastqc_pos i j m`, `¬ local_commit_entry i j`	—	`msg_commit_cast i`: not yet cast (self-row)	`¬ is_byz i` (actor)	`msg_commit_pos_sig i j m`, `local_commit_entry i j`	self-row read, ChorusDesign §3.1; the signature counts only once the vote is cast
+commit_sign_neg	line:fast-commitvote	`i`	`participating i`, `¬ abandoned i`, `local_path i`, `local_fastqc_neg i j`, `¬ local_commit_entry i j`	—	`msg_commit_cast i` (self-row)	`¬ is_byz i` (actor)	`msg_commit_neg_sig i j`, `local_commit_entry i j`	as `commit_sign_pos`
+cast_fast_commit	line:fast-commitvote, line:fast-pathvote	`i`	`participating i`, `¬ abandoned i`, `local_path i`	`msg_commit_pos_sig i`, `msg_commit_neg_sig i`: its own entries, one per proposer	`msg_commit_cast i` (self-row)	`¬ is_byz i` (actor)	`msg_commit_cast i`, `local_path i`	self-row read; sets the path to fast, which excludes the fallback vote
+broadcast_commitqc_pos	line:fast-collect-commit, line:fast-broadcast-commitqc	collector `c`	`participating c`, `¬ abandoned c`, `¬ local_commitqc_sent c j`	`msg_commit_pos_sig` and `msg_commit_cast` of a supermajority `q`	—	`¬ is_byz c` (actor)	`msg_commitqc_pos j m`, `local_commitqc_sent c j`	the guard is the certificate's validity check; the certificate names no signer
+broadcast_commitqc_neg	line:fast-collect-commit, line:fast-broadcast-commitqc	collector `c`	`participating c`, `¬ abandoned c`, `¬ local_commitqc_sent c j`	`msg_commit_neg_sig` and `msg_commit_cast` of a supermajority `q`	—	`¬ is_byz c` (actor)	`msg_commitqc_neg j`, `local_commitqc_sent c j`	as `broadcast_commitqc_pos`
+group	Fallback path (Algorithm 5)
+fb_sign_pos	line:fb-positive-entry, line:fb-redisseminate	`i`	`participating i`, `¬ abandoned i`, `local_voted i`, `local_path i`, `¬ local_fb_entry i j`	`phase` from the fallback arm, `msg_vote_cast` of a supermajority, `msg_vote_pos_sig` of `q`, `msg_chunk_received` of `qc`	`msg_commit_cast i` (self-row)	`¬ is_byz i` (actor)	`msg_fb_pos_sig i j m`, `local_fb_entry i j`, `msg_chunk_received` for every validator under `(j, m)`, `local_chunk_sent i`	self-row read; re-disseminates the proposal's chunks in the same step
+fb_sign_neg	line:fb-cast-entry	`i`	`participating i`, `¬ abandoned i`, `local_voted i`, `local_path i`, `¬ local_fb_entry i j`	`phase` from the fallback arm, `msg_vote_cast` of the supermajority `qv`	no root with `msg_vote_pos_sig` from an f+1 set inside `qv` whose chunks are on the network (`msg_chunk_received`) and well encoded; `msg_commit_cast i` (self-row)	`¬ is_byz i` (actor)	`msg_fb_neg_sig i j`, `local_fb_neg_qv i j qv` (proof-only), `local_fb_entry i j`	the documented exception, ChorusDesign §3.1.1 (i): the negation ranges over the votes in `qv`. Its decodability conjunct reads chunks network-wide; at a reachable state it follows from the f+1 votes (invariant `vote_pos_quorum_implies_decodable`), so the guard is the `qv`-scoped one
+cast_fallback_vote	line:fb-pathvote-guard	`i`	`participating i`, `¬ abandoned i`, `local_voted i`, `local_path i`	`phase` from the fallback arm, `msg_fb_pos_sig i`, `msg_fb_neg_sig i`: its own entries, one per proposer	`msg_commit_cast i` (self-row)	`¬ is_byz i` (actor)	`msg_fallback_sig i`, `local_path i`	self-row read; sets the path to fallback, which excludes the fast commit vote
+group	The MVBA (Module 3, the consumed contract)
+mvba_step	mod:mvba	the MVBA	—	`mvba.step`: any transition the contract allows	—	—	`mvba_st`	the oracle step; scheduled by the MVBA's own premise, not by Chorus's fairness
+mvba_propose	line:fb-mvba-propose-fast, line:fb-mvba-propose	`i`	`participating i`, `¬ abandoned i`, `local_fastqc_pos i`, `local_fastqc_neg i`: a complete fast meta-block of its own	`phase`, `fbcert`, `vote_quorum_pos`, `vote_quorum_neg`, `fb_quorum_pos`, `fb_quorum_neg`, `equiv_evidence`, `mvba.propose`	—	`¬ is_byz i` (actor)	`mvba_st`	the trigger, and `Valid B_i` as guards: every certificate the proposal carries, read positively
+accept_mvba_commitqc	line:mvba:qc-decide	`i`	`¬ local_mvba_qc_accepted i`	`mvba.accept`: a valid certificate	—	`¬ is_byz i` (actor)	`mvba_st`, `local_mvba_qc_accepted i`	the decision handoff: a received certificate goes to `i`'s own MVBA
+mvba_avail_ready	subsec:mvba-protocol, line:fb-commit-wait	`i`	`¬ local_avail_marked i v`	`msg_chunk_received i`: its own chunks, `mvba.markAvail`	—	`¬ is_byz i` (actor)	`mvba_st`, `local_avail_marked i v`	reports availability to the MVBA; sends nothing, so no participation gate
+on_mvba_decide_pos	line:fb-mvba-decide	`i`	`¬ local_mvba_recorded i j`	`mvba.decided`: its own decision `v`; the bridge, `vote_quorum_pos j m` or `fb_quorum_pos j m` with `fbcert`; `mvba_invoked`	—	`¬ is_byz i` (actor); through `mvba_invoked`, `is_byz` of other validators	`mvba_decided_pos j m`, a shared record; `local_mvba_recorded i j`	⚠ reported: `mvba_invoked` holds when `fbcert` does or when some correct validator holds a complete fast meta-block, so this guard reads other validators' FastQC rows and fault status. The model calls it a listening condition that no safety invariant relies on; ChorusDesign §3.1.1 does not list it
+on_mvba_decide_neg	line:fb-mvba-decide	`i`	`¬ local_mvba_recorded i j`	`mvba.decided`: its own decision `v`; the bridge, `vote_quorum_neg j`, or `fb_quorum_neg j` or `equiv_evidence j` with `fbcert`; `mvba_invoked`	—	`¬ is_byz i` (actor); through `mvba_invoked`, `is_byz` of other validators	`mvba_decided_neg j`, a shared record; `local_mvba_recorded i j`	⚠ reported: `mvba_invoked`, as in `on_mvba_decide_pos`
+on_mvba_commitqc_pos	subsec:mvba-protocol	`i`	`¬ local_mvba_recorded i j`	`mvba.certifies`: a valid certificate `c` for the entries of `v`; the bridge, `vote_quorum_pos j m` or `fb_quorum_pos j m` with `fbcert`	—	`¬ is_byz i` (actor)	`mvba_decided_pos j m`, a shared record; `local_mvba_recorded i j`	the CommitQC route: a valid certificate is transferable, so its existence is what a receiver checks
+on_mvba_commitqc_neg	subsec:mvba-protocol	`i`	`¬ local_mvba_recorded i j`	`mvba.certifies`, as above; the bridge, `vote_quorum_neg j`, or `fb_quorum_neg j` or `equiv_evidence j` with `fbcert`	—	`¬ is_byz i` (actor)	`mvba_decided_neg j`, a shared record; `local_mvba_recorded i j`	as `on_mvba_commitqc_pos`
+mvba_terminate	line:fb-mvba-decide	`i`	—	`mvba.decided`: its own decision `v`; `mvba_decided_pos`, `mvba_decided_neg`: every entry of `v` recorded; `mvba_invoked`	`mvba_complete`, a shared record: not yet set	`¬ is_byz i` (actor); through `mvba_invoked`, `is_byz` of other validators	`mvba_complete`, a shared record	⚠ reported: `¬ mvba_complete` reads a shared record negatively, where ChorusDesign §3.1 lists the records as read positively only; it blocks only a step that would change nothing. `mvba_invoked` as in `on_mvba_decide_pos`
+group	Fallback commit round (Algorithm 5)
+cast_fb_commit	line:fb-commit-foreach, line:fb-commit-wait, line:fb-commitvote	`i`	`participating i`, `¬ abandoned i`, `¬ local_fbcommit_voted i`	`mvba.decided`: its own decision `v`; `mvba_complete`, a shared record; `msg_chunk_received i`: its own chunk under each FallbackQC entry of `v`	—	`¬ is_byz i` (actor)	`msg_fbcommit_sig i`, `local_fbcommit_voted i`	`mvba_complete` stands for the decision delivering the whole entry vector at once
+group	Finalization
+commit_assign_pos	line:fast-finalize, line:fb-finalize, subsec:mvba-protocol	`i`	`participating i`, `¬ abandoned i`, `¬ local_committed i`, `¬ local_committed_pos i j`, `¬ local_committed_neg i j`	`msg_commitqc_pos j m`; or `fbcommitqc` or `mvba_commitqc`, with `mvba_decided_pos j m`, a shared record	—	`¬ is_byz i` (actor)	`local_committed_pos i j m`	commits on a commitment proof only; gated, because finalizing re-broadcasts the proof
+commit_assign_neg	line:fast-finalize, line:fb-finalize, subsec:mvba-protocol	`i`	`participating i`, `¬ abandoned i`, `¬ local_committed i`, `¬ local_committed_pos i j`, `¬ local_committed_neg i j`	`msg_commitqc_neg j`; or `fbcommitqc` or `mvba_commitqc`, with `mvba_decided_neg j`, a shared record	—	`¬ is_byz i` (actor)	`local_committed_neg i j`	as `commit_assign_pos`
+finalize_commit	line:fast-finalize, line:fb-finalize	`i`	`participating i`, `¬ abandoned i`, `¬ local_committed i`, `local_committed_pos i`, `local_committed_neg i`: an entry per proposer	—	—	`¬ is_byz i` (actor)	`local_committed i`	the output: the slot is finalized at `i`
+group	The adversary
+byz_sign_proposer	alg:proposer-dissemination	Byzantine `j`	—	—	—	`is_byz j` (actor)	`msg_proposer_signed j m`	any root, any number of times: equivocation
+byz_deliver_chunk	alg:proposer-dissemination	Byzantine sender `j`, to any `i`	—	—	—	`is_byz j` (actor)	`msg_chunk_received i j m`	any chunk under its name to any validator: selective delivery
+byz_redisseminate_chunk	line:fb-redisseminate	Byzantine `r`	—	`msg_proposer_signed j m`, `chunk_quorum j m`	—	`is_byz r` (actor)	`msg_chunk_received i j m`	the capability of any holder of f+1 chunks, at any time
+byz_sign_vote_pos	alg:voting	Byzantine `r`	—	`msg_chunk_received r j m`: its own chunk	—	`is_byz r` (actor)	`msg_vote_pos_sig r j m`	mirrors the receiver's check: a positive entry carries the signer's chunk
+byz_cast_vote	line:vote-broadcast	Byzantine `r`	—	`msg_vote_pos_sig r`, `msg_vote_neg_sig r`: an entry per proposer	—	`is_byz r` (actor)	`msg_vote_cast r`	mirrors the receiver's check: a vote carries an entry per proposer
+byz_sign_fb_pos	line:fb-positive-entry	Byzantine `r`	—	`msg_proposer_signed j m`	—	`is_byz r` (actor)	`msg_fb_pos_sig r j m`	mirrors the receiver's check of the proposer's signature; no re-encode check, which a receiver cannot make
+byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg	line:fast-broadcast-commitqc	Byzantine `r`	—	`msg_commit_pos_sig` or `msg_commit_neg_sig`, and `msg_commit_cast`, of a supermajority `q`	—	`is_byz r` (actor)	`msg_commitqc_pos j m` or `msg_commitqc_neg j`	the certificate's validity check, with no gate and no record
+byz_sign_vote_neg, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_sign_fbcommit, byz_release_msg_decrypt_share	—	Byzantine `r`	—	—	—	`is_byz r` (actor)	its own row of `msg_vote_neg_sig`, `msg_fb_neg_sig`, `msg_fallback_sig`, `msg_commit_pos_sig`, `msg_commit_neg_sig`, `msg_commit_cast`, `msg_fbcommit_sig`, `msg_decrypt_share`	unconstrained: a receiver checks only the signature
