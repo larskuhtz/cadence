@@ -198,17 +198,28 @@ structure Provider where
   requires : List Name
   witness : Bool
 
+/-- Every declaration of this development whose type has `cls` at its head.
+Walks this development's imported modules only, each by its own constant
+table, with the module list computed once. (`moduleOf` per constant would
+rebuild that list for every constant in the environment, Mathlib included:
+seconds per call, and the guide calls this once per contract field.) The
+current file's own declarations are never providers: they belong to no
+imported module. -/
 def providersOf (env : Environment) (cls : Name) : Array Provider := Id.run do
   let mut out := #[]
-  for (n, ci) in env.constants.toList do
-    if n.isInternalDetail then continue
-    if (env.getProjectionFnInfo? n).isSome then continue
-    let some m := moduleOf env n | continue
+  let mods := env.header.moduleNames
+  for h : i in [0:mods.size] do
+    let m := mods[i]
     unless isOwnModule m do continue
-    unless ci matches .defnInfo _ | .thmInfo _ | .opaqueInfo _ do continue
-    if headSymbol ci.type == some cls then
-      let reqs := (binderHeads ci.type).filter contractClasses.contains |>.eraseDups
-      out := out.push ⟨n, reqs, isWitnessModule m⟩
+    let some md := env.header.moduleData[i]? | continue
+    for ci in md.constants do
+      let n := ci.name
+      if n.isInternalDetail then continue
+      if (env.getProjectionFnInfo? n).isSome then continue
+      unless ci matches .defnInfo _ | .thmInfo _ | .opaqueInfo _ do continue
+      if headSymbol ci.type == some cls then
+        let reqs := (binderHeads ci.type).filter contractClasses.contains |>.eraseDups
+        out := out.push ⟨n, reqs, isWitnessModule m⟩
   return out.qsort (·.name.toString < ·.name.toString)
 
 /-! ## `{decl}` -/
