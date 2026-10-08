@@ -470,7 +470,9 @@ Algorithm 5, line 39 (`line:fb-commit-wait`) needs no step of its own.
 Every (b) and (c) item is modelled (the list at the end of §4 says
 where). Every remaining difference between a model and the target is in
 the table below: below the model's abstraction, with its argument, or a
-finding of §6. None needs a model change. The differences the development
+finding of §6. None needs a model change except the receiver checks
+stated on Byzantine senders, which move to the correct receivers
+([Locality.md](Locality.md) §4.2, B4). The differences the development
 found and removed (F15 in Chorus's chunk sending; F25, the Conductor's
 `p = 0`) are recorded with their findings ([Bounds.md](Bounds.md) §6.4.2,
 [ConductorBounds.md](ConductorBounds.md) §7).
@@ -484,6 +486,8 @@ found and removed (F15 in Chorus's chunk sending; F25, the Conductor's
 | `propose` enters the first view, not the view of the highest retained timeout certificate | Mvba | The faithful rule needs a negative read of the network, which the locality rules forbid ([Locality.md](Locality.md) R2). The model's rule adds runs, which is sound for safety, and no liveness argument uses them ([History.md](History.md) § "The supplement at `eb1bb51`, reviewed against the pin `026dc8b`", C7). |
 | `SyncView` is its own step; the view timer is a phase marker; one action covers the timer and the `f+1` echo timeout | Mvba | The same reachable states in two steps, or a guard that only removes behaviours (the [Mvba.lean](../Cadence/Mvba.lean) header, "Abstractions"). |
 | An `upon` handler runs once | Chorus | The target states no convention: P6. |
+| A Byzantine step may read every validator's state, a correct one's included, where the target's adversary sees only what is sent to it | all | A stronger adversary: every claim holds against it, and no proof relies on what a Byzantine validator does not know ([Locality.md](Locality.md) §4.2). Whether the target's channels are private is not stated: P20. |
+| Three Byzantine sends are guarded by the check a correct receiver applies (a positive vote entry carries its chunk; a vote carries an entry for every proposer; a timeout's certificate is at most its view), where the target has the check at the receiver | Chorus, Mvba | Equivalent while every correct receiver applies the check, and a gap in the model's form: each moves to the correct receivers ([Locality.md](Locality.md) §4.2, B4). |
 | A fallback entry may be cast for a proposer the validator already holds a FastQC for; the target casts them only "with `Ev(pid) = ⊥`" (Algorithm 5, line 8 (`line:fb-cast-entry`)) | Chorus | An over-approximation: the paper's runs, which cast fewer entries, are among the model's, so every safety claim covers them. The fallback vote (`cast_fallback_vote`) then carries an entry per proposer either way. |
 | The positive fallback entry and the FastQC aggregation count vote signatures on the network, where the target counts the entries of received valid `Vote` messages | Chorus | An over-approximation: a signature a Byzantine signer never cast in a vote may count, which only adds runs. The negative entry, which reads the absence of votes, reads the validator's own receipts ([ChorusDesign.md](ChorusDesign.md) §3.1). |
 | A prepare certificate is a row under its former's name (`msg_prepqc s`), where the supplement's travels only inside a `Timeout` or a TC | Mvba | The row is read only to check a certificate another message carries, never acted on by itself, so a receiver gains nothing by seeing it early ([MvbaPlan.md](MvbaPlan.md) §11.2). |
@@ -537,7 +541,7 @@ model" is the Lean development). The findings fall into three groups:
   claim itself holds: P1, P2, P12, P13, P15, P16, P19.
 * **They are open questions for the authors** — the paper leaves a rule, a
   convention or a choice unstated, and the model takes one reading: P3, P6,
-  P9, P11, P14, P17.
+  P9, P11, P14, P17, P20.
 * **They are presentation, source hygiene or slack** — the claims and their
   proofs stand as written: P4, P7, P8, P10; and two places where the proof
   gives more than the statement says, both confirmed by proof in the model,
@@ -565,6 +569,7 @@ model" is the Lean development). The findings fall into three groups:
 | P17 | The ACS the Conductor uses is unspecified | open question | missing instantiation | open; the model takes the ACS as a module meeting Module 4 |
 | P18 | The recovery chain needs less than Algorithm 7's assumptions (1)–(3), and `𝓡 = 2Wτ` is not tight | slack | slack | open; **confirmed by proof**: the model proves Lemma 16, and the composed `𝓡`-Liveness, at `2Wτ` and at `(W + p − 1)τ` |
 | P19 | A chunk that arrives exactly at the deadline is counted as on time without a stated rule | correctness argument | missing convention | open; the model states the inclusive reading as a premise and proves censorship resistance under it |
+| P20 | Whether channels between correct validators are private is not stated | open question | unstated assumption | open; the model's claims hold without privacy |
 
 P1–P4 are inconsistencies between the main body and the supplement, or
 within the supplement. P12, P13, P15 and P16 are about module boundaries:
@@ -1036,6 +1041,29 @@ without a stated rule.**
   correction:** state the convention, e.g. that messages delivered at the
   deadline are processed before the deadline handler; or have the
   proposer disseminate before the starting time.
+
+**P20. Whether channels between correct validators are private is not
+stated.**
+* *Quote.* Appendix A (`section:formal_problem_definition`), on hiding:
+  "The environment also plays the role of the adversary: in the real world
+  it directly controls the faulty validators [...] We assume *static*
+  corruption". No rule says what the adversary sees of the messages
+  between correct validators; a commented-out note in the same section
+  asks for "some kind of 'secure channel' built in to the model".
+* *Why it matters.* An adversary that reads the traffic between correct
+  validators, or their state, is stronger than one that sees only what is
+  sent to it. A proof that relied on the weaker adversary would not hold
+  of the stronger one, and a reader cannot tell which one the paper
+  means. The safety and liveness arguments appear not to use privacy, and
+  hiding rests on encryption rather than on the channel, but neither is
+  said.
+* *Status.* Open for the authors. The model lets a Byzantine validator
+  read every validator's state and every message
+  ([Locality.md](Locality.md) §4.2), and its safety and liveness claims
+  hold against that adversary, so they need no privacy. Hiding is not a
+  property of the models (§3). **Suggested correction:** state the
+  channel assumption, e.g. authenticated channels with no privacy, and
+  note where hiding relies on encryption alone.
 
 ### 6.1 The interface check
 

@@ -291,8 +291,11 @@ confirm each action follows them.
    if every action follows them — a correct validator reads its own state,
    messages positively (its own sends in either polarity), global time,
    configuration and its sub-protocol at its own index, and writes only its
-   own state and messages under its own name; the environment touches only
-   its own state; auxiliary records are read by no action. Veil does not
+   own state and messages under its own name; a Byzantine validator may do
+   anything except forge a signature, write another validator's state, or
+   send a message that the listed receiver checks (Locality.md §4.2, B4)
+   forbid; the environment touches only its own state; auxiliary records
+   are read by no action. Veil does not
    enforce them. They are stated for pattern matching and checked by hand,
    action by action: the guide's audit table for Chorus
    ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)), and Locality.md §7
