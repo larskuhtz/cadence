@@ -1658,3 +1658,283 @@ contract now on `master` — [CompositionContracts.md](CompositionContracts.md),
 whose §9 records what it superseded and §10 the Veil facts that cost time
 to find. That draft also expected lock persistence to need a counting
 theorem outside the invariant clump; §2.6 explains why it does not.
+
+## 11. The MVBA follows the locality idiom (R36) — design
+
+*Status: design, for review before any model edit. The rules are
+[Locality.md](Locality.md). Its §7 records this model as open, with
+environment-written timers and sender-less certificates, and records
+Chorus's `send_mvba_cert` as open, because the contract does not output a
+decision's certificate.*
+
+### 11.1 What the supplement says, read for the idiom
+
+Three passages of the target decide the design (Supplement, Section 1.2
+(`subsec:mvba-protocol`)):
+
+* **"Decision output and handoff."** "A call to `decide(x, CommitQC)`
+  outputs the decided meta-block `x` together with the certificate that
+  commits it … The `CommitQC` returned by `decide(x, CommitQC)` is handed to
+  the composing Chorus instance … Upon receiving this output, Chorus
+  broadcasts the `CommitQC`." The MVBA does not broadcast a commit
+  certificate. It *outputs* one at the decider, and the decider's composing
+  layer sends it.
+* **Learning a decision.** A validator that forms a commit certificate
+  "records `CommitQC` as `DecidedQC_i`" and outputs `decide(x, CommitQC)`.
+  One that learns "a decision through a transferred `CommitQC` of any view
+  (Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)) … proceeds
+  identically". Both decision paths record the certificate in the decider's
+  local state and output it.
+* **View advancement.** `SyncView` "records the certificate as
+  `ViewTC_i` … and then forwards the certificate to all validators"
+  (Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)), and
+  `ViewTC_i` is retransmitted every `ρ_mvba` (Supplement, Algorithm 1,
+  line 40 (`line:mvba:viewtc-retx`)). A validator that forms a timeout
+  certificate "processes it through `SyncView` exactly as if it had
+  received the certificate from another validator" (Supplement,
+  Algorithm 1, line 85 (`line:mvba:ht-advance`)).
+
+The liveness premise already leans on the third passage. `Owed`
+([Mvba/Liveness.lean](../Cadence/Mvba/Liveness.lean)) owes `sync_view`
+unconditionally, because it "consumes a certificate that a correct
+validator forwards". The model has no forwarding today: the anonymous
+`msg_tc` stands in for it. With certificates indexed by sender, forwarding
+becomes a step of the model. That `Owed` clause can then follow the same
+correct-sender rule as every other row (§11.4, option A).
+
+Every target rule can be stated in the idiom, so no rule needs a finding.
+
+### 11.2 The design, item by item
+
+**M1, the view timer: `expire_timer i v` is `i`'s own step.** The action
+keeps its name, its row `timer_expired i v` and its guard `entered i v`,
+and gains `require ¬ is_byz i`. It becomes a correct validator's step that
+reads and writes only its own rows (R1, W1): the timer is `i`'s local clock
+running out. Nothing reads a Byzantine validator's timer. The timing
+premise does not change. `TimerLabel` remains the class without fairness,
+and (A-viewsync) and (T-timer) still constrain when the timer fires. Only
+their wording changes, from "the environment's timer" to "the validator's
+timer". The model has no environment state left (it has no clock), which
+Locality §2 permits.
+
+**M2, availability: `become_avail_ready i x` is the caller's input at
+`i`.** The code does not change: the action already writes only
+`avail_ready i x`, and the contract already classifies it as the input
+`markAvail` (`Label.isInput`). Its docstring and the liveness class
+`AvailLabel` drop "the environment supplies". Locality §3 lists it with the
+inputs a caller invokes at `x`. Chorus drives it (`mvba_avail_ready`).
+
+**M3, certificates: every certificate row has a sender, and only that
+sender's own step writes it.** In the table, `s` is the sender. Each row
+corresponds to a supplement message, except `decided_qc`, which is local
+state.
+
+| Row (old → new) | Written by (new) | Supplement message |
+|---|---|---|
+| `msg_prepqc v e` → `msg_prepqc s v e` | `adopt_prepqc` at `s = i`; `byz_form_prepqc` at a Byzantine `s` | the prepare certificate `(v, e)`, as `s` attaches it to its messages |
+| `msg_commitqc v e` → `msg_commitqc s v e` | `form_own_commitqc` and `decide` at `s = i`; `byz_form_commitqc` at a Byzantine `s` | the commit certificate that `s`'s decision outputs (honest `s`), or one a Byzantine `s` aggregated |
+| `msg_tc v` → `msg_tc s v` | `form_own_tc_*` and the three `sync_view_*` at `s = i`; `byz_form_tc_*` at a Byzantine `s` | `s` has sent a `TC_{s,v}` |
+| `tc_lock v w e` → `msg_tc_lock s v w e` | as `msg_tc` | … whose `highPrepQC` is `(w, e)` |
+| `tc_nolock v` → `msg_tc_nolock s v` | as `msg_tc` | … whose `highPrepQC` is `⊥` |
+| *(new, local)* `decided_qc i v e` | `form_own_commitqc`, `decide` | `DecidedQC_i`: the certificate `i`'s decision used |
+
+The anonymous assemblies `form_prepqc`, `form_commitqc`, `form_tc_lock` and
+`form_tc_nolock` are removed. The adversary keeps the capability under its
+own name: `byz_form_*`, guarded `is_byz r` and writing at sender `r`. Their
+guards are the old assemblies' (the `2f+1` signatures, read positively; a
+Byzantine node may read anything), so the adversary can still aggregate
+every certificate the signatures allow. The only certificates that disappear
+are those formed by nobody. Every certificate now has a former: a correct
+one by the supplement's rule, or a Byzantine one. The `byz_form_*` steps
+join `ByzLabel`. `AssemblyLabel` existed only for the anonymous steps and is
+removed.
+
+The table below lists each step that changes, old → new, with only the rows
+that change. ✱ marks a new parameter: the sender of the certificate read.
+
+| Action | Reads (old → new) | Writes (old → new) |
+|---|---|---|
+| `expire_timer i v` | `entered i v`; + `¬ is_byz i` | `timer_expired i v` (unchanged) |
+| `become_avail_ready i x` | none | `avail_ready i x` (unchanged; relabelled as an input) |
+| `leader_repropose l s✱ pv v w x` | `tc_lock pv w (ent x)` → `msg_tc_lock s pv w (ent x)` | unchanged |
+| `leader_propose_fresh l s✱ pv v x` | `tc_nolock pv` → `msg_tc_nolock s pv` | unchanged |
+| `handle_preprepare i l pv v x` | `lock_available pv (ent x) ∨ tc_nolock pv`, both ghosts now `∃ s` over the sender-indexed rows | unchanged |
+| `adopt_prepqc i v x q` | unchanged | `msg_prepqc v (ent x)` → `msg_prepqc i v (ent x)` |
+| `form_own_commitqc i v x q` | unchanged | `msg_commitqc v (ent x)` → `msg_commitqc i v (ent x)`; + `decided_qc i v (ent x)` |
+| `decide i s✱ v x` | `msg_commitqc v (ent x)` → `msg_commitqc s v (ent x)` | + `decided_qc i v (ent x)`; + `msg_commitqc i v (ent x)` (its decision outputs the certificate it learned: "proceeds identically") |
+| `form_own_tc_lock i v q r0 s✱ w e` | `msg_prepqc w e` → `msg_prepqc s w e` (the check of the carried certificate) | `msg_tc v`, `tc_lock v w e` → `msg_tc i v`, `msg_tc_lock i v w e` |
+| `form_own_tc_nolock i v q` | unchanged | `msg_tc i v`, `msg_tc_nolock i v` |
+| `sync_view i pv v` → **`sync_view_nolock i s✱ pv v`** | `msg_tc pv` → `msg_tc_nolock s pv` | `entered i v`; + forwards `msg_tc i pv`, `msg_tc_nolock i pv` |
+| *(new)* **`sync_view_lock i s pv v w e`** | `msg_tc_lock s pv w e`, no adoption | `entered i v`; forwards `msg_tc i pv`, `msg_tc_lock i pv w e` |
+| `sync_view_adopt i s✱ pv v w e` | `tc_lock pv w e` → `msg_tc_lock s pv w e` | `local_prepqc i w e`, `entered i v`; + forwards `msg_tc i pv`, `msg_tc_lock i pv w e` |
+| `byz_timeout_qc r s✱ v w e` | `msg_prepqc w e` → `msg_prepqc s w e` | unchanged |
+
+`sync_view` splits in two because a forward must name the certificate it
+forwards, and the plain step read only `msg_tc`. The step that syncs on a
+lock certificate without adopting it is kept: it only adds behaviours, as
+the model's header already argues. The supplement adopts whenever the lock
+outranks the held certificate, which is `sync_view_adopt`.
+
+**The prepare certificate as a row.** In the supplement, a prepare
+certificate travels only inside a `Timeout` and as a TC's `highPrepQC`.
+`msg_prepqc s w e` is that certificate as `s` attaches it. The model reads
+it only to check a certificate carried by another message: the TC rule's
+`r0`, and `byz_timeout_qc`'s unforgeability. No step acts on it by itself,
+so a receiver gains nothing by seeing it before a timeout carries it. This
+reading is the same as for today's anonymous row. The only change is that
+the row now has a former.
+
+**The commit certificate as a row.** `msg_commitqc s v e` is the
+transferable certificate of `s`'s decision output. Within the MVBA only
+`decide` reads it. `decide` is the contract's input `accept`, which only
+the caller invokes ("the MVBA itself also accepts a transferred `CommitQC`
+of any view"). So the row is how the certificate is checked, not a delivery
+the MVBA performs. The instance's `certifies (commitqc v e) e` is
+`∃ s, msg_commitqc s v e`. That the composing layer serves the certificate
+remains the premise (F-relay), as before.
+
+### 11.3 The contract change: the decision's certificate at the decider
+
+This is a change to [Interfaces.lean](../Cadence/Interfaces.lean) and to a
+contract statement, so it needs approval. In `MVBASafety`, one operation
+and two fields replace the field `decided_certified`:
+
+```lean
+  /-- Output: the certificate `p`'s decision outputs, the `CommitQC` of
+      `decide(x, CommitQC)` (Supplement, Section 1.2
+      (`subsec:mvba-protocol`), "Decision output and handoff"). -/
+  decidedCert : state → party → message → Prop
+  /-- **Decide exposes its certificate** — a correct party's decision
+      outputs a certificate. -/
+  decided_certified : ∀ st, reachable st → ∀ p v, ¬ byz p →
+    decided st p v → ∃ c, decidedCert st p c
+  /-- **The output certificate commits the decision** — it is valid for
+      the decided entries. -/
+  decidedCert_certifies : ∀ st, reachable st → ∀ p c v, ¬ byz p →
+    decidedCert st p c → decided st p v → certifies st c (entries v)
+```
+
+The old `decided_certified` (`decided st p v → ∃ c, certifies st c
+(entries v)`) follows from the two new fields. `decided_certified` stays
+withheld from the solver (`veil_smt_ignore`, as now, since it contains an
+`∃`). No Chorus cell needs either field, so `decidedCert_certifies` is
+withheld too, and the solver sees no new hypothesis. Only the liveness
+proofs use the two fields.
+
+**Chorus.** `send_mvba_cert i c v` becomes `send_mvba_cert i c`. The guard
+`mvba.decided mvba_st i v ∧ mvba.certifies mvba_st c (mvba.entries v)`
+("any certificate valid for its decision") becomes `mvba.decidedCert
+mvba_st i c` ("the certificate its own decision output"). This is an output
+at the actor's index (Locality R6), and it closes the open item in
+Locality §7. Nothing else in Chorus changes: the receiver side already
+checks `mvba.certifies`, and no Chorus invariant mentions an honest
+`msg_mvba_cert`.
+
+**The instance.** `decidedCert st p (commitqc v e) := decided_qc p v e`.
+`Sent` gains the certificate kinds the model now sends, so Quiescence
+covers them:
+
+* `commitqc` becomes `msg_commitqc p v e` instead of `False`;
+* `prepqc`, `tc_lock` and `tc_nolock` are added.
+
+Every honest formation and forward already requires `∃ E, input i E` and
+`¬ abandoned i`. The new invariants are:
+
+* `decided_qc_sent`: `¬ byz i → decided_qc i v e → msg_commitqc i v e`;
+* `decided_qc_decided`: `¬ byz i → decided_qc i v e → ∃ x, decided i x ∧
+  ent x = e`.
+
+`decided_backed` reads `decided_qc` instead of the network.
+
+### 11.4 The fairness premise: option A or B (Lars to choose)
+
+* **A (recommended): forward, and owe by correct sender.** This is the
+  design above, with `Owed (sync_view_* i s …) := ¬ is_byz s` and the same
+  for `leader_repropose` and `leader_propose_fresh`. The premise becomes
+  *weaker*, because it no longer owes a step on a certificate a Byzantine
+  validator sent, which matches the paper's network. The argument recovers
+  what it loses through the forward: a correct validator in view `v > 1`
+  has itself sent a `TC` for `v - 1`. That fact is a new invariant,
+  `entered_forwarded` (`¬ byz i → entered i v → v = vord.zero ∨ ∃ pv,
+  vord.next pv v ∧ msg_tc i pv`). The liveness proofs that pick "some
+  certificate of the view below" then pick one from a correct sender.
+* **B: no forward.** `sync_view` does not split, and the certificate rows
+  stay owed unconditionally. `Owed` keeps its present claim, "a certificate
+  that a correct validator forwards", without the model forwarding. So the
+  premise stays as strong as today, stronger than the paper's network for
+  Byzantine-formed certificates. It costs one action and one invariant
+  less.
+
+### 11.5 Counts
+
+`#veil_status Mvba` is `A·(P+2) + P + 1`, where `A` is the number of
+actions and `P` the number of safety properties and invariants. Each action
+has `P` cells, one step-property cell and one does-not-throw cell; the
+initializer has `P` cells and one does-not-throw cell. Today:
+`28·52 + 51 = 1507`, with `P = 50`.
+
+* **A:** −4 anonymous assemblies, +4 `byz_form_*`, −1 `sync_view`,
+  +2 `sync_view_lock`/`_nolock`, so `A = 29`. +3 properties
+  (`decided_qc_sent`, `decided_qc_decided`, `entered_forwarded`), so
+  `P = 53`. **`29·55 + 54 = 1649`**.
+* **B:** `A = 28`, `P = 52`: **`28·54 + 53 = 1565`**.
+
+Every Mvba cell changes statement (the state has new rows), so the whole
+family re-solves cold. Chorus's pin, 6271, does not change: no action or
+property is added. The contract edit rebuilds the Chorus family. Whether
+Chorus re-solves cold depends on whether class fields enter its VC
+statements; if they do not, only the `send_mvba_cert` column's statements
+change. The PR reports which one happened, as measured. Either way, CI
+solves cold, so `commit_assign_neg_mvba × proposal_inclusion_no_neg`
+(114.9 s, 64 % of the budget on CI run 37717996798) gets a manual cell.
+
+### 11.6 The mutation test (NoLock)
+
+[Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean) takes the same changes:
+
+* sender-indexed rows and `decided_qc`;
+* the guarded timer, which NoLock already folds into its timeouts;
+* `byz_form_commitqc` at the Byzantine node 0, instead of the anonymous
+  `form_commitqc`;
+* `decide i s v x`.
+
+The scenario does not change. The view-1 commit certificate is aggregated
+by node 0, which is the adversary's move today too, and validator 2 decides
+on it, read at sender 0. The pinned witness does change (the row shapes,
+`decided_qc`, the forwards), so it is re-pinned and History records why.
+
+The restrictions that keep the check near R6's one minute:
+
+* R6's environment-schedule guards, as they are: shares before acceptance;
+  the adversary signs a view only once every participant has entered it,
+  and aggregates a commit certificate only while no correct validator has
+  decided; a validator times out only after its commit;
+* `byz_form_commitqc`, gated by the same guard as today's `form_commitqc`;
+* the dropped actions: `abandon`, `byz_timeout_qc`, `byz_form_prepqc`,
+  `byz_form_tc_lock`, `byz_form_tc_nolock`, `timeout_noqc`,
+  `form_own_tc_nolock`, `sync_view_adopt` and, under option A,
+  `sync_view_nolock`.
+
+The scenario syncs on a lock certificate without adopting it, through
+`sync_view_lock`. The new sender parameters branch only over rows that
+exist: at most the three participants and node 0. `(sequential := true)`
+stays.
+
+### 11.7 What is re-proven
+
+On the Mvba side:
+
+* `Mvba.mvbaSafety` (new fields), `Mvba.termination`,
+  `Mvba.bounded_termination`, `Mvba.mvbaTemporal` and `Mvba.mvbaFull`;
+* both MVBA witnesses
+  ([Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)'s run gains the
+  forwards and the senders).
+
+On the Chorus side:
+
+* `Chorus.termination` and the timed claims (the `send_mvba_cert` label
+  loses `v`, and the certificate comes from `decided_certified`);
+* `Composed/`, the Chorus witness, and the monitor's MVBA stub
+  (`decidedCert`).
+
+Untouched: the Conductor and the glue.
