@@ -171,7 +171,7 @@ full list, with each premise's use and witness, is
   ([§3.1](../../../Premises.md#31-fjustice-f-justice-for-chorus), [§3.3](../../../Premises.md#33-mvbafjustice-f-justice-for-the-mvba))
 
 * *The assumed ACS.* Every window's ACS meets Module 4 in the run, with the
-  system's `Δ`, a latency `ℓ` and the system's fault bound. _Paper:_ Module 4
+  system's `Δ` and a latency `ℓ`. _Paper:_ Module 4
   is the paper's; the paper leaves its protocol open (P17).
   {decl}`ACSTemporal` ([§0.2](../../../Premises.md#02-the-instance-and-the-configuration), [§9.2](../../../Premises.md#92-the-instance-the-schedule-and-the-assumed-acs))
 

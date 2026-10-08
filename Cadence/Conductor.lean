@@ -447,9 +447,9 @@ action acs_propose (i : node) (w : window) (w' : window) (s_star : slot)
   -- At most once per window (`proposed_i`, Algorithm 7, line 43 (`line:proposed-update`)).
   require ∀ (s : slot), ¬ acs.proposed (acs_state w') i s
   require ready_next i w
-  -- Algorithm 7, line 40 (`line:sstar-guard`)/Algorithm 7, line 41
-  -- (`line:sstar-update`): strictly beyond the current window, read off
-  -- `i`'s own interval of it.
+  -- Algorithm 7, line 40 (`line:sstar-guard`)/
+  -- Algorithm 7, line 41 (`line:sstar-update`): strictly beyond the current
+  -- window, read off `i`'s own interval of it.
   require ∀ (f0 b0 l0 : slot), local_bounds i w f0 b0 l0 → slot_ord.lt l0 s_star
   -- Algorithm 7, line 39 (`line:sstar-compute`): `s_star`'s starting time
   -- has not passed ...

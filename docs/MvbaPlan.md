@@ -119,9 +119,9 @@ promise one. The three routes, and why two of them fail:
 That guard is a **bridge, not a restatement**: the class's
 `external_validity` says the decided value's certificates are valid
 objects; the guard says what a valid certificate *means* in a model where
-signatures are network relations. It has exactly the shape of the
-Conductor's one stated bridge — the median-range `require` of `acs_decide`,
-justified by an upper-level class field through [Windows.lean](../Cadence/Windows.lean)
+signatures are network relations. It is the analogue of the
+Conductor's median bridge, justified by an upper-level class field through
+[Windows.lean](../Cadence/Windows.lean)
 ([CompositionContracts.md](CompositionContracts.md) §7 item 3). It is
 sound in both directions that matter: it removes no real behaviour (public
 verifiability means the receiver *can* re-check, and `external_validity`

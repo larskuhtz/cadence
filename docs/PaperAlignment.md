@@ -932,11 +932,12 @@ median argument needs.**
 * *Status.* Open for the paper. The development's contract carries the
   bound (C6, [ConductorBounds.md](ConductorBounds.md) §3.4, F18): `ACSSafety.decided_unique` ("a correct decider's set holds at most
   one slot per validator"), and `ACSTemporal.validity_quantitative` counts
-  `2f + 1` distinct validators. The median bracket stays a stated bridge
-  (a `require` on `acs_decide`), and its justification, that it removes no
-  behaviour of a correct ACS, is now a theorem from the contract and the
-  system's fault bound (`Cadence.acs_median_bracket`,
-  [AcsMedian.lean](../Cadence/AcsMedian.lean)). Without the bound that
+  `2f + 1` distinct validators. The median bracket stays a stated bridge,
+  now a model assumption on the first slot each validator computes from
+  its own decided set (`[acs_first_bracket]`), and that the lower median
+  meets it is a theorem from the contract and the system's fault bound
+  (`Cadence.lowerMedian_first_assumptions`, through
+  `Cadence.acs_median_bracket`, [AcsMedian.lean](../Cadence/AcsMedian.lean)). Without the bound that
   theorem is false. The assumed ACS is therefore one that meets Module 4
   with this sentence added.
 
@@ -1056,7 +1057,7 @@ finding, unless the fact is the development's own stated bridge.
 | The validity bridge: a valid meta-block's certificates verify against the network, and genuine certificates make it valid | Chorus safety at the decision handlers and the `CommitQC` route; `Chorus.termination` | `Valid` is "publicly verifiable" in both documents; the bridge says what that means for a network of relations | none: the development's one stated bridge ([Architecture.md](Architecture.md) §4) |
 | The MVBA's abandon antecedent and Quiescence | `Chorus.termination` (through `Mvba.termination`) | yes, Module 3 (`mod:mvba`) | — |
 | ACS Agreement, Validity (genuine pairs), Integrity | `Conductor ⊨ OrchestratorSafety` | yes, Module 4 (`mod:acs`) | — |
-| At most `f` Byzantine-attributed pairs in a decided ACS set | the justification of the median bridge at `acs_decide` (`Cadence.acs_median_bracket`); `Conductor.recovery`, for a correct pair in a decided set (`Conductor.correct_pair`, from `validity_quantitative`'s `2f + 1` distinct validators) | no: Module 4 (`mod:acs`) bounds the set's size, not the pairs per validator; the contract adds the bound (`decided_unique`) | P16 |
+| At most `f` Byzantine-attributed pairs in a decided ACS set | that the lower median meets the model's first-slot assumption `[acs_first_bracket]` (`Cadence.lowerMedian_first_assumptions`, through `Cadence.acs_median_bracket`) | no: Module 4 (`mod:acs`) bounds the set's size, not the pairs per validator; the contract adds the bound (`decided_unique`) | P16 |
 | The Orchestrator's `d_tot`-Totality of openings | Corollary 4 (`cor:chorus-correctness-within-cadence`); the Conductor's recovery (`Conductor.recovery`, through `Conductor.open_sync`) | not by Module 2 (`mod:orchestrator_2`), whose Totality is eventual; Lemma 15 (`lemma:conductor-totality`) proves it of the Conductor within Cadence, as does `Conductor.totality` | P15 |
 | The conditional completion guarantees of the Orchestrator's caller | the Conductor's Totality (`Conductor.totality`, through (R-tot)) and Recovery (`Conductor.recovery`, through (R-tot) and (R-term)) | no: Module 2 (`mod:orchestrator_2`)'s assumed-behaviour block is commented out, and is unconditional | P15 |
 | Unbounded starting times: whatever the time, some slot has not started (`StartsUnbounded`) | `Conductor.totality`, for the ACS proposal's `s*`, and `Conductor.recovery`, which also needs a window of the chain after GST | yes, implicitly: the slots are infinitely many and τ-spaced on the real line (Appendix A.1 (`subsection:mcp-preliminaries`)), and Algorithm 7, line 39 (`line:sstar-compute`)'s `s*` presumes one | none: the development's own statement first lacked it (F28) |

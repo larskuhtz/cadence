@@ -158,12 +158,15 @@ below; Liveness takes all of them.
   windows are `ℕ`, a window's last slot is its first plus `W − 1`, its
   boundary its first plus `p`.
 * **The assumed ACS** (`TA : ACSTemporal …`, P17), with **`TA.Δ = Δ`**
-  (C4), **`TA.ℓ = ℓ`** and **at most `TA.fault_bound` Byzantine** — *Used
-  in:* `TA.Δ = Δ` in the Conductor's Totality (`Composed.openings_sync`);
-  the other two in Recovery (§9.2). *Satisfiable:* not obvious (an ACS
-  meeting both levels of its contract): the ideal ACS,
-  `Cadence.IdealAcs.acsTemporal`, at `Δ = 1`, `ℓ = 2`, `f = 1`
-  (`Composed.Witness.TA`, `hΔ`, `hℓ`, `hfault`).
+  (C4) and **`TA.ℓ = ℓ`** — *Used in:* `TA.Δ = Δ` in the Conductor's
+  Totality (`Composed.openings_sync`); the other in Recovery (§9.2).
+  *Satisfiable:* not obvious (an ACS meeting both levels of its contract):
+  the ideal ACS, `Cadence.IdealAcs.acsTemporal`, at `Δ = 1`, `ℓ = 2`,
+  `f = 1` (`Composed.Witness.TA`, `hΔ`, `hℓ`). The witness's Conductor
+  computes its first slot as the lower median of the ideal ACS's decided
+  set, which meets the model's two first-slot assumptions (§9.2) because
+  at most `f = 1` validator is Byzantine (`Composed.Witness.hfault`,
+  `Composed.Witness.cholds`).
 
 ### 0.3 The run: `Composed.SysSync`
 
@@ -974,7 +977,7 @@ it as stated.
 |---|---|---|
 | `Conductor.TotalityClaim` — once a correct validator opens slot `s` at `c`, every correct validator opens it by `max(c, GST) + d_tot`, `d_tot = Δ` (Lemma 15 (`lemma:conductor-totality`)) | an ordered time, the schedule, `StartsUnbounded` and the ACS's `Δ` §9.2; `Sync` §9.3; (R-tot) §9.4 | `Conductor.totality` ([Conductor/Induction.lean](../Cadence/Conductor/Induction.lean)) |
 | `Conductor.BoundednessClaim` — an opened, uncompleted slot of a correct validator has fewer than `2W − p` opened slots above it, at every reachable state (Lemma 14 (`lem:boundedness`)) | `WindowShifts` §9.2 only: a state property of the Conductor alone | `Conductor.boundedness` ([Conductor/Boundedness.lean](../Cadence/Conductor/Boundedness.lean)) |
-| `Conductor.RecoveryClaim` — every slot starting at least `2Wτ` after GST is opened by every correct validator at its starting time (Lemma 16 (`lemma:conductor-recovery`)) | an ordered time, the schedule, `StartTimes`, `WindowShifts`, `StartsUnbounded`, `WindowsUnbounded` §9.2; the ACS's `Δ`, `ℓ` and fault bound §9.2; `Sync` §9.3; (R-tot) and (R-term) §9.4 | `Conductor.recovery` ([Conductor/Recovery.lean](../Cadence/Conductor/Recovery.lean)) |
+| `Conductor.RecoveryClaim` — every slot starting at least `2Wτ` after GST is opened by every correct validator at its starting time (Lemma 16 (`lemma:conductor-recovery`)) | an ordered time, the schedule, `StartTimes`, `WindowShifts`, `StartsUnbounded`, `WindowsUnbounded` §9.2; the ACS's `Δ` and `ℓ` §9.2; `Sync` §9.3; (R-tot) and (R-term) §9.4 | `Conductor.recovery` ([Conductor/Recovery.lean](../Cadence/Conductor/Recovery.lean)) |
 
 ### 9.2 The instance, the schedule and the assumed ACS
 
@@ -1013,7 +1016,7 @@ it as stated.
     tolerance stays `Δ` only at `δ = 0` (F3): the two rows fire within the
     deadline (`Conductor.entry_step`, `Conductor.prop_step`), and
     `d_tot = Δ` (`ConductorSchedule.d_tot_paper`, in
-    `Conductor.totality`); in Recovery, all three rows fire by their
+    `Conductor.totality`); in Recovery, both rows fire by their
     deadlines (`Conductor.row_window`), and `ℓ_chorus` is the paper's
     (`ConductorSchedule.ℓchorus_paper`). *Paper:* modelling choice, decided
     ([ConductorBounds.md](ConductorBounds.md) §5).
@@ -1072,9 +1075,8 @@ it as stated.
   the class's model ([Conductor/IdealAcs.lean](../Cadence/Conductor/IdealAcs.lean)).
   *Used in:* its Δ-Totality, `integrity`, `propose_enabled` and
   `abandon_enabled` in `Conductor.entry_step` and `Conductor.prop_step`;
-  in Recovery, its Termination (`Conductor.decide_by`), Validity's
-  quantitative half (a correct pair in a decided set, `Conductor.correct_pair`)
-  and its qualitative half (the median's brackets are correct proposals,
+  in Recovery, its Termination (`Conductor.decide_by`) and Validity's
+  qualitative half (the median's brackets are correct proposals,
   `Conductor.recorded_bracket`). *Paper:* Module 4 (`mod:acs`).
 * **`TA.Δ = Δ`, `TA.ℓ = ℓ`** — *Role:* the ACS's constants are the
   system's (F23). *Plausible:* one network. *Used in:* `TA.Δ = Δ` in
@@ -1082,28 +1084,36 @@ it as stated.
   entry step; `TA.ℓ = ℓ` in the ACS's termination (`Conductor.decide_by`),
   hence Propositions 15–19. *Paper:*
   Algorithm 7's `ℓ` is "the latency of the utilized ACS".
-* **At most `TA.fault_bound` Byzantine validators** — *Role:* a decided
-  set holds a correct pair, so recording the decided interval has the
-  correct witnesses its step needs. *Plausible:* the system's fault bound.
-  *Used in:* Recovery only: the decided interval's row
-  (`Conductor.correct_pair` in `Conductor.record_by`). No longer a premise of Totality, which
-  never needs that row (F29). *Paper:* "at most `f` of the `2f + 1`
-  decided values are faulty", before Algorithm 7.
+* **The first slot each validator computes** (`acs_first`, with the model
+  assumptions `[acs_first_local]` and `[acs_first_bracket]`) — *Role:*
+  the first slot is a function of the validator's own decided set, and
+  two correct pairs of that set bracket it. *Not a premise of any claim:*
+  a Veil model's assumptions are part of its initial states, so every
+  claim holds for every first-slot rule that meets the two. *Plausible:*
+  the paper's rule, the lower median of the decided set, meets both when
+  at most the ACS's `fault_bound` validators are Byzantine
+  (`Cadence.lowerMedian_first_assumptions`); this is where the fault bound
+  enters. *Satisfiable:* the composed witness's first slot is that median
+  (`Composed.Witness.cholds`). *Used in:* the model's separation and
+  agreement invariants (`[first_above_prev]`, `[first_agree]`,
+  `[window_assignment_agreement]`), and Recovery's median brackets
+  (`Conductor.recorded_bracket`, Propositions 16, 17 and 19). *Paper:*
+  Algorithm 7, line 48 (`line:median-compute`), and "at most `f` of the
+  `2f + 1` decided values are faulty", before Algorithm 7.
 * **The ACS accepts its inputs** is not a premise: it is the contract's
   (`ACSTemporal.propose_enabled`, `abandon_enabled`, F26), Module 4's
   inputs being the caller's to invoke.
 
 ### 9.3 The run: `Conductor.Sync`
 
-* **`TimedRows`** — *Role:* each honest handler (the ACS proposal, window
-  entry, the recording of the decided interval) fires within `δ` of its
-  gate. *Plausible:* the paper's handlers are instantaneous; a gate is the
+* **`TimedRows`** — *Role:* each honest handler (the ACS proposal, and
+  window entry with the interval computed from the validator's own
+  decision) fires within `δ` of its gate. *Plausible:* the paper's handlers are instantaneous; a gate is the
   validator's own window, readiness and its own ACS output (F22).
   *Satisfiable:* the witness's run fires each at once. *Used in:* the
   proposal row in `Conductor.prop_step`, the entry row in
-  `Conductor.entry_step`; in Recovery all three, each read by a deadline
-  (`Conductor.propose_by`, `Conductor.enter_by`, and the decided
-  interval's row in `Conductor.record_by`). *Paper:* the event-driven
+  `Conductor.entry_step`; in Recovery both, each read by a deadline
+  (`Conductor.propose_by`, `Conductor.enter_by`). *Paper:* the event-driven
   handlers of Algorithm 7, lines 37–52 (`line:ready`–`line:last-update`).
 * **`OpenPunctual`**, (P-open) — *Role:* a scheduled slot opens at
   `max(scheduling time, starting time)`. *Plausible:* a local timer on
@@ -1174,9 +1184,10 @@ claims' premises as follows. Nothing is added beyond them.
   `caller_ℓ = ℓ_chorus` (`Conductor.conductorTemporal_caller`).
 * **The configuration premises** (§9.2) are the instance's hypotheses:
   `StartTimes`, `WindowShifts`, `StartsUnbounded`, `WindowsUnbounded`,
-  `TA.Δ = Δ`, `TA.ℓ = ℓ` and the fault bound. Each is used: the last
-  four and `StartTimes` by Recovery, `StartsUnbounded` and `TA.Δ = Δ` by
-  Totality too, `WindowShifts` by Boundedness and Recovery. The idle run
+  `TA.Δ = Δ` and `TA.ℓ = ℓ`. Each is used: `StartTimes`,
+  `WindowsUnbounded` and `TA.ℓ = ℓ` by Recovery, `StartsUnbounded` and
+  `TA.Δ = Δ` by Totality and Recovery, `WindowShifts` by Boundedness and
+  Recovery. The idle run
   adds two uses. `WindowShifts` with assumption (4) puts window 1's first
   slot below its readiness boundary (`ConductorSchedule.two_le_p`,
   `Conductor.genesis_boundary_pos`), so no correct validator becomes
@@ -1192,7 +1203,7 @@ claims' premises as follows. Nothing is added beyond them.
 
   `Conductor.conductorFullNat` is the full contract with both
   discharged. What stays with the caller there: `StartTimes` with
-  `0 ≤ start₀`, `WindowShifts`, the ACS's constants and its fault bound,
-  and the assumed ACS itself.
+  `0 ≤ start₀`, `WindowShifts`, the ACS's constants, and the assumed ACS
+  itself.
 * **The ACS** is an arbitrary `ACSTemporal` instance (§9.2), the assumed
   module; the instance names it in its type.

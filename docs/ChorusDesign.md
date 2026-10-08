@@ -638,8 +638,7 @@ restatement** ([MvbaPlan.md](MvbaPlan.md) §1.1): `Valid` is a class parameter f
 before the module's state exists, so it cannot mention Chorus's network
 relations, while the paper's `Valid B` checks the certificates the
 meta-block *carries* — publicly verifiable objects every receiver can
-re-check. The guard has exactly the shape of the Conductor's ACS median
-bridge (`acs_decide`), and it is sound in both directions that matter: it
+re-check. It is sound in both directions that matter: it
 removes no real behaviour (a correct MVBA's decision passes the check,
 by `external_validity` and public verifiability), and if the MVBA were
 wrong the handler would simply not fire — safety-conservative.

@@ -196,7 +196,7 @@ never write one by hand.
   a `require` or an `invariant` again — if you find yourself restating one,
   the class is missing a field. Oracle steps (`orch_step`, `sc_step`,
   `acs_step`) take any transition the contract allows; handlers
-  (`on_propose`, `on_finalize`, `acs_decide`) react to observables and drive
+  (`on_propose`, `on_finalize`, `enter_window`) react to observables and drive
   the contract's *input* transitions. The pattern and its evidence:
   [docs/CompositionContracts.md](../../../docs/CompositionContracts.md).
 * **Only first-order fields go in the `…Safety` fragment.** A field that
@@ -207,10 +207,12 @@ never write one by hand.
   a field that must stay in the class but need not reach the solver is
   withheld with `attribute [veil_smt_ignore] C.field`, which the check
   commands then list once per module.
-* When a solver search diverges at a handler, materialise the missing fact as
-  an explicit witness parameter or a derivable `require` (see `acs_decide`'s
-  decision-precedes-entry require) instead of hoping e-matching finds the
-  invariant chain.
+* When a solver search diverges at a handler, materialise the missing fact
+  instead of hoping e-matching finds the invariant chain: as a helper
+  invariant that states it once (the Conductor's `[first_agree]` and
+  `[first_above_prev]`), or as an explicit witness parameter. An in-file
+  sweep has no manual cells — `#prove_vc` refuses inside the defining
+  module — so this is the remedy there.
 * [Conductor.lean](../../../Cadence/Conductor.lean) needs the raised `synthInstance` budgets that precede its
   `#gen_spec` even at 10 action parameters.
 

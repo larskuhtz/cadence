@@ -30,9 +30,6 @@ What has been done, and when, is [History.md](History.md).
 
 ## Soundness instruments
 
-* **Locality, the open model** ([Locality.md](Locality.md) §7). Conductor:
-  `acs_decide` becomes a per-validator step writing per-validator window
-  bounds, and `opened_win` an `aux_` record.
 * **A locality checker** — the rules of [Locality.md](Locality.md) are
   checked by hand, action by action (the guide's audit table), and a
   violation would not fail the build ([Architecture.md](Architecture.md) §4

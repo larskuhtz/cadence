@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 700" width="760" height="700" style="max-width:100%;height:auto" role="img" aria-labelledby="dg-cpw-title dg-cpw-desc">
 <title id="dg-cpw-title">Claim, premises, witness</title>
-<desc id="dg-cpw-desc">One claim, R-Liveness of the composed system (Composed.liveness), with its premises. The claim is proven from exactly these premises and the proof is kernel-checked. The premises are the configuration (n = 3f + 1 with one fault pattern fmF; hrot, a correct MVBA leader every k views; hprop, the slot has a proposer; the ConductorSchedule sch; StartTimes; WindowShifts; StartsUnbounded; WindowsUnbounded; the assumed ACS's constants TA.Δ, TA.ℓ and its fault bound) and the run, Composed.SysSync (GlueRows, OrchAdmissible, SlotAdmissible). Each premise is consumed by a named proof step, such as Composed.recovery_in or Composed.openings_sync. One model of the composed system meets all of them at once (Composed.Witness.liveness_premises_satisfiable), which shows the premises consistent. Whether each premise is plausible for a real network and a real implementation is the auditor's judgement, which no tool checks.</desc>
+<desc id="dg-cpw-desc">One claim, R-Liveness of the composed system (Composed.liveness), with its premises. The claim is proven from exactly these premises and the proof is kernel-checked. The premises are the configuration (n = 3f + 1 with one fault pattern fmF; hrot, a correct MVBA leader every k views; hprop, the slot has a proposer; the ConductorSchedule sch; StartTimes; WindowShifts; StartsUnbounded; WindowsUnbounded; the assumed ACS's constants TA.Δ and TA.ℓ) and the run, Composed.SysSync (GlueRows, OrchAdmissible, SlotAdmissible). Each premise is consumed by a named proof step, such as Composed.recovery_in or Composed.openings_sync. One model of the composed system meets all of them at once (Composed.Witness.liveness_premises_satisfiable), which shows the premises consistent. Whether each premise is plausible for a real network and a real implementation is the auditor's judgement, which no tool checks.</desc>
 <style>
 .dg-t{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#10131a}
 .dg-tk{font:600 13px "Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;fill:#6f42c1}
@@ -84,7 +84,7 @@
 <text class="dg-c" x="34" y="366" data-decl="Conductor.WindowsUnbounded">WindowsUnbounded</text>
 <text class="dg-s" x="242" y="366">every window has a successor</text>
 <text class="dg-c" x="464" y="366" data-decl="Composed.recovery_in">Composed.recovery_in</text>
-<text class="dg-c" x="34" y="386">TA.Δ, TA.ℓ, fault bound</text>
+<text class="dg-c" x="34" y="386">TA.Δ, TA.ℓ</text>
 <text class="dg-k" x="242" y="386">the assumed ACS: its constants</text>
 <text class="dg-c" x="464" y="386" data-decl="Composed.openings_sync">Composed.openings_sync</text>
 <text class="dg-c" x="464" y="400" data-decl="Composed.recovery_in">Composed.recovery_in</text>
