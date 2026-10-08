@@ -275,23 +275,22 @@ Conductor and Chorus on one clock and prove every condition each module
 takes from its caller as a theorem about the composed run. The ACS stays an
 assumed module throughout.
 
-*The end results.* MCP Safety for the composed system, with no timing
-premise:
+*The end results* are the composed claims, which
+{chapter Claims}[chapter 2] shows in full, each with its premises:
 
-{claim Cadence.system_positional_log_safety}
+* MCP Safety for the composed system, with no timing premise,
+  {decl}`Cadence.system_positional_log_safety`;
+* Corollary 4, {decl}`Composed.corollary4`, from which the timed claims
+  follow;
+* bounded concurrency, {decl}`Composed.boundedConcurrency`
+  ({cite}`lemma:cadence-bounded-concurrency`);
+* liveness and censorship resistance, {decl}`Composed.liveness`
+  ({cite}`lemma:cadence-liveness`) and {decl}`Composed.censorship`
+  ({cite}`def:censorship-resistance`), each also at the sharper recovery
+  time ({decl}`Composed.liveness_sharp`, {decl}`Composed.censorship_sharp`).
 
-Corollary 4, from which the other timed claims follow:
-
-{claim Composed.corollary4}
-
-The rest are {decl}`Composed.boundedConcurrency`
-({cite}`lemma:cadence-bounded-concurrency`), {decl}`Composed.liveness`
-({cite}`lemma:cadence-liveness`) and {decl}`Composed.censorship`
-({cite}`def:censorship-resistance`), each also at the sharper recovery time
-({decl}`Composed.liveness_sharp`, {decl}`Composed.censorship_sharp`).
-{chapter Claims}[Chapter 2] states each with its premises, and the witness
-model, {decl}`Composed.Witness.liveness_premises_satisfiable` and its
-siblings, meets all the premises at once.
+The witness model, {decl}`Composed.Witness.liveness_premises_satisfiable`
+and its siblings, meets all the premises at once.
 
 *Further detail:* [Premises.md](../../../Premises.md) §0 (the premises of
 the composed claims), [CompositionContracts.md](../../../CompositionContracts.md)

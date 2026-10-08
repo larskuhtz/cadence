@@ -198,15 +198,38 @@ structure Provider where
   requires : List Name
   witness : Bool
 
-/-- Every declaration of this development whose type has `cls` at its head.
-Walks this development's imported modules only, each by its own constant
-table, with the module list computed once. (`moduleOf` per constant would
-rebuild that list for every constant in the environment, Mathlib included:
-seconds per call, and the guide calls this once per contract field.) The
-current file's own declarations are never providers: they belong to no
-imported module. -/
+/-- Every declaration of this development that builds a value of `cls`: its
+type has `cls` at its head. Walks this development's imported modules only,
+each by its own constant table, with the module list computed once.
+(`moduleOf` per constant would rebuild that list for every constant in the
+environment, Mathlib included: seconds per call, and the guide calls this
+once per contract field.) The current file's own declarations are never
+providers: they belong to no imported module.
+
+Two kinds of declaration have the class at the head without building an
+instance of their own, and are left out:
+
+* a *transport*, which takes a value of `cls` itself and returns one
+  (`SlotConsensusSafety.castByz`, which restates an instance at an equal
+  fault predicate);
+* a *derived* instance, whose definition uses another provider of the same
+  class: a real one, or, for a witness, any (`Cadence.chorusInstance` is
+  `Chorus.slotConsensusSafety` at one configuration, and
+  `Composed.Witness.OSI` is `Composed.OS`, itself
+  `Conductor.orchestratorSafety`, at the ideal ACS).
+
+Neither rule hides the last real provider of a class. A transport needs an
+instance from elsewhere, so it never is the only source of one. A real
+provider is hidden only for using another real one, and definitions cannot
+refer to each other in a cycle, so every chain of real providers ends at one
+that stays listed.
+
+The same rule, in the same words, is `ownInstances` in
+[TrustSurface.lean](../../../scripts/TrustSurface.lean), which renders the
+site's trust boundary page; the two programs share no import, so it is kept
+in both, and a change to one is made in both. -/
 def providersOf (env : Environment) (cls : Name) : Array Provider := Id.run do
-  let mut out := #[]
+  let mut all : Array (Provider × NameSet) := #[]
   let mods := env.header.moduleNames
   for h : i in [0:mods.size] do
     let m := mods[i]
@@ -218,8 +241,18 @@ def providersOf (env : Environment) (cls : Name) : Array Provider := Id.run do
       if (env.getProjectionFnInfo? n).isSome then continue
       unless ci matches .defnInfo _ | .thmInfo _ | .opaqueInfo _ do continue
       if headSymbol ci.type == some cls then
-        let reqs := (binderHeads ci.type).filter contractClasses.contains |>.eraseDups
-        out := out.push ⟨n, reqs, isWitnessModule m⟩
+        let heads := binderHeads ci.type
+        -- a transport: takes the class it produces
+        if heads.contains cls then continue
+        let reqs := heads.filter contractClasses.contains |>.eraseDups
+        let uses := match ci.value? with
+          | some v => v.getUsedConstants.foldl (·.insert ·) {}
+          | none => {}
+        all := all.push (⟨n, reqs, isWitnessModule m⟩, uses)
+  -- a derived instance: its definition uses another provider of the class
+  let out := all.filterMap fun (p, uses) =>
+    if all.any (fun (q, _) => q.name != p.name && (!q.witness || p.witness) && uses.contains q.name)
+    then none else some p
   return out.qsort (·.name.toString < ·.name.toString)
 
 /-! ## `{decl}` -/
@@ -303,17 +336,14 @@ instance : FromArgs ClaimConfig DocElabM := ⟨ClaimConfig.mk <$> .positional `n
 def dischargeHtml (env : Environment) (a : Anchors) (cls : Name) : String :=
   let provs := providersOf env cls
   let real := provs.filter (!·.witness)
-  let direct := real.filter (·.requires.isEmpty)
-  let joins := real.filter (!·.requires.isEmpty)
   let wits := provs.filter (·.witness)
   let witNote := if wits.isEmpty then "" else
     "; consistency witness: " ++ ", ".intercalate (wits.toList.map (declLinkHtml env a ·.name))
-  if !direct.isEmpty then
-    "discharged by " ++ ", ".intercalate (direct.toList.map (declLinkHtml env a ·.name))
-  else if !joins.isEmpty then
-    "discharged by " ++ ", ".intercalate (joins.toList.map fun p =>
-      declLinkHtml env a p.name ++ " — given " ++
-        ", ".intercalate (p.requires.map (s!"<code>{esc ·.toString}</code>")))
+  if !real.isEmpty then
+    "discharged by " ++ ", ".intercalate (real.toList.map fun p =>
+      declLinkHtml env a p.name ++
+        (if p.requires.isEmpty then "" else " — given " ++
+          ", ".intercalate (p.requires.map (s!"<code>{esc ·.toString}</code>"))))
   else "<span class=\"cg-assumed\">no protocol instance in this development — assumed</span>" ++ witNote
 
 def statusHtml (name : Name) (lead : Array String := #[]) (showSource := true) : DocElabM (String × Bool) := do

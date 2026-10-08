@@ -2,6 +2,7 @@
 Chapter 8 of the guide: Open issues and further work.
 -/
 import CadenceGuide.Elements
+import CadenceGuide.ChapterList
 
 open Verso.Genre Manual
 open CadenceGuide
@@ -18,8 +19,7 @@ _What is open, and what is planned._
 Everything this development claims is proven and axiom-pinned, and the
 premises of every claim are shown to hold together in one model. The open
 items are places where the development could go further. Their one home is
-[TODO.md](../../../TODO.md); this chapter summarises them by kind, and the
-list there is the current one.
+[TODO.md](../../../TODO.md), and this chapter summarises them by kind.
 
 # Open issues
 
@@ -32,12 +32,16 @@ re-check at each new paper commit, by the procedure of
 become the target; and, once it stabilises, a check that the supplement's
 practical Conductor behaves as the verified Conductor's contract allows.
 
-*Soundness instruments.* Checks a human makes today that a machine could
-make:
+*Soundness instruments.* Evidence a machine could add to what a human checks
+today:
 
-* the monotone-network discipline: that a model reads network relations only
-  positively is audited by hand, and a violation would not fail the build; a
-  meta-program classifying every read would make it a machine check;
+* the locality rules of [Locality.md](../../../Locality.md): every action
+  is checked against them by hand, as {chapter ModelIdioms}[chapter 4]'s
+  audit table records for Chorus, and a checker applying them would make
+  the audit a machine check (the V line); the MVBA and Conductor models
+  have open items against the rules, listed there in §7;
+* a reference ACS built from the MVBA (the A line), so that the assumed
+  module has a message-passing implementation beside its ideal model;
 * a model of the threshold-encryption class, the one primitive class without
   an instance, to show its assumptions are consistent;
 * a Chorus run through the MVBA path, so the certificate bridge between Chorus
@@ -45,8 +49,8 @@ make:
 * an in-build reachability trace for Chorus, which today the monitor's fixture
   stands in for.
 
-[ChorusDesign.md](../../../ChorusDesign.md) §9 keeps the list specific to
-Chorus.
+[ChorusDesign.md](../../../ChorusDesign.md) §9 is the home of the items
+specific to Chorus.
 
 # The external audit
 
@@ -55,7 +59,8 @@ An external audit of the development, created by
 questions: whether the model implements the protocol faithfully, whether the
 paper's claims are covered, and whether the proofs and the documented
 arguments are sound. It audited revision `bfeee8c` of this repository in
-August 2026, against version 2 of the paper on arXiv. The report is frozen at that revision; notes under its
+August 2026, against version 2 of the paper on arXiv. The report is frozen
+at that revision; notes under its
 findings record what has been closed since, and by which commit:
 [AuditReport.md](../../../AuditReport.md).
 

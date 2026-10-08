@@ -1256,33 +1256,37 @@ f+1 accepted positive votes pin f+1 *distinct* chunks.
 
 ## 9. What is left for the next iteration
 
-These are places the model could go further. Nothing here is a gap in what
-the development *claims* — see [TODO.md](TODO.md) for the cross-cutting
-list, and §§10.1–10.3 below for the bigger lifts.
+These are places the Chorus model could go further; none is a gap in what
+the development *claims*. This section is the home of the Chorus-specific
+items. The cross-cutting ones, the locality checker among them, are in
+[TODO.md](TODO.md), and the bigger lifts in §§10.1–10.3 below.
 
-1. Instantiate the abstract classes of [Cadence/Primitives.lean](../Cadence/Primitives.lean) (for
-   instance an example model instantiation of the whole module) to
-   demonstrate satisfiability of the axioms end-to-end. `ThresholdIBE` is the
-   one primitive class still without a model instance; the `MVBA` contract,
-   which lives in [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), has `Mvba.mvbaSafety` /
-   `Mvba.mvba_of_temporal` ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)),
-   consumed by Chorus (§4).
+1. **A model instance of `ThresholdIBE`.** It is the one primitive class of
+   [Cadence/Primitives.lean](../Cadence/Primitives.lean) with no instance,
+   and an instance would show its axioms are satisfiable rather than
+   contradictory. The quorum classes have theirs, and the `MVBA` contract,
+   which lives in [Cadence/Interfaces.lean](../Cadence/Interfaces.lean), has
+   `Mvba.mvbaSafety` / `Mvba.mvba_of_temporal`
+   ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)), consumed by
+   Chorus (§4).
 
-2. Move the explicit `is_proposer` immutable relation to a derivation
-   from a VRF-output relation, once a `VRF` primitive class exists in
-   [Cadence/Primitives.lean](../Cadence/Primitives.lean). Epochs and proposer rotation stay out of
-   scope (outside the papers' consensus-layer treatment).
+2. **Epochs and proposer rotation.** Derive `is_proposer` from a
+   VRF-output relation instead of fixed configuration, once a `VRF`
+   primitive class exists in
+   [Cadence/Primitives.lean](../Cadence/Primitives.lean). Epochs and
+   proposer rotation are outside the papers' consensus-layer treatment.
 
-3. An automated check of the locality rules ([Locality.md](Locality.md)):
-   they are stated for pattern matching, with the semantic steps marked;
-   today they are checked by hand, per action (§3.1.1).
+3. **Multi-slot Chorus.** The model fixes one slot, and cross-slot
+   independence is argued rather than modelled (§3.4).
 
-4. An in-build reachability witness (`sat trace`) for Chorus. Blocked
-   twice over today (the disabled model-check scaffolding; `decide` in
-   `vote`'s bulk update); until a refactor clears both, the non-vacuity
-   witness is the monitor fixture run in CI — [TODO.md](TODO.md)
-   § Soundness has the full record, [Monitor.md](Monitor.md) the
-   mechanism.
+4. **An in-build `sat trace` for Chorus.** Chorus cannot carry one today:
+   the trace pipeline needs the label enumeration that
+   [Chorus.lean](../Cadence/Chorus.lean) disables for size, and every
+   finalizing run passes through `vote`, whose bulk update uses a `decide`
+   the trace pipeline cannot translate. Either fix is a model refactor.
+   Finalization is shown reachable in the build by the run of
+   [Chorus/Witness.lean](../Cadence/Chorus/Witness.lean), and again in CI
+   by the monitor's fast-path fixture ([Monitor.md](Monitor.md)).
 
 ## 10. Bigger lifts — what would need new machinery
 

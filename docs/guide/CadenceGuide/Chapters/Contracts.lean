@@ -16,9 +16,9 @@ file := "contracts"
 
 _How to check that each module contract asks only for what a real protocol delivers, field by field; assumes chapters 1 and 3._
 
-The modules of Cadence meet through contracts. Chorus does not see the MVBA
-inside it, only the MVBA's contract; the glue does not see Chorus or the
-Conductor, only theirs. That is what lets each proof stay the size of one
+The modules of Cadence meet through contracts. Chorus sees the MVBA inside
+it only through the MVBA's contract, and the glue sees Chorus and the
+Conductor only through theirs. That is what lets each proof stay the size of one
 module, and it moves part of the audit to the contracts themselves: a
 contract that promises too much makes every proof above it too easy. This
 chapter shows how to read a contract, what can go wrong with one, and gives
@@ -208,8 +208,8 @@ question looks for:
   is just another internal step.
 
 So it shows that the contract is consistent: all of its fields hold together.
-It does not show that a message-passing protocol meets them. That is the open
-part, and why the front page names the ACS as an assumed module.
+Whether a message-passing protocol meets them is the open part, and the
+reason the front page names the ACS as an assumed module.
 
 # The bridges and the fault pattern
 
@@ -221,14 +221,13 @@ auditor reads each.
   entry's certificate against its own network relations instead, because
   the MVBA's validity predicate is fixed before Chorus's state exists and
   cannot mention it. The check is stated at Chorus's decision handlers, and
-  its liveness direction is the premise {decl}`Chorus.ValidBridge`. It
-  removes no behaviour of a correct MVBA, and if the MVBA were wrong the
-  handler would not fire.
+  its liveness direction is the premise {decl}`Chorus.ValidBridge`
+  ({chapter ReadingModel}[chapter 3] reads the handler).
 * *The ACS median bridge.* The Conductor's `acs_decide` requires that the
   new window's first slot lies between two correct validators' pairs of a
-  correct decider's set, one at or below it and one at or above. The model
-  does not compute the median the paper takes as the first slot. That the
-  median of a correct validator's decided set lies between two of its
+  correct decider's set, one at or below it and one at or above. The
+  bracket stands in for the median the paper takes as the first slot: that
+  the median of a correct validator's decided set lies between two of its
   correct pairs, for every ACS meeting the contract, is a theorem,
   {decl}`Cadence.acs_median_bracket`.
 * *The fault pattern.* MCP Safety takes the hypothesis that the Conductor
@@ -244,17 +243,15 @@ The Lean classes accept any instance: a value with every field proven is an
 instance, whether it comes from a protocol model or from an ideal
 functionality with global knowledge. The ideal ACS is the proof. So the
 question this chapter asks, whether a contract's fields could be met by a
-distributed protocol, is not answered by the type checker; for every contract
-it is the auditor's.
+distributed protocol, is the auditor's for every contract.
 
 For the three contracts with a protocol model, the answer reduces to the
 model: the field is proven of a Veil model, and
 {chapter ModelIdioms}[chapter 4]'s audit, which
 checks that every action reads only what its validator could know, is what
-makes that model distributed. For the ACS there is no such model. A tool
+makes that model distributed. The ACS has only its ideal model. A tool
 that checks the locality of a model's actions, and a reference ACS built
-from the MVBA, are planned as further work
-({chapter OpenIssues}[chapter 8]).
+from the MVBA, are further work ({chapter OpenIssues}[chapter 8]).
 
 # Further detail
 

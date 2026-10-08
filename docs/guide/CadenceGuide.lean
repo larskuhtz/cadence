@@ -32,8 +32,6 @@ import CadenceGuide.Chapters.Contracts
 import CadenceGuide.Chapters.Components
 import CadenceGuide.Chapters.Checking
 import CadenceGuide.Chapters.OpenIssues
-import CadenceGuide.Chapters.EarlierWalkthrough
-import CadenceGuide.Chapters.Specimen
 
 open Verso.Genre Manual
 open CadenceGuide
@@ -106,7 +104,7 @@ property proven:
 *What the claims rest on.*
 
 * *The ACS is an assumed module.* The paper leaves the ACS protocol
-  open (finding P17), so the Conductor and the composed system are proven
+  open ([finding P17](../PaperAlignment.md#6-findings-for-the-papers-authors)), so the Conductor and the composed system are proven
   for every ACS that meets {cite}`mod:acs`. An idealized ACS, with
   global knowledge and no adversary, shows that Module 4 can be met; a
   message-passing protocol that meets it is outside this development.
@@ -118,7 +116,7 @@ property proven:
   the paper does; Chorus's bounds are proven with an explicit `δ` term
   and are quoted above at `δ = 0`, and the MVBA's bound holds for any `δ`.
   Censorship resistance also reads "by the deadline" as inclusive
-  (finding P19). The full list is one page, [Premises.md](../Premises.md) §0,
+  ([finding P19](../PaperAlignment.md#6-findings-for-the-papers-authors)). The full list is one page, [Premises.md](../Premises.md) §0,
   and one model of the composed system meets all of it at once.
 * *Cryptography*, stated as assumptions: each signed message is
   attributed to its signer, so signatures cannot be forged; threshold
@@ -178,7 +176,3 @@ question is answered or skip to the part you want to check.
 {include 1 CadenceGuide.Chapters.Checking}
 
 {include 1 CadenceGuide.Chapters.OpenIssues}
-
-{include 1 CadenceGuide.Chapters.EarlierWalkthrough}
-
-{include 1 CadenceGuide.Chapters.Specimen}

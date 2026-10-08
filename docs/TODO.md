@@ -45,24 +45,19 @@ What has been done, and when, is [History.md](History.md).
   item 1). The rules are stated for pattern matching over names, index
   positions and polarity, with the semantic steps marked; a meta-program
   applying them would make the audit a machine check (the V line).
-* **A model instance of `ThresholdIBE`** — it is the one primitive class
-  with no instance, and an instance would show its axioms are satisfiable
-  rather than contradictory ([ChorusDesign.md](ChorusDesign.md) §9
-  item 1). The quorum classes and the MVBA already have theirs.
+* **A protocol instance of the ACS** — a reference ACS built from the
+  MVBA (the A line), so that the one assumed module
+  ([Architecture.md](Architecture.md) §4) has a message-passing
+  implementation beside its ideal model.
+* **Chorus-specific instruments** — a model instance of `ThresholdIBE`, the
+  one primitive class with no instance, and an in-build `sat trace` for
+  Chorus: [ChorusDesign.md](ChorusDesign.md) §9, items 1 and 4.
 * **A Chorus run through the MVBA arm** (optional) — the Chorus and
   composed witnesses finalize on the fast path, so the proposal and handoff
   families and `ValidBridge`'s completeness hold there vacuously. A second
   run through `mvba_propose` and a decision handler would show the MVBA
   certificate bridge satisfiable at the composed instance
   ([CompositionContracts.md](CompositionContracts.md) §7 item 1).
-* **An in-build `sat trace` for Chorus** — Chorus cannot carry one: the
-  trace pipeline needs the label enumeration that
-  [Chorus.lean](../Cadence/Chorus.lean) disables for size, and every
-  finalizing run passes through `vote`, whose bulk update uses a `decide`
-  the trace pipeline cannot translate. Either fix is a model refactor.
-  Finalization is shown reachable in the build by the run of
-  [Chorus/Witness.lean](../Cadence/Chorus/Witness.lean), and again in CI by
-  the monitor's fast-path fixture ([Monitor.md](Monitor.md)).
 
 ## The Veil fork
 
@@ -90,12 +85,9 @@ they are listed here because this project would use them.
 
 ## Scope extensions
 
-* **Multi-slot Chorus** — the model fixes one slot, and cross-slot
-  independence is argued, not modelled ([ChorusDesign.md](ChorusDesign.md)
-  §3.4, §9).
-* **Epochs and proposer rotation**, with `is_proposer` derived from a VRF
-  rather than fixed configuration ([ChorusDesign.md](ChorusDesign.md) §9
-  item 2).
+* **Multi-slot Chorus, and epochs with proposer rotation** — the model
+  fixes one slot and a configured proposer set:
+  [ChorusDesign.md](ChorusDesign.md) §9, items 2 and 3.
 * **A bound through the `CommitQC` route** (optional) — the timed claims
   use the main body's fallback commit round; a bound through Part I's route
   would record how the implementation's latency compares

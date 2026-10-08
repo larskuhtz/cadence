@@ -69,10 +69,7 @@ page's chapter list reads them from it: its title (`#doc (Manual) "…"`), its
 address (`%%% file := "…" %%%`, the page `site/guide/<file>/`, so a retitled
 chapter keeps its URL), and its opener, the italic paragraph after the
 metadata saying what the chapter covers and what it assumes. A file whose
-title starts with "Appendix" is an appendix and stays out of the list. Two
-appendix pages are temporary: *the earlier walk-through* holds the text of
-the single-page guide until the chapters take it over, and *the guide's
-elements* shows one specimen of each element below.
+title starts with "Appendix" is an appendix and stays out of the list.
 
 The elements live in [CadenceGuide](guide/CadenceGuide), one module each, and
 [Elements.lean](guide/CadenceGuide/Elements.lean) imports them all, with the
@@ -97,6 +94,28 @@ shared, and an edit to one rebuilds every chapter.
 | `{chapter Claims}[text]` | [ChapterList.lean](guide/CadenceGuide/ChapterList.lean) | `text` linked to the chapter in `Chapters/Claims.lean`; with no text, the chapter's title | the chapter file does not exist |
 | `{contractFields C}` | [ContractFields.lean](guide/CadenceGuide/ContractFields.lean) | a contract's checklist: per field, its docstring's first sentence, its level (safety fragment or temporal) and what proves it (a protocol instance, or *assumed* with the consistency witnesses) | a field has no docstring; a field has no protocol instance and its class is not in `assumedContracts`; a module of `witnessModules` is gone |
 | `{auditTable M "file.tsv"}` | [AuditTable.lean](guide/CadenceGuide/AuditTable.lean) | a model's audit table, from its data file (below); `+sample` for a deliberate selection | an action is not a constructor of `M.Label`, has two rows, or (without `+sample`) has none; a relation named in a derived column is not part of `M`; a paper label is not in the map |
+
+In a chapter they read like this — a sketch of the forms that take options:
+
+```
+The proposers of a slot are configuration:
+
+{model Cadence.Chorus "immutable relation is_proposer"}
+
+{model Cadence.Chorus "safety [agreement_pos]" (proven := Chorus.reachable_agreement_pos)}
+
+{claim Chorus.termination}
+
+{figure "docs/diagrams/chorus-slot.svg" (caption := "One slot of Chorus.")}
+
+:::claims (title := "What you check, for each action")
+1. *Actor.* … {decl}`Chorus.FJustice` … {cite}`lemma:chorus-agreement` …
+:::
+
+{chapter ModelIdioms}[Chapter 4] has the table.
+
+{auditTable Chorus "docs/guide/audit/Chorus.tsv"}
+```
 
 Paper citations in the guide's prose go through `{cite}`:
 [paper-cites.sh](../scripts/paper-cites.sh) reads Lean comments and
