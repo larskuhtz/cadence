@@ -1192,13 +1192,17 @@ and where it is discharged.
 * **`quiescence`** — Quiescence; *safety (one-step form)*. Mvba, from the
   transition bodies (`sent_new_tr`: every honest send requires the input and
   `¬ abandoned`) — `Mvba.mvbaSafety`
-* **`certifies`, `decided_certified`, `accept`, `accept_trans`,
-  `accept_effect`, `accept_enabled`** — the decision handoff of the
-  supplement's strengthened interface (`decide(x, CommitQC)`, "Decision
-  output and handoff", Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)); *safety (first-order, rely
-  form)*. Mvba: a certificate is an existing commit certificate, a decision
-  has one (`decided_backed`), and the handoff is `decide` — `Mvba.mvbaSafety`.
-  Chorus drives `accept` (`accept_mvba_commitqc`)
+* **`certifies`, `decidedCert`, `decided_certified`,
+  `decidedCert_certifies`, `accept`, `accept_trans`, `accept_effect`,
+  `accept_enabled`** — the decision handoff of the supplement's
+  strengthened interface (`decide(x, CommitQC)`, "Decision output and
+  handoff", Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)); *safety (first-order, rely
+  form)*. Mvba: a certificate is one some validator output or a Byzantine
+  one aggregated (`msg_commitqc`), a decision's output certificate is its
+  `DecidedQC_i` (`decided_qc`; `decided_backed`, `decided_qc_sent`,
+  `decided_qc_decided`), and the handoff is `decide` — `Mvba.mvbaSafety`.
+  Chorus broadcasts the output (`send_mvba_cert`, at the decider's index)
+  and drives `accept` (`accept_mvba_commitqc`)
 * **`availReady`, `markAvail` and its fields** — `AvailReady_p(v)` and the
   input by which the composing dissemination layer reports it
   (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit availability
@@ -1363,10 +1367,20 @@ class MVBASafety (party value entryvec message state pset : Type)
       certificate a decision outputs, "an aggregate of `2f+1` Commit
       signatures over `entries(x)`", which any party can check. -/
   certifies : state → message → entryvec → Prop
-  /-- **Decide exposes its certificate** — a correct party's decision has a
-      valid certificate that commits its entries. -/
+  /-- Output: the certificate `c` that `p`'s decision outputs, the `CommitQC`
+      of `decide(x, CommitQC)` (Supplement, Section 1.2
+      (`subsec:mvba-protocol`), "Decision output and handoff"). An output at
+      `p`'s index: the composing layer broadcasts it. -/
+  decidedCert : state → party → message → Prop
+  /-- **Decide exposes its certificate** — a correct party's decision
+      outputs a certificate. -/
   decided_certified : ∀ st, reachable st → ∀ p v, ¬ byz p → decided st p v →
-    ∃ c, certifies st c (entries v)
+    ∃ c, decidedCert st p c
+  /-- **The output certificate commits the decision** — a certificate
+      output at `p` comes with `p`'s decision, and is valid for its
+      entries. -/
+  decidedCert_certifies : ∀ st, reachable st → ∀ p c, ¬ byz p →
+    decidedCert st p c → ∃ v, decided st p v ∧ certifies st c (entries v)
   /-- Input: the caller hands party `p` a transferred certificate `c`. -/
   accept : state → party → message → state → Prop
   /-- Accepting a transferred certificate is a transition of the module. -/
@@ -1415,12 +1429,14 @@ class MVBASafety (party value entryvec message state pset : Type)
 
 /- The handoff and certificate facts no consumer's safety cell reads are
 withheld from the solver. Every field of an instantiated class is otherwise
-a hypothesis of every cell, and each of these has an `∃` in its conclusion.
-Chorus's cells read the inputs, `certified_unique`, `certified_decided`,
-`certified_mono` and the `availReady` frames, all universal. The withheld
-fields stay declared axioms of the class, proven by `Mvba.mvbaSafety`. -/
-attribute [veil_smt_ignore] MVBASafety.decided_certified MVBASafety.accept_effect
-  MVBASafety.accept_enabled MVBASafety.certified_valid MVBASafety.certified_available
+a hypothesis of every cell, and each of these has an `∃` in its
+conclusion. Chorus's cells read
+the inputs, `certified_unique`, `certified_decided`, `certified_mono` and
+the `availReady` frames, all universal. The withheld fields stay declared
+axioms of the class, proven by `Mvba.mvbaSafety`. -/
+attribute [veil_smt_ignore] MVBASafety.decided_certified MVBASafety.decidedCert_certifies
+  MVBASafety.accept_effect MVBASafety.accept_enabled MVBASafety.certified_valid
+  MVBASafety.certified_available
 
 /-- The temporal level of Module 3 (`mod:mvba`), over a safety instance `S`.
 With the inputs, their observables, the frames and Quiescence all in the

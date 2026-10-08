@@ -35,9 +35,9 @@ namespace Mvba.Proofs
 /- **Manual cell — the lock-persistence step, at the validator's own
 certificate.** Since R3 `adopt_prepqc` forms the prepare certificate from
 the prepares it received (the supplement's `TryFormPrepQC`) and so sets
-`msg_prepqc`, which makes it the second action that creates a certificate.
-The argument is `form_prepqc`'s manual cell
-([FormPrepqc.lean](FormPrepqc.lean), which explains it) verbatim, with the
+`msg_prepqc i`, which makes it one of the two actions that create a
+certificate. The argument is `byz_form_prepqc`'s manual cell
+([ByzFormPrepqc.lean](ByzFormPrepqc.lean), which explains it) verbatim, with the
 action's extra guards introduced and unused, and one more step: a
 `blocked` witness of the pre-state is one of the post-state, because the
 new held certificate only adds to `local_prepqc`. Written out for the same
@@ -54,11 +54,11 @@ found it with too little headroom for a 4-core CI runner. -/
   veil_inv_have h_prepqc_unique := prepqc_unique
   veil_inv_have h_blocks := prepqc_blocks_lower_commits
   clear hinv
-  intro _ _ _ _ _ _ _ hsup_q hq _ _ _ W V E' E Q hpq hlt hne hsup_Q
+  intro _ _ _ _ _ _ _ hsup_q hq _ _ _ S W V E' E Q hpq hlt hne hsup_Q
   -- The new certificate is on the accepted representation's entries.
   generalize th.ent x = e at *
-  by_cases hnew : v = W ∧ e = E'
-  · obtain ⟨rfl, rfl⟩ := hnew
+  by_cases hnew : i = S ∧ v = W ∧ e = E'
+  · obtain ⟨rfl, rfl, rfl⟩ := hnew
     -- An honest preparer `a` of the new certificate accepted a
     -- representation `X` of `e` in `v`.
     obtain ⟨a, ha_mem, ha_hon⟩ :=
@@ -85,16 +85,16 @@ found it with too little headroom for a 4-core CI runner. -/
           have hle := hn.2 V hltPV
           have hlt' := (TotalOrderWithMinimum.le_lt V v).mp hlt
           exact absurd (TotalOrderWithMinimum.le_antisymm _ _ hlt'.1 hle) hlt'.2
-    rcases hjust with hnolock | ⟨w, hlock⟩
+    rcases hjust with ⟨s0, hnolock⟩ | ⟨s0, w, hlock⟩
     · -- The justifying certificate has no lock: its quorum meets `Q` in an
       -- honest `n` that timed out at `PV ≥ V` carrying `⊥`.
-      obtain ⟨qt, hqt_sup, hqt⟩ := h_tc_nolock_backed PV hnolock
+      obtain ⟨qt, hqt_sup, hqt⟩ := h_tc_nolock_backed s0 PV hnolock
       obtain ⟨n, hnQ, hnq, hn_hon⟩ :=
         nset.supermajorities_intersect_in_honest Q qt hsup_Q hqt_sup
       exact ⟨n, hnQ, Bool.eq_false_iff.mpr hn_hon, Or.inl ⟨PV, hVPV, Or.inl (hqt n hnq)⟩⟩
     · -- The justifying certificate's lock is `(w, e)`, `w ≤ PV`, and every
       -- member carries `⊥` or a certificate of view `≤ w`.
-      obtain ⟨hpq_w, -, qt, hqt_sup, hqt⟩ := h_tc_lock_backed PV w e hlock
+      obtain ⟨⟨S1, hpq_w⟩, -, qt, hqt_sup, hqt⟩ := h_tc_lock_backed s0 PV w e hlock
       obtain ⟨n, hnQ, hnq, hn_hon⟩ :=
         nset.supermajorities_intersect_in_honest Q qt hsup_Q hqt_sup
       have hn_hon' : ByzNodeSet.is_byz n = false := Bool.eq_false_iff.mpr hn_hon
@@ -118,20 +118,22 @@ found it with too little headroom for a 4-core CI runner. -/
               TotalOrderWithMinimum.le_antisymm _ _ (hVw ▸ hw'_le) hVw'
             have hheld : st.local_prepqc n V x = true :=
               hw'eq ▸ h_honest_timeout_qc_held n PV w' x hn_hon' hto
-            have hpx : st.msg_prepqc V x = true := hw'eq ▸ h_timeout_qc_backed n PV w' x hto
-            have hpe : st.msg_prepqc V e = true := hVw ▸ hpq_w
-            have hx : x = e := h_prepqc_unique V x e hpx hpe
+            obtain ⟨S2, hpx⟩ := h_timeout_qc_backed n PV w' x hto
+            rw [hw'eq] at hpx
+            have hpe : st.msg_prepqc S1 V e = true := hVw ▸ hpq_w
+            have hx : x = e := h_prepqc_unique S2 S1 V x e hpx hpe
             exact ⟨n, hnQ, hn_hon', Or.inr ⟨x, fun hxE => hne (hxE ▸ hx), fun _ => hheld⟩⟩
           · -- `V < w`: the invariant at the lock's own certificate `(w, e)`.
             have hVw_lt : TotalOrderWithMinimum.lt V w :=
               (TotalOrderWithMinimum.le_lt V w).mpr
                 ⟨TotalOrderWithMinimum.le_trans V w' w hVw' hw'_le, hVw⟩
-            obtain ⟨n, h1, h2, h3⟩ := h_blocks w V e E Q hpq_w hVw_lt hne hsup_Q
+            obtain ⟨n, h1, h2, h3⟩ := h_blocks S1 w V e E Q hpq_w hVw_lt hne hsup_Q
             exact ⟨n, h1, h2, h3.imp id fun ⟨e', h4, h5⟩ => ⟨e', h4, fun _ => h5⟩⟩
   · -- An old certificate: the invariant in the pre-state.
-    have hold : st.msg_prepqc W E' = true := hpq (fun h1 h2 => hnew ⟨h1, h2⟩)
+    have hold : st.msg_prepqc S W E' = true :=
+      hpq (fun h0 h1 h2 => hnew ⟨h0, h1, h2⟩)
     -- A new held certificate only adds to `blocked`.
-    obtain ⟨n, h1, h2, h3⟩ := h_blocks W V E' E Q hold hlt hne hsup_Q
+    obtain ⟨n, h1, h2, h3⟩ := h_blocks S W V E' E Q hold hlt hne hsup_Q
     exact ⟨n, h1, h2, h3.imp id fun ⟨e', h4, h5⟩ => ⟨e', h4, fun _ => h5⟩⟩
 
 #prove_action Mvba adopt_prepqc

@@ -44,16 +44,16 @@ supplement it is the formal shape of.
   after GST delivered within `Δ`; timeouts, `ViewTC_i` and a decided
   `CommitQC` re-sent every `ρ`) and Supplement, Section 10.3 (`sec:reliable-delivery`) (one-view
   retention), local steps instantaneous (`δ = 0`)
-* **(T-timer)** — `TimerPunctual`: `expire_timer i v` fires no earlier than
-  `τ v` after `i` entered `v`, and `timer_expired i v` holds no later; the
-  view timer, restarted on entry
+* **(T-timer)** — `TimerPunctual`: `i`'s own timer step `expire_timer i v`
+  fires no earlier than `τ v` after `i` entered `v`, and `timer_expired i v`
+  holds no later; the view timer, restarted on entry
 * **(Δ-avail)** — `AvailWithin`: `avail_ready` within `Δ_sync` of accepting;
   Supplement, Lemma 5 (`lem:avail-progress`)
 * **(Δ-relay)** — `Relayed`, the caller's: while a correct validator that
   has decided still takes part (it has proposed and not abandoned), a
-  correct validator takes the transferred certificate within
-  `Δ + ρ` (the input `decide`); the composing layer's delivery of a decided
-  `CommitQC`, Supplement, Lemma 13 (`lem:decision-propagation`)
+  correct validator takes the certificate that validator's decision output
+  within `Δ + ρ` (the input `decide`); the composing layer's delivery of a
+  decided `CommitQC`, Supplement, Lemma 13 (`lem:decision-propagation`)
 
 (A-viewsync), the strongest premise of `Mvba.termination`, is **not
 assumed**. Both of its clauses are a corollary: `AViewSyncClaim` below is
@@ -127,8 +127,8 @@ travel (the supplement's `TryFormPrepQC`; [Bounds.md](../../docs/Bounds.md)
 
 The commit and timeout certificates are network hops at the validator
 that forms them, `form_own_commitqc` and `form_own_tc_*` (the supplement's
-`TryFormCommitQC` and `HandleTimeout`). The anonymous assemblies are the
-adversary's and carry no bound ([Bounds.md](../../docs/Bounds.md) §6.4.7). -/
+`TryFormCommitQC` and `HandleTimeout`). The adversary's aggregations,
+`byz_form_*`, carry no bound ([Bounds.md](../../docs/Bounds.md) §6.4.7). -/
 
 section Hops
 
@@ -142,8 +142,8 @@ inductive Hop where
 
 /-- **The hop table.** `some .net` for a step that consumes another party's
 message, `some .loc` for a local step, `none` for a label under no bound —
-the adversary's, the anonymous assemblies (the adversary's capability too,
-`AssemblyLabel`), the timer's, the availability layer's and the caller's.
+the adversary's (its certificate aggregation included), the timer's, the
+availability layer's and the caller's.
 
 Written with a wildcard so that an action added to the model lands on
 `none`: under no bound, hence *weakening* the premise set rather than
@@ -156,7 +156,8 @@ def hop : Mvba.Label node nodeset value evec view → Option Hop
   | .form_own_commitqc .. => some .net
   | .form_own_tc_lock .. => some .net
   | .form_own_tc_nolock .. => some .net
-  | .sync_view .. => some .net
+  | .sync_view_nolock .. => some .net
+  | .sync_view_lock .. => some .net
   | .sync_view_adopt .. => some .net
   | .leader_propose_first .. => some .loc
   | .leader_repropose .. => some .loc
@@ -173,12 +174,11 @@ omission. -/
 theorem hop_isSome_iff (l : Mvba.Label node nodeset value evec view) :
     (hop l).isSome ↔ JusticeLabel l := by
   cases l <;> first
-    | exact ⟨fun _ => ⟨fun h => h, fun h => h, fun h => h, fun h => h, fun h => h⟩, fun _ => rfl⟩
+    | exact ⟨fun _ => ⟨fun h => h, fun h => h, fun h => h, fun h => h⟩, fun _ => rfl⟩
     | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.1 trivial).elim⟩
     | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.2.1 trivial).elim⟩
     | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.2.2.1 trivial).elim⟩
-    | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.2.2.2.1 trivial).elim⟩
-    | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.2.2.2.2 trivial).elim⟩
+    | exact ⟨fun h => absurd h Bool.false_ne_true, fun hj => (hj.2.2.2 trivial).elim⟩
 
 end Hops
 
@@ -385,9 +385,9 @@ label's own validator within `Δ`.
 * the `Commit`s and timeouts a validator forms a certificate from — from
   a correct quorum, the first of them sent at or after GST, and retained
   by that validator;
-* a timeout certificate — first obtained at or after GST. Its first
-  correct holder processes it on arrival and forwards it
-  (Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)).
+* a timeout certificate — from a correct sender, first sent at or after
+  GST: a correct validator that formed it, or that advanced on it and
+  forwarded it (Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)).
 
 A commit certificate's transfer is not here: taking it is the input
 `decide`, the caller's, and its timing is `Relayed`.
@@ -409,12 +409,16 @@ def Delivers (r : TMvbaRun th time) : Mvba.Label node nodeset value evec view �
     CorrectQuorum (node := node) q ∧
       SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v (th.ent e) = true) ∧
       RetainedBy r j v (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p v (th.ent e) = true)
-  | .form_own_tc_lock j v q _ _ _ =>
+  | .form_own_tc_lock j v q _ _ _ _ =>
     CorrectQuorum (node := node) q ∧ SinceGst r (AnyTimeout q v) ∧ RetainedBy r j v (AnyTimeout q v)
   | .form_own_tc_nolock j v q =>
     CorrectQuorum (node := node) q ∧ SinceGst r (AnyTimeout q v) ∧ RetainedBy r j v (AnyTimeout q v)
-  | .sync_view _ pv _ => SinceGst r (fun s => s.msg_tc pv = true)
-  | .sync_view_adopt _ pv _ w e => SinceGst r (fun s => s.tc_lock pv w e = true)
+  | .sync_view_nolock _ s pv _ =>
+    ¬ nset.is_byz s = true ∧ SinceGst r (fun t => t.msg_tc_nolock s pv = true)
+  | .sync_view_lock _ s pv _ w e =>
+    ¬ nset.is_byz s = true ∧ SinceGst r (fun t => t.msg_tc_lock s pv w e = true)
+  | .sync_view_adopt _ s pv _ w e =>
+    ¬ nset.is_byz s = true ∧ SinceGst r (fun t => t.msg_tc_lock s pv w e = true)
   | _ => False
 
 omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
@@ -423,7 +427,7 @@ first delivery the timed premise owes has the correct senders the untimed
 (F-justice) asks for: `Owed` is `Delivers`' sender part. -/
 theorem owed_of_delivers {r : TMvbaRun th time} {l : Mvba.Label node nodeset value evec view}
     (h : Delivers r l) : Owed l := by
-  cases l <;> first | exact h.elim | exact h.1 | trivial
+  cases l <;> first | exact h.elim | exact h.1
 
 /-- **While a first delivery is pending**: every correct validator takes
 part. That the receiver has not moved past the message's view — it
@@ -451,15 +455,16 @@ same premise as over state-changing steps (`boundedFair_iff_move`,
 * `local_` — a local step fires within `δ`, as before;
 * `first` — a network step whose messages were sent at or after GST by
   correct validators, and retained, fires within `Δ` (N1, N2);
-* `forwarded` — a timeout certificate forwarded at or after GST, by the
-  first correct validator to enter the view it justifies
-  (Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)), is processed within `Δ`;
+* `forwarded` — the timeout certificate a correct validator `s` forwarded
+  when it entered the view it justifies (Supplement, Algorithm 1, line 98
+  (`line:mvba:sv-forward`)), if it entered at or after GST, is processed
+  within `Δ`;
 * `timeouts` — a correct quorum's timeouts are re-sent every `ρ` by
   validators still in the view, so a correct validator in the view forms
   the certificate within `Δ + ρ` whenever they were first sent (N1);
 * `certificates` — every active validator re-sends `ViewTC_i` every `ρ`
-  (Supplement, Algorithm 1, line 40 (`line:mvba:viewtc-retx`)), so a timeout certificate is processed within
-  `Δ + ρ` whenever it was formed (N1).
+  (Supplement, Algorithm 1, line 40 (`line:mvba:viewtc-retx`)), so a timeout certificate a correct
+  validator sent is processed within `Δ + ρ` whenever it was sent (N1).
 
 A decided certificate's transfer is the caller's, and is `Relayed`.
 
@@ -469,27 +474,32 @@ structure BoundedJustice (sch : Schedule view time) (r : TMvbaRun th time) : Pro
     BoundedFair r sch.δ l
   first : ∀ (l : Mvba.Label node nodeset value evec view), hop l = some .net →
     Delivers r l → BoundedFairWhile r sch.Δ l (Receiving l)
-  forwarded : ∀ (i : node) (pv v : view), SinceGst r (SomeEntered v) →
-    BoundedFairWhile r sch.Δ (.sync_view i pv v) (fun s => AllActive s ∧ SomeEntered v s) ∧
-    ∀ w e, BoundedFairWhile r sch.Δ (.sync_view_adopt i pv v w e)
-      (fun s => AllActive s ∧ SomeEntered v s)
+  forwarded : ∀ (i s : node) (pv v : view), ¬ nset.is_byz s = true →
+    SinceGst r (fun t => t.entered s v = true) →
+    BoundedFairWhile r sch.Δ (.sync_view_nolock i s pv v)
+      (fun t => AllActive t ∧ t.entered s v = true) ∧
+    (∀ w e, BoundedFairWhile r sch.Δ (.sync_view_lock i s pv v w e)
+      (fun t => AllActive t ∧ t.entered s v = true)) ∧
+    ∀ w e, BoundedFairWhile r sch.Δ (.sync_view_adopt i s pv v w e)
+      (fun t => AllActive t ∧ t.entered s v = true)
   timeouts : ∀ (i : node) (v : view) (q : nodeset), ¬ nset.is_byz i = true →
     CorrectQuorum (node := node) q →
-    (∀ r₀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.form_own_tc_lock i v q r₀ w e)
-      (fun s => AllActive s ∧ ∀ p, nset.member p q = true → NotPast s p v)) ∧
+    (∀ r₀ s w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.form_own_tc_lock i v q r₀ s w e)
+      (fun t => AllActive t ∧ ∀ p, nset.member p q = true → NotPast t p v)) ∧
     BoundedFairWhile r (sch.Δ + sch.ρ) (.form_own_tc_nolock i v q)
-      (fun s => AllActive s ∧ ∀ p, nset.member p q = true → NotPast s p v)
-  certificates : ∀ (i : node) (pv v : view),
-    BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view i pv v) AllActive ∧
-    ∀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view_adopt i pv v w e) AllActive
+      (fun t => AllActive t ∧ ∀ p, nset.member p q = true → NotPast t p v)
+  certificates : ∀ (i s : node) (pv v : view), ¬ nset.is_byz s = true →
+    BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view_nolock i s pv v) AllActive ∧
+    (∀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view_lock i s pv v w e) AllActive) ∧
+    ∀ w e, BoundedFairWhile r (sch.Δ + sch.ρ) (.sync_view_adopt i s pv v w e) AllActive
 
 /-- **(Δ-relay)** — a decided commit certificate reaches every undecided
 correct validator within `Δ + ρ`
 ([Premises.md](../../docs/Premises.md) §4.7).
 
 While a correct validator `j` that has decided `e` still takes part — it
-has proposed and has not abandoned — a correct validator that can take a
-transferred certificate on `e` does so within `Δ + ρ`, measured from
+has proposed and has not abandoned — a correct validator that can take the
+certificate `j`'s decision output (`msg_commitqc j`) does so within `Δ + ρ`, measured from
 `max(clk N, gst)`. Supplement, Lemma 13 (`lem:decision-propagation`) argues
 in the termination setting, where the learner has not abandoned, and the
 decider's `decide` output causes Chorus to broadcast the `CommitQC` (N3); a
@@ -500,7 +510,7 @@ form of (F-relay); within Cadence it is derived from Chorus's rows
 (`Chorus.relayedWhileActive_of_timedJustice`). -/
 def Relayed (sch : Schedule view time) (r : TMvbaRun th time) : Prop :=
   ∀ (i j : node) (v : view) (e : value), ¬ nset.is_byz j = true →
-    BoundedFairWhile r (sch.Δ + sch.ρ) (.decide i v e)
+    BoundedFairWhile r (sch.Δ + sch.ρ) (.decide i j v e)
       (fun s => s.decided j e = true ∧ (∃ E, s.input j E = true) ∧ ¬ s.abandoned j = true)
 
 omit [IsOrderedAddMonoid time] in
@@ -535,7 +545,7 @@ For a correct validator `i` and a view `v`:
 * **(T2) not late** — if `i` entered `v` at `m`, then `timer_expired i v`
   holds at some `n ≥ m` with `clk n ≤ clk m + τ v`.
 
-Both are about the environment's marker, neither about the protocol's
+Both are about the validator's own timer, neither about the protocol's
 state beyond `entered`. Together they say the marker fires when the clock
 reaches entry plus budget, which also forbids the clock from jumping over
 that value while the timer is pending. -/

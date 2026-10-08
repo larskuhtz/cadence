@@ -6,27 +6,31 @@ import Cadence.Mvba.Proofs.LeaderRepropose
 import Cadence.Mvba.Proofs.LeaderProposeFresh
 import Cadence.Mvba.Proofs.HandlePreprepareFirst
 import Cadence.Mvba.Proofs.HandlePreprepare
-import Cadence.Mvba.Proofs.FormPrepqc
+
 import Cadence.Mvba.Proofs.AdoptPrepqc
 import Cadence.Mvba.Proofs.BecomeAvailReady
 import Cadence.Mvba.Proofs.ExpireTimer
 import Cadence.Mvba.Proofs.SendCommit
-import Cadence.Mvba.Proofs.FormCommitqc
+
 import Cadence.Mvba.Proofs.FormOwnCommitqc
 import Cadence.Mvba.Proofs.Decide
 import Cadence.Mvba.Proofs.TimeoutQc
 import Cadence.Mvba.Proofs.TimeoutNoqc
-import Cadence.Mvba.Proofs.FormTcLock
-import Cadence.Mvba.Proofs.FormTcNolock
+
 import Cadence.Mvba.Proofs.FormOwnTcLock
 import Cadence.Mvba.Proofs.FormOwnTcNolock
-import Cadence.Mvba.Proofs.SyncView
+import Cadence.Mvba.Proofs.SyncViewNolock
+import Cadence.Mvba.Proofs.SyncViewLock
 import Cadence.Mvba.Proofs.SyncViewAdopt
 import Cadence.Mvba.Proofs.ByzPreprepare
 import Cadence.Mvba.Proofs.ByzPrepare
 import Cadence.Mvba.Proofs.ByzCommit
 import Cadence.Mvba.Proofs.ByzTimeoutQc
 import Cadence.Mvba.Proofs.ByzTimeoutNoqc
+import Cadence.Mvba.Proofs.ByzFormPrepqc
+import Cadence.Mvba.Proofs.ByzFormCommitqc
+import Cadence.Mvba.Proofs.ByzFormTcLock
+import Cadence.Mvba.Proofs.ByzFormTcNolock
 
 /-! # `Mvba` certificate
 
@@ -94,8 +98,9 @@ premise off a validator's being in a view, rather than carry it separately.
 `prepqc_valid` is needed where safety is not: `leader_repropose` re-proposes
 a lock **without** re-checking validity (the supplement's `Recover`), while
 `handle_preprepare` requires `valid e`, so the re-proposal is accepted only
-because the lock was valid all along. `msg_tc_backed` gets from
-`sync_view`'s guard to the timeout quorum behind the certificate, and so to
+because the lock was valid all along. `msg_tc_backed` gets from a sent
+certificate to the `sync_view_*` step it enables and to the timeout quorum
+behind it, and so to
 a *correct* validator that timed out in the view — the step that shows a run
 cannot advance past the honest-led view without doing what (A-viewsync)
 forbids.
@@ -125,6 +130,6 @@ too: a newly entered view is view 1 or the successor of one that already has
 a timeout certificate. It is a *step* property rather than an invariant
 because it relates the two states. -/
 
-/-- info: #veil_status Mvba: 1507/1507 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Mvba: 1649/1649 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Mvba

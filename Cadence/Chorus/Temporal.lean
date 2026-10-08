@@ -110,7 +110,8 @@ structure Idle (s : StateAtMvba slot node nodeset merkle_root view Phase PathCho
   fallback : ∀ r, s.msg_fallback_sig r = false
   quiet : Mvba.Quiet s.mvba_st
   decided : ∀ i v, s.mvba_st.decided i v = false
-  commitqc : ∀ v e, s.mvba_st.msg_commitqc v e = false
+  commitqc : ∀ c v e, s.mvba_st.msg_commitqc c v e = false
+  decidedqc : ∀ i v e, s.mvba_st.decided_qc i v e = false
   timer : ∀ i v, s.mvba_st.timer_expired i v = false
 
 omit [Inhabited node] [Inhabited nodeset] cnt in
@@ -136,6 +137,14 @@ theorem Idle.not_certified {s : StateAtMvba slot node nodeset merkle_root view P
   show ¬ Mvba.Certifies s.mvba_st c e
   cases c <;> simp [Mvba.Certifies, Veil.FieldRepresentation.get, hI.commitqc]
 
+omit [Inhabited slot] [Inhabited merkle_root] [Inhabited Phase] [Inhabited PathChoice] cnt Phase_Enum PathChoice_Enum in
+/-- No decision has output a certificate at an idle state. -/
+theorem Idle.not_decidedCert {s : StateAtMvba slot node nodeset merkle_root view Phase PathChoice}
+    (hI : Idle s) (i : node) (c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) :
+    ¬ (Mvba.mvbaSafety thM).decidedCert s.mvba_st i c := by
+  show ¬ Mvba.DecidedCert s.mvba_st i c
+  cases c <;> simp [Mvba.DecidedCert, Veil.FieldRepresentation.get, hI.decidedqc]
+
 /-- The availability report, owed for a meta-block its validator holds. -/
 def IsAvail (l : LabelAtMvba slot node nodeset merkle_root view Phase PathChoice) : Prop :=
   ∃ i v n, l = .mvba_avail_ready i v n
@@ -152,8 +161,12 @@ theorem not_enabled_of_idle {s : StateAtMvba slot node nodeset merkle_root view 
   all_goals first | (simp [hop] at hh; done) | skip
   all_goals first | exact absurd ⟨_, _, _, rfl⟩ ha | skip
   case accept_mvba_commitqc i r c mn =>
-    obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
+    obtain ⟨w, e, x, s₀, -, -, h⟩ := accept_mvba_commitqc_tr htr
     exact Mvba.not_enabled_decide_of_quiet (th := thM) hI.quiet ⟨_, h⟩
+  case send_mvba_cert =>
+    chorus_tr htr
+    obtain ⟨-, -, -, hdc, -⟩ := htr
+    exact hI.not_decidedCert _ _ hdc
   case on_mvba_decide_pos =>
     chorus_tr htr
     obtain ⟨-, -, hdec, -⟩ := htr
@@ -202,7 +215,7 @@ theorem idle_init {s : StateAtMvba slot node nodeset merkle_root view Phase Path
     Chorus.msg_chunk.init hi, Chorus.msg_vote_pos_sig.init hi,
     Chorus.msg_vote_neg_sig.init hi, Chorus.msg_fallback_sig.init hi,
     Mvba.quiet_init hm, Mvba.decided.init hm, Mvba.msg_commitqc.init hm,
-    Mvba.timer_expired.init hm⟩
+    Mvba.decided_qc.init hm, Mvba.timer_expired.init hm⟩
 
 omit [Inhabited merkle_root] cnt in
 /-- An MVBA `abandon()` keeps the MVBA quiet, undecided and certificate-free. -/
@@ -210,11 +223,12 @@ theorem idle_mvba_abandon {ms ms' : Mvba.State (Mvba.FieldAbstractType node node
     {i : node}
     (htr : (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
       ms (.abandon i) ms')
-    (hq : Mvba.Quiet ms) (hd : ∀ i v, ms.decided i v = false) (hc : ∀ v e, ms.msg_commitqc v e = false)
+    (hq : Mvba.Quiet ms) (hd : ∀ i v, ms.decided i v = false)
+    (hc : ∀ c v e, ms.msg_commitqc c v e = false) (hdq : ∀ i v e, ms.decided_qc i v e = false)
     (ht : ∀ i v, ms.timer_expired i v = false) :
-    Mvba.Quiet ms' ∧ (∀ i v, ms'.decided i v = false) ∧ (∀ v e, ms'.msg_commitqc v e = false) ∧
-      (∀ i v, ms'.timer_expired i v = false) := by
-  refine ⟨?_, ?_, ?_, ?_⟩
+    Mvba.Quiet ms' ∧ (∀ i v, ms'.decided i v = false) ∧ (∀ c v e, ms'.msg_commitqc c v e = false) ∧
+      (∀ i v e, ms'.decided_qc i v e = false) ∧ (∀ i v, ms'.timer_expired i v = false) := by
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · simp only [Mvba.Quiet, Mvba.abandon.frame_input htr, Mvba.abandon.frame_entered htr,
       Mvba.abandon.frame_accepted htr, Mvba.abandon.frame_msg_prepare htr,
       Mvba.abandon.frame_msg_commit htr, Mvba.abandon.frame_msg_timeout_qc htr,
@@ -222,6 +236,7 @@ theorem idle_mvba_abandon {ms ms' : Mvba.State (Mvba.FieldAbstractType node node
     exact hq
   · rw [Mvba.abandon.frame_decided htr]; exact hd
   · rw [Mvba.abandon.frame_msg_commitqc htr]; exact hc
+  · rw [Mvba.abandon.frame_decided_qc htr]; exact hdq
   · rw [Mvba.abandon.frame_timer_expired htr]; exact ht
 
 /-- `abandon` keeps a state idle. -/
@@ -229,14 +244,14 @@ theorem idle_abandon {s s' : StateAtMvba slot node nodeset merkle_root view Phas
     {i : node} {mn}
     (htr : (atMvba thM).tr thS s (.abandon i mn) s') (hI : Idle s) : Idle s' := by
   mvba_inst
-  obtain ⟨hq, hd, hc, ht⟩ :=
-    idle_mvba_abandon (abandon_tr htr) hI.quiet hI.decided hI.commitqc hI.timer
+  obtain ⟨hq, hd, hc, hdq, ht⟩ :=
+    idle_mvba_abandon (abandon_tr htr) hI.quiet hI.decided hI.commitqc hI.decidedqc hI.timer
   exact ⟨by rw [Chorus.abandon.frame_participating htr]; exact hI.part,
     by rw [Chorus.abandon.frame_msg_proposer_signed htr]; exact hI.signed,
     by rw [Chorus.abandon.frame_msg_chunk htr]; exact hI.chunk,
     by rw [Chorus.abandon.frame_msg_vote_pos_sig htr]; exact hI.vpos,
     by rw [Chorus.abandon.frame_msg_vote_neg_sig htr]; exact hI.vneg,
-    by rw [Chorus.abandon.frame_msg_fallback_sig htr]; exact hI.fallback, hq, hd, hc, ht⟩
+    by rw [Chorus.abandon.frame_msg_fallback_sig htr]; exact hI.fallback, hq, hd, hc, hdq, ht⟩
 
 set_option hygiene false in
 /-- Every label but `abandon` and the three MVBA steps leaves the MVBA's
@@ -252,6 +267,7 @@ local macro "idle_frame" act:ident : tactic => do
       by rw [$(f "mvba_st") htr]; exact hI.quiet,
       by rw [$(f "mvba_st") htr]; exact hI.decided,
       by rw [$(f "mvba_st") htr]; exact hI.commitqc,
+      by rw [$(f "mvba_st") htr]; exact hI.decidedqc,
       by rw [$(f "mvba_st") htr]; exact hI.timer⟩)
 
 /-- A phase marker keeps a state idle. -/

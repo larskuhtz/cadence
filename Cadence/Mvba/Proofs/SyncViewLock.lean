@@ -1,15 +1,15 @@
 import Cadence.Mvba
 import Cadence.ProofPrelude
 
-/-! # `Mvba` proofs — action `form_tc_lock`
+/-! # `Mvba` proofs — action `sync_view_lock`
 
 Scaffolded by `#gen_proof_files Mvba`; yours to edit. Proves every
-registered VC of `form_tc_lock` cross-file from the module's persisted VC registry
+registered VC of `sync_view_lock` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 [Certify.lean](../Certify.lean)'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Mvba form_tc_lock <property> by <tac>` lines
+Manual cells go on `#prove_vc Mvba sync_view_lock <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
@@ -32,6 +32,6 @@ veil_large_clump_budgets
 
 namespace Mvba.Proofs
 
-#prove_action Mvba form_tc_lock
+#prove_action Mvba sync_view_lock
 
 end Mvba.Proofs

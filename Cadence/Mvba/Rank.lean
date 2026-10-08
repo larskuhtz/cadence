@@ -173,7 +173,7 @@ theorem residual_lt_of_new {α : Type u} {p q : α → Prop} (hpq : ∀ a, p a �
 parameter — a `List` of the things to range over — and the second is what a
 *view* argument needs that a *quorum* argument does not.
 
-Two guards of the model name a maximum: `sync_view`'s
+Two guards of the model name a maximum: the `sync_view_*` steps'
 `∀ V, entered i V → V ≤ pv` asks for a bound on the views a validator has
 entered, and `timeout_qc`'s `∀ W E, local_prepqc i W E → W ≤ w` asks for its
 highest held certificate. Neither is available from an abstract

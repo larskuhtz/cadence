@@ -117,12 +117,13 @@ happens in view 0, and the step that sets each record is:
 
 * `avail_ready x`: `x`, and `input x` with `entered x 0`: `3 + x`;
 * the leader's proposal and `Pre-Prepare`: `6`;
-* `accepted`/`voted`/`msg_prepare`: `7 + x`; the prepare certificate: `10`,
-  by the anonymous assembly; `local_prepqc`: `11 + x`, each validator
+* `accepted`/`voted`/`msg_prepare`: `7 + x`; `local_prepqc` and the
+  certificate under `x`'s name (`msg_prepqc x`): `11 + x`, each validator
   forming its own from the three prepares;
-* `commit_sent`/`msg_commit`: `14 + x`; `decided x`: `17 + x`, each
-  validator forming its own commit certificate from the three commits and
-  deciding on it (`form_own_commitqc`), the certificate itself from `17`;
+* `commit_sent`/`msg_commit`: `14 + x`; `decided x`, `decided_qc x` and the
+  certificate under `x`'s name (`msg_commitqc x`): `17 + x`, each validator
+  forming its own commit certificate from the three commits and deciding on
+  it (`form_own_commitqc`);
 * `timer_expired x 0`: `22 + x`.
 
 Nothing else is ever set: no timeout, no certificate of a later view, no
@@ -135,11 +136,11 @@ def st (n : Nat) : S where
   msg_commit r V _ := Decidable.decide (V = 0 ∧ r.val < 3 ∧ 14 + r.val < n)
   msg_timeout_qc _ _ _ _ := false
   msg_timeout_noqc _ _ := false
-  msg_prepqc V _ := Decidable.decide (V = 0 ∧ 10 < n)
-  msg_commitqc V _ := Decidable.decide (V = 0 ∧ 17 < n)
-  msg_tc _ := false
-  tc_lock _ _ _ := false
-  tc_nolock _ := false
+  msg_prepqc s V _ := Decidable.decide (V = 0 ∧ s.val < 3 ∧ 11 + s.val < n)
+  msg_commitqc s V _ := Decidable.decide (V = 0 ∧ s.val < 3 ∧ 17 + s.val < n)
+  msg_tc _ _ := false
+  msg_tc_lock _ _ _ _ := false
+  msg_tc_nolock _ _ := false
   input i _ := Decidable.decide (i.val < 3 ∧ 3 + i.val < n)
   entered i V := Decidable.decide (V = 0 ∧ i.val < 3 ∧ 3 + i.val < n)
   voted i V := Decidable.decide (V = 0 ∧ i.val < 3 ∧ 7 + i.val < n)
@@ -153,10 +154,11 @@ def st (n : Nat) : S where
   avail_ready i _ := Decidable.decide (i.val < 3 ∧ i.val < n)
   timer_expired i V := Decidable.decide (V = 0 ∧ i.val < 3 ∧ 22 + i.val < n)
   tc_formed _ _ := false
+  decided_qc i V _ := Decidable.decide (V = 0 ∧ i.val < 3 ∧ 17 + i.val < n)
 
 /-! ## The labels
 
-The 25 steps of the active prefix, then the idle tail. Steps 20 and 21
+The 25 steps of the active prefix, then the idle tail. Steps 10, 20 and 21
 change nothing, and step 21 is where the clock moves from 0 to 5. -/
 
 /-- The label that changes nothing, used where the clock moves:
@@ -175,7 +177,7 @@ def prefixLabel : Nat → L
   | 7 => .handle_preprepare_first 0 0 ()
   | 8 => .handle_preprepare_first 1 0 ()
   | 9 => .handle_preprepare_first 2 0 ()
-  | 10 => .form_prepqc 0 () Q
+  | 10 => idle
   | 11 => .adopt_prepqc 0 0 () Q
   | 12 => .adopt_prepqc 1 0 () Q
   | 13 => .adopt_prepqc 2 0 () Q
@@ -346,8 +348,8 @@ theorem quiet {n : Nat} (hn : PlateauEnd n) {l : L} {hd : Hop} (hh : hop l = som
 
 /-- Nor is the handoff: at a plateau's end every correct validator has
 decided, so nobody takes a transferred certificate. -/
-theorem quiet_decide {n : Nat} (hn : PlateauEnd n) {i : Fin 4} {v : ℕ} {e : Unit} :
-    ¬ Enabled sys thW (st n) (.decide i v e) := by
+theorem quiet_decide {n : Nat} (hn : PlateauEnd n) {i j : Fin 4} {v : ℕ} {e : Unit} :
+    ¬ Enabled sys thW (st n) (.decide i j v e) := by
   rintro ⟨s', htr⟩
   wunfold htr
   repeat (obtain ⟨_, htr⟩ := htr)
@@ -542,7 +544,7 @@ theorem noEarlyAbandon : NoEarlyAbandon run.toLRun := by
 
 /-- **(F-relay)**, with its antecedent false: from any `N` on, the idle state
 is reached, and there nobody can take a transferred certificate. -/
-theorem fRelay : FRelay run.toLRun := fun _ _ _ N hen =>
+theorem fRelay : FRelay run.toLRun := fun _ _ _ _ N hen =>
   absurd (hen (max N 25) (le_max_left _ _)).2 (quiet_decide (Or.inr (le_max_right _ _)))
 
 /-! ## The theorems apply

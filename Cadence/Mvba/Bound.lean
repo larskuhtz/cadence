@@ -170,7 +170,7 @@ theorem expire_timer_sets {i i' : node} {v v' : view}
     (h0 : ¬ st.timer_expired i v = true) (h1 : st'.timer_expired i v = true) :
     i' = i ∧ v' = v := by
   mvba_tr htr
-  obtain ⟨-, rfl⟩ := htr
+  obtain ⟨-, -, rfl⟩ := htr
   mvba_effect_at h1
   exact h1.resolve_right h0
 
@@ -199,26 +199,27 @@ theorem timer_set_label {l : Mvba.Label node nodeset value evec view} {i : node}
     rw [Mvba.handle_preprepare_first.frame_timer_expired htr] at h1; exact absurd h1 h0
   case handle_preprepare =>
     rw [Mvba.handle_preprepare.frame_timer_expired htr] at h1; exact absurd h1 h0
-  case form_prepqc => rw [Mvba.form_prepqc.frame_timer_expired htr] at h1; exact absurd h1 h0
+  case byz_form_prepqc => rw [Mvba.byz_form_prepqc.frame_timer_expired htr] at h1; exact absurd h1 h0
   case adopt_prepqc => rw [Mvba.adopt_prepqc.frame_timer_expired htr] at h1; exact absurd h1 h0
   case become_avail_ready =>
     rw [Mvba.become_avail_ready.frame_timer_expired htr] at h1; exact absurd h1 h0
   case send_commit => rw [Mvba.send_commit.frame_timer_expired htr] at h1; exact absurd h1 h0
-  case form_commitqc =>
-    rw [Mvba.form_commitqc.frame_timer_expired htr] at h1; exact absurd h1 h0
+  case byz_form_commitqc =>
+    rw [Mvba.byz_form_commitqc.frame_timer_expired htr] at h1; exact absurd h1 h0
   case decide => rw [Mvba.decide.frame_timer_expired htr] at h1; exact absurd h1 h0
   case timeout_qc => rw [Mvba.timeout_qc.frame_timer_expired htr] at h1; exact absurd h1 h0
   case timeout_noqc => rw [Mvba.timeout_noqc.frame_timer_expired htr] at h1; exact absurd h1 h0
-  case form_tc_lock => rw [Mvba.form_tc_lock.frame_timer_expired htr] at h1; exact absurd h1 h0
-  case form_tc_nolock =>
-    rw [Mvba.form_tc_nolock.frame_timer_expired htr] at h1; exact absurd h1 h0
+  case byz_form_tc_lock => rw [Mvba.byz_form_tc_lock.frame_timer_expired htr] at h1; exact absurd h1 h0
+  case byz_form_tc_nolock =>
+    rw [Mvba.byz_form_tc_nolock.frame_timer_expired htr] at h1; exact absurd h1 h0
   case form_own_commitqc =>
     rw [Mvba.form_own_commitqc.frame_timer_expired htr] at h1; exact absurd h1 h0
   case form_own_tc_lock =>
     rw [Mvba.form_own_tc_lock.frame_timer_expired htr] at h1; exact absurd h1 h0
   case form_own_tc_nolock =>
     rw [Mvba.form_own_tc_nolock.frame_timer_expired htr] at h1; exact absurd h1 h0
-  case sync_view => rw [Mvba.sync_view.frame_timer_expired htr] at h1; exact absurd h1 h0
+  case sync_view_nolock => rw [Mvba.sync_view_nolock.frame_timer_expired htr] at h1; exact absurd h1 h0
+  case sync_view_lock => rw [Mvba.sync_view_lock.frame_timer_expired htr] at h1; exact absurd h1 h0
   case sync_view_adopt =>
     rw [Mvba.sync_view_adopt.frame_timer_expired htr] at h1; exact absurd h1 h0
   case byz_preprepare =>
@@ -266,11 +267,11 @@ theorem entered_le_of_no_timeout_before (r : MvbaRun th) {W : view} {K : Nat}
     by_cases hprev : (r.at' n).entered j V = true
     · exact ih hn j V hj hprev
     rcases Mvba.reachable_entered_needs_certificate_step (r.reachable n) (r.steps n)
-      j V ⟨hj, hprev, hV⟩ with rfl | ⟨PV, hnext, hcert⟩
+      j V ⟨hj, hprev, hV⟩ with rfl | ⟨PV, S, hnext, hcert⟩
     · exact vord.zero_lt W
     have hto : ∃ R, ¬ nset.is_byz R = true ∧ (r.at' n).timed_out R PV = true := by
-      rcases hcert with htc | ⟨Wc, Ec, hlock⟩
-      · exact exists_honest_timed_out_of_tc (r.reachable n) htc
+      rcases hcert with hnl | ⟨Wc, Ec, hlock⟩
+      · exact exists_honest_timed_out_of_tc_nolock (r.reachable n) hnl
       · exact exists_honest_timed_out_of_tc_lock (r.reachable n) hlock
     obtain ⟨R, hR, hRto⟩ := hto
     have hPV : vord.le PV W :=
@@ -280,29 +281,13 @@ theorem entered_le_of_no_timeout_before (r : MvbaRun th) {W : view} {K : Nat}
       exact hvs R n hK hR hRto
     exact ((vord.next_def PV V).mp hnext).2 W ((vord.le_lt PV W).mpr ⟨hPV, hPVne⟩)
 
-/-- **The certificate below a view is there at any index where the view has
-been entered** — `exists_tc_below_of_entered` with the index kept: the first
-entry is before `N`, and the certificate it read persists. -/
+/-- **The certificate below a view is there at any index where a correct
+validator has entered the view**, sent by that validator: it forwarded the
+certificate it advanced on (`exists_tc_below_of_entered`). -/
 theorem msg_tc_below_of_entered (r : MvbaRun th) {i : node} (hi : ¬ nset.is_byz i = true)
     {pv W : view} (hnext : vord.next pv W) {N : Nat}
-    (hent : (r.at' N).entered i W = true) : (r.at' N).msg_tc pv = true := by
-  obtain ⟨m, hfalse, htrue⟩ := exists_first_entry r hent
-  have hfalse' : ¬ (r.at' m).entered i W = true := by simp [hfalse]
-  have hmN : m < N := by
-    by_contra h
-    exact hfalse' (r.mono (P := fun s => s.entered i W = true)
-      (fun k hk => Mvba.entered.mono (r.steps k) i W hk) hent m (Nat.le_of_not_lt h))
-  have htc : (r.at' m).msg_tc pv = true := by
-    rcases Mvba.reachable_entered_needs_certificate_step (r.reachable m) (r.steps m)
-      i W ⟨hi, hfalse', htrue⟩ with rfl | ⟨PV, hPV, hcert⟩
-    · exact absurd hnext not_next_zero
-    · have hPVpv : PV = pv := next_unique hPV hnext
-      subst hPVpv
-      rcases hcert with h | ⟨w, e, h⟩
-      · exact h
-      · exact Mvba.reachable_tc_lock_implies_tc (r.reachable m) PV w e h
-  exact r.mono (P := fun s => s.msg_tc pv = true)
-    (fun k hk => Mvba.msg_tc.mono (r.steps k) pv hk) htc N (Nat.le_of_lt hmN)
+    (hent : (r.at' N).entered i W = true) : (r.at' N).msg_tc i pv = true :=
+  exists_tc_below_of_entered r hi hnext hent
 
 /-- **An honest `Pre-Prepare` is sent from inside its view**, one step: a
 step that turns `msg_preprepare L V e` on for a correct `L` is one of the
@@ -351,8 +336,8 @@ theorem preprepare_set_entered {l : Mvba.Label node nodeset value evec view} {L 
     rw [Mvba.handle_preprepare_first.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case handle_preprepare =>
     rw [Mvba.handle_preprepare.frame_msg_preprepare htr] at h1; exact absurd h1 h0
-  case form_prepqc =>
-    rw [Mvba.form_prepqc.frame_msg_preprepare htr] at h1; exact absurd h1 h0
+  case byz_form_prepqc =>
+    rw [Mvba.byz_form_prepqc.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case adopt_prepqc =>
     rw [Mvba.adopt_prepqc.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case expire_timer =>
@@ -361,26 +346,28 @@ theorem preprepare_set_entered {l : Mvba.Label node nodeset value evec view} {L 
     rw [Mvba.become_avail_ready.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case send_commit =>
     rw [Mvba.send_commit.frame_msg_preprepare htr] at h1; exact absurd h1 h0
-  case form_commitqc =>
-    rw [Mvba.form_commitqc.frame_msg_preprepare htr] at h1; exact absurd h1 h0
+  case byz_form_commitqc =>
+    rw [Mvba.byz_form_commitqc.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case decide =>
     rw [Mvba.decide.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case timeout_qc =>
     rw [Mvba.timeout_qc.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case timeout_noqc =>
     rw [Mvba.timeout_noqc.frame_msg_preprepare htr] at h1; exact absurd h1 h0
-  case form_tc_lock =>
-    rw [Mvba.form_tc_lock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
-  case form_tc_nolock =>
-    rw [Mvba.form_tc_nolock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
+  case byz_form_tc_lock =>
+    rw [Mvba.byz_form_tc_lock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
+  case byz_form_tc_nolock =>
+    rw [Mvba.byz_form_tc_nolock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case form_own_commitqc =>
     rw [Mvba.form_own_commitqc.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case form_own_tc_lock =>
     rw [Mvba.form_own_tc_lock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case form_own_tc_nolock =>
     rw [Mvba.form_own_tc_nolock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
-  case sync_view =>
-    rw [Mvba.sync_view.frame_msg_preprepare htr] at h1; exact absurd h1 h0
+  case sync_view_nolock =>
+    rw [Mvba.sync_view_nolock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
+  case sync_view_lock =>
+    rw [Mvba.sync_view_lock.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case sync_view_adopt =>
     rw [Mvba.sync_view_adopt.frame_msg_preprepare htr] at h1; exact absurd h1 h0
   case byz_prepare =>
@@ -531,49 +518,62 @@ theorem ref_add_le {N : Nat} (hgst : r.gst ≤ r.clk N) {D B : time}
     (hB : r.clk N + D ≤ B) : r.ref N + D ≤ B := by
   rw [r.ref_eq_of_gst_le hgst]; exact hB
 
-/-- **Link 1, `sync_view` (a forwarded certificate, `Δ`): a correct
-validator enters `W`.** The first correct validator in `W` forwarded the
-certificate below it (Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)), after GST. Its view guard
+/-- **Link 1, `sync_view_*` (a forwarded certificate, `Δ`): a correct
+validator enters `W`.** A correct validator `s` in `W` forwarded the
+certificate below it when it entered (Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)), after GST. Its view guard
 `∀ V, entered i V → V ≤ PV` lapses only by entering a view above `PV`,
 which on the prefix bounded by `W` is `W` itself. -/
 theorem within_entered_of_tc (hbj : BoundedJustice sch r)
     {i : node} (hi : ¬ nset.is_byz i = true) {PV W : view} (hnext : vord.next PV W)
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.Δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    (htc : (r.at' N).msg_tc PV = true)
-    (hfwd : SinceGst r (SomeEntered W)) (hsome : SomeEntered W (r.at' N))
+    {s : node} (hs : ¬ nset.is_byz s = true)
+    (htc : (r.at' N).msg_tc s PV = true)
+    (hfwd : SinceGst r (fun t => t.entered s W = true)) (hsW : (r.at' N).entered s W = true)
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → AllActive (r.at' n) ∧
       ∀ V, (r.at' n).entered i V = true → vord.le V W) :
-    r.WithinFrom N B (fun s => s.entered i W = true) := by
-  refine withinFrom_of_boundedFairWhile ((hbj.forwarded i PV W hfwd).1) (ref_add_le hgst hB)
-    (fun _ _ h => sync_view_effect h) ?_
-  intro n hn hclk hnot
-  obtain ⟨hall, hle⟩ := hwin n hn hclk
-  refine ⟨enabled_sync_view hi
-    ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
-      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩ (hall i hi) hnext
-    (r.mono (P := fun s => s.msg_tc PV = true)
-      (fun m hm => Mvba.msg_tc.mono (r.steps m) PV hm) htc n hn) ?_, hall, ?_⟩
-  · intro V hV
+    r.WithinFrom N B (fun t => t.entered i W = true) := by
+  have hin' : ∀ n, N ≤ n → ∃ E, (r.at' n).input i E = true := fun n hn =>
+    ⟨E₀, r.mono (P := fun t => t.input i E₀ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩
+  have hsW' : ∀ n, N ≤ n → (r.at' n).entered s W = true :=
+    r.mono (P := fun t => t.entered s W = true)
+      (fun m hm => Mvba.entered.mono (r.steps m) s W hm) hsW
+  have hbelow : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).entered i W = true →
+      ∀ V, (r.at' n).entered i V = true → vord.le V PV := by
+    intro n hn hclk hnot V hV
     by_contra hnle
     have hWV : vord.le W V := ((vord.next_def PV W).mp hnext).2 V (lt_of_not_le hnle)
-    have hVW : V = W := vord.le_antisymm V W (hle V hV) hWV
+    have hVW : V = W := vord.le_antisymm V W ((hwin n hn hclk).2 V hV) hWV
     subst hVW
     exact hnot hV
-  · obtain ⟨j, hj, hjW⟩ := hsome
-    exact ⟨j, hj, r.mono (P := fun s => s.entered j W = true)
-      (fun m hm => Mvba.entered.mono (r.steps m) j W hm) hjW n hn⟩
+  rcases Mvba.reachable_msg_tc_backed (r.reachable N) s PV htc with hnl | ⟨w, e, hlk⟩
+  · refine withinFrom_of_boundedFairWhile ((hbj.forwarded i s PV W hs hfwd).1)
+      (ref_add_le hgst hB) (fun _ _ h => sync_view_nolock_effect h) ?_
+    intro n hn hclk hnot
+    exact ⟨enabled_sync_view_nolock hi (hin' n hn) ((hwin n hn hclk).1 i hi) hnext
+      (r.mono (P := fun t => t.msg_tc_nolock s PV = true)
+        (fun m hm => Mvba.msg_tc_nolock.mono (r.steps m) s PV hm) hnl n hn)
+      (hbelow n hn hclk hnot), (hwin n hn hclk).1, hsW' n hn⟩
+  · refine withinFrom_of_boundedFairWhile ((hbj.forwarded i s PV W hs hfwd).2.1 w e)
+      (ref_add_le hgst hB) (fun _ _ h => sync_view_lock_effect h) ?_
+    intro n hn hclk hnot
+    exact ⟨enabled_sync_view_lock hi (hin' n hn) ((hwin n hn hclk).1 i hi) hnext
+      (r.mono (P := fun t => t.msg_tc_lock s PV w e = true)
+        (fun m hm => Mvba.msg_tc_lock.mono (r.steps m) s PV w e hm) hlk n hn)
+      (hbelow n hn hclk hnot), (hwin n hn hclk).1, hsW' n hn⟩
 
 /-- **Link 2, `leader_repropose` / `leader_propose_fresh` (a `δ` step): the
 correct leader proposes.** Which of the two labels applies is fixed by the
-certificate below `W`, as in the untimed leader link; `¬ proposed_in` lapses
-only by the proposal (`proposed_in_backed`). -/
+certificate below `W` the leader entered on (`ViewTC_L`), as in the untimed
+leader link; `¬ proposed_in` lapses only by the proposal
+(`proposed_in_backed`). -/
 theorem within_preprepare_of_leader (hbj : BoundedJustice sch r)
     {L : node} (hL : ¬ nset.is_byz L = true) {PV W : view} (hnext : vord.next PV W)
     (hlead : th.leader W L = true)
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input L E₀ = true)
-    (hjust : (∃ w e, (r.at' N).tc_lock PV w e = true) ∨ (r.at' N).tc_nolock PV = true)
+    (hjust : (∃ w e, (r.at' N).msg_tc_lock L PV w e = true) ∨ (r.at' N).msg_tc_nolock L PV = true)
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B →
       Active (r.at' n) L ∧ InView (r.at' n) L W) :
     r.WithinFrom N B (fun s => ∃ E, s.msg_preprepare L W E = true) := by
@@ -585,22 +585,22 @@ theorem within_preprepare_of_leader (hbj : BoundedJustice sch r)
     hnot (Mvba.reachable_proposed_in_backed (r.reachable n) L W hL hp)
   rcases hjust with ⟨w, e, hw⟩ | hnl
   · -- `Recover(lock(J))`: a valid representation of the lock's entries.
-    obtain ⟨x, hxv, hxe⟩ := Mvba.reachable_prepqc_valid (r.reachable N) w e
-      (Mvba.reachable_tc_lock_backed (r.reachable N) PV w e hw).1
+    obtain ⟨S', hpq⟩ := (Mvba.reachable_tc_lock_backed (r.reachable N) L PV w e hw).1
+    obtain ⟨x, hxv, hxe⟩ := Mvba.reachable_prepqc_valid (r.reachable N) S' w e hpq
     refine r.withinFrom_of_boundedFair (hbj.local_ (.leader_repropose L PV W w x) rfl)
       (ref_add_le hgst hB) (fun _ _ h => ⟨x, leader_repropose_effect h⟩) ?_
     intro n hn hclk hnot
     obtain ⟨hab, hview⟩ := hwin n hn hclk
     exact enabled_leader_repropose hL ⟨E₀, hin' n hn⟩ hab hnext hlead hview
-      (hxe ▸ r.mono (P := fun s => s.tc_lock PV w e = true)
-        (fun m hm => Mvba.tc_lock.mono (r.steps m) PV w e hm) hw n hn) hxv (hnp n hnot)
+      (hxe ▸ r.mono (P := fun s => s.msg_tc_lock L PV w e = true)
+        (fun m hm => Mvba.msg_tc_lock.mono (r.steps m) L PV w e hm) hw n hn) hxv (hnp n hnot)
   · refine r.withinFrom_of_boundedFair (hbj.local_ (.leader_propose_fresh L PV W E₀) rfl)
       (ref_add_le hgst hB) (fun _ _ h => ⟨E₀, leader_propose_fresh_effect h⟩) ?_
     intro n hn hclk hnot
     obtain ⟨hab, hview⟩ := hwin n hn hclk
     exact enabled_leader_propose_fresh hL hab hnext hlead hview
-      (r.mono (P := fun s => s.tc_nolock PV = true)
-        (fun m hm => Mvba.tc_nolock.mono (r.steps m) PV hm) hnl n hn) (hin' n hn) (hnp n hnot)
+      (r.mono (P := fun s => s.msg_tc_nolock L PV = true)
+        (fun m hm => Mvba.msg_tc_nolock.mono (r.steps m) L PV hm) hnl n hn) (hin' n hn) (hnp n hnot)
 
 /-- **Link 3, `handle_preprepare` (a first delivery, `Δ`): a correct
 validator accepts the correct leader's proposal**, sent at or after GST and
@@ -614,7 +614,8 @@ theorem within_accepted (hbj : BoundedJustice sch r)
     {N : Nat} (hgst : r.gst ≤ r.clk N) {B : time} (hB : r.clk N + sch.Δ ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hpp : (r.at' N).msg_preprepare L W e = true)
-    (hjust : (∃ w, (r.at' N).tc_lock PV w (th.ent e) = true) ∨ (r.at' N).tc_nolock PV = true)
+    (hjust : (∃ s w, (r.at' N).msg_tc_lock s PV w (th.ent e) = true) ∨
+      ∃ s, (r.at' N).msg_tc_nolock s PV = true)
     (hsince : SinceGst r (fun s => s.msg_preprepare L W e = true))
     (hret : RetainedBy r i W (fun s => s.msg_preprepare L W e = true))
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → AllActive (r.at' n) ∧
@@ -631,11 +632,11 @@ theorem within_accepted (hbj : BoundedJustice sch r)
     ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩
     (hall i hi) hview hnext hlead hpp' hvalid ?_ ?_, hall⟩
-  · rcases hjust with ⟨w, hw⟩ | hnl
-    · exact Or.inl ⟨w, r.mono (P := fun s => s.tc_lock PV w (th.ent e) = true)
-        (fun m hm => Mvba.tc_lock.mono (r.steps m) PV w (th.ent e) hm) hw n hn⟩
-    · exact Or.inr (r.mono (P := fun s => s.tc_nolock PV = true)
-        (fun m hm => Mvba.tc_nolock.mono (r.steps m) PV hm) hnl n hn)
+  · rcases hjust with ⟨s, w, hw⟩ | ⟨s, hnl⟩
+    · exact Or.inl ⟨s, w, r.mono (P := fun t => t.msg_tc_lock s PV w (th.ent e) = true)
+        (fun m hm => Mvba.msg_tc_lock.mono (r.steps m) s PV w (th.ent e) hm) hw n hn⟩
+    · exact Or.inr ⟨s, r.mono (P := fun t => t.msg_tc_nolock s PV = true)
+        (fun m hm => Mvba.msg_tc_nolock.mono (r.steps m) s PV hm) hnl n hn⟩
   · by_contra hlapse
     exact hnot (accepted_of_vote_guard_lapsed (r.reachable n) hi hview hnto hlead hL hpp'
       hlapse)
@@ -717,7 +718,7 @@ theorem within_commitqc (hbj : BoundedJustice sch r)
     (hsince : SinceGst r (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p W (th.ent e) = true))
     (hret : RetainedBy r i W (fun s => ∃ p, nset.member p q = true ∧ s.msg_commit p W (th.ent e) = true))
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → AllActive (r.at' n) ∧ InView (r.at' n) i W) :
-    r.WithinFrom N B (fun s => s.decided i e = true ∧ s.msg_commitqc W (th.ent e) = true) := by
+    r.WithinFrom N B (fun s => s.decided i e = true ∧ s.msg_commitqc i W (th.ent e) = true) := by
   refine withinFrom_of_boundedFairWhile
     (hbj.first (.form_own_commitqc i W e q) rfl ⟨hQ, hsince, hret⟩)
     (ref_add_le hgst hB)
@@ -734,7 +735,7 @@ theorem within_commitqc (hbj : BoundedJustice sch r)
 validator decides** within `Δ + ρ` of the reference time `ref N`, once some
 correct validator `j` has decided on the certificate's vector and still
 takes part — it has proposed, and has not abandoned on the window — the
-composing layer hands a decided `CommitQC` on (`Relayed`,
+composing layer hands `j`'s decided `CommitQC` on (`Relayed`,
 Supplement, Lemma 13 (`lem:decision-propagation`)). From any index, before GST included. Needs no
 view guard, so no prefix fact: only `¬ abandoned` on the window, and
 `∀ E, ¬ decided` lapses only by the decision. -/
@@ -743,7 +744,7 @@ theorem within_decided_ref (hrel : Relayed sch r)
     {j : node} (hj : ¬ nset.is_byz j = true)
     {N : Nat} {B : time} (hB : r.ref N + (sch.Δ + sch.ρ) ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
-    (hqc : (r.at' N).msg_commitqc W (th.ent e) = true) (hdec : (r.at' N).decided j e = true)
+    (hqc : (r.at' N).msg_commitqc j W (th.ent e) = true) (hdec : (r.at' N).decided j e = true)
     {E₁ : value} (hjin : (r.at' N).input j E₁ = true)
     (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true)
     (hjwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned j = true) :
@@ -755,8 +756,8 @@ theorem within_decided_ref (hrel : Relayed sch r)
   exact ⟨enabled_decide hi
     ⟨E₀, r.mono (P := fun s => s.input i E₀ = true)
       (fun m hm => Mvba.input.mono (r.steps m) i E₀ hm) hin n hn⟩ (hwin n hn hclk)
-    (r.mono (P := fun s => s.msg_commitqc W (th.ent e) = true)
-      (fun m hm => Mvba.msg_commitqc.mono (r.steps m) W (th.ent e) hm) hqc n hn) hval
+    (r.mono (P := fun s => s.msg_commitqc j W (th.ent e) = true)
+      (fun m hm => Mvba.msg_commitqc.mono (r.steps m) j W (th.ent e) hm) hqc n hn) hval
     (fun E hE => hnot ⟨E, hE⟩),
     r.mono (P := fun s => s.decided j e = true)
       (fun m hm => Mvba.decided.mono (r.steps m) j e hm) hdec n hn,
@@ -794,10 +795,10 @@ transfer, which `bounded_termination` adds.
 The milestones, each one timed link (the `≤` are clock bounds, `t₃` the
 acceptance deadline):
 
-* every correct validator is in `W` — `E₀ + Δ`, `sync_view`, since the
+* every correct validator is in `W` — `E₀ + Δ`, `sync_view_*`, since the
   first correct validator in `W` forwarded the certificate below it at `N₀`,
   after GST, and nobody is above `W`;
-* the leader's `Pre-Prepare` — `+ δ`;
+* the leader's `Pre-Prepare`, on the certificate it entered on — `+ δ`;
 * the honest quorum has accepted and prepared — `+ Δ` (`t₃`);
 * each member holds its own prepare certificate, formed from the quorum's
   `Prepare`s — `+ Δ`, and has its shares by `t₃ + Δsync` ((Δ-avail)); both
@@ -937,7 +938,7 @@ theorem good_view_decides
       let ⟨E, hE⟩ := hin p hp
       ⟨E, r.mono (P := fun s => s.input p E = true)
         (fun m hm => Mvba.input.mono (r.steps m) p E hm) hE n hn⟩
-  have htc : (r.at' N₀).msg_tc PV = true := msg_tc_below_of_entered r.toLRun hi₀ hnext hent₀
+  have htc : (r.at' N₀).msg_tc i₀ PV = true := msg_tc_below_of_entered r.toLRun hi₀ hnext hent₀
   /- (1) The leader and the honest quorum are in `W` by `t₁`. -/
   obtain ⟨N₁, hN₁, hc₁, hall₁⟩ :=
     r.withinFrom_forall (fun p s => s.entered p W = true)
@@ -948,20 +949,16 @@ theorem good_view_decides
           · exact hL
           · exact hQc p (hmemQ p hp')
         obtain ⟨E, hE⟩ := hin p hpc
-        exact within_entered_of_tc hbj hpc hnext hgst (le_of_eq ht₁.symm) hE htc
-          (hsinceP _ (fun n ⟨j, hj, hjW⟩ => hfirst n j hj hjW)) ⟨i₀, hi₀, hent₀⟩
+        exact within_entered_of_tc hbj hpc hnext hgst (le_of_eq ht₁.symm) hE hi₀ htc
+          (hsinceP _ (fun n hjW => hfirst n i₀ hi₀ hjW)) hent₀
           (fun n _ h => ⟨hall' n (le_trans h h₁T),
             fun V hV => hbound n (le_trans h h₁T) p V hpc hV⟩))
   have hLent : (r.at' N₁).entered L W = true := hall₁ L (by simp)
   have hQent : ∀ p, nset.member p hqe.honestQuorum = true → (r.at' N₁).entered p W = true :=
     fun p hp => hall₁ p (List.mem_cons_of_mem _ ((enum.mem_members p _).mp hp))
-  /- (2) The leader's `Pre-Prepare` by `t₂`. -/
-  have hjust₁ : (∃ w e, (r.at' N₁).tc_lock PV w e = true) ∨ (r.at' N₁).tc_nolock PV = true := by
-    rcases Mvba.reachable_msg_tc_backed (r.reachable N₀) PV htc with hnl | ⟨w, e, hw⟩
-    · exact Or.inr (r.mono (P := fun s => s.tc_nolock PV = true)
-        (fun m hm => Mvba.tc_nolock.mono (r.steps m) PV hm) hnl N₁ hN₁)
-    · exact Or.inl ⟨w, e, r.mono (P := fun s => s.tc_lock PV w e = true)
-        (fun m hm => Mvba.tc_lock.mono (r.steps m) PV w e hm) hw N₁ hN₁⟩
+  /- (2) The leader's `Pre-Prepare` by `t₂`, on the certificate it entered
+  on and forwarded (`ViewTC_L`). -/
+  have hjust₁ := exists_justification_below_of_entered r.toLRun hL hnext hLent
   obtain ⟨EL, hEL⟩ := hinN L hL N₁ hN₁
   obtain ⟨n₂, hn₂, hc₂, e, hpp⟩ :=
     within_preprepare_of_leader hbj hL hnext hlead (hgstN N₁ hN₁)

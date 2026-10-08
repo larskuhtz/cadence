@@ -245,7 +245,7 @@ theorem mvba_proposed_new_chorus {l} {i : node} {v : MetaBlock node merkle_root}
       cases mvba_proposed_new (mvba_propose_tr htr) hnew hold
       exact ⟨mn, rfl⟩
     | accept_mvba_commitqc i' r' c mn =>
-      obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
+      obtain ⟨w, e, x, _, -, -, h⟩ := accept_mvba_commitqc_tr htr
       cases mvba_proposed_new h hnew hold
     | abandon i' mn => cases mvba_proposed_new (abandon_tr htr) hnew hold
     | mvba_avail_ready i' v' mn => cases mvba_proposed_new (mvba_avail_ready_tr htr) hnew hold
@@ -376,7 +376,7 @@ theorem relayedWhileActive_of_timedJustice (sch : Schedule view time)
   -- The antecedent, read at the composed indices of the window.
   have hcomp : ∀ n, N₀ ≤ n → r.clk n ≤ r.ref N₀ + (sch.Δ + sch.mvba.ρ) →
       Enabled (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)) thM
-        (r.at' n).mvba_st (.decide i v e) ∧ ((r.at' n).mvba_st.decided j e = true ∧
+        (r.at' n).mvba_st (.decide i j v e) ∧ ((r.at' n).mvba_st.decided j e = true ∧
           (∃ E, (r.at' n).mvba_st.input j E = true) ∧ ¬ (r.at' n).mvba_st.abandoned j = true) :=
       fun n hn hc => by
     have hk := hen ((mvbaComponent thS thM).cover r.toLRun n) (p.le_cover_of_entry_le hn)
@@ -394,13 +394,12 @@ theorem relayedWhileActive_of_timedJustice (sch : Schedule view time)
   obtain ⟨-, hd0, -, -⟩ := hcomp N₀ le_rfl hc0
   obtain ⟨c0, hc0'⟩ := (Mvba.mvbaSafety (nset := nset) thM).decided_certified _
     (Chorus.reachable_mvba_reachable (r.reachable N₀)) j e hj hd0
-  have hcert0 := certifies_persists r.toLRun hc0'
+  have hdc0 := decidedCert_persists r.toLRun hc0'
   obtain ⟨N₁, hN₁, hc₁, hsent⟩ := r.withinFrom_of_bufferedFair
     (P := fun st => st.local_mvba_cert_sent j = true)
-    (hTJ.rows (.send_mvba_cert j c0 e) .loc rfl (fun h => h)) le_rfl
+    (hTJ.rows (.send_mvba_cert j c0) .loc rfl (fun h => h)) le_rfl
     (r.bufWindow_le le_rfl le_rfl) (fun _ _ h => (send_mvba_cert_effect h).2)
-    (fun n hn hc hnot => ⟨trivial, fun hg => enabled_send_mvba_cert hj hg
-      (hcomp n hn (le_trans hc hδw)).2.1 (hcert0 n hn) hnot⟩)
+    (fun n hn hc hnot => ⟨trivial, fun hg => enabled_send_mvba_cert hj hg (hdc0 n hn) hnot⟩)
     (fun n hn hc _ => by
       obtain ⟨-, -, ⟨E, hE⟩, hab⟩ := hcomp n hn (le_trans hc hδw)
       exact ⟨participating_of_mvba_proposed (r.reachable n) (v := E) hE,
@@ -436,7 +435,7 @@ theorem relayedWhileActive_of_timedJustice (sch : Schedule view time)
       exact (decide_enabled_guards hen').2 w hw)
     (fun _ _ _ => trivial)
   -- So `i` has decided inside the window, where `decide i v e` is still enabled.
-  obtain ⟨w, e', x, -, -, htr⟩ := accept_mvba_commitqc_tr (hl ▸ r.steps m)
+  obtain ⟨w, e', x, _, -, -, htr⟩ := accept_mvba_commitqc_tr (hl ▸ r.steps m)
   exact (decide_enabled_guards (hcomp (m + 1) (by omega) (le_trans hcm hW)).1).2 x
     (Mvba.decide_effect htr)
 

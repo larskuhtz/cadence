@@ -321,7 +321,7 @@ timed obligation by what the guard consumes:
 | `handle_preprepare_first`, `handle_preprepare` (the leader's `Pre-Prepare`) | `leader_propose_first`, `leader_repropose`, `leader_propose_fresh` (upon entering the view; `Recover` is the identity here) |
 | `form_own_commitqc`, `form_own_tc_lock`, `form_own_tc_nolock` (a quorum of `Commit`s or timeouts the validator received itself; §6.4.7) | `send_commit`, `timeout_qc`, `timeout_noqc` (own state and a certificate already counted) |
 | `adopt_prepqc` (a quorum of `Prepare`s the validator received itself; (N4) below) | |
-| `sync_view`, `sync_view_adopt` (a timeout certificate) | |
+| `sync_view_nolock`, `sync_view_lock`, `sync_view_adopt` (a timeout certificate a correct validator sent) | |
 
 With `δ = 0` the good view's latency is the paper's constant (§6.2.6),
 which is the check that the classification is the paper's and not a
@@ -369,10 +369,11 @@ prepares itself; nobody forwards one. The model does the same
 `TryFormPrepQC` at the paper target):
 
 * the step takes the supermajority `q` of `Prepare`s as a parameter, as
-  `form_prepqc v e q` does, and requires each member's `Prepare` on
-  `(v, e)`, in place of `msg_prepqc v e`;
-* it records the certificate it formed (`msg_prepqc v e`), since from then
-  on the certificate exists and the validator's timeouts carry it;
+  the commit and timeout rules do, and requires each member's `Prepare` on
+  `(v, e)`, in place of a certificate formed elsewhere;
+* it sends the certificate it formed under its own name
+  (`msg_prepqc i v e`), since from then on the validator's timeouts carry
+  it;
 * it is a network hop with a first-delivery clause — a correct quorum's
   `Prepare`s sent at or after GST and retained by the forming validator —
   and nothing is owed for a quorum with Byzantine members, whose votes
@@ -381,8 +382,8 @@ prepares itself; nobody forwards one. The model does the same
 A local adoption step on a certificate formed anywhere would hold a correct
 validator to adopting a certificate it never received, and so exclude
 supplement runs in which Byzantine votes reach only some validators.
-`form_prepqc` stays as the anonymous assembly, the adversary's capability,
-and carries no fairness (`AssemblyLabel`, §6.4.7). The good view is
+The adversary forms one under its own name (`byz_form_prepqc`), with no
+fairness ([MvbaPlan.md](MvbaPlan.md) §11). The good view is
 unaffected: there every correct validator receives the whole correct
 quorum's prepares within the same `Δ` (§6.2.6).
 
@@ -456,7 +457,7 @@ validator has entered some view `≥ v` by time `X ≥ gst`:
 | every correct validator still in `v` has its timer expired | `X + τ v` | (T2) from its entry, which is `≤ X` |
 | … and has timed out or left `v` | `+ 2δ` | `timeout_*` is enabled; at most one `adopt_prepqc` can intervene in `v` and change the highest held certificate, so one restart of the `δ` window |
 | a timeout certificate for some view `≥ v` exists | `+ Δ` | either a correct validator is above `v`, which needs one, or the correct quorum's timeouts are all sent and a correct validator in `v` forms the certificate (`form_own_tc_*`); a first delivery, the timeouts retained by the first member to send one, which was in `v` then and forms it |
-| `Synced (succ v)` | `+ Δ` | `sync_view` enabled for everyone at `≤ v`; a first delivery of a certificate formed after GST |
+| `Synced (succ v)` | `+ Δ` | a `sync_view_*` step enabled for everyone at `≤ v`; a first delivery of a certificate a correct validator sent after GST |
 
 so `Synced (succ v) (X + C)` with **`C = τ_max + 2δ + 2Δ`** — the
 supplement's `τ_{w+1} ≤ τ_w + 2Δ + T` (Supplement, Lemma 15 (`lem:convergence`)) at `δ = 0`.
@@ -517,7 +518,7 @@ thus at least `M + 2`, and its predecessor `W − 1` is fresh (above `M`) and
 past the ramp, which is what the retention needs — the supplement's charge
 of views `V` and `V + 1` as possibly unproductive (Supplement, Lemma 16 (`lem:good-view`) takes
 `w ≥ V + 2`). Then: `Synced M (u + Δ + ρ)` by one retransmitted
-`sync_view` hop, since the certificate below `M` exists at `N₀` but may
+`sync_view_*` hop, since the certificate below `M` exists at `N₀` but may
 predate GST; `Synced (M + 1)` a further `C + 2ρ` on (the first burn);
 `Synced W (u + Δ + ρ + 2ρ + n • C)` with `n ≤ |below v_L| + k` views burnt
 in all; `W`'s first correct entry is after `N₀`, hence `E₀ ≥ u ≥ gst`; and
@@ -600,7 +601,7 @@ timeout certificate below `W` present *at* the first correct entry
 against its milestone deadlines by `abel`, so §6.2.6's tables and the
 constants agree term for term. Three hop-table rows are exercised by no
 proof: `sync_view_adopt` (a validator holding a higher certificate advances
-through `sync_view`, by `tc_lock_implies_tc`) and the two view-zero labels
+through `sync_view_lock`) and the two view-zero labels
 (the good view is strictly above a view already entered). Their fairness is
 a premise the bound does not use, which weakens nothing.
 
@@ -1310,10 +1311,10 @@ finalizes; and the MVBA accepts a transferred `CommitQC` of any view
 (Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)). The transfer is the caller's, so
 Chorus's own rows carry it.
 
-* **The broadcast.** `send_mvba_cert i c v`
-  ([Chorus.lean](../Cadence/Chorus.lean)): a correct validator that has
-  decided `v` sends, under its own name, a certificate `c` that certifies
-  its decided entries (`msg_mvba_cert i c`); gated on its participation, a
+* **The broadcast.** `send_mvba_cert i c`
+  ([Chorus.lean](../Cadence/Chorus.lean)): a correct validator sends,
+  under its own name, the certificate `c` its decision output
+  (`mvba.decidedCert`, `msg_mvba_cert i c`); gated on its participation, a
   `δ`-row on its own decision.
 * **The relay.** `accept_mvba_commitqc i s c mvba_next`: a correct
   validator that received `c` from `s` hands it to its MVBA through the
@@ -1322,8 +1323,9 @@ Chorus's own rows carry it.
   the certificate is the `CommitQC` route, `commit_assign_*_mvba`
   ([PaperAlignment.md](PaperAlignment.md) §5.7), which re-broadcasts it.
 * **The contract** (`MVBASafety`, first-order additions,
-  [Interfaces.lean](../Cadence/Interfaces.lean)): `certifies`;
-  `decided_certified`, **decide exposes its certificate**; the input
+  [Interfaces.lean](../Cadence/Interfaces.lean)): `certifies`; the output
+  `decidedCert` with `decided_certified`, **decide exposes its
+  certificate**, and `decidedCert_certifies`; the input
   `accept` with `accept_trans`; `accept_effect` and `accept_enabled`, **a
   transferred valid certificate is accepted**, in the rely form (the
   caller transfers; the MVBA accepts). `Mvba.mvbaSafety` proves them. At
@@ -1898,7 +1900,9 @@ disable themselves after firing: `vote` (`¬ local_voted`), `send_commit`
 `adopt_prepqc` (the lock-view guard). The others got the guard:
 
 * **Mvba: the anonymous assemblies** `form_prepqc`, `form_commitqc`,
-  `form_tc_lock` and `form_tc_nolock`. They have no validator, and a quorum
+  `form_tc_lock` and `form_tc_nolock` (removed since; the adversary now
+  aggregates under its own name, `byz_form_*`, [MvbaPlan.md](MvbaPlan.md)
+  §11). They had no validator, and a quorum
   parameter `q`, so once the certificate exists every `q`-variant stays
   enabled without effect. In the supplement (at the paper target) each is a
   step of one validator with a local condition:
@@ -2035,18 +2039,17 @@ What the lemma required:
     that it has not already learned a decision certificate", form the
     `CommitQC`, record it as `DecidedQC_i` and decide. `DecidedQC_i` is set
     exactly when a validator decides (both decision paths set it), so the
-    guard is `∀ E, ¬ decided i E`, with no relation of its own. The
-    certificate is put on the network, where `decide` reads it.
+    guard is `∀ E, ¬ decided i E`; since R36 the certificate is recorded
+    in `decided_qc i v e` and sent under `i`'s name, where `decide` reads it.
   * `form_own_tc_lock i v q r₀ w e` and `form_own_tc_nolock i v q` —
     `HandleTimeout`, "upon first collecting `2f+1` valid timeout messages":
     the local record `tc_formed i v`, whose absence is the guard.
     The certificate goes on the network; `SyncView` is the next step
     (`sync_view`, `sync_view_adopt`).
 
-  The four anonymous assemblies stay, as the adversary's capability, in
-  the unfair class `AssemblyLabel` (`not_justice_of_assembly`), with no
-  hop-table row. Only positive reads of `msg_*`; at most 6 parameters. One
-  invariant, `tc_formed_backed` (the record is backed by `msg_tc v`), which
+  The adversary's aggregation is `byz_form_*`, in `ByzLabel`, with no
+  hop-table row. Only positive reads of `msg_*`; at most 7 parameters. One
+  invariant, `tc_formed_backed` (the record is backed by `msg_tc i v`), which
   the "not already formed" guard's lapse needs; `form_own_commitqc`'s
   record needs none, since its lapse is the goal.
 * **The acceptance criterion**, `Mvba.enabledMove_of_enabled`:
@@ -2062,7 +2065,7 @@ What the lemma required:
   pinned at the trio. The four assemblies were the only fair labels of
   the Mvba that could stay enabled after firing.
 * **Manual cells.** `form_own_commitqc × commitqc_agree` (the
-  `form_commitqc` cell's argument) and `form_own_commitqc × agreement` (the
+  `byz_form_commitqc` cell's argument) and `form_own_commitqc × agreement` (the
   same argument at the decision the step makes, with `decided_backed`). The
   number of manual cells is in [Architecture.md](Architecture.md); the cell
   count is the `#veil_status Mvba` pin in
@@ -2082,9 +2085,9 @@ What the lemma required:
     certificate, and at the idle state no fair label is enabled at
     all.
 * **NoLock** ([Mvba/NoLock.lean](../Cadence/Mvba/NoLock.lean)) mirrors
-  the three steps. As a restriction, it drops the anonymous `form_prepqc`
-  and `form_tc_*`, whose certificates the correct validators form
-  themselves. It keeps `form_commitqc`: the counterexample's view-1 commit
+  the three steps. As a restriction, it drops `byz_form_prepqc` and
+  `byz_form_tc_*`, whose certificates the correct validators form
+  themselves. It keeps `byz_form_commitqc`: the counterexample's view-1 commit
   certificate has to be the adversary's aggregation, since a correct
   validator that forms one decides on it and halts. The checker, with
   `sequential := true`, finds agreement violated, and the file pins the

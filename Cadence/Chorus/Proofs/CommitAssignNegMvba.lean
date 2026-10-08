@@ -106,6 +106,34 @@ runs up to the budget on CI's 4-core runner. -/
     rw [hb_false] at hy; simp at hy
   · exact hm12 (hne3 j m1 m2 hp1 hp2)
 
+/- The inclusion premise against the bridge: each of the bridge's three
+negative witnesses needs a correct validator's negative vote or entry, or
+an equivocating correct proposer, and the premise rules each out. The
+solver found this cell close to its budget on CI's runner. -/
+#prove_vc Chorus commit_assign_neg_mvba proposal_inclusion_no_neg by
+  unveil_local
+  veil_inv_have h_inclusion_no_honest_vote_neg := inclusion_no_honest_vote_neg
+  veil_inv_have h_inclusion_no_honest_fb_neg := inclusion_no_honest_fb_neg
+  veil_inv_have h_proposer_unique_root := proposer_unique_root
+  veil_inv_have h_pin := proposal_inclusion_no_neg
+  intro _hbyz _hpart _hab _hcom _hprop _hmsg _hcert _hval hev _hcp _hcn J I M hbyzJ hpropJ hall hwe hI
+  refine ⟨?_, h_pin J I M hbyzJ hpropJ hall hwe hI⟩
+  rintro rfl rfl
+  rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨harm, -⟩
+  · obtain ⟨a, ha_mem, ha_hon⟩ :=
+      nset.greater_than_third_one_honest Qn (nset.supermajority_greater_than_third Qn hQn_sup)
+    have hx :=
+      h_inclusion_no_honest_vote_neg j a M hbyzJ hpropJ hall hwe (Bool.eq_false_iff.mpr ha_hon)
+    have hy := hQn a ha_mem
+    rw [hx] at hy; simp at hy
+  · rcases harm with ⟨qn, hqn_gtt, hqn⟩ | ⟨m1, m2, hm12, hp1, hp2⟩
+    · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qn hqn_gtt
+      have hx :=
+        h_inclusion_no_honest_fb_neg j a M hbyzJ hpropJ hall hwe (Bool.eq_false_iff.mpr ha_hon)
+      have hy := hqn a ha_mem
+      rw [hx] at hy; simp at hy
+    · exact hm12 (h_proposer_unique_root j m1 m2 hbyzJ hp1 hp2)
+
 #prove_action Chorus commit_assign_neg_mvba
 
 end Chorus.Proofs

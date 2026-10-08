@@ -1,15 +1,15 @@
 import Cadence.Mvba
 import Cadence.ProofPrelude
 
-/-! # `Mvba` proofs — action `form_commitqc`
+/-! # `Mvba` proofs — action `byz_form_commitqc`
 
 Scaffolded by `#gen_proof_files Mvba`; yours to edit. Proves every
-registered VC of `form_commitqc` cross-file from the module's persisted VC registry
+registered VC of `byz_form_commitqc` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 [Certify.lean](../Certify.lean)'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Mvba form_commitqc <property> by <tac>` lines
+Manual cells go on `#prove_vc Mvba byz_form_commitqc <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
@@ -33,8 +33,8 @@ veil_large_clump_budgets
 namespace Mvba.Proofs
 
 /- **Manual cell — agreement at the certificate level.** The solver finds
-this proof too (25 s cold on 14 cores, 41 % of Veil's default 60 s budget); it is
-written out for the same reason as `form_prepqc`'s: it is a real argument,
+this proof too; it is
+written out for the same reason as `byz_form_prepqc`'s: it is a real argument,
 and the margin is not one a slower runner keeps. It is Supplement, Theorem 1 (`thm:agreement`) for the new certificate `(v, e)` against every commit
 certificate `(V0, E0)` already on the wire. Same view: the two `2f+1`
 commit quorums share an honest signer, who accepted both vectors in that
@@ -44,7 +44,7 @@ view, or implied by the old certificate if `V0` is — blocks the lower
 view's commit quorum by `prepqc_blocks_lower_commits`, while an honest
 member of that quorum committed there, which `no_block` refutes from
 Supplement, Lemma 2 (`lem:commit-provenance`) and Supplement, Remark 3 (`rem:lock-monotonicity`). -/
-#prove_vc Mvba form_commitqc commitqc_agree by
+#prove_vc Mvba byz_form_commitqc commitqc_agree by
   unveil_local
   veil_inv_have h_honest_commit_accepted := honest_commit_accepted
   veil_inv_have h_local_prepqc_backed := local_prepqc_backed
@@ -55,7 +55,7 @@ Supplement, Lemma 2 (`lem:commit-provenance`) and Supplement, Remark 3 (`rem:loc
   veil_inv_have h_commit_later_timeout_carries_lock := commit_later_timeout_carries_lock
   veil_inv_have h_blocks := prepqc_blocks_lower_commits
   clear hinv
-  intro hsup_q hq V V' E E' hc1 hc2
+  intro _ hsup_q hq S S' V V' E E' hc1 hc2
   -- An honest validator that committed `E0` in `V0` is not blocked there:
   -- its later timeouts carry a view-`≥ V0` lock, and its view-`V0` lock is
   -- on `E0`.
@@ -76,10 +76,10 @@ Supplement, Lemma 2 (`lem:commit-provenance`) and Supplement, Remark 3 (`rem:loc
     · have hheld0 := (h_honest_commit_accepted n V0 E0 hn hcm).1
       exact hne' (h_local_prepqc_unique n V0 e' E0 hn hheld hheld0)
   -- Every commit certificate already on the wire is on the new one's value.
-  have key : ∀ (V0 : view) (E0 : evec), st.msg_commitqc V0 E0 = true → E0 = e := by
-    intro V0 E0 hc0
+  have key : ∀ (S0 : node) (V0 : view) (E0 : evec), st.msg_commitqc S0 V0 E0 = true → E0 = e := by
+    intro S0 V0 E0 hc0
     by_contra hneq
-    obtain ⟨Q0, hQ0_sup, hQ0⟩ := h_commitqc_backed V0 E0 hc0
+    obtain ⟨Q0, hQ0_sup, hQ0⟩ := h_commitqc_backed S0 V0 E0 hc0
     by_cases hVeq : V0 = v
     · -- Same view: the two commit quorums share an honest signer, who
       -- held a view-`V0` prepare certificate on both vectors.
@@ -99,28 +99,28 @@ Supplement, Lemma 2 (`lem:commit-provenance`) and Supplement, Remark 3 (`rem:loc
         obtain ⟨c, hcq, hc_hon⟩ :=
           nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hsup_q)
         have hc_hon' : ByzNodeSet.is_byz c = false := Bool.eq_false_iff.mpr hc_hon
-        have hpq_v : st.msg_prepqc v e = true :=
+        obtain ⟨Sp, hpq_v⟩ :=
           h_local_prepqc_backed c v e hc_hon' (h_honest_commit_accepted c v e hc_hon' (hq c hcq)).1
-        obtain ⟨n, hnQ0, hn_hon, hb⟩ := h_blocks v V0 e E0 Q0 hpq_v hlt hneq hQ0_sup
+        obtain ⟨n, hnQ0, hn_hon, hb⟩ := h_blocks Sp v V0 e E0 Q0 hpq_v hlt hneq hQ0_sup
         exact no_block n V0 E0 hn_hon (hQ0 n hnQ0) hb
       · -- `v < V0`: the old certificate's view-`V0` prepare certificate
         -- blocks `q` from committing `e` in `v`, yet `q` did.
         have hlt : TotalOrderWithMinimum.lt v V0 :=
           (TotalOrderWithMinimum.le_lt v V0).mpr ⟨hle, fun h => hVeq h.symm⟩
-        have hpq0 := h_commitqc_implies_prepqc V0 E0 hc0
+        obtain ⟨Sp0, hpq0⟩ := h_commitqc_implies_prepqc S0 V0 E0 hc0
         obtain ⟨n, hnq, hn_hon, hb⟩ :=
-          h_blocks V0 v E0 e q hpq0 hlt (fun h => hneq h.symm) hsup_q
+          h_blocks Sp0 V0 v E0 e q hpq0 hlt (fun h => hneq h.symm) hsup_q
         exact no_block n v e hn_hon (hq n hnq) hb
   have hE : E = e := by
-    by_cases h : v = V ∧ e = E
-    · exact h.2.symm
-    · exact key V E (hc1 (fun h1 h2 => h ⟨h1, h2⟩))
+    by_cases h : r = S ∧ v = V ∧ e = E
+    · exact h.2.2.symm
+    · exact key S V E (hc1 (fun h0 h1 h2 => h ⟨h0, h1, h2⟩))
   have hE' : E' = e := by
-    by_cases h : v = V' ∧ e = E'
-    · exact h.2.symm
-    · exact key V' E' (hc2 (fun h1 h2 => h ⟨h1, h2⟩))
+    by_cases h : r = S' ∧ v = V' ∧ e = E'
+    · exact h.2.2.symm
+    · exact key S' V' E' (hc2 (fun h0 h1 h2 => h ⟨h0, h1, h2⟩))
   rw [hE, hE']
 
-#prove_action Mvba form_commitqc
+#prove_action Mvba byz_form_commitqc
 
 end Mvba.Proofs

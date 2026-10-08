@@ -72,11 +72,11 @@ def mst (m : Nat) : MS where
   msg_commit _ _ _ := false
   msg_timeout_qc _ _ _ _ := false
   msg_timeout_noqc _ _ := false
-  msg_prepqc _ _ := false
-  msg_commitqc _ _ := false
-  msg_tc _ := false
-  tc_lock _ _ _ := false
-  tc_nolock _ := false
+  msg_prepqc _ _ _ := false
+  msg_commitqc _ _ _ := false
+  msg_tc _ _ := false
+  msg_tc_lock _ _ _ _ := false
+  msg_tc_nolock _ _ := false
   input _ _ := false
   entered _ _ := false
   voted _ _ := false
@@ -90,6 +90,7 @@ def mst (m : Nat) : MS where
   avail_ready _ _ := false
   timer_expired _ _ := false
   tc_formed _ _ := false
+  decided_qc _ _ _ := false
 
 /-- The system's Chorus configuration at slot type `ℕ`: validator 0 the one
 proposer, every root well-encoded, the MVBA starting from `mst 0`. -/
@@ -296,6 +297,12 @@ theorem mquiet (m : Nat) : Mvba.Quiet (mst m) := by
 theorem not_decided (m : Nat) (i : Fin 4) (v : V) : ¬ (Mvba.mvbaSafety thM).decided (mst m) i v :=
   fun h => Bool.false_ne_true h
 
+/-- No MVBA decision ever outputs a certificate: nobody decides. -/
+theorem not_decidedCert (m : Nat) (i : Fin 4) (c : Mvba.Msg ℕ V E) :
+    ¬ (Mvba.mvbaSafety thM).decidedCert (mst m) i c := by
+  show ¬ Mvba.DecidedCert (mst m) i c
+  cases c <;> simp [Mvba.DecidedCert, Veil.FieldRepresentation.get, mst]
+
 /-- Nobody ever holds a valid MVBA commit certificate: none is formed. -/
 theorem not_certified (m : Nat) (c : Mvba.Msg ℕ V E) (e : E) :
     ¬ (Mvba.mvbaSafety thM).certifies (mst m) c e := by
@@ -483,7 +490,7 @@ local macro "wquiet" : tactic =>
     all_goals first | (simp [hop] at hh; done) | skip
     all_goals first | exact absurd ⟨_, _, _, rfl⟩ ha | skip
     case accept_mvba_commitqc i r c mn =>
-      obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
+      obtain ⟨w, e, x, _, -, -, h⟩ := accept_mvba_commitqc_tr htr
       exact Mvba.not_enabled_decide_of_quiet (mquiet _) ⟨_, h⟩
     case on_mvba_decide_pos =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
@@ -503,8 +510,8 @@ local macro "wquiet" : tactic =>
       exact not_certified _ _ _ hc
     case send_mvba_cert =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
-      obtain ⟨-, -, -, hdec, -⟩ := htr
-      exact not_decided _ _ _ hdec
+      obtain ⟨-, -, -, hdc, -⟩ := htr
+      exact not_decidedCert _ _ _ hdc
     case mvba_terminate =>
       simp only [sys, atMvba, Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct, trSimp] at htr
       obtain ⟨-, -, hdec, -⟩ := htr

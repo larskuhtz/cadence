@@ -245,8 +245,11 @@ decision or of a valid certificate.
 **The decision handoff** is the supplement's strengthened Module 3 (`mod:mvba`)
 interface (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"), and
 nothing else: `certifies st c e` (a valid commitment proof for the entry
-vector `e`, since the certificate is over entries), the field
-`decided_certified` (**decide exposes its certificate**), the input `accept`
+vector `e`, since the certificate is over entries), the output
+`decidedCert st p c` (the certificate `p`'s decision outputs, at `p`'s
+index) with `decided_certified` (**decide exposes its certificate**) and
+`decidedCert_certifies` (it comes with the decision and certifies its
+entries), the input `accept`
 with `accept_trans`, and `accept_effect`/`accept_enabled` (**a transferred
 valid certificate is accepted**, in the rely form, deciding a
 representation of the certified entries). Beside them sit the
@@ -261,10 +264,11 @@ availability input** is `markAvail` with `markAvail_trans`,
 four frames saying that no other transition changes `availReady`. The
 supplement makes `AvailReady` a predicate on the dissemination layer's
 state, so the caller decides it ([PaperAlignment.md](PaperAlignment.md)
-§6, P12). All are first-order. Five facts with an `∃` in their conclusion
+§6, P12). All are first-order. Six facts with an `∃` in their conclusion
 that no safety cell of Chorus reads are withheld from the solver
-(`veil_smt_ignore`: `decided_certified`, `accept_effect`, `accept_enabled`,
-`certified_valid`, `certified_available`). `Mvba.mvbaSafety`
+(`veil_smt_ignore`: `decided_certified`, `decidedCert_certifies`,
+`accept_effect`, `accept_enabled`, `certified_valid`,
+`certified_available`). `Mvba.mvbaSafety`
 proves them, with `decide` as the instance's `accept`: the MVBA no longer
 decides on a transferred certificate by an internal step, so the oracle
 `mvba_step` cannot take it, and its timing is the caller's, derived from
