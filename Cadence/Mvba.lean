@@ -477,11 +477,13 @@ action leader_propose_first (l : node) (x : value) {
 }
 
 /-- View `v > 1` with `lock(J) ≠ ⊥`: `x ← Recover(lock(J))`, a valid
-representation of the lock's entries (Supplement, Lemma 10 (`lem:reproposal`)). The participation guard `∃ E, input
+representation of the lock's entries (Supplement, Lemma 10 (`lem:reproposal`)). `J` is `ViewTC_l`, the timeout
+certificate that justified the leader's entry into `v`, which it forwarded
+under its own name when it entered (`msg_tc_lock l pv …`, its own send). The participation guard `∃ E, input
 l E` is redundant at reachable states (a view `> 1` is entered only through
 the `sync_view_*` steps, which require it) and is what makes the contract's Quiescence
 a one-step fact for this send too ([Mvba/Compose.lean](Mvba/Compose.lean)). -/
-action leader_repropose (l : node) (s : node) (pv : view) (v : view) (w : view) (x : value) {
+action leader_repropose (l : node) (pv : view) (v : view) (w : view) (x : value) {
   require ¬ is_byz l
   require ∃ E, input l E
   require ¬ abandoned l
@@ -490,22 +492,22 @@ action leader_repropose (l : node) (s : node) (pv : view) (v : view) (w : view) 
   require leader v l
   require in_view l v
   -- `x ← Recover(lock(J))`: a valid representation of the lock's entries.
-  require msg_tc_lock s pv w (ent x)
+  require msg_tc_lock l pv w (ent x)
   require valid x
   require ¬ proposed_in l v
   proposed_in l v := true
   msg_preprepare l v x := true
 }
 
-/-- View `v > 1` with `lock(J) = ⊥`: `x ← B_i`. -/
-action leader_propose_fresh (l : node) (s : node) (pv : view) (v : view) (x : value) {
+/-- View `v > 1` with `lock(J) = ⊥`: `x ← B_i`, with `J = ViewTC_l` as above. -/
+action leader_propose_fresh (l : node) (pv : view) (v : view) (x : value) {
   require ¬ is_byz l
   require ¬ abandoned l
   require ∀ E, ¬ decided l E
   require vord.next pv v
   require leader v l
   require in_view l v
-  require msg_tc_nolock s pv
+  require msg_tc_nolock l pv
   require input l x
   require ¬ proposed_in l v
   proposed_in l v := true

@@ -112,8 +112,8 @@ theorem not_enabled_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodese
 /-- Nor can anybody take a transferred certificate: `decide` needs the input
 too. -/
 theorem not_enabled_decide_of_quiet {s : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)}
-    (hq : Quiet s) {i : node} {v : view} {e : value} :
-    ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th s (.decide i v e) := by
+    (hq : Quiet s) {i j : node} {v : view} {e : value} :
+    ¬ Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th s (.decide i j v e) := by
   obtain ⟨hin, -, -, -, -, -, -⟩ := hq
   rintro ⟨s', htr⟩
   mvba_tr htr
@@ -202,9 +202,11 @@ theorem boundedJustice_of_quiet [IsOrderedAddMonoid time] {sch : Schedule view t
     obtain ⟨n, hn, hc, hnm⟩ := hq N D hD
     exact absurd (hen n hn hc).1 (hnm l h hh)
   refine ⟨fun l hh N hen => ?_, fun l hh _ => hwhile _ hΔ l _ hh _,
-    fun i pv v _ => ⟨hwhile _ hΔ _ _ rfl _, fun w e => hwhile _ hΔ _ _ rfl _⟩,
-    fun i v q _ _ => ⟨fun r₀ w e => hwhile _ hΔρ _ _ rfl _, hwhile _ hΔρ _ _ rfl _⟩,
-    fun i pv v => ⟨hwhile _ hΔρ _ _ rfl _, fun w e => hwhile _ hΔρ _ _ rfl _⟩⟩
+    fun i s pv v _ _ => ⟨hwhile _ hΔ _ _ rfl _, fun w e => hwhile _ hΔ _ _ rfl _,
+      fun w e => hwhile _ hΔ _ _ rfl _⟩,
+    fun i v q _ _ => ⟨fun r₀ s w e => hwhile _ hΔρ _ _ rfl _, hwhile _ hΔρ _ _ rfl _⟩,
+    fun i s pv v _ => ⟨hwhile _ hΔρ _ _ rfl _, fun w e => hwhile _ hΔρ _ _ rfl _,
+      fun w e => hwhile _ hΔρ _ _ rfl _⟩⟩
   obtain ⟨n, hn, hc, hnm⟩ := hq N sch.δ sch.δ_nonneg
   exact absurd (hen n hn hc) (hnm l _ hh)
 
