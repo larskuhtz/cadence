@@ -274,6 +274,13 @@ def acsSafety (byz : V → Prop) (f : Nat) : ACSSafety V Sl (State V Sl) byz whe
     cases hc'
     rw [hcp] at hcp'
     exact Option.some.inj hcp'
+  decided_stable st st' i p s hr h _ hd hd' := by
+    obtain ⟨hc1, -⟩ := hr.1 i hd
+    obtain ⟨c, hc⟩ := Option.isSome_iff_exists.mp hc1
+    obtain ⟨-, c', hc', hcp⟩ := hd'
+    rw [core_mono h hc] at hc'
+    cases hc'
+    exact ⟨hd, c, hc, hcp⟩
 
 /-! ## The contract's temporal level -/
 
