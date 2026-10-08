@@ -212,15 +212,22 @@ instance of their own, and are left out:
 * a *transport*, which takes a value of `cls` itself and returns one
   (`SlotConsensusSafety.castByz`, which restates an instance at an equal
   fault predicate);
-* a *derived* instance, whose definition uses another provider of `cls`
-  with the same witness status (`Cadence.chorusInstance` and
-  `Chorus.scSafety` are `Chorus.slotConsensusSafety` at one configuration).
+* a *derived* instance, whose definition uses another provider of the same
+  class: a real one, or, for a witness, any (`Cadence.chorusInstance` is
+  `Chorus.slotConsensusSafety` at one configuration, and
+  `Composed.Witness.OSI` is `Composed.OS`, itself
+  `Conductor.orchestratorSafety`, at the ideal ACS).
 
-Neither rule can hide the last real provider of a class. A transport needs
-an instance of `cls` from elsewhere, so it never is the only source of one.
-Definitions cannot refer to each other in a cycle, so every derived entry
-leads, through the providers its definition uses, to one that uses none,
-and that one stays listed. -/
+Neither rule hides the last real provider of a class. A transport needs an
+instance from elsewhere, so it never is the only source of one. A real
+provider is hidden only for using another real one, and definitions cannot
+refer to each other in a cycle, so every chain of real providers ends at one
+that stays listed.
+
+The same rule, in the same words, is `ownInstances` in
+[TrustSurface.lean](../../../scripts/TrustSurface.lean), which renders the
+site's trust boundary page; the two programs share no import, so it is kept
+in both, and a change to one is made in both. -/
 def providersOf (env : Environment) (cls : Name) : Array Provider := Id.run do
   let mut all : Array (Provider × NameSet) := #[]
   let mods := env.header.moduleNames
@@ -244,7 +251,7 @@ def providersOf (env : Environment) (cls : Name) : Array Provider := Id.run do
         all := all.push (⟨n, reqs, isWitnessModule m⟩, uses)
   -- a derived instance: its definition uses another provider of the class
   let out := all.filterMap fun (p, uses) =>
-    if all.any (fun (q, _) => q.name != p.name && q.witness == p.witness && uses.contains q.name)
+    if all.any (fun (q, _) => q.name != p.name && (!q.witness || p.witness) && uses.contains q.name)
     then none else some p
   return out.qsort (·.name.toString < ·.name.toString)
 
