@@ -1300,9 +1300,8 @@ and the module consumes the state-level fragment as the class constraint
   class's `external_validity` says the decided value is `Valid`; the guard
   says what a valid certificate *means* in a model whose signatures are
   network relations — `Valid` is a class parameter fixed before this
-  module's state exists, so it cannot mention Chorus's network. It has
-  exactly the shape of the Conductor's ACS median bridge (`acs_decide`),
-  and it is sound in both directions that matter: it removes no real
+  module's state exists, so it cannot mention Chorus's network. It is
+  sound in both directions that matter: it removes no real
   behaviour (certificates are publicly verifiable, so the receiver *can*
   re-check, and a correct MVBA's decision passes the check), and if the
   MVBA were wrong the handler would simply not fire — safety-conservative.
