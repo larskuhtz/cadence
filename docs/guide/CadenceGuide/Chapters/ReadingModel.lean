@@ -227,8 +227,8 @@ adversary has to be at least this strong.
 
 {model Cadence.Chorus "instantiate mvba"}
 
-The fallback path runs an MVBA, and Chorus does not contain one. It holds
-an abstract state, `mvba_st`, and the class `MVBASafety` over it: the
+The fallback path runs an MVBA, which Chorus holds only as an abstract
+state, `mvba_st`, with the class `MVBASafety` over it: the
 paper's MVBA module, {cite}`mod:mvba`, stated as a Lean class. Every field of the
 class (agreement, integrity, external validity, that decisions are never
 undone) is a hypothesis of every verification condition of Chorus, and no

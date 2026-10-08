@@ -41,3 +41,12 @@ pre:not([class*="hl"]) {
 
 /* No dark palette: Verso v4.32 does not switch the page background, so
  * dark-mode text colours land on white and code becomes unreadable. */
+
+/* For the same reason, the guide keeps the light values of the two colours
+ * that the shared site-overrides.css lightens for the sources pages under a
+ * dark OS scheme: on this white page the dark values would read at 2:1 and
+ * 3.5:1. `html:root` outranks its `:root`. */
+html:root {
+    --cadence-docstring-color: #3a6d99;
+    --cadence-comment-color: #507391;
+}

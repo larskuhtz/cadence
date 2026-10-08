@@ -221,9 +221,8 @@ auditor reads each.
   entry's certificate against its own network relations instead, because
   the MVBA's validity predicate is fixed before Chorus's state exists and
   cannot mention it. The check is stated at Chorus's decision handlers, and
-  its liveness direction is the premise {decl}`Chorus.ValidBridge`. It
-  removes no behaviour of a correct MVBA, and if the MVBA were wrong the
-  handler would not fire.
+  its liveness direction is the premise {decl}`Chorus.ValidBridge`
+  ({chapter ReadingModel}[chapter 3] reads the handler).
 * *The ACS median bridge.* The Conductor's `acs_decide` requires that the
   new window's first slot lies between two correct validators' pairs of a
   correct decider's set, one at or below it and one at or above. The

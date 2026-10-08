@@ -258,7 +258,8 @@ position: messages and certificates, the phase, and the MVBA class's
 operations. *Negative network reads* are only ever the actor's own sends.
 Configuration, such as `is_proposer`, is fixed data every validator knows
 and is left out. The note names the rules of
-[Locality.md](../../../Locality.md) each row follows.
+[Locality.md](../../../Locality.md) each row follows; a note marked ⚠ is
+an open item of its §7.
 
 The guide's build checks that every action of the model has a row and that
 every relation the derived columns name is part of the model, so the table
