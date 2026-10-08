@@ -1715,7 +1715,10 @@ premise does not change. `TimerLabel` remains the class without fairness,
 and (A-viewsync) and (T-timer) still constrain when the timer fires. Only
 their wording changes, from "the environment's timer" to "the validator's
 timer". The model has no environment state left (it has no clock), which
-Locality §2 permits.
+Locality §2 permits. The guard reads the fault predicate at the actor's
+own index. It marks a correct validator's step (Locality §3, rule R5), so
+it does not read anyone else's fault status. Locality.md will say this
+explicitly where it lists the reads of the fault predicate.
 
 **M2, availability: `become_avail_ready i x` is the caller's input at
 `i`.** The code does not change: the action already writes only
@@ -1821,6 +1824,16 @@ withheld from the solver (`veil_smt_ignore`, as now, since it contains an
 withheld too, and the solver sees no new hypothesis. Only the liveness
 proofs use the two fields.
 
+Withheld fields have still slowed solver cells before. In R27, withheld
+`ACSSafety` fields took one Conductor cell from 5 s to more than 180 s. So
+the build times Chorus's cells before and after the change: the cells of
+`send_mvba_cert`, and of every action whose guard mentions
+`mvba.decided` or `mvba.certifies`. If any cell slows markedly,
+`decidedCert` stays in `MVBASafety`, because Chorus's guard needs the
+operation, and `decidedCert_certifies` moves to `MVBATemporal`. That
+fallback holds only if no Chorus safety cell needs the field, which is
+how R27 resolved the ACS case.
+
 **Chorus.** `send_mvba_cert i c v` becomes `send_mvba_cert i c`. The guard
 `mvba.decided mvba_st i v ∧ mvba.certifies mvba_st c (mvba.entries v)`
 ("any certificate valid for its decision") becomes `mvba.decidedCert
@@ -1856,8 +1869,14 @@ Every honest formation and forward already requires `∃ E, input i E` and
   what it loses through the forward: a correct validator in view `v > 1`
   has itself sent a `TC` for `v - 1`. That fact is a new invariant,
   `entered_forwarded` (`¬ byz i → entered i v → v = vord.zero ∨ ∃ pv,
-  vord.next pv v ∧ msg_tc i pv`). The liveness proofs that pick "some
-  certificate of the view below" then pick one from a correct sender.
+  vord.next pv v ∧ msg_tc i pv`). In words: a correct validator that has
+  entered a view above the first has itself sent a timeout certificate
+  for the view below. The liveness proofs that pick "some certificate of
+  the view below" then pick one from a correct sender. Under this option,
+  the timed premise's hop row for `sync_view_*` owes delivery only for a
+  correct sender. That matches `SyncView` exactly: each correct validator
+  forwards every view-advancing certificate once (Algorithm 1, line 98
+  (`line:mvba:sv-forward`)). The row cites that line.
 * **B: no forward.** `sync_view` does not split, and the certificate rows
   stay owed unconditionally. `Owed` keeps its present claim, "a certificate
   that a correct validator forwards", without the model forwarding. So the
