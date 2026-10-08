@@ -1,15 +1,15 @@
 import Cadence.Mvba
 import Cadence.ProofPrelude
 
-/-! # `Mvba` proofs — action `form_prepqc`
+/-! # `Mvba` proofs — action `byz_form_prepqc`
 
 Scaffolded by `#gen_proof_files Mvba`; yours to edit. Proves every
-registered VC of `form_prepqc` cross-file from the module's persisted VC registry
+registered VC of `byz_form_prepqc` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 [Certify.lean](../Certify.lean)'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Mvba form_prepqc <property> by <tac>` lines
+Manual cells go on `#prove_vc Mvba byz_form_prepqc <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
@@ -32,10 +32,9 @@ veil_large_clump_budgets
 
 namespace Mvba.Proofs
 
-/- **Manual cell — the lock-persistence step.** The solver does find this
-proof (43 s cold on 14 cores, 71 % of Veil's default 60 s budget), but it is the
-one cell whose search is a genuine argument rather than a lookup, and at
-that margin it times out on a 4-core CI runner. Written out, it is Supplement, Lemma 8 (`lem:lock-persistence`) for one view transition: the new
+/- **Manual cell — the lock-persistence step.** The solver can find this
+proof, but its search is a genuine argument rather than a lookup, and at
+its margin it times out on a 4-core CI runner. Written out, it is Supplement, Lemma 8 (`lem:lock-persistence`) for one view transition: the new
 certificate's honest preparer `a` accepted `e` in `v > V` under a timeout
 certificate of the previous view `PV ≥ V`; that certificate's `2f+1`
 timeout senders meet the given supermajority `Q` in an honest `n`; if the
@@ -46,7 +45,7 @@ uniqueness; otherwise the lock's own certificate is of a view strictly
 between `V` and `v`, and the invariant at *that* certificate finishes. The
 conjuncts are projected by name (`veil_inv_have`);
 the `#prove_action` below consumes the cell after a statement check. -/
-#prove_vc Mvba form_prepqc prepqc_blocks_lower_commits by
+#prove_vc Mvba byz_form_prepqc prepqc_blocks_lower_commits by
   unveil_local
   veil_inv_have h_honest_prepare_accepted := honest_prepare_accepted
   veil_inv_have h_accepted_justified := accepted_justified
@@ -57,9 +56,9 @@ the `#prove_action` below consumes the cell after a statement check. -/
   veil_inv_have h_prepqc_unique := prepqc_unique
   veil_inv_have h_blocks := prepqc_blocks_lower_commits
   clear hinv
-  intro hsup_q hq W V E' E Q hpq hlt hne hsup_Q
-  by_cases hnew : v = W ∧ e = E'
-  · obtain ⟨rfl, rfl⟩ := hnew
+  intro _ hsup_q hq S W V E' E Q hpq hlt hne hsup_Q
+  by_cases hnew : r = S ∧ v = W ∧ e = E'
+  · obtain ⟨rfl, rfl, rfl⟩ := hnew
     -- An honest preparer `a` of the new certificate accepted a
     -- representation `X` of `e` in `v`.
     obtain ⟨a, ha_mem, ha_hon⟩ :=
@@ -86,16 +85,16 @@ the `#prove_action` below consumes the cell after a statement check. -/
           have hle := hn.2 V hltPV
           have hlt' := (TotalOrderWithMinimum.le_lt V v).mp hlt
           exact absurd (TotalOrderWithMinimum.le_antisymm _ _ hlt'.1 hle) hlt'.2
-    rcases hjust with hnolock | ⟨w, hlock⟩
+    rcases hjust with ⟨s0, hnolock⟩ | ⟨s0, w, hlock⟩
     · -- The justifying certificate has no lock: its quorum meets `Q` in an
       -- honest `n` that timed out at `PV ≥ V` carrying `⊥`.
-      obtain ⟨qt, hqt_sup, hqt⟩ := h_tc_nolock_backed PV hnolock
+      obtain ⟨qt, hqt_sup, hqt⟩ := h_tc_nolock_backed s0 PV hnolock
       obtain ⟨n, hnQ, hnq, hn_hon⟩ :=
         nset.supermajorities_intersect_in_honest Q qt hsup_Q hqt_sup
       exact ⟨n, hnQ, Bool.eq_false_iff.mpr hn_hon, Or.inl ⟨PV, hVPV, Or.inl (hqt n hnq)⟩⟩
     · -- The justifying certificate's lock is `(w, e)`, `w ≤ PV`, and every
       -- member carries `⊥` or a certificate of view `≤ w`.
-      obtain ⟨hpq_w, -, qt, hqt_sup, hqt⟩ := h_tc_lock_backed PV w e hlock
+      obtain ⟨⟨S1, hpq_w⟩, -, qt, hqt_sup, hqt⟩ := h_tc_lock_backed s0 PV w e hlock
       obtain ⟨n, hnQ, hnq, hn_hon⟩ :=
         nset.supermajorities_intersect_in_honest Q qt hsup_Q hqt_sup
       have hn_hon' : ByzNodeSet.is_byz n = false := Bool.eq_false_iff.mpr hn_hon
@@ -119,19 +118,21 @@ the `#prove_action` below consumes the cell after a statement check. -/
               TotalOrderWithMinimum.le_antisymm _ _ (hVw ▸ hw'_le) hVw'
             have hheld : st.local_prepqc n V x = true :=
               hw'eq ▸ h_honest_timeout_qc_held n PV w' x hn_hon' hto
-            have hpx : st.msg_prepqc V x = true := hw'eq ▸ h_timeout_qc_backed n PV w' x hto
-            have hpe : st.msg_prepqc V e = true := hVw ▸ hpq_w
-            have hx : x = e := h_prepqc_unique V x e hpx hpe
+            obtain ⟨S2, hpx⟩ := h_timeout_qc_backed n PV w' x hto
+            rw [hw'eq] at hpx
+            have hpe : st.msg_prepqc S1 V e = true := hVw ▸ hpq_w
+            have hx : x = e := h_prepqc_unique S2 S1 V x e hpx hpe
             exact ⟨n, hnQ, hn_hon', Or.inr ⟨x, fun hxE => hne (hxE ▸ hx), hheld⟩⟩
           · -- `V < w`: the invariant at the lock's own certificate `(w, e)`.
             have hVw_lt : TotalOrderWithMinimum.lt V w :=
               (TotalOrderWithMinimum.le_lt V w).mpr
                 ⟨TotalOrderWithMinimum.le_trans V w' w hVw' hw'_le, hVw⟩
-            exact h_blocks w V e E Q hpq_w hVw_lt hne hsup_Q
+            exact h_blocks S1 w V e E Q hpq_w hVw_lt hne hsup_Q
   · -- An old certificate: the invariant in the pre-state.
-    have hold : st.msg_prepqc W E' = true := hpq (fun h1 h2 => hnew ⟨h1, h2⟩)
-    exact h_blocks W V E' E Q hold hlt hne hsup_Q
+    have hold : st.msg_prepqc S W E' = true :=
+      hpq (fun h0 h1 h2 => hnew ⟨h0, h1, h2⟩)
+    exact h_blocks S W V E' E Q hold hlt hne hsup_Q
 
-#prove_action Mvba form_prepqc
+#prove_action Mvba byz_form_prepqc
 
 end Mvba.Proofs

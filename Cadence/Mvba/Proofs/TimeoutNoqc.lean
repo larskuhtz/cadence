@@ -32,6 +32,33 @@ veil_large_clump_budgets
 
 namespace Mvba.Proofs
 
+/- **Manual cells — a timeout only adds to what the two invariants read.**
+As at `timeout_qc` ([TimeoutQc.lean](TimeoutQc.lean)): the step only adds a
+`Timeout` row, which `blocked` and `tc_lock_backed`'s quorum condition read
+positively, so each pre-state witness stands. -/
+#prove_vc Mvba timeout_noqc prepqc_blocks_lower_commits by
+  unveil_local
+  veil_inv_have h_blocks := prepqc_blocks_lower_commits
+  clear hinv
+  intro _ _ _ _ _ _ _ _ _ _ S W V E' E Q hpq hlt hne hsup_Q
+  obtain ⟨n, h1, h2, h3⟩ := h_blocks S W V E' E Q hpq hlt hne hsup_Q
+  refine ⟨n, h1, h2, ?_⟩
+  rcases h3 with ⟨v', hle, hnoqc | hqc⟩ | h
+  · exact Or.inl ⟨v', hle, Or.inl (fun _ => hnoqc)⟩
+  · exact Or.inl ⟨v', hle, Or.inr hqc⟩
+  · exact Or.inr h
+
+#prove_vc Mvba timeout_noqc tc_lock_backed by
+  unveil_local
+  veil_inv_have h_tc_lock_backed := tc_lock_backed
+  clear hinv
+  intro _ _ _ _ _ _ _ _ _ _ S V W E hl
+  obtain ⟨h1, h2, q, hq, hm⟩ := h_tc_lock_backed S V W E hl
+  refine ⟨h1, h2, q, hq, fun r hr => ?_⟩
+  rcases hm r hr with h | h
+  · exact Or.inl (fun _ => h)
+  · exact Or.inr h
+
 #prove_action Mvba timeout_noqc
 
 end Mvba.Proofs

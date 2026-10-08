@@ -87,44 +87,49 @@ one-view retention holds (Supplement, Lemma 15 (`lem:convergence`), Supplement, 
 
 ## State
 
-**Network relations** (`msg_*`, monotone, read in **positive position**
-by every correct validator's action — the rules of
-[Locality.md](../docs/Locality.md), whose §7 records this model's open
-items):
+**Network relations** (`msg_*`, monotone, the sender first, read in
+**positive position** by every correct validator's action other than its
+own sends — the rules of [Locality.md](../docs/Locality.md)):
 
 Each entry is a relation of this model and the supplement message it stands
 for.
 
 * **`msg_preprepare l v x`** — `⟨Pre-Prepare, s, v, x, J, σ_l⟩`; the
   justification `J` is not carried — the receiver checks the network for a
-  `TC_{s,v-1}` and its lock (`tc_lock` / `tc_nolock` below)
+  `TC_{s,v-1}` and its lock (`msg_tc_lock` / `msg_tc_nolock` below)
 * **`msg_prepare r v e`, `msg_commit r v e`** — `⟨Prepare, s, v, e, σ⟩`,
   `⟨Commit, s, v, e, σ⟩`
 * **`msg_timeout_qc r v w e`, `msg_timeout_noqc r v`** — `⟨Timeout, s, v,
   PrepQC_i, σ⟩` carrying a prepare certificate of view `w` on `e`, or `⊥`
-* **`msg_prepqc v e`, `msg_commitqc v e`** — `prepareQC_{s,v}` on `e`,
-  `CommitQC` of view `v` on `e`
-* **`msg_tc v`, `tc_lock v w e`, `tc_nolock v`** — a `TC_{s,v}` exists; a
-  `TC_{s,v}` exists whose `highPrepQC` is the certificate `(w, e)`; a
-  `TC_{s,v}` exists whose `highPrepQC` is `⊥` (Supplement, Algorithm 1, line 4 (`line:mvba:derived`))
+* **`msg_prepqc s v e`** — `prepareQC_{s,v}` on `e` as its former `s`
+  attaches it to its messages; read only to check a carried certificate
+* **`msg_commitqc s v e`** — the `CommitQC` of view `v` on `e` that `s`
+  outputs with its decision (`decide(x, CommitQC)`), or that a Byzantine `s`
+  aggregated
+* **`msg_tc s v`, `msg_tc_lock s v w e`, `msg_tc_nolock s v`** — `s` has
+  sent a `TC_{s,v}`; one whose `highPrepQC` is the certificate `(w, e)`;
+  one whose `highPrepQC` is `⊥` (Supplement, Algorithm 1, line 4
+  (`line:mvba:derived`)). A correct `s` formed it or forwards it.
 
-All five certificates are **materialised by explicit assembly actions**
+**Certificates are formed in local state and sent under the former's
+name** ([Locality.md](../docs/Locality.md) §6), each by an explicit step
 whose guards are the signature quorums — Chorus's `broadcast_commitqc_*`
-pattern, which keeps `∃`-quorum ghosts out of every consumer's guard. Each
-comes twice. The **per-validator** steps are the supplement's rules, each
-taken by one correct validator in its current view, with the quorum as a
-label parameter and a local record whose absence is the rule's "not
-already" condition: `adopt_prepqc` (`TryFormPrepQC`), `form_own_commitqc`
-(`TryFormCommitQC` with `Decide`, guarded on `DecidedQC_i = ⊥`) and
-`form_own_tc_lock` / `form_own_tc_nolock` (`HandleTimeout`, "upon first
-collecting `2f+1` valid timeout messages"). The **anonymous** assemblies
-(`form_prepqc`, `form_commitqc`, `form_tc_lock`, `form_tc_nolock`) are the
-adversary's capability to aggregate the signatures it saw, so safety's
-adversary loses nothing; they carry no fairness. A
-view can have several timeout certificates (different `2f+1` subsets) with
-different locks; `tc_lock` / `tc_nolock` record each one that was formed,
-and a proposal is checked against *some* certificate of the previous view,
-which is what a leader may attach.
+pattern, which keeps `∃`-quorum ghosts out of every consumer's guard. A
+correct validator forms one by the supplement's rule, in its current view,
+with the quorum as a label parameter and a local record whose absence is
+the rule's "not already" condition: `adopt_prepqc` (`TryFormPrepQC`),
+`form_own_commitqc` (`TryFormCommitQC` with `Decide`, guarded on
+`DecidedQC_i = ⊥`) and `form_own_tc_lock` / `form_own_tc_nolock`
+(`HandleTimeout`, "upon first collecting `2f+1` valid timeout messages").
+It forwards a timeout certificate it advanced on (`sync_view_*`;
+Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)), and outputs
+the commit certificate a transferred decision used (`decide`). The
+adversary aggregates any certificate the signatures allow under its own
+name (`byz_form_*`), so safety's adversary loses nothing. A view can have
+several timeout certificates (different `2f+1` subsets) with different
+locks; `msg_tc_lock` / `msg_tc_nolock` record each one that was sent, and a
+proposal is checked against *some* certificate of the previous view, which
+is what a leader may attach.
 
 **Validator-local state**, free of the network contract, kept **monotone
 and view-indexed** ([MvbaPlan.md](../docs/MvbaPlan.md) §3 says why: mutable current-view
@@ -138,8 +143,10 @@ certificate `(w, e)`; the current one is the highest held); `timed_out i v`
 leader's `Pre-Prepare` in `v` was sent); `decided i x`; `abandoned i`;
 `avail_ready i x` (`AvailReady_i(x)`, set by the caller's input); and
 `tc_formed i v` (`i` has formed `TC_{s,v}`, the flag of
-Supplement, Algorithm 1, line 85 (`line:mvba:ht-advance`)). `DecidedQC_i` needs no relation of its own: it is
-set exactly when `i` decides, so `∀ E, ¬ decided i E` is `DecidedQC_i = ⊥`.
+Supplement, Algorithm 1, line 85 (`line:mvba:ht-advance`)); and
+`decided_qc i v e` (`DecidedQC_i`, the certificate `i`'s decision used and
+outputs). `DecidedQC_i` is set exactly when `i` decides, so
+`∀ E, ¬ decided i E` is `DecidedQC_i = ⊥`.
 
 ## Abstractions
 
@@ -148,26 +155,27 @@ set exactly when `i` decides, so `∀ E, ¬ decided i E` is `DecidedQC_i = ⊥`.
   and `∀ W E, local_prepqc i W E → W < w` read the acting validator's own
   local relations negatively ([Locality.md](../docs/Locality.md) R1).
 * **`SyncView` is its own action.** The supplement runs `SyncView(J)`
-  inside the `Pre-Prepare` handler before the checks; here `sync_view`
-  advances the view on any timeout certificate at or above the current
-  view and the handler requires the message's view to be the current one
-  — the same reachable states in two steps. Adopting the certificate's
-  lock (Supplement, Algorithm 1, line 95 (`line:mvba:sv-adopt`)) is the variant `sync_view_adopt`; the plain
-  `sync_view` does not adopt, which only adds behaviours (the safety
-  argument never relies on adoption).
+  inside the `Pre-Prepare` handler before the checks; here the
+  `sync_view_*` steps advance the view on any timeout certificate at or
+  above the current view, and the handler requires the message's view to be
+  the current one — the same reachable states in two steps. Adopting the
+  certificate's lock (Supplement, Algorithm 1, line 95 (`line:mvba:sv-adopt`)) is `sync_view_adopt`;
+  `sync_view_lock` advances on a lock certificate without adopting, which
+  only adds behaviours (the safety argument never relies on adoption).
+  Each forwards the certificate it advanced on.
 * **A timeout carrying a certificate of view above its own** contributes
   to no `highPrepQC` (Supplement, Algorithm 1, line 4 (`line:mvba:derived`)), so for every receiver it is a
   timeout carrying `⊥`. The model lets a Byzantine sender send the `⊥`
   form instead (`byz_timeout_qc` requires `w ≤ v`), and the assembly
   guards need no filter.
 * **The view timer is an abstract phase marker.** `timer_expired i v` is
-  set by the environment action `expire_timer` and guards both timeout
+  set by `i`'s own timer step `expire_timer` and guards both timeout
   actions. It is a clock with exactly one tick — before the timeout, after
   the timeout — and no arithmetic, which is what an *untimed* model can
   carry. Without it the timeout actions are always enabled in the current
   view, the scheduler chooses freely between timing out and making progress,
   and the timing discipline has to be restored by an assumption naming the
-  protocol's own conclusion; with it, the choice is the environment's, the
+  protocol's own conclusion; with it, the choice is the timer's, the
   timeout actions are weakly fair like every other honest action, and the
   assumption becomes an ordering constraint on `expire_timer`
   ([MvbaPlan.md](../docs/MvbaPlan.md) §3.2,
@@ -199,7 +207,7 @@ set exactly when `i` decides, so `∀ E, ¬ decided i E` is `DecidedQC_i = ⊥`.
   because the contract's Termination premise ("no correct validator
   abandons before the bound") is about the caller's `abandon()`, and a
   validator's own halt after deciding must not count against it.
-  `expire_timer`, the environment's marker, stays unguarded: once `i` has
+  `expire_timer` sends nothing and needs no halt guard: once `i` has
   halted, no action reads its timer.
 * **Integrity by construction**: `decide` and `form_own_commitqc` require
   `∀ E, ¬ decided i E`.
@@ -224,7 +232,7 @@ set exactly when `i` decides, so `∀ E, ¬ decided i E` is `DecidedQC_i = ⊥`.
   Supplement, Algorithm 1, line 49 (`line:mvba:restart-guard`)) is vacuous.
 * **`propose` enters the first view.** The supplement's `propose` enters
   the view justified by the highest retained timeout certificate; here
-  `propose` enters `vord.zero` and `sync_view` advances in separate steps.
+  `propose` enters `vord.zero` and the `sync_view_*` steps advance in separate steps.
   The faithful rule would read "no higher certificate is retained", a
   negative read of `msg_tc` that the monotone-network contract forbids. So
   a late view-1 leader may still send its view-1 `Pre-Prepare` before it
@@ -242,9 +250,13 @@ set exactly when `i` decides, so `∀ E, ¬ decided i E` is `DecidedQC_i = ⊥`.
   pause; persistence is the implementation's obligation, and termination
   under crashes is Supplement, Corollary 1
   (`cor:mvba-recovery-termination`), which nothing here claims. The
-  shares belong to Chorus, which drives `AvailReady` from them. The certificate `decide(x, CommitQC)` returns is
-  the network's `msg_commitqc`, which the instance exports as the
-  contract's `certifies` ([Mvba/Compose.lean](Mvba/Compose.lean)).
+  shares belong to Chorus, which drives `AvailReady` from them. The
+  certificate `decide(x, CommitQC)` returns is `DecidedQC_i`
+  (`decided_qc`), output under `i`'s name (`msg_commitqc i`); the instance
+  exports the first as the contract's `decidedCert` and checks a handed-in
+  certificate against the second (`certifies`,
+  [Mvba/Compose.lean](Mvba/Compose.lean)). The MVBA does not broadcast it:
+  the composing layer does ("Decision output and handoff").
 
 ## The safety argument, and where it departs from the supplement's
 
@@ -261,7 +273,7 @@ in every lower view `v` and for every other value `e`, a supermajority from
 committing `e` in `v`** — every supermajority has a correct member that
 either timed out at or after `v` without a lock of view `≥ v`, or holds a
 view-`v` lock on a different value (`prepqc_blocks_lower_commits`,
-`blocked`). Its inductive step at `form_prepqc` (and at `adopt_prepqc`) is the supplement's
+`blocked`). Its inductive step at `adopt_prepqc` (and at `byz_form_prepqc`) is the supplement's
 argument for one view transition (the honest preparer's justification, the
 timeout quorum's honest intersection with the given supermajority, and the
 invariant itself at the lock's certificate), and Supplement, Lemma 8 (`lem:lock-persistence`)
@@ -314,11 +326,22 @@ relation msg_prepare (r : node) (v : view) (e : evec)
 relation msg_commit (r : node) (v : view) (e : evec)
 relation msg_timeout_qc (r : node) (v : view) (w : view) (e : evec)
 relation msg_timeout_noqc (r : node) (v : view)
-relation msg_prepqc (v : view) (e : evec)
-relation msg_commitqc (v : view) (e : evec)
-relation msg_tc (v : view)
-relation tc_lock (v : view) (w : view) (e : evec)
-relation tc_nolock (v : view)
+/-- `s` attaches the prepare certificate `prepareQC_{s,v}` on `e` to its
+messages: `s` formed it (an honest `adopt_prepqc`, or a Byzantine
+`byz_form_prepqc`). Read only to check a certificate that another message
+carries. -/
+relation msg_prepqc (s : node) (v : view) (e : evec)
+/-- `s` outputs the commit certificate of view `v` on `e` with its decision
+(an honest `form_own_commitqc` or `decide`), or a Byzantine `s` aggregated
+it (`byz_form_commitqc`). -/
+relation msg_commitqc (s : node) (v : view) (e : evec)
+/-- `s` has sent a timeout certificate `TC_{s,v}`, formed or forwarded. -/
+relation msg_tc (s : node) (v : view)
+/-- `s` has sent a `TC_{s,v}` whose `highPrepQC` is the certificate
+`(w, e)`. -/
+relation msg_tc_lock (s : node) (v : view) (w : view) (e : evec)
+/-- `s` has sent a `TC_{s,v}` whose `highPrepQC` is `⊥`. -/
+relation msg_tc_nolock (s : node) (v : view)
 
 /-! ## Validator-local state -/
 
@@ -340,6 +363,10 @@ relation timer_expired (i : node) (v : view)
 supplement's "`TC_{s,v}` has already been formed" (Supplement, Algorithm 1, line 85 (`line:mvba:ht-advance`)),
 which is what makes that rule fire once per view. -/
 relation tc_formed (i : node) (v : view)
+/-- `DecidedQC_i`: the commit certificate of view `v` on `e` that `i`'s
+decision used, formed (`form_own_commitqc`) or received (`decide`). It is
+the certificate `i`'s decision outputs, the contract's `decidedCert`. -/
+relation decided_qc (i : node) (v : view) (e : evec)
 
 #gen_state
 
@@ -354,9 +381,13 @@ own local state only). -/
 ghost relation in_view (i : node) (v : view) :=
   entered i v ∧ ∀ V, entered i V → vord.le V v
 
-/-- Some `TC_{s,pv}` has `lock = e`. -/
+/-- Some sent `TC_{s,pv}` has `lock = e`. -/
 ghost relation lock_available (pv : view) (e : evec) :=
-  ∃ w, tc_lock pv w e
+  ∃ s w, msg_tc_lock s pv w e
+
+/-- Some sent `TC_{s,pv}` has `lock = ⊥`. -/
+ghost relation nolock_available (pv : view) :=
+  ∃ s, msg_tc_nolock s pv
 
 /-- `n` sent a timeout at or after view `v` carrying no lock of view `≥ v`:
 it left view `v` without a view-`v` lock and can no longer commit in it
@@ -382,11 +413,11 @@ after_init {
   msg_commit R V E := false
   msg_timeout_qc R V U E := false
   msg_timeout_noqc R V := false
-  msg_prepqc V E := false
-  msg_commitqc V E := false
-  msg_tc V := false
-  tc_lock V U E := false
-  tc_nolock V := false
+  msg_prepqc S V E := false
+  msg_commitqc S V E := false
+  msg_tc S V := false
+  msg_tc_lock S V U E := false
+  msg_tc_nolock S V := false
   input I E := false
   entered I V := false
   voted I V := false
@@ -400,6 +431,7 @@ after_init {
   avail_ready I E := false
   timer_expired I V := false
   tc_formed I V := false
+  decided_qc I V E := false
 }
 
 /-! ## Inputs (Module 3 (`mod:mvba`)) -/
@@ -447,9 +479,9 @@ action leader_propose_first (l : node) (x : value) {
 /-- View `v > 1` with `lock(J) ≠ ⊥`: `x ← Recover(lock(J))`, a valid
 representation of the lock's entries (Supplement, Lemma 10 (`lem:reproposal`)). The participation guard `∃ E, input
 l E` is redundant at reachable states (a view `> 1` is entered only through
-`sync_view`, which requires it) and is what makes the contract's Quiescence
+the `sync_view_*` steps, which require it) and is what makes the contract's Quiescence
 a one-step fact for this send too ([Mvba/Compose.lean](Mvba/Compose.lean)). -/
-action leader_repropose (l : node) (pv : view) (v : view) (w : view) (x : value) {
+action leader_repropose (l : node) (s : node) (pv : view) (v : view) (w : view) (x : value) {
   require ¬ is_byz l
   require ∃ E, input l E
   require ¬ abandoned l
@@ -458,7 +490,7 @@ action leader_repropose (l : node) (pv : view) (v : view) (w : view) (x : value)
   require leader v l
   require in_view l v
   -- `x ← Recover(lock(J))`: a valid representation of the lock's entries.
-  require tc_lock pv w (ent x)
+  require msg_tc_lock s pv w (ent x)
   require valid x
   require ¬ proposed_in l v
   proposed_in l v := true
@@ -466,14 +498,14 @@ action leader_repropose (l : node) (pv : view) (v : view) (w : view) (x : value)
 }
 
 /-- View `v > 1` with `lock(J) = ⊥`: `x ← B_i`. -/
-action leader_propose_fresh (l : node) (pv : view) (v : view) (x : value) {
+action leader_propose_fresh (l : node) (s : node) (pv : view) (v : view) (x : value) {
   require ¬ is_byz l
   require ¬ abandoned l
   require ∀ E, ¬ decided l E
   require vord.next pv v
   require leader v l
   require in_view l v
-  require tc_nolock pv
+  require msg_tc_nolock s pv
   require input l x
   require ¬ proposed_in l v
   proposed_in l v := true
@@ -503,7 +535,7 @@ action handle_preprepare_first (i : node) (l : node) (x : value) {
 
 /-- View `v > 1`: additionally `J` is a `TC_{s,v-1}` and `entries(x) =
 lock(J)` whenever `lock(J) ≠ ⊥` — against some timeout certificate of the
-previous view (see the header on `tc_lock`). -/
+previous view (see the header on `msg_tc_lock`). -/
 action handle_preprepare (i : node) (l : node) (pv : view) (v : view) (x : value) {
   require ¬ is_byz i
   require ∃ E, input i E
@@ -514,7 +546,7 @@ action handle_preprepare (i : node) (l : node) (pv : view) (v : view) (x : value
   require leader v l
   require msg_preprepare l v x
   require valid x
-  require lock_available pv (ent x) ∨ tc_nolock pv
+  require lock_available pv (ent x) ∨ nolock_available pv
   require ∀ W, voted i W → vord.lt W v
   accepted i v x := true
   voted i v := true
@@ -523,15 +555,6 @@ action handle_preprepare (i : node) (l : node) (pv : view) (v : view) (x : value
 
 /-! ## Prepare certificates and the commit -/
 
-/-- **The adversary's assembly**: `2f+1` `Prepare` signatures on `e` in
-view `v` form `prepareQC_{s,v}` on `e`, whoever holds them. It carries no
-fairness; an honest validator forms its prepare certificate through
-`adopt_prepqc`. -/
-action form_prepqc (v : view) (e : evec) (q : nodeset) {
-  require nset.supermajority q
-  require ∀ r, nset.member r q → msg_prepare r v e
-  msg_prepqc v e := true
-}
 
 /-- `TryFormPrepQC` (Supplement, Algorithm 1, line 63 (`line:mvba:tfp-guard`), Supplement, Algorithm 1, line 65 (`line:mvba:tfp-store`)): `i`
 holds `2f+1` `Prepare` signatures on the vector it prepared in its current
@@ -541,11 +564,10 @@ timed out. It forms `prepareQC_{s,v}` itself and stores it as `PrepQC_i`.
 
 Prepare certificates do not travel: a validator holds one only from the
 prepares it received itself, never from another validator's certificate
-(the supplement). So the guard reads the prepares, not
-`msg_prepqc`, and the step also records the certificate it formed on the
-network, since from then on it exists and `i`'s timeouts carry it.
-`form_prepqc` above stays as the anonymous assembly: whoever holds the
-signatures, the adversary included, can form the certificate. -/
+(the supplement). So the guard reads the prepares, not `msg_prepqc`, and
+the step also writes the certificate under `i`'s name, since from then on
+`i`'s timeouts carry it. A Byzantine validator forms one through
+`byz_form_prepqc`. -/
 action adopt_prepqc (i : node) (v : view) (x : value) (q : nodeset) {
   require ¬ is_byz i
   require ∃ E, input i E
@@ -558,11 +580,12 @@ action adopt_prepqc (i : node) (v : view) (x : value) (q : nodeset) {
   require ∀ W E, local_prepqc i W E → vord.lt W v
   require ¬ timed_out i v
   local_prepqc i v (ent x) := true
-  msg_prepqc v (ent x) := true
+  msg_prepqc i v (ent x) := true
 }
 
-/-- **The view timer runs out.** The environment marks `i`'s timer for a view
-it has entered as expired; the two timeout actions are guarded on it.
+/-- **The view timer runs out.** `i`'s own timer for a view it has entered
+expires; the two timeout actions are guarded on it. A step of the correct
+validator `i` on its own rows only.
 
 This is the whole of the timing that reaches the model — a phase marker, not
 a clock: one tick, from before the timeout to after it. What it buys is
@@ -570,15 +593,18 @@ stated in the header: it takes the *choice* of timing out away from the
 scheduler, so the timeout actions can be weakly fair like every other honest
 action instead of being always enabled, and the timing assumption becomes an
 ordering constraint on this action rather than a claim about the protocol's
-outcome. Monotone, and safety-neutral: it only removes behaviours from the
-timeout actions. -/
+outcome. Safety-neutral: it only removes behaviours from the timeout
+actions. -/
 action expire_timer (i : node) (v : view) {
+  require ¬ is_byz i
   require entered i v
   timer_expired i v := true
 }
 
-/-- The environment supplies `i`'s availability shares for `e`
-(`AvailReady_i`; Supplement, Lemma 5 (`lem:avail-progress`) bounds when). Unguarded. -/
+/-- **The caller's availability input** at `i` (the contract's `markAvail`):
+the composing dissemination layer reports that `i` holds its availability
+shares for `x` (`AvailReady_i`; Supplement, Lemma 5 (`lem:avail-progress`)
+bounds when). Unguarded; Chorus drives it with its chunk wait. -/
 action become_avail_ready (i : node) (x : value) {
   avail_ready i x := true
 }
@@ -601,17 +627,6 @@ action send_commit (i : node) (v : view) (x : value) {
   msg_commit i v (ent x) := true
 }
 
-/-- **The adversary's assembly**: `2f+1` `Commit` signatures on `e` in view
-`v` form the `CommitQC` of view `v` on `e`, whoever holds them. It is kept
-so that the adversary can do everything signatures allow, and it carries no
-fairness ([Mvba/Liveness.lean](Mvba/Liveness.lean), `AssemblyLabel`): an
-honest validator forms a commit certificate only through
-`form_own_commitqc`. -/
-action form_commitqc (v : view) (e : evec) (q : nodeset) {
-  require nset.supermajority q
-  require ∀ r, nset.member r q → msg_commit r v e
-  msg_commitqc v e := true
-}
 
 /-- `TryFormCommitQC` then `Decide` (Supplement, Algorithm 1 (`alg:mvba-cont3`)): `i` holds `2f+1`
 `Commit` signatures on `e` for its current view `v` — the quorum `q` is the
@@ -622,9 +637,11 @@ handler segment (`x_v` or `Recover(e)`, chosen in the step, so `Decide`'s
 continuation guard is vacuous). `DecidedQC_i ≠ ⊥` is exactly
 "`i` has decided" in this model, since both of the supplement's decision
 paths set it (here and Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`), the action `decide`), so the
-guard is `∀ E, ¬ decided i E` and no new relation is needed. The
-certificate goes on the network: its holder serves it on
-(Supplement, Lemma 13 (`lem:decision-propagation`)), and `decide` consumes it elsewhere. -/
+guard is `∀ E, ¬ decided i E`. The step records the certificate as
+`DecidedQC_i` (`decided_qc`) and outputs it under `i`'s name
+(`msg_commitqc i`): the decision's output certificate, which the composing
+layer hands on (Supplement, Lemma 13 (`lem:decision-propagation`)) and
+`decide` checks elsewhere. -/
 action form_own_commitqc (i : node) (v : view) (x : value) (q : nodeset) {
   require ¬ is_byz i
   require ∃ E, input i E
@@ -635,22 +652,28 @@ action form_own_commitqc (i : node) (v : view) (x : value) (q : nodeset) {
   require ∀ r, nset.member r q → msg_commit r v (ent x)
   -- `x_v` or `Recover(e)`: a valid representation of the certified entries.
   require valid x
-  msg_commitqc v (ent x) := true
+  decided_qc i v (ent x) := true
+  msg_commitqc i v (ent x) := true
   decided i x := true
 }
 
 /-- `decide(x, CommitQC)`: the procedure `Decide` (Supplement, Algorithm 1 (`alg:mvba-cont3`)),
 reached from `TryFormCommitQC` and from the transferred-certificate handler
 (Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)), is one action, deciding a valid representation of the certified entries (`Recover(e)`). A certificate of
-any view is accepted. Once (`DecidedQC_i = ⊥`). -/
-action decide (i : node) (v : view) (x : value) {
+any view is accepted: the one `s` output, read positively. Once
+(`DecidedQC_i = ⊥`). The transferred certificate is recorded as
+`DecidedQC_i` and output with the decision under `i`'s name, as for one `i`
+formed ("it proceeds identically"). -/
+action decide (i : node) (s : node) (v : view) (x : value) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
-  require msg_commitqc v (ent x)
+  require msg_commitqc s v (ent x)
   -- `Recover(e)`: a valid representation of the certified entries.
   require valid x
   require ∀ E, ¬ decided i E
+  decided_qc i v (ent x) := true
+  msg_commitqc i v (ent x) := true
   decided i x := true
 }
 
@@ -691,43 +714,20 @@ action timeout_noqc (i : node) (v : view) {
   msg_timeout_noqc i v := true
 }
 
-/-- **The adversary's assembly** (Supplement, Algorithm 1, line 4 (`line:mvba:derived`)): `2f+1` timeouts of
-view `v` form `TC_{s,v}`, whoever holds them; its `highPrepQC` is the
-certificate `(w, e)` carried by member `r0` — a valid certificate of view
-`w ≤ v` — and every member carries `⊥` or a certificate of view `≤ w`.
-Like `form_commitqc` it carries no fairness; an honest validator forms a
-timeout certificate through `form_own_tc_lock`. -/
-action form_tc_lock (v : view) (q : nodeset) (r0 : node) (w : view) (e : evec) {
-  require nset.supermajority q
-  require nset.member r0 q
-  require msg_timeout_qc r0 v w e
-  require msg_prepqc w e
-  require vord.le w v
-  require ∀ r, nset.member r q →
-    msg_timeout_noqc r v ∨ ∃ W E, msg_timeout_qc r v W E ∧ vord.le W w
-  msg_tc v := true
-  tc_lock v w e := true
-}
-
-/-- The adversary's assembly, `highPrepQC = ⊥`: every member carries `⊥`. -/
-action form_tc_nolock (v : view) (q : nodeset) {
-  require nset.supermajority q
-  require ∀ r, nset.member r q → msg_timeout_noqc r v
-  msg_tc v := true
-  tc_nolock v := true
-}
-
 /-- `HandleTimeout`'s second rule (Supplement, Algorithm 1, line 85 (`line:mvba:ht-advance`)): "upon first
 collecting `2f+1` valid timeout messages" for its current view `v`, `i`
-forms `TC_{s,v}` — here the one whose `highPrepQC` is the certificate
-`(w, e)` carried by member `r0`, with the guards of `form_tc_lock` — and
-records that it has (`tc_formed i v`, whose absence is the "not already
-formed" condition). The certificate goes on the network, and `i` processes
-it through `SyncView` (`sync_view`, `sync_view_adopt`, which read it), as
-every holder does: the supplement's `SyncView(TC_{s,v})` in the same
-handler is the model's next step, the same reachable states in two steps
-(the header, "`SyncView` is its own action"). -/
-action form_own_tc_lock (i : node) (v : view) (q : nodeset) (r0 : node) (w : view) (e : evec) {
+forms `TC_{s,v}` (Supplement, Algorithm 1, line 4 (`line:mvba:derived`)).
+Here it is the one whose `highPrepQC` is the certificate `(w, e)` carried
+by member `r0`: a valid certificate of view `w ≤ v` (checked against the
+certificate its former `s` attaches), and every member carries `⊥` or a
+certificate of view `≤ w`. `i` records that it has formed it
+(`tc_formed i v`, whose absence is the "not already formed" condition) and
+sends it under its own name. `i` then processes it through `SyncView`
+(the `sync_view_*` steps, which read it), as every holder does: the
+supplement's `SyncView(TC_{s,v})` in the same handler is the model's next
+step, the same reachable states in two steps (the header, "`SyncView` is
+its own action"). -/
+action form_own_tc_lock (i : node) (v : view) (q : nodeset) (r0 : node) (s : node) (w : view) (e : evec) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
@@ -737,13 +737,13 @@ action form_own_tc_lock (i : node) (v : view) (q : nodeset) (r0 : node) (w : vie
   require nset.supermajority q
   require nset.member r0 q
   require msg_timeout_qc r0 v w e
-  require msg_prepqc w e
+  require msg_prepqc s w e
   require vord.le w v
   require ∀ r, nset.member r q →
     msg_timeout_noqc r v ∨ ∃ W E, msg_timeout_qc r v W E ∧ vord.le W w
   tc_formed i v := true
-  msg_tc v := true
-  tc_lock v w e := true
+  msg_tc i v := true
+  msg_tc_lock i v w e := true
 }
 
 /-- The same rule when every member of the quorum carries `⊥`. -/
@@ -757,37 +757,61 @@ action form_own_tc_nolock (i : node) (v : view) (q : nodeset) {
   require nset.supermajority q
   require ∀ r, nset.member r q → msg_timeout_noqc r v
   tc_formed i v := true
-  msg_tc v := true
-  tc_nolock v := true
+  msg_tc i v := true
+  msg_tc_nolock i v := true
 }
 
 /-- `SyncView(TC_{s,pv})` (Supplement, Algorithm 1, line 91 (`line:mvba:sv`), Supplement, Algorithm 1, line 96 (`line:mvba:sv-advance`)) on a
-certificate at or above the current view: enter `pv + 1`. -/
-action sync_view (i : node) (pv : view) (v : view) {
+lock-free certificate, sent by `s`, at or above the current view: enter
+`pv + 1`, and forward the certificate under `i`'s own name
+(Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`)). -/
+action sync_view_nolock (i : node) (s : node) (pv : view) (v : view) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
   require ∀ E, ¬ decided i E
   require vord.next pv v
-  require msg_tc pv
+  require msg_tc_nolock s pv
   require ∀ V, entered i V → vord.le V pv
   entered i v := true
+  msg_tc i pv := true
+  msg_tc_nolock i pv := true
+}
+
+/-- The same on a certificate whose lock is `(w, e)`, without adopting the
+lock: enter `pv + 1` and forward. The supplement adopts a lock that outranks
+the held certificate (`sync_view_adopt`); not adopting only adds
+behaviours, which the safety argument does not rely on (the header,
+"`SyncView` is its own action"). -/
+action sync_view_lock (i : node) (s : node) (pv : view) (v : view) (w : view) (e : evec) {
+  require ¬ is_byz i
+  require ∃ E, input i E
+  require ¬ abandoned i
+  require ∀ E, ¬ decided i E
+  require vord.next pv v
+  require msg_tc_lock s pv w e
+  require ∀ V, entered i V → vord.le V pv
+  entered i v := true
+  msg_tc i pv := true
+  msg_tc_lock i pv w e := true
 }
 
 /-- `SyncView` with adoption (Supplement, Algorithm 1, line 95 (`line:mvba:sv-adopt`)): the certificate's lock
 `(w, e)` is of a higher view than every held certificate, so `PrepQC_i`
-adopts it while `i` enters `pv + 1`. -/
-action sync_view_adopt (i : node) (pv : view) (v : view) (w : view) (e : evec) {
+adopts it while `i` enters `pv + 1` and forwards the certificate. -/
+action sync_view_adopt (i : node) (s : node) (pv : view) (v : view) (w : view) (e : evec) {
   require ¬ is_byz i
   require ∃ E, input i E
   require ¬ abandoned i
   require ∀ E, ¬ decided i E
   require vord.next pv v
-  require tc_lock pv w e
+  require msg_tc_lock s pv w e
   require ∀ V, entered i V → vord.le V pv
   require ∀ W E, local_prepqc i W E → vord.lt W w
   local_prepqc i w e := true
   entered i v := true
+  msg_tc i pv := true
+  msg_tc_lock i pv w e := true
 }
 
 /-! ## Byzantine behaviour — arbitrary signatures, no forged certificates -/
@@ -809,9 +833,9 @@ action byz_commit (r : node) (v : view) (e : evec) {
 
 /-- A Byzantine timeout carries `⊥` or a certificate that exists, of view
 at most its own (see the header: a higher one counts as `⊥`). -/
-action byz_timeout_qc (r : node) (v : view) (w : view) (e : evec) {
+action byz_timeout_qc (r : node) (s : node) (v : view) (w : view) (e : evec) {
   require is_byz r
-  require msg_prepqc w e
+  require msg_prepqc s w e
   require vord.le w v
   msg_timeout_qc r v w e := true
 }
@@ -819,6 +843,53 @@ action byz_timeout_qc (r : node) (v : view) (w : view) (e : evec) {
 action byz_timeout_noqc (r : node) (v : view) {
   require is_byz r
   msg_timeout_noqc r v := true
+}
+
+/-! The adversary aggregates any certificate the signatures allow, under its
+own name: `2f+1` signatures, read wherever they are, form the certificate,
+and the Byzantine `r` sends it. A certificate cannot be forged (Supplement,
+Remark 1 (`rem:signature-separation`)). -/
+
+/-- `2f+1` `Prepare` signatures on `e` in view `v` form `prepareQC_{s,v}`. -/
+action byz_form_prepqc (r : node) (v : view) (e : evec) (q : nodeset) {
+  require is_byz r
+  require nset.supermajority q
+  require ∀ R, nset.member R q → msg_prepare R v e
+  msg_prepqc r v e := true
+}
+
+/-- `2f+1` `Commit` signatures on `e` in view `v` form the `CommitQC`. -/
+action byz_form_commitqc (r : node) (v : view) (e : evec) (q : nodeset) {
+  require is_byz r
+  require nset.supermajority q
+  require ∀ R, nset.member R q → msg_commit R v e
+  msg_commitqc r v e := true
+}
+
+/-- `2f+1` timeouts of view `v` form `TC_{s,v}` whose `highPrepQC` is the
+certificate `(w, e)` carried by member `r0`, with the guards of
+`form_own_tc_lock`. -/
+action byz_form_tc_lock (r : node) (v : view) (q : nodeset) (r0 : node) (s : node) (w : view) (e : evec) {
+  require is_byz r
+  require nset.supermajority q
+  require nset.member r0 q
+  require msg_timeout_qc r0 v w e
+  require msg_prepqc s w e
+  require vord.le w v
+  require ∀ R, nset.member R q →
+    msg_timeout_noqc R v ∨ ∃ W E, msg_timeout_qc R v W E ∧ vord.le W w
+  msg_tc r v := true
+  msg_tc_lock r v w e := true
+}
+
+/-- `2f+1` timeouts of view `v`, each carrying `⊥`, form a lock-free
+`TC_{s,v}`. -/
+action byz_form_tc_nolock (r : node) (v : view) (q : nodeset) {
+  require is_byz r
+  require nset.supermajority q
+  require ∀ R, nset.member R q → msg_timeout_noqc R v
+  msg_tc r v := true
+  msg_tc_nolock r v := true
 }
 
 /-! ## Safety — the three safety properties of Module 3 (`mod:mvba`)
@@ -851,7 +922,7 @@ rows below; the header explains the one departure (Supplement, Lemma 8 (`lem:loc
 is a corollary, `prepqc_blocks_lower_commits` is the inductive form). -/
 
 /-- Entering a view requires having proposed: `propose` sets `input` and
-enters view 1 in the same step, and both `sync_view` variants require
+enters view 1 in the same step, and the three `sync_view_*` steps require
 `∃ E, input i E`. Liveness uses it to read the participation premise off
 `SettledIn` rather than carrying it as a second hypothesis
 ([Mvba/Liveness.lean](Mvba/Liveness.lean)). -/
@@ -922,12 +993,12 @@ invariant [honest_preprepare_valid]
 honest leader proposes either a lock of the previous view
 (`leader_repropose`) or its own input against a lock-free certificate
 (`leader_propose_fresh`) — which are exactly the two disjuncts of
-`handle_preprepare`'s `lock_available pv e ∨ tc_nolock pv`. In view 1 there
+`handle_preprepare`'s `lock_available pv e ∨ nolock_available pv`. In view 1 there
 is no previous view, and `vord.next PV vord.zero` is impossible. -/
 invariant [honest_preprepare_justified]
   ∀ (L : node) (V : view) (E : value) (PV : view),
     ¬ is_byz L → msg_preprepare L V E → vord.next PV V →
-      lock_available PV (ent E) ∨ tc_nolock PV
+      lock_available PV (ent E) ∨ nolock_available PV
 
 /-- An honest leader proposes at most one vector per view. -/
 invariant [honest_preprepare_unique]
@@ -1015,7 +1086,7 @@ the accepted vector. -/
 invariant [accepted_justified]
   ∀ (R : node) (V : view) (E : value),
     ¬ is_byz R → accepted R V E → ¬ V = vord.zero →
-      ∃ PV, vord.next PV V ∧ (tc_nolock PV ∨ lock_available PV (ent E))
+      ∃ PV, vord.next PV V ∧ (nolock_available PV ∨ lock_available PV (ent E))
 
 /-! ### Supplement, Lemma 2 (`lem:commit-provenance`) and Supplement, Remark 3 (`rem:lock-monotonicity`) -/
 
@@ -1050,16 +1121,16 @@ invariant [commit_sent_backed]
   ∀ (R : node) (V : view) (X : value),
     ¬ is_byz R → commit_sent R V → accepted R V X → msg_commit R V (ent X)
 
-/-- A held certificate is a network certificate. -/
+/-- A held certificate is one some validator formed. -/
 invariant [local_prepqc_backed]
   ∀ (R : node) (W : view) (E : evec),
-    ¬ is_byz R → local_prepqc R W E → msg_prepqc W E
+    ¬ is_byz R → local_prepqc R W E → ∃ S, msg_prepqc S W E
 
 /-- **A held certificate never outruns the views its holder has entered.**
 Stated against an arbitrary upper bound `U` on the entered views rather than
 against the current view: `in_view` asserts a *maximum* entered view, whose
 existence is not first-order derivable, and the bound form is also exactly
-the shape of `sync_view`'s guard, which is what makes the induction direct.
+the shape of the `sync_view_*` guards, which is what makes the induction direct.
 Applying it at `U := v` for a validator in view `v` recovers the reading
 "every held certificate is of view at most `v`".
 
@@ -1085,70 +1156,80 @@ invariant [local_prepqc_unique]
 /-! ### Certificate backing (the lifted assembly guards) -/
 
 invariant [prepqc_backed]
-  ∀ (V : view) (E : evec), msg_prepqc V E →
+  ∀ (S : node) (V : view) (E : evec), msg_prepqc S V E →
     ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_prepare r V E
 
 invariant [commitqc_backed]
-  ∀ (V : view) (E : evec), msg_commitqc V E →
+  ∀ (S : node) (V : view) (E : evec), msg_commitqc S V E →
     ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_commit r V E
 
 /-- Every carried certificate exists (honest senders carry held ones,
 Byzantine senders may carry only existing ones). -/
 invariant [timeout_qc_backed]
   ∀ (R : node) (V W : view) (E : evec),
-    msg_timeout_qc R V W E → msg_prepqc W E
+    msg_timeout_qc R V W E → ∃ S, msg_prepqc S W E
 
-/-- A timeout certificate is one of the two the assemblies build. The
-`form_tc_*` and `form_own_tc_*` actions set `msg_tc` together with
-`tc_nolock` or `tc_lock`, and nothing else sets it.
+/-- A timeout certificate is one of the two kinds. Every step that sends
+`msg_tc s v` — forming one (`form_own_tc_*`, `byz_form_tc_*`) or forwarding
+one (`sync_view_*`) — sends `msg_tc_nolock s v` or `msg_tc_lock s v w e`
+with it, and nothing else sends it.
 
-Liveness needs it to get from `sync_view`'s guard — which reads `msg_tc pv`
-— to the timeout quorum behind it, and from there to a *correct* validator
+Liveness needs it to get from a sent `msg_tc s pv` to a `sync_view_*`
+step it enables, and to the timeout quorum behind it, and from there to a *correct* validator
 that has timed out in `pv`. That is the step showing a run cannot advance
 past the honest-led view without some correct validator timing out there,
 which (A-viewsync) forbids before deciding
 ([Mvba/Liveness.lean](Mvba/Liveness.lean)). -/
 invariant [msg_tc_backed]
-  ∀ (V : view), msg_tc V → tc_nolock V ∨ ∃ W E, tc_lock V W E
+  ∀ (S : node) (V : view), msg_tc S V →
+    msg_tc_nolock S V ∨ ∃ W E, msg_tc_lock S V W E
 
 invariant [tc_nolock_backed]
-  ∀ (V : view), tc_nolock V →
+  ∀ (S : node) (V : view), msg_tc_nolock S V →
     ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_timeout_noqc r V
 
-/-- A recorded lock is a certificate of view `≤ v` carried by a member of
+/-- A sent lock is a certificate of view `≤ v` carried by a member of
 a `2f+1` timeout quorum none of whose members carries a higher one. -/
 invariant [tc_lock_backed]
-  ∀ (V W : view) (E : evec), tc_lock V W E →
-    msg_prepqc W E ∧ vord.le W V ∧
+  ∀ (S : node) (V W : view) (E : evec), msg_tc_lock S V W E →
+    (∃ S', msg_prepqc S' W E) ∧ vord.le W V ∧
     ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q →
       msg_timeout_noqc r V ∨ ∃ W' E', msg_timeout_qc r V W' E' ∧ vord.le W' W
 
-/-- **Every recorded lock is a timeout certificate.** The converse direction
-of `msg_tc_backed` for the lock case: `form_tc_lock` and `form_own_tc_lock`
-set `tc_lock` and `msg_tc` in one step, so the two never come apart.
+/-- **Every sent lock is a timeout certificate.** The converse direction
+of `msg_tc_backed` for the lock case: every step that sends `msg_tc_lock`
+sends `msg_tc` from the same sender, so the two never come apart.
 
 Safety does not need it, because it reads certificates only to *justify*
-things and a lock justifies more than a bare `msg_tc`. Liveness does, because
-`sync_view` is guarded on `msg_tc` while `sync_view_adopt` — the action a
-lock enables — carries the extra guard that the adopted certificate outrank
-every one already held. A validator holding a higher certificate can
-therefore advance only through `sync_view`, and without this invariant the
-model would let it be stuck at a view that has demonstrably closed. So this
-is also a statement that the two `sync_view` variants do not strand anyone
+things and a lock justifies more than a bare `msg_tc`. Liveness reads a
+sent certificate as `msg_tc` and needs every lock to count as one
 ([Mvba/Liveness.lean](Mvba/Liveness.lean), `exists_tc_below_of_entered`). -/
 invariant [tc_lock_implies_tc]
-  ∀ (V W : view) (E : evec), tc_lock V W E → msg_tc V
+  ∀ (S : node) (V W : view) (E : evec), msg_tc_lock S V W E → msg_tc S V
 
 /-- **A validator's record of having formed a timeout certificate is backed
-by the certificate.** `form_own_tc_lock` and `form_own_tc_nolock` set
-`tc_formed i v` and `msg_tc v` in one step, and nothing else sets the
+by the certificate it sent.** `form_own_tc_lock` and `form_own_tc_nolock`
+set `tc_formed i v` and `msg_tc i v` in one step, and nothing else sets the
 record.
 
 Liveness needs it for the rule's "not already formed" guard, which is
 anti-monotone: its failure means the certificate the argument was waiting
 for exists ([Mvba/Liveness.lean](Mvba/Liveness.lean)). -/
 invariant [tc_formed_backed]
-  ∀ (R : node) (V : view), tc_formed R V → msg_tc V
+  ∀ (R : node) (V : view), tc_formed R V → msg_tc R V
+
+/-- **A correct validator above view 1 has sent a timeout certificate for
+the view below.** It entered that view through `SyncView`, which forwards
+the certificate it advanced on (Supplement, Algorithm 1, line 98
+(`line:mvba:sv-forward`)); view 1 it entered by `propose`.
+
+Liveness needs it so that every correct validator is owed a view change by
+a *correct* sender: the first correct validator in a view has sent the
+certificate of the view below under its own name. -/
+invariant [entered_forwarded]
+  ∀ (I : node) (V : view),
+    ¬ is_byz I → entered I V →
+      V = vord.zero ∨ ∃ PV, vord.next PV V ∧ msg_tc I PV
 
 /-! ### Supplement, Lemma 3 (`lem:cert-uniqueness`), within a view and across views -/
 
@@ -1156,18 +1237,19 @@ invariant [tc_formed_backed]
 two-supermajority intersection through an honest common signer and vote
 uniqueness. -/
 invariant [prepqc_unique]
-  ∀ (V : view) (E E' : evec), msg_prepqc V E → msg_prepqc V E' → E = E'
+  ∀ (S S' : node) (V : view) (E E' : evec),
+    msg_prepqc S V E → msg_prepqc S' V E' → E = E'
 
 /-- A commit certificate's honest signers held a prepare certificate of
 the same view on the same vector (Supplement, Lemma 4 (`lem:lock-formation`)'s content). -/
 invariant [commitqc_implies_prepqc]
-  ∀ (V : view) (E : evec), msg_commitqc V E → msg_prepqc V E
+  ∀ (S : node) (V : view) (E : evec), msg_commitqc S V E → ∃ S', msg_prepqc S' V E
 
 /-- Supplement, Theorem 1 (`thm:agreement`) at the certificate level, across views: from
 `prepqc_blocks_lower_commits` and the two-supermajority intersection. -/
 invariant [commitqc_agree]
-  ∀ (V V' : view) (E E' : evec),
-    msg_commitqc V E → msg_commitqc V' E' → E = E'
+  ∀ (S S' : node) (V V' : view) (E E' : evec),
+    msg_commitqc S V E → msg_commitqc S' V' E' → E = E'
 
 /-- A prepare certificate is on a valid vector, by the same argument as
 `commitqc_valid`: the `2f+1` signers contain an honest one, which accepted
@@ -1178,16 +1260,27 @@ lock a timeout certificate carries **without** re-checking validity (the
 supplement's `Recover`), while `handle_preprepare` requires `valid e`, so
 the re-proposal is accepted only because the lock was valid all along. -/
 invariant [prepqc_valid]
-  ∀ (V : view) (E : evec), msg_prepqc V E → ∃ X, valid X ∧ ent X = E
+  ∀ (S : node) (V : view) (E : evec), msg_prepqc S V E → ∃ X, valid X ∧ ent X = E
 
 /-- A commit certificate is on a valid vector: an honest signer accepted it. -/
 invariant [commitqc_valid]
-  ∀ (V : view) (E : evec), msg_commitqc V E → ∃ X, valid X ∧ ent X = E
+  ∀ (S : node) (V : view) (E : evec), msg_commitqc S V E → ∃ X, valid X ∧ ent X = E
 
-/-- Lifted `decide` guard: every honest decision is certificate-backed. -/
+/-- Every honest decision has its certificate, `DecidedQC_i`: both decision
+paths set the two in one step. -/
 invariant [decided_backed]
   ∀ (I : node) (X : value),
-    ¬ is_byz I → decided I X → ∃ V, msg_commitqc V (ent X)
+    ¬ is_byz I → decided I X → ∃ V, decided_qc I V (ent X)
+
+/-- `DecidedQC_i` is the certificate `i` outputs under its own name. -/
+invariant [decided_qc_sent]
+  ∀ (I : node) (V : view) (E : evec),
+    ¬ is_byz I → decided_qc I V E → msg_commitqc I V E
+
+/-- `DecidedQC_i` is the certificate of `i`'s decision. -/
+invariant [decided_qc_decided]
+  ∀ (I : node) (V : view) (E : evec),
+    ¬ is_byz I → decided_qc I V E → ∃ X, decided I X ∧ ent X = E
 
 /-! ### Supplement, Lemma 7 (`lem:timeout-closes-view`) and the timeout's carried lock -/
 
@@ -1200,7 +1293,7 @@ invariant [honest_timeout_qc_held]
 guarded on the marker, and nothing else sets `timed_out`.
 
 This is what lets the timing assumption be stated about `expire_timer` — the
-environment's action — rather than about the protocol's own outcome
+validator's timer — rather than about the protocol's own outcome
 ([Mvba/Liveness.lean](Mvba/Liveness.lean), (A-viewsync)). -/
 invariant [timed_out_implies_timer]
   ∀ (R : node) (V : view),
@@ -1266,8 +1359,8 @@ for every value `e` other than its own, every supermajority from
 committing `e` in `v`: one correct member left `v` without a view-`≥ v`
 lock, or holds a view-`v` lock on another value (see the header). -/
 invariant [prepqc_blocks_lower_commits]
-  ∀ (W V : view) (E' E : evec) (Q : nodeset),
-    msg_prepqc W E' → vord.lt V W → ¬ E = E' → nset.supermajority Q →
+  ∀ (S : node) (W V : view) (E' E : evec) (Q : nodeset),
+    msg_prepqc S W E' → vord.lt V W → ¬ E = E' → nset.supermajority Q →
       ∃ n, nset.member n Q ∧ ¬ is_byz n ∧ blocked n V E
 
 /-! ## Step properties
@@ -1277,9 +1370,10 @@ Two-state facts, checked per action like an invariant
 three sources for two-state facts, source (2)). -/
 
 /-- **A newly entered view is view 1, or the successor of a view that already
-has a timeout certificate.** The three actions that grow `entered` are
-`propose`, which enters `vord.zero`, and the two `sync_view` variants, whose
-guards read `msg_tc pv` and `tc_lock pv w e` at the pre-state.
+has a timeout certificate.** The four actions that grow `entered` are
+`propose`, which enters `vord.zero`, and the three `sync_view_*` steps,
+whose guards read `msg_tc_nolock s pv` or `msg_tc_lock s pv w e` at the
+pre-state.
 
 Liveness needs it, and needs it as a *step* property rather than an
 invariant because it relates the two states: it is what turns "a validator
@@ -1292,7 +1386,7 @@ step_property [entered_needs_certificate] {
   ∀ (I : node) (V : view),
     ¬ is_byz I ∧ ¬ entered I V ∧ entered' I V →
       V = vord.zero ∨
-        ∃ PV, vord.next PV V ∧ (msg_tc PV ∨ ∃ W E, tc_lock PV W E) }
+        ∃ PV S, vord.next PV V ∧ (msg_tc_nolock S PV ∨ ∃ W E, msg_tc_lock S PV W E) }
 
 /- Proof reconstruction ON (this module only): captured at `#gen_spec`,
 so it governs the background `doesNotThrow` dischargers this file still
@@ -1343,7 +1437,8 @@ sat trace {
   become_avail_ready
   send_commit
   form_own_commitqc
-  assert (∃ i x, ¬ is_byz i ∧ decided i x ∧ msg_commitqc vord.zero (ent x))
+  assert (∃ i x, ¬ is_byz i ∧ decided i x ∧ decided_qc i vord.zero (ent x) ∧
+    msg_commitqc i vord.zero (ent x))
 }
 
 -- A Byzantine leader in view 1 that stays silent; a timeout certificate
@@ -1353,7 +1448,7 @@ sat trace {
   expire_timer
   timeout_noqc
   form_own_tc_nolock
-  sync_view
+  sync_view_nolock
   leader_propose_fresh
   handle_preprepare
   adopt_prepqc
@@ -1361,7 +1456,7 @@ sat trace {
   send_commit
   form_own_commitqc
   assert (∃ i x v l0 l1, ¬ is_byz i ∧ decided i x ∧
-    ¬ v = vord.zero ∧ msg_commitqc v (ent x) ∧
+    ¬ v = vord.zero ∧ msg_commitqc i v (ent x) ∧
     leader vord.zero l0 ∧ is_byz l0 ∧ leader v l1 ∧ ¬ is_byz l1)
 }
 
@@ -1378,11 +1473,11 @@ sat trace {
   expire_timer
   timeout_qc
   form_own_tc_lock
-  sync_view
+  sync_view_lock
   leader_repropose
-  assert (∃ l v x x', ¬ is_byz l ∧ leader v l ∧ ¬ v = vord.zero ∧
+  assert (∃ l v x x' s, ¬ is_byz l ∧ leader v l ∧ ¬ v = vord.zero ∧
     msg_preprepare l v x ∧ input l x' ∧ ¬ ent x = ent x' ∧
-    tc_lock vord.zero vord.zero (ent x))
+    msg_tc_lock s vord.zero vord.zero (ent x))
 }
 
 -- Two correct validators decide different representations of one entry

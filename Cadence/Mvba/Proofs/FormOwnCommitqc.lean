@@ -34,7 +34,7 @@ namespace Mvba.Proofs
 
 /- **Manual cell — agreement at the certificate level**, for the
 certificate a correct validator forms itself. The argument is
-`form_commitqc`'s, verbatim ([FormCommitqc.lean](FormCommitqc.lean) has
+`byz_form_commitqc`'s, verbatim ([ByzFormCommitqc.lean](ByzFormCommitqc.lean) has
 it in words): the new certificate `(v, e)` against every commit certificate
 already on the wire, by the honest common signer in the same view and by
 `prepqc_blocks_lower_commits` across views. Written out for the same
@@ -51,7 +51,7 @@ is not guaranteed. -/
   veil_inv_have h_commit_later_timeout_carries_lock := commit_later_timeout_carries_lock
   veil_inv_have h_blocks := prepqc_blocks_lower_commits
   clear hinv
-  intro _ _ _ _ _ _ _ hsup_q hq _ V V' E E' hc1 hc2
+  intro _ _ _ _ _ _ _ hsup_q hq _ S S' V V' E E' hc1 hc2
   -- The new certificate is on the decided representation's entries.
   generalize th.ent x = e at hq hc1 hc2
   -- An honest validator that committed `E0` in `V0` is not blocked there:
@@ -74,10 +74,10 @@ is not guaranteed. -/
     · have hheld0 := (h_honest_commit_accepted n V0 E0 hn hcm).1
       exact hne' (h_local_prepqc_unique n V0 e' E0 hn hheld hheld0)
   -- Every commit certificate already on the wire is on the new one's value.
-  have key : ∀ (V0 : view) (E0 : evec), st.msg_commitqc V0 E0 = true → E0 = e := by
-    intro V0 E0 hc0
+  have key : ∀ (S0 : node) (V0 : view) (E0 : evec), st.msg_commitqc S0 V0 E0 = true → E0 = e := by
+    intro S0 V0 E0 hc0
     by_contra hneq
-    obtain ⟨Q0, hQ0_sup, hQ0⟩ := h_commitqc_backed V0 E0 hc0
+    obtain ⟨Q0, hQ0_sup, hQ0⟩ := h_commitqc_backed S0 V0 E0 hc0
     by_cases hVeq : V0 = v
     · -- Same view: the two commit quorums share an honest signer, who
       -- held a view-`V0` prepare certificate on both vectors.
@@ -97,26 +97,26 @@ is not guaranteed. -/
         obtain ⟨c, hcq, hc_hon⟩ :=
           nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hsup_q)
         have hc_hon' : ByzNodeSet.is_byz c = false := Bool.eq_false_iff.mpr hc_hon
-        have hpq_v : st.msg_prepqc v e = true :=
+        obtain ⟨Sp, hpq_v⟩ :=
           h_local_prepqc_backed c v e hc_hon' (h_honest_commit_accepted c v e hc_hon' (hq c hcq)).1
-        obtain ⟨n, hnQ0, hn_hon, hb⟩ := h_blocks v V0 e E0 Q0 hpq_v hlt hneq hQ0_sup
+        obtain ⟨n, hnQ0, hn_hon, hb⟩ := h_blocks Sp v V0 e E0 Q0 hpq_v hlt hneq hQ0_sup
         exact no_block n V0 E0 hn_hon (hQ0 n hnQ0) hb
       · -- `v < V0`: the old certificate's view-`V0` prepare certificate
         -- blocks `q` from committing `e` in `v`, yet `q` did.
         have hlt : TotalOrderWithMinimum.lt v V0 :=
           (TotalOrderWithMinimum.le_lt v V0).mpr ⟨hle, fun h => hVeq h.symm⟩
-        have hpq0 := h_commitqc_implies_prepqc V0 E0 hc0
+        obtain ⟨Sp0, hpq0⟩ := h_commitqc_implies_prepqc S0 V0 E0 hc0
         obtain ⟨n, hnq, hn_hon, hb⟩ :=
-          h_blocks V0 v E0 e q hpq0 hlt (fun h => hneq h.symm) hsup_q
+          h_blocks Sp0 V0 v E0 e q hpq0 hlt (fun h => hneq h.symm) hsup_q
         exact no_block n v e hn_hon (hq n hnq) hb
   have hE : E = e := by
-    by_cases h : v = V ∧ e = E
-    · exact h.2.symm
-    · exact key V E (hc1 (fun h1 h2 => h ⟨h1, h2⟩))
+    by_cases h : i = S ∧ v = V ∧ e = E
+    · exact h.2.2.symm
+    · exact key S V E (hc1 (fun h0 h1 h2 => h ⟨h0, h1, h2⟩))
   have hE' : E' = e := by
-    by_cases h : v = V' ∧ e = E'
-    · exact h.2.symm
-    · exact key V' E' (hc2 (fun h1 h2 => h ⟨h1, h2⟩))
+    by_cases h : i = S' ∧ v = V' ∧ e = E'
+    · exact h.2.2.symm
+    · exact key S' V' E' (hc2 (fun h0 h1 h2 => h ⟨h0, h1, h2⟩))
   rw [hE, hE']
 
 /- **Manual cell — Supplement, Theorem 1 (`thm:agreement`) at the decision this step makes.** The
@@ -135,6 +135,7 @@ on `e`. -/
   veil_inv_have h_commit_later_timeout_carries_lock := commit_later_timeout_carries_lock
   veil_inv_have h_blocks := prepqc_blocks_lower_commits
   veil_inv_have h_decided_backed := decided_backed
+  veil_inv_have h_decided_qc_sent := decided_qc_sent
   clear hinv
   intro _ _ _ _ _ _ _ hsup_q hq _ I J X X' hI hJ hd1 hd2
   -- The new certificate is on the decided representation's entries.
@@ -159,10 +160,10 @@ on `e`. -/
     · have hheld0 := (h_honest_commit_accepted n V0 E0 hn hcm).1
       exact hne' (h_local_prepqc_unique n V0 e' E0 hn hheld hheld0)
   -- Every commit certificate already on the wire is on the new one's value.
-  have key : ∀ (V0 : view) (E0 : evec), st.msg_commitqc V0 E0 = true → E0 = e := by
-    intro V0 E0 hc0
+  have key : ∀ (S0 : node) (V0 : view) (E0 : evec), st.msg_commitqc S0 V0 E0 = true → E0 = e := by
+    intro S0 V0 E0 hc0
     by_contra hneq
-    obtain ⟨Q0, hQ0_sup, hQ0⟩ := h_commitqc_backed V0 E0 hc0
+    obtain ⟨Q0, hQ0_sup, hQ0⟩ := h_commitqc_backed S0 V0 E0 hc0
     by_cases hVeq : V0 = v
     · -- Same view: the two commit quorums share an honest signer, who
       -- held a view-`V0` prepare certificate on both vectors.
@@ -182,28 +183,28 @@ on `e`. -/
         obtain ⟨c, hcq, hc_hon⟩ :=
           nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hsup_q)
         have hc_hon' : ByzNodeSet.is_byz c = false := Bool.eq_false_iff.mpr hc_hon
-        have hpq_v : st.msg_prepqc v e = true :=
+        obtain ⟨Sp, hpq_v⟩ :=
           h_local_prepqc_backed c v e hc_hon' (h_honest_commit_accepted c v e hc_hon' (hq c hcq)).1
-        obtain ⟨n, hnQ0, hn_hon, hb⟩ := h_blocks v V0 e E0 Q0 hpq_v hlt hneq hQ0_sup
+        obtain ⟨n, hnQ0, hn_hon, hb⟩ := h_blocks Sp v V0 e E0 Q0 hpq_v hlt hneq hQ0_sup
         exact no_block n V0 E0 hn_hon (hQ0 n hnQ0) hb
       · -- `v < V0`: the old certificate's view-`V0` prepare certificate
         -- blocks `q` from committing `e` in `v`, yet `q` did.
         have hlt : TotalOrderWithMinimum.lt v V0 :=
           (TotalOrderWithMinimum.le_lt v V0).mpr ⟨hle, fun h => hVeq h.symm⟩
-        have hpq0 := h_commitqc_implies_prepqc V0 E0 hc0
+        obtain ⟨Sp0, hpq0⟩ := h_commitqc_implies_prepqc S0 V0 E0 hc0
         obtain ⟨n, hnq, hn_hon, hb⟩ :=
-          h_blocks V0 v E0 e q hpq0 hlt (fun h => hneq h.symm) hsup_q
+          h_blocks Sp0 V0 v E0 e q hpq0 hlt (fun h => hneq h.symm) hsup_q
         exact no_block n v e hn_hon (hq n hnq) hb
   have hE : th.ent X = e := by
     by_cases h : i = I ∧ x = X
     · rw [← h.2]; exact he
     · obtain ⟨V0, hV0⟩ := h_decided_backed I X hI (hd1 (fun h1 h2 => h ⟨h1, h2⟩))
-      exact key V0 _ hV0
+      exact key I V0 _ (h_decided_qc_sent I V0 _ hI hV0)
   have hE' : th.ent X' = e := by
     by_cases h : i = J ∧ x = X'
     · rw [← h.2]; exact he
     · obtain ⟨V0, hV0⟩ := h_decided_backed J X' hJ (hd2 (fun h1 h2 => h ⟨h1, h2⟩))
-      exact key V0 _ hV0
+      exact key J V0 _ (h_decided_qc_sent J V0 _ hJ hV0)
   rw [hE, hE']
 
 #prove_action Mvba form_own_commitqc
