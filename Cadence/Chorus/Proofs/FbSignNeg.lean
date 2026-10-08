@@ -132,6 +132,19 @@ signed-root-is-well-encoded bridge as an explicit premise. -/
   · have hfb' : st.msg_fb_neg_sig R J = true := hfb (fun h1 h2 => hnew ⟨h1, h2⟩)
     exact h_old hne1 hne2 hne3 hnie R J M hR hfb' x hx
 
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus fb_sign_neg fb_neg_qv_no_rcv_quorum by
+  unveil_local
+  veil_inv_have h_old := fb_neg_qv_no_rcv_quorum
+  intro _hbyz _hpart _hab _hph _hvoted _hcast _hpath _hprop _hsup _hrcv hguard _hfresh
+    R J QV q M hR haux hq hall
+  by_cases hnew : i = R ∧ j = J ∧ qv = QV
+  · obtain ⟨rfl, rfl, rfl⟩ := hnew
+    exact hguard M q hq hall
+  · exact h_old R J QV q M hR (haux (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩)) hq hall
+
 #prove_action Chorus fb_sign_neg
 
 end Chorus.Proofs

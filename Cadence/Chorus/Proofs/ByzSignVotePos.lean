@@ -72,6 +72,17 @@ namespace Chorus.Proofs
   · have hx2 := hne2 r j m (fun h => absurd rfl (h rfl rfl))
     rw [hx2] at hneg; simp at hneg
 
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus byz_sign_vote_pos fast_path_implies_vote_quorums by
+  unveil_local
+  veil_inv_have h_old := fast_path_implies_vote_quorums
+  intro _hbyz _x _hchunk I0 hI0 hpath J hJ
+  rcases h_old I0 hI0 hpath J hJ with ⟨M, q, hq, hall⟩ | hneg
+  · exact Or.inl ⟨M, q, hq, fun r hr _ => hall r hr⟩
+  · exact Or.inr hneg
+
 #prove_action Chorus byz_sign_vote_pos
 
 end Chorus.Proofs

@@ -53,6 +53,59 @@ solver closes this cell only near its budget, so it is written out. -/
     have hy := hqf c hc2
     rw [hcf] at hy; simp at hy
 
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus commit_assign_neg_mvba spec_fastqc_pos_no_mvba_neg by
+  unveil_local
+  veil_inv_have h_old := spec_fastqc_pos_no_mvba_neg
+  veil_inv_have h_fqb := local_fastqc_pos_backed
+  veil_inv_have h_vupn := vote_unique_pos_neg
+  veil_inv_have h_fbn := fb_neg_no_pos_quorum
+  intro _hbyz _hpart _hab _hcom _hprop _hmsg _hcert _hval hev _hfresh _hneg hne1 hne2 hne3 hnie
+    I J M hI hfq
+  refine ⟨?_, h_old hne1 hne2 hne3 hnie I J M hI hfq⟩
+  rintro rfl
+  -- The bridge's negative evidence against the FastQC's vote supermajority.
+  obtain ⟨Qf, hQf_sup, hQf⟩ := h_fqb I j M hI hfq
+  rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨⟨qn, hqn_gtt, hqn⟩ | ⟨m1, m2, hm12, hp1, hp2⟩, -⟩
+  · obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest Qf Qn hQf_sup hQn_sup
+    have hx := h_vupn b j M (Bool.eq_false_iff.mpr hb_hon) (hQf b hb1)
+    have hy := hQn b hb2
+    rw [hx] at hy; simp at hy
+  · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qn hqn_gtt
+    obtain ⟨b, hb, hb_false⟩ :=
+      h_fbn hne1 hne2 hne3 hnie a j M (Bool.eq_false_iff.mpr ha_hon) (hqn a ha_mem) Qf hQf_sup
+    have hy := hQf b hb
+    rw [hb_false] at hy; simp at hy
+  · exact hm12 (hne3 j m1 m2 hp1 hp2)
+
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus commit_assign_neg_mvba speculative_agreement_pos_neg by
+  unveil_local
+  veil_inv_have h_old := speculative_agreement_pos_neg
+  veil_inv_have h_fqb := local_fastqc_pos_backed
+  veil_inv_have h_vupn := vote_unique_pos_neg
+  veil_inv_have h_fbn := fb_neg_no_pos_quorum
+  intro _hbyz _hpart _hab _hcom _hprop _hmsg _hcert _hval hev _hfresh _hneg hne1 hne2 hne3 hnie
+    I1 I2 J M h1 h2 hfq
+  refine ⟨fun _ hjJ => ?_, h_old hne1 hne2 hne3 hnie I1 I2 J M h1 h2 hfq⟩
+  subst hjJ
+  obtain ⟨Qf, hQf_sup, hQf⟩ := h_fqb I1 j M h1 hfq
+  rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨⟨qn, hqn_gtt, hqn⟩ | ⟨m1, m2, hm12, hp1, hp2⟩, -⟩
+  · obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest Qf Qn hQf_sup hQn_sup
+    have hx := h_vupn b j M (Bool.eq_false_iff.mpr hb_hon) (hQf b hb1)
+    have hy := hQn b hb2
+    rw [hx] at hy; simp at hy
+  · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qn hqn_gtt
+    obtain ⟨b, hb, hb_false⟩ :=
+      h_fbn hne1 hne2 hne3 hnie a j M (Bool.eq_false_iff.mpr ha_hon) (hqn a ha_mem) Qf hQf_sup
+    have hy := hQf b hb
+    rw [hb_false] at hy; simp at hy
+  · exact hm12 (hne3 j m1 m2 hp1 hp2)
+
 #prove_action Chorus commit_assign_neg_mvba
 
 end Chorus.Proofs

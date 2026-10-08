@@ -83,6 +83,24 @@ namespace Chorus.Proofs
     have hy := hqf c hc2
     rw [hcf] at hy; simp at hy
 
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus on_mvba_decide_pos mvba_decided_pos_chunks_decodable by
+  unveil_local
+  veil_inv_have h_old := mvba_decided_pos_chunks_decodable
+  veil_inv_have h_dec := vote_pos_quorum_implies_decodable
+  veil_inv_have h_fb := msg_fb_pos_sig_backed
+  intro _hbyz _hprop _hdec _hval hev _hfresh J M hpost
+  by_cases hnew : j = J ∧ m = M
+  · obtain ⟨rfl, rfl⟩ := hnew
+    rcases hev with ⟨-, ⟨q, hq_sup, hq⟩⟩ | ⟨-, ⟨qf, hqf_gtt, hqf⟩, -⟩
+    · exact h_dec j m q (nset.supermajority_greater_than_third q hq_sup) hq
+    · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qf hqf_gtt
+      obtain ⟨q, hq_gtt, hq⟩ := h_fb a j m (Bool.eq_false_iff.mpr ha_hon) (hqf a ha_mem)
+      exact h_dec j m q hq_gtt hq
+  · exact h_old J M (hpost (fun h1 h2 => hnew ⟨h1, h2⟩))
+
 #prove_action Chorus on_mvba_decide_pos
 
 end Chorus.Proofs
