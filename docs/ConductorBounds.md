@@ -1355,6 +1355,33 @@ correct validator's record). No action reads it.
     `[acs_first_bracket]` (D2). The witness uses that theorem.
   * The composed claims keep the hypothesis wherever they still use it;
     this is to be checked. Either way it remains a premise of the system.
+* **No premise that `acs_first` is the median (decision).** A Veil model's
+  assumptions are conjuncts of its initial-state predicate
+  (`Conductor.orchestratorSafety th` has `init st := assumptions th ∧ …`).
+  So no theorem takes `[acs_first_local]` or `[acs_first_bracket]` as a
+  hypothesis. What they need is to be satisfiable at the system's
+  configuration, and two things show that:
+  * the theorem of D2: the lower median meets both assumptions;
+  * the composed witness, which defines `acs_first` as that median.
+
+  The claims add no `MedianFirst` premise, since the proofs would not use
+  one. They hold for every first-slot rule that meets the two assumptions,
+  and the paper's lower median is one such rule. To keep that visible on
+  the claim surface, the median theorem is named in three places:
+  * [Premises.md](Premises.md) §9, where both assumptions are listed as
+    model assumptions discharged at the median, not as open premises;
+  * the docstring of `RecoveryClaim`;
+  * the index in [Cadence.lean](../Cadence.lean).
+* **Why `decided_stable` is a field and not a lemma.** No existing field
+  implies it. Here is a counter-model that meets every field:
+  * every correct decider holds `{(a,1),(b,2),(c,3)}`;
+  * one internal step later, every correct decider holds that set plus
+    `(d,4)`.
+
+  Agreement is stated at one state, so it allows the step. The other fields
+  allow it too: `decided_mono` lets sets grow, `decided_unique` holds since
+  `d` is new, and validity holds whether `d` is correct and proposed 4 or
+  is Byzantine.
 * **No other claim statement changes.** These keep their statements, since
   each names the row only through `Sync`:
   * `TotalityClaim` and `BoundednessClaim`, and `RecoveryClaim` apart from
