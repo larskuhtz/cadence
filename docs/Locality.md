@@ -156,9 +156,11 @@ cryptographic assumption, part of the locality rules in the inventory of
 what has to be believed ([Architecture.md](Architecture.md) §4, item 1),
 not a restriction of the adversary's choices. A certificate's content is
 what its signatures determine: a timeout certificate's `highPrepQC` is the
-highest certificate its members carry (Supplement, Algorithm 1, line 4
-(`line:mvba:derived`)), which is why `byz_form_tc_lock` reads its members'
-views.
+highest certificate its members carry whose view is at most the view of
+the timeout carrying it (Supplement, Algorithm 1, line 4
+(`line:mvba:derived`)), which is why `byz_form_tc_lock` and
+`byz_form_tc_nolock` read their members' views, as the correct
+`form_own_tc_*` do.
 
 **B4 is a gap in the model, to be closed.** A guard that stands for a
 receiver's check is equivalent to the check only while every correct
@@ -170,7 +172,6 @@ B1–B3 constrain the adversary. The B4 guards that remain:
 |---|---|---|---|
 | Chorus | `byz_sign_vote_pos` | `chunk_received r j m` | a positive entry carries its chunk, which the receiver verifies (Algorithm 4 (`alg:fast-path-certification`), the vote handler) |
 | Chorus | `byz_cast_vote` | an entry for every proposer | a vote carries an entry for every proposer (Algorithm 4 (`alg:fast-path-certification`), the vote handler) |
-| Mvba | `byz_timeout_qc` | `vord.le w v` | a certificate above the timeout's view counts as `⊥` (the [Mvba.lean](../Cadence/Mvba.lean) header); when it moves, `byz_form_tc_lock`'s derived `highPrepQC` reads such a member as `⊥` too |
 
 ### 4.3 The environment and the sub-protocol
 
@@ -238,5 +239,5 @@ The auxiliary relations of every model:
 | Cadence (glue) | `skipped`, `resolved`, `delivered`, `appended` | conforms |
 | FallbackReceipt | every relation (one validator) | conforms |
 | Chorus | `local_*`, `participating`, `abandoned` | conforms, checked action by action in the guide's audit table ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)); `send_mvba_cert` sends the certificate its own decision output (`mvba.decidedCert`, an output at the actor's index, R6) |
-| Mvba | every relation except `msg_*` | conforms: the view timer is the validator's own step, every certificate is sent by its former or forwarder under its own name, a decision records its certificate (`decided_qc`), and the adversary aggregates only under its own name (`byz_form_*`); [MvbaPlan.md](MvbaPlan.md) §11 has the design |
+| Mvba | every relation except `msg_*` | conforms: the view timer is the validator's own step, every certificate is sent by its former or forwarder under its own name, a decision records its certificate (`decided_qc`), and the adversary aggregates only under its own name (`byz_form_*`); no B4 guard: a Byzantine timeout may carry a certificate of any view, and the timeout-certificate rules read one above the timeout's view as `⊥`, as the supplement's receiver does; [MvbaPlan.md](MvbaPlan.md) §11 has the design |
 | Conductor | `entered`, `opened`, `completed` | open: the global `acs_decided` |
