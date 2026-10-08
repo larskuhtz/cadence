@@ -78,11 +78,14 @@ and writes
 * *W2* messages under its own name, only by adding them;
 * *W3* the MVBA's state, only through an input at index `x`.
 
-The environment reads and writes only global time. A Byzantine validator
-may read anything, since a coalition of them is subsumed by one
-unconstrained adversary, and it writes messages only under its own name.
-A read or a write that fits no rule is a gap in the model, to be replaced
-by one that fits.
+These rules are permissions: a correct step may do only what they allow.
+A Byzantine validator's rules are the opposite, prohibitions: it may do
+anything except forge a signature or write what it does not own, and
+every further restriction is listed as a gap to close
+([Locality.md](../../../Locality.md) §4.2), since each one would weaken
+the claims. The environment reads and writes only global time. A read or
+a write by a correct step that fits no rule is a gap in the model, to be
+replaced by one that fits.
 
 # The shared phase
 
