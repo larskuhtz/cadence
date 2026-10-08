@@ -1875,8 +1875,8 @@ Every honest formation and forward already requires `∃ E, input i E` and
   the view below" then pick one from a correct sender. Under this option,
   the timed premise's hop row for `sync_view_*` owes delivery only for a
   correct sender. That matches `SyncView` exactly: each correct validator
-  forwards every view-advancing certificate once (Algorithm 1, line 98
-  (`line:mvba:sv-forward`)). The row cites that line.
+  forwards every view-advancing certificate once (Supplement, Algorithm 1,
+  line 98 (`line:mvba:sv-forward`)). The row cites that line.
 * **B: no forward.** `sync_view` does not split, and the certificate rows
   stay owed unconditionally. `Owed` keeps its present claim, "a certificate
   that a correct validator forwards", without the model forwarding. So the
