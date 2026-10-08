@@ -544,7 +544,9 @@ Nothing is asked of a Byzantine validator's actions (F-byz).
 ### 3.3 `Mvba.FJustice`, (F-justice) for the MVBA
 
 * **Role:** a correct validator's enabled MVBA step happens, for a correct
-  leader's proposal and correct quorums' votes.
+  leader's proposal, correct quorums' votes, and a timeout certificate a
+  correct validator sent (formed, or forwarded when it entered the view
+  above).
 * **Plausible:** as §3.1, for the MVBA's messages.
 * **Satisfiable:** obvious alone; `Mvba.termination_premises_satisfiable`.
 * **Used in:** every link of `Mvba.termination`'s decision chain
@@ -646,7 +648,7 @@ messages from correct senders: that is the last column.
 | `mvba_propose i v _` on `FBCert` (the family `propose`) | `Δ` | `Active i`, the MVBA arm | `FBCert` from a correct supermajority |
 | `mvba_propose i v _` on the own fast meta-block (the family `proposeFast`) | `δ` | `Active i`, the MVBA arm | `i`'s own complete fast meta-block |
 | `on_mvba_decide_*`, `mvba_terminate` | `δ` | none | always: the guard reads `i`'s own decision |
-| `send_mvba_cert i c v` | `δ` | `Active i` | always: it fires on `i`'s own decision |
+| `send_mvba_cert i c` | `δ` | `Active i` | always: it fires on the certificate `i`'s own decision output |
 | `accept_mvba_commitqc i s c _` (the family `relay`, one per receiver) | `Δ` | none | a correct validator has sent an MVBA commit certificate |
 | `cast_fb_commit i v` (`fbCommit`, split at its trigger) | `Δ` | `Active i`, `i`'s own decision of `v` and no other, `i`'s own `local_mvba_complete` | (the gate) |
 | `broadcast_fbcommitqc c e q` | `Δ` | `Active c` | `q` is correct |
@@ -688,8 +690,10 @@ the inputs, the MVBA's oracle step and the adversary's actions.
 ### 4.4 `BoundedJustice`, (Δ-justice)
 
 * **Role:** each owed MVBA step happens within its bound: `δ` local, `Δ`
-  for a message sent at or after GST by correct senders and retained,
-  `Δ + ρ` for a retransmitted timeout or timeout certificate.
+  for a message sent at or after GST by correct senders and retained (for
+  a timeout certificate, the one a correct validator forwarded when it
+  entered the view above), `Δ + ρ` for a retransmitted timeout or a
+  timeout certificate a correct validator holds.
 * **Plausible:** it is the supplement's network clause by clause:
   delivery after GST, retransmission every `ρ`, one-view retention.
 * **Satisfiable:** `Mvba.admissible_exists`, and with the rest
@@ -726,8 +730,9 @@ the inputs, the MVBA's oracle step and the adversary's actions.
 ### 4.7 `Relayed`, (Δ-relay)
 
 * **Role:** while a correct validator that has decided still takes part
-  in the MVBA (it has proposed and has not abandoned), its decided commit
-  certificate reaches every undecided correct validator within `Δ + ρ`.
+  in the MVBA (it has proposed and has not abandoned), the commit
+  certificate its decision output reaches every undecided correct
+  validator within `Δ + ρ`.
 * **Plausible:** the decider's `decide` output causes the composing layer
   to broadcast the certificate, served again every `ρ`; a decider that has
   abandoned the slot serves nothing.
@@ -855,8 +860,8 @@ comment edit would rebuild the Chorus family.
 ### 6.5 The MVBA's caller: `AllPropose`, `NoEarlyAbandon`, `FRelay` (F-relay)
 
 Untimed: every correct validator invokes `propose`; none is abandoned
-before deciding; a correct validator's decided certificate is handed on to
-whoever can take it. Timed (the fields of `MVBATemporal.termination`):
+before deciding; the certificate a correct validator's decision output is
+handed on to whoever can take it. Timed (the fields of `MVBATemporal.termination`):
 every correct validator proposes by `t`, proposes a `Valid` value, and is
 not abandoned before `max(t, GST) + ℓ_MVBA`.
 

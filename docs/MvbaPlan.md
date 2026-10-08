@@ -1661,7 +1661,8 @@ theorem outside the invariant clump; §2.6 explains why it does not.
 
 ## 11. The MVBA follows the locality idiom (R36) — design
 
-*Status: design, for review before any model edit. The rules are
+*Status: approved by Lars on 2026-10-08 with option A, and implemented;
+§11.8 records what changed during implementation. The rules are
 [Locality.md](Locality.md). Its §7 records this model as open, with
 environment-written timers and sender-less certificates, and records
 Chorus's `send_mvba_cert` as open, because the contract does not output a
@@ -1759,8 +1760,8 @@ that change. ✱ marks a new parameter: the sender of the certificate read.
 |---|---|---|
 | `expire_timer i v` | `entered i v`; + `¬ is_byz i` | `timer_expired i v` (unchanged) |
 | `become_avail_ready i x` | none | `avail_ready i x` (unchanged; relabelled as an input) |
-| `leader_repropose l s✱ pv v w x` | `tc_lock pv w (ent x)` → `msg_tc_lock s pv w (ent x)` | unchanged |
-| `leader_propose_fresh l s✱ pv v x` | `tc_nolock pv` → `msg_tc_nolock s pv` | unchanged |
+| `leader_repropose l pv v w x` | `tc_lock pv w (ent x)` → `msg_tc_lock l pv w (ent x)`, its own `ViewTC_l` (§11.8) | unchanged |
+| `leader_propose_fresh l pv v x` | `tc_nolock pv` → `msg_tc_nolock l pv`, its own `ViewTC_l` (§11.8) | unchanged |
 | `handle_preprepare i l pv v x` | `lock_available pv (ent x) ∨ tc_nolock pv`, both ghosts now `∃ s` over the sender-indexed rows | unchanged |
 | `adopt_prepqc i v x q` | unchanged | `msg_prepqc v (ent x)` → `msg_prepqc i v (ent x)` |
 | `form_own_commitqc i v x q` | unchanged | `msg_commitqc v (ent x)` → `msg_commitqc i v (ent x)`; + `decided_qc i v (ent x)` |
@@ -1862,8 +1863,8 @@ Every honest formation and forward already requires `∃ E, input i E` and
 ### 11.4 The fairness premise: option A or B (Lars to choose)
 
 * **A (recommended): forward, and owe by correct sender.** This is the
-  design above, with `Owed (sync_view_* i s …) := ¬ is_byz s` and the same
-  for `leader_repropose` and `leader_propose_fresh`. The premise becomes
+  design above, with `Owed (sync_view_* i s …) := ¬ is_byz s` (the leaders
+  read their own `ViewTC_l`, §11.8). The premise becomes
   *weaker*, because it no longer owes a step on a certificate a Byzantine
   validator sent, which matches the paper's network. The argument recovers
   what it loses through the forward: a correct validator in view `v > 1`
@@ -1938,6 +1939,46 @@ The scenario syncs on a lock certificate without adopting it, through
 `sync_view_lock`. The new sender parameters branch only over rows that
 exist: at most the three participants and node 0. `(sequential := true)`
 stays.
+
+### 11.8 As built: what changed against the design
+
+Implementation (2026-10-08) followed §11.2–§11.6 with option A, approved by
+Lars. Four refinements, each recorded here:
+
+1. **The leader reads `ViewTC_l`, its own certificate.** The design gave
+   `leader_repropose` and `leader_propose_fresh` a sender parameter and
+   owed them only for a correct sender. The supplement's leader sets "`J =
+   ViewTC_i`, the persisted TC that justified entry" (Supplement,
+   Section 1.2 (`subsec:mvba-protocol`)), so the guard reads the leader's
+   own forwarded row (`msg_tc_lock l pv …`, `msg_tc_nolock l pv`; Locality
+   R3). The steps are local again (hop `.loc`, owed unconditionally), and
+   the liveness proofs take the certificate from `entered_forwarded` at the
+   leader.
+2. **`decidedCert_certifies` asserts the decision.** The quoted field took
+   `decided st p v` as a hypothesis; Chorus's termination needs to know that
+   a certificate output at `p` comes with a decision. As built:
+   `decidedCert st p c → ∃ v, decided st p v ∧ certifies st c (entries v)`.
+   It implies the quoted form (Integrity makes `p`'s decisions share one
+   entry vector), and it stays withheld from the solver.
+3. **The output certificate stands.** `Mvba.decidedCert_mono_tr`
+   ([Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)), an instance lemma
+   rather than a contract field: the liveness proofs at the `Mvba` instance
+   need it, and no contract consumer does.
+4. **Four more manual cells.** The cold solve put `timeout_qc ×
+   prepqc_blocks_lower_commits` at 53.4 s and the `tc_lock_backed` cells of
+   both timeout actions at 33.0 s and 22.8 s locally; with
+   `timeout_noqc × prepqc_blocks_lower_commits` (9.8 s) they are now frame
+   proofs of a few lines (a timeout only adds rows that both invariants
+   read positively).
+
+The pin came out at the count written before the build:
+`#veil_status Mvba` **1649/1649 real**. The step property
+`entered_needs_certificate` names the sender of the certificate read
+(`∃ PV S, … msg_tc_nolock S PV ∨ ∃ W E, msg_tc_lock S PV W E`).
+NoLock was re-pinned: the same 25 transitions in the same order, the
+witness changed only by the sender arguments, `byz_form_commitqc` at
+node 0, `decided_qc` and the forwards; the module builds in about two and a
+half minutes on one core.
 
 ### 11.7 What is re-proven
 

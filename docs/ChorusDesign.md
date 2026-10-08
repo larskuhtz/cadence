@@ -611,8 +611,8 @@ valid such certificate re-broadcasts it and finalizes the certified
 outcome, recovering a matching meta-block or the underlying proposals as
 required by the ordinary commitment-proof recovery path." The certificate
 travels as a message: a correct validator sends the certificate its own
-decision outputs (`send_mvba_cert i c v`, guarded by `mvba.decided` at `i`
-and `mvba.certifies` for its entries; `msg_mvba_cert i c`). A receiver hands
+decision outputs (`send_mvba_cert i c`, guarded by the contract's output
+`mvba.decidedCert` at `i`; `msg_mvba_cert i c`). A receiver hands
 it to its own MVBA (`accept_mvba_commitqc`), and finalizes on it
 (`commit_assign_pos_mvba i j m s c v` / `commit_assign_neg_mvba`): the
 received certificate `c`, checked with the contract's `mvba.certifies`

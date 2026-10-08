@@ -97,8 +97,8 @@ here rather than repeating them.
 
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
-| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 55 | 9 safety + 100 invariants + 1 step property | pinned: `#veil_status Chorus` in [Chorus/Certify.lean](../Cadence/Chorus/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 44 manual Lean proofs for e-matching-divergent or near-budget cells (three of them the Byzantine assembly actions' copies of the collector's cells), and one cell that runs the automatic solver step with the Bool-atom fold off rather than a hand proof (`vote × fastqc_complete_implies_mvba_evidence`; [Dependencies.md](Dependencies.md) § "Native shared libraries"); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
-| [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 28 | 3 safety + 47 invariants + 1 step property | pinned: `#veil_status Mvba` in [Mvba/Certify.lean](../Cadence/Mvba/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 5 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate; cross-view certificate agreement, at both actions that create a commit certificate; and agreement at the decision `form_own_commitqc` makes) |
+| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 55 | 9 safety + 100 invariants + 1 step property | pinned: `#veil_status Chorus` in [Chorus/Certify.lean](../Cadence/Chorus/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 46 manual Lean proofs for e-matching-divergent or near-budget cells (three of them the Byzantine assembly actions' copies of the collector's cells), and one cell that runs the automatic solver step with the Bool-atom fold off rather than a hand proof (`vote × fastqc_complete_implies_mvba_evidence`; [Dependencies.md](Dependencies.md) § "Native shared libraries"); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
+| [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 29 | 3 safety + 50 invariants + 1 step property | pinned: `#veil_status Mvba` in [Mvba/Certify.lean](../Cadence/Mvba/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 9 manual Lean proofs: 5 for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate; cross-view certificate agreement, at both actions that create a commit certificate; and agreement at the decision `form_own_commitqc` makes), and 4 frame cells at the two timeout actions that the solver found too slowly for a CI runner |
 | [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | pinned: `#veil_status FallbackReceipt` in [FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
 | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 17 invariants + 3 step properties | 205 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
 | [Cadence/Cadence.lean](../Cadence/Cadence.lean) | 7 | 4 safety + 22 invariants | 216 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
@@ -374,8 +374,8 @@ confirm each action follows them.
    [Cadence/ViewOrder.lean](../Cadence/ViewOrder.lean)'s `ViewOrderEnum`,
    the view dimension's counterpart, discharged for `Nat`: every view has
    an immediate successor, and the views at or below one are finitely many.
-   The successor field is not a proof convenience — `Mvba.sync_view` is
-   guarded on `vord.next pv v`, so a view with nothing directly above it is
+   The successor field is not a proof convenience — the `Mvba.sync_view_*`
+   steps are guarded on `vord.next pv v`, so a view with nothing directly above it is
    a view no validator can leave, and no assumption about scheduling or the
    network would unstick it. An end-to-end example instantiation
    of the remaining class stack (a `ThresholdIBE` model instance) is open

@@ -123,16 +123,18 @@ each.
   timeout: if a timeout action's guard says nothing about time, weak
   fairness forces it to fire out of every view, including the one the
   protocol is supposed to succeed in. The model therefore carries the view
-  timer as an **abstract phase marker** — `expire_timer`, a clock with
-  exactly one tick — and both timeout actions are guarded on it. With that
+  timer as an **abstract phase marker** — `expire_timer`, the validator's
+  own step, a clock with exactly one tick — and both timeout actions are
+  guarded on it. With that
   the timeouts are weakly fair like every other honest action, and the
   third class contains the marker alone, governed by (A-viewsync): finite
   in every view below the good one, and in the good one not before a
   correct validator has decided. The MVBA's weak fairness is owed only for
-  a correct leader's proposal and correct quorums' votes (`Mvba.Owed`), and
+  a correct leader's proposal, correct quorums' votes and a timeout
+  certificate a correct validator sent (`Mvba.Owed`), and
   taking a transferred certificate is the caller's input `decide`, whose
-  handoff is its own premise (F-relay): the composing layer hands a correct
-  validator's decided certificate on. A *fifth* class holds `become_avail_ready`, the
+  handoff is its own premise (F-relay): the composing layer hands on the
+  certificate a correct validator's decision output. A *fifth* class holds `become_avail_ready`, the
   availability layer's action, governed by (F-avail): it is unguarded, so
   leaving it under weak fairness would have proven (F-avail) and hidden the
   MVBA's dependence on that layer behind "the scheduler is fair".

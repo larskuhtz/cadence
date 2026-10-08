@@ -91,7 +91,7 @@ Every action has exactly one actor.
 | **R2** | network rows in positive position; a point-to-point row only at recipient `x` | syntactic (polarity of the occurrence, ghosts unfolded) |
 | **R3** | network rows at sender `x`, in either polarity: what it has sent is its own state | syntactic |
 | **R4** | environment state (global time) | syntactic |
-| **R5** | configuration and its parameters; the fault predicate only at `x` | syntactic |
+| **R5** | configuration and its parameters; the fault predicate only at `x` (the actor guard `¬ is_byz x`) | syntactic |
 | **R6** | the sub-protocol's operations at index `x` (`mvba.decided mvba_st x v`) | syntactic |
 
 and writes only:
@@ -101,6 +101,11 @@ and writes only:
 | **W1** | its own local rows | syntactic |
 | **W2** | network rows at sender `x`, only by `:= true` (or a disjunction with the old value) | syntactic |
 | **W3** | the sub-protocol state, only as `st := next` after `require <c>.<input> st x … next` | syntactic; *semantic step*: that an input changes no other validator's part, which is the contract's frame fields |
+
+The actor guard reads the fault predicate at the actor's own index. It marks
+the step as a correct validator's, which is how §3 recognises the actor, and
+reads nothing about any other validator: no correct step reads the fault
+status of another validator, in a guard or in an update.
 
 **A Byzantine validator `x`** may read anything: a coalition of Byzantine
 validators is subsumed by an unconstrained one, and so is ignoring a message
@@ -174,6 +179,6 @@ The auxiliary relations of every model:
 |---|---|---|
 | Cadence (glue) | `skipped`, `resolved`, `delivered`, `appended` | conforms |
 | FallbackReceipt | every relation (one validator) | conforms |
-| Chorus | `local_*`, `participating`, `abandoned` | conforms, checked action by action in the guide's audit table ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)), with one open item: `send_mvba_cert` sends any certificate valid for its decided entries, because the MVBA contract does not yet output the certificate a decision used at the decider's index (with the Mvba item) |
-| Mvba | every relation except `msg_*`, `tc_lock`, `tc_nolock` | open: environment-written timers, sender-less certificates |
+| Chorus | `local_*`, `participating`, `abandoned` | conforms, checked action by action in the guide's audit table ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)); `send_mvba_cert` sends the certificate its own decision output (`mvba.decidedCert`, an output at the actor's index, R6) |
+| Mvba | every relation except `msg_*` | conforms: the view timer is the validator's own step, every certificate is sent by its former or forwarder under its own name, a decision records its certificate (`decided_qc`), and the adversary aggregates only under its own name (`byz_form_*`); [MvbaPlan.md](MvbaPlan.md) §11 has the design |
 | Conductor | `entered`, `opened`, `completed` | open: the global `acs_decided` |
