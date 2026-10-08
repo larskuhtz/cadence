@@ -45,7 +45,7 @@ prints the whole list.
   admissible for `Chorus.chorusTemporal`, at the schedule's family schedule.
 
 Censorship resistance takes one premise more, (P-incl) on every started
-slot's part (`SlotInclusive`): a chunk delivered by the deadline is
+slot's part (`SlotInclusive`): a chunk due by the deadline is
 recorded, the paper's "by the deadline" read inclusively (F31, P19).
 
 The caller conditions of either side are **not** premises: Chorus's (C1,

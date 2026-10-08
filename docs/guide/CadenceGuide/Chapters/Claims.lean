@@ -146,8 +146,10 @@ full list, with each premise's use and witness, is
   ([§0.2](../../../Premises.md#02-the-instance-and-the-configuration), [§2.1](../../../Premises.md#21-validators-and-faults), [§2.6](../../../Premises.md#26-time))
 
 * *Partial synchrony.* After GST, every step a correct validator owes
-  happens within its bound: `Δ` for a message from a correct validator,
-  `δ` for a local step. Nothing is owed on a Byzantine validator's message.
+  happens within its bound. Receiving a correct validator's message — a
+  chunk, a vote, a certificate — is the receiver's step, due `Δ` after the
+  message was sent; a local step, reading one's own message included, is
+  due within `δ`. Nothing is owed on a Byzantine validator's message.
   _Paper._ The Conductor's and every slot's timing models,
   {decl}`Composed.OrchAdmissible` and {decl}`Composed.SlotAdmissible`, carry
   it. ([§4.1](../../../Premises.md#41-timedjustice-δδ-justice), [§4.4](../../../Premises.md#44-boundedjustice-δ-justice))

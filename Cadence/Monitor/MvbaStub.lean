@@ -44,7 +44,20 @@ structure ME where
   e1 : Option (Fin 2)
   e2 : Option (Fin 2)
   e3 : Option (Fin 2)
-deriving DecidableEq, Repr, Hashable, Inhabited, Ord, Veil.Enumeration
+deriving DecidableEq, Repr, Hashable, Inhabited, Veil.Enumeration
+
+/-- A vector's position in the enumeration, which orders the monitor's
+per-vector rows (the certificate relations are keyed by a vector). -/
+def ME.code (v : ME) : Nat := (Veil.Enumeration.allValues (α := ME)).idxOf v
+
+instance : Ord ME := ⟨compareOn ME.code⟩
+
+instance : Std.TransOrd ME := inferInstanceAs (Std.TransCmp (compareOn ME.code))
+
+instance : Std.LawfulEqOrd ME where
+  eq_of_compare {a b} h := by
+    have hc : a.code = b.code := Std.LawfulEqOrd.eq_of_compare (α := Nat) h
+    exact (List.idxOf_inj (Veil.Enumeration.complete a)).1 hc
 
 /-- The vector as a function on nodes. -/
 def ME.entry (v : ME) : Fin 4 → Option (Fin 2)
@@ -135,6 +148,19 @@ def decodeMV (j : Json) : Except String MV := do
   let (a2, f2) ← ent arr[2]!
   let (a3, f3) ← ent arr[3]!
   pure ⟨⟨a0, a1, a2, a3⟩, f0, f1, f2, f3⟩
+
+/-- Decode an entry vector from a JSON array of four entries, each `null`
+(negative) or a root index (positive). -/
+def decodeME (j : Json) : Except String ME := do
+  let arr ← j.getArr?
+  unless arr.size == 4 do throw s!"mentries needs 4 entries (one per node), got {arr.size}"
+  let ent (e : Json) : Except String (Option (Fin 2)) :=
+    match e with
+    | .null => pure none
+    | _ => do
+      let k ← e.getNat?
+      if h : k < 2 then pure (some ⟨k, h⟩) else throw s!"root index {k} out of range (≥ 2)"
+  pure ⟨← ent arr[0]!, ← ent arr[1]!, ← ent arr[2]!, ← ent arr[3]!⟩
 
 /-- Decode the (unobservable) abstract MVBA state: `null` only. -/
 def decodeMState (j : Json) : Except String Unit :=

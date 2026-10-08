@@ -176,7 +176,7 @@ never write one by hand.
   solver's e-matching. Materialise certificates as network relations with an
   explicit assembly action (the `msg_commitqc_*` / `broadcast_commitqc_*`
   pattern), or record witnesses in auxiliary history relations (the
-  `local_fb_neg_qv` pattern).
+  `aux_fb_neg_qv` pattern: an auxiliary record, read by no action — [Locality.md](../../../docs/Locality.md) §2).
 * One cell (`vote × fastqc_complete_implies_mvba_evidence`) turns
   `veil.smt.foldBoolAtoms` off, for that cell only: its `#prove_vc` line in
   [Proofs/Vote.lean](../../../Cadence/Chorus/Proofs/Vote.lean) runs the

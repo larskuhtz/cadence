@@ -339,13 +339,17 @@ holds.
 | `forwarded` | `Δ` | a timeout certificate forwarded, at or after GST, by the first correct validator to enter the view it justifies | Supplement, Algorithm 1, line 98 (`line:mvba:sv-forward`), Supplement, Lemma 14 (`lem:view-sync`)(b) |
 | `timeouts` | `Δ + ρ` | a correct quorum's timeouts, whenever sent, while their senders are still in the view, formed into a certificate by a correct validator in the view | the `Timeout` retransmission, Supplement, Lemma 15 (`lem:convergence`) ("Reaching `V`") |
 | `certificates` | `Δ + ρ` | a timeout certificate, whenever formed, while every correct validator takes part | Supplement, Algorithm 1, line 40 (`line:mvba:viewtc-retx`) |
-| `decisions` | `Δ + ρ` | a commit certificate some correct validator has decided on (**N3**) | the composing layer's delivery, Supplement, Lemma 13 (`lem:decision-propagation`) |
+| `decisions` | `Δ + ρ` | a commit certificate some correct validator has decided on (**N3**), while that validator takes part: it has proposed and has not abandoned | the composing layer's delivery, Supplement, Lemma 13 (`lem:decision-propagation`), argued in the termination setting with the learner not abandoned |
 
 *The last row is the caller's, not the MVBA's (C15, §6.4.2): `decide` on a
 transferred certificate is the contract's input `accept`, so the row is a
 clause of its own, `Mvba.Relayed`, outside `BoundedJustice`, and `decide`
-is not in the hop table. Inside Cadence, Chorus's handoff row derives it
-(`Chorus.relayed_of_timedJustice`).*
+is not in the hop table. Inside Cadence, Chorus's rows derive it
+(`Chorus.relayedWhileActive_of_timedJustice`). It is owed only while the
+decider takes part: a decider that has finalized may abandon before its
+certificate's broadcast, and then nothing hands its decision on; the
+MVBA's own proof needs it only inside its termination window, where nobody
+correct has abandoned.*
 
 Every side condition is one under which the supplement promises delivery.
 A single clause holding every network label to `Δ` after GST, whatever its
@@ -412,8 +416,8 @@ a guard or a local record. The network clauses' side
 conditions also read the network's own facts, as the supplement's network
 rules do: who sent a message (a correct validator or not), when it was
 first sent against GST, which view its receiver had reached, and, for the
-composing layer's delivery, whether a correct validator has decided on the
-certificate. None of them is a protocol conclusion the argument needs;
+composing layer's delivery, whether a correct validator that still takes
+part has decided on the certificate. None of them is a protocol conclusion the argument needs;
 each is a condition under which the supplement promises delivery.
 (A-viewsync)'s shape was
 forced because an untimed model could relate the timer only to protocol
@@ -932,9 +936,9 @@ once.
   finalizing". So a single split gives `M + 4Δ + ℓ_MVBA`, which is the
   bound an earlier, commented-out draft next to the lemma states.
   **Confirmed:** `Chorus.timed_termination_tight` proves
-  `M + 4Δ + ℓ_MVBA + 8δ`; the claim stays the paper's 5Δ
-  (`Chorus.timed_termination`), and the looseness is P5 of
-  [PaperAlignment.md](PaperAlignment.md) §6.
+  `M + 4Δ + ℓ_MVBA + 9δ`, the paper's `4Δ + ℓ_MVBA` at `δ = 0`; the claim
+  stays the paper's 5Δ (`Chorus.timed_termination`), and the looseness is
+  P5 of [PaperAlignment.md](PaperAlignment.md) §6.
 
 **Decisions in one place.**
 
@@ -992,26 +996,32 @@ carries no fairness. Every rule that sends is gated on
 exempt. That is the standing convention of
 Appendix C.3 (`subsection:chorus-protocol-overview`), rule for rule:
 
-* **Gated, because they send.** `propose` (at the proposer), `vote`,
-  `commit_sign_*`, `cast_fast_commit`, `fb_sign_*` (whose positive form
-  also sends every validator its chunk, F15), `cast_fallback_vote`,
-  `mvba_propose` (the convention names it explicitly), `cast_fb_commit`,
-  and `commit_assign_*`/`finalize_commit`. The paper's finalization rules
-  re-broadcast the proof
+* **Gated, because they send.** `propose` (at the proposer; it sends
+  every validator its chunk in the same step), `vote`, `commit_sign_*`,
+  `cast_fast_commit`, `broadcast_commitqc_*` and `broadcast_fbcommitqc`
+  (at the collector), `fb_sign_*` (whose positive form also sends every
+  validator its chunk, F15), `cast_fallback_vote`, `mvba_propose` (the
+  convention names it explicitly), `send_mvba_cert` (the broadcast of the
+  MVBA's commit certificate), `cast_fb_commit`, and the six
+  `commit_assign_*` routes and `finalize_commit`. The paper's finalization
+  rules re-broadcast the proof
   (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)), and
   its totality proof relies on their being gated.
-* **Exempt, because they process.** `record_chunk`, `aggregate_fastqc_*`,
-  the decision handlers and `mvba_terminate`; and
-  `deliver_chunk_assigned`, which delivers a chunk the proposer sent in its
-  gated `propose` (F15).
-* **Senders.** `broadcast_commitqc_*` has a sender parameter, the collector
-  (Algorithm 4, line 33 (`line:fast-broadcast-commitqc`)), gated when it is
-  correct; the Byzantine form is the unfair `byz_broadcast_commitqc_*`
-  (§6.4.7). Without the sender, Quiescence could not attribute those
-  messages.
+* **Exempt, because they process.** `record_chunk`, the vote receipts
+  `receive_vote_*`, `aggregate_fastqc_*`, the decision handlers and
+  `mvba_terminate`, the certificate handoff `accept_mvba_commitqc`, and the
+  availability report `mvba_avail_ready`. A message is on the network from
+  its send on, so a chunk a proposer sent in its gated `propose` is due at
+  its recipient whatever the proposer does next (F15).
+* **Senders.** Every message names its sender. The collectors of
+  `broadcast_commitqc_*` (Algorithm 4, line 33 (`line:fast-broadcast-commitqc`))
+  and `broadcast_fbcommitqc` (Algorithm 5, line 44 (`line:fb-commit-broadcast`))
+  are gated when correct; the Byzantine forms are the unfair
+  `byz_broadcast_commitqc_*` and `byz_broadcast_fbcommitqc` (§6.4.7).
+  Without the sender, Quiescence could not attribute those messages.
 
 The gates read only the acting validator's local state: no network
-relation is read negatively ([ChorusDesign.md](ChorusDesign.md) §3.1.1).
+relation is read negatively ([Locality.md](Locality.md) R1, R2).
 
 Quiescence is then proven in the paper's own two-part shape
 (Lemma 6 (`lemma:chorus-quiescence`)), in
@@ -1108,38 +1118,21 @@ it is what the paper's buffering sentence says: the message part is due
 Δ after it was sent, and the rule fires δ after its gate opens.
 
 **The hop table**, classified as §6.2.4's is, by what the guard consumes,
-with each row's gate and the condition under which it is owed at all
-([Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean): `Chorus.hop`,
-`Chorus.gate`; `Chorus.Owed` in
-[Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)). `Active i` is
-`participating i ∧ ¬ abandoned i`.
-
-| row | bound | gate | owed when |
-|---|---|---|---|
-| `deliver_chunk_assigned i j m` | `Δ` | none: the send is the proposer's gated `propose` | always (the proposer is correct by the guard) |
-| `record_chunk` | `δ` | none | always |
-| `vote i` | `δ` | `Active i`, phase past `D` | always |
-| `aggregate_fastqc_* … q` | `Δ` | none | the quorum `q` is correct, or a correct validator that cast its fast commit vote holds the FastQC (F7) |
-| `commit_sign_* i …`, `cast_fast_commit i` | `δ` | `Active i` | always |
-| `broadcast_commitqc_* c … q` | `Δ` | `Active c` | the quorum `q` is correct |
-| `fb_sign_pos i j m q qc` | `Δ` | `Active i`, the fallback arm | `q` and `qc` correct, and a correct supermajority has cast its votes |
-| `fb_sign_neg i j qv` | `Δ` | `Active i`, the fallback arm | `qv` correct |
-| `cast_fallback_vote i` | `δ` | `Active i`, the fallback arm | always |
-| `mvba_propose i v _` on `FBCert` (`propose`, one family per `(i, v)`) | `Δ` | `Active i`, the MVBA arm | `FBCert` from a correct supermajority |
-| `mvba_propose i v _` on the fast meta-block (`proposeFast`, one family per `(i, v)`, F9) | `δ` | `Active i`, the MVBA arm | `i`'s own complete fast meta-block |
-| `on_mvba_decide_*`, `mvba_terminate` | `δ` | none | always (the guard reads `i`'s own decision) |
-| `accept_mvba_commitqc`, `on_mvba_commitqc_*` (the handoff and the `CommitQC` route) | `Δ` | none | a correct validator has decided (`relayOwed`) |
-| `cast_fb_commit i v` (`TimedJustice.fbCommit`, split at its trigger) | `Δ` | `fbCommitGate`: `Active i`, `i`'s own decision of `v`, `i`'s own `local_mvba_complete` | (the gate); untimed: `i` decided `v` and no other representation |
-| `mvba_avail_ready i v` (the family `avail`) | `Δ` | none | `i` holds `v` |
-| `commit_assign_* i j …` | `Δ` | `Active i` | a correct validator finalized with that entry, or the fallback commit certificate from correct voters over the decided entry |
-| `finalize_commit i` | `δ` | `Active i` | always |
+with each row's gate and the condition under which it is owed at all, is
+[Premises.md](Premises.md) §4.1 ([Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean):
+`Chorus.hop`, `Chorus.gate`; `Chorus.Owed` in
+[Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)). A step that
+consumes a message is timed at its receiver: there is no delivery step, and
+the receiver's row is owed when the message's sender is correct. A
+certificate the actor sent itself is a local read, a `δ`-row (`rcvHop`).
 
 `hop_isSome_iff` pins that the table covers exactly the fair labels that
 are not phase markers. The Byzantine forms of the senders
-(`byz_broadcast_commitqc_*`, `byz_redisseminate_chunk`) are unfair and have
-no row (§6.4.7). `mvba_propose`'s gate is the MVBA arm, not the fallback
-arm, because the case-(a) trigger waits for it and §6.4.3's timeline
-reaches the proposals only after it. Four things about the table:
+(`byz_send_chunk`, `byz_redisseminate_chunk`, `byz_broadcast_commitqc_*`,
+`byz_broadcast_fbcommitqc`, `byz_send_mvba_cert`) are unfair and have no
+row (§6.4.7). `mvba_propose`'s gate is the MVBA arm, not the fallback arm,
+because the case-(a) trigger waits for it and §6.4.3's timeline reaches
+the proposals only after it. Six things about the table:
 
 * **Participation.** Every row whose rule is gated (§6.4.1) has
   participation in its gate.
@@ -1153,20 +1146,34 @@ reaches the proposals only after it. Four things about the table:
 * **The decision handlers are δ-rows** although they read certificates.
   Each fires on the acting validator's *own* MVBA decision, which is a
   local output, and the certificates its bridge check reads hold at that
-  decision by `ValidBridge`'s completeness. A decision's transfer to a
+  decision by `ValidBridge`'s completeness. So is `send_mvba_cert`, the
+  broadcast of the decision's certificate. A decision's transfer to a
   validator that did not decide first is the handoff (C15, below).
+* **A vote is received before it is used.** `receive_vote_*` is the
+  receiver's `Δ`-row on a correct voter's vote, and the negative fallback
+  entry `fb_sign_neg` reads the receiver's own receipts ("among the votes
+  it received"), so it is a `δ`-row. The receipt costs the timeline one `δ`
+  (§6.4.3).
+* **Sending to oneself is a local step** (`rcvHop`). The commit routes
+  `commit_assign_*` read a certificate with its sender. A certificate from
+  another validator is a `Δ`-row; one the actor sent itself is a `δ`-row:
+  the finalizer of the fallback commit round forms the fallback commit
+  certificate and broadcasts it (Algorithm 5, lines 42–44
+  (`line:fb-collect-commit`–`line:fb-commit-broadcast`)), and finalizes on
+  its own broadcast (Algorithm 5, line 45 (`line:fb-recv-commit`)).
 
 **Findings against the rows, each built into the statement.**
 
 * **F5: the paper owes delivery only between correct validators**
   (Proposition 5 (`prop:chorus-finalization-time`)'s proof: "every message between correct
-  validators is delivered within Δ"). The model's network relations hold
-  from a message's first delivery to anyone, a Byzantine sender's included.
-  So a Δ-row that consumes a Byzantine validator's message would owe a
+  validators is delivered within Δ"). Every message of the model names its
+  sender and holds from its send on, a Byzantine sender's included. So a
+  Δ-row that consumes a Byzantine validator's message would owe a
   delivery the paper does not promise, since a Byzantine voter may send to
   some validators only. That is the MVBA's C16 finding, on Chorus's side.
   Each Δ-row is therefore owed only when the messages it consumes came from
-  correct senders (the last column), and both untimed `FJustice`s,
+  correct senders (the owed column of [Premises.md](Premises.md) §4.1), and
+  both untimed `FJustice`s,
   Chorus's and the MVBA's, take the same owed-conditions (`Chorus.Owed`,
   `Mvba.Owed`: a correct leader, a correct quorum). Re-proving
   `Chorus.termination` against them showed two rows stricter than the
@@ -1194,22 +1201,23 @@ reaches the proposals only after it. Four things about the table:
   transports its own decision by `X_d + 2δ`.
 * **F9: the case-(a) proposal is a local step.** A correct validator's
   FastQCs reach every correct validator through `aggregate_fastqc_*` (F7)
-  by `M + 3Δ + 2δ`, and only then is the case-(a) proposal owed, because
+  by `M + 3Δ + 3δ`, and only then is the case-(a) proposal owed, because
   its trigger is the receiver's local state. A Δ-row from there would put
-  the proposals at `M + 4Δ + 2δ`, one Δ beyond the paper's `M + 3Δ`. The
+  the proposals at `M + 4Δ + 3δ`, one Δ beyond the paper's `M + 3Δ`. The
   premise has the paper's two rules: `TimedJustice.propose`
   (Algorithm 5, line 36 (`line:fb-mvba-propose`)), a Δ-family owed on a correct `FBCert`; and
   `TimedJustice.proposeFast` (Algorithm 5, line 23 (`line:fb-mvba-propose-fast`)), a δ-family owed
-  on the own meta-block. The proposals are by `M + 3Δ + 3δ`
-  (`Chorus.within_all_input`), which makes `ℓ`'s δ-multiple 9.
+  on the own meta-block. The proposals are by `M + 3Δ + 4δ`
+  (`Chorus.within_all_input`).
 * **F10: a Δ-row costs `max(Δ, δ)`.** With its gate already open
   (`N = N'`), a buffered row's window is `ref N + max(Δ, δ)`; a row without
   a gate is always in this case. At `δ > Δ` every such hop would cost `δ`,
   and the paper's route would not reach `5Δ + ℓ_MVBA + O(δ)` (a run may
   delay each step to the end of its window). The schedule has the field
   `Chorus.Schedule.δ_le_Δ`: a local step is no slower than a network hop,
-  true at the paper's `δ = 0`. It implies the `δ ≤ Δ + ρ` that
-  `relayed_of_timedJustice` takes. `TotalityClaim` does not need it.
+  true at the paper's `δ = 0`. `TotalityClaim` does not need it. The
+  handoff's first hop has a field of its own, `Chorus.Schedule.δ_le_ρ`
+  (C15, below).
 * **F11: re-dissemination was owed on the fast path** (found by the
   witness, §6.4.5). The row was owed whenever `f+1` correct validators held
   the chunk, so every active correct validator owed every validator its
@@ -1240,7 +1248,7 @@ reaches the proposals only after it. Four things about the table:
   | | `cast_fb_commit`'s DA wait |
   |---|---|
   | paper | upon `MVBA[s].decide(B′)`: for each FallbackQC in B′ with a positive entry ⟨s, j, root⟩: wait until p_i has received and validated its assigned chunk for root (Algorithm 5, line 37 (`line:fb-mvba-decide`) to Algorithm 5, line 39 (`line:fb-commit-wait`)) |
-  | model | `cast_fb_commit i v`: `mvba.decided mvba_st i v` and `∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J → msg_chunk_received i J M` |
+  | model | `cast_fb_commit i v`: `mvba.decided mvba_st i v` and `∀ J M, mval_pos (mvba.entries v) J M → mval_fb v J → chunk_received i J M`, where `chunk_received i J M` is "some sender sent `i` its chunk of `M`" (`∃ s, msg_chunk s i J M`) |
 
   `Owed (.cast_fb_commit i v)` is "`i` decided `v` and no other
   representation" (P11 of [PaperAlignment.md](PaperAlignment.md) §6).
@@ -1263,20 +1271,21 @@ reaches the proposals only after it. Four things about the table:
   | | the fallback-entry rule's re-dissemination |
   |---|---|
   | paper | "re-encode proposal; send each validator its assigned chunk for `ρ`" inside the positive branch of the fallback-entry rule (Algorithm 5, line 12 (`line:fb-redisseminate`)) |
-  | model | in `fb_sign_pos i j m q qc` itself: `msg_chunk_received I j m := true`, `local_chunk_sent i I j m := true` |
+  | model | in `fb_sign_pos i j m q` itself: `msg_chunk i I j m := true` |
 
   | | the proposer's dissemination |
   |---|---|
   | paper | upon `propose`: … for each validator `p_r`: send `p_r` its chunk (Algorithm 2 (`alg:proposer-dissemination`)) |
-  | model | `deliver_chunk_assigned i j m` reads the send (`msg_proposer_signed j m`) and nothing of the proposer's later state |
+  | model | in `propose j m` itself: `msg_chunk j I j m := true`; the recipient's `record_chunk` reads the chunk and nothing of the proposer's later state |
 
   What follows from it:
   * **Quiescence is kept.** Every send happens inside a gated step, and
-    `local_chunk_sent i I j m` is the per-sender send record. A later
-    delivery of an earlier send is not a new send.
-  * **Two rows are Δ-rows.** `cast_fb_commit` and `mvba_avail_ready` read a
-    chunk relation that holds from its send, so the reader's row times the
-    delivery, as for every broadcast relation of the model. The gate
+    `msg_chunk s I j m` names its sender `s`. A later receipt of an
+    earlier send is not a new send.
+  * **Every reader of a chunk is a Δ-row.** `record_chunk`,
+    `cast_fb_commit` and `mvba_avail_ready` read a chunk relation that
+    holds from its send, so the reader's row times the delivery, as for
+    every message of the model. The gate
     checklist ([Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)'s
     header) admits the actor's own MVBA output that its rule fires upon.
   * **(Δ-avail) is derived.** `Chorus.availWithin_of_timedJustice`: in every
@@ -1301,19 +1310,17 @@ finalizes; and the MVBA accepts a transferred `CommitQC` of any view
 (Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)). The transfer is the caller's, so
 Chorus's own rows carry it.
 
-* **The relay.** `accept_mvba_commitqc i c mvba_next`
-  ([Chorus.lean](../Cadence/Chorus.lean)): a correct validator hands a
-  valid certificate `c` to its MVBA through the contract's input
-  `mvba.accept`. It reads no network relation: what stands for the
-  certificate on the wire is the MVBA's own monotone record that it exists
-  (`mvba.certifies`), so the monotone-network contract of
-  [ChorusDesign.md](ChorusDesign.md) §3.1.1 is untouched. A correct
-  validator's decision counts as its broadcast of the certificate that
-  commits it — the supplement's "upon receiving this output, Chorus
-  broadcasts", with its instantaneous local computation — and a validator
-  that has accepted has decided, so it is a sender in turn. Finalization
-  on the certificate is the `CommitQC` route
-  ([PaperAlignment.md](PaperAlignment.md) §5.7).
+* **The broadcast.** `send_mvba_cert i c v`
+  ([Chorus.lean](../Cadence/Chorus.lean)): a correct validator that has
+  decided `v` sends, under its own name, a certificate `c` that certifies
+  its decided entries (`msg_mvba_cert i c`); gated on its participation, a
+  `δ`-row on its own decision.
+* **The relay.** `accept_mvba_commitqc i s c mvba_next`: a correct
+  validator that received `c` from `s` hands it to its MVBA through the
+  contract's input `mvba.accept`, which checks it. The read of the message
+  is positive ([Locality.md](Locality.md) R2). Finalization on
+  the certificate is the `CommitQC` route, `commit_assign_*_mvba`
+  ([PaperAlignment.md](PaperAlignment.md) §5.7), which re-broadcasts it.
 * **The contract** (`MVBASafety`, first-order additions,
   [Interfaces.lean](../Cadence/Interfaces.lean)): `certifies`;
   `decided_certified`, **decide exposes its certificate**; the input
@@ -1326,15 +1333,22 @@ Chorus's own rows carry it.
   untimed (`Mvba.FRelay`), `Mvba.Relayed` timed (§6.2.4).
 * **The rows, and the derivation.** The relay row is a Δ-row with no gate
   (it processes a message, like `aggregate_fastqc_*`), owed once a correct
-  validator has decided. `Chorus.relayed_of_timedJustice`: for
-  `δ ≤ Δ + ρ` (the paper's `δ = 0` included), in every run satisfying
+  validator has sent a certificate (`relayOwed`).
+  `Chorus.relayedWhileActive_of_timedJustice`: in every run satisfying
   `TimedJustice`, every projection's timed run satisfies `Mvba.Relayed`.
-  `Chorus.timedMvbaAdmissible_of_rows` is the form a witness uses, and the
-  untimed twin is `Chorus.fRelay_of_fJustice`, which makes
-  `MvbaAdmissible`'s premise set exactly the MVBA's own.
-* **The fired-once guard.** `local_mvba_qc_accepted i`, unset by the guard
-  and set by the step, so the step always changes the state and
-  `Chorus.justice_enabledMove` keeps holding.
+  While the decider takes part, its `send_mvba_cert` row (gated on its
+  participation, which its MVBA proposal gives, and on its not having
+  abandoned) sends the certificate within `δ`, and the relay row hands it
+  over `Δ` later; with the schedule's `Chorus.Schedule.δ_le_ρ`, the two hops
+  fit in `Δ + ρ`. `Mvba.Relayed` is owed only while the decider takes part
+  (§6.2.4), and that is what the rows give: a decider that finalized may
+  abandon before its send fires. `Chorus.timedMvbaAdmissible_of_rows` is
+  the form a witness uses, and the untimed twin is
+  `Chorus.fRelay_of_fJustice`, on the branch where everyone is active.
+* **The fired-once guards.** `local_mvba_cert_sent i` and
+  `local_mvba_qc_accepted i`, unset by the guards and set by the steps, so
+  each step always changes the state and `Chorus.justice_enabledMove`
+  keeps holding.
 
 One consequence is on the MVBA's untimed premise: (A-viewsync)'s second
 clause names a correct validator's **decision** rather than a commit
@@ -1365,7 +1379,7 @@ this.
 `all_honest_recorded`, the antecedent of proposal inclusion, and the
 contract's `on_time`: a state fact that neither timed claim of this leg
 needs. Its timed form is the first step of censorship resistance: a
-correct proposer's chunk, proposed at `D − Δ ≥ GST`, is delivered and
+correct proposer's chunk, sent with the proposal at `D − Δ ≥ GST`, is
 recorded before the marker fires at `D` (`Chorus.within_proposal_recorded`,
 which needs the recording strictly before `D`). At δ = 0 a chunk that
 arrives exactly at `D` ties with the marker, and the paper states no
@@ -1428,10 +1442,10 @@ With `M = max(t, GST)`, the same notation as the paper:
 |---|---|---|
 | `D ≤ t + Δ` | C2 at each correct start, with (P2) | — |
 | by `M + Δ`: first-round votes | `eventually_voted`, then `eventually_quorum_cast` (`voted_implies_cast`) | `vote` δ |
-| by `M + 2Δ`: second-round votes | `eventually_saturated` / `eventually_all_saturated` | aggregate Δ, sign/cast δ; `fb_sign_*` Δ, gate `D + Δ ≤ M + 2Δ`; `cast_fallback_vote` δ |
+| by `M + 2Δ`: second-round votes | `eventually_received`, `eventually_saturated` / `eventually_all_saturated` | aggregate Δ, sign/cast δ; vote receipts Δ; `fb_sign_pos` Δ, `fb_sign_neg` δ on the receipts, gate `D + Δ ≤ M + 2Δ`; `cast_fallback_vote` δ |
 | by `M + 3Δ`: MVBA proposals, fallback chunks | `eventually_complete_fast_metablock`, `eventually_trigger`, `eventually_input`, `certifiedVector` (`ValidBridge` soundness); the chunks sent with each positive fallback signature (`fb_pos_sig_chunks`, F15) | the proposal family Δ, gate `D + 2Δ`; aggregate Δ; the chunks' hop Δ, timed at their reader (`fbCommit`) |
 | by `T₀ − Δ = M + 3Δ + ℓ_MVBA`: decision | `T.termination` on the timed projection; `eventually_mvba_complete`, `eventually_fbcommit_sig` | `ℓ_MVBA`; handlers, terminate and cast δ |
-| by `T₀`: certificates, finalization | `eventually_fbcommitqc` (a ghost, no hop), `eventually_committed_of_assignable` | `commit_assign_*` Δ, `finalize_commit` δ |
+| by `T₀`: certificates, finalization | `eventually_fbcommitqc_sent`, `eventually_committed_of_assignable` | `broadcast_fbcommitqc` Δ, the assignments on the finalizer's own certificate δ (`rcvHop`), `finalize_commit` δ |
 
 **What "re-run with deadlines" means here** is what it meant in §6.2.7:
 
@@ -1455,34 +1469,34 @@ from Chorus:
 * **Validity**: `ValidBridge`'s soundness clause, used once for the one
   certified vector, as in stage 4.
 * **No abandonment before `max(t_M, GST) + ℓ_MVBA`**: in the branch where
-  nobody finalizes by `T₀ − Δ`, C1 means nobody has abandoned, so the
-  forwarding `abandon` has not fired.
+  nobody finalizes by the vote deadline `X_v`, C1 means nobody has
+  abandoned, so the forwarding `abandon` has not fired.
 
 The MVBA's bound is then `T.ℓ`, which at the instance is
 `Schedule.ℓ sch vfin` by `rfl`. The Chorus bound is stated with `T.ℓ` and
 never with the MVBA's constants, so a change to the MVBA's timing model
 reaches this leg only through `T`.
 
-**The assembly, and F4.**
+**The assembly, and F4.** One split, at the fallback commit votes'
+deadline `X_v = M + 3Δ + ℓ_MVBA + 7δ`:
 
-* *Case A*: some correct validator finalizes by `T₀ − Δ`. Totality
-  (§6.4.4) finalizes everyone by `T₀`. Everyone already participates,
+* *Case A*: some correct validator finalizes by `X_v`. Totality (§6.4.4)
+  finalizes everyone by `X_v + Δ + 2δ`. Everyone already participates,
   since all start by `t`.
-* *Case B*: nobody finalizes by `T₀ − Δ`. Then nobody has abandoned (C1),
-  every gate a validator needs is open until it finalizes, and the table
-  above finalizes everyone by `T₀`.
+* *Case B*: nobody finalizes by `X_v`. Then nobody has abandoned by `X_v`
+  (C1), every correct validator is active until then, and the tables below
+  finalize everyone by `T₀ = X_v + Δ + 2δ`: the finalizer's own fallback
+  commit certificate is a `Δ`-row on the votes, and the last two links use
+  only the finalizing validator's own gate and its own certificate.
 
-That is `M + 4Δ + ℓ_MVBA + c·δ`, one Δ inside the paper's claim.
-**F4 is confirmed.** The claim is stated and proven at
-the paper's `5Δ + ℓ_MVBA` plus the δ-terms (`Chorus.timed_termination`),
-and the sharper bound is the named theorem it follows from
-(`Chorus.timed_termination_tight`, `M + 4Δ + ℓ_MVBA + 8δ`). The split point
-is the fallback commit votes' deadline `M + 3Δ + ℓ_MVBA + 6δ`, one `δ`
-before `T₀ − Δ`: case B needs everyone active only until the votes, since
-the last two links use the finalizing validator's own gate. No step uses
-the outer split. The looseness is recorded for the authors as P5 of
-[PaperAlignment.md](PaperAlignment.md) §6. "The MVBA tail and the round, as
-proven" below has the milestones.
+That is `M + 4Δ + ℓ_MVBA + 9δ` (`Ltight`), one Δ inside the paper's claim.
+**F4 is confirmed.** The claim is stated and proven at the paper's
+`5Δ + ℓ_MVBA` plus the δ-terms (`Chorus.timed_termination`), and the
+sharper bound is the named theorem it follows from
+(`Chorus.timed_termination_tight`, `Chorus.Ltight_le_Lchorus`). No step
+uses the paper's outer split at `T₀`. The looseness is recorded for the
+authors as P5 of [PaperAlignment.md](PaperAlignment.md) §6. "The MVBA tail
+and the round" below has the milestones.
 
 **The milestones to the MVBA proposals**
 ([Chorus/Timeline.lean](../Cadence/Chorus/Timeline.lean)). Up to the MVBA
@@ -1498,14 +1512,15 @@ certified and `Valid` (from the evidence at saturation, below).
 | every correct validator participating | `exists_start` | `t` | 0 |
 | the deadline | `deadline_le_of_start` + (P2) | `D ≤ t + Δ` | 0 |
 | first-round votes, all at one index | `within_voted`, `within_all_voted` | `M + Δ + δ` | 1 |
-| a fallback signature per proposer | `within_fb_sig` | `M + 2Δ + δ` | 1 |
-| the second-round vote, fast or fallback | `within_cast`, `within_all_saturated` | `M + 2Δ + 2δ` | 2 |
-| the MVBA's trigger from correct senders | `correctTrigger_of_saturated` | (the same index) | 2 |
-| a correct fast voter's FastQCs, everywhere (F7) | `within_complete_fast_metablock_by` | `M + 3Δ + 2δ` | 2 |
-| the proposal on a correct `FBCert` | `within_input_of_fbcert` | `M + 3Δ + 2δ` | 2 |
-| the proposal on the own meta-block (F9) | `within_input_of_fast` | `M + 3Δ + 3δ` | 3 |
-| every correct validator's proposal | `within_all_input` | `t_M = M + 3Δ + 3δ` | 3 |
-| a correct proposer's chunk, delivered and recorded | `within_proposal_recorded` | `max(X, GST) + Δ + δ`, if `< D` | 1 |
+| every correct vote received by every correct validator | `within_received` | `M + 2Δ + δ` | 1 |
+| a fallback signature per proposer | `within_fb_sig` | `M + 2Δ + 2δ` | 2 |
+| the second-round vote, fast or fallback | `within_cast`, `within_all_saturated` | `M + 2Δ + 3δ` | 3 |
+| the MVBA's trigger from correct senders | `correctTrigger_of_saturated` | (the same index) | 3 |
+| a correct fast voter's FastQCs, everywhere (F7) | `within_complete_fast_metablock_by` | `M + 3Δ + 3δ` | 3 |
+| the proposal on a correct `FBCert` | `within_input_of_fbcert` | `M + 3Δ + 3δ` | 3 |
+| the proposal on the own meta-block (F9) | `within_input_of_fast` | `M + 3Δ + 4δ` | 4 |
+| every correct validator's proposal | `within_all_input` | `t_M = M + 3Δ + 4δ` | 4 |
+| a correct proposer's chunk, sent with its signature and recorded | `within_entry_recorded`, `within_proposal_recorded` | `max(X, GST) + Δ`, if `< D` | 0 |
 
 The last row is not on the termination path: it is the proposal-inclusion
 corollary's first step, with the strict `< D` of §6.4.2's "What
@@ -1517,28 +1532,29 @@ needs them.
 ([Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)).
 On the branch where no correct validator has finalized by the vote deadline
 `X_v`, everyone is active until then (C1, `activeUntil_of_not_finalized`).
-With `t_M = M + 3Δ + 3δ` and `X_d = t_M + ℓ_MVBA`:
+With `t_M = M + 3Δ + 4δ` and `X_d = t_M + ℓ_MVBA`:
 
 | milestone | lemma | by | `δ`s |
 |---|---|---|---|
-| a FallbackQC signer's signature is there at its second-round vote | `fb_pos_sig_flip`, `fb_pos_sig_at_cast` | (saturation, `M + 2Δ + 2δ`) | 2 |
-| its chunk sent to every validator with the signature (F8, F15) | `fb_pos_sig_chunks` | (saturation; the hop due by `M + 3Δ + 2δ`) | 2 |
-| every correct validator decides in the MVBA | `within_all_decided` (`T.termination` on the projection) | `X_d` | 3 |
-| a correct decision's entries recorded (the handlers) | `within_recorded` | `X_d + δ` | 4 |
-| each correct validator's `local_mvba_complete` (its `mvba_terminate`) | `within_complete` | `X_d + 2δ` | 5 |
-| each fallback commit vote, under the validator's own `B′` | `within_fbcommit_sig` | `X_v = X_d + 3δ` | 6 |
-| a correct fbCommitQC (the honest quorum's votes) | (collapsed in `within_finalized_late`) | `X_v` | 6 |
-| every proposer's entry assigned | `within_assigned` | `X_v + Δ` | 6 |
-| finalized | `within_finalized`, `within_finalized_late` | `T₀ = M + 4Δ + ℓ_MVBA + 7δ` | 7 |
-| the split: early finalizers by totality | `within_finalized_tight` | `X_v + Δ + 2δ = M + 4Δ + ℓ_MVBA + 8δ` | 8 |
+| a FallbackQC signer's signature is there at its second-round vote | `fb_pos_sig_flip`, `fb_pos_sig_at_cast` | (saturation, `M + 2Δ + 3δ`) | 3 |
+| its chunk sent to every validator with the signature (F8, F15) | `fb_pos_sig_chunks` | (saturation; the hop due by `M + 3Δ + 3δ`) | 3 |
+| every correct validator decides in the MVBA | `within_all_decided` (`T.termination` on the projection) | `X_d` | 4 |
+| a correct decision's entries recorded (the handlers) | `within_recorded` | `X_d + δ` | 5 |
+| each correct validator's `local_mvba_complete` (its `mvba_terminate`) | `within_complete` | `X_d + 2δ` | 6 |
+| each fallback commit vote, under the validator's own `B′` | `within_fbcommit_sig` | `X_v = X_d + 3δ` | 7 |
+| the honest quorum's votes over the decided entries | (collapsed in `within_finalized_late`) | `X_v` | 7 |
+| the finalizer's own fallback commit certificate | `within_fbcommitqc_sent` | `X_v + Δ` | 7 |
+| every proposer's entry assigned, on that certificate (a local read) | `within_assigned_from` | `X_v + Δ + δ` | 8 |
+| finalized | `within_finalized`, `within_finalized_late` | `T₀ = M + 4Δ + ℓ_MVBA + 9δ` | 9 |
+| the split: early finalizers by totality | `within_finalized_split` | `X_v + Δ + 2δ = M + 4Δ + ℓ_MVBA + 9δ` | 9 |
 
 Five facts of the proof, each in the file's header:
 
 * **No common `B′`** (P2). Each validator waits and votes under its own
   decision. The handlers run on one correct decision, and the MVBA's
   agreement makes every correct decision's entries the recorded ones, so
-  each validator's own `mvba_terminate` follows
-  (`mvba_recorded_entry`, as in the untimed `eventually_mvba_complete`).
+  each validator's own `mvba_terminate` follows (as in the untimed
+  `eventually_mvba_complete`).
 * **The chunks precede the decision.** A correct FallbackQC signer signed
   before its second-round vote (`fb_sign_pos`'s guards), so its signature is
   at the saturation index (a first-flip fact). The same step sends every
@@ -1558,16 +1574,21 @@ Five facts of the proof, each in the file's header:
   `Chorus.timed_termination_tight_atMvba` take nothing beyond the MVBA
   instance's own hypotheses, less its correct supermajority, which the
   family proves (`hqeFin`). `TimedTerminationClaim` is unchanged.
-* **The δ-multiple.** The paper's route, the outer split at `T₀` with
-  totality's `Δ + 2δ`, gives `5Δ + ℓ_MVBA + 9δ`, exactly `Lchorus`.
+* **The δ-multiple.** The single split gives `4Δ + ℓ_MVBA + 9δ`
+  (`Ltight`), and `Lchorus = 5Δ + ℓ_MVBA + 9δ` follows by adding a `Δ`.
+  The `9δ` counts the model's vote-receipt step before the negative
+  fallback entry; at `δ = 0` the bound is the paper's `4Δ + ℓ_MVBA`.
 
 #### 6.4.4 `d_tot`-totality
 
 **The route.** A correct validator finalizes at index `n` with clock `t`.
 From that point, `local_committed_pos_backed` and
-`local_committed_neg_backed` make every proposer's entry `Assignable` at
-`n`, and the certificates are monotone. For another correct validator
-`j`, `commit_assign_*` is a Δ-row whose network part holds from `n`. Its
+`local_committed_neg_backed` give every proposer's entry a commitment proof
+the finalizer sent (`CertPos`, `CertNeg`: its re-broadcast fast commit
+certificate, fallback commit certificate or MVBA commit certificate), and
+the certificates are monotone. For another correct validator `j`, the
+matching `commit_assign_*` route is at most a Δ-row (`rcvHop`: `δ` on `j`'s
+own certificate) whose network part holds from `n`. Its
 gate (participation) opens by `max(t, GST) + Δ`. That comes from
 Δ-synchronized participation, since the finalizer started at or before
 `t`. Alternatively `j` has already abandoned, and then it has finalized
@@ -1605,7 +1626,8 @@ parameter matters.
 **The proof** ([Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)).
 `Chorus.totality` is `TotalityClaim sch d` at every schedule and tolerance,
 over finitely many validators, by exactly the route above: the assignments
-by `max(c, GST) + max(Δ, d) + δ` (`within_assigned`), the finalization a
+by `max(c, GST) + max(Δ, d) + δ` (`within_assigned`, from the per-sender
+`within_assigned_from`), the finalization a
 further `δ` (`within_finalized`). The latency is `Ltot` with no slack.
 `Chorus.totality_paper` is the paper's `d_tot = Δ` at `δ = 0` and `d = Δ`.
 The proof uses neither `δ ≤ Δ` nor the phase timers nor the MVBA nor the
@@ -1693,12 +1715,13 @@ entry vectors over one root, `Unit`. One run serves all three claims, and
 the untimed one forgets its clock:
 
 * **Clock 0.** The three correct validators participate. The proposer
-  proposes, its chunk reaches all four validators, and the three correct
-  ones record it.
-* **Clock 1 (`D`).** The deadline marker fires. Everyone votes, forms the
-  FastQC, signs and casts its fast commit vote, broadcasts the commit
-  certificate, commits the proposer's entry and finalizes, all on the fast
-  path. Then everyone abandons, as C1 permits.
+  proposes and sends all four validators their chunks, and the three
+  correct ones record them.
+* **Clock 1 (`D`).** The deadline marker fires. Everyone votes, receives
+  the three correct votes, forms the FastQC, signs and casts its fast
+  commit vote, broadcasts the commit certificate, commits the proposer's
+  entry on validator 0's certificate and finalizes, all on the fast path.
+  Then everyone abandons, as C1 permits.
 * **Clocks 2 and 3.** The fallback-arm and MVBA-arm markers fire on a run
   in which nobody is active any more. So nobody proposes to the MVBA, which
   stays quiet. Its projection is the abandonments plus the environment's
@@ -1763,9 +1786,8 @@ records are in [History.md](History.md) § "From Bounds.md"):
    gated, C1 and C2 in [Interfaces.lean](../Cadence/Interfaces.lean),
    `InputLabel`, and `Chorus.termination` over the extended
    `TerminationClaim`, with the early-finalization split. Two run-level
-   first-flip facts (`committed_pos_assignable`,
-   `committed_neg_assignable`) give the early-finalization branch the
-   commitment proof beside the MVBA record.
+   first-flip facts (`committed_pos_cert`, `committed_neg_cert`) give the
+   early-finalization branch the commitment proof from a correct sender.
    **S1b, fired-once flags** (§6.4.7): every fair action of both models
    fires once, so fairness is over plain enabledness.
 2. **S2, the statements** ([Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean)):
@@ -1904,8 +1926,7 @@ disable themselves after firing: `vote` (`¬ local_voted`), `send_commit`
   what it formed, and a guard on that record's absence disables every
   `q`-variant at once. A negative read of the actor's *own local* state is
   what every existing honest guard does; no network relation is read
-  negatively, so the monotone-network contract is untouched
-  ([ChorusDesign.md](ChorusDesign.md) §3.1.1). It also sets the network
+  negatively ([Locality.md](Locality.md) R1, R2). It also sets the network
   certificate relation, as `adopt_prepqc` sets `msg_prepqc`, where the
   certificate is carried on (timeouts, broadcasts).
 * The **anonymous forming stays**, but is **not fair**: it is the
@@ -1950,35 +1971,35 @@ proof is one lemma per action, read off the transition body.
 
 *The inventory, as the lemma found it.* Every fair action that could stay enabled after firing now has a "not
 already" guard on a record it sets itself. All the reads are negative reads
-of the acting validator's own local state (category (L)). No network
-relation is read negatively, and there is no new exception category
-([ChorusDesign.md](ChorusDesign.md) §3.1.1).
+of the acting validator's own local state ([Locality.md](Locality.md)
+R1). No network relation is read negatively.
 
 | action | old guard, in words | new guard, in words |
 |---|---|---|
 | `aggregate_fastqc_pos/neg` | a supermajority signed | … and `i` does not hold this FastQC yet |
 | `broadcast_commitqc_pos/neg` | a correct and active collector, or any Byzantine one; `2f+1` cast commit votes | a correct and active collector that has not broadcast a certificate for `j` yet (`local_commitqc_sent c j`); the Byzantine branch is now `byz_broadcast_commitqc_*` |
-| `deliver_chunk_assigned` | an honest proposer that signed `m` | … that has not sent `i` this chunk yet (`local_chunk_sent j i j m`) |
 | `commit_sign_pos/neg` | `i` holds the FastQC and has not cast | … and has not signed an entry for `j` yet (`local_commit_entry i j`) |
 | `fb_sign_pos/neg` | the fallback-entry conditions | … and `i` has not signed its fallback entry for `j` yet (`local_fb_entry i j`) |
 | `on_mvba_decide_pos/neg` | `i` decided `v`, the entry is certified | … and `i` has not recorded entry `j` of its decision yet (`local_mvba_recorded i j`) |
 | `cast_fb_commit` | the DA wait holds | … and `i` has not cast its fallback commit vote yet (`local_fbcommit_voted i`) |
-| `commit_assign_pos` | no *other* root committed for `j` | no root committed for `j` yet |
-| `commit_assign_neg` | no positive entry committed for `j` | … and not the negative one either |
+| `commit_assign_pos_*` | no *other* root committed for `j` | no root committed for `j` yet |
+| `commit_assign_neg_*` | no positive entry committed for `j` | … and not the negative one either |
 
 What the lemma required:
 
 * **`commit_assign_*` needs per-entry guards.** `¬ local_committed` is set
   by `finalize_commit`, not by `commit_assign_*`.
-* **Six families besides the two named above**: the dissemination
-  and re-dissemination of chunks, the commit and fallback entries, the
-  decision handlers and the fallback commit vote. For those whose effect is
-  a network tuple or a shared record (`mvba_decided_*`), the flag is a new
-  local record. The six records are `local_chunk_sent`,
-  `local_commit_entry`, `local_fb_entry`, `local_commitqc_sent`,
-  `local_mvba_recorded` and `local_fbcommit_voted` (Chorus.lean,
-  "Fired-once records"). Where the effect was already local
-  (`aggregate_fastqc_*`, `commit_assign_*`), the guard is its absence.
+* **The families besides the two named above**: the commit and fallback
+  entries, the certificate broadcasts, the decision handlers, the
+  handoff and the fallback commit vote. For those whose effect is a network
+  tuple or a shared record (`aux_mvba_decided_*`), the flag is a local
+  record: `local_commit_entry`, `local_fb_entry`, `local_commitqc_sent`,
+  `local_fbcommitqc_sent`, `local_mvba_cert_sent`, `local_mvba_recorded`,
+  `local_mvba_qc_accepted` and `local_fbcommit_voted` (Chorus.lean,
+  "Fired-once records"). Where the effect is already local
+  (`aggregate_fastqc_*`, the vote receipts `receive_vote_*`,
+  `commit_assign_*`), the guard is its absence. The proposer's chunks are
+  sent inside `propose`, an input, which carries no fairness.
 * **The Byzantine branches of the two anonymous capabilities became their
   own unfair actions**, `byz_broadcast_commitqc_*` and
   `byz_redisseminate_chunk` (the re-dissemination is part of `fb_sign_pos`
@@ -1999,7 +2020,7 @@ What the lemma required:
   [Termination.lean](../Cadence/Chorus/Termination.lean)). The decision
   handler's link also uses the MVBA's agreement, to identify the recorded
   entry with the one it waits for.
-* **The other candidates** needed nothing. `record_chunk` already requires
+* **The other candidates** need nothing. `record_chunk` already requires
   that no positive entry is recorded, the phase markers move the phase, and
   the MVBA proposal's effect is the `Mvba` model's input record, whose
   absence its guard requires.

@@ -18,9 +18,10 @@ Instance encoded here: n = 3f+1 = 4, f = 1, roots = 2, slots = 1 (matches
 Chorus consumes the MVBA as a class constraint, the MVBA's
 `mvalue` (a meta-block representation: four entries, each null, a root
 index for a FastQC-certified positive entry, or `{"fallback": k}` for a
-FallbackQC-certified one) and
-`mstate` (the instance's abstract state, not observable: always null). No
-action takes a `slot`/`Phase`/`PathChoice`/`mmsg` argument. No floats,
+FallbackQC-certified one), `mentries` (an entry vector: four entries, each
+null or a root index), `mmsg` (an MVBA message, not observable: always null)
+and `mstate` (the instance's abstract state, not observable: always null). No
+action takes a `slot`/`Phase`/`PathChoice` argument. No floats,
 strings, or wide arithmetic — the value encoding is unambiguous.
 -/
 import Cadence.Chorus
@@ -62,7 +63,9 @@ private def q (s : String) : String := "\"" ++ s ++ "\""
     in step with `internalCandidates` in [ChorusMonitor.lean](ChorusMonitor.lean). The
     MVBA's oracle step is silent ([Monitor.md](../../docs/Monitor.md) §8). -/
 def internalActionNames : List String :=
-  ["commit_sign_pos", "commit_sign_neg", "commit_assign_pos", "commit_assign_neg", "mvba_step"]
+  ["commit_sign_pos", "commit_sign_neg",
+   "commit_assign_pos_fast", "commit_assign_pos_fb", "commit_assign_pos_mvba",
+   "commit_assign_neg_fast", "commit_assign_neg_fb", "commit_assign_neg_mvba", "mvba_step"]
 
 def isInternal (a : String) : Bool := internalActionNames.contains a
 
@@ -89,6 +92,11 @@ def alphabetJsonOf (acts : Array (String × Array String)) : String :=
     ++ "    " ++ q "mvalue" ++ ": {" ++ q "encoding" ++ ": " ++ q "array<uint|{fallback:uint}|null>" ++ ", "
       ++ q "length" ++ ": 4, "
       ++ q "note" ++ ": " ++ q "the MVBA value, a meta-block representation: one entry per node, a root index (positive entry held by a FastQC), {fallback: root} (positive entry held by a FallbackQC) or null (negative)" ++ "},\n"
+    ++ "    " ++ q "mentries" ++ ": {" ++ q "encoding" ++ ": " ++ q "array<uint|null>" ++ ", "
+      ++ q "length" ++ ": 4, "
+      ++ q "note" ++ ": " ++ q "an entry vector: one entry per node, a root index (positive) or null (negative)" ++ "},\n"
+    ++ "    " ++ q "mmsg" ++ ": {" ++ q "encoding" ++ ": " ++ q "null" ++ ", "
+      ++ q "note" ++ ": " ++ q "an MVBA message (a commit certificate); not observable, always null" ++ "},\n"
     ++ "    " ++ q "mstate" ++ ": {" ++ q "encoding" ++ ": " ++ q "null" ++ ", "
       ++ q "note" ++ ": " ++ q "the MVBA instance's abstract state; not observable, always null" ++ "}\n"
     ++ "  },\n"
@@ -104,6 +112,8 @@ private def sortRust (s : String) : Option String × (String → String) :=
   match s with
   | "nodeset" => (some "&[u64]", fun nm => "fmt_nodeset(" ++ nm ++ ")")
   | "mvalue"  => (some "&[Option<(u64, bool)>]", fun nm => "fmt_mvalue(" ++ nm ++ ")")
+  | "mentries" => (some "&[Option<u64>]", fun nm => "fmt_mentries(" ++ nm ++ ")")
+  | "mmsg"    => (none, fun _ => "\"null\"")   -- not observable
   | "mstate"  => (none, fun _ => "\"null\"")   -- not observable
   | _         => (some "u64", fun nm => nm)       -- node, merkle_root
 
@@ -156,10 +166,15 @@ def rustStubOf (acts : Array (String × Array String)) : String :=
     ++ "//                            meta-block representation, one entry per node,\n"
     ++ "//                            Some((root, fallback)) positive, None negative;\n"
     ++ "//                            fallback = held by a FallbackQC, else a FastQC;\n"
+    ++ "//                  mentries: &[Option<u64>] of length 4 — an entry vector,\n"
+    ++ "//                            Some(root) positive, None negative;\n"
+    ++ "//                  mmsg    : an MVBA message — not observable, no parameter,\n"
+    ++ "//                            emitted as null;\n"
     ++ "//                  mstate  : the MVBA instance's abstract state — not observable,\n"
     ++ "//                            no parameter, emitted as null.\n"
-    ++ "// The MVBA actions (mvba_propose, accept_mvba_commitqc, mvba_avail_ready,\n"
-    ++ "// on_mvba_decide_*, on_mvba_commitqc_*, mvba_terminate) are in the\n"
+    ++ "// The MVBA actions (mvba_propose, send_mvba_cert, accept_mvba_commitqc,\n"
+    ++ "// mvba_avail_ready, on_mvba_decide_*, mvba_terminate, and the fallback\n"
+    ++ "// commit actions cast_fb_commit and broadcast_fbcommitqc) are in the\n"
     ++ "// alphabet but the monitor runs a silent MVBA stub, so traces carrying them are\n"
     ++ "// rejected at the handlers (docs/Monitor.md §8) — emit them once the monitor\n"
     ++ "// gains a real MVBA leg.\n"
@@ -173,6 +188,13 @@ def rustStubOf (acts : Array (String × Array String)) : String :=
     ++ "// matching points in your simulation.\n\n"
     ++ "fn fmt_nodeset(xs: &[u64]) -> String {\n"
     ++ "    let inner = xs.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(\", \");\n"
+    ++ "    format!(\"[{}]\", inner)\n"
+    ++ "}\n\n"
+    ++ "fn fmt_mentries(xs: &[Option<u64>]) -> String {\n"
+    ++ "    let inner = xs.iter().map(|x| match x {\n"
+    ++ "            Some(m) => m.to_string(),\n"
+    ++ "            None => \"null\".to_string() })\n"
+    ++ "        .collect::<Vec<_>>().join(\", \");\n"
     ++ "    format!(\"[{}]\", inner)\n"
     ++ "}\n\n"
     ++ "fn fmt_mvalue(xs: &[Option<(u64, bool)>]) -> String {\n"

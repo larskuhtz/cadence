@@ -402,10 +402,9 @@ not use them, and a premise should assume no more than it needs.
 sentence, and it is enough: `eventually_decided_of_decision` turns one
 correct decision into every correct validator deciding, using (F-relay)
 alone. It relates two events, a timer running out and a correct validator
-deciding, and mentions no certificate. Until R8 it named a commit
-certificate instead; that asked too little, since the adversary can
-assemble a certificate from its own and correct validators' `Commit`s and
-show it to nobody, and no transfer of it is owed ((F-relay);
+deciding, and mentions no certificate. A commit certificate would ask too
+little: the adversary can assemble one from its own and correct validators'
+`Commit`s and show it to nobody, and no transfer of it is owed ((F-relay);
 [Bounds.md](../../docs/Bounds.md) §6.4.2, F5). And the "before …" is
 load-bearing — a flat "the timer never runs out in `W`" would be
 unsatisfiable the moment anything forced timers to expire.

@@ -30,14 +30,21 @@ What has been done, and when, is [History.md](History.md).
 
 ## Soundness instruments
 
-* **A syntactic audit of the monotone-network contract** — the (M-frame)
-  half (network relations read in positive position only) is checked by
-  hand, and a violation would not fail the build
-  ([Architecture.md](Architecture.md) §4 item 1). A meta-program that
-  *classifies* every occurrence (positive, self-row, documented exception:
-  the categories of [ChorusDesign.md](ChorusDesign.md) §3.1.1) would make
-  it a machine check; the external audit found two relations mis-tabled by
-  the hand audit. [ChorusDesign.md](ChorusDesign.md) §9 item 3.
+* **Locality, the open models** ([Locality.md](Locality.md) §7). Mvba:
+  the environment-written `timer_expired`/`avail_ready` rows become the
+  validator's own timeout step and the caller's input; the sender-less
+  certificates (`msg_prepqc`, `msg_commitqc`, `msg_tc`, `tc_lock`,
+  `tc_nolock`) get a sender; the anonymous assemblies go. With it, the MVBA
+  contract outputs the certificate a decision used at the decider's index,
+  so Chorus's `send_mvba_cert` sends that certificate rather than any valid
+  one. Conductor: `acs_decide` becomes a per-validator step writing
+  per-validator window bounds, and `opened_win` an `aux_` record.
+* **A locality checker** — the rules of [Locality.md](Locality.md) are
+  checked by hand, action by action (the guide's audit table), and a
+  violation would not fail the build ([Architecture.md](Architecture.md) §4
+  item 1). The rules are stated for pattern matching over names, index
+  positions and polarity, with the semantic steps marked; a meta-program
+  applying them would make the audit a machine check (the V line).
 * **A model instance of `ThresholdIBE`** — it is the one primitive class
   with no instance, and an instance would show its axioms are satisfiable
   rather than contradictory ([ChorusDesign.md](ChorusDesign.md) §9

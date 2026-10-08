@@ -1,15 +1,15 @@
 import Cadence.Chorus
 import Cadence.ProofPrelude
 
-/-! # `Chorus` proofs — action `fb_sign_pos`
+/-! # `Chorus` proofs — action `byz_send_chunk`
 
 Scaffolded by `#gen_proof_files Chorus`; yours to edit. Proves every
-registered VC of `fb_sign_pos` cross-file from the module's persisted VC registry
+registered VC of `byz_send_chunk` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 [Certify.lean](../Certify.lean)'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Chorus fb_sign_pos <property> by <tac>` lines
+Manual cells go on `#prove_vc Chorus byz_send_chunk <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
@@ -31,25 +31,15 @@ namespace Chorus.Proofs
 /- Written out: the solver closes this cell, but its time varies between
 runs up to the budget on CI's 4-core runner. -/
 
-#prove_vc Chorus fb_sign_pos vote_pos_quorum_implies_decodable by
+#prove_vc Chorus byz_send_chunk mvba_decided_pos_chunks_decodable by
   unveil_local
-  veil_inv_have h_old := vote_pos_quorum_implies_decodable
-  intro _hbyz _hpart _hab _hph _hvoted _hcast _hpath _hprop _qv _hqv _hqvc _hq _hqs _hwe _hfresh
-    J M x hx hsig
-  obtain ⟨q, hq, hall⟩ := h_old J M x hx hsig
-  exact ⟨q, hq, fun r hr => let ⟨s, hs⟩ := hall r hr; ⟨s, fun _ => hs⟩⟩
+  veil_inv_have h_old := mvba_decided_pos_chunks_decodable
+  intro _hbyz J M haux
+  obtain ⟨q, hq, hall⟩ := h_old J M haux
+  refine ⟨q, hq, fun r hr => ?_⟩
+  obtain ⟨s, hs⟩ := hall r hr
+  exact ⟨s, fun _ => hs⟩
 
-/- Written out: the solver closes this cell, but its time varies between
-runs up to the budget on CI's 4-core runner. -/
-
-#prove_vc Chorus fb_sign_pos msg_commitqc_pos_chunks_decodable by
-  unveil_local
-  veil_inv_have h_old := msg_commitqc_pos_chunks_decodable
-  intro _hbyz _hpart _hab _hph _hvoted _hcast _hpath _hprop _qv _hqv _hqvc _hq _hqs _hwe _hfresh
-    C J M hC
-  obtain ⟨q, hq, hall⟩ := h_old C J M hC
-  exact ⟨q, hq, fun r hr => let ⟨s, hs⟩ := hall r hr; ⟨s, fun _ => hs⟩⟩
-
-#prove_action Chorus fb_sign_pos
+#prove_action Chorus byz_send_chunk
 
 end Chorus.Proofs

@@ -326,14 +326,19 @@ measurements and the audit ladder:
   in front of a command that declares nothing (`#gen_spec`,
   `open_isolate`). Block comments nest, so `/-` or `-/` inside prose opens
   or closes one ("pre-/post-state").
-* **The monotone-network contract is not enforced by the tool.** Network
-  relations (`msg_*`) may be consulted in **positive position only**.
-  Violations do not fail the build — they silently void the async-safety
-  claim. Read [docs/ChorusDesign.md](./docs/ChorusDesign.md) §3.1.1 before
-  adding or modifying an action. Two scoped exception categories are
-  documented there (`fb_sign_neg`'s witnessed quorum, and the seven
-  *self-row* reads); do not add a third without updating that section
-  and [docs/Architecture.md](./docs/Architecture.md) §4.
+* **The locality rules are not enforced by the tool.** Every action of
+  every model must follow [docs/Locality.md](./docs/Locality.md) (its §7
+  says which models conform and what is open): a correct
+  validator reads its own state, messages (`msg_*`) in **positive position
+  only** except its own sends, global time, configuration and its
+  sub-protocol at its own index, and writes only its own state and
+  messages under its own name; the environment touches only its own state;
+  `aux_*` records are read by no action. Violations do not fail the build —
+  they silently void the claim that the model is a distributed protocol
+  and its async-safety argument. Read Locality.md before adding or
+  modifying an action, and update the model's audit row. There are no
+  exceptions: a read that fits no rule is a gap in the model, to be fixed,
+  not argued.
 * **Invariants live in the model; proofs live in the proof files.** Manual
   cells do not index the invariant clump by hand: Veil's
   `veil_inv_have h := <invariant>` looks the conjunct up *by name*,

@@ -732,7 +732,8 @@ theorem within_commitqc (hbj : BoundedJustice sch r)
 
 /-- **Link 8 by transfer, `decide` (`Δ + ρ`, the caller's): a correct
 validator decides** within `Δ + ρ` of the reference time `ref N`, once some
-correct validator `j` has decided on the certificate's vector — the
+correct validator `j` has decided on the certificate's vector and still
+takes part — it has proposed, and has not abandoned on the window — the
 composing layer hands a decided `CommitQC` on (`Relayed`,
 Supplement, Lemma 13 (`lem:decision-propagation`)). From any index, before GST included. Needs no
 view guard, so no prefix fact: only `¬ abandoned` on the window, and
@@ -743,7 +744,9 @@ theorem within_decided_ref (hrel : Relayed sch r)
     {N : Nat} {B : time} (hB : r.ref N + (sch.Δ + sch.ρ) ≤ B)
     {E₀ : value} (hin : (r.at' N).input i E₀ = true)
     (hqc : (r.at' N).msg_commitqc W (th.ent e) = true) (hdec : (r.at' N).decided j e = true)
-    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true) :
+    {E₁ : value} (hjin : (r.at' N).input j E₁ = true)
+    (hwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned i = true)
+    (hjwin : ∀ n, N ≤ n → r.clk n ≤ B → ¬ (r.at' n).abandoned j = true) :
     r.WithinFrom N B (fun s => ∃ E, s.decided i E = true) := by
   have hval := Mvba.reachable_external_validity (r.reachable N) j e hj hdec
   refine withinFrom_of_boundedFairWhile (hrel i j W e hj)
@@ -756,7 +759,9 @@ theorem within_decided_ref (hrel : Relayed sch r)
       (fun m hm => Mvba.msg_commitqc.mono (r.steps m) W (th.ent e) hm) hqc n hn) hval
     (fun E hE => hnot ⟨E, hE⟩),
     r.mono (P := fun s => s.decided j e = true)
-      (fun m hm => Mvba.decided.mono (r.steps m) j e hm) hdec n hn⟩
+      (fun m hm => Mvba.decided.mono (r.steps m) j e hm) hdec n hn,
+    ⟨E₁, r.mono (P := fun s => s.input j E₁ = true)
+      (fun m hm => Mvba.input.mono (r.steps m) j E₁ hm) hjin n hn⟩, hjwin n hn hclk⟩
 
 end Links
 

@@ -217,13 +217,13 @@ certificate to a validator's MVBA through the contract's input `accept`; the
 contract's input `markAvail` once the validator holds its assigned chunk
 under every positive FallbackQC entry of a representation; two
 **per-entry decision handlers** `on_mvba_decide_pos` / `on_mvba_decide_neg`
-that transport a correct validator's decision `mvba.decided mvba_st i v` into
-the module's per-proposer records; and the two handlers of the **`CommitQC`
-route** `on_mvba_commitqc_pos` / `on_mvba_commitqc_neg`, which
-record the entries of a valid certificate `mvba.certifies mvba_st c
-(mvba.entries v)` in the same records, so that a validator finalizes on the
-MVBA's own commit certificate (Supplement, Section 1.2
-(`subsec:mvba-protocol`), "Decision output and handoff"). **The value is the meta-block representation** (an entry vector
+that handle a correct validator's decision `mvba.decided mvba_st i v`, entry
+by entry, in its own rows; and the **`CommitQC` route**: `send_mvba_cert`
+broadcasts the certificate a correct decision outputs, and
+`commit_assign_pos_mvba` / `commit_assign_neg_mvba` finalize on a received
+one, checked with `mvba.certifies mvba_st c (mvba.entries v)`, so that a
+validator finalizes on the MVBA's own commit certificate (Supplement,
+Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"). **The value is the meta-block representation** (an entry vector
 and each positive entry's certificate kind,
 [PaperAlignment.md](PaperAlignment.md) §8.1), and agreement is over its
 entries: two correct validators may decide representations whose
@@ -346,7 +346,7 @@ reach for three sources, in this order.
    paper's, which needs `[open_local_order]` at the pre-state together with
    `open_slot`'s guard — and Chorus's `committed_pos_frozen`, "a committed
    validator's positive entries do not change", which needs
-   `commit_assign_pos`'s `¬ local_committed i`. Each is checked per action
+   the `¬ local_committed i` guard of every `commit_assign_pos_*`. Each is checked per action
    like an invariant and exported as `reachable_<name>_step`.
 3. **By hand from the transition bodies**, for what neither covers. Two
    remain, both about a *single* action rather than all of them:

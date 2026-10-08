@@ -237,8 +237,8 @@ items are in the models (§8 states the design of the two largest):
   `FallbackQC` entries of its own `B′` (§8.1).
 * **(b) S7.** `AvailReady` is indexed by the representation
   (`avail_ready i x`).
-* **(b) S8.** Chorus finalizes on a valid MVBA `CommitQC`
-  (`on_mvba_commitqc_pos` / `_neg`), as well as on the `fbCommitQC`
+* **(b) S8.** Chorus finalizes on a received MVBA `CommitQC`
+  (`commit_assign_pos_mvba` / `_neg_mvba`), as well as on the `fbCommitQC`
   (§8.2).
 * **(c) M9/S6.** `MVBASafety` has the `entries` projection, and Agreement
   and Integrity are stated over it, in the supplement's forms.
@@ -387,14 +387,14 @@ termination for the first route, but agreement of the second with the fast
 path and with the first is argued only in one sentence of Part I (§6, P2).
 
 **What the model does** (§8.2). It has both routes. The main
-body's is the fallback commit round (`cast_fb_commit`, `fbcommitqc`). Part
+body's is the fallback commit round (`cast_fb_commit`, the collector's
+`broadcast_fbcommitqc`, and `commit_assign_pos_fb` / `_neg_fb`). Part
 I's is the handoff into the MVBA (`accept_mvba_commitqc`) together with the
-`CommitQC` route: a correct validator holding a valid MVBA `CommitQC`
+`CommitQC` route: a correct validator broadcasts the `CommitQC` its
+decision outputs (`send_mvba_cert`), and a validator that receives one
 recovers a matching representation, checks the certificates it names, and
-records the certified entries (`on_mvba_commitqc_pos` / `_neg`). It then
-finalizes on them, because `commit_assign_*` accept "a valid MVBA
-`CommitQC` exists" in place of `fbcommitqc`. The re-broadcast is folded
-into the handoff, as the decision broadcast is. So the model has every run
+finalizes on the certified entries, re-broadcasting the certificate
+(`commit_assign_pos_mvba` / `_neg_mvba`). So the model has every run
 of the specified protocol, and every run of the Part II implementation as
 far as safety goes, since that implementation is the specified protocol
 without the `fbCommitQC` route.
@@ -481,10 +481,12 @@ found and removed (F15 in Chorus's chunk sending; F25, the Conductor's
 | The representation leaves out negative entries' certificate kinds and the `FBCert` | Chorus, Mvba | No rule of either document reads them, and whether they verify is part of `Valid` (§8.1 (a)). |
 | `Recover` is a choice among valid representations | Mvba | It includes the supplement's choice, so the model has every run of the supplement and more; the liveness proofs use only what the supplement's `Recover` guarantees (§8.1 (c)). |
 | No crashes and no persistence | Mvba, Chorus | With the state persisted before each send and reloaded atomically, a crash and restart is, to every other validator, a pause, and the model's runs pause. Termination under crashes (Supplement, Corollary 1 (`cor:mvba-recovery-termination`)) is not claimed. |
-| `propose` enters the first view, not the view of the highest retained timeout certificate | Mvba | The faithful rule needs a negative read of the network, which the monotone-network contract forbids. The model's rule adds runs, which is sound for safety, and no liveness argument uses them ([History.md](History.md) § "The supplement at `eb1bb51`, reviewed against the pin `026dc8b`", C7). |
+| `propose` enters the first view, not the view of the highest retained timeout certificate | Mvba | The faithful rule needs a negative read of the network, which the locality rules forbid ([Locality.md](Locality.md) R2). The model's rule adds runs, which is sound for safety, and no liveness argument uses them ([History.md](History.md) § "The supplement at `eb1bb51`, reviewed against the pin `026dc8b`", C7). |
 | `SyncView` is its own step; the view timer is a phase marker; one action covers the timer and the `f+1` echo timeout | Mvba | The same reachable states in two steps, or a guard that only removes behaviours (the [Mvba.lean](../Cadence/Mvba.lean) header, "Abstractions"). |
-| The `CommitQC` re-broadcast is folded into the handoff | Chorus | A certificate is transferable and stays valid (`certified_mono`), so its existence is its availability to every validator (§8.2 (a)). |
 | An `upon` handler runs once | Chorus | The target states no convention: P6. |
+| A fallback entry may be cast for a proposer the validator already holds a FastQC for; the target casts them only "with `Ev(pid) = ⊥`" (Algorithm 5, line 8 (`line:fb-cast-entry`)) | Chorus | An over-approximation: the paper's runs, which cast fewer entries, are among the model's, so every safety claim covers them. The fallback vote (`cast_fallback_vote`) then carries an entry per proposer either way. |
+| The positive fallback entry and the FastQC aggregation count vote signatures on the network, where the target counts the entries of received valid `Vote` messages | Chorus | An over-approximation: a signature a Byzantine signer never cast in a vote may count, which only adds runs. The negative entry, which reads the absence of votes, reads the validator's own receipts ([ChorusDesign.md](ChorusDesign.md) §3.1). |
+| `send_mvba_cert` sends any certificate valid for the decided entries, where the supplement sends the one the decision output | Chorus | An over-approximation (every valid certificate for the entries certifies the same entries); the MVBA contract does not yet output the decision's certificate at the decider's index ([Locality.md](Locality.md) §7, [TODO.md](TODO.md)). |
 | The glue's handlers are separate, later actions (`on_open`, `on_propose`, `on_finalize`, `record_skip`), where Algorithm 1 (`algorithm:cadence`) runs each atomically with its event | Cadence (glue) | An over-approximation: the paper's runs, in which each handler fires at once with its event, are among the model's, so every safety claim covers them. One statement follows the larger model: `[bounded_concurrency_interval]` states only that an active instance is opened and not completed, the direction Lemma 5 (`lemma:cadence-bounded-concurrency`) uses; the converse holds of the atomic runs only. |
 | A redelivered decision casts the vote once, after the wait under the `B′` it is cast for | Chorus | The target does not say: P11. Safe under each reading (§8.1 (d)). |
 | `AvailReady` is an input that Chorus drives; two liveness premises read the MVBA's accepted value | Chorus, Mvba | P12. |
@@ -499,7 +501,7 @@ found and removed (F15 in Chorus's chunk sending; F25, the Conductor's
 
 **No rule of the target is unmodellable.** Every protocol rule of the main
 body and of Part I's MVBA can be modelled faithfully within the
-monotone-network contract, with the one exception in the table: the MVBA's
+locality rules ([Locality.md](Locality.md)), with the one exception in the table: the MVBA's
 "enter the view of the highest retained timeout certificate", which the
 model over-approximates.
 
@@ -672,13 +674,17 @@ proof gives `4Δ + ℓ_MVBA`.**
   stated, `ℓ = 5Δ + ℓ_MVBA` plus the local steps (`Chorus.timed_termination`,
   `5Δ + ℓ_MVBA + 9δ`), and from the same premises the sharper bound
   `4Δ + ℓ_MVBA` plus local steps (`Chorus.timed_termination_tight`,
-  `4Δ + ℓ_MVBA + 8δ`), which implies it. The single split is at the
-  fallback commit votes' deadline `max(t, GST) + 3Δ + ℓ_MVBA` (plus `6δ`):
-  an earlier finalizer gives everyone totality's `Δ`, and otherwise nobody
+  `4Δ + ℓ_MVBA + 9δ`), which implies it; at `δ = 0` that is the
+  `4Δ + ℓ_MVBA` of Lemma 11's proof. The single split is at the fallback
+  commit votes' deadline `max(t, GST) + 3Δ + ℓ_MVBA` (plus `7δ`): an
+  earlier finalizer gives everyone totality's `Δ`, and otherwise nobody
   has abandoned before the votes, so Proposition 5
   (`prop:chorus-finalization-time`)'s chain finalizes everyone by
-  `T₀ = max(t, GST) + 4Δ + ℓ_MVBA`. No step of the proof uses the outer
-  split. **Suggested correction:** state Lemma 11 with
+  `T₀ = max(t, GST) + 4Δ + ℓ_MVBA`: the finalizer collects the fallback
+  commit votes into its own certificate (Algorithm 5, lines 42–44
+  (`line:fb-collect-commit`–`line:fb-commit-broadcast`)) and finalizes on
+  its own broadcast (Algorithm 5, line 45 (`line:fb-recv-commit`)), a local
+  step. No step of the proof uses the outer split. **Suggested correction:** state Lemma 11 with
   `ℓ = 4Δ + ℓ_MVBA`, the bound of the commented-out draft, and split once,
   at `T₀ − Δ`; `Φ_oc = ℓ_chorus + d_tot` then loses its extra `Δ`.
 
@@ -1188,15 +1194,12 @@ certificate re-broadcasts it and finalizes the certified outcome,
 recovering a matching meta-block or the underlying proposals as required by
 the ordinary commitment-proof recovery path" (Supplement, Section 1.2
 (`subsec:mvba-protocol`), "Decision output and handoff"). In the model a
-correct validator that holds a valid MVBA certificate recovers a matching
-representation, checks the certificates it names (the same bridge as at
-the decision handlers), and records the certified entries
-(`on_mvba_commitqc_pos` / `_neg`). It then commits and finalizes by the
-ordinary `commit_assign_*` / `finalize_commit`, which accept "a valid MVBA
-`CommitQC` exists" beside the `fbCommitQC`. The re-broadcast is folded into
-the handoff (`accept_mvba_commitqc`), as the decision broadcast is: a
-certificate is transferable and stays valid (`certified_mono`), so its
-existence is its availability to every validator. The route is a handler
+correct validator broadcasts the certificate its decision outputs
+(`send_mvba_cert`, the message `msg_mvba_cert`). A validator that receives
+one recovers a matching representation, checks the certificates it names
+(the same bridge as at the decision handlers), commits the certified
+entries and re-broadcasts the certificate (`commit_assign_pos_mvba` /
+`_neg_mvba`), then finalizes by the ordinary `finalize_commit`. The route is a handler
 and not only a guard disjunct because a certificate can exist before any
 correct validator decides (the adversary can aggregate `2f+1` `Commit`s),
 and the paper's validator finalizes on it then. The handlers write the

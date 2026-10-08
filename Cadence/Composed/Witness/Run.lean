@@ -25,15 +25,16 @@ its MVBA) as every slot's consensus, and the ideal ACS
 
 ## The run
 
-Time advances by one at the end of every block of `L = 56` steps (a
+Time advances by one at the end of every block of `L = 61` steps (a
 **plateau**); plateau `t` is clock `t`. Its positions (`glbl`, `clbl`):
 
 * `0` — slot `t − 3`'s MVBA-arm marker; `1` — slot `t − 2`'s fallback-arm
   marker;
 * `2–23` — slot `t − 1`'s fast path at its deadline `t`: the deadline
   marker, the three correct validators' votes, FastQCs, commit signatures,
-  fast commit votes, commit certificates, committed entries and
-  finalizations; `24–26` — each correct validator's finalize handler:
+  fast commit votes, commit certificates, committed entries (each on
+  validator 0's certificate) and finalizations; `24–26` — each correct
+  validator's finalize handler:
   `complete(t − 1)` to the Conductor and `abandon()` to the slot, in one
   step; `27–29` — its append of slot `t − 1`'s vector;
 * `30–40`, at `t = 36k + 4` only (window `k`'s readiness boundary) — each
@@ -42,10 +43,11 @@ Time advances by one at the end of every block of `L = 56` steps (a
   recording of the decided interval, and each correct validator's entry
   into window `k + 1`;
 * `41–43` — each correct validator's opening of slot `t`; `44–46` — its
-  participation in slot `t`; `47` — validator 0's proposal; `48–51` — its
-  chunk reaching each of the four validators; `52–54` — each correct
-  validator recording it;
-* `55` — the clock's `tick` to `t + 1`.
+  participation in slot `t`; `47` — validator 0's proposal, which sends
+  every validator its chunk; `48–50` — each correct validator recording it;
+* `51–59` — in slot `t − 1`, each correct validator's receipt of each
+  correct validator's vote;
+* `60` — the clock's `tick` to `t + 1`.
 
 A position whose slot or window does not exist is the Conductor's `tick`
 in place, a stutter. Every window repeats the first, shifted by `36` in
@@ -113,6 +115,7 @@ def sch : ConductorSchedule ℕ ℕ natViewOrderEnum where
   mvba := Chorus.Witness.schC.mvba
   D s := s + 1
   δ_le_Δ := Nat.zero_le _
+  δ_le_ρ := Nat.zero_le _
   Δ_le_Δsync := le_rfl
   W := 36
   p := 4
@@ -163,9 +166,9 @@ abbrev GLb := GLabel ℕ (Fin 4) (ℕ × (Fin 4 → Option Unit)) Unit CSt (Slot
 Every record is set at one index, and present at index `n` exactly when
 that index is below `n`. -/
 
-/-- The plateau index of window `w ≥ 1`'s events, times `L = 56`: its
+/-- The plateau index of window `w ≥ 1`'s events, times `L = 61`: its
 predecessor's readiness boundary `36(w − 1) + 4`. -/
-def dB (w : ℕ) : ℕ := (w - 1) * 2016 + 224
+def dB (w : ℕ) : ℕ := (w - 1) * 2196 + 244
 
 /-- Window `w`'s ideal ACS at index `n`: the correct validators propose
 `36w` at `dB w + 30 + i`, the decided set (their three pairs) is fixed at
@@ -178,34 +181,34 @@ def acsSt (w n : ℕ) : ACSt where
 
 /-- **The Conductor's state at index `n`.** The clock reads the plateau;
 window `w ≥ 1`'s interval is recorded at `dB w + 37`, entered by `i` at
-`dB w + 38 + i`; slot `s` is opened by `i` at `56s + 41 + i` and completed
-at `56s + 80 + i` (position 24 + `i` of the next plateau). -/
+`dB w + 38 + i`; slot `s` is opened by `i` at `61s + 41 + i` and completed
+at `61s + 85 + i` (position 24 + `i` of the next plateau). -/
 def cond (n : ℕ) : CSt where
-  now := n / 56
+  now := n / 61
   acs_state w := acsSt w n
   acs_decided w f b l := decide (1 ≤ w ∧ dB w + 37 < n ∧ f = w * 36 ∧ b = w * 36 + 4 ∧ l = w * 36 + 35)
   entered i w := decide (w = 0 ∨ (1 ≤ w ∧ i.val < 3 ∧ dB w + 38 + i.val < n))
-  opened i s := decide (i.val < 3 ∧ s * 56 + 41 + i.val < n)
-  opened_win i s w := decide (i.val < 3 ∧ s * 56 + 41 + i.val < n ∧ w = s / 36)
-  completed i s := decide (i.val < 3 ∧ s * 56 + 80 + i.val < n)
+  opened i s := decide (i.val < 3 ∧ s * 61 + 41 + i.val < n)
+  opened_win i s w := decide (i.val < 3 ∧ s * 61 + 41 + i.val < n ∧ w = s / 36)
+  completed i s := decide (i.val < 3 ∧ s * 61 + 85 + i.val < n)
 
 /-- **Slot `x`'s local index at composed index `n`**: the number of its
-steps before `n`. They are positions 44–54 of plateau `x`, 2–26 of plateau
-`x + 1`, 1 of `x + 2` and 0 of `x + 3`. -/
+steps before `n`. They are positions 44–50 of plateau `x`, 2–26 and 51–59
+of plateau `x + 1`, 1 of `x + 2` and 0 of `x + 3`. -/
 def loc (x n : ℕ) : ℕ :=
-  min (n - (x * 56 + 44)) 11 + min (n - (x * 56 + 58)) 25 + min (n - (x * 56 + 113)) 1 +
-    min (n - (x * 56 + 168)) 1
+  min (n - (x * 61 + 44)) 7 + min (n - (x * 61 + 63)) 25 + min (n - (x * 61 + 112)) 9 +
+    min (n - (x * 61 + 123)) 1 + min (n - (x * 61 + 183)) 1
 
 /-- **The composed state at index `n`.** Slot `x`'s instance is at its
 local index; validator `i`'s finalize handler delivers slot `x`'s vector at
-`56x + 80 + i`, its append at `56x + 83 + i`; nothing is ever skipped. -/
+`61x + 85 + i`, its append at `61x + 88 + i`; nothing is ever skipped. -/
 def gs (n : ℕ) : GSt where
   os := cond n
   sc_state x := (x, cst (loc x n))
   skipped _ _ := false
-  resolved i x := decide (i.val < 3 ∧ x * 56 + 83 + i.val < n)
-  delivered i x v := decide (i.val < 3 ∧ x * 56 + 80 + i.val < n ∧ v = vec x)
-  appended i x v := decide (i.val < 3 ∧ x * 56 + 83 + i.val < n ∧ v = vec x)
+  resolved i x := decide (i.val < 3 ∧ x * 61 + 88 + i.val < n)
+  delivered i x v := decide (i.val < 3 ∧ x * 61 + 85 + i.val < n ∧ v = vec x)
+  appended i x v := decide (i.val < 3 ∧ x * 61 + 88 + i.val < n ∧ v = vec x)
 
 /-- **The configuration of the glue**: validator 0 proposes in every slot;
 the orchestrator and every slot start at index 0's states. -/
@@ -220,8 +223,8 @@ def nd (k : ℕ) : Fin 4 := ⟨k % 4, Nat.mod_lt _ (by decide)⟩
 `complete` input at the finalize handlers, the window events, the openings,
 and the end-of-plateau `tick`; a `tick` in place everywhere else. -/
 def clbl (n : ℕ) : CLb :=
-  let t := n / 56
-  let j := n % 56
+  let t := n / 61
+  let j := n % 61
   let w := t / 36
   if 24 ≤ j ∧ j ≤ 26 ∧ 1 ≤ t then .complete_slot (nd (j - 24)) (t - 1)
   else if t % 36 = 4 ∧ 30 ≤ j ∧ j ≤ 32 then
@@ -234,22 +237,23 @@ def clbl (n : ℕ) : CLb :=
     .enter_window (nd (j - 38)) w (w + 1) ((w + 1) * 36) ((w + 1) * 36 + 4) ((w + 1) * 36 + 35)
       (acsSt (w + 1) (n + 1))
   else if 41 ≤ j ∧ j ≤ 43 then .open_slot (nd (j - 41)) t w (w * 36) (w * 36 + 4) (w * 36 + 35)
-  else if j = 55 then .tick (t + 1)
+  else if j = 60 then .tick (t + 1)
   else .tick t
 
 /-- **The composed label at index `n`.** -/
 def glbl (n : ℕ) : GLb :=
-  let t := n / 56
-  let j := n % 56
-  if j = 0 ∧ 3 ≤ t then .sc_step (t - 3) (t - 3, cst 38)
-  else if j = 1 ∧ 2 ≤ t then .sc_step (t - 2) (t - 2, cst 37)
-  else if 2 ≤ j ∧ j ≤ 23 ∧ 1 ≤ t then .sc_step (t - 1) (t - 1, cst (j + 10))
+  let t := n / 61
+  let j := n % 61
+  if j = 0 ∧ 3 ≤ t then .sc_step (t - 3) (t - 3, cst 43)
+  else if j = 1 ∧ 2 ≤ t then .sc_step (t - 2) (t - 2, cst 42)
+  else if 2 ≤ j ∧ j ≤ 23 ∧ 1 ≤ t then .sc_step (t - 1) (t - 1, cst (j + 6))
   else if 24 ≤ j ∧ j ≤ 26 ∧ 1 ≤ t then
-    .on_finalize (nd (j - 24)) (t - 1) (vec (t - 1)) (cond (n + 1)) (t - 1, cst (j + 10))
+    .on_finalize (nd (j - 24)) (t - 1) (vec (t - 1)) (cond (n + 1)) (t - 1, cst (j + 6))
   else if 27 ≤ j ∧ j ≤ 29 ∧ 1 ≤ t then .append (nd (j - 27)) (t - 1) (vec (t - 1))
   else if 44 ≤ j ∧ j ≤ 46 then .on_open (nd (j - 44)) t (t, cst (j - 43))
   else if j = 47 then .on_propose 0 t () (t, cst 4)
-  else if 48 ≤ j ∧ j ≤ 54 then .sc_step t (t, cst (j - 43))
+  else if 48 ≤ j ∧ j ≤ 50 then .sc_step t (t, cst (j - 43))
+  else if 51 ≤ j ∧ j ≤ 59 ∧ 1 ≤ t then .sc_step (t - 1) (t - 1, cst (j - 18))
   else .orch_step (cond (n + 1))
 
 end Composed.Witness

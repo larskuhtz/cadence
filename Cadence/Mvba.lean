@@ -87,10 +87,10 @@ one-view retention holds (Supplement, Lemma 15 (`lem:convergence`), Supplement, 
 
 ## State
 
-**Network relations** (`msg_*`, monotone, consulted in **positive position
-only** — [ChorusDesign.md](../docs/ChorusDesign.md) §3.1.1 governs them;
-this module adds no
-exception category):
+**Network relations** (`msg_*`, monotone, read in **positive position**
+by every correct validator's action — the rules of
+[Locality.md](../docs/Locality.md), whose §7 records this model's open
+items):
 
 Each entry is a relation of this model and the supplement message it stands
 for.
@@ -145,8 +145,8 @@ set exactly when `i` decides, so `∀ E, ¬ decided i E` is `DecidedQC_i = ⊥`.
 
 * **Messages monotone, local state free.** The guards `¬ timed_out i v`,
   `¬ commit_sent i v`, `∀ w, voted i w → w < v`, `∀ V, entered i V → V ≤ v`
-  and `∀ W E, local_prepqc i W E → W < w` read *local* relations
-  negatively; no exception category is involved.
+  and `∀ W E, local_prepqc i W E → W < w` read the acting validator's own
+  local relations negatively ([Locality.md](../docs/Locality.md) R1).
 * **`SyncView` is its own action.** The supplement runs `SyncView(J)`
   inside the `Pre-Prepare` handler before the checks; here `sync_view`
   advances the view on any timeout certificate at or above the current

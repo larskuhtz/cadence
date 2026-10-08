@@ -36,7 +36,7 @@ namespace Chorus.Proofs
   veil_inv_have h_fb_neg_qv_is_proposer := fb_neg_qv_is_proposer
   veil_inv_have h_fb_neg_qv_no_pos_quorum := fb_neg_qv_no_pos_quorum
   veil_inv_have h_vote_cast_entries := vote_cast_entries
-  intro _hbyz_r _hchunk hne1 hne2 hne3 hnie R J M hbyzR hfb x hsup_x
+  intro _hbyz_r _sender _hchunk hne1 hne2 hne3 hnie R J M hbyzR hfb x hsup_x
   -- Pre-state no-equivocation from the post-state hypotheses (pre-state
   -- signatures persist into the post state).
   have hne1' : ∀ a b c1 c2, st.msg_vote_pos_sig a b c1 = true →
@@ -71,6 +71,58 @@ namespace Chorus.Proofs
     rw [hb_sig_false] at hM0; simp at hM0
   · have hx2 := hne2 r j m (fun h => absurd rfl (h rfl rfl))
     rw [hx2] at hneg; simp at hneg
+
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus byz_sign_vote_pos fast_path_implies_vote_quorums by
+  unveil_local
+  veil_inv_have h_old := fast_path_implies_vote_quorums
+  intro _hbyz _x _hchunk I0 hI0 hpath J hJ
+  rcases h_old I0 hI0 hpath J hJ with ⟨M, q, hq, hall⟩ | hneg
+  · exact Or.inl ⟨M, q, hq, fun r hr _ => hall r hr⟩
+  · exact Or.inr hneg
+
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus byz_sign_vote_pos fb_neg_qv_no_pos_quorum by
+  unveil_local
+  veil_inv_have h_old := fb_neg_qv_no_pos_quorum
+  veil_inv_have h_rcvd := fb_neg_qv_received
+  veil_inv_have h_rp := vote_rcv_pos_backed
+  veil_inv_have h_rn := vote_rcv_neg_backed
+  intro _hbyz _x _hchunk hne1 hne2 hne3 hnie R J QV q M hR haux hq
+  have hne1' : ∀ a b c1 c2, st.msg_vote_pos_sig a b c1 = true →
+      st.msg_vote_pos_sig a b c2 = true → c1 = c2 :=
+    fun a b c1 c2 h1 h2 => hne1 a b c1 c2 (fun _ => h1) (fun _ => h2)
+  have hne2' : ∀ a b c, st.msg_vote_pos_sig a b c = true → st.msg_vote_neg_sig a b = false :=
+    fun a b c h => hne2 a b c (fun _ => h)
+  obtain ⟨x, hxq, hx⟩ := h_old hne1' hne2' hne3 hnie R J QV q M hR haux hq
+  refine ⟨x, hxq, fun hxQV => ⟨?_, hx hxQV⟩⟩
+  -- The new signature is not in `QV`: `R` received `x`'s entry for `J`,
+  -- which without equivocation is `x`'s only one, and it was not this.
+  rintro rfl rfl rfl
+  have hfalse := hx hxQV
+  rcases h_rcvd R j QV hR haux r hxQV with ⟨M', hM'⟩ | hn
+  · obtain ⟨-, hs⟩ := h_rp R r j M' hR hM'
+    have hM := hne1 r j M' m (fun _ => hs) (fun h => absurd rfl (h rfl rfl))
+    subst hM
+    rw [hs] at hfalse; simp at hfalse
+  · obtain ⟨-, hn'⟩ := h_rn R r j hR hn
+    have := hne2 r j m (fun h => absurd rfl (h rfl rfl))
+    rw [this] at hn'; simp at hn'
+
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus byz_sign_vote_pos fastqc_complete_implies_mvba_evidence by
+  unveil_local
+  veil_inv_have h_old := fastqc_complete_implies_mvba_evidence
+  intro _hbyz _x _hchunk I hI hcomp J hJ
+  rcases h_old I hI hcomp J hJ with ⟨M, q, hq, hall⟩ | hneg
+  · exact Or.inl ⟨M, q, hq, fun r hr _ => hall r hr⟩
+  · exact Or.inr hneg
 
 #prove_action Chorus byz_sign_vote_pos
 

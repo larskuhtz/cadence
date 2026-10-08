@@ -32,11 +32,11 @@ attribute [local instance] Chorus.Witness.nsetC Chorus.Witness.cntC natViewOrder
 own labels (a `tick` in place where the composed step is not its), the
 plateau clock, GST 0. -/
 noncomputable def crun : TConductorRun (fm := FM) (A := AS) thO :=
-  plateauRun 56 (by decide) cond clbl cholds cstarts (fun _ _ _ => ostep _)
+  plateauRun 61 (by decide) cond clbl cholds cstarts (fun _ _ _ => ostep _)
 
 @[simp] theorem crun_at' (n : ℕ) : crun.at' n = cond n := rfl
 @[simp] theorem crun_lbl (n : ℕ) : crun.lbl n = clbl n := rfl
-@[simp] theorem crun_clk (n : ℕ) : crun.clk n = n / 56 := rfl
+@[simp] theorem crun_clk (n : ℕ) : crun.clk n = n / 61 := rfl
 
 /-! ## One clock, and (P-open) -/
 
@@ -45,10 +45,10 @@ theorem clockAgrees : ClockAgrees (fm := FM) (A := AS) crun := fun _ => rfl
 theorem openPunctual : OpenPunctual (fm := FM) (A := AS) crun := by
   intro N i s hi _
   have hi := (correct_iff i).1 hi
-  refine ⟨max N (s * 56 + 42 + i.val), le_max_left _ _, ?_, ?_⟩
-  · show max N (s * 56 + 42 + i.val) / 56 ≤ max (N / 56) s
-    rcases le_total N (s * 56 + 42 + i.val) with h | h
-    · rw [max_eq_right h]; have : (s * 56 + 42 + i.val) / 56 = s := by omega
+  refine ⟨max N (s * 61 + 42 + i.val), le_max_left _ _, ?_, ?_⟩
+  · show max N (s * 61 + 42 + i.val) / 61 ≤ max (N / 61) s
+    rcases le_total N (s * 61 + 42 + i.val) with h | h
+    · rw [max_eq_right h]; have : (s * 61 + 42 + i.val) / 61 = s := by omega
       rw [this]; exact le_max_right _ _
     · rw [max_eq_left h]; exact le_max_left _ _
   · show decide _ = true
@@ -67,7 +67,7 @@ local macro "ctr" h:ident : tactic =>
       trSimp] at $h:ident))
 
 theorem not_ready (t : ℕ) (i : Fin 4) (hi : i.val < 3) (w : ℕ)
-    (hin : InWindow (cond (t * 56 + 55)) i w) : ¬ ReadyNext thO (cond (t * 56 + 55)) i w := by
+    (hin : InWindow (cond (t * 61 + 60)) i w) : ¬ ReadyNext thO (cond (t * 61 + 60)) i w := by
   intro hrd
   obtain ⟨he, hne⟩ := hin
   have hne := hne (w + 1) rfl
@@ -75,7 +75,7 @@ theorem not_ready (t : ℕ) (i : Fin 4) (hi : i.val < 3) (w : ℕ)
   change decide _ = false at hne
   simp only [decide_eq_true_eq, dB] at he
   simp only [decide_eq_false_iff_not, dB] at hne
-  have hb := (winBounds_iff (t * 56 + 55) w (w * 36) (w * 36 + 4) (w * 36 + 35)).2
+  have hb := (winBounds_iff (t * 61 + 60) w (w * 36) (w * 36 + 4) (w * 36 + 35)).2
     ⟨rfl, rfl, rfl, by simp only [dB]; omega⟩
   have hc := hrd _ _ _ hb (w * 36 + 3) w (w * 36) (w * 36 + 4) (w * 36 + 35)
     (by show decide _ = true; simp only [decide_eq_true_eq, dB]; omega) hb (by omega) (by omega) (by omega)
@@ -84,14 +84,14 @@ theorem not_ready (t : ℕ) (i : Fin 4) (hi : i.val < 3) (w : ℕ)
   omega
 
 theorem not_proposeGate (t : ℕ) (i : Fin 4) (hi : i.val < 3) (w' : ℕ) :
-    ¬ Conductor.proposeGate thO i w' (cond (t * 56 + 55)) :=
+    ¬ Conductor.proposeGate thO i w' (cond (t * 61 + 60)) :=
   fun ⟨w, _, hin, hrd⟩ => not_ready t i hi w hin hrd
 
 /-- A decided window's interval is recorded by the end of the plateau, so
 its recording is disabled there. -/
 theorem decide_quiet (t w : ℕ) :
-    ¬ (decideGate (fm := FM) (A := AS) w (cond (t * 56 + 55)) ∧
-      ∃ l, DecideLabel w l ∧ Enabled CRTS thO (cond (t * 56 + 55)) l) := by
+    ¬ (decideGate (fm := FM) (A := AS) w (cond (t * 61 + 60)) ∧
+      ∃ l, DecideLabel w l ∧ Enabled CRTS thO (cond (t * 61 + 60)) l) := by
   rintro ⟨⟨i, -, hd⟩, l, ⟨w0, first, f0, b0, l0, r1, s1, r2, s2, rfl⟩, s', htr⟩
   change decide _ = true at hd
   simp only [decide_eq_true_eq, dB] at hd
@@ -102,21 +102,21 @@ theorem decide_quiet (t w : ℕ) :
     decide_eq_true_eq, dB, and_true] at this
   omega
 
-theorem cEnd_ge (N : ℕ) : N ≤ N / 56 * 56 + 55 := by have := idx_eq N; have := pos_lt N; omega
+theorem cEnd_ge (N : ℕ) : N ≤ N / 61 * 61 + 60 := by have := idx_eq N; have := pos_lt N; omega
 
-theorem cEnd_clk (N : ℕ) : crun.clk (N / 56 * 56 + 55) = crun.clk N := by
+theorem cEnd_clk (N : ℕ) : crun.clk (N / 61 * 61 + 60) = crun.clk N := by
   simp only [crun_clk]; omega
 
 /-- **The Conductor's rows**, at `δ = 0`. -/
 theorem timedRows : TimedRows (fm := FM) (A := AS) sch crun where
   propose i w' hi := bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
     ⟨_, cEnd_ge N, cEnd_clk N, fun ⟨_, hg, _⟩ =>
-      not_proposeGate (N / 56) i ((correct_iff i).1 hi) w' hg⟩
+      not_proposeGate (N / 61) i ((correct_iff i).1 hi) w' hg⟩
   enter i w' hi := bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
     ⟨_, cEnd_ge N, cEnd_clk N, fun ⟨_, hg, _⟩ =>
-      not_proposeGate (N / 56) i ((correct_iff i).1 hi) w' hg.2⟩
+      not_proposeGate (N / 61) i ((correct_iff i).1 hi) w' hg.2⟩
   decide w := bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
-    ⟨_, cEnd_ge N, cEnd_clk N, fun ⟨_, hg, hen⟩ => decide_quiet (N / 56) w ⟨hg, hen⟩⟩
+    ⟨_, cEnd_ge N, cEnd_clk N, fun ⟨_, hg, hen⟩ => decide_quiet (N / 61) w ⟨hg, hen⟩⟩
 
 /-! ## The ACS meets its module
 
@@ -138,7 +138,7 @@ theorem acs_all (w : ℕ) (n : ℕ) :
 /-- Window `w ≥ 1`'s events: every correct validator has proposed and
 decided by the end of plateau `36(w − 1) + 4`. -/
 theorem acs_done (w : ℕ) (hw : 1 ≤ w) (j : Fin 4) (hj : j.val < 3) :
-    IdealAcs.HasDecided (acsSt w (dB w + 55)) j := by
+    IdealAcs.HasDecided (acsSt w (dB w + 60)) j := by
   simp only [IdealAcs.HasDecided, acsSt, decide_eq_true_eq, dB]; omega
 
 /-- **The ideal ACS's admissibility**, on window `w`'s part, as soon as a
@@ -160,10 +160,10 @@ theorem acsAdmissible : AcsAdmissible (fm := FM) (A := AS) TA crun := by
     simp only [acsSt] at hs
     split_ifs at hs with hc
     rw [TimedRun.byGstBound_iff]
-    refine ⟨dB w + 55, ?_, ?_⟩
+    refine ⟨dB w + 60, ?_, ?_⟩
     · rw [partRun_clk_of_all (acs_all w), partRun_gst]
-      have hk : k / 56 ≤ t := hk
-      show (dB w + 55) / 56 ≤ max t 0 + 2
+      have hk : k / 61 ≤ t := hk
+      show (dB w + 60) / 61 ≤ max t 0 + 2
       simp only [dB] at *
       omega
     · rw [partRun_at'_of_all (acs_all w)]
@@ -174,9 +174,9 @@ theorem acsAdmissible : AcsAdmissible (fm := FM) (A := AS) TA crun := by
     change decide _ = true at hd
     simp only [decide_eq_true_eq] at hd
     rw [TimedRun.byGstBound_iff]
-    refine ⟨dB w + 55, ?_, ?_⟩
+    refine ⟨dB w + 60, ?_, ?_⟩
     · rw [partRun_clk_of_all (acs_all w), partRun_clk_of_all (acs_all w), partRun_gst]
-      show (dB w + 55) / 56 ≤ max (n / 56) 0 + 1
+      show (dB w + 60) / 61 ≤ max (n / 61) 0 + 1
       simp only [dB] at *
       omega
     · rw [partRun_at'_of_all (acs_all w)]

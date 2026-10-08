@@ -1,15 +1,15 @@
 import Cadence.Chorus
 import Cadence.ProofPrelude
 
-/-! # `Chorus` proofs — action `byz_redisseminate_chunk`
+/-! # `Chorus` proofs — action `byz_send_mvba_cert`
 
 Scaffolded by `#gen_proof_files Chorus`; yours to edit. Proves every
-registered VC of `byz_redisseminate_chunk` cross-file from the module's persisted VC registry
+registered VC of `byz_send_mvba_cert` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 [Certify.lean](../Certify.lean)'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Chorus byz_redisseminate_chunk <property> by <tac>` lines
+Manual cells go on `#prove_vc Chorus byz_send_mvba_cert <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
@@ -28,18 +28,6 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
-/- Written out: the solver closes this cell, but its time varies between
-runs up to the budget on CI's 4-core runner. -/
-
-#prove_vc Chorus byz_redisseminate_chunk local_fastqc_pos_chunks_decodable by
-  unveil_local
-  veil_inv_have h_old := local_fastqc_pos_chunks_decodable
-  intro _hbyz _hprop _hsig _x _hx _hall I J M hI hfq
-  obtain ⟨q, hq, hall⟩ := h_old I J M hI hfq
-  refine ⟨q, hq, fun r hr => ?_⟩
-  obtain ⟨s, hs⟩ := hall r hr
-  exact ⟨s, fun _ => hs⟩
-
-#prove_action Chorus byz_redisseminate_chunk
+#prove_action Chorus byz_send_mvba_cert
 
 end Chorus.Proofs

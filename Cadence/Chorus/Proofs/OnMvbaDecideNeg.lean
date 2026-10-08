@@ -43,16 +43,16 @@ namespace Chorus.Proofs
   veil_inv_have h_msg_commitqc_pos_backed := msg_commitqc_pos_backed
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_pos_mvba_neg_excl := commitqc_pos_mvba_neg_excl
-  intro _hbyz _hprop _hdec _hval hev _hfresh J M hqc
-  refine ⟨?_, h_commitqc_pos_mvba_neg_excl J M hqc⟩
+  intro _hbyz _hprop _hdec _hval hev _hfresh C J M hqc
+  refine ⟨?_, h_commitqc_pos_mvba_neg_excl C J M hqc⟩
   rintro rfl
   rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩
-  · obtain ⟨Qm, hQm_sup, hQm⟩ := h_msg_commitqc_pos_votes j M hqc
+  · obtain ⟨Qm, hQm_sup, hQm⟩ := h_msg_commitqc_pos_votes C j M hqc
     obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest Qm Qn hQm_sup hQn_sup
     have hx := h_vote_unique_pos_neg b j M (Bool.eq_false_iff.mpr hb_hon) (hQm b hb1)
     have hy := hQn b hb2
     rw [hx] at hy; simp at hy
-  · obtain ⟨Qc, hQc_sup, hQc⟩ := h_msg_commitqc_pos_backed j M hqc
+  · obtain ⟨Qc, hQc_sup, hQc⟩ := h_msg_commitqc_pos_backed C j M hqc
     obtain ⟨c, hc1, hc2, hc_hon⟩ := nset.supermajorities_intersect_in_honest Qc qf hQc_sup hqf_sup
     have hcf := h_commit_cast_fallback_sig_excl c (Bool.eq_false_iff.mpr hc_hon) (hQc c hc1).2
     have hy := hqf c hc2

@@ -55,6 +55,45 @@ invariant conjuncts it needs are named, not indexed
   · have hold : st.local_fastqc_pos I J M = true := hfq (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩)
     exact h_spec_fastqc_pos_mvba_pos_unique hne1 hne2 hne3 hnie I J M M' hbyz_I hold hmv
 
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus aggregate_fastqc_pos speculative_agreement_pos_neg by
+  unveil_local
+  veil_inv_have h_old := speculative_agreement_pos_neg
+  veil_inv_have h_cnb := local_committed_neg_backed
+  veil_inv_have h_nvotes := msg_commitqc_neg_votes
+  veil_inv_have h_mdnb := mvba_decided_neg_backed
+  veil_inv_have h_vupn := vote_unique_pos_neg
+  veil_inv_have h_fbn := fb_neg_no_pos_quorum
+  intro _hbyz hq_sup hq _hfresh hne1 hne2 hne3 hnie I1 I2 J M h1 h2 hpost
+  by_cases hnew : i = I1 ∧ j = J ∧ m = M
+  · obtain ⟨rfl, rfl, rfl⟩ := hnew
+    -- The FastQC's vote supermajority `q` against every source of a negative
+    -- commit for `j`.
+    cases hc : st.local_committed_neg I2 j
+    · rfl
+    · exfalso
+      have neg_quorum : ∀ Qn, nset.supermajority Qn →
+          (∀ r, nset.member r Qn = true → st.msg_vote_neg_sig r j = true) → False := by
+        intro Qn hQn_sup hQn
+        obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest q Qn hq_sup hQn_sup
+        have hx := h_vupn b j m (Bool.eq_false_iff.mpr hb_hon) (hq b hb1)
+        have hy := hQn b hb2
+        rw [hx] at hy; simp at hy
+      rcases h_cnb I2 j h2 hc with ⟨C, hC⟩ | haux
+      · obtain ⟨Qn, hQn_sup, hQn⟩ := h_nvotes C j hC
+        exact neg_quorum Qn hQn_sup hQn
+      · rcases h_mdnb j haux with ⟨Qn, hQn_sup, hQn⟩ | ⟨⟨qn, hqn_gtt, hqn⟩ | ⟨m1, m2, hm12, hp1, hp2⟩, -⟩
+        · exact neg_quorum Qn hQn_sup hQn
+        · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qn hqn_gtt
+          obtain ⟨b, hb, hb_false⟩ :=
+            h_fbn hne1 hne2 hne3 hnie a j m (Bool.eq_false_iff.mpr ha_hon) (hqn a ha_mem) q hq_sup
+          have hy := hq b hb
+          rw [hb_false] at hy; simp at hy
+        · exact hm12 (hne3 j m1 m2 hp1 hp2)
+  · exact h_old hne1 hne2 hne3 hnie I1 I2 J M h1 h2 (hpost (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩))
+
 #prove_action Chorus aggregate_fastqc_pos
 
 end Chorus.Proofs

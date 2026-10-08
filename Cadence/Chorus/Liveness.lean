@@ -119,13 +119,12 @@ over is a hypothesis of the *theorem* to come, not part of the claim.
 [Chorus.lean](../Chorus.lean)'s liveness section lists (F-justice)'s actions by name. The
 definition here is the complement of the other three classes, which is the
 checkable form (adding an action and forgetting it here lands it in
-`JusticeLabel`, visibly), and it agrees with that list. The list includes
-`deliver_chunk_assigned` and `broadcast_commitqc_*`, which the chain in
-[ChorusDesign.md](../../docs/ChorusDesign.md) §7 uses as fair ("certificates
-become broadcast certificates"). Both are honest network
-capabilities — eventual delivery of a correct proposer's chunk, assembly of
-a certificate whose signatures are all present — and weak fairness on them
-is the eventual-delivery assumption the paper makes. -/
+`JusticeLabel`, visibly), and it agrees with that list. A message is acted
+on by its receiver's own step (`record_chunk`, `receive_vote_*`, the
+certificate handlers), so weak fairness of that step, owed when the sender
+is correct (`Owed`), is the eventual-delivery assumption the paper makes.
+`EnvLabel` names the environment's actions for the locality rules
+([Locality.md](../../docs/Locality.md) §3); it is not a fairness class. -/
 
 namespace Chorus
 
@@ -142,14 +141,15 @@ section Labels
 variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice : Type}
 
 /-- **(F-byz).** The labels the adversary controls — the `byz_*` family,
-including its share of the two anonymous capabilities (assembling a commit
-certificate, re-disseminating a decodable chunk), whose correct forms are the
-fair `broadcast_commitqc_*` and the sends inside `fb_sign_pos`. No premise
-requires anything of them, which *is* the assumption: progress never relies
-on adversarial help. `not_justice_of_byz` pins the disjointness. -/
+whose correct counterparts (forming and sending a certificate,
+re-disseminating a decodable chunk) are the fair `broadcast_commitqc_*`,
+`broadcast_fbcommitqc`, `send_mvba_cert` and the sends inside
+`fb_sign_pos`. No premise requires anything of them, which *is* the
+assumption: progress never relies on adversarial help. `not_justice_of_byz`
+pins the disjointness. -/
 def ByzLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
   | .byz_sign_proposer .. => True
-  | .byz_deliver_chunk .. => True
+  | .byz_send_chunk .. => True
   | .byz_redisseminate_chunk .. => True
   | .byz_sign_vote_pos .. => True
   | .byz_sign_vote_neg .. => True
@@ -163,7 +163,20 @@ def ByzLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries
   | .byz_broadcast_commitqc_pos .. => True
   | .byz_broadcast_commitqc_neg .. => True
   | .byz_sign_fbcommit .. => True
+  | .byz_broadcast_fbcommitqc .. => True
+  | .byz_send_mvba_cert .. => True
   | .byz_release_msg_decrypt_share .. => True
+  | _ => False
+
+/-- **The environment's actions**: the phase markers, which move the
+slot's global time ([Locality.md](../../docs/Locality.md) §3). They read
+and write only the phase. The class is the locality rules' label, not a
+fairness class: the phase markers are weakly fair like every honest action
+(`JusticeLabel`). -/
+def EnvLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice → Prop
+  | .advance_to_deadline => True
+  | .advance_to_fb_arm => True
+  | .advance_to_mvba_arm => True
   | _ => False
 
 /-- **The oracle step** `mvba_step`: the MVBA's internal move, taken by the
@@ -219,7 +232,7 @@ def MvbaStepLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue men
   | _ => False
 
 /-- **The three families**: the MVBA proposal `mvba_propose i v mvba_next`,
-the handoff `accept_mvba_commitqc i c mvba_next`, and the availability
+the handoff `accept_mvba_commitqc i r c mvba_next`, and the availability
 report `mvba_avail_ready i v mvba_next`. Each is a justice label whose last
 parameter is a *result*, the MVBA's state after the input, not a choice the
 validator makes. `FJustice` therefore makes the proposal and the report
@@ -276,7 +289,7 @@ theorem mvbaStepLabel_of_oracle (l : Chorus.Label slot node nodeset merkle_root 
 forwarding), and nothing else. -/
 theorem mvbaStepLabel_iff (l : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) :
     MvbaStepLabel l ↔ (∃ m, l = .mvba_step m) ∨ (∃ i v m, l = .mvba_propose i v m) ∨
-      (∃ i m, l = .abandon i m) ∨ (∃ i c m, l = .accept_mvba_commitqc i c m) ∨
+      (∃ i m, l = .abandon i m) ∨ (∃ i r c m, l = .accept_mvba_commitqc i r c m) ∨
       (∃ i v m, l = .mvba_avail_ready i v m) := by
   cases l <;> simp [MvbaStepLabel]
 
@@ -397,7 +410,6 @@ theorem mvba_st_frame_of_not_step
   case advance_to_fb_arm => exact Chorus.advance_to_fb_arm.frame_mvba_st htr
   case advance_to_mvba_arm => exact Chorus.advance_to_mvba_arm.frame_mvba_st htr
   case propose => exact Chorus.propose.frame_mvba_st htr
-  case deliver_chunk_assigned => exact Chorus.deliver_chunk_assigned.frame_mvba_st htr
   case record_chunk => exact Chorus.record_chunk.frame_mvba_st htr
   case vote => exact Chorus.vote.frame_mvba_st htr
   case aggregate_fastqc_pos => exact Chorus.aggregate_fastqc_pos.frame_mvba_st htr
@@ -409,18 +421,24 @@ theorem mvba_st_frame_of_not_step
   case broadcast_commitqc_neg => exact Chorus.broadcast_commitqc_neg.frame_mvba_st htr
   case fb_sign_pos => exact Chorus.fb_sign_pos.frame_mvba_st htr
   case fb_sign_neg => exact Chorus.fb_sign_neg.frame_mvba_st htr
+  case receive_vote_pos => exact Chorus.receive_vote_pos.frame_mvba_st htr
+  case receive_vote_neg => exact Chorus.receive_vote_neg.frame_mvba_st htr
   case cast_fallback_vote => exact Chorus.cast_fallback_vote.frame_mvba_st htr
+  case send_mvba_cert => exact Chorus.send_mvba_cert.frame_mvba_st htr
+  case broadcast_fbcommitqc => exact Chorus.broadcast_fbcommitqc.frame_mvba_st htr
   case on_mvba_decide_pos => exact Chorus.on_mvba_decide_pos.frame_mvba_st htr
   case on_mvba_decide_neg => exact Chorus.on_mvba_decide_neg.frame_mvba_st htr
-  case on_mvba_commitqc_pos => exact Chorus.on_mvba_commitqc_pos.frame_mvba_st htr
-  case on_mvba_commitqc_neg => exact Chorus.on_mvba_commitqc_neg.frame_mvba_st htr
   case mvba_terminate => exact Chorus.mvba_terminate.frame_mvba_st htr
   case cast_fb_commit => exact Chorus.cast_fb_commit.frame_mvba_st htr
-  case commit_assign_pos => exact Chorus.commit_assign_pos.frame_mvba_st htr
-  case commit_assign_neg => exact Chorus.commit_assign_neg.frame_mvba_st htr
+  case commit_assign_pos_fast => exact Chorus.commit_assign_pos_fast.frame_mvba_st htr
+  case commit_assign_pos_fb => exact Chorus.commit_assign_pos_fb.frame_mvba_st htr
+  case commit_assign_pos_mvba => exact Chorus.commit_assign_pos_mvba.frame_mvba_st htr
+  case commit_assign_neg_fast => exact Chorus.commit_assign_neg_fast.frame_mvba_st htr
+  case commit_assign_neg_fb => exact Chorus.commit_assign_neg_fb.frame_mvba_st htr
+  case commit_assign_neg_mvba => exact Chorus.commit_assign_neg_mvba.frame_mvba_st htr
   case finalize_commit => exact Chorus.finalize_commit.frame_mvba_st htr
   case byz_sign_proposer => exact Chorus.byz_sign_proposer.frame_mvba_st htr
-  case byz_deliver_chunk => exact Chorus.byz_deliver_chunk.frame_mvba_st htr
+  case byz_send_chunk => exact Chorus.byz_send_chunk.frame_mvba_st htr
   case byz_sign_vote_pos => exact Chorus.byz_sign_vote_pos.frame_mvba_st htr
   case byz_sign_vote_neg => exact Chorus.byz_sign_vote_neg.frame_mvba_st htr
   case byz_cast_vote => exact Chorus.byz_cast_vote.frame_mvba_st htr
@@ -431,6 +449,8 @@ theorem mvba_st_frame_of_not_step
   case byz_sign_commit_neg => exact Chorus.byz_sign_commit_neg.frame_mvba_st htr
   case byz_cast_commit => exact Chorus.byz_cast_commit.frame_mvba_st htr
   case byz_sign_fbcommit => exact Chorus.byz_sign_fbcommit.frame_mvba_st htr
+  case byz_broadcast_fbcommitqc => exact Chorus.byz_broadcast_fbcommitqc.frame_mvba_st htr
+  case byz_send_mvba_cert => exact Chorus.byz_send_mvba_cert.frame_mvba_st htr
   case byz_redisseminate_chunk => exact Chorus.byz_redisseminate_chunk.frame_mvba_st htr
   case byz_broadcast_commitqc_pos => exact Chorus.byz_broadcast_commitqc_pos.frame_mvba_st htr
   case byz_broadcast_commitqc_neg => exact Chorus.byz_broadcast_commitqc_neg.frame_mvba_st htr
@@ -503,13 +523,13 @@ set_option maxHeartbeats 1000000 in
 /-- The handoff's guard is `mvba.accept`, which at the `Mvba` instance is the
 model's `decide` on the transferred certificate, deciding a representation
 of its entries. -/
-theorem accept_mvba_commitqc_tr {i c mvba_next}
-    (htr : (atMvba thM).tr thS s (.accept_mvba_commitqc i c mvba_next) s') :
+theorem accept_mvba_commitqc_tr {i r c mvba_next}
+    (htr : (atMvba thM).tr thS s (.accept_mvba_commitqc i r c mvba_next) s') :
     ∃ w e x, c = .commitqc w e ∧ thM.ent x = e ∧
       (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
         s.mvba_st (.decide i w x) s'.mvba_st := by
   chorus_tr htr
-  obtain ⟨-, -, hacc, htr⟩ := htr
+  obtain ⟨-, -, -, hacc, htr⟩ := htr
   chorus_field_simp
   subst htr
   cases c
@@ -547,7 +567,7 @@ noncomputable def mvbaComponent
     cases l with
     | mvba_step mvba_next => exact mvba_step_tr htr
     | mvba_propose i v mvba_next => exact ⟨.propose i v, mvba_propose_tr htr⟩
-    | accept_mvba_commitqc i c mvba_next =>
+    | accept_mvba_commitqc i r c mvba_next =>
       obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
       exact ⟨.decide i w x, h⟩
     | abandon i mvba_next => exact ⟨.abandon i, abandon_tr htr⟩
@@ -609,17 +629,6 @@ theorem advance_to_mvba_arm_moves
   chorus_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)
   have h := congrArg (fun st => st.phase) htr
-  have hd := phase_distinct (Phase := Phase)
-  chorus_field_simp
-  simp_all
-
-set_option maxHeartbeats 1000000 in
-theorem deliver_chunk_assigned_moves {i j : node} {m : merkle_root}
-    (htr : (atMvba thM).tr thS s (.deliver_chunk_assigned i j m) s') : s' ≠ s := by
-  rintro rfl
-  chorus_tr htr
-  repeat (obtain ⟨_, htr⟩ := htr)
-  have h := congrArg (fun st => st.local_chunk_sent j i j m) htr
   have hd := phase_distinct (Phase := Phase)
   chorus_field_simp
   simp_all
@@ -724,8 +733,30 @@ theorem broadcast_commitqc_neg_moves {c j : node} {q : nodeset}
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem fb_sign_pos_moves {i j : node} {m : merkle_root} {q qc : nodeset}
-    (htr : (atMvba thM).tr thS s (.fb_sign_pos i j m q qc) s') : s' ≠ s := by
+theorem receive_vote_pos_moves {i r j : node} {m : merkle_root}
+    (htr : (atMvba thM).tr thS s (.receive_vote_pos i r j m) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_vote_rcv_pos i r j m) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem receive_vote_neg_moves {i r j : node}
+    (htr : (atMvba thM).tr thS s (.receive_vote_neg i r j) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_vote_rcv_neg i r j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem fb_sign_pos_moves {i j : node} {m : merkle_root} {q : nodeset}
+    (htr : (atMvba thM).tr thS s (.fb_sign_pos i j m q) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)
@@ -779,23 +810,12 @@ theorem on_mvba_decide_neg_moves {i j : node} {v : MetaBlock node merkle_root}
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem on_mvba_commitqc_pos_moves {i j : node} {m : merkle_root} {c} {v : MetaBlock node merkle_root}
-    (htr : (atMvba thM).tr thS s (.on_mvba_commitqc_pos i j m c v) s') : s' ≠ s := by
+theorem send_mvba_cert_moves {i : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {v : MetaBlock node merkle_root}
+    (htr : (atMvba thM).tr thS s (.send_mvba_cert i c v) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)
-  have h := congrArg (fun st => st.local_mvba_recorded i j) htr
-  have hd := phase_distinct (Phase := Phase)
-  chorus_field_simp
-  simp_all
-
-set_option maxHeartbeats 1000000 in
-theorem on_mvba_commitqc_neg_moves {i j : node} {c} {v : MetaBlock node merkle_root}
-    (htr : (atMvba thM).tr thS s (.on_mvba_commitqc_neg i j c v) s') : s' ≠ s := by
-  rintro rfl
-  chorus_tr htr
-  repeat (obtain ⟨_, htr⟩ := htr)
-  have h := congrArg (fun st => st.local_mvba_recorded i j) htr
+  have h := congrArg (fun st => st.local_mvba_cert_sent i) htr
   have hd := phase_distinct (Phase := Phase)
   chorus_field_simp
   simp_all
@@ -823,8 +843,8 @@ theorem mvba_terminate_moves {i : node} {v : MetaBlock node merkle_root}
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem accept_mvba_commitqc_moves {i : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {n}
-    (htr : (atMvba thM).tr thS s (.accept_mvba_commitqc i c n) s') : s' ≠ s := by
+theorem accept_mvba_commitqc_moves {i r : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {n}
+    (htr : (atMvba thM).tr thS s (.accept_mvba_commitqc i r c n) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)
@@ -845,8 +865,19 @@ theorem cast_fb_commit_moves {i : node} {v}
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem commit_assign_pos_moves {i j : node} {m : merkle_root}
-    (htr : (atMvba thM).tr thS s (.commit_assign_pos i j m) s') : s' ≠ s := by
+theorem broadcast_fbcommitqc_moves {c : node} {e : node → Option merkle_root} {q : nodeset}
+    (htr : (atMvba thM).tr thS s (.broadcast_fbcommitqc c e q) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_fbcommitqc_sent c) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem commit_assign_pos_fast_moves {i j c : node} {m : merkle_root}
+    (htr : (atMvba thM).tr thS s (.commit_assign_pos_fast i j m c) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)
@@ -856,8 +887,52 @@ theorem commit_assign_pos_moves {i j : node} {m : merkle_root}
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem commit_assign_neg_moves {i j : node}
-    (htr : (atMvba thM).tr thS s (.commit_assign_neg i j) s') : s' ≠ s := by
+theorem commit_assign_pos_fb_moves {i j c : node} {m : merkle_root} {e : node → Option merkle_root}
+    (htr : (atMvba thM).tr thS s (.commit_assign_pos_fb i j m c e) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_committed_pos i j m) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem commit_assign_pos_mvba_moves {i j r : node} {m : merkle_root} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {v : MetaBlock node merkle_root}
+    (htr : (atMvba thM).tr thS s (.commit_assign_pos_mvba i j m r c v) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_committed_pos i j m) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem commit_assign_neg_fast_moves {i j c : node}
+    (htr : (atMvba thM).tr thS s (.commit_assign_neg_fast i j c) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_committed_neg i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem commit_assign_neg_fb_moves {i j c : node} {e : node → Option merkle_root}
+    (htr : (atMvba thM).tr thS s (.commit_assign_neg_fb i j c e) s') : s' ≠ s := by
+  rintro rfl
+  chorus_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  have h := congrArg (fun st => st.local_committed_neg i j) htr
+  have hd := phase_distinct (Phase := Phase)
+  chorus_field_simp
+  simp_all
+
+set_option maxHeartbeats 1000000 in
+theorem commit_assign_neg_mvba_moves {i j r : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {v : MetaBlock node merkle_root}
+    (htr : (atMvba thM).tr thS s (.commit_assign_neg_mvba i j r c v) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)
@@ -899,7 +974,6 @@ theorem justice_enabledMove
   case advance_to_deadline => exact advance_to_deadline_moves htr
   case advance_to_fb_arm => exact advance_to_fb_arm_moves htr
   case advance_to_mvba_arm => exact advance_to_mvba_arm_moves htr
-  case deliver_chunk_assigned => exact deliver_chunk_assigned_moves htr
   case record_chunk => exact record_chunk_moves htr
   case vote => exact vote_moves htr
   case aggregate_fastqc_pos => exact aggregate_fastqc_pos_moves htr
@@ -909,23 +983,29 @@ theorem justice_enabledMove
   case cast_fast_commit => exact cast_fast_commit_moves htr
   case broadcast_commitqc_pos => exact broadcast_commitqc_pos_moves htr
   case broadcast_commitqc_neg => exact broadcast_commitqc_neg_moves htr
+  case receive_vote_pos => exact receive_vote_pos_moves htr
+  case receive_vote_neg => exact receive_vote_neg_moves htr
   case fb_sign_pos => exact fb_sign_pos_moves htr
   case fb_sign_neg => exact fb_sign_neg_moves htr
   case cast_fallback_vote => exact cast_fallback_vote_moves htr
   case on_mvba_decide_pos => exact on_mvba_decide_pos_moves htr
   case on_mvba_decide_neg => exact on_mvba_decide_neg_moves htr
-  case on_mvba_commitqc_pos => exact on_mvba_commitqc_pos_moves htr
-  case on_mvba_commitqc_neg => exact on_mvba_commitqc_neg_moves htr
+  case send_mvba_cert => exact send_mvba_cert_moves htr
   case mvba_avail_ready => exact mvba_avail_ready_moves htr
   case mvba_terminate => exact mvba_terminate_moves htr
   case cast_fb_commit => exact cast_fb_commit_moves htr
-  case commit_assign_pos => exact commit_assign_pos_moves htr
-  case commit_assign_neg => exact commit_assign_neg_moves htr
+  case broadcast_fbcommitqc => exact broadcast_fbcommitqc_moves htr
+  case commit_assign_pos_fast => exact commit_assign_pos_fast_moves htr
+  case commit_assign_pos_fb => exact commit_assign_pos_fb_moves htr
+  case commit_assign_pos_mvba => exact commit_assign_pos_mvba_moves htr
+  case commit_assign_neg_fast => exact commit_assign_neg_fast_moves htr
+  case commit_assign_neg_fb => exact commit_assign_neg_fb_moves htr
+  case commit_assign_neg_mvba => exact commit_assign_neg_mvba_moves htr
   case finalize_commit => exact finalize_commit_moves htr
   case mvba_propose => exact mvba_propose_moves htr
   case accept_mvba_commitqc => exact accept_mvba_commitqc_moves htr
   case byz_sign_proposer => exact absurd trivial hl.1
-  case byz_deliver_chunk => exact absurd trivial hl.1
+  case byz_send_chunk => exact absurd trivial hl.1
   case byz_redisseminate_chunk => exact absurd trivial hl.1
   case byz_sign_vote_pos => exact absurd trivial hl.1
   case byz_sign_vote_neg => exact absurd trivial hl.1
@@ -939,6 +1019,8 @@ theorem justice_enabledMove
   case byz_broadcast_commitqc_pos => exact absurd trivial hl.1
   case byz_broadcast_commitqc_neg => exact absurd trivial hl.1
   case byz_sign_fbcommit => exact absurd trivial hl.1
+  case byz_broadcast_fbcommitqc => exact absurd trivial hl.1
+  case byz_send_mvba_cert => exact absurd trivial hl.1
   case byz_release_msg_decrypt_share => exact absurd trivial hl.1
   case mvba_step => exact absurd trivial hl.2.1
   case participate => exact absurd trivial hl.2.2
@@ -962,9 +1044,9 @@ theorem mvba_avail_ready_enabledMove {i : node} {v : MetaBlock node merkle_root}
 
 /-- **Every member of the handoff family is move-enabled when it is
 enabled**, likewise. -/
-theorem accept_mvba_commitqc_enabledMove {i : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {n}
-    (hen : Enabled (atMvba thM) thS s (.accept_mvba_commitqc i c n)) :
-    EnabledMove (atMvba thM) thS s (.accept_mvba_commitqc i c n) :=
+theorem accept_mvba_commitqc_enabledMove {i r : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {n}
+    (hen : Enabled (atMvba thM) thS s (.accept_mvba_commitqc i r c n)) :
+    EnabledMove (atMvba thM) thS s (.accept_mvba_commitqc i r c n) :=
   justice_enabledMove _ ⟨fun h => h, fun h => h, fun h => h⟩ hen
 
 end Component
@@ -1012,13 +1094,13 @@ def CorrectFBCert
   ∃ q, nset.supermajority q ∧ Mvba.CorrectQuorum (node := node) q ∧
     ∀ r, nset.member r q = true → s.msg_fallback_sig r = true
 
-/-- A correct supermajority has broadcast its fallback commit votes:
-`fbCommitQC` from correct senders. -/
-def CorrectFbCommitQC
+/-- A correct supermajority has broadcast its fallback commit votes over the
+entries `e`: `fbCommitQC` from correct senders. -/
+def CorrectFbCommitQC (e : mentries)
     (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) :
     Prop :=
   ∃ q, nset.supermajority q ∧ Mvba.CorrectQuorum (node := node) q ∧
-    ∀ r, nset.member r q = true → s.msg_fbcommit_sig r = true
+    ∀ r, nset.member r q = true → s.msg_fbcommit_sig r e = true
 
 /-- The MVBA proposal is owed when its trigger came from correct senders:
 `FBCert` from a correct supermajority, or the proposer's own complete fast
@@ -1031,17 +1113,26 @@ def proposeOwed
     Prop :=
   CorrectFBCert s ∨ Chorus.complete_fast_metablock (nset := nset) (mvba := mvba) i th s
 
-/-- The handoff is owed once a correct validator has decided: its decision
-output carries the certificate (`mvba.decided_certified`), and Chorus
-broadcasts it (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"). -/
+/-- The handoff is owed once a correct validator has broadcast an MVBA
+commit certificate: the certificate its decision outputs, which it sends
+(`send_mvba_cert`; Supplement, Section 1.2 (`subsec:mvba-protocol`),
+"Decision output and handoff"). -/
 def relayOwed
     (s : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) :
     Prop :=
-  ∃ j v, ¬ nset.is_byz j = true ∧ mvba.decided s.mvba_st j v
+  ∃ r c, ¬ nset.is_byz r = true ∧ s.msg_mvba_cert r c = true
 
 /-- **What a step is owed for.** Per label, the condition under which the
-environment owes the step at all.
+environment owes the step at all: the messages it consumes came from correct
+senders. Every message of the model carries its sender, so each row is read
+off the label.
 
+* a step that consumes one message — a chunk (`record_chunk`), a vote's
+  entry (`receive_vote_*`), a commit certificate (`commit_assign_*`): the
+  sender is correct. A correct validator's finalization re-broadcasts its
+  certificate (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`),
+  Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)), so a certificate
+  reaches every correct validator from a correct sender;
 * `aggregate_fastqc_*`: the vote quorum is correct, or a correct validator
   that cast its fast commit vote holds the FastQC — the same rule broadcasts
   its `FastBlock` (Algorithm 4, line 20 (`line:fast-metablock`)), whose FastQCs a receiver adopts;
@@ -1054,16 +1145,9 @@ environment owes the step at all.
   the missing chunks within `Δ_sync` (Supplement, Section 1.2
   (`subsec:mvba-protocol`), Supplement, Section 7.4
   (`sec:fallback-transition`)), and the model follows the main body;
+* `fb_sign_neg`: the senders of the received votes it reads are correct;
 * the proposal: its trigger from correct senders (`proposeOwed`);
-* the handoff and the `CommitQC` route's handlers: a correct validator has
-  decided (`relayOwed`), and Chorus broadcasts that decision's certificate.
-  The premise owes nothing on a certificate the adversary assembled and
-  showed to nobody (F5);
-* `commit_assign_*`: a commitment proof a correct validator sent — a correct
-  validator's finalization re-broadcasts its proof
-  (Algorithm 4, line 35 (`line:fast-rebroadcast-commitqc`), Algorithm 5, line 46 (`line:fb-commit-rebroadcast`)), and the
-  fallback commit certificate from correct commit voters, over the decided
-  entry;
+* the handoff: a correct validator has sent a certificate (`relayOwed`);
 * `cast_fb_commit i v`: the voter has decided `v` and no other
   representation. The paper's rule fires on the voter's own decision
   (Algorithm 5, line 37 (`line:fb-mvba-decide`)) and waits under that `B′`; under a redelivered
@@ -1071,35 +1155,34 @@ environment owes the step at all.
   the handler runs on (P11, [PaperAlignment.md](../../docs/PaperAlignment.md) §8.1 (d)), so the row
   owes nothing there, and never a vote the paper might not cast. The model's
   guard also reads the voter's own transport record `local_mvba_complete i`;
-* everything else: nothing (`True`). The chunk's delivery has a correct
-  proposer by its guard, the decision handlers and `mvba_terminate` fire
-  on the validator's own decision by theirs, and the availability report
-  consumes only the validator's own chunk receipts. -/
+* everything else: nothing (`True`). The decision handlers,
+  `mvba_terminate` and `send_mvba_cert` fire on the validator's own
+  decision, and the availability report consumes only the validator's own
+  chunk receipts. -/
 def Owed (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) :
     Chorus.Label slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice →
     Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice) →
       Prop
+  | .record_chunk i j m => fun s => ∃ k, ¬ nset.is_byz k = true ∧ s.msg_chunk k i j m = true
+  | .receive_vote_pos _ r _ _ => fun _ => ¬ nset.is_byz r = true
+  | .receive_vote_neg _ r _ => fun _ => ¬ nset.is_byz r = true
   | .aggregate_fastqc_pos _ j m q => fun s => Mvba.CorrectQuorum (node := node) q ∨
       ∃ k, ¬ nset.is_byz k = true ∧ s.msg_commit_cast k = true ∧ s.local_fastqc_pos k j m = true
   | .aggregate_fastqc_neg _ j q => fun s => Mvba.CorrectQuorum (node := node) q ∨
       ∃ k, ¬ nset.is_byz k = true ∧ s.msg_commit_cast k = true ∧ s.local_fastqc_neg k j = true
   | .broadcast_commitqc_pos _ _ _ q => fun _ => Mvba.CorrectQuorum (node := node) q
   | .broadcast_commitqc_neg _ _ q => fun _ => Mvba.CorrectQuorum (node := node) q
-  | .fb_sign_pos _ _ _ q qc => fun s => Mvba.CorrectQuorum (node := node) q ∧
-      Mvba.CorrectQuorum (node := node) qc ∧ CorrectVotesCast s
+  | .fb_sign_pos _ _ _ q => fun s => Mvba.CorrectQuorum (node := node) q ∧ CorrectVotesCast s
   | .fb_sign_neg _ _ qv => fun _ => Mvba.CorrectQuorum (node := node) qv
+  | .broadcast_fbcommitqc _ _ q => fun _ => Mvba.CorrectQuorum (node := node) q
   | .mvba_propose i .. => proposeOwed th i
-  | .accept_mvba_commitqc .. => relayOwed
-  | .on_mvba_commitqc_pos .. => relayOwed
-  | .on_mvba_commitqc_neg .. => relayOwed
-  | .commit_assign_pos _ j m => fun s =>
-      (∃ k, ¬ nset.is_byz k = true ∧ s.local_committed k = true ∧
-        s.local_committed_pos k j m = true) ∨
-      (CorrectFbCommitQC s ∧ s.mvba_decided_pos j m = true)
-  | .commit_assign_neg _ j => fun s =>
-      (∃ k, ¬ nset.is_byz k = true ∧ s.local_committed k = true ∧
-        s.local_committed_neg k j = true) ∨
-      (CorrectFbCommitQC s ∧ s.mvba_decided_neg j = true)
+  | .accept_mvba_commitqc _ r _ _ => fun _ => ¬ nset.is_byz r = true
+  | .commit_assign_pos_fast _ _ _ c => fun _ => ¬ nset.is_byz c = true
+  | .commit_assign_pos_fb _ _ _ c _ => fun _ => ¬ nset.is_byz c = true
+  | .commit_assign_pos_mvba _ _ _ r _ _ => fun _ => ¬ nset.is_byz r = true
+  | .commit_assign_neg_fast _ _ c => fun _ => ¬ nset.is_byz c = true
+  | .commit_assign_neg_fb _ _ c _ => fun _ => ¬ nset.is_byz c = true
+  | .commit_assign_neg_mvba _ _ r _ _ => fun _ => ¬ nset.is_byz r = true
   | .cast_fb_commit i v => fun s => mvba.decided s.mvba_st i v ∧
       ∀ v', mvba.decided s.mvba_st i v' → v' = v
   | _ => fun _ => True
@@ -1165,8 +1248,8 @@ validator `i` proposing `v` is weakly fair as one family over the MVBA's
 successor state, the label's result parameter — if `i` can propose `v` from
 some point on, with its trigger from correct senders, it does. And the
 handoff is one family per receiver `i` — once a correct validator has
-decided, if `i` can take a transferred certificate from some point on, it
-takes one.
+sent a commit certificate, if `i` can take a received certificate from some
+point on, it takes one.
 
 Every fair action of this model fires once: its guard requires a record its
 own step sets to be unset, so a fair label that is enabled can always
@@ -1180,8 +1263,8 @@ def FJustice (r : ChorusRun thS thM) : Prop :=
     WeaklyFairWhen r (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l) l) ∧
   (∀ i v, WeaklyFairFamilyWhen r (proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i)
     (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)) ∧
-  (∀ i, WeaklyFairFamilyWhen r (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
-    (fun l => ∃ c mvba_next, l = .accept_mvba_commitqc i c mvba_next)) ∧
+  (∀ i, WeaklyFairFamilyWhen r (relayOwed (nset := nset))
+    (fun l => ∃ r c mvba_next, l = .accept_mvba_commitqc i r c mvba_next)) ∧
   ∀ i v, WeaklyFairFamilyWhen r (availOwed i v)
     (fun l => ∃ mvba_next, l = .mvba_avail_ready i v mvba_next)
 
@@ -1195,8 +1278,8 @@ theorem fJustice_iff_move (r : ChorusRun thS thM) :
         WeaklyFairWhenMove r (Owed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS l) l) ∧
       (∀ i v, WeaklyFairFamilyWhenMove r (proposeOwed (nset := nset) (mvba := Mvba.mvbaSafety thM) thS i)
         (fun l => ∃ mvba_next, l = .mvba_propose i v mvba_next)) ∧
-      (∀ i, WeaklyFairFamilyWhenMove r (relayOwed (nset := nset) (mvba := Mvba.mvbaSafety thM))
-        (fun l => ∃ c mvba_next, l = .accept_mvba_commitqc i c mvba_next)) ∧
+      (∀ i, WeaklyFairFamilyWhenMove r (relayOwed (nset := nset))
+        (fun l => ∃ r c mvba_next, l = .accept_mvba_commitqc i r c mvba_next)) ∧
       ∀ i v, WeaklyFairFamilyWhenMove r (availOwed i v)
         (fun l => ∃ mvba_next, l = .mvba_avail_ready i v mvba_next) := by
   refine and_congr (forall_congr' fun l => imp_congr_right fun hj => imp_congr_right fun _ =>
@@ -1208,7 +1291,7 @@ theorem fJustice_iff_move (r : ChorusRun thS thM) :
           weaklyFairFamilyWhen_iff_move fun _ l hl hen => ?_)))
   · obtain ⟨_, rfl⟩ := hl
     exact mvba_propose_enabledMove hen
-  · obtain ⟨_, _, rfl⟩ := hl
+  · obtain ⟨_, _, _, rfl⟩ := hl
     exact accept_mvba_commitqc_enabledMove hen
   · obtain ⟨_, rfl⟩ := hl
     exact mvba_avail_ready_enabledMove hen

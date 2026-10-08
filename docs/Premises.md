@@ -212,8 +212,8 @@ below; Liveness takes all of them.
 * **`SlotInclusive`** (CR) — *Role:* (P-incl), Chorus's
   `DeadlineInclusive` (§4.8), on every started slot's part of the run.
   *Used in:* `Chorus.within_proposal_recorded_incl` in
-  `Composed.censorship_of`: the proposer's chunk, delivered by the
-  deadline, is recorded by every correct validator. *Satisfiable:* not
+  `Composed.censorship_of`: the chunk the proposer sent each correct
+  validator, due by the deadline, is recorded by it. *Satisfiable:* not
   obvious: `Composed.Witness.slotInclusive`; every correct validator
   records the proposer's chunk in the slot's first clock reading.
 
@@ -252,12 +252,12 @@ system meets every line of §0.2 and §0.3 together:
 *The model.* Four validators, validator 3 Byzantine and silent;
 validator 0 proposes in every slot; `Δ = τ = 1`, `δ = 0`, `ℓ_ACS = 2`,
 `p = 4`, `W = 36`; the ideal ACS. *The run.* Every clock reading `t` is one
-block of 56 steps: each correct validator opens slot `t`, participates,
-and validator 0 proposes; its chunk reaches everyone and the correct
+block of 61 steps: each correct validator opens slot `t`, participates,
+and validator 0 proposes, sending every validator its chunk; the correct
 validators record it. At `t + 1`, the slot's deadline, it takes the fast
 path, every correct validator finalizes it, completes it at the Conductor,
-abandons it and appends its vector; at `t + 2` and `t + 3` its arm
-markers fire on a quiet instance. At each window's readiness boundary
+abandons it, appends its vector, and receives the correct validators'
+votes; at `t + 2` and `t + 3` its arm markers fire on a quiet instance. At each window's readiness boundary
 `36k + 4`, every correct validator proposes slot `36(k + 1)` to the next
 window's ACS, which decides at once; the interval is recorded and everyone
 enters the window. Every window repeats the first, shifted by `Wτ` in time
@@ -279,7 +279,7 @@ premise; their hypotheses are §2's and the trust items of
 | Claim | Premises | Witness |
 |---|---|---|
 | `Chorus.termination` — every correct validator finalizes the slot | §2.1, §2.3, §2.4; `FJustice` §3.1, `MvbaAdmissible` §3.2; `ValidBridge` §5.1; `AllParticipate` §6.1, C1 §6.2 | `Chorus.termination_premises_satisfiable` |
-| `Chorus.timed_termination_atMvba`, `…_tight_atMvba` — every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA + 9δ` (tight: `4Δ + ℓ_MVBA + 8δ`) | §2.1, §2.3–§2.8 (§2.2 is a theorem of the family, `Chorus.hqeFin`); `TimedJustice` §4.1, `PhasePunctual` §4.2, `MvbaOwnTiming` §4.3; `ValidBridge` §5.1; `AllParticipateBy t` §6.1, C1 §6.2, C2 §6.3, `SyncParticipationWithin Δ` §6.4 | `Chorus.timedTermination_premises_satisfiable` |
+| `Chorus.timed_termination_atMvba`, `…_tight_atMvba` — every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA + 9δ` (tight: `4Δ + ℓ_MVBA + 9δ`) | §2.1, §2.3–§2.8 (§2.2 is a theorem of the family, `Chorus.hqeFin`); `TimedJustice` §4.1, `PhasePunctual` §4.2, `MvbaOwnTiming` §4.3; `ValidBridge` §5.1; `AllParticipateBy t` §6.1, C1 §6.2, C2 §6.3, `SyncParticipationWithin Δ` §6.4 | `Chorus.timedTermination_premises_satisfiable` |
 | `Chorus.timed_termination`, `…_tight` — the same, for any MVBA contract `T` | as above, with `TimedMvbaAdmissible T` §4.3 in place of `MvbaOwnTiming`, and `0 ≤ ℓ_MVBA` §2.9 in place of the MVBA instance's §2.2 and §2.5–§2.7 | through the row above (at the system's MVBA, `0 ≤ ℓ_MVBA` is a theorem) |
 | `Chorus.totality` — once one correct validator finalizes at `c`, all do by `max(c, GST) + max(Δ, d) + 2δ` | §2.1 (finitely many validators), §2.8; `TimedJustice` §4.1; C1 §6.2, `SyncParticipationWithin d` §6.4 | `Chorus.totality_premises_satisfiable` |
 | `Chorus.chorusTemporal`, `Chorus.chorusWithTotality`, `Chorus.slotConsensusFull` — Chorus ⊨ the full `SlotConsensus` contract | the three rows above (`Admissible` names their run premises), and the non-empty proposer set §2.10 | `Chorus.admissible_exists` (every initial state) |
@@ -428,23 +428,34 @@ the rest non-negative, (S-cap) `τ v ≤ τ_max`, and (S-ramp) from some view
   covers its chain); (S-cap) by `synced_succ` (a burnt view costs at most
   `burn`); the non-negativity fields by `mvbaSchedule_ℓ_nonneg`, `Δ_pos`
   and `δ_nonneg` by `Chorus.totality` and every timeline milestone, and
-  `ρ_nonneg` by `relayed_of_timedJustice`.
+  `ρ_nonneg` by `relayedWhileActive_of_timedJustice`.
 * **Paper:** Supplement, Section 1.2 (`subsec:mvba-protocol`), "Views,
   leaders, and timing parameters" (the fixed `T`); why a cap is needed is
   [Bounds.md](Bounds.md) §6.2.3, Finding 1.
 
 ### 2.8 The Chorus schedule: `Chorus.Schedule`
 
-The MVBA's schedule, the slot's deadline `D`, and two inequalities.
+The MVBA's schedule, the slot's deadline `D`, and three inequalities.
 
 * **`δ_le_Δ`** — *Role:* a local step is no slower than a network hop.
   *Plausible:* true at the paper's `δ = 0`, and for any implementation
   whose computation is faster than its network. *Used in:* every `Δ`-row
-  milestone (`within_fb_sig`, `within_complete_fast_metablock`,
-  `within_input_of_fbcert`, `within_chunk_delivered`,
-  `within_finalized_late`), and the handoff's `δ ≤ Δ + ρ` in
-  `timedMvbaAdmissible_of_rows`. *Paper:* modelling choice, F10
-  ([Bounds.md](Bounds.md) §6.4.2).
+  milestone (`within_received`, `within_fb_sig`,
+  `within_complete_fast_metablock`, `within_input_of_fbcert`,
+  `within_entry_recorded`, `within_finalized_late`), and the handoff's
+  second hop in `relayedWhileActive_of_timedJustice`. *Paper:* modelling
+  choice, F10 ([Bounds.md](Bounds.md) §6.4.2).
+* **`δ_le_ρ`** — *Role:* a local step is no slower than the MVBA's
+  retransmission period. A correct decider broadcasts its commit
+  certificate in a local step after deciding (`send_mvba_cert`), and the
+  receiver's handoff is a `Δ`-row on that send, so the certificate is
+  taken `δ + Δ` after the decision, inside the `Δ + ρ` the MVBA's (Δ-relay)
+  allows (§4.7). *Plausible:* the first send of a decided certificate
+  comes no later than the supplement's re-send period `ρ`; true at the
+  paper's `δ = 0`, where the decision handler broadcasts at once. *Used
+  in:* `relayedWhileActive_of_timedJustice`, which derives (Δ-relay).
+  *Paper:* modelling choice, over Supplement, Lemma 13
+  (`lem:decision-propagation`) (the certificate served again every `ρ`).
 * **`Δ_le_Δsync`** — *Role:* the MVBA's availability window covers one
   Chorus network hop. *Plausible:* the chunks the MVBA waits for are sent
   one hop earlier, by the FallbackQC's correct signer; true whenever the
@@ -457,7 +468,8 @@ The MVBA's schedule, the slot's deadline `D`, and two inequalities.
   times is C2 (§6.3). *Used in:* `deadline_le_of_start` and the window
   arithmetic.
 * **Satisfiable:** obvious; the witness takes `Δ = 1`, `δ = 0`, `D = 1`,
-  `Δ_sync = 1`.
+  `Δ_sync = 1`, so `δ ≤ ρ` for every `ρ` (`Chorus.Witness.schC`; the
+  composed witness's `Composed.Witness.sch` likewise).
 
 ### 2.9 `0 ≤ ℓ_MVBA` (the generic timed claims only)
 
@@ -507,7 +519,8 @@ Nothing is asked of a Byzantine validator's actions (F-byz).
   fires); jointly with the families over every value,
   `Chorus.termination_premises_satisfiable`.
 * **Used in:** every `eventually_*` step of `Chorus.termination`
-  (`eventually_voted`, `eventually_saturated`, `eventually_mvba_complete`,
+  (`eventually_voted`, `eventually_received`, `eventually_saturated`,
+  `eventually_mvba_complete`,
   `eventually_fbcommit_sig`, `eventually_committed_of_assignable`, …); the
   proposal family by `eventually_input`; the handoff family by
   `fRelay_of_fJustice`; the availability family by `fAvail_of_fJustice`.
@@ -577,10 +590,21 @@ every step a correct validator owes happens within its bound. A window
 opens at `max(clk, GST)`, so an obligation pending at GST is due a bound
 after GST.
 
+At the system's MVBA, Chorus's timing model is `SyncAtMvba`, three
+conjuncts: `TimedJustice` (§4.1), `PhasePunctual` (§4.2) and
+`MvbaOwnTiming` (§4.3). The MVBA's two clauses on its caller, (Δ-avail)
+and (Δ-relay), are derived from Chorus's rows (§8), so they are not
+conjuncts.
+
 ### 4.1 `TimedJustice`, (Δδ-justice)
 
 * **Role:** each owed Chorus step happens within its hop's bound: `Δ` for
-  a step that receives a message, `δ` for a local one.
+  a step that receives another validator's message, `δ` for a local one.
+  A message is timed at its receiver: the step that consumes it is due `Δ`
+  after its correct sender sent it, and there is no separate delivery
+  step. A message a validator sent itself is local to it, so reading it is
+  a `δ`-row (`rcvHop`): sending a message to oneself costs as much as an
+  internal step.
 * **Plausible:** after GST the network delivers within `Δ` and a correct
   validator computes within `δ`; the rows are owed only for correct
   senders, as in §3.1.
@@ -591,13 +615,47 @@ after GST.
   the timeline (`within_voted`, `within_fb_sig`, `within_cast`, the two
   proposal families in `within_input_of_*`), the round
   (`within_recorded`, `within_fbcommit_sig`, `within_finalized_late`), and
-  the derivations of the MVBA's caller clauses (`relayed_of_timedJustice`,
-  `availWithin_of_timedJustice`). The fast commit path's rows are used by
-  no termination proof; they stay because the premise is "every step
-  within its bound" ([Bounds.md](Bounds.md) §6.4.5).
+  the derivations of the MVBA's caller clauses
+  (`relayedWhileActive_of_timedJustice`, `availWithin_of_timedJustice`).
+  The fast commit path's rows are used by no termination proof; they stay
+  because the premise is "every step within its bound"
+  ([Bounds.md](Bounds.md) §6.4.5).
 * **Paper:** Lemma 11 (`lemma:chorus-termination`)'s setting, "after time
   `M`, every message between correct validators is delivered within `Δ`",
   and Proposition 4 (`prop:chorus-totality`).
+
+**The rows** ([Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean):
+`Chorus.hop`, `Chorus.gate`, `TimedJustice`; `Chorus.Owed`, `proposeOwed`,
+`relayOwed`, `availOwed` in [Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)).
+`Active i` is `participating i ∧ ¬ abandoned i`; "the fallback arm" is the
+phase at or past `D + Δ`, "the MVBA arm" at `D + 2Δ`. A gate reads only the
+acting validator's own state and the phase. Every row is owed only for
+messages from correct senders: that is the last column.
+
+| row | bound | gate | owed when |
+|---|---|---|---|
+| `record_chunk i j m` | `Δ` | none | a correct validator sent `i` the chunk (`msg_chunk k i j m`, `k` correct) |
+| `receive_vote_pos i r …`, `receive_vote_neg i r …` | `Δ` | none | the voter `r` is correct |
+| `vote i` | `δ` | `Active i`, phase past `D` | always |
+| `aggregate_fastqc_* … q` | `Δ` | none | the quorum `q` is correct, or a correct validator that cast its fast commit vote holds the FastQC |
+| `commit_sign_* i …`, `cast_fast_commit i` | `δ` | `Active i` | always |
+| `broadcast_commitqc_* c … q` | `Δ` | `Active c` | `q` is correct |
+| `fb_sign_pos i j m q` | `Δ` | `Active i`, the fallback arm | `q` is correct and a correct supermajority has cast its votes |
+| `fb_sign_neg i j qv` | `δ`: it reads `i`'s own vote receipts | `Active i`, the fallback arm | `qv` is correct |
+| `cast_fallback_vote i` | `δ` | `Active i`, the fallback arm | always |
+| `mvba_propose i v _` on `FBCert` (the family `propose`) | `Δ` | `Active i`, the MVBA arm | `FBCert` from a correct supermajority |
+| `mvba_propose i v _` on the own fast meta-block (the family `proposeFast`) | `δ` | `Active i`, the MVBA arm | `i`'s own complete fast meta-block |
+| `on_mvba_decide_*`, `mvba_terminate` | `δ` | none | always: the guard reads `i`'s own decision |
+| `send_mvba_cert i c v` | `δ` | `Active i` | always: it fires on `i`'s own decision |
+| `accept_mvba_commitqc i s c _` (the family `relay`, one per receiver) | `Δ` | none | a correct validator has sent an MVBA commit certificate |
+| `cast_fb_commit i v` (`fbCommit`, split at its trigger) | `Δ` | `Active i`, `i`'s own decision of `v` and no other, `i`'s own `local_mvba_complete` | (the gate) |
+| `broadcast_fbcommitqc c e q` | `Δ` | `Active c` | `q` is correct |
+| `mvba_avail_ready i v` (the family `avail`) | `Δ` | none | `i` holds `v` |
+| `commit_assign_{pos,neg}_{fast,fb,mvba} i … c …` | `rcvHop i c`: `δ` when `c = i`, `Δ` otherwise | `Active i` | the certificate's sender `c` is correct |
+| `finalize_commit i` | `δ` | `Active i` | always |
+
+The three phase markers have no row: (P-phase) times them (§4.2). Nor do
+the inputs, the MVBA's oracle step and the adversary's actions.
 
 ### 4.2 `PhasePunctual`, (P-phase)
 
@@ -667,28 +725,33 @@ after GST.
 
 ### 4.7 `Relayed`, (Δ-relay)
 
-* **Role:** a decided commit certificate reaches every undecided correct
-  validator within `Δ + ρ`.
-* **Plausible:** the composing layer broadcasts the certificate a decision
-  outputs and serves it again every `ρ`.
+* **Role:** while a correct validator that has decided still takes part
+  in the MVBA (it has proposed and has not abandoned), its decided commit
+  certificate reaches every undecided correct validator within `Δ + ρ`.
+* **Plausible:** the decider's `decide` output causes the composing layer
+  to broadcast the certificate, served again every `ρ`; a decider that has
+  abandoned the slot serves nothing.
 * **Satisfiable:** as §4.4.
 * **Used in:** `within_decided_ref` (the last `Δ + ρ` of `ℓ_MVBA`). Inside
   Cadence it is derived (§8).
-* **Paper:** Supplement, Lemma 13 (`lem:decision-propagation`).
+* **Paper:** Supplement, Lemma 13 (`lem:decision-propagation`), whose
+  proof argues in the termination setting, with the learner not abandoned.
 
 ### 4.8 `DeadlineInclusive`, (P-incl)
 
-A chunk a correct validator holds, under a signed root of a proposer, at a
-clock at or before the deadline `D` is recorded.
+A chunk a correct proposer sent a correct validator at an index whose
+reference time `max(clk, GST)` is at or before `D − Δ` is recorded by that
+validator.
 
-* **Role:** the paper's "by the deadline" read inclusively: a message
-  delivered by the deadline is processed before the deadline handler. A
-  chunk sent at `D − Δ` may arrive exactly at `D`, where the deadline
-  marker may also fire (F31).
+* **Role:** the paper's "by the deadline" read inclusively: a chunk due
+  by the deadline is processed before the deadline handler. A chunk sent
+  at `D − Δ` may arrive exactly at `D`, where the deadline marker may also
+  fire (F31).
 * **Plausible:** the paper's Proposition 3 reads it so; an implementation
   processes its inbox before the timer that closes it at the same instant.
 * **Satisfiable:** `Chorus.Witness.deadlineInclusive`: the Chorus witness
-  of §1 meets it, at any schedule.
+  of §1 meets it, at any schedule; on every slot of the composed witness,
+  `Composed.Witness.slotInclusive`.
 * **Used in:** `Chorus.within_proposal_recorded_incl`, hence censorship
   resistance (§0). No other claim takes it: it is not part of
   `SyncAtMvba`.
@@ -872,7 +935,7 @@ instead.
   caller, so its proofs derive them: every correct validator proposes
   (`eventually_input`), none abandons before deciding
   (`abandoned_of_mvba_abandoned`), (F-relay) (`fRelay_of_fJustice`) and
-  (Δ-relay) (`relayed_of_timedJustice`), (F-avail) (`fAvail_of_fJustice`)
+  (Δ-relay) (`relayedWhileActive_of_timedJustice`), (F-avail) (`fAvail_of_fJustice`)
   and (Δ-avail) (`availWithin_of_timedJustice`).
 * **(A-viewsync) under the timed premises** (`Mvba.aViewSync_of_sync`).
 * **A correct supermajority at the Chorus family** (`Chorus.hqeFin`), and

@@ -5,7 +5,6 @@ import Cadence.Chorus.Proofs.AdvanceToMvbaArm
 import Cadence.Chorus.Proofs.Participate
 import Cadence.Chorus.Proofs.Abandon
 import Cadence.Chorus.Proofs.Propose
-import Cadence.Chorus.Proofs.DeliverChunkAssigned
 import Cadence.Chorus.Proofs.RecordChunk
 import Cadence.Chorus.Proofs.Vote
 import Cadence.Chorus.Proofs.AggregateFastqcPos
@@ -15,24 +14,30 @@ import Cadence.Chorus.Proofs.CommitSignNeg
 import Cadence.Chorus.Proofs.CastFastCommit
 import Cadence.Chorus.Proofs.BroadcastCommitqcPos
 import Cadence.Chorus.Proofs.BroadcastCommitqcNeg
+import Cadence.Chorus.Proofs.ReceiveVotePos
+import Cadence.Chorus.Proofs.ReceiveVoteNeg
 import Cadence.Chorus.Proofs.FbSignPos
 import Cadence.Chorus.Proofs.FbSignNeg
 import Cadence.Chorus.Proofs.CastFallbackVote
 import Cadence.Chorus.Proofs.MvbaStep
 import Cadence.Chorus.Proofs.MvbaPropose
+import Cadence.Chorus.Proofs.SendMvbaCert
 import Cadence.Chorus.Proofs.AcceptMvbaCommitqc
 import Cadence.Chorus.Proofs.MvbaAvailReady
 import Cadence.Chorus.Proofs.OnMvbaDecidePos
 import Cadence.Chorus.Proofs.OnMvbaDecideNeg
-import Cadence.Chorus.Proofs.OnMvbaCommitqcPos
-import Cadence.Chorus.Proofs.OnMvbaCommitqcNeg
 import Cadence.Chorus.Proofs.MvbaTerminate
 import Cadence.Chorus.Proofs.CastFbCommit
-import Cadence.Chorus.Proofs.CommitAssignPos
-import Cadence.Chorus.Proofs.CommitAssignNeg
+import Cadence.Chorus.Proofs.BroadcastFbcommitqc
+import Cadence.Chorus.Proofs.CommitAssignPosFast
+import Cadence.Chorus.Proofs.CommitAssignPosFb
+import Cadence.Chorus.Proofs.CommitAssignPosMvba
+import Cadence.Chorus.Proofs.CommitAssignNegFast
+import Cadence.Chorus.Proofs.CommitAssignNegFb
+import Cadence.Chorus.Proofs.CommitAssignNegMvba
 import Cadence.Chorus.Proofs.FinalizeCommit
 import Cadence.Chorus.Proofs.ByzSignProposer
-import Cadence.Chorus.Proofs.ByzDeliverChunk
+import Cadence.Chorus.Proofs.ByzSendChunk
 import Cadence.Chorus.Proofs.ByzRedisseminateChunk
 import Cadence.Chorus.Proofs.ByzSignVotePos
 import Cadence.Chorus.Proofs.ByzSignVoteNeg
@@ -46,6 +51,8 @@ import Cadence.Chorus.Proofs.ByzCastCommit
 import Cadence.Chorus.Proofs.ByzBroadcastCommitqcPos
 import Cadence.Chorus.Proofs.ByzBroadcastCommitqcNeg
 import Cadence.Chorus.Proofs.ByzSignFbcommit
+import Cadence.Chorus.Proofs.ByzBroadcastFbcommitqc
+import Cadence.Chorus.Proofs.ByzSendMvbaCert
 import Cadence.Chorus.Proofs.ByzReleaseMsgDecryptShare
 
 /-! # `Chorus` certificate
@@ -76,6 +83,6 @@ theorem in the import closure, over exactly the standard axioms. Run `#veil_stat
 interactively for the per-cell table (theorem, defining file, per-cell
 axiom set; expect minutes at this scale). -/
 
-/-- info: #veil_status Chorus: 4997/4997 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Chorus: 6215/6215 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Chorus

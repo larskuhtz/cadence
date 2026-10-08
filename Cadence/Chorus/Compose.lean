@@ -220,7 +220,7 @@ generated whole-system monotonicity lemmas (`<relation>.mono`, emitted at
 writes `true` to it), and `init_not_committed` is the generated
 initial-value lemma. The one fact the update records cannot give is that a
 *committed* validator's entries are frozen: that rests on
-`commit_assign_pos`'s guard `¬ local_committed i`, so it is a
+the `commit_assign_pos_*` guard `¬ local_committed i`, so it is a
 `step_property` in the model, checked per action, and reaches this file as
 `Chorus.reachable_committed_pos_frozen_step`.
 [CompositionContracts.md](../../docs/CompositionContracts.md) §4 explains the
@@ -245,8 +245,8 @@ theorem committedPos_mono
   obtain ⟨l, htr⟩ := hn
   exact Chorus.local_committed_pos.mono htr i J M h
 
-/-- A committed validator's positive entries are frozen (`commit_assign_pos`
-requires `¬ local_committed i`): from the checked `step_property
+/-- A committed validator's positive entries are frozen (every
+`commit_assign_pos_*` requires `¬ local_committed i`): from the checked `step_property
 [committed_pos_frozen]` cells, along any step from a reachable state
 (`reachable_<property>_step`, emitted by [Chorus/Certify.lean](Certify.lean)'s
 `#gen_composition`). The contract's `finalized_mono` takes the pre-state's
@@ -313,13 +313,30 @@ theorem certified_available_chunks {st : Chorus.State (Chorus.FieldAbstractType 
     ∃ q, nset.supermajority q ∧ ∀ p, nset.member p q = true → ¬ nset.is_byz p = true →
       ∃ v, mvba.entries v = e ∧ mvba.Valid v ∧
         ∀ J M, th.mval_pos e J M = true → th.mval_fb v J = true →
-          st.msg_chunk_received p J M = true := by
+          ∃ k, st.msg_chunk k p J M = true := by
   obtain ⟨q, hq, hall⟩ := mvba.certified_available _ (Chorus.reachable_mvba_reachable hr) c e hc
   refine ⟨q, hq, fun p hp hpc => ?_⟩
   obtain ⟨v, hv, hval, hav⟩ := hall p hp hpc
   refine ⟨v, hv, hval, fun J M hM hfb => ?_⟩
   subst hv
   exact Chorus.reachable_avail_ready_chunks hr p v J M ⟨hpc, hav⟩ hM hfb
+
+/-- **Data availability of every correct positive commit** (the counterpart
+of "`recoverProposals` does not block", Algorithm 6, line 12 (`line:da-wait`)):
+at every reachable state, a root a correct validator committed positively
+has `f+1` validators holding their chunks under it. A commit is backed by a
+fast commit certificate or an MVBA record (`local_committed_pos_backed`), and
+the roots of both are decodable (`msg_commitqc_pos_chunks_decodable`,
+`mvba_decided_pos_chunks_decodable`). -/
+theorem local_committed_pos_implies_decodable {st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
+    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).reachable th st)
+    {I J : node} {M : merkle_root} (hI : ¬ nset.is_byz I = true)
+    (hc : st.local_committed_pos I J M = true) :
+    ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q = true →
+      ∃ s, st.msg_chunk s r J M = true := by
+  rcases Chorus.reachable_local_committed_pos_backed hr I J M ⟨hI, hc⟩ with ⟨C, hC⟩ | haux
+  · exact Chorus.reachable_msg_commitqc_pos_chunks_decodable hr C J M hC
+  · exact Chorus.reachable_mvba_decided_pos_chunks_decodable hr J M haux
 
 /-! ### The participation interface, from the transition bodies
 
@@ -403,7 +420,7 @@ theorem participating_internal {l} (hl : ¬ Label.isInput l) (htr : (Chorus.rela
     s'.participating i = s.participating i := by
   cases l
   case participate => exact absurd trivial hl
-  frame_iff htr participating [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share]
+  frame_iff htr participating [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share]
 
 /-- **Internal steps do not change abandonment**: only the input `abandon`
 writes it. -/
@@ -411,7 +428,7 @@ theorem abandoned_internal {l} (hl : ¬ Label.isInput l) (htr : (Chorus.relation
     s'.abandoned i = s.abandoned i := by
   cases l
   case abandon => exact absurd trivial hl
-  frame_iff htr abandoned [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share]
+  frame_iff htr abandoned [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share]
 
 /-- **Internal steps do not change a correct proposer's proposal**: only the
 input `propose` writes a correct proposer's signed root; the adversary's
@@ -422,7 +439,7 @@ theorem proposed_internal {l} (hl : ¬ Label.isInput l) (htr : (Chorus.relationa
   cases l
   case propose => exact absurd trivial hl
   case byz_sign_proposer => exact byz_sign_proposer_frame th htr hk
-  frame_iff htr msg_proposer_signed [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share]
+  frame_iff htr msg_proposer_signed [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share]
 
 end Interface
 
@@ -634,7 +651,7 @@ variable {slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathCh
 
 /-- **A protocol message of one Chorus instance**, by what it says; its
 sender is `Sent`'s second argument. -/
-inductive Message (node merkle_root mmsg : Type) where
+inductive Message (node merkle_root mentries mmsg : Type) where
   /-- Proposer `i`'s signed root `m` (Algorithm 2 (`alg:proposer-dissemination`)), with every chunk. -/
   | proposal (m : merkle_root)
   /-- A positive vote entry for `(j, m)`. -/
@@ -657,8 +674,22 @@ inductive Message (node merkle_root mmsg : Type) where
   | commitCast
   /-- The decryption share, released with the vote. -/
   | decryptShare
-  /-- The fallback commit vote (Algorithm 5, line 41 (`line:fb-commitvote`)). -/
-  | fbCommit
+  /-- The fallback commit vote over the entries `e` (Algorithm 5, line 41 (`line:fb-commitvote`)). -/
+  | fbCommit (e : mentries)
+  /-- Validator `r`'s chunk under `(j, m)`, sent to `r` (Algorithm 2
+  (`alg:proposer-dissemination`), Algorithm 5, line 12 (`line:fb-redisseminate`)). -/
+  | chunk (r j : node) (m : merkle_root)
+  /-- A positive fast commit certificate for `(j, m)` (Algorithm 4, line 33
+  (`line:fast-broadcast-commitqc`), and its re-broadcast). -/
+  | commitqcPos (j : node) (m : merkle_root)
+  /-- A negative fast commit certificate for `j`. -/
+  | commitqcNeg (j : node)
+  /-- A fallback commit certificate over the entries `e` (Algorithm 5, line 44
+  (`line:fb-commit-broadcast`), and its re-broadcast). -/
+  | fbCommitQC (e : mentries)
+  /-- The MVBA's commit certificate `c`, broadcast by Chorus (Supplement,
+  Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"). -/
+  | mvbaCert (c : mmsg)
   /-- A message of the slot's MVBA instance. -/
   | mvba (m : mmsg)
 
@@ -666,7 +697,7 @@ inductive Message (node merkle_root mmsg : Type) where
 or, for an MVBA message, the MVBA contract's `sent`. -/
 def Sent
     (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice))
-    (i : node) : Message node merkle_root mmsg → Prop
+    (i : node) : Message node merkle_root mentries mmsg → Prop
   | .proposal m => st.msg_proposer_signed i m = true
   | .votePos j m => st.msg_vote_pos_sig i j m = true
   | .voteNeg j => st.msg_vote_neg_sig i j = true
@@ -678,7 +709,12 @@ def Sent
   | .commitNeg j => st.msg_commit_neg_sig i j = true
   | .commitCast => st.msg_commit_cast i = true
   | .decryptShare => st.msg_decrypt_share i = true
-  | .fbCommit => st.msg_fbcommit_sig i = true
+  | .fbCommit e => st.msg_fbcommit_sig i e = true
+  | .chunk r j m => st.msg_chunk i r j m = true
+  | .commitqcPos j m => st.msg_commitqc_pos i j m = true
+  | .commitqcNeg j => st.msg_commitqc_neg i j = true
+  | .fbCommitQC e => st.msg_fbcommitqc i e = true
+  | .mvbaCert c => st.msg_mvba_cert i c = true
   | .mvba m => mvba.sent st.mvba_st i m
 
 set_option hygiene false in
@@ -709,7 +745,7 @@ theorem msg_proposer_signed_new {l} {i : node} {m : merkle_root}
     (hold : ¬ s.msg_proposer_signed i m = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_proposer_signed [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_proposer_signed [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_vote_pos_sig` row of a correct sender comes from a gated rule. -/
@@ -719,7 +755,7 @@ theorem msg_vote_pos_sig_new {l} {i : node} {j : node} {m : merkle_root}
     (hold : ¬ s.msg_vote_pos_sig i j m = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_vote_pos_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_vote_pos_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_vote_neg_sig` row of a correct sender comes from a gated rule. -/
@@ -729,7 +765,7 @@ theorem msg_vote_neg_sig_new {l} {i : node} {j : node}
     (hold : ¬ s.msg_vote_neg_sig i j = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_vote_neg_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_vote_neg_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_vote_cast` row of a correct sender comes from a gated rule. -/
@@ -739,7 +775,7 @@ theorem msg_vote_cast_new {l} {i : node}
     (hold : ¬ s.msg_vote_cast i  = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_vote_cast [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_vote_cast [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_fb_pos_sig` row of a correct sender comes from a gated rule. -/
@@ -749,7 +785,7 @@ theorem msg_fb_pos_sig_new {l} {i : node} {j : node} {m : merkle_root}
     (hold : ¬ s.msg_fb_pos_sig i j m = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_fb_pos_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_fb_pos_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_fb_neg_sig` row of a correct sender comes from a gated rule. -/
@@ -759,7 +795,7 @@ theorem msg_fb_neg_sig_new {l} {i : node} {j : node}
     (hold : ¬ s.msg_fb_neg_sig i j = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_fb_neg_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_fb_neg_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_fallback_sig` row of a correct sender comes from a gated rule. -/
@@ -769,7 +805,7 @@ theorem msg_fallback_sig_new {l} {i : node}
     (hold : ¬ s.msg_fallback_sig i  = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_fallback_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_fallback_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_commit_pos_sig` row of a correct sender comes from a gated rule. -/
@@ -779,7 +815,7 @@ theorem msg_commit_pos_sig_new {l} {i : node} {j : node} {m : merkle_root}
     (hold : ¬ s.msg_commit_pos_sig i j m = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_commit_pos_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_commit_pos_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_commit_neg_sig` row of a correct sender comes from a gated rule. -/
@@ -789,7 +825,7 @@ theorem msg_commit_neg_sig_new {l} {i : node} {j : node}
     (hold : ¬ s.msg_commit_neg_sig i j = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_commit_neg_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_commit_neg_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_commit_cast` row of a correct sender comes from a gated rule. -/
@@ -799,7 +835,7 @@ theorem msg_commit_cast_new {l} {i : node}
     (hold : ¬ s.msg_commit_cast i  = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_commit_cast [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_commit_cast [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_decrypt_share` row of a correct sender comes from a gated rule. -/
@@ -809,23 +845,73 @@ theorem msg_decrypt_share_new {l} {i : node}
     (hold : ¬ s.msg_decrypt_share i  = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_decrypt_share [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_decrypt_share [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 set_option maxHeartbeats 4000000 in
 /-- A new `msg_fbcommit_sig` row of a correct sender comes from a gated rule. -/
-theorem msg_fbcommit_sig_new {l} {i : node} 
+theorem msg_fbcommit_sig_new {l} {i : node} {e : mentries}
     (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
-    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_fbcommit_sig i  = true)
-    (hold : ¬ s.msg_fbcommit_sig i  = true) :
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_fbcommit_sig i e = true)
+    (hold : ¬ s.msg_fbcommit_sig i e = true) :
     s.participating i = true ∧ s.abandoned i = false := by
   cases l
-  own_frame htr msg_fbcommit_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => own_close
+  own_frame htr msg_fbcommit_sig [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_chunk` row of a correct sender comes from a gated rule: the proposal, or a positive fallback entry. -/
+theorem msg_chunk_new {l} {i : node} {r j : node} {m : merkle_root}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_chunk i r j m = true)
+    (hold : ¬ s.msg_chunk i r j m = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_chunk [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_commitqc_pos` row of a correct sender comes from a gated rule: the collector's, or a finalization's re-broadcast. -/
+theorem msg_commitqc_pos_new {l} {i : node} {j : node} {m : merkle_root}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_commitqc_pos i j m = true)
+    (hold : ¬ s.msg_commitqc_pos i j m = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_commitqc_pos [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_commitqc_neg` row of a correct sender comes from a gated rule. -/
+theorem msg_commitqc_neg_new {l} {i : node} {j : node}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_commitqc_neg i j = true)
+    (hold : ¬ s.msg_commitqc_neg i j = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_commitqc_neg [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_fbcommitqc` row of a correct sender comes from a gated rule: the collector's, or a finalization's re-broadcast. -/
+theorem msg_fbcommitqc_new {l} {i : node} {e : mentries}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_fbcommitqc i e = true)
+    (hold : ¬ s.msg_fbcommitqc i e = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_fbcommitqc [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
+
+set_option maxHeartbeats 4000000 in
+/-- A new `msg_mvba_cert` row of a correct sender comes from a gated rule: the decision's output, or a finalization's re-broadcast. -/
+theorem msg_mvba_cert_new {l} {i : node} {c : mmsg}
+    (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
+    (hi : ¬ nset.is_byz i = true) (hnew : s'.msg_mvba_cert i c = true)
+    (hold : ¬ s.msg_mvba_cert i c = true) :
+    s.participating i = true ∧ s.abandoned i = false := by
+  cases l
+  own_frame htr msg_mvba_cert [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, abandon, propose, record_chunk, receive_vote_pos, receive_vote_neg, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, send_mvba_cert, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, mvba_terminate, cast_fb_commit, broadcast_fbcommitqc, commit_assign_pos_fast, commit_assign_pos_fb, commit_assign_pos_mvba, commit_assign_neg_fast, commit_assign_neg_fb, commit_assign_neg_mvba, finalize_commit, byz_sign_proposer, byz_send_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_broadcast_fbcommitqc, byz_send_mvba_cert, byz_release_msg_decrypt_share] => own_close
 
 /-- **Quiescence, Chorus's own half**: a correct validator's new message of
 its own (every constructor but `mvba`) is sent by a rule whose guard is the
 participation gate, so the sender is actively participating in the
 pre-state. One step, read from the transition bodies, with no invariant. -/
-theorem own_sent_new {l} {i : node} {msg : Message node merkle_root mmsg}
+theorem own_sent_new {l} {i : node} {msg : Message node merkle_root mentries mmsg}
     (hm : ∀ c, msg ≠ .mvba c)
     (htr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).tr th s l s')
     (hi : ¬ nset.is_byz i = true) (hnew : Sent s' i msg) (hold : ¬ Sent s i msg) :
@@ -842,7 +928,12 @@ theorem own_sent_new {l} {i : node} {msg : Message node merkle_root mmsg}
   | commitNeg j => exact msg_commit_neg_sig_new htr hi hnew hold
   | commitCast => exact msg_commit_cast_new htr hi hnew hold
   | decryptShare => exact msg_decrypt_share_new htr hi hnew hold
-  | fbCommit => exact msg_fbcommit_sig_new htr hi hnew hold
+  | fbCommit e => exact msg_fbcommit_sig_new htr hi hnew hold
+  | chunk r j m => exact msg_chunk_new htr hi hnew hold
+  | commitqcPos j m => exact msg_commitqc_pos_new htr hi hnew hold
+  | commitqcNeg j => exact msg_commitqc_neg_new htr hi hnew hold
+  | fbCommitQC e => exact msg_fbcommitqc_new htr hi hnew hold
+  | mvbaCert c => exact msg_mvba_cert_new htr hi hnew hold
   | mvba c => exact absurd rfl (hm c)
 
 end Quiescence
@@ -887,3 +978,9 @@ info: 'Chorus.own_sent_new' depends on axioms: [propext, Classical.choice, Quot.
 -/
 #guard_msgs in
 #print axioms Chorus.own_sent_new
+
+/--
+info: 'Chorus.local_committed_pos_implies_decodable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.local_committed_pos_implies_decodable

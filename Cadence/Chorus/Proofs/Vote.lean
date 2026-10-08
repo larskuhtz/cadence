@@ -31,7 +31,7 @@ namespace Chorus.Proofs
 /- Manual discharge of the one VC the SMT pipeline cannot solve
 automatically: `vote` preserves `fb_neg_no_pos_quorum`. The proof applies
 `supermajorities_share_third` once — to the recorded
-witness quorum (`local_fb_neg_qv`) and the claimed post-state vote
+witness quorum (`aux_fb_neg_qv`) and the claimed post-state vote
 supermajority — and closes with `fb_neg_qv_no_pos_quorum`; against `vote`'s
 bulk signature update, cvc5's e-matching diverges instead of finding this
 single instantiation. The `#prove_action` below consumes this cell as-is
@@ -117,6 +117,50 @@ after a statement check. -/
 set_option veil.smt.foldBoolAtoms false in
 #prove_vc Chorus vote fastqc_complete_implies_mvba_evidence by
   veil_solve_wp
+
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus vote fb_neg_qv_no_pos_quorum by
+  unveil_local
+  veil_inv_have h_old := fb_neg_qv_no_pos_quorum
+  veil_inv_have h_rcvd := fb_neg_qv_received
+  veil_inv_have h_rp := vote_rcv_pos_backed
+  veil_inv_have h_rn := vote_rcv_neg_backed
+  veil_inv_have h_cv := vote_cast_implies_voted
+  intro hbyz _hpart _hab _hph hnv hne1 hne2 hne3 hnie R J QV q M hR haux hq
+  -- Pre-state signatures persist into the post state.
+  have lift : ∀ r j m, st.msg_vote_pos_sig r j m = true →
+      (if i = r then
+        st.msg_vote_pos_sig i j m = true ∨ th.is_proposer j = true ∧ st.local_entry_pos i j m = true
+      else st.msg_vote_pos_sig r j m = true) := by
+    intro r j m h
+    split
+    · rename_i hir; subst hir; exact Or.inl h
+    · exact h
+  have hne1' : ∀ r j m1 m2, st.msg_vote_pos_sig r j m1 = true →
+      st.msg_vote_pos_sig r j m2 = true → m1 = m2 :=
+    fun r j m1 m2 h1 h2 => hne1 r j m1 m2 (lift r j m1 h1) (lift r j m2 h2)
+  have hne2' : ∀ r j m, st.msg_vote_pos_sig r j m = true → st.msg_vote_neg_sig r j = false := by
+    intro r j m h
+    have hn := hne2 r j m (lift r j m h)
+    cases hneg : st.msg_vote_neg_sig r j
+    · rfl
+    · exfalso; apply hn; split
+      · rename_i hir; subst hir; exact Or.inl hneg
+      · exact hneg
+  obtain ⟨x, hxq, hx⟩ := h_old hne1' hne2' hne3 hnie R J QV q M hR haux hq
+  refine ⟨x, hxq, fun hxQV => ?_⟩
+  have hpre := hx hxQV
+  split
+  · -- `i` is in `QV`, so `R` received its vote: `i` has voted, but the
+    -- action requires that it has not.
+    rename_i hix; subst hix
+    exfalso
+    rcases h_rcvd R J QV hR haux i hxQV with ⟨M', hM'⟩ | hn
+    · exact absurd (h_cv i hbyz (h_rp R i J M' hR hM').1) (by simp [hnv])
+    · exact absurd (h_cv i hbyz (h_rn R i J hR hn).1) (by simp [hnv])
+  · simp [hpre]
 
 #prove_action Chorus vote
 

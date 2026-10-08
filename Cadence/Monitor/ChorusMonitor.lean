@@ -149,9 +149,11 @@ def internalCandidates : List Lbl :=
   Chorus.Label.mvba_step () ::
   (List.finRange (3 * 1 + 1)).flatMap fun i =>
   (List.finRange (3 * 1 + 1)).flatMap fun j =>
-    [Chorus.Label.commit_sign_neg i j, Chorus.Label.commit_assign_neg i j]
+    Chorus.Label.commit_sign_neg i j ::
+    ((List.finRange (3 * 1 + 1)).map fun c => Chorus.Label.commit_assign_neg_fast i j c)
     ++ (List.finRange 2).flatMap fun m =>
-       [Chorus.Label.commit_sign_pos i j m, Chorus.Label.commit_assign_pos i j m]
+       Chorus.Label.commit_sign_pos i j m ::
+       ((List.finRange (3 * 1 + 1)).map fun c => Chorus.Label.commit_assign_pos_fast i j m c)
 
 /-- Apply the first enabled internal action that changes the state (`none` when
     no internal action is enabled or all are idempotent). -/
@@ -189,6 +191,8 @@ private def dNSet (j : Json) : Except String NS := do
 
 private def dMValue (j : Json) : Except String MV := decodeMV j
 private def dMState (j : Json) : Except String MS := decodeMState j
+/-- An entry vector: four entries, each `null` or a root index. -/
+private def dEntries (j : Json) : Except String ChorusMonitor.ME := ChorusMonitor.decodeME j
 /-- The certificate a handoff carries: the stub's message sort `Unit`, written `null`. -/
 private def dMMsg (j : Json) : Except String Unit := decodeMState j
 
@@ -203,7 +207,6 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "participate", [a]               => do pure (.participate (← dNode a))
   | "abandon", [a, b]                => do pure (.abandon (← dNode a) (← dMState b))
   | "propose", [a, b]                => do pure (.propose (← dNode a) (← dRoot b))
-  | "deliver_chunk_assigned", [a,b,c]=> do pure (.deliver_chunk_assigned (← dNode a) (← dNode b) (← dRoot c))
   | "record_chunk", [a,b,c]          => do pure (.record_chunk (← dNode a) (← dNode b) (← dRoot c))
   | "vote", [a]                      => do pure (.vote (← dNode a))
   | "aggregate_fastqc_pos", [a,b,c,d]=> do pure (.aggregate_fastqc_pos (← dNode a) (← dNode b) (← dRoot c) (← dNSet d))
@@ -214,27 +217,33 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "broadcast_commitqc_pos", [a,b,c,d] => do pure (.broadcast_commitqc_pos (← dNode a) (← dNode b) (← dRoot c) (← dNSet d))
   | "broadcast_commitqc_neg", [a,b,c]  => do pure (.broadcast_commitqc_neg (← dNode a) (← dNode b) (← dNSet c))
   -- fallback path
-  | "fb_sign_pos", [a,b,c,d,e]       => do pure (.fb_sign_pos (← dNode a) (← dNode b) (← dRoot c) (← dNSet d) (← dNSet e))
+  | "receive_vote_pos", [a,b,c,d]    => do pure (.receive_vote_pos (← dNode a) (← dNode b) (← dNode c) (← dRoot d))
+  | "receive_vote_neg", [a,b,c]      => do pure (.receive_vote_neg (← dNode a) (← dNode b) (← dNode c))
+  | "fb_sign_pos", [a,b,c,d]         => do pure (.fb_sign_pos (← dNode a) (← dNode b) (← dRoot c) (← dNSet d))
   | "fb_sign_neg", [a,b,c]           => do pure (.fb_sign_neg (← dNode a) (← dNode b) (← dNSet c))
   | "cast_fallback_vote", [a]        => do pure (.cast_fallback_vote (← dNode a))
   -- the MVBA instance ([Monitor.md](../../docs/Monitor.md) §8: the oracle step is silent, the
   -- decision handlers cannot fire under the silent instance)
   | "mvba_step", [a]                 => do pure (.mvba_step (← dMState a))
   | "mvba_propose", [a,b,c]          => do pure (.mvba_propose (← dNode a) (← dMValue b) (← dMState c))
-  | "accept_mvba_commitqc", [a,b,c]  => do pure (.accept_mvba_commitqc (← dNode a) (← dMMsg b) (← dMState c))
+  | "send_mvba_cert", [a,b,c]        => do pure (.send_mvba_cert (← dNode a) (← dMMsg b) (← dMValue c))
+  | "accept_mvba_commitqc", [a,b,c,d] => do pure (.accept_mvba_commitqc (← dNode a) (← dNode b) (← dMMsg c) (← dMState d))
   | "mvba_avail_ready", [a,b,c]      => do pure (.mvba_avail_ready (← dNode a) (← dMValue b) (← dMState c))
   | "on_mvba_decide_pos", [a,b,c,d]  => do pure (.on_mvba_decide_pos (← dNode a) (← dNode b) (← dRoot c) (← dMValue d))
   | "on_mvba_decide_neg", [a,b,c]    => do pure (.on_mvba_decide_neg (← dNode a) (← dNode b) (← dMValue c))
-  | "on_mvba_commitqc_pos", [a,b,c,d,e] => do pure (.on_mvba_commitqc_pos (← dNode a) (← dNode b) (← dRoot c) (← dMMsg d) (← dMValue e))
-  | "on_mvba_commitqc_neg", [a,b,c,d] => do pure (.on_mvba_commitqc_neg (← dNode a) (← dNode b) (← dMMsg c) (← dMValue d))
   | "mvba_terminate", [a,b]          => do pure (.mvba_terminate (← dNode a) (← dMValue b))
   | "cast_fb_commit", [a,b]          => do pure (.cast_fb_commit (← dNode a) (← dMValue b))
-  | "commit_assign_pos", [a,b,c]     => do pure (.commit_assign_pos (← dNode a) (← dNode b) (← dRoot c))
-  | "commit_assign_neg", [a,b]       => do pure (.commit_assign_neg (← dNode a) (← dNode b))
+  | "broadcast_fbcommitqc", [a,b,c]  => do pure (.broadcast_fbcommitqc (← dNode a) (← dEntries b) (← dNSet c))
+  | "commit_assign_pos_fast", [a,b,c,d] => do pure (.commit_assign_pos_fast (← dNode a) (← dNode b) (← dRoot c) (← dNode d))
+  | "commit_assign_pos_fb", [a,b,c,d,e] => do pure (.commit_assign_pos_fb (← dNode a) (← dNode b) (← dRoot c) (← dNode d) (← dEntries e))
+  | "commit_assign_pos_mvba", [a,b,c,d,e,f] => do pure (.commit_assign_pos_mvba (← dNode a) (← dNode b) (← dRoot c) (← dNode d) (← dMMsg e) (← dMValue f))
+  | "commit_assign_neg_fast", [a,b,c] => do pure (.commit_assign_neg_fast (← dNode a) (← dNode b) (← dNode c))
+  | "commit_assign_neg_fb", [a,b,c,d] => do pure (.commit_assign_neg_fb (← dNode a) (← dNode b) (← dNode c) (← dEntries d))
+  | "commit_assign_neg_mvba", [a,b,c,d,e] => do pure (.commit_assign_neg_mvba (← dNode a) (← dNode b) (← dNode c) (← dMMsg d) (← dMValue e))
   | "finalize_commit", [a]           => do pure (.finalize_commit (← dNode a))
   -- byzantine capability actions
   | "byz_sign_proposer", [a,b]       => do pure (.byz_sign_proposer (← dNode a) (← dRoot b))
-  | "byz_deliver_chunk", [a,b,c]     => do pure (.byz_deliver_chunk (← dNode a) (← dNode b) (← dRoot c))
+  | "byz_send_chunk", [a,b,c]        => do pure (.byz_send_chunk (← dNode a) (← dNode b) (← dRoot c))
   | "byz_redisseminate_chunk", [a,b,c,d] => do pure (.byz_redisseminate_chunk (← dNode a) (← dNode b) (← dNode c) (← dRoot d))
   | "byz_sign_vote_pos", [a,b,c]     => do pure (.byz_sign_vote_pos (← dNode a) (← dNode b) (← dRoot c))
   | "byz_sign_vote_neg", [a,b]       => do pure (.byz_sign_vote_neg (← dNode a) (← dNode b))
@@ -247,7 +256,9 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "byz_cast_commit", [a]           => do pure (.byz_cast_commit (← dNode a))
   | "byz_broadcast_commitqc_pos", [a,b,c,d] => do pure (.byz_broadcast_commitqc_pos (← dNode a) (← dNode b) (← dRoot c) (← dNSet d))
   | "byz_broadcast_commitqc_neg", [a,b,c]  => do pure (.byz_broadcast_commitqc_neg (← dNode a) (← dNode b) (← dNSet c))
-  | "byz_sign_fbcommit", [a]         => do pure (.byz_sign_fbcommit (← dNode a))
+  | "byz_sign_fbcommit", [a,b]       => do pure (.byz_sign_fbcommit (← dNode a) (← dEntries b))
+  | "byz_broadcast_fbcommitqc", [a,b,c] => do pure (.byz_broadcast_fbcommitqc (← dNode a) (← dEntries b) (← dNSet c))
+  | "byz_send_mvba_cert", [a,b]      => do pure (.byz_send_mvba_cert (← dNode a) (← dMMsg b))
   | "byz_release_msg_decrypt_share", [a] => do pure (.byz_release_msg_decrypt_share (← dNode a))
   | _, _ => throw s!"unknown action or wrong arity: '{act}' with {args.length} arg(s)"
 
@@ -390,7 +401,8 @@ def execNodeStep : NodeStep → St → StepResult
 
 -- Saturate only node `i`'s internal steps (proposer 0, negative path).
 def internalCandidatesNode (i : ND) : List Lbl :=
-  [Chorus.Label.commit_sign_neg i 0, Chorus.Label.commit_assign_neg i 0]
+  Chorus.Label.commit_sign_neg i 0 ::
+  (List.finRange (3 * 1 + 1)).map fun c => Chorus.Label.commit_assign_neg_fast i 0 c
 
 def applyEnabledInternalNode (i : ND) (st : St) : Option St :=
   (internalCandidatesNode i).findSome? fun lbl =>

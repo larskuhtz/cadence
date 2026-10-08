@@ -152,10 +152,11 @@ private abbrev fbVote (r : Fin n) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (cafr% Chorus.State.Label.msg_fallback_sig)
     st.msg_fallback_sig r = true
 
-/-- `r` has cast its fallback commit vote (`msg_fbcommit_sig`). -/
-private abbrev fbcVote (r : Fin n) : Prop :=
+/-- `r` has cast its fallback commit vote over the entries `e`
+(`msg_fbcommit_sig`). -/
+private abbrev fbcVote (r : Fin n) (e : mentries) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (cafr% Chorus.State.Label.msg_fbcommit_sig)
-    st.msg_fbcommit_sig r = true
+    st.msg_fbcommit_sig r e = true
 
 /-- `r` holds a positive fast commit signature for `(j, m)`. -/
 private abbrev cmPos (r j : Fin n) (m : merkle_root) : Prop :=
@@ -204,13 +205,13 @@ theorem fbcert_of_honest_fallback_votes
 
 /-- **`fbCommitQC` formation** (the commit-round epilogue,
 Algorithm 5, line 42 (`line:fb-collect-commit`) / Algorithm 5, line 43 (`line:fb-formcommitqc`)): once every honest
-validator has cast its fallback commit vote, `fbcommitqc` holds — the same
-honest-population quorum. Reachability-free. -/
+validator has cast its fallback commit vote over the entries `e`,
+`fbcommitqc e` holds — the same honest-population quorum. Reachability-free. -/
 theorem fbcommitqc_of_honest_commit_votes
     {th : Chorus.Theory slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mentries mmsg Phase PathChoice}
     {st : Chorus.State (Chorus.FieldAbstractType slot (Fin n) (ByzNSet n) merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
-    (h : ∀ r : Fin n, ¬ is_byz r → fbcVote n st r) :
-    cpv% Chorus.fbcommitqc th st := by
+    {e : mentries} (h : ∀ r : Fin n, ¬ is_byz r → fbcVote n st r e) :
+    cpv% Chorus.fbcommitqc e th st := by
   classical
   obtain ⟨H, hlen, hH⟩ := honest_supermajority n f hf is_byz hbyz
   unfold Chorus.fbcommitqc

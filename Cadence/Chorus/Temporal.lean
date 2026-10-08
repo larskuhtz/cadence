@@ -65,163 +65,6 @@ namespace Chorus
 open Cadence
 open scoped Cadence.Timed
 
-/-! ## The MVBA's window inside Chorus's
-
-The two facts the MVBA half of Quiescence needs along the run, from the
-transition bodies. -/
-
-section MvbaHalf
-
-open Classical
-
-local macro "mvba_tr" h:ident : tactic =>
-  `(tactic| (simp only [Mvba.relationalTransitionSystem, Mvba.Next, Mvba.NextAct] at $h:ident
-             simp only [trSimp] at $h:ident))
-
-local macro "mvba_field_simp" : tactic =>
-  `(tactic| simp +unfoldPartialApp [Mvba.Proposed, Mvba.Abandoned,
-      Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
-      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
-      Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
-      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id] at *)
-
-local macro "chorus_tr" h:ident : tactic =>
-  `(tactic| (simp only [Chorus.relationalTransitionSystem, Chorus.Next, Chorus.NextAct] at $h:ident
-             simp only [trSimp] at $h:ident))
-
-local macro "chorus_field_simp" : tactic =>
-  `(tactic| simp +unfoldPartialApp [
-      Veil.FieldRepresentation.set, Veil.FieldRepresentation.get,
-      Veil.CanonicalField.set, Veil.FieldUpdateDescr.fieldUpdate, Veil.FieldUpdatePat.match,
-      Veil.IteratedArrow.curry, Veil.IteratedArrow.uncurry, Veil.IteratedProd.patCmp,
-      instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id,
-      instIsSubReaderOfRefl.readFrom_id] at *)
-
-variable {slot node nodeset merkle_root view Phase PathChoice : Type}
-  [Inhabited slot] [Inhabited node] [Inhabited nodeset] [Inhabited merkle_root] [Inhabited view]
-  [Inhabited Phase] [Inhabited PathChoice]
-  [nset : ByzNodeSet node nodeset] [vord : TotalOrderWithMinimum view]
-  [cnt : Cadence.ByzNodeSetCounting node nodeset nset]
-  [Phase_Enum : Chorus.Phase_EnumClass Phase] [PathChoice_Enum : Chorus.PathChoice_EnumClass PathChoice]
-  {thS : Chorus.Theory slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
-      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice}
-  {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
-
-omit [Inhabited merkle_root] cnt in
-set_option maxHeartbeats 4000000 in
-/-- In the MVBA, a new `input` row is its `propose`. -/
-theorem mvba_proposed_new {l} {ms ms' : Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view)}
-    (htr : (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM ms l ms')
-    {i : node} {v : MetaBlock node merkle_root}
-    (hnew : Mvba.Proposed ms' i v) (hold : ¬ Mvba.Proposed ms i v) : l = .propose i v := by
-  cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;> mvba_field_simp <;> simp_all
-
-variable {s s' : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
-      (MetaBlock node merkle_root) (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)) Phase PathChoice)}
-
-set_option maxHeartbeats 1000000 in
-/-- `mvba_propose`'s gate: the proposer is participating. -/
-theorem mvba_propose_participating {i v mvba_next}
-    (htr : (atMvba thM).tr thS s (.mvba_propose i v mvba_next) s') : s.participating i = true := by
-  chorus_tr htr
-  obtain ⟨-, h, -⟩ := htr
-  exact h
-
-/-- **(B) A new MVBA input is Chorus's gated `mvba_propose`.** -/
-theorem mvba_proposed_new_chorus {l} {i : node} {v : MetaBlock node merkle_root}
-    (htr : (atMvba thM).tr thS s l s')
-    (hnew : Mvba.Proposed s'.mvba_st i v) (hold : ¬ Mvba.Proposed s.mvba_st i v) :
-    ∃ mn, l = .mvba_propose i v mn := by
-  by_cases hl : MvbaStepLabel l
-  · cases l with
-    | mvba_step mn =>
-      obtain ⟨l', hin, h'⟩ := mvba_step_internal htr
-      exact absurd (mvba_proposed_new h' hnew hold ▸ trivial) hin
-    | mvba_propose i' v' mn =>
-      cases mvba_proposed_new (mvba_propose_tr htr) hnew hold
-      exact ⟨mn, rfl⟩
-    | accept_mvba_commitqc i' c mn =>
-      obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
-      cases mvba_proposed_new h hnew hold
-    | abandon i' mn => cases mvba_proposed_new (abandon_tr htr) hnew hold
-    | mvba_avail_ready i' v' mn => cases mvba_proposed_new (mvba_avail_ready_tr htr) hnew hold
-    | _ => exact absurd hl id
-  · have h : s'.mvba_st = s.mvba_st := (mvbaComponent thS thM).frame _ _ _ htr hl
-    rw [h] at hnew
-    exact absurd hnew hold
-
-/-- The MVBA's state moves by one of its own transitions, or not at all. -/
-theorem mvba_st_tr_or_eq {l} (htr : (atMvba thM).tr thS s l s') :
-    s'.mvba_st = s.mvba_st ∨ ∃ l',
-      (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
-        s.mvba_st l' s'.mvba_st := by
-  by_cases hl : MvbaStepLabel l
-  · exact Or.inr ((mvbaComponent thS thM).step _ _ _ htr hl)
-  · exact Or.inl ((mvbaComponent thS thM).frame _ _ _ htr hl)
-
-open Lean in
-local macro "frame_cases " htr:ident fld:ident hfr:ident "[" acts:ident,* "]" "=>" tac:tactic : tactic => do
-  let mut acc ← `(tactic| skip)
-  for a in acts.getElems do
-    let lem := mkIdent (`Chorus ++ a.getId ++ Name.mkSimple ("frame_" ++ fld.getId.toString))
-    acc ← `(tactic| ($acc; case $a:ident => (have $hfr := $lem:ident $htr; $tac)))
-  return acc
-
-set_option maxHeartbeats 1000000 in
-/-- Chorus's `abandoned` row is set only by `abandon`. -/
-theorem abandoned_new {l} {i : node}
-    (htr : (atMvba thM).tr thS s l s')
-    (hnew : s'.abandoned i = true) (hold : ¬ s.abandoned i = true) :
-    ∃ mn, l = .abandon i mn := by
-  letI : MVBASafety node (MetaBlock node merkle_root) (node → Option merkle_root)
-      (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
-      (Mvba.State (Mvba.FieldAbstractType node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view))
-      nodeset nset (fun i => nset.is_byz i = true) := Mvba.mvbaSafety thM
-  cases l
-  case abandon i' mn =>
-    rcases eq_or_ne i' i with rfl | hi
-    · exact ⟨mn, rfl⟩
-    · chorus_tr htr
-      obtain ⟨-, rfl⟩ := htr
-      chorus_field_simp
-      simp_all
-  frame_cases htr abandoned hfr [advance_to_deadline, advance_to_fb_arm, advance_to_mvba_arm, participate, propose, deliver_chunk_assigned, record_chunk, vote, aggregate_fastqc_pos, aggregate_fastqc_neg, commit_sign_pos, commit_sign_neg, cast_fast_commit, broadcast_commitqc_pos, broadcast_commitqc_neg, fb_sign_pos, fb_sign_neg, cast_fallback_vote, mvba_step, mvba_propose, accept_mvba_commitqc, mvba_avail_ready, on_mvba_decide_pos, on_mvba_decide_neg, on_mvba_commitqc_pos, on_mvba_commitqc_neg, mvba_terminate, cast_fb_commit, commit_assign_pos, commit_assign_neg, finalize_commit, byz_sign_proposer, byz_deliver_chunk, byz_redisseminate_chunk, byz_sign_vote_pos, byz_sign_vote_neg, byz_cast_vote, byz_sign_fb_pos, byz_sign_fb_neg, byz_sign_fallback, byz_sign_commit_pos, byz_sign_commit_neg, byz_cast_commit, byz_broadcast_commitqc_pos, byz_broadcast_commitqc_neg, byz_sign_fbcommit, byz_release_msg_decrypt_share] => exact absurd (hfr ▸ hnew) hold
-
-/-- **(I1) A correct validator that has proposed to the MVBA is
-participating.** `mvba_propose` is gated on participation, and participation
-is never revoked. -/
-theorem participating_of_mvba_proposed {s}
-    (hr : (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM).reachable thS s)
-    {i : node} {v : MetaBlock node merkle_root} (h : Mvba.Proposed s.mvba_st i v) :
-    s.participating i = true := by
-  induction hr with
-  | init s ha hi =>
-    exact absurd h (Mvba.init_not_proposed thM ((mvbaComponent thS thM).init s ha hi).2 i v)
-  | step s s' hr hn ih =>
-    obtain ⟨l, htr⟩ := hn
-    by_cases hold : Mvba.Proposed s.mvba_st i v
-    · exact Chorus.participating.mono (mvba := Mvba.mvbaSafety thM) htr i (ih hold)
-    · obtain ⟨mn, rfl⟩ := mvba_proposed_new_chorus htr h hold
-      exact Chorus.participating.mono (mvba := Mvba.mvbaSafety thM) htr i (mvba_propose_participating htr)
-
-/-- **(I2) Chorus's abandonment is forwarded to the MVBA.** -/
-theorem mvba_abandoned_of_abandoned {s}
-    (hr : (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM).reachable thS s)
-    {i : node} (h : s.abandoned i = true) : Mvba.Abandoned s.mvba_st i := by
-  induction hr with
-  | init s ha hi => exact absurd h (by simp [Chorus.abandoned.init (mvba := Mvba.mvbaSafety thM) hi i])
-  | step s s' hr hn ih =>
-    obtain ⟨l, htr⟩ := hn
-    by_cases hold : s.abandoned i = true
-    · rcases mvba_st_tr_or_eq htr with heq | ⟨l', h'⟩
-      · rw [heq]; exact ih hold
-      · exact Mvba.abandoned_mono_tr thM h' i (ih hold)
-    · obtain ⟨mn, rfl⟩ := abandoned_new htr h hold
-      exact Mvba.abandon_effect_tr thM (abandon_tr htr)
-
-end MvbaHalf
 /-! ## The idle run
 
 The run `admissible_exists` exhibits from every initial state. -/
@@ -254,14 +97,14 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
   {thM : Mvba.Theory node nodeset (MetaBlock node merkle_root) (node → Option merkle_root) view}
 
 /-- **An idle state**: nobody participates, so no gated rule can fire; no
-proposer has signed a root, no chunk has arrived, and nobody has signed a
-vote or a fallback vote; the MVBA is quiet, nobody has decided in it, and
+proposer has signed a root, no chunk has been sent, and nobody has signed
+a vote or a fallback vote; the MVBA is quiet, nobody has decided in it, and
 it holds no commit certificate. Every rule of the hop table reads one of
 these records. -/
 structure Idle (s : StateAtMvba slot node nodeset merkle_root view Phase PathChoice) : Prop where
   part : ∀ i, s.participating i = false
   signed : ∀ j m, s.msg_proposer_signed j m = false
-  chunk : ∀ i j m, s.msg_chunk_received i j m = false
+  chunk : ∀ k i j m, s.msg_chunk k i j m = false
   vpos : ∀ r j m, s.msg_vote_pos_sig r j m = false
   vneg : ∀ r j, s.msg_vote_neg_sig r j = false
   fallback : ∀ r, s.msg_fallback_sig r = false
@@ -308,7 +151,7 @@ theorem not_enabled_of_idle {s : StateAtMvba slot node nodeset merkle_root view 
   cases l
   all_goals first | (simp [hop] at hh; done) | skip
   all_goals first | exact absurd ⟨_, _, _, rfl⟩ ha | skip
-  case accept_mvba_commitqc i c mn =>
+  case accept_mvba_commitqc i r c mn =>
     obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
     exact Mvba.not_enabled_decide_of_quiet (th := thM) hI.quiet ⟨_, h⟩
   case on_mvba_decide_pos =>
@@ -319,14 +162,6 @@ theorem not_enabled_of_idle {s : StateAtMvba slot node nodeset merkle_root view 
     chorus_tr htr
     obtain ⟨-, -, hdec, -⟩ := htr
     exact hI.not_decided _ _ hdec
-  case on_mvba_commitqc_pos =>
-    chorus_tr htr
-    obtain ⟨-, -, hc, -⟩ := htr
-    exact hI.not_certified _ _ hc
-  case on_mvba_commitqc_neg =>
-    chorus_tr htr
-    obtain ⟨-, -, hc, -⟩ := htr
-    exact hI.not_certified _ _ hc
   case mvba_terminate =>
     chorus_tr htr
     obtain ⟨-, -, hdec, -⟩ := htr
@@ -348,7 +183,8 @@ theorem not_enabled_of_idle {s : StateAtMvba slot node nodeset merkle_root view 
   all_goals chorus_tr htr
   all_goals (repeat (obtain ⟨_, htr⟩ := htr))
   all_goals chorus_field_simp
-  all_goals simp_all [Idle.part hI, Idle.signed hI, Idle.chunk hI]
+  all_goals simp_all [Idle.part hI, Idle.signed hI, Idle.vpos hI, Idle.vneg hI,
+    Chorus.chunk_received]
 
 local macro "mvba_inst" : tactic =>
   `(tactic| letI : MVBASafety node (MetaBlock node merkle_root) (node → Option merkle_root)
@@ -363,7 +199,7 @@ theorem idle_init {s : StateAtMvba slot node nodeset merkle_root view Phase Path
   have hm := ((mvbaComponent thS thM).init s ha hi).2
   have hst : s.mvba_st = _ := mvba_st_init hi
   exact ⟨Chorus.participating.init hi, Chorus.msg_proposer_signed.init hi,
-    Chorus.msg_chunk_received.init hi, Chorus.msg_vote_pos_sig.init hi,
+    Chorus.msg_chunk.init hi, Chorus.msg_vote_pos_sig.init hi,
     Chorus.msg_vote_neg_sig.init hi, Chorus.msg_fallback_sig.init hi,
     Mvba.quiet_init hm, Mvba.decided.init hm, Mvba.msg_commitqc.init hm,
     Mvba.timer_expired.init hm⟩
@@ -397,7 +233,7 @@ theorem idle_abandon {s s' : StateAtMvba slot node nodeset merkle_root view Phas
     idle_mvba_abandon (abandon_tr htr) hI.quiet hI.decided hI.commitqc hI.timer
   exact ⟨by rw [Chorus.abandon.frame_participating htr]; exact hI.part,
     by rw [Chorus.abandon.frame_msg_proposer_signed htr]; exact hI.signed,
-    by rw [Chorus.abandon.frame_msg_chunk_received htr]; exact hI.chunk,
+    by rw [Chorus.abandon.frame_msg_chunk htr]; exact hI.chunk,
     by rw [Chorus.abandon.frame_msg_vote_pos_sig htr]; exact hI.vpos,
     by rw [Chorus.abandon.frame_msg_vote_neg_sig htr]; exact hI.vneg,
     by rw [Chorus.abandon.frame_msg_fallback_sig htr]; exact hI.fallback, hq, hd, hc, ht⟩
@@ -409,7 +245,7 @@ local macro "idle_frame" act:ident : tactic => do
   let f (s : String) := Lean.mkIdent (`Chorus ++ act.getId ++ Lean.Name.mkSimple ("frame_" ++ s))
   `(tactic| exact ⟨by rw [$(f "participating") htr]; exact hI.part,
       by rw [$(f "msg_proposer_signed") htr]; exact hI.signed,
-      by rw [$(f "msg_chunk_received") htr]; exact hI.chunk,
+      by rw [$(f "msg_chunk") htr]; exact hI.chunk,
       by rw [$(f "msg_vote_pos_sig") htr]; exact hI.vpos,
       by rw [$(f "msg_vote_neg_sig") htr]; exact hI.vneg,
       by rw [$(f "msg_fallback_sig") htr]; exact hI.fallback,
@@ -697,7 +533,7 @@ theorem idleRun_fJustice : FJustice (idleRun ha hi D Δ hΔ).toLRun := by
   · obtain ⟨-, l, ⟨_, rfl⟩, hl⟩ := hen N le_rfl
     exact (not_enabled_of_idle (idleRun_idle ha hi hΔ N) (hd := .net) rfl
       (fun ⟨_, _, _, h⟩ => by cases h) hl).elim
-  · obtain ⟨-, l, ⟨_, _, rfl⟩, hl⟩ := hen N le_rfl
+  · obtain ⟨-, l, ⟨_, _, _, rfl⟩, hl⟩ := hen N le_rfl
     exact (not_enabled_of_idle (idleRun_idle ha hi hΔ N) (hd := .net) rfl
       (fun ⟨_, _, _, h⟩ => by cases h) hl).elim
   · obtain ⟨⟨w, hw⟩, -⟩ := hen N le_rfl
@@ -864,7 +700,7 @@ theorem idleRun_timedJustice : TimedJustice sch (idleRunAt ha hi sch) := by
       rw [hl] at he; cases he⟩
   · exact idleRun_bff ha hi sch hδ fun l ⟨_, hl⟩ => ⟨⟨.net, hl ▸ rfl⟩, fun ⟨_, _, _, he⟩ => by
       rw [hl] at he; cases he⟩
-  · exact idleRun_bff ha hi sch hδ fun l ⟨_, _, hl⟩ => ⟨⟨.net, hl ▸ rfl⟩, fun ⟨_, _, _, he⟩ => by
+  · exact idleRun_bff ha hi sch hδ fun l ⟨_, _, _, hl⟩ => ⟨⟨.net, hl ▸ rfl⟩, fun ⟨_, _, _, he⟩ => by
       rw [hl] at he; cases he⟩
   · intro N N' _ h1 _
     have hW : (idleRunAt ha hi sch).clk N' ≤ (idleRunAt ha hi sch).bufWindow N N' sch.Δ sch.δ :=
@@ -960,7 +796,7 @@ theorem mvba_sent_new {l} {i : node} {c : Mvba.Msg view (MetaBlock node merkle_r
 correct validator's new message of the slot's instance, its own or its
 MVBA's, sent across a step out of a reachable state, finds it participating
 after the step and not abandoned before it. -/
-theorem sent_new {l} {i : node} {msg : Message node merkle_root (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))}
+theorem sent_new {l} {i : node} {msg : Message node merkle_root (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))}
     (hr : (atMvba (slot := slot) (Phase := Phase) (PathChoice := PathChoice) thM).reachable thS s)
     (htr : (atMvba thM).tr thS s l s') (hi : ¬ nset.is_byz i = true)
     (hnew : Sent (mvba := Mvba.mvbaSafety thM) s' i msg) (hold : ¬ Sent (mvba := Mvba.mvbaSafety thM) s i msg) :
@@ -1012,6 +848,9 @@ structure FamilySchedule (slot view time : Type) [vord : TotalOrderWithMinimum v
   D : slot → time
   /-- A local step is no slower than a network hop (`Schedule.δ_le_Δ`). -/
   δ_le_Δ : mvba.δ ≤ mvba.Δ
+  /-- A local step is no slower than the MVBA's retransmission period
+  (`Schedule.δ_le_ρ`). -/
+  δ_le_ρ : mvba.δ ≤ mvba.ρ
   /-- The MVBA's availability window covers one Chorus hop
   (`Schedule.Δ_le_Δsync`). -/
   Δ_le_Δsync : mvba.Δ ≤ mvba.Δsync
@@ -1019,7 +858,7 @@ structure FamilySchedule (slot view time : Type) [vord : TotalOrderWithMinimum v
 /-- Slot `s`'s schedule. -/
 def FamilySchedule.at {time : Type} [LinearOrder time] [AddCommMonoid time]
     (fs : FamilySchedule slot view time) (s : slot) : Schedule view time :=
-  ⟨fs.mvba, fs.D s, fs.δ_le_Δ, fs.Δ_le_Δsync⟩
+  ⟨fs.mvba, fs.D s, fs.δ_le_Δ, fs.δ_le_ρ, fs.Δ_le_Δsync⟩
 
 variable {time : Type} [LinearOrder time] [AddCommMonoid time]
 
@@ -1119,7 +958,7 @@ variable {slot node nodeset merkle_root view Phase PathChoice : Type}
 /-- A message once sent stays sent: Chorus's network rows are monotone,
 and the MVBA's state moves only by its own transitions, whose rows are. -/
 theorem sent_mono {l} (htr : (atMvba thM).tr thS s l s') (i : node)
-    (msg : Message node merkle_root (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)))
+    (msg : Message node merkle_root (node → Option merkle_root) (Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)))
     (h : Sent (mvba := Mvba.mvbaSafety thM) s i msg) : Sent (mvba := Mvba.mvbaSafety thM) s' i msg := by
   letI := Mvba.mvbaSafety (nset := nset) thM
   cases msg with
@@ -1134,7 +973,12 @@ theorem sent_mono {l} (htr : (atMvba thM).tr thS s l s') (i : node)
   | commitNeg j => exact Chorus.msg_commit_neg_sig.mono htr i j h
   | commitCast => exact Chorus.msg_commit_cast.mono htr i h
   | decryptShare => exact Chorus.msg_decrypt_share.mono htr i h
-  | fbCommit => exact Chorus.msg_fbcommit_sig.mono htr i h
+  | fbCommit e => exact Chorus.msg_fbcommit_sig.mono htr i e h
+  | chunk r j m => exact Chorus.msg_chunk.mono htr i r j m h
+  | commitqcPos j m => exact Chorus.msg_commitqc_pos.mono htr i j m h
+  | commitqcNeg j => exact Chorus.msg_commitqc_neg.mono htr i j h
+  | fbCommitQC e => exact Chorus.msg_fbcommitqc.mono htr i e h
+  | mvbaCert c => exact Chorus.msg_mvba_cert.mono htr i c h
   | mvba c =>
     rcases mvba_st_tr_or_eq htr with heq | ⟨l', h'⟩
     · show (Mvba.mvbaSafety thM).sent s'.mvba_st i c
@@ -1234,7 +1078,7 @@ noncomputable def chorusTemporal (fs : FamilySchedule slot view time)
     (vfin : ViewOrderEnum view vord) (hrot : Mvba.LeaderRotation (nset := nsetF) vfin fs.mvba.k thMC) :
     SlotConsensusTemporal slot (Fin n) merkle_root (slot × (Fin n → Option merkle_root))
       (SlotState slot (Fin n) (ByzNSet n) merkle_root view Phase PathChoice) time
-      (Message (Fin n) merkle_root (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)))
+      (Message (Fin n) merkle_root (Fin n → Option merkle_root) (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)))
       (fun i => (nsetF).is_byz i = true) (S := SC) :=
   letI : ByzNodeSet (Fin n) (ByzNSet n) := nsetF
   SlotConsensusTemporal.mk (S := SC)
@@ -1305,9 +1149,8 @@ the two timing strengthenings, proven over the same `Admissible`.
 * `ℓ` is `Lchorus Δ δ ℓ_MVBA = 5Δ + ℓ_MVBA + 9δ`, the paper's
   `5Δ + ℓ_MVBA` at `δ = 0` (`chorusWithTotality_ℓ_paper`), with `ℓ_MVBA`
   the system's MVBA's `ℓ`; `bounded_termination` is
-  `Chorus.timed_termination_atMvba`. The tighter `4Δ + ℓ_MVBA + 8δ` is a
-  separate theorem (`Chorus.timed_termination_tight_atMvba`, F4/P5); the
-  class carries the paper's latency.
+  `Chorus.timed_termination_atMvba`; the class carries the paper's
+  latency.
 * `d_tot` is `Ltot Δ δ Δ = Δ + 2δ`, the paper's `Δ` at `δ = 0`
   (`chorusWithTotality_d_tot_paper`); `totality` is `Chorus.totality` at
   tolerance `Δ`.
@@ -1321,7 +1164,7 @@ noncomputable def chorusWithTotality (fs : FamilySchedule slot view time)
     (vfin : ViewOrderEnum view vord) (hrot : Mvba.LeaderRotation (nset := nsetF) vfin fs.mvba.k thMC) :
     SlotConsensusWithTotality slot (Fin n) merkle_root (slot × (Fin n → Option merkle_root))
       (SlotState slot (Fin n) (ByzNSet n) merkle_root view Phase PathChoice) time
-      (Message (Fin n) merkle_root (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)))
+      (Message (Fin n) merkle_root (Fin n → Option merkle_root) (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)))
       (fun i => (nsetF).is_byz i = true) (S := SC)
       (T := chorusTemporal n f hf is_byz hbyz fs hprop vfin hrot) :=
   letI : ByzNodeSet (Fin n) (ByzNSet n) := nsetF
@@ -1365,7 +1208,7 @@ noncomputable def slotConsensusFull (fs : FamilySchedule slot view time)
     (vfin : ViewOrderEnum view vord) (hrot : Mvba.LeaderRotation (nset := nsetF) vfin fs.mvba.k thMC) :
     SlotConsensus slot (Fin n) merkle_root (slot × (Fin n → Option merkle_root))
       (SlotState slot (Fin n) (ByzNSet n) merkle_root view Phase PathChoice) time
-      (Message (Fin n) merkle_root (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)))
+      (Message (Fin n) merkle_root (Fin n → Option merkle_root) (Mvba.Msg view (MetaBlock (Fin n) merkle_root) (Fin n → Option merkle_root)))
       (fun i => (nsetF).is_byz i = true) :=
   slotConsensus_of_temporal (nset := nsetF) (cnt := cntF) (mvba := Mvba.mvbaSafety (nset := nsetF) thMC) thC
     (chorusTemporal n f hf is_byz hbyz fs hprop vfin hrot)
@@ -1433,6 +1276,12 @@ info: 'Chorus.mvba_abandoned_of_abandoned' depends on axioms: [propext, Classica
 -/
 #guard_msgs in
 #print axioms Chorus.mvba_abandoned_of_abandoned
+
+/--
+info: 'Chorus.relayedWhileActive_of_timedJustice' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.relayedWhileActive_of_timedJustice
 
 /--
 info: 'Chorus.mvba_sent_new' depends on axioms: [propext, Classical.choice, Quot.sound]

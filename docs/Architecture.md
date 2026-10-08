@@ -97,7 +97,7 @@ here rather than repeating them.
 
 | Module | Actions | Declarations | VCs | Discharge |
 |---|---|---|---|---|
-| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 48 | 9 safety + 91 invariants + 1 step property | pinned: `#veil_status Chorus` in [Chorus/Certify.lean](../Cadence/Chorus/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 18 manual Lean proofs for e-matching-divergent cells (three of them the Byzantine assembly actions' copies of the collector's cells), and one cell that runs the automatic solver step with the Bool-atom fold off rather than a hand proof (`vote × fastqc_complete_implies_mvba_evidence`; [Dependencies.md](Dependencies.md) § "Native shared libraries"); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
+| [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 55 | 9 safety + 100 invariants + 1 step property | pinned: `#veil_status Chorus` in [Chorus/Certify.lean](../Cadence/Chorus/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 44 manual Lean proofs for e-matching-divergent or near-budget cells (three of them the Byzantine assembly actions' copies of the collector's cells), and one cell that runs the automatic solver step with the Bool-atom fold off rather than a hand proof (`vote × fastqc_complete_implies_mvba_evidence`; [Dependencies.md](Dependencies.md) § "Native shared libraries"); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
 | [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 28 | 3 safety + 47 invariants + 1 step property | pinned: `#veil_status Mvba` in [Mvba/Certify.lean](../Cadence/Mvba/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 5 manual Lean proofs for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate; cross-view certificate agreement, at both actions that create a commit certificate; and agreement at the decision `form_own_commitqc` makes) |
 | [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | pinned: `#veil_status FallbackReceipt` in [FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
 | [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 17 invariants + 3 step properties | 205 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
@@ -208,8 +208,8 @@ quantitative obligation over explicit runs
   (`Chorus.totality`, [Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean))
   and ℓ-termination at the paper's `5Δ + ℓ_MVBA` (`Chorus.timed_termination`,
   [Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)),
-  with the sharper `4Δ + ℓ_MVBA` from the same premises
-  (`Chorus.timed_termination_tight`), under the timing model of
+  with the sharper `4Δ + ℓ_MVBA` (plus `9δ` local steps) from the same
+  premises (`Chorus.timed_termination_tight`), under the timing model of
   [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean); they
   are the timing fields of `Chorus.chorusWithTotality`;
 * **the Conductor's timed claims over timed runs**: `d_tot`-Totality
@@ -248,7 +248,7 @@ The paper's headline properties and their formal counterparts:
 | Hiding until the deadline (Lemma 7 (`lemma:chorus-hiding`)) | protocol half: `safety [hiding_until_deadline]`; crypto half axiomatised (`ThresholdIBE`, [Cadence/Primitives.lean](../Cadence/Primitives.lean)) | sweep + axiom |
 | Speculative-finality revertibility claim | `safety [speculative_agreement_pos]`, `[..._pos_neg]` (conditional on `no_equivocation` and `no_invalid_encoding`) | sweep |
 | Chorus termination (Lemma 11 (`lemma:chorus-termination`)), bound-erased: every correct validator finalizes the slot, at every `n = 3f+1` | `Chorus.termination` ([Cadence/Chorus/Termination.lean](../Cadence/Chorus/Termination.lean)), from the premises `FJustice`, `MvbaAdmissible`, `ValidBridge` of [Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean) (§4 item 2); consumes `Mvba.termination`; untimed (no `5Δ + ℓ_MVBA` bound) | sweep + Lean over runs |
-| Chorus ℓ-termination, timed (Lemma 11 (`lemma:chorus-termination`)): every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA` (plus `9δ` local steps), at every `n = 3f+1`; and by `4Δ + ℓ_MVBA + 8δ` from the same premises (F4) | `Chorus.timed_termination`, `Chorus.timed_termination_tight` ([Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)), from the timing model of [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean), `ValidBridge` and the caller's four conditions; consumes the MVBA contract's `T.termination`; at the system's MVBA `Chorus.timed_termination_atMvba` | Lean over timed runs |
+| Chorus ℓ-termination, timed (Lemma 11 (`lemma:chorus-termination`)): every correct validator finalizes by `max(t, GST) + 5Δ + ℓ_MVBA` (plus `9δ` local steps), at every `n = 3f+1`; and by `4Δ + ℓ_MVBA + 9δ` from the same premises (F4) | `Chorus.timed_termination`, `Chorus.timed_termination_tight` ([Cadence/Chorus/TimedTermination.lean](../Cadence/Chorus/TimedTermination.lean)), from the timing model of [Cadence/Chorus/Schedule.lean](../Cadence/Chorus/Schedule.lean), `ValidBridge` and the caller's four conditions; consumes the MVBA contract's `T.termination`; at the system's MVBA `Chorus.timed_termination_atMvba` and `Chorus.timed_termination_tight_atMvba`, whose MVBA caller clauses are derived from Chorus's rows (`Chorus.relayedWhileActive_of_timedJustice`, `Chorus.availWithin_of_timedJustice`) | Lean over timed runs |
 | Chorus `d_tot`-totality (Proposition 4 (`prop:chorus-totality`)): `Δ + 2δ` after the first correct finalization, at a participation tolerance `d` in general | `Chorus.totality`, `Chorus.totality_paper` ([Cadence/Chorus/Totality.lean](../Cadence/Chorus/Totality.lean)) | Lean over timed runs |
 | "Fallback meta-block valid by construction" (Algorithm 5 (`alg:fallback`) build rule) | `certified_propose` (all `n`, SMT) + `build_totality_of_reachable` (all `n = 3f+1`, kernel-checked) | sweep + Lean |
 | Evidence pigeonhole (per-proposer evidence always forms from `2f+1` honest fallback entries — the counting step of Lemma 11 (`lemma:chorus-termination`)'s fallback branch) | `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)), all `n = 3f+1` | sweep + Lean |
@@ -280,21 +280,23 @@ ACS's (A-acs-termination) and (A-acs-totality) — appear verbatim in the
 Lean sources where they are consumed, so `grep -rn '(A-' Cadence/`
 enumerates the consumers and would expose an assumption that had crept in
 without being listed here. The
-network contract (item 1) is the exception and the reason item 1 comes
-first: its names live in [ChorusDesign.md](ChorusDesign.md) §3.1.1 rather
-than in the code, and no tool checks it — the sources speak of "monotone"
-relations, and it takes a human to confirm each use is positive.
+locality rules (item 1) are the exception and the reason item 1 comes
+first: they live in [Locality.md](Locality.md) rather than in the code,
+and no tool checks them yet — it takes a human, with the audit table, to
+confirm each action follows them.
 
-1. **The monotone-network contract (M-update)+(M-frame)**
-   ([ChorusDesign.md](ChorusDesign.md) §3.1–§3.3): safety in the
-   monotone model implies safety under asynchrony only if network
-   relations are consulted positively. Veil does not enforce (M-frame);
-   it is audited by hand, with two documented scoped exception
-   categories (`fb_sign_neg`'s witnessed quorum, and seven *self-row*
-   reads — a guard
-   consulting a row of `msg_proposer_signed`/`msg_commit_cast`
-   negatively, where the row is indexed by, and writable only by, the
-   acting validator itself — enumerated in ChorusDesign.md §3.1).
+1. **The locality rules** ([Locality.md](Locality.md)): a model describes
+   a distributed protocol, and safety in its monotone network implies
+   safety under asynchrony ([ChorusDesign.md](ChorusDesign.md) §3.2), only
+   if every action follows them — a correct validator reads its own state,
+   messages positively (its own sends in either polarity), global time,
+   configuration and its sub-protocol at its own index, and writes only its
+   own state and messages under its own name; the environment touches only
+   its own state; auxiliary records are read by no action. Veil does not
+   enforce them. They are stated for pattern matching and checked by hand,
+   action by action: the guide's audit table for Chorus
+   ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)), and Locality.md §7
+   for the status of each model.
 2. **Liveness premises** — the hypotheses of the liveness theorems, never
    axioms. **[Premises.md](Premises.md) is their one page**: for every
    headline claim, each premise with its role, why it is plausible, the

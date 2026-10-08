@@ -125,7 +125,7 @@ plain-Lean / meta layer ([Composition.lean](Composition.lean)), never inside SMT
 
 ## State locality contract (glue edition)
 
-The Chorus doctrine ([ChorusDesign.md](../docs/ChorusDesign.md) §3.5.3) adapts as follows. There are no
+The locality rules ([Locality.md](../docs/Locality.md)) apply as follows. There are no
 network relations in this module — validators do not exchange messages at
 the glue level; **all** cross-validator interaction is inside the two
 sub-protocols. Every state item is either

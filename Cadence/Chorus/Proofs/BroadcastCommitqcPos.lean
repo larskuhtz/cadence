@@ -36,9 +36,9 @@ namespace Chorus.Proofs
   veil_inv_have h_vote_unique_pos := vote_unique_pos
   veil_inv_have h_commit_cast_fallback_sig_excl := commit_cast_fallback_sig_excl
   veil_inv_have h_commitqc_pos_mvba_consistent := commitqc_pos_mvba_consistent
-  intro _hbyz _hpart _hab hsup_q hq _hfresh J M1 M2 hqc hmv
-  by_cases hnew : j = J ∧ m = M1
-  · obtain ⟨rfl, rfl⟩ := hnew
+  intro _hbyz _hpart _hab hsup_q hq _hfresh C J M1 M2 hqc hmv
+  by_cases hnew : c = C ∧ j = J ∧ m = M1
+  · obtain ⟨rfl, rfl, rfl⟩ := hnew
     obtain ⟨a, ha_mem, ha_hon⟩ :=
       nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hsup_q)
     have ha_hon' : ByzNodeSet.is_byz a = false := Bool.eq_false_iff.mpr ha_hon
@@ -52,8 +52,8 @@ namespace Chorus.Proofs
       have hcf := h_commit_cast_fallback_sig_excl c (Bool.eq_false_iff.mpr hc_hon) (hq c hc1).2
       have hy := hqf c hc2
       rw [hcf] at hy; simp at hy
-  · have hold : st.msg_commitqc_pos J M1 = true := hqc (fun h1 h2 => hnew ⟨h1, h2⟩)
-    exact h_commitqc_pos_mvba_consistent J M1 M2 hold hmv
+  · have hold : st.msg_commitqc_pos C J M1 = true := hqc (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩)
+    exact h_commitqc_pos_mvba_consistent C J M1 M2 hold hmv
 
 
 #prove_vc Chorus broadcast_commitqc_pos progress_fallback_signing by

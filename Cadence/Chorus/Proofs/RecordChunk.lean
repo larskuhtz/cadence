@@ -28,6 +28,28 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus record_chunk proposal_inclusion by
+  unveil_local
+  veil_inv_have h_cb := local_committed_pos_backed
+  veil_inv_have h_votes := msg_commitqc_pos_votes
+  veil_inv_have h_vsv := vote_sig_pos_implies_voted
+  veil_inv_have h_vpd := voted_post_deadline
+  veil_inv_have h_mdp := mvba_decided_phase
+  intro _hbyz _hprop _x _hchunk _hsig hph _hfresh _hneg J I M M' _hJ _hJp _hall _hwe hI hcom
+  -- Nothing is committed before the deadline: a commit's certificate has a
+  -- correct voter, who has voted, and an MVBA record postdates the deadline.
+  exfalso
+  rcases h_cb I J M' hI hcom with ⟨C, hC⟩ | haux
+  · obtain ⟨q, hq_sup, hq⟩ := h_votes C J M' hC
+    obtain ⟨a, ha_mem, ha_hon⟩ :=
+      nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hq_sup)
+    have hv := h_vsv a J M' (Bool.eq_false_iff.mpr ha_hon) (hq a ha_mem)
+    exact h_vpd a (Bool.eq_false_iff.mpr ha_hon) hv hph
+  · exact h_mdp J M' (Or.inl haux) hph
+
 #prove_action Chorus record_chunk
 
 end Chorus.Proofs

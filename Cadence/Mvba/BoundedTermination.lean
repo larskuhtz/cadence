@@ -1496,7 +1496,14 @@ theorem bounded_termination (enum : ByzNodeSetEnum node nodeset nset)
   validator within `Δ + ρ` of it. -/
   · obtain ⟨j, n, E, hj, hcn, hjE⟩ := hdec
     obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed (r.reachable n) j E hj hjE
-    obtain ⟨m, E₀, hm, hin⟩ := hprop q hq
+    obtain ⟨mq, E₀, hmq, hin⟩ := hprop q hq
+    obtain ⟨mj, E₁, hmj, hinj⟩ := hprop j hj
+    -- The window opens once both `q` and the decider `j` have proposed.
+    set m := max mq mj with hmdef
+    have hm : r.clk m ≤ t := by
+      rcases Nat.le_total mq mj with h | h
+      · rw [hmdef, Nat.max_eq_right h]; exact hmj
+      · rw [hmdef, Nat.max_eq_left h]; exact hmq
     have hcm : r.clk m ≤ max t r.gst + C :=
       le_trans hm (le_trans (le_max_left _ _) (le_add_of_nonneg_right hC0))
     have href : r.ref (max n m) ≤ max t r.gst + C := by
@@ -1508,12 +1515,14 @@ theorem bounded_termination (enum : ByzNodeSetEnum node nodeset nset)
       within_decided_ref hsync.2.2.2 hq hj (B := max t r.gst + sch.ℓ vfin)
         (le_trans (add_le_add href le_rfl) (le_of_eq (by rw [hℓ, add_assoc])))
         (r.mono (P := fun s => s.input q E₀ = true)
-          (fun a ha => Mvba.input.mono (r.steps a) q E₀ ha) hin _ (Nat.le_max_right _ _))
+          (fun a ha => Mvba.input.mono (r.steps a) q E₀ ha) hin _ (by omega))
         (r.mono (P := fun s => s.msg_commitqc V (th.ent E) = true)
           (fun a ha => Mvba.msg_commitqc.mono (r.steps a) V (th.ent E) ha) hV _ (Nat.le_max_left _ _))
         (r.mono (P := fun s => s.decided j E = true)
           (fun a ha => Mvba.decided.mono (r.steps a) j E ha) hjE _ (Nat.le_max_left _ _))
-        (fun k _ h => hnab' q k hq h)
+        (r.mono (P := fun s => s.input j E₁ = true)
+          (fun a ha => Mvba.input.mono (r.steps a) j E₁ ha) hinj _ (by omega))
+        (fun k _ h => hnab' q k hq h) (fun k _ h => hnab' j k hj h)
     exact ⟨k, E', hk, hE'⟩
   /- Nobody correct decided by the certificate deadline, so every correct
   validator is active up to it, and the good view decides. -/
