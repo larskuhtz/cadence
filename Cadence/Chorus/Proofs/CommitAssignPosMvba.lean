@@ -119,6 +119,28 @@ runs up to the budget on CI's 4-core runner. -/
   · exact h_old hne1 hne2 hne3 hnie I1 I2 J M1 M2 h1 h2 hfq
       (hpost (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩))
 
+/- The inclusion premise against the bridge: the certificate the bridge
+names for the entry has a correct signer, which signed only the
+proposer's root. Written out for the same reason as
+`commit_assign_neg_mvba × proposal_inclusion_no_neg`. -/
+#prove_vc Chorus commit_assign_pos_mvba proposal_inclusion by
+  unveil_local
+  veil_inv_have h_inclusion_vote_pos_unique := inclusion_vote_pos_unique
+  veil_inv_have h_inclusion_fb_pos_unique := inclusion_fb_pos_unique
+  veil_inv_have h_pi := proposal_inclusion
+  intro _hbyz _hpart _hab _hcom _hprop _hmsg _hcert _hval hev _hcp _hcn J I M M' hbyzJ hpropJ hall hwe hI hc
+  by_cases hnew : i = I ∧ j = J ∧ m = M'
+  · obtain ⟨rfl, rfl, rfl⟩ := hnew
+    rcases hev with ⟨-, Qp, hQp_sup, hQp⟩ | ⟨-, ⟨qf, hqf_gtt, hqf⟩, -⟩
+    · obtain ⟨a, ha_mem, ha_hon⟩ :=
+        nset.greater_than_third_one_honest Qp (nset.supermajority_greater_than_third Qp hQp_sup)
+      exact h_inclusion_vote_pos_unique j a M m hbyzJ hpropJ hall hwe
+        (Bool.eq_false_iff.mpr ha_hon) (hQp a ha_mem)
+    · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qf hqf_gtt
+      exact h_inclusion_fb_pos_unique j a M m hbyzJ hpropJ hall hwe
+        (Bool.eq_false_iff.mpr ha_hon) (hqf a ha_mem)
+  · exact h_pi J I M M' hbyzJ hpropJ hall hwe hI (hc (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩))
+
 #prove_action Chorus commit_assign_pos_mvba
 
 end Chorus.Proofs

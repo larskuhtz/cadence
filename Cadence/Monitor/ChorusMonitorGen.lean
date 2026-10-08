@@ -170,7 +170,7 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   -- decision handlers cannot fire under the silent instance)
   | "mvba_step", [a]                 => do pure (.mvba_step (← dMState a))
   | "mvba_propose", [a,b,c]          => do pure (.mvba_propose (← dNode a) (← dMValue b) (← dMState c))
-  | "send_mvba_cert", [a,b,c]        => do pure (.send_mvba_cert (← dNode a) (← dMMsg b) (← dMValue c))
+  | "send_mvba_cert", [a,b]          => do pure (.send_mvba_cert (← dNode a) (← dMMsg b))
   | "accept_mvba_commitqc", [a,b,c,d] => do pure (.accept_mvba_commitqc (← dNode a) (← dNode b) (← dMMsg c) (← dMState d))
   | "mvba_avail_ready", [a,b,c]      => do pure (.mvba_avail_ready (← dNode a) (← dMValue b) (← dMState c))
   | "on_mvba_decide_pos", [a,b,c,d]  => do pure (.on_mvba_decide_pos (← dNode a) (← dNode b) (← dRoot c) (← dMValue d))

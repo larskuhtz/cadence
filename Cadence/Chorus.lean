@@ -1281,7 +1281,8 @@ and the module consumes the state-level fragment as the class constraint
   since Module 3 (`mod:mvba`) does not order a decision after a proposal.
 * **`send_mvba_cert`** — the `CommitQC` route of the supplement's handoff:
   a correct validator's decision outputs the commit certificate that
-  commits it, and the validator broadcasts it (`msg_mvba_cert i c`). A
+  commits it (`mvba.decidedCert`, an output at its own index), and the
+  validator broadcasts that certificate (`msg_mvba_cert i c`). A
   receiver hands it to its own MVBA (`accept_mvba_commitqc`), and finalizes
   on the entries it certifies (`commit_assign_*_mvba`), after the same
   bridge check on a representation of them. The auxiliary records then hold
@@ -1367,16 +1368,16 @@ action mvba_propose (i : node) (v : mvalue) (mvba_next : mstate) {
 /-- **The decision output** (the supplement's "Decision output and handoff",
 Supplement, Algorithm 1, line 31 (`line:mvba:qc-decide`)). A correct
 validator's MVBA decision outputs the commit certificate that commits it
-(`decide(x, CommitQC)`, the contract's `mvba.decided_certified`), and Chorus
-broadcasts it: `i` sends, under its own name, a certificate `c` that
-certifies the entries of its own decision `v`. A send, so gated on
-participation; once (`local_mvba_cert_sent`). -/
-action send_mvba_cert (i : node) (c : mmsg) (v : mvalue) {
+(`decide(x, CommitQC)`: the contract's output `mvba.decidedCert` at `i`'s
+index), and Chorus broadcasts it: "Upon receiving this output, Chorus
+broadcasts the `CommitQC`". `i` sends, under its own name, the certificate
+its own decision output. A send, so gated on participation; once
+(`local_mvba_cert_sent`). -/
+action send_mvba_cert (i : node) (c : mmsg) {
   require ¬ is_byz i
   require participating i
   require ¬ abandoned i
-  require mvba.decided mvba_st i v
-  require mvba.certifies mvba_st c (mvba.entries v)
+  require mvba.decidedCert mvba_st i c
   require ¬ local_mvba_cert_sent i
   msg_mvba_cert i c := true
   local_mvba_cert_sent i := true

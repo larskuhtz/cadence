@@ -45,10 +45,9 @@ assumption sits on the timer's class.
 Each entry is a scheduling class, the labels in it, and what is assumed of
 them.
 
-* **unfair** — `ByzLabel`; nothing — (F-byz)
-* **unfair** — `AssemblyLabel`, the four anonymous certificate assemblies;
-  nothing — they are the adversary's capability to aggregate signatures,
-  and every correct validator forms its certificates by a step of its own
+* **unfair** — `ByzLabel`, the adversary's signatures and its certificate
+  aggregation (`byz_form_*`); nothing — (F-byz). Every correct validator
+  forms its certificates by a step of its own
 * **weakly fair** — `JusticeLabel`, the two `timeout_*` among them;
   (F-justice)
 * **timer** — `TimerLabel`, i.e. `expire_timer`; (A-viewsync), both clauses

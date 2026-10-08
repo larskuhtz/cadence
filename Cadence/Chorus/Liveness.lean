@@ -525,9 +525,9 @@ model's `decide` on the transferred certificate, deciding a representation
 of its entries. -/
 theorem accept_mvba_commitqc_tr {i r c mvba_next}
     (htr : (atMvba thM).tr thS s (.accept_mvba_commitqc i r c mvba_next) s') :
-    ∃ w e x, c = .commitqc w e ∧ thM.ent x = e ∧
+    ∃ w e x s₀, c = .commitqc w e ∧ thM.ent x = e ∧
       (mvbaRTS (node := node) (nodeset := nodeset) (merkle_root := merkle_root) (view := view)).tr thM
-        s.mvba_st (.decide i w x) s'.mvba_st := by
+        s.mvba_st (.decide i s₀ w x) s'.mvba_st := by
   chorus_tr htr
   obtain ⟨-, -, -, hacc, htr⟩ := htr
   chorus_field_simp
@@ -535,10 +535,10 @@ theorem accept_mvba_commitqc_tr {i r c mvba_next}
   cases c
   case commitqc w e =>
     have h' : Mvba.Accept thM s.mvba_st i (.commitqc w e) mvba_next := hacc
-    obtain ⟨x, hx, h⟩ := h'
+    obtain ⟨s₀, x, hx, h⟩ := h'
     -- The goal was simplified with `e` eliminated through `thM.ent x = e`.
     subst hx
-    exact ⟨w, x, rfl, h⟩
+    exact ⟨w, x, rfl, s₀, h⟩
   all_goals exact (hacc : False).elim
 
 set_option maxHeartbeats 1000000 in
@@ -568,8 +568,8 @@ noncomputable def mvbaComponent
     | mvba_step mvba_next => exact mvba_step_tr htr
     | mvba_propose i v mvba_next => exact ⟨.propose i v, mvba_propose_tr htr⟩
     | accept_mvba_commitqc i r c mvba_next =>
-      obtain ⟨w, e, x, -, -, h⟩ := accept_mvba_commitqc_tr htr
-      exact ⟨.decide i w x, h⟩
+      obtain ⟨w, e, x, s₀, -, -, h⟩ := accept_mvba_commitqc_tr htr
+      exact ⟨.decide i s₀ w x, h⟩
     | abandon i mvba_next => exact ⟨.abandon i, abandon_tr htr⟩
     | mvba_avail_ready i v mvba_next => exact ⟨.become_avail_ready i v, mvba_avail_ready_tr htr⟩
     | _ => exact absurd hl id
@@ -810,8 +810,8 @@ theorem on_mvba_decide_neg_moves {i j : node} {v : MetaBlock node merkle_root}
   simp_all
 
 set_option maxHeartbeats 1000000 in
-theorem send_mvba_cert_moves {i : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)} {v : MetaBlock node merkle_root}
-    (htr : (atMvba thM).tr thS s (.send_mvba_cert i c v) s') : s' ≠ s := by
+theorem send_mvba_cert_moves {i : node} {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)}
+    (htr : (atMvba thM).tr thS s (.send_mvba_cert i c) s') : s' ≠ s := by
   rintro rfl
   chorus_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)

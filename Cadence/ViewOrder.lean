@@ -8,7 +8,7 @@ and it is deliberately weak: a least element, a total order, and `next` as a
 two things it does not say, and this file is where they are named rather than
 assumed in passing.
 
-* **Every view has a successor.** `Mvba.sync_view` is guarded on
+* **Every view has a successor.** Every `Mvba.sync_view_*` step is guarded on
   `vord.next pv v`, so a view with nothing directly above it is a view no
   validator can leave. This is not a proof convenience: without it the model
   is genuinely stuck, and no assumption about scheduling or the network would

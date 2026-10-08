@@ -23,7 +23,7 @@ The proof is §6.2.6's, in its order:
   has entered there. That maximum exists because the views entered at any
   index lie in a finite list (`entered_covered`): each step enters at most
   one view (`entered_set_view`). Neither the node sort nor the views need
-  be finite for this. `Synced M (u + Δ)` is one `sync_view` hop through the
+  be finite for this. `Synced M (u + Δ)` is one `sync_view_*` hop through the
   certificate below `M`.
 * **The successor count.** At most `|below vL|` successors of `M` clear the
   ramp (`exists_iterate_succ_ge`, a pigeonhole over `below vL`), and fewer
@@ -195,7 +195,7 @@ theorem local_prepqc_set {l : Mvba.Label node nodeset value evec view} {i : node
 `v` from `N` on, up to an index at which it is in no higher view, then any
 certificate it holds there and did not hold at `N` is a certificate of
 `v`. By `local_prepqc_set`: an adoption was in its own view, which is `v`;
-an adopting `sync_view` would have taken `i` above `v`. -/
+an adopting `sync_view_adopt` would have taken `i` above `v`. -/
 theorem local_prepqc_new_in_view (r : MvbaRun th) {i : node} {v W : view} {e : evec}
     {N : Nat} (hent : (r.at' N).entered i v = true)
     (hN : ¬ (r.at' N).local_prepqc i W e = true) :
@@ -642,6 +642,7 @@ theorem notPast_of_no_tc {n : Nat} {p : node} (hp : ¬ nset.is_byz p = true) {v 
   by_contra hle'
   exact not_le_of_lt hvV (((vord.next_def PV V).mp hPV).2 v (lt_of_not_le hle'))
 
+omit [AddCommMonoid time] in
 /-- **The two `sync_view_*` steps on one certificate.** A correct validator
 holding its input, active, and not yet above `pv`, can advance on a
 certificate for `pv` sent by `s`: the step that matches its kind

@@ -322,6 +322,15 @@ theorem certifies_mono_tr
   cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
     mvba_field_simp <;> first | exact h | (right; exact h)
 
+set_option maxHeartbeats 8000000 in
+/-- A decision's output certificate stands across every action. -/
+theorem decidedCert_mono_tr
+    (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st l st')
+    (p : node) (c : Msg view value evec) (h : DecidedCert st p c) : DecidedCert st' p c := by
+  cases c <;> simp only [DecidedCert] at h ⊢
+  cases l <;> mvba_tr htr <;> (repeat (obtain ⟨_, htr⟩ := htr)) <;>
+    mvba_field_simp <;> first | exact h | (right; exact h)
+
 /-- `propose(e)` at `i` records `input i e`. -/
 theorem propose_effect_tr {i : node} {e : value}
     (htr : (Mvba.relationalTransitionSystem node nodeset value evec view).tr th st (.propose i e) st') :
@@ -509,13 +518,11 @@ noncomputable def mvbaSafety :
   decided_certified _ hr i e hi hd := by
     obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed hr i e hi hd
     exact ⟨.commitqc V (th.ent e), hV⟩
-  decidedCert_certifies _ hr p c v hp hc hd := by
+  decidedCert_certifies _ hr p c hp hc := by
     cases c <;> simp only [DecidedCert] at hc
     rename_i V E
     obtain ⟨X, hX, hXE⟩ := Mvba.reachable_decided_qc_decided hr p V E hp hc
-    have hXv : X = v := reachable_integrity hr p X v hp hX hd
-    subst hXv
-    exact ⟨hXE, p, Mvba.reachable_decided_qc_sent hr p V E hp hc⟩
+    exact ⟨X, hX, hXE, p, Mvba.reachable_decided_qc_sent hr p V E hp hc⟩
   accept := Accept th
   accept_trans _ _ c _ h := by
     cases c <;> simp only [Accept] at h

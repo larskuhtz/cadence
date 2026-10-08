@@ -427,7 +427,7 @@ first delivery the timed premise owes has the correct senders the untimed
 (F-justice) asks for: `Owed` is `Delivers`' sender part. -/
 theorem owed_of_delivers {r : TMvbaRun th time} {l : Mvba.Label node nodeset value evec view}
     (h : Delivers r l) : Owed l := by
-  cases l <;> first | exact h.elim | exact h.1 | trivial
+  cases l <;> first | exact h.elim | exact h.1
 
 /-- **While a first delivery is pending**: every correct validator takes
 part. That the receiver has not moved past the message's view — it

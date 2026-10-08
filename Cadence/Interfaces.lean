@@ -1376,10 +1376,11 @@ class MVBASafety (party value entryvec message state pset : Type)
       outputs a certificate. -/
   decided_certified : ∀ st, reachable st → ∀ p v, ¬ byz p → decided st p v →
     ∃ c, decidedCert st p c
-  /-- **The output certificate commits the decision** — it is valid for the
-      decided entries. -/
-  decidedCert_certifies : ∀ st, reachable st → ∀ p c v, ¬ byz p →
-    decidedCert st p c → decided st p v → certifies st c (entries v)
+  /-- **The output certificate commits the decision** — a certificate
+      output at `p` comes with `p`'s decision, and is valid for its
+      entries. -/
+  decidedCert_certifies : ∀ st, reachable st → ∀ p c, ¬ byz p →
+    decidedCert st p c → ∃ v, decided st p v ∧ certifies st c (entries v)
   /-- Input: the caller hands party `p` a transferred certificate `c`. -/
   accept : state → party → message → state → Prop
   /-- Accepting a transferred certificate is a transition of the module. -/
@@ -1428,8 +1429,8 @@ class MVBASafety (party value entryvec message state pset : Type)
 
 /- The handoff and certificate facts no consumer's safety cell reads are
 withheld from the solver. Every field of an instantiated class is otherwise
-a hypothesis of every cell; all but `decidedCert_certifies` have an `∃` in
-their conclusion, and that one no Chorus cell needs. Chorus's cells read
+a hypothesis of every cell, and each of these has an `∃` in its
+conclusion. Chorus's cells read
 the inputs, `certified_unique`, `certified_decided`, `certified_mono` and
 the `availReady` frames, all universal. The withheld fields stay declared
 axioms of the class, proven by `Mvba.mvbaSafety`. -/

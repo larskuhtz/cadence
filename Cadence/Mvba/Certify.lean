@@ -98,8 +98,9 @@ premise off a validator's being in a view, rather than carry it separately.
 `prepqc_valid` is needed where safety is not: `leader_repropose` re-proposes
 a lock **without** re-checking validity (the supplement's `Recover`), while
 `handle_preprepare` requires `valid e`, so the re-proposal is accepted only
-because the lock was valid all along. `msg_tc_backed` gets from
-`sync_view`'s guard to the timeout quorum behind the certificate, and so to
+because the lock was valid all along. `msg_tc_backed` gets from a sent
+certificate to the `sync_view_*` step it enables and to the timeout quorum
+behind it, and so to
 a *correct* validator that timed out in the view — the step that shows a run
 cannot advance past the honest-led view without doing what (A-viewsync)
 forbids.

@@ -128,8 +128,8 @@ theorem prepqc_not_below_of_guard_disabled
   | false => rfl
   | true => exact absurd hb hold
 
-/-- `∀ V, entered i V → V ≤ pv`, the guard of `sync_view` and
-`sync_view_adopt`, is falsified only by entering a view above `pv`. -/
+/-- `∀ V, entered i V → V ≤ pv`, the guard of the `sync_view_*` steps, is
+falsified only by entering a view above `pv`. -/
 theorem entered_above_of_guard_disabled
     (i : node) (pv : view)
     (h : ∀ V, st.entered i V = true → vord.le V pv)

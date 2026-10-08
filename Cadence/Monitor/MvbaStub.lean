@@ -221,7 +221,9 @@ synthesis sees through its fields. -/
   certified_mono _ _ _ _ _ h := h
   -- The decision handoff: nothing is ever certified, so nothing is accepted.
   certifies _ _ _ := False
+  decidedCert _ _ _ := False
   decided_certified _ _ _ _ _ h := h.elim
+  decidedCert_certifies _ _ _ _ _ h := h.elim
   accept _ _ _ _ := False
   accept_trans _ _ _ _ h := h.elim
   accept_effect _ _ _ _ _ h _ := h.elim
@@ -255,6 +257,11 @@ enabled either. -/
 instance silentMvba.decAccept {α pset : Type} {B : ByzNodeSet α pset} (byz : α → Prop)
     (st : Unit) (i : α) (c : Unit) (st' : Unit) :
     Decidable ((silentMvba (B := B) byz).accept st i c st') := isFalse id
+/-- Nobody decides under the stub, so no decision outputs a certificate and
+`send_mvba_cert` is never enabled. -/
+instance silentMvba.decDecidedCert {α pset : Type} {B : ByzNodeSet α pset} (byz : α → Prop)
+    (st : Unit) (i : α) (c : Unit) :
+    Decidable ((silentMvba (B := B) byz).decidedCert st i c) := isFalse id
 /-- Nothing is certified under the stub, so the `CommitQC` route's handlers
 are never enabled. -/
 instance silentMvba.decCertifies {α pset : Type} {B : ByzNodeSet α pset} (byz : α → Prop)
