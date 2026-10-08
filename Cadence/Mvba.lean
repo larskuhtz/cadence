@@ -838,6 +838,9 @@ at most its own (see the header: a higher one counts as `⊥`). -/
 action byz_timeout_qc (r : node) (s : node) (v : view) (w : view) (e : evec) {
   require is_byz r
   require msg_prepqc s w e
+  -- The receiver's reading of a certificate above the timeout's view as `⊥`
+  -- (the header), stated on the sender; it moves to the honest receivers
+  -- ([Locality.md](../docs/Locality.md) §4, B4).
   require vord.le w v
   msg_timeout_qc r v w e := true
 }

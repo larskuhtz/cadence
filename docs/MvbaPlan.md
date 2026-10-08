@@ -1943,7 +1943,8 @@ stays.
 ### 11.8 As built: what changed against the design
 
 Implementation (2026-10-08) followed §11.2–§11.6 with option A, approved by
-Lars. Four refinements, each recorded here:
+Lars. Four refinements, each recorded here. Lars approved item 2 on
+2026-10-08; item 1 is the supplement's own rule and needed no decision:
 
 1. **The leader reads `ViewTC_l`, its own certificate.** The design gave
    `leader_repropose` and `leader_propose_fresh` a sender parameter and
