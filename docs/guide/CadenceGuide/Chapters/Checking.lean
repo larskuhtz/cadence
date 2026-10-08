@@ -165,8 +165,8 @@ every condition real is the claim "nothing is stubbed", as a build check.
 Adding a property to a model changes its number of conditions, and the pin
 fails until it is updated.
 
-*What the pins do not say.* They say the proofs are complete and rest on
-Lean's axioms. Whether the statements are the right ones, that the model is
+*What the pins leave to the reader.* They say the proofs are complete and
+rest on Lean's axioms. Whether the statements are the right ones, that the model is
 the paper's protocol and its premises are plausible, is the reader's part:
 {chapter Claims}[chapter 2], {chapter ModelIdioms}[chapter 4] and
 {chapter Contracts}[chapter 5].

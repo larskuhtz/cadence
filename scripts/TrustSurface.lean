@@ -184,9 +184,36 @@ conclusion:
 * **Consistency witnesses.** The ideal ACS produces `ACSSafety` and
   `ACSTemporal` with no requirement, and the composed witness instantiates
   the Conductor at it. Both are models that show the premises can be met
-  (`witnessModules`), so they are reported apart and prove no contract. -/
+  (`witnessModules`), so they are reported apart and prove no contract.
+
+Two kinds of declaration have a contract at the head without building an
+instance of their own, and are left out (`ownInstances`):
+
+* a *transport*, which takes a value of the class it produces
+  (`SlotConsensusSafety.castByz`, which restates an instance at an equal
+  fault predicate);
+* a *derived* instance, whose definition uses another provider of the same
+  class: a real one, or, for a witness, any (`Cadence.chorusInstance` is
+  `Chorus.slotConsensusSafety` at one configuration, and
+  `Composed.Witness.OSI` is `Composed.OS`, itself
+  `Conductor.orchestratorSafety`, at the ideal ACS).
+
+Neither rule hides the last real provider of a class. A transport needs an
+instance from elsewhere, so it never is the only source of one. A real
+provider is hidden only for using another real one, and definitions cannot
+refer to each other in a cycle, so every chain of real providers ends at one
+that stays listed.
+
+The same rule, in the same words, is `providersOf` in the guide's
+[Audit.lean](../docs/guide/CadenceGuide/Audit.lean); the two programs share
+no import, so it is kept in both, and a change to one is made in both. -/
+def ownInstances (all : Array (Provider × NameSet)) : Array Provider :=
+  all.filterMap fun (p, uses) =>
+    if all.any (fun (q, _) => q.name != p.name && (!q.witness || p.witness) && uses.contains q.name)
+    then none else some p
+
 def providerMap (env : Environment) : Std.HashMap Name (Array Provider) := Id.run do
-  let mut m : Std.HashMap Name (Array Provider) := {}
+  let mut m : Std.HashMap Name (Array (Provider × NameSet)) := {}
   for (n, ci) in env.constants.toList do
     if n.isInternalDetail then continue
     if (env.getProjectionFnInfo? n).isSome then continue
@@ -197,19 +224,32 @@ def providerMap (env : Environment) : Std.HashMap Name (Array Provider) := Id.ru
         | .defnInfo _ | .thmInfo _ | .opaqueInfo _ =>
           match headSymbol ci.type with
           | some cls =>
-            if contractClasses.contains cls then
-              let reqs := (binderHeads ci.type).filter contractClasses.contains
-              m := m.insert cls ((m.getD cls #[]).push ⟨n, reqs.eraseDups, isWitnessModule mod⟩)
+            let heads := binderHeads ci.type
+            -- a transport takes the class it produces
+            if contractClasses.contains cls && !heads.contains cls then
+              let reqs := heads.filter contractClasses.contains
+              let uses := match ci.value? with
+                | some v => v.getUsedConstants.foldl (·.insert ·) {}
+                | none => {}
+              m := m.insert cls ((m.getD cls #[]).push (⟨n, reqs.eraseDups, isWitnessModule mod⟩, uses))
           | none => pure ()
         | _ => pure ()
     | none => pure ()
-  return m
+  return m.fold (fun acc cls all => acc.insert cls (ownInstances all)) {}
 
 set_option maxHeartbeats 1000000 in
 run_cmd liftTermElabM do
   let env ← getEnv
   let anchors ← loadAnchors
   let provMap := providerMap env
+  -- The contracts with a proof: a real provider all of whose requirements
+  -- are proven, to a fixpoint (one round per contract suffices).
+  let mut provenSet : List Name := []
+  for _ in contractClasses do
+    for cls in contractClasses do
+      if !provenSet.contains cls &&
+          (provMap.getD cls #[]).any (fun pr => !pr.witness && pr.requires.all provenSet.contains) then
+        provenSet := cls :: provenSet
   let mut o : Array String := #[]
   let p (s : String) : Array String → Array String := fun a => a.push s
   o := p "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">" o
@@ -284,7 +324,7 @@ run_cmd liftTermElabM do
   o := p "<p>Three states are distinguished, and the difference between the last
     two is the point of this table.
     <strong>Proven</strong>: some declaration of this development produces the
-    contract outright.
+    contract outright, or from contracts that are themselves proven.
     <strong>Proven relative to …</strong>: it is produced only when another
     contract is supplied — sound, but it inherits whatever that one assumes.
     <strong>Assumed</strong>: no protocol of this development produces it.
@@ -307,9 +347,11 @@ run_cmd liftTermElabM do
       -- Three states, and the difference between the last two is the whole
       -- point of the page: a contract can be proven outright, proven only
       -- relative to another contract that is itself assumed, or assumed.
-      -- Witnesses are listed but decide nothing.
+      -- Witnesses are listed but decide nothing. A join whose requirements
+      -- are all proven is a proof (`provenSet`): Chorus's instance needs the
+      -- MVBA's, which is proven.
       let status :=
-        if !direct.isEmpty then "<span class=\"ok\">proven</span>"
+        if provenSet.contains cls then "<span class=\"ok\">proven</span>"
         else if !joins.isEmpty then
           let deps := (joins.toList.flatMap (·.requires)).eraseDups
           s!"proven relative to {String.intercalate ", " (deps.map (fun r => s!"<code>{esc r.toString}</code>"))}"

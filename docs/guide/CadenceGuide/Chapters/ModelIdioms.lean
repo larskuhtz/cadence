@@ -7,6 +7,7 @@ action against them. The table is the data file
 bodies and checked against the model's actions when the guide builds.
 -/
 import CadenceGuide.Elements
+import CadenceGuide.ChapterList
 
 open Verso.Genre Manual
 open CadenceGuide
@@ -16,7 +17,6 @@ set_option pp.rawOnError true
 #doc (Manual) "What a model asks you to accept" =>
 %%%
 file := "modelling-idioms"
-tag := "modelling-idioms"
 %%%
 
 _The modelling idioms a theorem relies on, how a model can break them, and the per-action table that checks Chorus; assumes chapter 3._
@@ -40,7 +40,7 @@ A Veil model has one state: every validator, the network and the
 environment at once. The language has no notion of a validator's own
 memory, and a guard could read any component. Distribution is a reading of
 that state, carried by the names of its components
-({ref "reading-a-model"}[chapter 3] has the table):
+({chapter ReadingModel}[chapter 3] has the table):
 
 * *Local rows.* A `local_*` relation is indexed by the validator that owns
   it, its first argument: `local_entry_pos i j m` is validator `i`'s record.
@@ -61,21 +61,28 @@ that state, carried by the names of its components
 The reading becomes rules for actions. They are stated once, for every
 model, in [Locality.md](../../../Locality.md), in a form a checker can apply
 by matching names, index positions and the sign of a read. A correct
-validator `x`
+validator `x` reads
 
-* reads its own local rows, in either polarity;
-* reads messages only in positive position, and a chunk only as its
-  recipient;
-* reads its own sends in either polarity: "I have signed no other root",
+* *R1* its own local rows, in either polarity;
+* *R2* messages in positive position, and a point-to-point message, a
+  chunk, only as its recipient;
+* *R3* its own sends, in either polarity: "I have signed no other root",
   "I have not cast my commit vote";
-* reads global time, configuration, and the MVBA class at index `x`;
-* writes its own local rows, messages under its own name, and the MVBA's
-  state only through an input at index `x`.
+* *R4* global time;
+* *R5* configuration, and the fault predicate only at `x`;
+* *R6* the MVBA class's operations at index `x`;
+
+and writes
+
+* *W1* its own local rows;
+* *W2* messages under its own name, only by adding them;
+* *W3* the MVBA's state, only through an input at index `x`.
 
 The environment reads and writes only global time. A Byzantine validator
 may read anything, since a coalition of them is subsumed by one
 unconstrained adversary, and it writes messages only under its own name.
-There are no exceptions: a read that fits no rule is a gap in the model.
+A read or a write that fits no rule is a gap in the model, to be replaced
+by one that fits.
 
 # The shared phase
 
@@ -131,8 +138,8 @@ receipts:
 Monotone updates hold by the form of every update: Veil's generated
 monotonicity lemmas cover the updates that write `true`, and the three bulk
 updates of `vote` are proven monotone by hand. The rules on reads are
-checked by no tool. They are checked by reading each action, which the
-audit table below records ([Architecture.md](../../../Architecture.md) §4,
+checked by reading each action, and the audit table below records that
+check ([Architecture.md](../../../Architecture.md) §4,
 item 1).
 
 # The adversary as explicit actions
@@ -178,8 +185,8 @@ require ∀ i', ¬ local_committed_neg i' j     -- outline: not in the model
 `agreement_pos_neg` would then hold by this guard: a validator commits only
 when it sees no conflicting commit. No real validator can see another's
 commits, so the theorem would say nothing about the protocol, whose
-agreement rests on quorum intersection. The rule broken: a validator reads
-only its own local rows.
+agreement rests on quorum intersection. The rule broken: *R1*, a validator
+reads only its own local rows.
 
 *A guard consulting the fault pattern.* Suppose `record_chunk i j m` also
 required `¬ is_byz j`, so that correct validators record only correct
@@ -192,8 +199,8 @@ require ¬ is_byz j                           -- outline: not in the model
 A Byzantine proposer's equivocation, different chunks to different
 validators, would never reach a correct validator's entries, and every
 property that has to survive it would hold because an oracle filtered the
-attack out. The rule broken: a correct validator's action reads the fault
-predicate only at its actor.
+attack out. The rule broken: *R5*, a correct validator's action reads the
+fault predicate only at its actor.
 
 *Acting on knowledge no node could have.* Suppose `fb_sign_neg` read the
 votes on the network instead of its own receipts, negatively:
@@ -208,7 +215,7 @@ the runs in which a validator signs negative while a positive quorum exists
 elsewhere — the runs with late messages, which asynchrony makes real, and
 which the speculative-safety argument has to survive — and a Byzantine
 validator signing a late positive entry could block a correct validator's
-step. The rule broken: messages are read only in positive position.
+step. The rule broken: *R2*, messages are read only in positive position.
 
 Nothing in the build flags any of these edits. The proofs still go through,
 and may get easier. That is why the rules are checked by reading the
@@ -251,7 +258,8 @@ position: messages and certificates, the phase, and the MVBA class's
 operations. *Negative network reads* are only ever the actor's own sends.
 Configuration, such as `is_proposer`, is fixed data every validator knows
 and is left out. The note names the rules of
-[Locality.md](../../../Locality.md) each row follows.
+[Locality.md](../../../Locality.md) each row follows; a note marked ⚠ is
+an open item of its §7.
 
 The guide's build checks that every action of the model has a row and that
 every relation the derived columns name is part of the model, so the table

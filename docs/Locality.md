@@ -1,17 +1,22 @@
 # Locality — what an action may read and write
 
+*The locality rules for the actions of every model. [The guide's chapter
+4](https://larskuhtz.github.io/cadence/guide/modelling-idioms/) teaches them
+on Chorus: why each matters, how a departure makes a theorem hold for the
+wrong reason, and the table that checks every Chorus action. This page is
+the authority for the rules, and the specification of a locality checker.*
+
 The models describe a distributed protocol only if every correct
 validator's step depends on what that validator can know, and changes only
 what it owns. This page states that requirement once, for every model, as
 rules that each action can be checked against by pattern matching over
 names, index positions and the polarity of a read. A read or a write that
 fits no rule is a gap in the model, to be replaced by one that fits; no
-action carries an argument of its own.
+action has an exception argued for it alone.
 
-The rules are also the specification of a locality checker. The last column
-of each table says whether a rule is **syntactic** — decidable from the
-action's text and the declarations — or needs a **semantic step**, and
-which one.
+The last column of each table says whether a rule is **syntactic** —
+decidable from the action's text and the declarations — or needs a
+**semantic step**, and which one.
 
 ## 1. Why the network is monotone
 

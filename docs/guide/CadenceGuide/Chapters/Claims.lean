@@ -52,8 +52,8 @@ timing premise:
 Besides the ACS contract, the statement takes the three modules'
 configurations and one hypothesis, `hbyz`: the Conductor and Chorus agree on
 which validators are Byzantine. It is a configuration fact, so the front
-page leaves it out. The four timed claims below need no such hypothesis, because they state
-every module at one fault pattern, {decl}`Composed.fmF`.
+page leaves it out. The claims below need no such hypothesis, because they
+state every module at one fault pattern, {decl}`Composed.fmF`.
 
 ## Corollary 4
 
@@ -100,7 +100,7 @@ of every correct validator's log ({cite}`def:censorship-resistance`):
 
 {claim Composed.censorship}
 
-Again at `(W + p − 1)τ` as well ({decl}`Composed.censorship_sharp`).
+It holds at `(W + p − 1)τ` as well ({decl}`Composed.censorship_sharp`).
 Censorship resistance takes two premises more than liveness, both listed
 below.
 
@@ -210,8 +210,8 @@ premises: they hold in every reachable state.
 # What non-vacuous means here
 
 A premise set is non-vacuous when it can hold, and here that is a theorem.
-One model of the whole composed system meets every premise of the four timed
-claims at once: four validators, one of them Byzantine and silent, the ideal
+One model of the whole composed system meets every premise of Corollary 4,
+bounded concurrency, liveness and censorship resistance at once: four validators, one of them Byzantine and silent, the ideal
 ACS of {chapter Contracts}[chapter 5], and a run in which every slot is opened, proposed in,
 finalized and appended, and every window decided and entered. One theorem
 per claim proves that its premises hold there, and only the premises, never
