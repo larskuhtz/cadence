@@ -901,8 +901,10 @@ representation it decided) and `mvba_complete_recorded`.
 `local_committed_pos_unique`, `local_committed_pos_neg_excl`;
 `vote_pos_quorum_implies_decodable`,
 `local_fastqc_pos_chunks_decodable`,
-`mvba_decided_pos_chunks_decodable`, `msg_commitqc_pos_chunks_decodable`,
-`local_committed_pos_implies_decodable` (§3.5.2).
+`mvba_decided_pos_chunks_decodable`, `msg_commitqc_pos_chunks_decodable`;
+from these and `local_committed_pos_backed`, the theorem
+`Chorus.local_committed_pos_implies_decodable` (§3.5.2), proven once at every
+reachable state in [Cadence/Chorus/Compose.lean](../Cadence/Chorus/Compose.lean).
 
 ### 6.6 Conditional-property support
 

@@ -62,6 +62,18 @@ runs up to the budget on CI's 4-core runner. -/
   · exact h_old hne1 hne2 hne3 hnie I1 I2 J M1 M2 h1 h2 hfq
       (hpost (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩))
 
+/- Written out: the solver closes this cell, but its time varies between
+runs up to the budget on CI's 4-core runner. -/
+
+#prove_vc Chorus commit_assign_pos_fast msg_commitqc_pos_backed by
+  unveil_local
+  veil_inv_have h_old := msg_commitqc_pos_backed
+  intro _hbyz _hpart _hab _hcom _hprop hqc _hfresh _hneg C J M hpost
+  by_cases hnew : i = C ∧ j = J ∧ m = M
+  · obtain ⟨rfl, rfl, rfl⟩ := hnew
+    exact h_old c j m hqc
+  · exact h_old C J M (hpost (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩))
+
 #prove_action Chorus commit_assign_pos_fast
 
 end Chorus.Proofs

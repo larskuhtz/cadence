@@ -2443,9 +2443,11 @@ invariant [msg_commitqc_pos_chunks_decodable]
   ∀ (C J : node) (M : merkle_root),
     msg_commitqc_pos C J M → chunk_quorum J M
 
-invariant [local_committed_pos_implies_decodable]
-  ∀ (I : node) (J : node) (M : merkle_root),
-    ¬ is_byz I ∧ local_committed_pos I J M → chunk_quorum J M
+/- That every correct positive commit is decodable follows from the two
+invariants above and `local_committed_pos_backed`; it is the theorem
+`Chorus.local_committed_pos_implies_decodable`
+([Chorus/Compose.lean](Chorus/Compose.lean)), proven once at every reachable
+state rather than re-derived by the solver at every action. -/
 
 /-! ### Proposal inclusion — inductive support
 

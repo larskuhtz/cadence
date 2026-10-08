@@ -83,6 +83,6 @@ theorem in the import closure, over exactly the standard axioms. Run `#veil_stat
 interactively for the per-cell table (theorem, defining file, per-cell
 axiom set; expect minutes at this scale). -/
 
-/-- info: #veil_status Chorus: 6271/6271 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Chorus: 6215/6215 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Chorus

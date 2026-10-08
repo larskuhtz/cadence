@@ -321,6 +321,23 @@ theorem certified_available_chunks {st : Chorus.State (Chorus.FieldAbstractType 
   subst hv
   exact Chorus.reachable_avail_ready_chunks hr p v J M ⟨hpc, hav⟩ hM hfb
 
+/-- **Data availability of every correct positive commit** (the counterpart
+of "`recoverProposals` does not block", Algorithm 6, line 12 (`line:da-wait`)):
+at every reachable state, a root a correct validator committed positively
+has `f+1` validators holding their chunks under it. A commit is backed by a
+fast commit certificate or an MVBA record (`local_committed_pos_backed`), and
+the roots of both are decodable (`msg_commitqc_pos_chunks_decodable`,
+`mvba_decided_pos_chunks_decodable`). -/
+theorem local_committed_pos_implies_decodable {st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
+    (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).reachable th st)
+    {I J : node} {M : merkle_root} (hI : ¬ nset.is_byz I = true)
+    (hc : st.local_committed_pos I J M = true) :
+    ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q = true →
+      ∃ s, st.msg_chunk s r J M = true := by
+  rcases Chorus.reachable_local_committed_pos_backed hr I J M ⟨hI, hc⟩ with ⟨C, hC⟩ | haux
+  · exact Chorus.reachable_msg_commitqc_pos_chunks_decodable hr C J M hC
+  · exact Chorus.reachable_mvba_decided_pos_chunks_decodable hr J M haux
+
 /-! ### The participation interface, from the transition bodies
 
 Module 1 (`mod:slotconsensus`)'s three inputs are Chorus actions, and each
@@ -961,3 +978,9 @@ info: 'Chorus.own_sent_new' depends on axioms: [propext, Classical.choice, Quot.
 -/
 #guard_msgs in
 #print axioms Chorus.own_sent_new
+
+/--
+info: 'Chorus.local_committed_pos_implies_decodable' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Chorus.local_committed_pos_implies_decodable
