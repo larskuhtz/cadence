@@ -1482,7 +1482,7 @@ theorem exists_honest_timed_out_of_tc
       (st.msg_timeout_noqc p V = true ∨ ∃ W' E', st.msg_timeout_qc p V W' E' = true) := by
     rcases Mvba.reachable_msg_tc_backed hr s V htc with hnl | ⟨W, E, hlock⟩
     · obtain ⟨q, hsm, hall⟩ := Mvba.reachable_tc_nolock_backed hr s V hnl
-      exact ⟨q, hsm, fun p hp => Or.inl (hall p hp)⟩
+      exact ⟨q, hsm, fun p hp => (hall p hp).imp id fun ⟨W', E', h, _⟩ => ⟨W', E', h⟩⟩
     · obtain ⟨-, -, q, hsm, hall⟩ := Mvba.reachable_tc_lock_backed hr s V W E hlock
       refine ⟨q, hsm, fun p hp => ?_⟩
       rcases hall p hp with h | ⟨W', E', h, -⟩
@@ -1511,7 +1511,10 @@ theorem exists_honest_timed_out_of_tc_nolock
     ∃ R, ¬ nset.is_byz R = true ∧ st.timed_out R V = true := by
   obtain ⟨q, hsm, hall⟩ := Mvba.reachable_tc_nolock_backed hr s V hnl
   obtain ⟨R, hRq, -, hRhon⟩ := nset.supermajorities_intersect_in_honest q q hsm hsm
-  exact ⟨R, hRhon, Mvba.reachable_honest_timeout_noqc_timed_out hr R V hRhon (hall R hRq)⟩
+  refine ⟨R, hRhon, ?_⟩
+  rcases hall R hRq with h | ⟨W, E, h, -⟩
+  · exact Mvba.reachable_honest_timeout_noqc_timed_out hr R V hRhon h
+  · exact Mvba.reachable_honest_timeout_qc_timed_out hr R V W E hRhon h
 
 /-! ## The good view is not skipped
 
@@ -1905,58 +1908,80 @@ validator once a certificate exists; this produces one.
 The step is a correct validator's `form_own_tc_lock` or
 `form_own_tc_nolock` (`HandleTimeout`). The obstacle is the lock rule,
 whose guard names the member carrying the
-**highest** certificate — a maximum, where every other assembly in this file
-needs only a conjunction. `byz_timeout_qc` lets a Byzantine member carry
-unboundedly many certificates and the monotone relations record no bound,
-so a maximum over all carried certificates need not exist. It is not
-needed: the guard asks each member for *some* carried certificate below the
-chosen one, so it is enough to pick **one per member** and maximise over
-those. The list of members is finite by `ByzNodeSetEnum`; nothing else needs
-to be.
+**highest** certificate of view at most `v` — a maximum, where every other
+assembly in this file needs only a conjunction. `byz_timeout_qc` lets a
+Byzantine member carry unboundedly many certificates and the monotone
+relations record no bound, so a maximum over all carried certificates need
+not exist. It is not needed: the guard asks each member for *some*
+`Timeout` that reads as `⊥` or carries a certificate below the chosen one,
+so it is enough to pick **one per member** and maximise over those. A
+`Timeout` carrying a certificate above `v` reads as `⊥` (the
+[Mvba.lean](../Mvba.lean) header), so the selection sorts each pick into
+the two kinds first. The list of members is finite by `ByzNodeSetEnum`;
+nothing else needs to be.
 
 So the selection is an ordinary fold over a list, using only totality and
 transitivity of the view order, and it needs no invariant and no
 correctness assumption on the members. -/
 
 omit [Inhabited node] [Inhabited nodeset] [Inhabited value] [Inhabited evec] [Inhabited view] nset in
-/-- **Either every member sent the lock-free `Timeout`, or one of them
-carries a certificate that dominates a choice from every other.** An
-induction over the member list; the four cases are the two for the head
-crossed with the two for the tail, and the only order reasoning is
-`le_total` and `le_trans`. -/
+/-- **Either every member's `Timeout` reads as `⊥`, or one of them carries a
+certificate of view at most `v` that dominates a choice from every other.**
+A `Timeout` reads as `⊥` when it is lock-free or carries a certificate of a
+view above its own. An induction over the member list; the four cases are
+the two for the head crossed with the two for the tail, and the only order
+reasoning is `le_total` and `le_trans`. -/
 theorem exists_dominating_timeout
     {st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)} {v : view} :
     ∀ (ms : List node), (∀ p ∈ ms, SentTimeout st p v) →
-      (∀ p ∈ ms, st.msg_timeout_noqc p v = true) ∨
+      (∀ p ∈ ms, st.msg_timeout_noqc p v = true ∨
+        ∃ W E, st.msg_timeout_qc p v W E = true ∧ vord.lt v W) ∨
       ∃ (r₀ : node) (w : view) (e : evec), r₀ ∈ ms ∧
-        st.msg_timeout_qc r₀ v w e = true ∧
+        st.msg_timeout_qc r₀ v w e = true ∧ vord.le w v ∧
         ∀ p ∈ ms, st.msg_timeout_noqc p v = true ∨
-          ∃ W E, st.msg_timeout_qc p v W E = true ∧ vord.le W w
+          ∃ W E, st.msg_timeout_qc p v W E = true ∧ (vord.le W w ∨ vord.lt v W)
   | [], _ => Or.inl (by simp)
   | a :: ms, h => by
     have htail := exists_dominating_timeout ms (fun p hp => h p (by simp [hp]))
-    rcases h a (by simp) with hna | ⟨wa, ea, hqa⟩
-    · rcases htail with hall | ⟨r₀, w, e, hr₀, hq₀, hdom⟩
+    -- The head's pick, sorted: it reads as `⊥`, or carries a certificate of
+    -- view at most `v`.
+    have hhead : (st.msg_timeout_noqc a v = true ∨
+          ∃ W E, st.msg_timeout_qc a v W E = true ∧ vord.lt v W) ∨
+        ∃ wa ea, st.msg_timeout_qc a v wa ea = true ∧ vord.le wa v := by
+      rcases h a (by simp) with hna | ⟨wa, ea, hqa⟩
+      · exact Or.inl (Or.inl hna)
+      · by_cases hle : vord.le wa v
+        · exact Or.inr ⟨wa, ea, hqa, hle⟩
+        · exact Or.inl (Or.inr ⟨wa, ea, hqa, lt_of_not_le hle⟩)
+    -- A member that reads as `⊥` meets the lock rule's condition at any `w`.
+    have hbot : ∀ p (w : view), (st.msg_timeout_noqc p v = true ∨
+          ∃ W E, st.msg_timeout_qc p v W E = true ∧ vord.lt v W) →
+        st.msg_timeout_noqc p v = true ∨
+          ∃ W E, st.msg_timeout_qc p v W E = true ∧ (vord.le W w ∨ vord.lt v W) :=
+      fun _ _ hp => hp.imp id fun ⟨W, E, hW, hlt⟩ => ⟨W, E, hW, Or.inr hlt⟩
+    rcases hhead with hna | ⟨wa, ea, hqa, hla⟩
+    · rcases htail with hall | ⟨r₀, w, e, hr₀, hq₀, hl₀, hdom⟩
       · exact Or.inl (fun p hp => by
           rcases List.mem_cons.mp hp with rfl | hp' <;> [exact hna; exact hall p hp'])
-      · refine Or.inr ⟨r₀, w, e, by simp [hr₀], hq₀, fun p hp => ?_⟩
-        rcases List.mem_cons.mp hp with rfl | hp' <;> [exact Or.inl hna; exact hdom p hp']
-    · rcases htail with hall | ⟨r₀, w, e, hr₀, hq₀, hdom⟩
-      · refine Or.inr ⟨a, wa, ea, by simp, hqa, fun p hp => ?_⟩
+      · refine Or.inr ⟨r₀, w, e, by simp [hr₀], hq₀, hl₀, fun p hp => ?_⟩
+        rcases List.mem_cons.mp hp with rfl | hp' <;> [exact hbot _ w hna; exact hdom p hp']
+    · rcases htail with hall | ⟨r₀, w, e, hr₀, hq₀, hl₀, hdom⟩
+      · refine Or.inr ⟨a, wa, ea, by simp, hqa, hla, fun p hp => ?_⟩
         rcases List.mem_cons.mp hp with rfl | hp'
-        · exact Or.inr ⟨wa, ea, hqa, vord.le_refl wa⟩
-        · exact Or.inl (hall p hp')
+        · exact Or.inr ⟨wa, ea, hqa, Or.inl (vord.le_refl wa)⟩
+        · exact hbot p wa (hall p hp')
       · rcases vord.le_total wa w with hle | hle
-        · refine Or.inr ⟨r₀, w, e, by simp [hr₀], hq₀, fun p hp => ?_⟩
+        · refine Or.inr ⟨r₀, w, e, by simp [hr₀], hq₀, hl₀, fun p hp => ?_⟩
           rcases List.mem_cons.mp hp with rfl | hp'
-          · exact Or.inr ⟨wa, ea, hqa, hle⟩
+          · exact Or.inr ⟨wa, ea, hqa, Or.inl hle⟩
           · exact hdom p hp'
-        · refine Or.inr ⟨a, wa, ea, by simp, hqa, fun p hp => ?_⟩
+        · refine Or.inr ⟨a, wa, ea, by simp, hqa, hla, fun p hp => ?_⟩
           rcases List.mem_cons.mp hp with rfl | hp'
-          · exact Or.inr ⟨wa, ea, hqa, vord.le_refl wa⟩
-          · rcases hdom p hp' with hn | ⟨W, E, hW, hWle⟩
+          · exact Or.inr ⟨wa, ea, hqa, Or.inl (vord.le_refl wa)⟩
+          · rcases hdom p hp' with hn | ⟨W, E, hW, hWle | hlt⟩
             · exact Or.inl hn
-            · exact Or.inr ⟨W, E, hW, vord.le_trans W w wa hWle hle⟩
+            · exact Or.inr ⟨W, E, hW, Or.inl (vord.le_trans W w wa hWle hle)⟩
+            · exact Or.inr ⟨W, E, hW, Or.inr hlt⟩
 
 /-- **`form_own_tc_lock`'s guards are its enabledness.** -/
 theorem enabled_form_own_tc_lock {i : node} {v : view} {q : nodeset} {r₀ s : node} {w : view}
@@ -1970,7 +1995,7 @@ theorem enabled_form_own_tc_lock {i : node} {v : view} {q : nodeset} {r₀ s : n
     (hqc : st.msg_timeout_qc r₀ v w e = true)
     (hpq : st.msg_prepqc s w e = true) (hle : vord.le w v)
     (hdom : ∀ p, nset.member p q = true → st.msg_timeout_noqc p v = true ∨
-      ∃ W E, st.msg_timeout_qc p v W E = true ∧ vord.le W w) :
+      ∃ W E, st.msg_timeout_qc p v W E = true ∧ (vord.le W w ∨ vord.lt v W)) :
     Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.form_own_tc_lock i v q r₀ s w e) := by
   mvba_enabled
@@ -1992,7 +2017,8 @@ theorem enabled_form_own_tc_nolock {i : node} {v : view} {q : nodeset}
     (hview : InView st i v)
     (hnf : ¬ st.tc_formed i v = true)
     (hsm : nset.supermajority q)
-    (hall : ∀ p, nset.member p q = true → st.msg_timeout_noqc p v = true) :
+    (hall : ∀ p, nset.member p q = true → st.msg_timeout_noqc p v = true ∨
+      ∃ W E, st.msg_timeout_qc p v W E = true ∧ vord.lt v W) :
     Enabled (Mvba.relationalTransitionSystem node nodeset value evec view) th st
       (.form_own_tc_nolock i v q) := by
   mvba_enabled
@@ -2036,15 +2062,17 @@ theorem eventually_tc_of_timed_out_quorum
   have hnf : ∀ n, N ≤ n → ¬ (r.at' n).tc_formed i v = true := fun n hn h =>
     hcon n hn (Mvba.reachable_tc_formed_backed (r.reachable n) i v h)
   rcases exists_dominating_timeout (enum.members q)
-      (fun p hp => hto p ((enum.mem_members p q).mpr hp)) with hall | ⟨r₀, w, e, hr₀, hq₀, hdom⟩
+      (fun p hp => hto p ((enum.mem_members p q).mpr hp)) with hall | ⟨r₀, w, e, hr₀, hq₀, hle, hdom⟩
   -- No lock anywhere: the lock-free rule applies.
   · obtain ⟨n, hn, hfire⟩ :=
       hfj (.form_own_tc_nolock i v q)
         (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) hQ N
         (fun n hn => (enabled_form_own_tc_nolock hi ⟨E₀, hin' n hn⟩ (hact n hn) (hview n hn) (hnf n hn)
-            hsm (fun p hp => hmono (fun s => s.msg_timeout_noqc p v = true)
-              (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm)
-              (hall p ((enum.mem_members p q).mp hp)) n hn)))
+            hsm (fun p hp => (hall p ((enum.mem_members p q).mp hp)).imp
+              (fun h => hmono (fun s => s.msg_timeout_noqc p v = true)
+                (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm) h n hn)
+              (fun ⟨W, E, hW, hlt⟩ => ⟨W, E, hmono (fun s => s.msg_timeout_qc p v W E = true)
+                (fun m hm => Mvba.msg_timeout_qc.mono (r.steps m) p v W E hm) hW n hn, hlt⟩))))
     exact hcon (n + 1) (by omega) (form_own_tc_nolock_effect (hfire ▸ r.steps n))
   -- Otherwise the dominating member is the lock rule's `r₀`.
   · have hq₀' := hmono (fun s => s.msg_timeout_qc r₀ v w e = true)
@@ -2052,8 +2080,6 @@ theorem eventually_tc_of_timed_out_quorum
     obtain ⟨S, hpq⟩ := Mvba.reachable_timeout_qc_backed (r.reachable N) r₀ v w e hq₀
     have hpq' := hmono (fun s => s.msg_prepqc S w e = true)
       (fun m hm => Mvba.msg_prepqc.mono (r.steps m) S w e hm) hpq
-    have hle : vord.le w v :=
-      Mvba.reachable_timeout_qc_view_le (r.reachable N) r₀ v w e hq₀
     obtain ⟨n, hn, hfire⟩ :=
       hfj (.form_own_tc_lock i v q r₀ S w e)
         (⟨fun h => h, fun h => h, fun h => h, fun h => h⟩) hQ N

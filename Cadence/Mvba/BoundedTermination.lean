@@ -787,12 +787,14 @@ theorem form_own_tc_enabled (enum : ByzNodeSetEnum node nodeset nset)
       ¬ (r.at' n).tc_formed i v = true := fun n hnot h =>
     hnot ⟨v, i, hi, vord.le_refl v, Mvba.reachable_tc_formed_backed (r.reachable n) i v h⟩
   rcases exists_dominating_timeout (enum.members q)
-      (fun p hp => hto p ((enum.mem_members p q).mpr hp)) with hall | ⟨r₀, w, e, hr₀, hq₀, hdom⟩
+      (fun p hp => hto p ((enum.mem_members p q).mpr hp)) with hall | ⟨r₀, w, e, hr₀, hq₀, hle, hdom⟩
   · refine Or.inl fun n hn hact hnot => ?_
     exact enabled_form_own_tc_nolock hi (hin n hn) hact (hview n hn hnot) (hnf n hnot) hsm
-      (fun p hp => r.mono (P := fun s => s.msg_timeout_noqc p v = true)
-        (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm)
-        (hall p ((enum.mem_members p q).mp hp)) n hn)
+      (fun p hp => (hall p ((enum.mem_members p q).mp hp)).imp
+        (fun h => r.mono (P := fun s => s.msg_timeout_noqc p v = true)
+          (fun m hm => Mvba.msg_timeout_noqc.mono (r.steps m) p v hm) h n hn)
+        (fun ⟨W, E, hW, hlt⟩ => ⟨W, E, r.mono (P := fun s => s.msg_timeout_qc p v W E = true)
+          (fun m hm => Mvba.msg_timeout_qc.mono (r.steps m) p v W E hm) hW n hn, hlt⟩))
   · obtain ⟨S, hS⟩ := Mvba.reachable_timeout_qc_backed (r.reachable N) r₀ v w e hq₀
     refine Or.inr ⟨r₀, S, w, e, fun n hn hact hnot => ?_⟩
     exact enabled_form_own_tc_lock hi (hin n hn) hact (hview n hn hnot) (hnf n hnot) hsm
@@ -801,7 +803,7 @@ theorem form_own_tc_enabled (enum : ByzNodeSetEnum node nodeset nset)
         (fun m hm => Mvba.msg_timeout_qc.mono (r.steps m) r₀ v w e hm) hq₀ n hn)
       (r.mono (P := fun s => s.msg_prepqc S w e = true)
         (fun m hm => Mvba.msg_prepqc.mono (r.steps m) S w e hm) hS n hn)
-      (Mvba.reachable_timeout_qc_view_le (r.reachable N) r₀ v w e hq₀)
+      hle
       (fun p hp => by
         rcases hdom p ((enum.mem_members p q).mp hp) with hnq | ⟨W, E, hW, hWle⟩
         · exact Or.inl (r.mono (P := fun s => s.msg_timeout_noqc p v = true)
