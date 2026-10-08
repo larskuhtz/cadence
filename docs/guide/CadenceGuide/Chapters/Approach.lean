@@ -37,8 +37,8 @@ proven over runs of the composed system.
 # Modules and contracts
 
 The paper names four modules, and the development has one model for each
-module it implements, plus the glue that composes them. The diagram on the
-front page shows how they fit:
+module it implements, plus the glue that composes them. The diagram shows
+how they fit:
 
 {figure "docs/diagrams/modules-contracts.svg" (caption := "The modules, the contracts between them, and the composed claims.")}
 
@@ -202,8 +202,9 @@ evidence. In each, the final check is Lean's kernel.
     the proven invariants are needed.
 :::
 
-None of these says that a statement is the right one, or that a premise is
-plausible. That is what a reader checks, and the next chapters show how:
+Each establishes that a statement holds. Whether it is the right statement,
+and whether its premises are plausible, is what a reader checks, and the
+next chapters show how:
 {chapter Claims}[chapter 2] lists each claim's premises in plain words,
 {chapter ReadingModel}[chapter 3] and {chapter ModelIdioms}[chapter 4]
 teach how to read a model and what it asks you to accept, and

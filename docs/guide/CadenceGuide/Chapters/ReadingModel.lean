@@ -1,13 +1,13 @@
 /-
 Chapter 3 of the guide: Reading a model: Chorus.
 
-Teaches the reading of a Veil model on the declarations of Chorus that
-[GuidePlan.md](../../../GuidePlan.md) §4.1 selects: every quotation is
-embedded from the rendered sources (`{model}`) or the compiled development
-(`{claim}`), so a changed declaration changes the page and a vanished one
-fails the build.
+Teaches the reading of a Veil model on selected declarations of Chorus.
+Every quotation is embedded from the rendered sources (`{model}`) or the
+compiled development (`{claim}`), so a changed declaration changes the page
+and a vanished one fails the build.
 -/
 import CadenceGuide.Elements
+import CadenceGuide.ChapterList
 
 open Verso.Genre Manual
 open CadenceGuide
@@ -17,7 +17,6 @@ set_option pp.rawOnError true
 #doc (Manual) "Reading a model: Chorus" =>
 %%%
 file := "reading-a-model"
-tag := "reading-a-model"
 %%%
 
 _How a Veil model states a protocol, taught on selected parts of Chorus; assumes chapter 1, no prior Lean._
@@ -53,8 +52,8 @@ action whose guards hold. A property is *proven* when it holds in every
 state a run can reach. The proof is an induction over the actions: the
 property holds initially, and every action preserves it. Veil turns each
 pair of an action and an invariant into one verification condition, which
-an SMT solver discharges and Lean's kernel then checks; chapter 7, *How
-the proofs are checked*, follows that pipeline.
+an SMT solver discharges and Lean's kernel then checks;
+{chapter Checking}[chapter 7] follows that pipeline.
 
 # One slot
 
@@ -122,7 +121,7 @@ for proposer `j` and root `m`. The first argument is the signer. Actions
 only ever add tuples, so a message, once sent, stays visible to every
 validator: the network is *monotone*. A correct validator's row is written
 only by its own honest actions; a Byzantine validator's row only by the
-adversary's. Chapter 4 explains why this reading of the network is sound
+adversary's. {chapter ModelIdioms}[Chapter 4] explains why this reading of the network is sound
 for safety, and what it asks of every action.
 
 ## Local state
@@ -154,7 +153,7 @@ The slot's landmarks, as one value. Three environment actions,
 it forward, one step each and never back. A validator's timer firing is a
 guard reading the phase: "the deadline has passed" is
 `phase ≠ pre_deadline`. The phase is one value for all validators, and
-chapter 4 says what that asks you to accept.
+{chapter ModelIdioms}[chapter 4] says what that asks you to accept.
 
 # Four honest actions
 
@@ -221,7 +220,7 @@ a correct validator.
 The adversary is a family of such actions, `byz_*`, one per capability:
 each kind of signature, sending a chunk, re-disseminating one, and
 forming and sending a commit certificate. Each writes only its own
-messages, so signatures cannot be forged. Chapter 4 explains why the
+messages, so signatures cannot be forged. {chapter ModelIdioms}[Chapter 4] explains why the
 adversary has to be at least this strong.
 
 # The MVBA as a consumed contract
@@ -236,17 +235,18 @@ undone) is a hypothesis of every verification condition of Chorus, and no
 guard or invariant restates one. Chorus reaches the MVBA only through the
 class's operations: `mvba.step`, `mvba.propose`, `mvba.decided` and the
 others. The instance that fills the class in the composed system is the
-MVBA model's own, {decl}`Mvba.mvbaSafety`. Chapter 5, *Reviewing the
-contracts*, is about checking such a class.
+MVBA model's own, {decl}`Mvba.mvbaSafety`. {chapter Contracts}[Chapter 5]
+is about checking such a class.
 
 {model Cadence.Chorus "action on_mvba_decide_pos"}
 
 The decision handler. It reads validator `i`'s own decision through the
-class (`mvba.decided mvba_st i v`), and marks entry `j` handled in its own
-row; `mvba_terminate` waits for every entry, and the fallback commit vote for
-`mvba_terminate`. Before it does, it checks the
-certificate `v` names for that entry against Chorus's network. That guard
-is the *bridge*: the class's validity predicate is fixed before Chorus's
+class (`mvba.decided mvba_st i v`), checks the certificate that `v` names
+for entry `j` against Chorus's network, and marks the entry handled in its
+own row. Once every entry is handled, `mvba_terminate` records the decision
+as complete, and the fallback commit vote waits for that record.
+
+The certificate check is the *bridge*: the class's validity predicate is fixed before Chorus's
 network exists, so it cannot speak about Chorus's signatures, and the guard
 says what a valid certificate means there. For safety it can only remove
 behaviours, and only if the MVBA were wrong. Liveness needs the other
@@ -277,7 +277,7 @@ checks them all together.
 Termination is about runs, not states: it says that something eventually
 happens. Every correct validator finalizes the slot, in every run that
 satisfies five premises. Each premise is a named definition and an explicit
-hypothesis of the theorem; none is an axiom.
+hypothesis of the theorem.
 
 :::table +header
 *
