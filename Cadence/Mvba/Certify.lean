@@ -110,11 +110,9 @@ leader's proposal is one the `Pre-Prepare` handler will accept; validity
 rests on `input_valid`, which `propose`'s own `valid e` guard makes an
 invariant.
 
-`timed_out_implies_timer`, `timed_out_implies_message` and
-`timeout_qc_view_le` are for closing a view: the timeout actions are guarded
-on the view timer, the timer delivers the local flag while the assemblies
-read the messages, and the lock rule (`form_own_tc_lock`) additionally checks that a carried
-certificate is not of a view above the `Timeout` carrying it.
+`timed_out_implies_timer` and `timed_out_implies_message` are for closing
+a view: the timeout actions are guarded on the view timer, and the timer
+delivers the local flag while the assemblies read the messages.
 
 `input_implies_entered` and `tc_lock_implies_tc` let the good view's entry
 be *derived* rather than assumed. `input_implies_entered` is

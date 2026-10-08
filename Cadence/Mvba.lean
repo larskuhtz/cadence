@@ -163,11 +163,17 @@ outputs). `DecidedQC_i` is set exactly when `i` decides, so
   `sync_view_lock` advances on a lock certificate without adopting, which
   only adds behaviours (the safety argument never relies on adoption).
   Each forwards the certificate it advanced on.
-* **A timeout carrying a certificate of view above its own** contributes
-  to no `highPrepQC` (Supplement, Algorithm 1, line 4 (`line:mvba:derived`)), so for every receiver it is a
-  timeout carrying `⊥`. The model lets a Byzantine sender send the `⊥`
-  form instead (`byz_timeout_qc` requires `w ≤ v`), and the assembly
-  guards need no filter.
+* **A timeout carrying a certificate of view above its own** still counts
+  towards the `2f+1` of a timeout certificate, but its certificate
+  contributes to no `highPrepQC`: one "contributes to `highPrepQC` only if
+  it is itself valid for the same slot and its view is no greater than the
+  view of the timeout message carrying it" (Supplement, Section 1.3
+  (`subsec:mvba-correctness`); Supplement, Algorithm 1, line 4
+  (`line:mvba:derived`)). A Byzantine validator may send one
+  (`byz_timeout_qc`), and the timeout-certificate rules read such a member
+  as carrying `⊥`: the correct validator's (`form_own_tc_*`), as the
+  supplement's receiver does, and the adversary's (`byz_form_tc_*`), whose
+  certificate's `highPrepQC` its signatures determine.
 * **The view timer is an abstract phase marker.** `timer_expired i v` is
   set by `i`'s own timer step `expire_timer` and guards both timeout
   actions. It is a clock with exactly one tick — before the timeout, after
@@ -721,8 +727,9 @@ collecting `2f+1` valid timeout messages" for its current view `v`, `i`
 forms `TC_{s,v}` (Supplement, Algorithm 1, line 4 (`line:mvba:derived`)).
 Here it is the one whose `highPrepQC` is the certificate `(w, e)` carried
 by member `r0`: a valid certificate of view `w ≤ v` (checked against the
-certificate its former `s` attaches), and every member carries `⊥` or a
-certificate of view `≤ w`. `i` records that it has formed it
+certificate its former `s` attaches), and every member carries `⊥`, a
+certificate of view `≤ w`, or one of a view above `v`, which counts as `⊥`
+(the header, "A timeout carrying a certificate of view above its own"). `i` records that it has formed it
 (`tc_formed i v`, whose absence is the "not already formed" condition) and
 sends it under its own name. `i` then processes it through `SyncView`
 (the `sync_view_*` steps, which read it), as every holder does: the
@@ -742,13 +749,15 @@ action form_own_tc_lock (i : node) (v : view) (q : nodeset) (r0 : node) (s : nod
   require msg_prepqc s w e
   require vord.le w v
   require ∀ r, nset.member r q →
-    msg_timeout_noqc r v ∨ ∃ W E, msg_timeout_qc r v W E ∧ vord.le W w
+    msg_timeout_noqc r v ∨
+      ∃ W E, msg_timeout_qc r v W E ∧ (vord.le W w ∨ vord.lt v W)
   tc_formed i v := true
   msg_tc i v := true
   msg_tc_lock i v w e := true
 }
 
-/-- The same rule when every member of the quorum carries `⊥`. -/
+/-- The same rule when every member of the quorum carries `⊥`, or a
+certificate of a view above `v`, which counts as `⊥`. -/
 action form_own_tc_nolock (i : node) (v : view) (q : nodeset) {
   require ¬ is_byz i
   require ∃ E, input i E
@@ -757,7 +766,8 @@ action form_own_tc_nolock (i : node) (v : view) (q : nodeset) {
   require in_view i v
   require ¬ tc_formed i v
   require nset.supermajority q
-  require ∀ r, nset.member r q → msg_timeout_noqc r v
+  require ∀ r, nset.member r q →
+    msg_timeout_noqc r v ∨ ∃ W E, msg_timeout_qc r v W E ∧ vord.lt v W
   tc_formed i v := true
   msg_tc i v := true
   msg_tc_nolock i v := true
@@ -833,12 +843,12 @@ action byz_commit (r : node) (v : view) (e : evec) {
   msg_commit r v e := true
 }
 
-/-- A Byzantine timeout carries `⊥` or a certificate that exists, of view
-at most its own (see the header: a higher one counts as `⊥`). -/
+/-- A Byzantine timeout carries `⊥` or a certificate that exists, of any
+view; one above its own view counts as `⊥` at every timeout-certificate
+rule (the header). -/
 action byz_timeout_qc (r : node) (s : node) (v : view) (w : view) (e : evec) {
   require is_byz r
   require msg_prepqc s w e
-  require vord.le w v
   msg_timeout_qc r v w e := true
 }
 
@@ -879,17 +889,19 @@ action byz_form_tc_lock (r : node) (v : view) (q : nodeset) (r0 : node) (s : nod
   require msg_prepqc s w e
   require vord.le w v
   require ∀ R, nset.member R q →
-    msg_timeout_noqc R v ∨ ∃ W E, msg_timeout_qc R v W E ∧ vord.le W w
+    msg_timeout_noqc R v ∨
+      ∃ W E, msg_timeout_qc R v W E ∧ (vord.le W w ∨ vord.lt v W)
   msg_tc r v := true
   msg_tc_lock r v w e := true
 }
 
-/-- `2f+1` timeouts of view `v`, each carrying `⊥`, form a lock-free
-`TC_{s,v}`. -/
+/-- `2f+1` timeouts of view `v`, each carrying `⊥` or a certificate of a
+view above `v`, form a lock-free `TC_{s,v}`. -/
 action byz_form_tc_nolock (r : node) (v : view) (q : nodeset) {
   require is_byz r
   require nset.supermajority q
-  require ∀ R, nset.member R q → msg_timeout_noqc R v
+  require ∀ R, nset.member R q →
+    msg_timeout_noqc R v ∨ ∃ W E, msg_timeout_qc R v W E ∧ vord.lt v W
   msg_tc r v := true
   msg_tc_nolock r v := true
 }
@@ -1188,15 +1200,18 @@ invariant [msg_tc_backed]
 
 invariant [tc_nolock_backed]
   ∀ (S : node) (V : view), msg_tc_nolock S V →
-    ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_timeout_noqc r V
+    ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q →
+      msg_timeout_noqc r V ∨ ∃ W E, msg_timeout_qc r V W E ∧ vord.lt V W
 
 /-- A sent lock is a certificate of view `≤ v` carried by a member of
-a `2f+1` timeout quorum none of whose members carries a higher one. -/
+a `2f+1` timeout quorum none of whose members carries a higher one of view
+`≤ v`. -/
 invariant [tc_lock_backed]
   ∀ (S : node) (V W : view) (E : evec), msg_tc_lock S V W E →
     (∃ S', msg_prepqc S' W E) ∧ vord.le W V ∧
     ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q →
-      msg_timeout_noqc r V ∨ ∃ W' E', msg_timeout_qc r V W' E' ∧ vord.le W' W
+      msg_timeout_noqc r V ∨
+        ∃ W' E', msg_timeout_qc r V W' E' ∧ (vord.le W' W ∨ vord.lt V W')
 
 /-- **Every sent lock is a timeout certificate.** The converse direction
 of `msg_tc_backed` for the lock case: every step that sends `msg_tc_lock`
@@ -1314,17 +1329,17 @@ invariant [timed_out_implies_message]
     ¬ is_byz R → timed_out R V →
       msg_timeout_noqc R V ∨ ∃ W E, msg_timeout_qc R V W E
 
-/-- **A carried certificate is never of a view above the `Timeout` that
-carries it** (Supplement, Algorithm 1, line 4 (`line:mvba:derived`): one that is counts as no certificate at
-all). A Byzantine sender is held to it by `byz_timeout_qc`'s guard; an
-honest one gets it from `local_prepqc_within_entered` at its current view.
+/-- **A correct validator's `Timeout` never carries a certificate of a view
+above its own**: it carries the certificate it holds, which is of a view
+it has entered (`local_prepqc_within_entered`), at most its current one. A
+Byzantine `Timeout` may; the timeout-certificate rules read it as `⊥`
+(the header).
 
-Liveness needs it for `form_own_tc_lock`'s `vord.le w v`, the last of that
-action's guards not already available when the timeout quorum is in
-hand. -/
+Lock persistence needs it: the correct member a quorum intersection
+yields is never one whose certificate the rules read as `⊥`. -/
 invariant [timeout_qc_view_le]
   ∀ (R : node) (V W : view) (E : evec),
-    msg_timeout_qc R V W E → vord.le W V
+    ¬ is_byz R → msg_timeout_qc R V W E → vord.le W V
 
 /-- An honest `Timeout` carrying a certificate records `timedOut_i` in its
 view. -/
