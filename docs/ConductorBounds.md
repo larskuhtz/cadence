@@ -1151,3 +1151,264 @@ belong to. The plan, the per-stage records and the sizing are in
   ([Premises.md](Premises.md) §0, §0.5, §9). A finished slot stutters by
   its re-issued `abandon`, the ideal ACS by construction, and each part's
   `Admissible` accepts the stutters.
+
+## 10. The Conductor follows the locality idiom (R37 design)
+
+*Design for review. Nothing below is implemented yet. Each item that
+changes a contract, a claim or a premise is marked **(decision)**.*
+
+The rules are [Locality.md](Locality.md)'s. Its §7 lists the Conductor as
+open, for the global `acs_decided`. This section is the plan that closes
+it.
+
+### 10.1 What does not conform
+
+* **`acs_decide` has no actor.** It reads every correct validator's
+  `entered` (the "decision precedes entry" `require`), the fault status of
+  its witnesses `r1`, `r2` and of an arbitrary decider, and the global
+  record of the predecessor window. It writes the global `acs_decided`. So
+  it breaks R1 and R5, and its write fits no rule.
+* **Every honest action reads the global record**, through `win_bounds`:
+  `acs_propose` (the `s*` guards and `ready_next`), `enter_window`,
+  `open_slot` and the ghost `slot_scheduled`. Those reads break R1.
+* **`opened_win` is auxiliary under its old name.** `open_slot` writes it
+  and `after_init` initialises it. No action reads it, in a guard or on a
+  right-hand side. Only the invariants `[opened_backed]`,
+  `[opened_win_entered]` and `[opened_win_contained]` read it. So it is
+  auxiliary, and only the `aux_` prefix is missing.
+* **Nothing else is open.** `tick` is the environment's (R4), and
+  `acs_step` is the sub-protocol's. `acs_propose`, `enter_window`,
+  `open_slot` and `complete_slot` read the ACS only through its operations
+  at their own index (`proposed`, `has_decided`, `propose`, `abandon`). The
+  glue already conforms ([Locality.md](Locality.md) §7).
+
+### 10.2 The paper
+
+Algorithm 7, line 48 (`line:median-compute`) is a step of the handler at
+Algorithm 7, line 44 (`line:acs-decide`): "**upon**
+`ACS[current_window_i + 1].decide(set)` **and**
+`ready_for_next_window() = true`". In that handler `p_i`:
+
+* abandons the instance;
+* enters the window;
+* computes the median of its own decided set;
+* opens the window's `W` slots;
+* records the window's last slot
+
+(Algorithm 7, lines 45–52 (`line:acs-abandon`–`line:last-update`)). So each
+validator computes its window's interval from its own decision, in its
+entry step, and holds it in its own `last_i`. Proposition 9
+(`prop:window-agreement`) is a statement about two validators' local
+values. Its proof is ACS agreement: the same decided set gives the same
+median.
+
+### 10.3 The design (option A, recommended)
+
+**D1. A local record of window bounds.** A new relation
+`local_bounds i w f b l` holds `i`'s first slot, readiness boundary and last
+slot of window `w` (the paper's `s*` and `last_i[w]`). `after_init` sets
+window 1's record at every validator from the configuration, as Algorithm
+7, lines 31–34 (`line:startup-foreach`–`line:startup-last`) do. `acs_decided`
+is removed.
+
+**D2. The median as a function of the validator's own decision.** A new
+configuration function, `immutable function acs_first : acsstate → node →
+slot`, is the first slot that `i` computes from its decided set at ACS
+state `st`. Two model assumptions constrain it **(decision)**:
+
+* `[acs_first_local]`: `acs_first st i` depends only on `i`'s decided set.
+  If `∀ p s, acs.decided st i p s ↔ acs.decided st' i p s`, then
+  `acs_first st i = acs_first st' i`. This is
+  [Locality.md](Locality.md) §5's "pure function of data the node holds",
+  stated as a fact the solver uses. It is first-order.
+* `[acs_first_bracket]`: the one stated bridge, moved from a `require` of
+  `acs_decide` to an assumption about the function. At a reachable ACS
+  state, for a correct `i` that has decided, two pairs of correct
+  validators in `i`'s set bracket `acs_first st i`: one at or below it, one
+  at or above it. The `require` read other validators' fault status, which
+  a correct step may not do. An assumption may.
+
+Both assumptions are discharged at `slot := ℕ`, with `acs_first` the lower
+median of the decided set. A new theorem proves this from
+`Cadence.acs_median_bracket` and the fault bound
+([AcsMedian.lean](../Cadence/AcsMedian.lean)). The composed witness
+instantiates `acs_first` with that median.
+
+**D3. Window entry computes the interval (Algorithm 7, lines 44–52).**
+`enter_window i w w' f acs_next` keeps today's guards:
+
+* `¬ fm.byz i`;
+* `i` is in `w`, and `w'` is its successor;
+* `i`'s own `ACS[w']` has decided;
+* `i` is ready;
+* the `abandon` input.
+
+It adds `require f = acs_first (acs_state w') i` and writes
+`local_bounds i w' f (win_boundary f) (win_last f)`, then `entered i w'` and
+the ACS state. The action loses its `b` and `l` parameters, and its guard
+no longer reads a global record. **`acs_decide` is removed.** Its
+10-parameter label is what forces the raised `synthInstance` budgets.
+
+*Option B, not recommended:* keep a separate step `acs_decide i w'` at the
+actor `i`, guarded only by `i`'s own decision, that writes
+`local_bounds i w' …`. It conforms too. But it splits the paper's one
+handler, keeps one more action, and keeps a timing row of its own.
+
+**D4. Every honest guard reads its own record.** `ready_next i w`,
+`slot_scheduled i s`, `acs_propose`'s three `s*` guards and `open_slot`
+read `local_bounds i …` in place of `win_bounds`.
+
+**D5. `opened_win` becomes `aux_opened_win`.** Only the name changes.
+
+**D6. The ACS contract states that a decision is final (decision).**
+`ACSSafety` gains one first-order field:
+
+```lean
+  /-- **A decision is final** — once a correct validator has decided, its
+      decided set does not change: Module 4 (`mod:acs`)'s `decide(set)` is
+      one output. -/
+  decided_stable : ∀ st st' i p s, reachable st → trans st st' → ¬ byz i →
+    has_decided st i → decided st' i p s → decided st i p s
+```
+
+The relational encoding (`has_decided` plus one `decided` row per pair)
+allows a decided set to grow after the decision. Module 4 (`mod:acs`) does
+not: its output is one set.
+
+* With a single global record this never mattered, because the record was
+  written once.
+* Per-validator records are written at different times, so agreement
+  between two records needs the field: `i`'s set when `i` entered must
+  equal `j`'s set when `j` entered.
+
+The ideal ACS meets the field, since its decided set is fixed before any
+validator outputs `decide` ([IdealAcs.lean](../Cadence/Conductor/IdealAcs.lean)).
+The new field gets a docstring for the guide's `{contractFields}`.
+
+**D7. The model's properties.** The per-validator propositions are stated
+over the validator's own records, as the paper states them:
+
+| property | today | after |
+|---|---|---|
+| `window_assignment_agreement` (safety, Proposition 9) | one global record per window | two correct validators' records of a window are equal |
+| `win_separation` (safety, Proposition 7) | over the global record | over `i`'s own records of `w0` and `w` |
+| `bounded_tail` (safety, Lemma 14's interval form) | `win_bounds` | `i`'s own records |
+| `open_prefix_agreement`, `opened_after_start` | unchanged | unchanged |
+| `decided_nonzero` | global | replaced by `bounds_genesis`: `i`'s record of window 1 is the configuration's |
+| `decided_downward_closed` | global | removed: it follows from `[entered_prefix]` and `[entered_has_bounds]`, and nothing downstream reads it |
+| new `bounds_decided` | — | `i`'s record of a window `w ≠ 1` is `acs_first` of `i`'s own `ACS[w]` decision, and `i` has decided there |
+| new `bounds_entered` | — | `i` holds a record only of a window it has entered |
+| `bounds_shape`, `win_bounds_shift`, `win_bounds_ordered`, `entered_has_bounds`, `acs_proposal_above_prev`, `opened_win_contained`, `open_local_order` | `win_bounds` | `i`'s own records (for `acs_proposal_above_prev`, the proposer's) |
+| the others | unchanged | unchanged |
+
+Agreement on the bounds then follows from the contract, not from a shared
+write:
+
+* `[bounds_decided]` makes each record `acs_first` of the validator's own
+  decision;
+* `ACSSafety.agreement` gives two correct deciders the same set;
+* `decided_stable` and `decided_mono` keep each set as it was when its
+  record was written;
+* `[acs_first_local]` turns equal sets into equal first slots.
+
+The solver checks this per action, as the safety property
+`[window_assignment_agreement]`. Separation at entry uses
+`[acs_first_bracket]`'s lower pair. That pair is a correct proposer `r1`'s
+proposal, which lies above `r1`'s own record of `w0`
+(`[acs_proposal_above_prev]`). By agreement, `r1`'s record of `w0` equals
+`i`'s.
+
+`win_bounds` stays only as a proof-side ghost, and only if the downstream
+proofs still want a window-level name (window 1's configuration, or some
+correct validator's record). No action reads it.
+
+### 10.4 Reads and writes, old → new
+
+| Action | Reads (old → new) | Writes (old → new) |
+|---|---|---|
+| `acs_decide w0 w first f0 b0 l0 r1 s1 r2 s2` | every correct `entered`, the fault status of `r1`, `r2` and a decider, `acs_decided`, `win_bounds w0`, `acs.decided` at any correct decider → **removed** | `acs_decided w …` → removed |
+| `enter_window i w w' f b l a` → `enter_window i w w' f a` | `acs_decided w' f b l`, `win_bounds` (in `ready_next`) → `acs_first (acs_state w') i` and `i`'s own records | + `local_bounds i w' f (win_boundary f) (win_last f)` |
+| `acs_propose i w w' s* a` | `win_bounds w0 …` (`s*` guards, `ready_next`) → `local_bounds i w …` | unchanged |
+| `open_slot i s w f b l` | `win_bounds w f b l` and the in-order guard's `win_bounds` → `i`'s own records | `opened_win` → `aux_opened_win` |
+| `tick`, `acs_step`, `complete_slot` | unchanged | unchanged |
+
+### 10.5 Timing rows and premises
+
+* **The `acs_decide` row goes (decision).** `TimedRows.decide`,
+  `decideGate` and `DecideLabel` are removed.
+  * The median computation becomes part of `enter_window`. Its row
+    (`TimedRows.enter`, `δ`, gated on `i`'s own decision and readiness,
+    F22) keeps its meaning. Only `EnterLabel` loses two label arguments.
+  * The gate checklist's one exception, a gate that reads another
+    validator's decision, disappears. Every gate is then the actor's own
+    state.
+  * [Premises.md](Premises.md) §9.3 loses the `decide` row, and the §6.4
+    table here loses its `acs_decide` line.
+* **`RecoveryClaim`'s fault bound (decision).** Recovery reads the fault
+  bound in one place: `correct_pair`, which builds witnesses for the
+  `acs_decide` row (`record_by`). Under D2 the bracket is the theory's
+  assumption `[acs_first_bracket]`, so the hypothesis
+  `(Finset.univ.filter fm.byz).card ≤ TA.fault_bound` goes unused.
+  * Proposed: remove the hypothesis from `RecoveryClaim`,
+    `Conductor.recovery` and `recovery_sharp`. The fault bound moves to the
+    theorem that the lower median meets `[acs_first_local]` and
+    `[acs_first_bracket]` (D2). The witness uses that theorem.
+  * The composed claims keep the hypothesis wherever they still use it;
+    this is to be checked. Either way it remains a premise of the system.
+* **No other claim statement changes.** These keep their statements, since
+  each names the row only through `Sync`:
+  * `TotalityClaim` and `BoundednessClaim`, and `RecoveryClaim` apart from
+    the item above;
+  * the K7 composed claims;
+  * `Conductor.orchestratorSafety`, `conductorTemporal` and
+    `conductorFull`;
+  * System.lean's theorem.
+
+  The theory gains a field, `acs_first`, and two assumptions. The safety
+  instance's `init` already carries the theory's assumptions.
+* **Internal statements that change:**
+  * `WinBounds`, `ReadyNext` and `Scheduled` in
+    [Schedule.lean](../Cadence/Conductor/Schedule.lean) read the
+    validator's own record;
+  * Proposition 16's premise in `window_open_time` ("a window whose
+    interval is recorded"), and the premises of `window_progression` and
+    `first_post_gst_window_time`, become "some correct validator holds a
+    record of `ω`";
+  * `record_by`, `enter_by`, `recorded_bracket`, `acs_decide_guards`,
+    `decided_step` and `enabled_acs_decide` are rewritten or removed.
+
+  Recovery's proof gets simpler. Entry no longer waits for a global
+  recording step, and `recorded_bracket` becomes `[acs_first_bracket]` at
+  the entering validator's own decision.
+
+### 10.6 Counts and builds
+
+* **The Conductor's sweep.** It goes from 7 actions to 6, and from 22
+  properties to 23 (5 safety + 18 invariants), with the same 3 step
+  properties. Today's 205 fits
+  `actions × (properties + step properties) + properties + actions + 1`,
+  so the expected count is 6 × 26 + 23 + 6 + 1 = **186**. The build will
+  confirm it, and Architecture §2 will record it.
+* **The glue's sweep** does not move. The glue does not consume
+  `ACSSafety`, so its statements are unchanged. It recompiles only because
+  it imports Interfaces.lean.
+* **The Veil families.** D6 edits Interfaces.lean, which Chorus.lean and
+  Mvba/Compose.lean import. No Chorus or Mvba VC statement mentions
+  `ACSSafety`, so the pins stay where they are (Chorus 6271, Mvba 1649,
+  FallbackReceipt 220) and the families replay warm. The Chorus model file
+  still rebuilds, which takes about 11 minutes locally.
+* **The slow cells (task 3).** `acs_decide × win_bounds_ordered` goes with
+  its action. Veil has no in-module manual cell: `#prove_vc` refuses to
+  run inside the defining module, and an in-file sweep has no other manual
+  mechanism. In order of preference:
+  1. Measure the re-cut cells `enter_window × bounded_tail` and
+     `enter_window × open_local_order` cold. The rewrite changes both,
+     because `enter_window` now writes the record its own guards read.
+  2. If one stays slow, materialise the fact the solver re-derives, as a
+     witness parameter or a derivable `require`. This is the model's
+     existing remedy.
+  3. If that is not enough, move the Conductor to the model-file +
+     proof-family shape of Chorus and the MVBA, where `#prove_vc` cells
+     exist. That is a larger change: a `Conductor/Proofs/` family, a
+     `Certify.lean` with a `#veil_status Conductor` pin, and
+     `#gen_composition` over it. I would stop and report before doing it.
