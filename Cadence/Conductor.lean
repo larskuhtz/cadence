@@ -51,8 +51,9 @@ SMT-checked here (the safety-shaped content):
 * cross-window slot monotonicity (Proposition 7 (`prop:acs-nonoverlap`)) —
   `safety [win_separation]` (+ the transitive `[win_bounds_ordered]`);
 * window-assignment agreement (Proposition 9 (`prop:window-agreement`)) —
-  `safety [window_assignment_agreement]` (structural: intervals are global
-  oracle state, unique per window);
+  `safety [window_assignment_agreement]`: each validator computes its
+  intervals from its own ACS decision, and any two correct validators hold
+  the same one, by the ACS's agreement;
 * opened-set structure (interval form of Proposition 8 (`prop:acs-fate-range`) /
   Proposition 11 (`prop:open-count-window`)) — `[opened_win_contained]`,
   `[open_local_order]`;
@@ -136,16 +137,27 @@ local `completed(s)` callbacks and ACS decisions. Byzantine influence enters
 as (i) Byzantine validators' own ACS proposals — internal steps of the ACS
 instance (`acs_step`), which the contract leaves unconstrained for Byzantine
 validators — and (ii) up to `f` Byzantine pairs inside the decided core
-set, captured by the median-range `require` of `acs_decide` (two
-*correct* pairs of the decided set bracketing the median from below and
-from above, as explicit witnesses), justified from the contract by `Cadence.acs_median_bracket`
-([AcsMedian.lean](AcsMedian.lean)). No quorum machinery and no `ByzNodeSet`
+set, captured by the assumption `[acs_first_bracket]` on the first slot a
+validator computes (two *correct* pairs of its decided set bracketing it
+from below and from above). The lower median meets it under the fault
+bound (`Cadence.lowerMedian_first_assumptions`,
+[AcsMedian.lean](AcsMedian.lean)). No quorum machinery and no `ByzNodeSet`
 are needed; the fault pattern is the `FaultModel` the ACS contract is stated
 against, otherwise unconstrained, and the resilience arithmetic (`≤ f`
 Byzantine validators, one pair each in a core set of `2f + 1` validators)
 lives in the ACS contract (`ACSSafety.decided_unique`,
-`ACSTemporal.validity_quantitative`) and that lemma's fault-bound
+`ACSTemporal.validity_quantitative`) and that theorem's fault-bound
 hypothesis.
+
+## Locality
+
+Every action follows [Locality.md](../docs/Locality.md)'s rules. A correct
+validator reads only its own rows (`entered`, `local_bounds`, `opened`,
+`completed`), the clock, and its own index of the ACS. It writes only its
+own rows and the ACS through its inputs at its own index. Each validator
+computes its windows' intervals from its own decision (`enter_window`), and
+agreement on them is a property (`[window_assignment_agreement]`), not a
+shared write. `aux_opened_win` is auxiliary: no action reads it.
 
 ## Obligation discharge map (→ [Interfaces.lean](Interfaces.lean) `Orchestrator`)
 
@@ -233,7 +245,8 @@ earlier windows only. Fixed to `s + p` at the instance at `slot := ℕ`, as
 immutable function win_boundary : slot → slot
 /-- Window 1's readiness boundary: the paper's slot `p + 1` of window 1
 (Algorithm 7, line 34 (`line:startup-last`)), `win_boundary` of slot 1
-(`[genesis_window]`). Later windows' bounds are ACS-decided state. -/
+(`[genesis_window]`). Later windows' bounds each validator computes from
+its own ACS decision (`enter_window`). -/
 immutable individual genesis_boundary : slot
 /-- Window 1's last slot: its interval is `[slot 1, genesis_last]`, the
 paper's slot `W` (Algorithm 7, line 34 (`line:startup-last`)), `win_last`
@@ -244,6 +257,14 @@ immutable individual genesis_time : time
 /-- The ACS instances' initial states: per-execution data, constrained below
 to be initial states of the contract. -/
 immutable function acs_init_state : window → acsstate
+/-- The first slot a validator computes from its own decision: at ACS state
+`st`, `acs_first st i` is the median of `i`'s decided set (Algorithm 7,
+line 48 (`line:median-compute`)). The model does not compute medians:
+cardinality is outside the solver's first-order fragment. What it uses of
+the function are the two assumptions `[acs_first_local]` and
+`[acs_first_bracket]` below; the lower median meets both
+(`Cadence.lowerMedian_first_assumptions`, [AcsMedian.lean](AcsMedian.lean)). -/
+immutable function acs_first : acsstate → node → slot
 
 /-! ## Mutable state -/
 
@@ -259,12 +280,6 @@ Honest proposals are this module's `propose` inputs (`acs_propose`);
 Byzantine proposals and the decision itself are the instance's own
 internal steps (`acs_step`), constrained only by the contract. -/
 function acs_state (w : window) : acsstate
-/-- The decided window interval: first slot (the extracted median,
-Algorithm 7, line 48 (`line:median-compute`)), readiness-boundary slot (the window's `(p + 1)`-th
-slot) and last slot (Algorithm 7, line 52 (`line:last-update`)). Computed from the decided set
-(`acs_decide`), global because ACS agreement makes every correct
-validator compute the same interval. Unique per window. -/
-relation acs_decided (w : window) (first : slot) (boundary : slot) (last : slot)
 
 /-! ### (L) Per-validator local state
 
@@ -274,10 +289,19 @@ copy. -/
 
 /-- `i` has entered window `w` (Algorithm 7, line 30 (`line:enter_window_1`), Algorithm 7, line 47 (`line:enter_window_omega`)). -/
 relation entered (i : node) (w : window)
+/-- `i`'s interval of window `w`: its first slot (the median of `i`'s own
+decided set, Algorithm 7, line 48 (`line:median-compute`)), its readiness
+boundary (the window's `(p + 1)`-th slot) and its last slot (`last_i[w]`,
+Algorithm 7, line 52 (`line:last-update`)). Window 1's from the
+configuration (Algorithm 7, lines 31–34
+(`line:startup-foreach`–`line:startup-last`)), later windows' written by
+`i`'s own entry step. Every correct validator holds the same interval of a
+window (`[window_assignment_agreement]`), by the ACS's agreement. -/
+relation local_bounds (i : node) (w : window) (first : slot) (boundary : slot) (last : slot)
 /-- The `open(s)` *output* has fired at `i` (Algorithm 7, line 28 (`line:trigger-open`)). -/
 relation opened (i : node) (s : slot)
-/-- The window `i` opened `s` under (proof bookkeeping). -/
-relation opened_win (i : node) (s : slot) (w : window)
+/-- Auxiliary: the window `i` opened `s` under. Read by no action. -/
+relation aux_opened_win (i : node) (s : slot) (w : window)
 /-- `i` has received the `completed(s)` input (Algorithm 7, line 35 (`line:upon-completed`);
 within Cadence: `i` finalized `S[s]`). -/
 relation completed (i : node) (s : slot)
@@ -314,20 +338,41 @@ property reads it. -/
 assumption [start_time_strict]
   ∀ (s s' : slot), slot_ord.lt s s' →
     time_ord.le (start_time s) (start_time s') ∧ start_time s ≠ start_time s'
+/-- The first slot is a function of the decided set alone: whenever `i`'s
+decided set at `st` and `j`'s at `st'` hold the same pairs, `i` and `j`
+compute the same first slot. This is what makes `enter_window`'s
+computation local to `i` ([Locality.md](../docs/Locality.md) §5, a pure
+function of data the node holds), and, with the ACS's agreement, what makes
+every correct validator compute the same interval. -/
+assumption [acs_first_local]
+  ∀ (st st' : acsstate) (i j : node),
+    (∀ (p : node) (s : slot), acs.decided st i p s ↔ acs.decided st' j p s) →
+    acs_first st i = acs_first st' j
+/-- **The median bracket.** A correct validator's first slot lies between
+two correct validators' pairs of its decided set: one at or below it, one
+at or above it. The paper's one sentence before Algorithm 7
+(`algorithm:conductor`): "since at most `f` of the `2f + 1` decided values
+are faulty, the median lies between the smallest and largest honest
+estimate". The lower half separates the windows (`[win_separation]`); the
+upper half bounds the first slot by a correct estimate, which recovery's
+timing reads (Proposition 17 (`prop:window-progression`), point 1, and
+Proposition 19 (`prop:first-post-gst-window-time`)). The lower median meets
+it under the fault bound (`Cadence.lowerMedian_first_assumptions`,
+[AcsMedian.lean](AcsMedian.lean)). -/
+assumption [acs_first_bracket]
+  ∀ (st : acsstate) (i : node),
+    acs.reachable st ∧ ¬ fm.byz i ∧ acs.has_decided st i →
+    (∃ (r1 : node) (s1 : slot), ¬ fm.byz r1 ∧ acs.decided st i r1 s1 ∧
+      slot_ord.le s1 (acs_first st i)) ∧
+    (∃ (r2 : node) (s2 : slot), ¬ fm.byz r2 ∧ acs.decided st i r2 s2 ∧
+      slot_ord.le (acs_first st i) s2)
 
 /-! ## Derived state -/
-
-/-- The bounds of window `w`: window 1's are immutable configuration,
-later windows' are the ACS decision (`acs_decide` requires
-`w ≠ zero`, so the disjuncts are exclusive). -/
-ghost relation win_bounds (w : window) (f : slot) (b : slot) (l : slot) :=
-  (w = win_ord.zero ∧ f = slot_ord.zero ∧ b = genesis_boundary ∧ l = genesis_last) ∨
-  acs_decided w f b l
 
 /-- The paper's eager `opened_i` variable (Algorithm 7, line 33 (`line:startup-opened-update`),
 Algorithm 7, line 51 (`line:acs-opened-update`)): the union of the entered windows' intervals. -/
 ghost relation slot_scheduled (i : node) (s : slot) :=
-  ∃ w f b l, entered i w ∧ win_bounds w f b l ∧
+  ∃ w f b l, entered i w ∧ local_bounds i w f b l ∧
     slot_ord.le f s ∧ slot_ord.le s l
 
 /-- `i` is *in* window `w`: entered it, not yet entered its successor
@@ -343,25 +388,28 @@ per the paper: all but the last `W − p` of the eager `opened_i` are
 complete). At `p = 0` this is the earlier windows only, and in window 1
 it holds from the start, as `k − j ≤ W − 0` does there. -/
 ghost relation ready_next (i : node) (w : window) :=
-  ∀ (f b l : slot), win_bounds w f b l →
+  ∀ (f b l : slot), local_bounds i w f b l →
     ∀ (s : slot) (w0 : window) (f0 b0 l0 : slot),
-      entered i w0 → win_bounds w0 f0 b0 l0 →
+      entered i w0 → local_bounds i w0 f0 b0 l0 →
       slot_ord.le f0 s → slot_ord.le s l0 → slot_ord.lt s b →
       completed i s
 
-/-- Every validator starts in window 1 (Algorithm 7, line 30 (`line:enter_window_1`)), with nothing
-opened or completed and no window beyond 1 decided. -/
+/-- Every validator starts in window 1 (Algorithm 7, line 30 (`line:enter_window_1`)), with
+window 1's interval (Algorithm 7, lines 31–34
+(`line:startup-foreach`–`line:startup-last`)) and nothing opened or
+completed. -/
 after_init {
   now := genesis_time
   -- Capitalized single letters are universal indices. `V` ranges over
   -- windows: `W` is the paper's window *width* throughout this file, and it
   -- also resolves to a Mathlib declaration, which Veil warns about.
   acs_state V := acs_init_state V
-  acs_decided V F B L := false
   -- Every validator enters window 1 at startup (Algorithm 7, line 30 (`line:enter_window_1`)).
   entered I V := V == win_ord.zero
+  local_bounds I V F B L := V == win_ord.zero && F == slot_ord.zero &&
+    B == genesis_boundary && L == genesis_last
   opened I S := false
-  opened_win I S V := false
+  aux_opened_win I S V := false
   completed I S := false
 }
 
@@ -399,17 +447,15 @@ action acs_propose (i : node) (w : window) (w' : window) (s_star : slot)
   -- At most once per window (`proposed_i`, Algorithm 7, line 43 (`line:proposed-update`)).
   require ∀ (s : slot), ¬ acs.proposed (acs_state w') i s
   require ready_next i w
-  -- Algorithm 7, line 40 (`line:sstar-guard`)/Algorithm 7, line 41 (`line:sstar-update`): strictly beyond the current
-  -- window (stated over `w'`'s predecessor's bounds — `w` is that
-  -- predecessor; bounds are global and unique).
-  require ∀ (w0 : window) (f0 b0 l0 : slot),
-    win_ord.next w0 w' → win_bounds w0 f0 b0 l0 → slot_ord.lt l0 s_star
+  -- Algorithm 7, line 40 (`line:sstar-guard`)/Algorithm 7, line 41
+  -- (`line:sstar-update`): strictly beyond the current window, read off
+  -- `i`'s own interval of it.
+  require ∀ (f0 b0 l0 : slot), local_bounds i w f0 b0 l0 → slot_ord.lt l0 s_star
   -- Algorithm 7, line 39 (`line:sstar-compute`): `s_star`'s starting time
   -- has not passed ...
   require time_ord.le now (start_time s_star)
   -- ... and it is the earliest such slot beyond the current window.
-  require ∀ (s : slot) (w0 : window) (f0 b0 l0 : slot),
-    win_ord.next w0 w' → win_bounds w0 f0 b0 l0 →
+  require ∀ (s : slot) (f0 b0 l0 : slot), local_bounds i w f0 b0 l0 →
     slot_ord.lt l0 s → slot_ord.lt s s_star →
     ¬ time_ord.le now (start_time s)
   -- `ACS[w'].propose(s_star)`: an input transition of the instance's state.
@@ -430,103 +476,42 @@ action acs_step (w : window) (acs_next : acsstate) {
   acs_state w := acs_next
 }
 
-/-! ## ACS decision (oracle; Algorithm 7, lines 44–48 (`line:acs-decide`–`line:median-compute`) +
-Algorithm 7, line 52 (`line:last-update`)) -/
+/-! ## Window entry (Algorithm 7, lines 44–52
+(`line:acs-decide`–`line:last-update`)) -/
 
-/-- The handler of the output "`ACS[w]` decides": median extraction yields the
-window interval `[first, last]` with readiness boundary `boundary`. The
-`require`s are the handler's own guards plus the one bridge between the
-contract and the median computation:
+/-- The handler of `p_i`'s own decision: an honest validator in window `w`
+enters the successor `w'` once *its own* `ACS[w']` has decided and the
+readiness condition holds (the two activation conditions of Algorithm 7,
+line 44 (`line:acs-decide`)). In the same step it
 
-* *one interval per window* — all correct validators compute the same one
-  (the contract's `agreement`: every correct decider holds the same set),
-  so the interval is global state, like `mvba_decided_*` in Chorus;
-* *the decision has happened* — some correct validator has decided
-  (`acs.decided (acs_state w) i r1 s1` for the witness pair below implies
-  `has_decided`);
-* *median range validity* — the decided first slot lies between the
-  slots of two correct pairs in the decided set: at least `s1` (of `r1`)
-  and at most `s2` (of `r2`), passed as **explicit witnesses** —
-  witnesses at the assembly action, not `∃`-ghosts in consumers. The
-  model does not compute the median, and cardinality is outside the
-  first-order fragment, so this is the **one stated bridge** between the
-  contract and the model, a `require` and not a derivation. That it
-  removes no behaviour of a correct ACS is a theorem from the contract:
-  the median of a correct decider's set is bracketed by two of its
-  correct pairs, one at or below and one at or above
-  (`Cadence.acs_median_bracket`, [AcsMedian.lean](AcsMedian.lean), from
-  `decided_unique`, `validity_quantitative` and the system's fault bound,
-  through [Windows.lean](Windows.lean)'s `lowerMedian_between_correct`).
-  That the witnesses *are* genuine correct proposals is the contract's
-  `validity_genuine`. The lower half separates the windows
-  (`[win_separation]`); the upper half bounds the first slot by a
-  correct estimate, which recovery's timing reads (Proposition 17
-  (`prop:window-progression`), point 1, and Proposition 19
-  (`prop:first-post-gst-window-time`));
-* *sequencing* — the predecessor window `w0` and its bounds are witnesses
-  too: a decision presupposes correct proposals, whose proposers had
-  entered `w0` (which therefore has bounds). This is what keeps window
-  decisions sequential, and it gives the ordering invariants their ground
-  terms;
-* *interval width* — the recorded interval is the window's `W` slots from
-  `first`, with the boundary at its `(p + 1)`-th slot: `[first, win_last first]`
-  and `win_boundary first`, the decided interval of Algorithm 7, lines
-  49–52 (`line:open-foreach`–`line:last-update`). The widths are the shift
-  functions' and are fixed at the instance at `slot := ℕ`; no safety
-  property below depends on them. -/
-action acs_decide (w0 : window) (w : window) (first : slot)
-    (f0 : slot) (b0 : slot) (l0 : slot)
-    (r1 : node) (s1 : slot) (r2 : node) (s2 : slot) {
-  -- Window 1 is never ACS-decided.
-  require ¬ w = win_ord.zero
-  -- One interval per window (from the contract's agreement).
-  require ∀ f' b' l', ¬ acs_decided w f' b' l'
-  -- Decision precedes entry: no honest validator has entered a window
-  -- whose ACS has not decided. Derivable ([entered_has_bounds] + the
-  -- uniqueness require + `w ≠ zero`) — stated explicitly because the
-  -- SMT search for `bounded_tail` at this action diverges re-deriving
-  -- it (witness materialisation, in require form).
-  require ∀ (i : node), ¬ fm.byz i → ¬ entered i w
-  -- Predecessor window and its (already fixed) bounds.
-  require win_ord.next w0 w
-  require win_bounds w0 f0 b0 l0
-  -- Median range validity, with explicit correct witness pairs from a
-  -- correct decider's decided set: `(r1, s1)` at or below the first slot,
-  -- `(r2, s2)` at or above it.
-  require ¬ fm.byz r1
-  require ∃ (i : node), ¬ fm.byz i ∧ acs.decided (acs_state w) i r1 s1
-  require slot_ord.le s1 first
-  require ¬ fm.byz r2
-  require ∃ (i : node), ¬ fm.byz i ∧ acs.decided (acs_state w) i r2 s2
-  require slot_ord.le first s2
-  -- The window's `W` slots from `first`, boundary at the `(p + 1)`-th
-  -- (Algorithm 7, lines 49–52).
-  acs_decided w first (win_boundary first) (win_last first) := true
-}
+* abandons the instance (Algorithm 7, line 45 (`line:acs-abandon`)), which
+  is why abandonment never precedes decision (`[acs_abandoned_decided]`);
+* computes the window's first slot from its own decided set, `f =
+  acs_first (acs_state w') i` (the median, Algorithm 7, line 48
+  (`line:median-compute`)), and records the window's interval, its `W`
+  slots from `f` with the boundary at the `(p + 1)`-th (Algorithm 7,
+  lines 49–52 (`line:open-foreach`–`line:last-update`)). The widths are the
+  shift functions', fixed at the instance at `slot := ℕ`;
+* enters the window. Entry *schedules* the window's slots (the eager
+  `opened_i` update: the ghost `slot_scheduled` grows by the recorded
+  interval); the `open` outputs fire later via `open_slot`.
 
-/-! ## Window entry (Algorithm 7, line 44 (`line:acs-decide`) handler:
-Algorithm 7, lines 45–47 (`line:acs-abandon`–`line:enter_window_omega`)) -/
-
-/-- An honest validator in window `w` enters the successor `w'` once *its
-own* `ACS[w']` has decided and the readiness condition holds (the two
-activation conditions of Algorithm 7, line 44 (`line:acs-decide`), which
-fires on `p_i`'s own `decide`). It abandons the instance in the same step
-(Algorithm 7, line 45 (`line:acs-abandon`)), which is why abandonment never
-precedes decision (`[acs_abandoned_decided]`). Entry *schedules* the
-window's slots (the eager `opened_i` update — here the ghost
-`slot_scheduled` grows by the decided interval, which `acs_decide` read off
-the decided set); the `open` outputs fire later via `open_slot`. -/
-action enter_window (i : node) (w : window) (w' : window)
-    (f : slot) (b : slot) (l : slot) (acs_next : acsstate) {
+Every read is `i`'s own: its windows and intervals, its completions, and
+its own decision. That every correct validator records the same interval is
+`[window_assignment_agreement]`, from the ACS's agreement. -/
+action enter_window (i : node) (w : window) (w' : window) (f : slot)
+    (acs_next : acsstate) {
   require ¬ fm.byz i
   require in_window i w
   require win_ord.next w w'
-  require acs_decided w' f b l
   -- `i`'s own `ACS[w']` has decided.
   require acs.has_decided (acs_state w') i
   require ready_next i w
+  -- The median of `i`'s decided set (Algorithm 7, line 48).
+  require f = acs_first (acs_state w') i
   -- `ACS[w'].abandon()`: an input transition of the instance's state.
   require acs.abandon (acs_state w') i acs_next
+  local_bounds i w' f (win_boundary f) (win_last f) := true
   acs_state w' := acs_next
   entered i w' := true
 }
@@ -549,17 +534,17 @@ action open_slot (i : node) (s : slot) (w : window)
     (f : slot) (b : slot) (l : slot) {
   require ¬ fm.byz i
   require entered i w
-  require win_bounds w f b l
+  require local_bounds i w f b l
   require slot_ord.le f s
   require slot_ord.le s l
   require ¬ opened i s
   require time_ord.le (start_time s) now
   require ∀ (s' : slot) (w0 : window) (f0 b0 l0 : slot),
-    entered i w0 → win_bounds w0 f0 b0 l0 →
+    entered i w0 → local_bounds i w0 f0 b0 l0 →
     slot_ord.le f0 s' → slot_ord.le s' l0 → slot_ord.lt s' s →
     opened i s'
   opened i s := true
-  opened_win i s w := true
+  aux_opened_win i s w := true
 }
 
 /-! ## Completion input (Algorithm 7, line 35 (`line:upon-completed`)) -/
@@ -581,22 +566,24 @@ action complete_slot (i : node) (s : slot) {
 /-! ## Safety properties -/
 
 /-- Window-assignment agreement (Proposition 9 (`prop:window-agreement`), and the
-Conductor-module "Safety"): the window intervals are agreed — one decided
-interval per window. (The per-validator statement of the paper collapses
-to this because the model globalizes the ACS decision, which its
-agreement property licenses; any two validators placing a slot in a
-window place it in the same interval.) -/
+Conductor-module "Safety"): any two correct validators hold the same
+interval of a window. Each computes its interval from its own ACS decision
+(`enter_window`); they agree because the ACS's agreement gives them the same
+decided set, a decision is final (`ACSSafety.decided_stable`), and the first
+slot is a function of the decided set (`[acs_first_local]`). -/
 safety [window_assignment_agreement]
-  ∀ (w : window) (f b l f' b' l' : slot),
-    acs_decided w f b l ∧ acs_decided w f' b' l' →
+  ∀ (i j : node) (w : window) (f b l f' b' l' : slot),
+    ¬ fm.byz i ∧ ¬ fm.byz j ∧ local_bounds i w f b l ∧ local_bounds j w f' b' l' →
     f = f' ∧ b = b' ∧ l = l'
 
-/-- Cross-window slot monotonicity (Proposition 7 (`prop:acs-nonoverlap`)): a decided
+/-- Cross-window slot monotonicity (Proposition 7 (`prop:acs-nonoverlap`)): a
 window's interval lies strictly above its predecessor's (the paper's
-`s.number ≥ s'.number + W`, in interval form). -/
+`s.number ≥ s'.number + W`, in interval form), in every correct validator's
+records. -/
 safety [win_separation]
-  ∀ (w0 w : window) (f0 b0 l0 f b l : slot),
-    win_ord.next w0 w ∧ win_bounds w0 f0 b0 l0 ∧ acs_decided w f b l →
+  ∀ (i : node) (w0 w : window) (f0 b0 l0 f b l : slot),
+    ¬ fm.byz i ∧ win_ord.next w0 w ∧ local_bounds i w0 f0 b0 l0 ∧
+    local_bounds i w f b l →
     slot_ord.lt l0 f
 
 /-- Open-prefix agreement — the `OrchestratorSafety.open_prefix_agreement`
@@ -633,9 +620,9 @@ safety [bounded_tail]
   ∀ (i : node) (s : slot) (w' w ws : window) (f b l fs bs ls : slot),
     ¬ fm.byz i ∧
     -- i has entered w', whose predecessor w has boundary b
-    entered i w' ∧ win_ord.next w w' ∧ win_bounds w f b l ∧
+    entered i w' ∧ win_ord.next w w' ∧ local_bounds i w f b l ∧
     -- s is scheduled (in entered window ws's interval), strictly below b
-    entered i ws ∧ win_bounds ws fs bs ls ∧
+    entered i ws ∧ local_bounds i ws fs bs ls ∧
     slot_ord.le fs s ∧ slot_ord.le s ls ∧ slot_ord.lt s b →
     completed i s
 
@@ -652,15 +639,33 @@ invariant [entered_prefix]
 invariant [entered_zero]
   ∀ (i : node), entered i win_ord.zero
 
-/-- Window 1 is never ACS-decided (its bounds are configuration). -/
-invariant [decided_nonzero]
-  ∀ (w : window) (f b l : slot),
-    acs_decided w f b l → ¬ w = win_ord.zero
+/-- Window 1's interval is the configuration's, at every validator
+(Algorithm 7, lines 31–34 (`line:startup-foreach`–`line:startup-last`)). -/
+invariant [bounds_genesis]
+  ∀ (i : node) (f b l : slot),
+    local_bounds i win_ord.zero f b l →
+    f = slot_ord.zero ∧ b = genesis_boundary ∧ l = genesis_last
+
+/-- A correct validator's interval of a later window is the one it computed
+from its own decision: it has decided in that window's ACS, and the first
+slot is `acs_first` of its decided set (Algorithm 7, line 48
+(`line:median-compute`)). The decision is final, so the value stays what it
+was when the interval was recorded. -/
+invariant [bounds_decided]
+  ∀ (i : node) (w : window) (f b l : slot),
+    ¬ fm.byz i ∧ local_bounds i w f b l ∧ ¬ w = win_ord.zero →
+    acs.has_decided (acs_state w) i ∧ f = acs_first (acs_state w) i
+
+/-- A correct validator holds an interval only of a window it has
+entered. -/
+invariant [bounds_entered]
+  ∀ (i : node) (w : window) (f b l : slot),
+    ¬ fm.byz i ∧ local_bounds i w f b l → entered i w
 
 /-- Interval shape: first ≤ boundary ≤ last. -/
 invariant [bounds_shape]
-  ∀ (w : window) (f b l : slot),
-    win_bounds w f b l → slot_ord.le f b ∧ slot_ord.le b l
+  ∀ (i : node) (w : window) (f b l : slot),
+    local_bounds i w f b l → slot_ord.le f b ∧ slot_ord.le b l
 
 /-- Window width: every window's boundary and last slot are the shifts of
 its first slot, so every window holds the `W` slots from its first, with
@@ -668,35 +673,53 @@ its boundary at the `(p + 1)`-th (Algorithm 7, lines 31–34
 (`line:startup-foreach`–`line:startup-last`) and Algorithm 7, lines 49–52
 (`line:open-foreach`–`line:last-update`)). -/
 invariant [win_bounds_shift]
-  ∀ (w : window) (f b l : slot),
-    win_bounds w f b l → b = win_boundary f ∧ l = win_last f
-
-/-- Decisions are sequential: every nonzero window below a decided window
-is decided (the ACS instances are driven one window at a time —
-Proposition 6 (`lemma:window-entry`) + the activation chain). -/
-invariant [decided_downward_closed]
-  ∀ (w w' : window) (f' b' l' : slot),
-    acs_decided w' f' b' l' ∧ win_ord.lt w w' ∧ ¬ w = win_ord.zero →
-    ∃ f b l, acs_decided w f b l
+  ∀ (i : node) (w : window) (f b l : slot),
+    local_bounds i w f b l → b = win_boundary f ∧ l = win_last f
 
 /-- Transitive interval ordering (Proposition 8 (`prop:acs-fate-range`)'s "later windows
 cover slots of strictly larger number", closed under the window order):
-the intervals of any two bounded windows are strictly separated. -/
+a correct validator's intervals of any two windows are strictly
+separated. -/
 invariant [win_bounds_ordered]
-  ∀ (w w' : window) (f b l f' b' l' : slot),
-    win_ord.lt w w' ∧ win_bounds w f b l ∧ win_bounds w' f' b' l' →
+  ∀ (i : node) (w w' : window) (f b l f' b' l' : slot),
+    ¬ fm.byz i ∧ win_ord.lt w w' ∧ local_bounds i w f b l ∧
+    local_bounds i w' f' b' l' →
     slot_ord.lt l f'
 
 /-! ## Invariants — ACS proposals -/
 
 /-- An honest ACS proposal for window `w'` is strictly beyond the
-predecessor window's interval (Algorithm 7, line 40 (`line:sstar-guard`)/Algorithm 7, line 41 (`line:sstar-update`)
-persisted; feeds `[win_separation]` through the median witnesses). -/
+predecessor window's interval, as every correct validator holds it
+(Algorithm 7, line 40 (`line:sstar-guard`)/Algorithm 7, line 41
+(`line:sstar-update`) persisted, with `[window_assignment_agreement]`;
+feeds `[win_separation]` through `[acs_first_bracket]`'s lower pair). -/
 invariant [acs_proposal_above_prev]
-  ∀ (r : node) (w' : window) (s : slot) (w0 : window) (f0 b0 l0 : slot),
+  ∀ (r j : node) (w' : window) (s : slot) (w0 : window) (f0 b0 l0 : slot),
     ¬ fm.byz r ∧ acs.proposed (acs_state w') r s ∧ win_ord.next w0 w' ∧
-    win_bounds w0 f0 b0 l0 →
+    ¬ fm.byz j ∧ local_bounds j w0 f0 b0 l0 →
     slot_ord.lt l0 s
+
+/-- Two correct validators that have decided in the same ACS instance
+compute the same first slot: the ACS's agreement gives them the same
+decided set, and the first slot is a function of the set
+(`[acs_first_local]`). Stated so that the cells that compare two
+validators' intervals read it instead of re-deriving it. -/
+invariant [first_agree]
+  ∀ (i j : node) (w : window),
+    ¬ fm.byz i ∧ ¬ fm.byz j ∧ acs.has_decided (acs_state w) i ∧
+    acs.has_decided (acs_state w) j →
+    acs_first (acs_state w) i = acs_first (acs_state w) j
+
+/-- A correct decider's first slot of window `w'` lies beyond every correct
+validator's interval of `w'`'s predecessor: `[acs_first_bracket]`'s lower
+pair is a correct proposal, which `[acs_proposal_above_prev]` places there.
+Stated once, at the ACS's decision, so that the entry step's cells read it
+instead of re-deriving it. -/
+invariant [first_above_prev]
+  ∀ (i j : node) (w0 w' : window) (f0 b0 l0 : slot),
+    ¬ fm.byz i ∧ acs.has_decided (acs_state w') i ∧ win_ord.next w0 w' ∧
+    ¬ fm.byz j ∧ local_bounds j w0 f0 b0 l0 →
+    slot_ord.lt l0 (acs_first (acs_state w') i)
 
 /-- An honest proposal to `ACS[w']` presupposes having entered the
 predecessor window (the Algorithm 7, line 37 (`line:ready`) activation context). -/
@@ -705,30 +728,30 @@ invariant [proposal_prev_entered]
     ¬ fm.byz r ∧ acs.proposed (acs_state w') r s →
     ∃ w0, win_ord.next w0 w' ∧ entered r w0
 
-/-- Entered windows have (fixed) bounds: window 1 by configuration, later
-windows by the ACS decision that gated entry. -/
+/-- A correct validator holds an interval of every window it has entered:
+window 1's from the configuration, a later window's from the entry step. -/
 invariant [entered_has_bounds]
   ∀ (i : node) (w : window),
-    ¬ fm.byz i ∧ entered i w → ∃ f b l, win_bounds w f b l
+    ¬ fm.byz i ∧ entered i w → ∃ f b l, local_bounds i w f b l
 
 /-! ## Invariants — openings -/
 
 /-- Every opening is recorded with its window. -/
 invariant [opened_backed]
   ∀ (i : node) (s : slot),
-    ¬ fm.byz i ∧ opened i s → ∃ w, opened_win i s w
+    ¬ fm.byz i ∧ opened i s → ∃ w, aux_opened_win i s w
 
 /-- The recorded window was entered. -/
 invariant [opened_win_entered]
   ∀ (i : node) (s : slot) (w : window),
-    ¬ fm.byz i ∧ opened_win i s w → entered i w
+    ¬ fm.byz i ∧ aux_opened_win i s w → entered i w
 
 /-- The opened slot lies in its recorded window's interval
-(Proposition 8 (`prop:acs-fate-range`), interval form; bounds are unique, so the
-∀-formulation is exact). -/
+(Proposition 8 (`prop:acs-fate-range`), interval form; a validator holds one
+interval per window, so the ∀-formulation is exact). -/
 invariant [opened_win_contained]
   ∀ (i : node) (s : slot) (w : window) (f b l : slot),
-    ¬ fm.byz i ∧ opened_win i s w ∧ win_bounds w f b l →
+    ¬ fm.byz i ∧ aux_opened_win i s w ∧ local_bounds i w f b l →
     slot_ord.le f s ∧ slot_ord.le s l
 
 /-- In-order openings (Proposition 10 (`prop:fate-order`) + Lemma 13 (`lemma:conductor-monotonicity`),
@@ -736,7 +759,7 @@ per-validator): below an opened slot, every scheduled slot is opened. -/
 invariant [open_local_order]
   ∀ (i : node) (s s' : slot) (w0 : window) (f0 b0 l0 : slot),
     ¬ fm.byz i ∧ opened i s ∧
-    entered i w0 ∧ win_bounds w0 f0 b0 l0 ∧
+    entered i w0 ∧ local_bounds i w0 f0 b0 l0 ∧
     slot_ord.le f0 s' ∧ slot_ord.le s' l0 ∧ slot_ord.lt s' s →
     opened i s'
 
@@ -794,8 +817,7 @@ consume the invariants above as the state-level facts:
 ### The rows
 
 The honest handlers — the ACS proposal (`acs_propose`), window entry
-(`enter_window`), the recording of the decided interval (`acs_decide`),
-and the openings
+with its interval (`enter_window`), and the openings
 (`open_slot`) — are held to their timing by the timed runs' rows
 (`TimedRows`, `OpenPunctual`), the timed form of weak fairness. Their
 guards are stable once true: they read positive observables and local
@@ -817,7 +839,7 @@ contract instance is `Conductor.conductorFull`
 ([Conductor/Temporal.lean](Conductor/Temporal.lean)). -/
 
 /- The `Enumeration`/`FinEncodable` derivation over the action `Label`
-sum must traverse `acs_decide`'s 10-nested parameter sigma, which exceeds
+sum must traverse every action's nested parameter sigma, which exceeds
 the default instance-search budgets. The scaffolding cannot be disabled —
 the `sat trace` queries below need the generated `ActionTag_EnumClass` — so
 the budgets are raised instead. -/
@@ -874,11 +896,11 @@ step_property [monotonicity] {
 /- Solver budget for this module's in-file sweep: three times Veil's 60 s
 default, for the same reason the proof files carry it
 ([ProofPrelude.lean](ProofPrelude.lean)) — the budget has to hold on the
-slowest machine that runs cold, which is CI's 4-core runner. At the last
-measurement this module's slowest cell, `enter_window × bounded_tail`, ran
-there at 95% of the 60 s budget. It is a *completed* solve, so the remedy is
-the budget; a cell that starts needing minutes is diverging, and wants a
-manual proof instead. File-level, before `#gen_spec`: solver options are
+slowest machine that runs cold, which is CI's 4-core runner. The sweep's
+cell times are in [ConductorBounds.md](../docs/ConductorBounds.md) §10.
+A cell that starts needing minutes is diverging, and wants the fact it
+re-derives stated as an invariant instead (`[first_agree]`,
+`[first_above_prev]`). File-level, before `#gen_spec`: solver options are
 captured there ([CLAUDE.md](../CLAUDE.md), "Build"). -/
 set_option veil.smt.timeout 180
 
@@ -906,7 +928,6 @@ sat trace {
   complete_slot
   acs_propose
   acs_step
-  acs_decide
   enter_window
   assert (∃ i w, ¬ w = win_ord.zero ∧ entered i w)
 }
