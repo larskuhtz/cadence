@@ -57,10 +57,11 @@ theorem cond_acs (n : ℕ) (h : n / 61 % 36 ≠ 4 ∨ n % 61 < 30 ∨ 40 < n % 6
     (cond (n + 1)).acs_state = (cond n).acs_state :=
   funext fun w => acsSt_eq w n (by omega)
 
-theorem cond_decided (n : ℕ) (h : n / 61 % 36 ≠ 4 ∨ n % 61 ≠ 37) :
-    (cond (n + 1)).acs_decided = (cond n).acs_decided := by
+theorem cond_bounds (n : ℕ) (h : n / 61 % 36 ≠ 4 ∨ n % 61 < 38 ∨ 40 < n % 61) :
+    (cond (n + 1)).local_bounds = (cond n).local_bounds := by
   have := idx_eq n; have := pos_lt n
-  funext w f b l
+  funext i w f b l
+  have := i.isLt
   simp only [cond, dB, decide_eq_decide]
   omega
 
@@ -81,7 +82,7 @@ theorem cond_opened (n : ℕ) (h : n % 61 < 41 ∨ 43 < n % 61) :
   omega
 
 theorem cond_opened_win (n : ℕ) (h : n % 61 < 41 ∨ 43 < n % 61) :
-    (cond (n + 1)).opened_win = (cond n).opened_win := by
+    (cond (n + 1)).aux_opened_win = (cond n).aux_opened_win := by
   have := idx_eq n; have := pos_lt n
   funext i s w
   have := i.isLt
@@ -101,33 +102,31 @@ theorem cond_completed (n : ℕ) (h : n % 61 < 24 ∨ 26 < n % 61 ∨ n / 61 = 0
 /-- The Conductor's transition system at the witness's types. -/
 noncomputable abbrev CRTS := Conductor.relationalTransitionSystem ℕ ℕ ℕ (Fin 4) ACSt
 
-theorem winBounds_of (n w : ℕ) (h : w = 0 ∨ (1 ≤ w ∧ dB w + 37 < n)) :
-    WinBounds (th := thO) (cond n) w (w * 36) (w * 36 + 4) (w * 36 + 35) := by
-  rcases h with rfl | h
-  · exact Or.inl ⟨rfl, rfl, rfl, rfl⟩
-  · right
-    simp only [cond, decide_eq_true_eq, and_true]
-    omega
+theorem bounds_of (n w : ℕ) (i : Fin 4) (h : w = 0 ∨ (1 ≤ w ∧ i.val < 3 ∧ dB w + 38 + i.val < n)) :
+    Bounds (cond n) i w (w * 36) (w * 36 + 4) (w * 36 + 35) := by
+  simp only [Bounds, cond, decide_eq_true_eq, and_true]
+  exact h
 
-theorem winBounds_iff (n w f b l : ℕ) :
-    WinBounds (th := thO) (cond n) w f b l ↔
-      (f = w * 36 ∧ b = w * 36 + 4 ∧ l = w * 36 + 35 ∧ (w = 0 ∨ (1 ≤ w ∧ dB w + 37 < n))) := by
-  simp only [WinBounds, cond, decide_eq_true_eq, thO]
-  show (w = 0 ∧ f = 0 ∧ b = 4 ∧ l = 35 ∨ _) ↔ _
+theorem bounds_iff (n w f b l : ℕ) (i : Fin 4) :
+    Bounds (cond n) i w f b l ↔
+      (f = w * 36 ∧ b = w * 36 + 4 ∧ l = w * 36 + 35 ∧
+        (w = 0 ∨ (1 ≤ w ∧ i.val < 3 ∧ dB w + 38 + i.val < n))) := by
+  simp only [Bounds, cond, decide_eq_true_eq]
   omega
 
 /-- **A `tick` in place**, at a position with no Conductor event. -/
 theorem cstep_stay (n : ℕ) (h55 : n % 61 ≠ 60) (hc : n % 61 < 24 ∨ 26 < n % 61 ∨ n / 61 = 0)
-    (hw : n / 61 % 36 ≠ 4 ∨ n % 61 < 30 ∨ 40 < n % 61) (ho : n % 61 < 41 ∨ 43 < n % 61) :
+    (hw : n / 61 % 36 ≠ 4 ∨ n % 61 < 30 ∨ 40 < n % 61 ∨ n % 61 = 37)
+    (ho : n % 61 < 41 ∨ 43 < n % 61) :
     CRTS.tr thO (cond n) (.tick (n / 61)) (cond (n + 1)) :=
-  tr_tick (TotalOrder.le_refl _) (cond_now n h55) (cond_acs n (by omega)) (cond_decided n (by omega))
+  tr_tick (TotalOrder.le_refl _) (cond_now n h55) (cond_acs n (by omega)) (cond_bounds n (by omega))
     (cond_entered n (by omega)) (cond_opened n ho) (cond_opened_win n ho) (cond_completed n hc)
 
 /-- **The clock's `tick`** at the end of a plateau. -/
 theorem cstep_tick (n : ℕ) (h55 : n % 61 = 60) :
     CRTS.tr thO (cond n) (.tick (n / 61 + 1)) (cond (n + 1)) := by
   have := idx_eq n
-  refine tr_tick (by show n / 61 ≤ n / 61 + 1; omega) ?_ (cond_acs n (by omega)) (cond_decided n (by omega))
+  refine tr_tick (by show n / 61 ≤ n / 61 + 1; omega) ?_ (cond_acs n (by omega)) (cond_bounds n (by omega))
     (cond_entered n (by omega)) (cond_opened n (by omega)) (cond_opened_win n (by omega))
     (cond_completed n (by omega))
   show (n + 1) / 61 = n / 61 + 1
@@ -138,7 +137,7 @@ theorem cstep_complete (n : ℕ) (h : 24 ≤ n % 61 ∧ n % 61 ≤ 26 ∧ 1 ≤ 
     CRTS.tr thO (cond n) (.complete_slot (nd (n % 61 - 24)) (n / 61 - 1)) (cond (n + 1)) := by
   have := idx_eq n; have := pos_lt n
   refine tr_complete_slot ((correct_iff _).2 (by simp; omega)) ?_ ?_ (cond_now n (by omega))
-    (cond_acs n (by omega)) (cond_decided n (by omega)) (cond_entered n (by omega))
+    (cond_acs n (by omega)) (cond_bounds n (by omega)) (cond_entered n (by omega))
     (cond_opened n (by omega)) (cond_opened_win n (by omega)) ?_
   · simp only [cond, decide_eq_true_eq, nd_val]; omega
   · simp only [cond, decide_eq_false_iff_not, nd_val]; omega
@@ -149,11 +148,11 @@ theorem cstep_open (n : ℕ) (h : 41 ≤ n % 61 ∧ n % 61 ≤ 43) :
     CRTS.tr thO (cond n) (.open_slot (nd (n % 61 - 41)) (n / 61) (n / 61 / 36) (n / 61 / 36 * 36)
       (n / 61 / 36 * 36 + 4) (n / 61 / 36 * 36 + 35)) (cond (n + 1)) := by
   have := idx_eq n; have := pos_lt n
-  refine tr_open_slot ((correct_iff _).2 (by simp; omega)) ?_ (winBounds_of n _ ?_) (by omega) (by omega)
-    ?_ ?_ ?_ (cond_now n (by omega)) (cond_acs n (by omega)) (cond_decided n (by omega))
+  refine tr_open_slot ((correct_iff _).2 (by simp; omega)) ?_ (bounds_of n _ _ ?_) (by omega) (by omega)
+    ?_ ?_ ?_ (cond_now n (by omega)) (cond_acs n (by omega)) (cond_bounds n (by omega))
     (cond_entered n (by omega)) ?_ ?_ (cond_completed n (by omega))
   · simp only [cond, decide_eq_true_eq, nd_val, dB]; omega
-  · simp only [dB]; omega
+  · simp only [dB, nd_val]; omega
   · simp only [cond, decide_eq_false_iff_not, nd_val]; omega
   · show n / 61 ≤ n / 61; exact le_refl _
   · intro s' w0 f0 b0 l0 _ hb _ _ hlt
@@ -206,10 +205,10 @@ theorem inWindow_at (n : ℕ) (i : Fin 4) (hi : i.val < 3) (ht : n / 61 % 36 = 4
 slot below `36w + 4` completed. -/
 theorem readyNext_at (n : ℕ) (i : Fin 4) (hi : i.val < 3) (ht : n / 61 % 36 = 4)
     (hj : 24 + i.val < n % 61) :
-    ReadyNext thO (cond n) i (n / 61 / 36) := by
+    ReadyNext (cond n) i (n / 61 / 36) := by
   have := idx_eq n; have := pos_lt n
   intro f b l hb s w0 f0 b0 l0 _ _ _ _ hs
-  rw [winBounds_iff] at hb
+  rw [bounds_iff] at hb
   simp only [cond, decide_eq_true_eq]
   omega
 
@@ -222,20 +221,18 @@ theorem cstep_propose (n : ℕ) (h : n / 61 % 36 = 4 ∧ 30 ≤ n % 61 ∧ n % 6
   have hi : (nd (n % 61 - 30)).val < 3 := by omega
   refine tr_acs_propose ((correct_iff _).2 hi) (inWindow_at n _ hi h.1 (by simp; omega)) rfl ?_
     (readyNext_at n _ hi h.1 (by simp; omega)) ?_ ?_ ?_ ?_ (cond_now n (by omega)) ?_
-    (cond_decided n (by omega)) (cond_entered n (by omega)) (cond_opened n (by omega))
+    (cond_bounds n (by omega)) (cond_entered n (by omega)) (cond_opened n (by omega))
     (cond_opened_win n (by omega)) (cond_completed n (by omega))
   · intro s' hp
     change (acsSt _ n).prop _ = some s' at hp
     simp only [acsSt, nd_val, dB] at hp
     split_ifs at hp with hc
     omega
-  · intro w0 f0 b0 l0 hw0 hb
-    have hw0 : w0 + 1 = n / 61 / 36 + 1 := hw0
-    rw [winBounds_iff] at hb; omega
+  · intro f0 b0 l0 hb
+    rw [bounds_iff] at hb; omega
   · show n / 61 ≤ (n / 61 / 36 + 1) * 36; omega
-  · intro s' w0 f0 b0 l0 hw0 hb h1 h2
-    have hw0 : w0 + 1 = n / 61 / 36 + 1 := hw0
-    rw [winBounds_iff] at hb; omega
+  · intro s' f0 b0 l0 hb h1 h2
+    rw [bounds_iff] at hb; omega
   · refine ⟨?_, ?_⟩
     · show (acsSt _ n).prop _ = none
       simp only [acsSt, nd_val, dB]; split_ifs <;> first | rfl | omega
@@ -250,7 +247,7 @@ validators' pairs. -/
 theorem cstep_core (n : ℕ) (h : n / 61 % 36 = 4 ∧ n % 61 = 33) :
     CRTS.tr thO (cond n) (.acs_step (n / 61 / 36 + 1) (acsSt (n / 61 / 36 + 1) (n + 1))) (cond (n + 1)) := by
   have := idx_eq n; have := pos_lt n
-  refine tr_acs_step ?_ (cond_now n (by omega)) ?_ (cond_decided n (by omega)) (cond_entered n (by omega))
+  refine tr_acs_step ?_ (cond_now n (by omega)) ?_ (cond_bounds n (by omega)) (cond_entered n (by omega))
     (cond_opened n (by omega)) (cond_opened_win n (by omega)) (cond_completed n (by omega))
   · refine Or.inr (Or.inr (Or.inl ⟨?_, fun q => if q.val < 3 then some ((n / 61 / 36 + 1) * 36) else none,
       ⟨fun p s hp hc => ?_, fun k => ⟨k.val, by omega⟩, fun a b hab => ?_, fun k => ?_⟩, ?_⟩))
@@ -272,7 +269,7 @@ theorem cstep_core (n : ℕ) (h : n / 61 % 36 = 4 ∧ n % 61 = 33) :
 theorem cstep_out (n : ℕ) (h : n / 61 % 36 = 4 ∧ 34 ≤ n % 61 ∧ n % 61 ≤ 36) :
     CRTS.tr thO (cond n) (.acs_step (n / 61 / 36 + 1) (acsSt (n / 61 / 36 + 1) (n + 1))) (cond (n + 1)) := by
   have := idx_eq n; have := pos_lt n
-  refine tr_acs_step ?_ (cond_now n (by omega)) ?_ (cond_decided n (by omega)) (cond_entered n (by omega))
+  refine tr_acs_step ?_ (cond_now n (by omega)) ?_ (cond_bounds n (by omega)) (cond_entered n (by omega))
     (cond_opened n (by omega)) (cond_opened_win n (by omega)) (cond_completed n (by omega))
   · refine Or.inr (Or.inr (Or.inr ⟨nd (n % 61 - 34), ?_, ?_, ?_⟩))
     · show (acsSt _ n).core.isSome
@@ -285,45 +282,40 @@ theorem cstep_out (n : ℕ) (h : n / 61 % 36 = 4 ∧ 34 ≤ n % 61 ∧ n % 61 �
     · subst hx; rfl
     · exact acsSt_eq x n (Or.inl hx)
 
-/-- **The recording of window `w + 1`'s interval**, `[36(w + 1), 36(w + 1) + 35]`,
-from validator 0's decided pair, at both brackets. -/
-theorem cstep_decide (n : ℕ) (h : n / 61 % 36 = 4 ∧ n % 61 = 37) :
-    CRTS.tr thO (cond n) (.acs_decide (n / 61 / 36) (n / 61 / 36 + 1) ((n / 61 / 36 + 1) * 36)
-      (n / 61 / 36 * 36) (n / 61 / 36 * 36 + 4) (n / 61 / 36 * 36 + 35) 0 ((n / 61 / 36 + 1) * 36) 0
-      ((n / 61 / 36 + 1) * 36)) (cond (n + 1)) := by
+/-- **A correct validator's first slot of window `w + 1` is `36(w + 1)`**,
+once it has decided: every pair of its decided set is a correct validator's
+proposal `36(w + 1)`, so the lower median of the set is that slot
+(`Cadence.medianOf_eq_of_const`). -/
+theorem first_at (n : ℕ) (h : n / 61 % 36 = 4) (i : Fin 4) (hi : i.val < 3)
+    (hn : 34 + i.val < n % 61) :
+    thO.acs_first ((cond n).acs_state (n / 61 / 36 + 1)) i = (n / 61 / 36 + 1) * 36 := by
   have := idx_eq n; have := pos_lt n
-  have hdec : ∃ i, ¬ FM.byz i ∧ AS.decided ((cond n).acs_state (n / 61 / 36 + 1)) i 0
-      ((n / 61 / 36 + 1) * 36) := by
-    refine ⟨0, (correct_iff 0).2 (by decide), ?_,
-      fun q => if q.val < 3 then some ((n / 61 / 36 + 1) * 36) else none, ?_, ?_⟩
-    · show decide _ = true; simp only [decide_eq_true_eq, dB]; omega
-    · show (acsSt _ n).core = _; simp only [acsSt, dB]; rw [if_pos (by omega)]
-    · simp
-  refine tr_acs_decide (by show n / 61 / 36 + 1 ≠ 0; omega) ?_ ?_ rfl (winBounds_of n _ ?_)
-    ((correct_iff 0).2 (by decide)) hdec le_rfl ((correct_iff 0).2 (by decide)) hdec le_rfl
-    (cond_now n (by omega)) (cond_acs n (by omega)) ?_ (cond_entered n (by omega))
-    (cond_opened n (by omega)) (cond_opened_win n (by omega)) (cond_completed n (by omega))
-  · intro f b l; simp only [cond, decide_eq_true_eq, dB]; omega
-  · intro i _; have := i.isLt; simp only [cond, decide_eq_true_eq, dB]; omega
-  · simp only [dB]; omega
-  · intro x f b l
-    simp only [cond, thO]
-    rw [Bool.eq_iff_iff]
-    simp only [Bool.or_eq_true, decide_eq_true_eq, dB]
-    omega
+  have hcore : (acsSt (n / 61 / 36 + 1) n).core =
+      some (fun q => if q.val < 3 then some ((n / 61 / 36 + 1) * 36) else none) := by
+    simp only [acsSt, dB]; rw [if_pos (by omega)]
+  have hout : (acsSt (n / 61 / 36 + 1) n).out i = true := by
+    simp only [acsSt, dB, decide_eq_true_eq]; omega
+  show medianOf (AS.decided (acsSt (n / 61 / 36 + 1) n) i) = _
+  refine medianOf_eq_of_const ?_ ⟨⟨0, by decide⟩, (n / 61 / 36 + 1) * 36, hout, _, hcore, by simp⟩
+  rintro p s ⟨-, c, hc, hcp⟩
+  rw [hcore] at hc
+  cases hc
+  simp only at hcp
+  split_ifs at hcp
+  exact (Option.some.inj hcp).symm
 
-/-- **`i`'s entry into window `w + 1`**, abandoning its ACS. -/
+/-- **`i`'s entry into window `w + 1`**, abandoning its ACS and recording the
+interval it computes from its own decision. -/
 theorem cstep_enter (n : ℕ) (h : n / 61 % 36 = 4 ∧ 38 ≤ n % 61 ∧ n % 61 ≤ 40) :
     CRTS.tr thO (cond n) (.enter_window (nd (n % 61 - 38)) (n / 61 / 36) (n / 61 / 36 + 1)
-      ((n / 61 / 36 + 1) * 36) ((n / 61 / 36 + 1) * 36 + 4) ((n / 61 / 36 + 1) * 36 + 35)
-      (acsSt (n / 61 / 36 + 1) (n + 1))) (cond (n + 1)) := by
+      ((n / 61 / 36 + 1) * 36) (acsSt (n / 61 / 36 + 1) (n + 1))) (cond (n + 1)) := by
   have := idx_eq n; have := pos_lt n
   have hv := nd_val (n % 61 - 38)
   have hi : (nd (n % 61 - 38)).val < 3 := by omega
-  refine tr_enter_window ((correct_iff _).2 hi) (inWindow_at n _ hi h.1 (by simp; omega)) rfl ?_ ?_
-    (readyNext_at n _ hi h.1 (by simp; omega)) ?_ (cond_now n (by omega)) ?_ (cond_decided n (by omega))
-    ?_ (cond_opened n (by omega)) (cond_opened_win n (by omega)) (cond_completed n (by omega))
-  · simp only [cond, decide_eq_true_eq, dB, and_true]; omega
+  refine tr_enter_window ((correct_iff _).2 hi) (inWindow_at n _ hi h.1 (by simp; omega)) rfl ?_
+    (readyNext_at n _ hi h.1 (by simp; omega)) (first_at n h.1 _ hi (by omega)).symm ?_
+    (cond_now n (by omega)) ?_ ?_ ?_ (cond_opened n (by omega)) (cond_opened_win n (by omega))
+    (cond_completed n (by omega))
   · show decide _ = true; simp only [decide_eq_true_eq, dB, nd_val]; omega
   · show acsSt _ (n + 1) = _
     acs_eq
@@ -331,19 +323,19 @@ theorem cstep_enter (n : ℕ) (h : n / 61 % 36 = 4 ∧ 38 ≤ n % 61 ∧ n % 61 
     split_ifs with hx
     · subst hx; rfl
     · exact acsSt_eq x n (Or.inl hx)
+  · intro j x f0 b0 l0; have := j.isLt; simp only [thO]; farith
   · intro i w; have := i.isLt; farith
 
 /-- **Every step of the Conductor's run is a transition.** -/
 theorem ostep (n : ℕ) : CRTS.tr thO (cond n) (clbl n) (cond (n + 1)) := by
   have := idx_eq n; have := pos_lt n
   simp only [clbl]
-  split_ifs with h1 h2 h3 h4 h5 h6 h7
+  split_ifs with h1 h2 h3 h5 h6 h7
   · exact cstep_complete n h1
   · exact cstep_propose n h2
   · by_cases h33 : n % 61 = 33
     · exact cstep_core n ⟨h3.1, h33⟩
     · exact cstep_out n ⟨h3.1, by omega, h3.2.2⟩
-  · exact cstep_decide n h4
   · exact cstep_enter n h5
   · exact cstep_open n h6
   · exact cstep_tick n h7
@@ -392,7 +384,7 @@ theorem cond_eq (n : ℕ) (h55 : n % 61 ≠ 60) (hc : n % 61 < 24 ∨ 26 < n % 6
     cond (n + 1) = cond n := by
   have h1 := cond_now n h55
   have h2 := cond_acs n (by omega)
-  have h3 := cond_decided n (by omega)
+  have h3 := cond_bounds n (by omega)
   have h4 := cond_entered n (by omega)
   have h5 := cond_opened n ho
   have h6 := cond_opened_win n ho
@@ -672,12 +664,33 @@ local macro "fs" : tactic =>
       instIsSubStateOfRefl.setIn_overwrite, instIsSubStateOfRefl.getFrom_id,
       instIsSubReaderOfRefl.readFrom_id])
 
-/-- The Conductor's assumptions at `thO`. -/
+open Classical in
+/-- At most the ACS's fault bound, `f = 1`, validators are Byzantine:
+validator 3 alone. -/
+theorem hfault : (Finset.univ.filter FM.byz).card ≤ TA.fault_bound := by
+  have : Finset.univ.filter FM.byz = {3} := by
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
+    rw [byz_iff, Fin.ext_iff]
+    rfl
+  rw [this]
+  decide
+
+/-- The Conductor's assumptions at `thO`. The two on the first slot hold
+because `thO`'s first slot is the lower median of the decided set, and at
+most the ACS's fault bound validators are Byzantine
+(`Cadence.lowerMedian_first_assumptions`). -/
 theorem cholds : CRTS.assumptions thO := by
+  classical
   simp only [CRTS, Conductor.relationalTransitionSystem, Conductor.Assumptions, Conductor.acs_init,
-    Conductor.shift_shape, Conductor.genesis_window, Conductor.start_time_strict]
+    Conductor.shift_shape, Conductor.genesis_window, Conductor.start_time_strict,
+    Conductor.acs_first_local, Conductor.acs_first_bracket]
   fs
-  refine ⟨fun _ => ⟨rfl, rfl, rfl, rfl⟩, fun s => ⟨?_, ?_⟩, ⟨rfl, rfl, rfl⟩, fun s s' h => ⟨?_, ?_⟩⟩
+  have hmed := lowerMedian_first_assumptions (S := AS) (T := TA) hfault
+  refine ⟨fun _ => ⟨rfl, rfl, rfl, rfl⟩, fun s => ⟨?_, ?_⟩, ⟨rfl, rfl, rfl⟩, fun s s' h => ⟨?_, ?_⟩,
+    fun st st' i j h => hmed.1 st st' i j h, fun st i h1 h2 h3 => by
+      obtain ⟨⟨r1, s1, a1, b1, c1⟩, ⟨r2, s2, a2, b2, c2⟩⟩ := hmed.2 st i ⟨h1, h2, h3⟩
+      exact ⟨⟨r1, a1, s1, b1, c1⟩, ⟨r2, a2, s2, b2, c2⟩⟩⟩
   · show s ≤ s + 4; omega
   · show s + 4 ≤ s + 35; omega
   · have h : s < s' := h; show s ≤ s'; omega
@@ -703,6 +716,8 @@ theorem cstarts : CRTS.init thO (cond 0) := by
     | (split_ifs <;> first | rfl | omega)
     | (simp only [eq_comm (a := false), decide_eq_false_iff_not]; omega)
     | (rw [beq_cl, decide_eq_decide]; show _ = (0 : ℕ) ↔ _; omega)
+    | (simp only [beq_cl]; rw [Bool.eq_iff_iff]; simp only [Bool.and_eq_true, decide_eq_true_eq];
+        show ((_ = (0 : ℕ) ∧ _ = (0 : ℕ)) ∧ _) ∧ _ ↔ _; omega)
     | (refine ⟨fun q => ?_, ?_, fun q => ?_, fun q => ?_⟩ <;> first
         | (split_ifs <;> first | rfl | omega)
         | (simp only [eq_comm (a := false), decide_eq_false_iff_not]; omega))
