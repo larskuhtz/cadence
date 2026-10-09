@@ -174,7 +174,7 @@ theorem evidence_pigeonhole_of_reachable
       ByzNodeSet.greater_than_third_one_honest (self := byzNodeSetFin n f hf is_byz hbyz)
         q hq_gtt
     have hlocal := Chorus.reachable_vote_pos_from_local
-      (nset := byzNodeSetFin n f hf is_byz hbyz) hreach v j m ⟨hv_honest, hq v hv_mem⟩
+      (nset := byzNodeSetFin n f hf is_byz hbyz) hreach v j m ⟨hv_honest, (hq v hv_mem).1⟩
     exact Chorus.reachable_local_entry_pos_signed
       (nset := byzNodeSetFin n f hf is_byz hbyz) hreach v j m ⟨hv_honest, hlocal⟩
   -- No EquivCert: any two proposer-signed roots agree.
