@@ -281,8 +281,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   `Conductor.conductorTemporal_recovery_time`,
   `Conductor.conductorTemporal_caller`). Hypotheses: the claims'
   configuration premises (τ-spaced starting times, the window shifts,
-  unbounded starting times, every window with a successor, the ACS's `Δ`,
-  `ℓ` and fault bound). **`Conductor.conductorFullNat`** discharges two of
+  unbounded starting times, every window with a successor, the ACS's `Δ`
+  and `ℓ`). **`Conductor.conductorFullNat`** discharges two of
   them at `window := ℕ` over an Archimedean time with slot 1 starting at or
   after `0` (`Conductor.windowsUnbounded_nat`,
   `Conductor.startsUnbounded_of_startTimes`)
@@ -311,8 +311,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   (`RecoveryClaim`): every slot whose starting time is at least
   `GST + 2Wτ` is opened by every correct validator by its starting time.
   The premises: Totality's, the τ-spaced starting times and the window
-  shifts, every window having a successor, the ACS's `ℓ` the system's and
-  at most its fault bound Byzantine, the caller's (R-term), and the four
+  shifts, every window having a successor, the ACS's `ℓ` the system's, the
+  caller's (R-term), and the four
   parameter assumptions, which are the schedule's fields. The proof is
   Propositions 14–19 (`Conductor.open_to_complete`,
   `Conductor.enters_every_window`, `Conductor.window_open_time`,
@@ -320,11 +320,17 @@ Each entry is the result, the file its statement lives in, and what it says.
   `Conductor.first_post_gst_window_time`); **`Conductor.recovery_sharp`**
   proves the same at `(W + p − 1)τ ≤ 2Wτ`. It is the contract's
   `recovery` in `Conductor.conductorTemporal`, at the paper's `2Wτ`
-* **`Cadence.acs_median_bracket`** ([AcsMedian.lean](Cadence/AcsMedian.lean)) — the
-  justification of the Conductor's one stated bridge: for every ACS meeting
-  the contract and at most `f` Byzantine validators, the median of a
-  correct decider's set lies between two of its correct pairs, so
-  `acs_decide`'s median `require` removes no behaviour of a correct ACS
+* **`Cadence.acs_median_bracket`** ([AcsMedian.lean](Cadence/AcsMedian.lean)) — for
+  every ACS meeting the contract and at most `f` Byzantine validators, the
+  median of a correct decider's set lies between two of its correct pairs
+* **`Cadence.lowerMedian_first_assumptions`** ([AcsMedian.lean](Cadence/AcsMedian.lean)) —
+  the paper's first-slot rule meets the model's assumptions on it: the
+  lower median of a decided set (Algorithm 7, line 48
+  (`line:median-compute`)) is a function of the set alone
+  (`[acs_first_local]`) and, under the fault bound, is bracketed by two
+  correct pairs (`[acs_first_bracket]`). The Conductor's theorems hold for
+  every first-slot rule meeting both, so for the paper's median; the
+  composed witness uses it
 * **`Cadence.positional_log_safety`** ([Composition.lean](Cadence/Composition.lean)) — MCP
   Safety in the paper's positional form — two correct validators never
   disagree on the log entry at a given position — for the glue over *any*
@@ -363,8 +369,8 @@ Each entry is the result, the file its statement lives in, and what it says.
   Recovery within Cadence (`Composed.recovery_in`, Lemma 16 with its caller
   conditions discharged). **`Composed.liveness_sharp`** proves the same at
   `(W + p − 1)τ` (P18). The premises are the composed run's timing model,
-  the Conductor's configuration premises and the ACS's constants and fault
-  bound ([docs/Premises.md](docs/Premises.md) §0)
+  the Conductor's configuration premises and the ACS's constants
+  ([docs/Premises.md](docs/Premises.md) §0)
 * **`Composed.censorship`** ([Composed/Censorship.lean](Cadence/Composed/Censorship.lean)) —
   **`𝓡`-Censorship resistance of the composed system** (Definition 3
   (`def:censorship-resistance`)) at the paper's `𝓡 = 2Wτ`
@@ -389,7 +395,7 @@ Each entry is the result, the file its statement lives in, and what it says.
   once: the timing model `SysSync` (the glue's rows, the Conductor's
   timing model on its part with every window's ACS meeting its module,
   Chorus's on every slot's part), (P-incl) on every slot, the
-  configuration premises and the ACS's constants and fault bound. The
+  configuration premises and the ACS's constants. The
   orchestrator's part of the same run meets every premise of the
   Conductor's three timed claims, the caller's (R-tot) and (R-term)
   included. Each proven claim is checked to apply to the model.
@@ -1011,6 +1017,12 @@ info: 'Cadence.acs_median_bracket' depends on axioms: [propext, Classical.choice
 -/
 #guard_msgs in
 #print axioms Cadence.acs_median_bracket
+
+/--
+info: 'Cadence.lowerMedian_first_assumptions' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Cadence.lowerMedian_first_assumptions
 
 /--
 info: 'Cadence.positional_log_safety' depends on axioms: [propext, Classical.choice, Quot.sound]

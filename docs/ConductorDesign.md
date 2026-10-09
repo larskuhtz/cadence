@@ -95,11 +95,12 @@ named hypotheses; the ACS is an assumed module and has none. Each module is
 verified independently against the contract; the instances and the
 composed theorem are §5.
 
-Two consumptions leave a stated **bridge** — a guard that interprets a class
-parameter in the consumer's own vocabulary, because the parameter is fixed
-before the consumer's state exists: the Conductor's ACS median range (§3),
-and Chorus's certificate check on a decided MVBA entry
-([CompositionContracts.md](CompositionContracts.md) §7).
+Two consumptions leave a stated **bridge** between a class parameter and
+the consumer's own vocabulary, because the parameter is fixed before the
+consumer's state exists: the Conductor's ACS median range (§3), an
+assumption on the first slot each validator computes, met by the lower
+median; and Chorus's certificate check on a decided MVBA entry
+([CompositionContracts.md](CompositionContracts.md) §7), a guard.
 
 ### The class layer ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean))
 
@@ -209,23 +210,25 @@ fields, not substitutes for them.
    (`line:ready-check`): the first slot readiness does not ask to be
    complete) map a window's first slot to its last slot and readiness
    boundary.
-   `acs_decide` records exactly that interval, and window 1 is the shifts
-   of slot 1 (`[genesis_window]`). The solver sees them as uninterpreted
+   Window entry records exactly that interval at the entering validator,
+   and window 1 is the shifts of slot 1 (`[genesis_window]`). The solver sees them as uninterpreted
    functions with `s ≤ win_boundary s ≤ win_last s`, which is the paper's
    `0 ≤ p ≤ W − 1`; the instance at
    `slot := ℕ` fixes the arithmetic.
 2. **Median / range validity.** The median of the decided ACS set lies
    between two correct proposals (≤ f faulty among ≥ 2f+1) — order-statistics
-   counting, of the same species as the `ByzNodeSet` counting axioms. The
-   model uses both halves: `acs_decide` requires two correct witness
-   pairs from a correct decider's decided set, `(r1, s1)` with
-   `s1 ≤ first` (which separates the windows) and `(r2, s2)` with
-   `first ≤ s2` (which recovery's timing reads). That the median meets
-   them is a Lean theorem from the ACS contract,
-   `Cadence.acs_median_bracket` ([Cadence/AcsMedian.lean](../Cadence/AcsMedian.lean)),
-   through the median lemma of [Cadence/Windows.lean](../Cadence/Windows.lean)
-   and the contract's one-slot-per-validator field. This is one of the two
-   stated bridges (§2).
+   counting, of the same species as the `ByzNodeSet` counting axioms. Each
+   validator computes its first slot from its own decided set,
+   `acs_first`, and the model assumes both halves of the bracket of it
+   (`[acs_first_bracket]`): a correct pair at or below it (which separates
+   the windows) and one at or above it (which recovery's timing reads),
+   together with `[acs_first_local]`, that the first slot is a function of
+   the decided set alone. That the lower median meets both is a Lean theorem
+   from the ACS contract, `Cadence.lowerMedian_first_assumptions`
+   ([Cadence/AcsMedian.lean](../Cadence/AcsMedian.lean)), through the median
+   lemma of [Cadence/Windows.lean](../Cadence/Windows.lean) and the
+   contract's one-slot-per-validator field. This is one of the two stated
+   bridges (§2).
 3. **Abstract clock.** A monotone global `now` (an ordered type, advanced by
    a nondeterministic tick action) with guards such as
    `require start_time s ≤ now` on `open`. Timing *properties* stay meta; the

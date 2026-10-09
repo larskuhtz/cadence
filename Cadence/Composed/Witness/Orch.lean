@@ -11,8 +11,7 @@ orchestrator (`partRun_at'_of_all`). Its labelled run is the Conductor's run
 of [Steps.lean](Steps.lean) (`crun`), and it meets `Conductor.Sync`:
 
 * **the rows** hold at the end of every plateau, where every correct
-  validator is in a window it is not yet ready to leave, and every decided
-  window's interval is recorded;
+  validator is in a window it is not yet ready to leave;
 * **(P-open)**: every correct validator opens slot `s` at time `s`;
 * **one clock**: the clock is the plateau, and so is `now`;
 * **the ACS meets its module**: window `w`'s ideal ACS is stepped at every
@@ -67,7 +66,7 @@ local macro "ctr" h:ident : tactic =>
       trSimp] at $h:ident))
 
 theorem not_ready (t : ℕ) (i : Fin 4) (hi : i.val < 3) (w : ℕ)
-    (hin : InWindow (cond (t * 61 + 60)) i w) : ¬ ReadyNext thO (cond (t * 61 + 60)) i w := by
+    (hin : InWindow (cond (t * 61 + 60)) i w) : ¬ ReadyNext (cond (t * 61 + 60)) i w := by
   intro hrd
   obtain ⟨he, hne⟩ := hin
   have hne := hne (w + 1) rfl
@@ -75,7 +74,7 @@ theorem not_ready (t : ℕ) (i : Fin 4) (hi : i.val < 3) (w : ℕ)
   change decide _ = false at hne
   simp only [decide_eq_true_eq, dB] at he
   simp only [decide_eq_false_iff_not, dB] at hne
-  have hb := (winBounds_iff (t * 61 + 60) w (w * 36) (w * 36 + 4) (w * 36 + 35)).2
+  have hb := (bounds_iff (t * 61 + 60) w (w * 36) (w * 36 + 4) (w * 36 + 35) i).2
     ⟨rfl, rfl, rfl, by simp only [dB]; omega⟩
   have hc := hrd _ _ _ hb (w * 36 + 3) w (w * 36) (w * 36 + 4) (w * 36 + 35)
     (by show decide _ = true; simp only [decide_eq_true_eq, dB]; omega) hb (by omega) (by omega) (by omega)
@@ -84,23 +83,8 @@ theorem not_ready (t : ℕ) (i : Fin 4) (hi : i.val < 3) (w : ℕ)
   omega
 
 theorem not_proposeGate (t : ℕ) (i : Fin 4) (hi : i.val < 3) (w' : ℕ) :
-    ¬ Conductor.proposeGate thO i w' (cond (t * 61 + 60)) :=
+    ¬ Conductor.proposeGate i w' (cond (t * 61 + 60)) :=
   fun ⟨w, _, hin, hrd⟩ => not_ready t i hi w hin hrd
-
-/-- A decided window's interval is recorded by the end of the plateau, so
-its recording is disabled there. -/
-theorem decide_quiet (t w : ℕ) :
-    ¬ (decideGate (fm := FM) (A := AS) w (cond (t * 61 + 60)) ∧
-      ∃ l, DecideLabel w l ∧ Enabled CRTS thO (cond (t * 61 + 60)) l) := by
-  rintro ⟨⟨i, -, hd⟩, l, ⟨w0, first, f0, b0, l0, r1, s1, r2, s2, rfl⟩, s', htr⟩
-  change decide _ = true at hd
-  simp only [decide_eq_true_eq, dB] at hd
-  ctr htr
-  obtain ⟨-, hnd, -⟩ := htr
-  have := hnd (w * 36) (w * 36 + 4) (w * 36 + 35)
-  simp only [Veil.FieldRepresentation.get, instIsSubStateOfRefl.getFrom_id, id, cond,
-    decide_eq_true_eq, dB, and_true] at this
-  omega
 
 theorem cEnd_ge (N : ℕ) : N ≤ N / 61 * 61 + 60 := by have := idx_eq N; have := pos_lt N; omega
 
@@ -115,8 +99,6 @@ theorem timedRows : TimedRows (fm := FM) (A := AS) sch crun where
   enter i w' hi := bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
     ⟨_, cEnd_ge N, cEnd_clk N, fun ⟨_, hg, _⟩ =>
       not_proposeGate (N / 61) i ((correct_iff i).1 hi) w' hg.2⟩
-  decide w := bufferedFairFamily_of_ends (Nat.zero_le _) fun N =>
-    ⟨_, cEnd_ge N, cEnd_clk N, fun ⟨_, hg, hen⟩ => decide_quiet (N / 61) w ⟨hg, hen⟩⟩
 
 /-! ## The ACS meets its module
 

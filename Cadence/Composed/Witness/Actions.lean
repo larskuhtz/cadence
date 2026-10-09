@@ -182,8 +182,8 @@ local macro "cstruct" : tactic =>
              cmk))
 
 theorem tr_tick {t : time} (h : TotalOrder.le st.now t) (hnow : st'.now = t)
-    (has : st'.acs_state = st.acs_state) (hd : st'.acs_decided = st.acs_decided)
-    (he : st'.entered = st.entered) (ho : st'.opened = st.opened) (how : st'.opened_win = st.opened_win)
+    (has : st'.acs_state = st.acs_state) (hlb : st'.local_bounds = st.local_bounds)
+    (he : st'.entered = st.entered) (ho : st'.opened = st.opened) (how : st'.aux_opened_win = st.aux_opened_win)
     (hc : st'.completed = st.completed) :
     (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st (.tick t) st' := by
   cstruct
@@ -191,8 +191,8 @@ theorem tr_tick {t : time} (h : TotalOrder.le st.now t) (hnow : st'.now = t)
 
 theorem tr_complete_slot {i : node} {s : ℕ} (hi : ¬ fm.byz i) (ho : st.opened i s = true)
     (hnc : st.completed i s = false) (hnow : st'.now = st.now)
-    (has : st'.acs_state = st.acs_state) (hd : st'.acs_decided = st.acs_decided)
-    (he : st'.entered = st.entered) (hop : st'.opened = st.opened) (how : st'.opened_win = st.opened_win)
+    (has : st'.acs_state = st.acs_state) (hlb : st'.local_bounds = st.local_bounds)
+    (he : st'.entered = st.entered) (hop : st'.opened = st.opened) (how : st'.aux_opened_win = st.aux_opened_win)
     (hc : ∀ j x, st'.completed j x = (decide (j = i ∧ x = s) || st.completed j x)) :
     (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st (.complete_slot i s) st' := by
   cstruct
@@ -201,16 +201,16 @@ theorem tr_complete_slot {i : node} {s : ℕ} (hi : ¬ fm.byz i) (ho : st.opened
   by_cases h1 : j = i <;> by_cases h2 : x = s <;> simp [h1, h2, Ne.symm]
 
 theorem tr_open_slot {i : node} {s : ℕ} {w : window} {f b l : ℕ}
-    (hi : ¬ fm.byz i) (he : st.entered i w = true) (hb : WinBounds (th := th) st w f b l)
+    (hi : ¬ fm.byz i) (he : st.entered i w = true) (hb : Bounds st i w f b l)
     (hfs : f ≤ s) (hsl : s ≤ l) (hno : st.opened i s = false)
     (hnow : TotalOrder.le (th.start_time s) st.now)
-    (hbelow : ∀ s' w0 f0 b0 l0, st.entered i w0 = true → WinBounds (th := th) st w0 f0 b0 l0 →
+    (hbelow : ∀ s' w0 f0 b0 l0, st.entered i w0 = true → Bounds st i w0 f0 b0 l0 →
       f0 ≤ s' → s' ≤ l0 → s' < s → st.opened i s' = true)
     (hnow' : st'.now = st.now)
-    (has : st'.acs_state = st.acs_state) (hd : st'.acs_decided = st.acs_decided)
+    (has : st'.acs_state = st.acs_state) (hlb : st'.local_bounds = st.local_bounds)
     (hen : st'.entered = st.entered)
     (hop : ∀ j x, st'.opened j x = (decide (j = i ∧ x = s) || st.opened j x))
-    (how : ∀ j x y, st'.opened_win j x y = (decide (j = i ∧ x = s ∧ y = w) || st.opened_win j x y))
+    (how : ∀ j x y, st'.aux_opened_win j x y = (decide (j = i ∧ x = s ∧ y = w) || st.aux_opened_win j x y))
     (hc : st'.completed = st.completed) :
     (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
       (.open_slot i s w f b l) st' := by
@@ -222,8 +222,8 @@ theorem tr_open_slot {i : node} {s : ℕ} {w : window} {f b l : ℕ}
     by_cases h1 : j = i <;> by_cases h2 : x = s <;> by_cases h3 : y = w <;> simp [h1, h2, h3, Ne.symm]
 
 theorem tr_acs_step {w : window} {a : acsstate} (h : A.step (st.acs_state w) a) (hnow : st'.now = st.now)
-    (has : ∀ x, st'.acs_state x = if x = w then a else st.acs_state x) (hd : st'.acs_decided = st.acs_decided)
-    (he : st'.entered = st.entered) (hop : st'.opened = st.opened) (how : st'.opened_win = st.opened_win)
+    (has : ∀ x, st'.acs_state x = if x = w then a else st.acs_state x) (hlb : st'.local_bounds = st.local_bounds)
+    (he : st'.entered = st.entered) (hop : st'.opened = st.opened) (how : st'.aux_opened_win = st.aux_opened_win)
     (hc : st'.completed = st.completed) :
     (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st (.acs_step w a) st' := by
   cstruct
@@ -232,14 +232,14 @@ theorem tr_acs_step {w : window} {a : acsstate} (h : A.step (st.acs_state w) a) 
 
 theorem tr_acs_propose {i : node} {w w' : window} {s : ℕ} {a : acsstate}
     (hi : ¬ fm.byz i) (hin : InWindow st i w) (hn : win_ord.next w w')
-    (hnp : ∀ s', ¬ A.proposed (st.acs_state w') i s') (hrd : ReadyNext th st i w)
-    (hbeyond : ∀ w0 f0 b0 l0, win_ord.next w0 w' → WinBounds (th := th) st w0 f0 b0 l0 → l0 < s)
+    (hnp : ∀ s', ¬ A.proposed (st.acs_state w') i s') (hrd : ReadyNext st i w)
+    (hbeyond : ∀ f0 b0 l0, Bounds st i w f0 b0 l0 → l0 < s)
     (hnow : TotalOrder.le st.now (th.start_time s))
-    (hfirst : ∀ s' w0 f0 b0 l0, win_ord.next w0 w' → WinBounds (th := th) st w0 f0 b0 l0 →
+    (hfirst : ∀ s' f0 b0 l0, Bounds st i w f0 b0 l0 →
       l0 < s' → s' < s → ¬ TotalOrder.le st.now (th.start_time s'))
     (hp : A.propose (st.acs_state w') i s a) (hnow' : st'.now = st.now)
-    (has : ∀ x, st'.acs_state x = if x = w' then a else st.acs_state x) (hd : st'.acs_decided = st.acs_decided)
-    (he : st'.entered = st.entered) (hop : st'.opened = st.opened) (how : st'.opened_win = st.opened_win)
+    (has : ∀ x, st'.acs_state x = if x = w' then a else st.acs_state x) (hlb : st'.local_bounds = st.local_bounds)
+    (he : st'.entered = st.entered) (hop : st'.opened = st.opened) (how : st'.aux_opened_win = st.aux_opened_win)
     (hc : st'.completed = st.completed) :
     (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
       (.acs_propose i w w' s a) st' := by
@@ -248,42 +248,28 @@ theorem tr_acs_propose {i : node} {w w' : window} {s : ℕ} {a : acsstate}
     hfirst, hp, ?_⟩
   intro x; rw [has x]; by_cases h1 : x = w' <;> simp [h1, Ne.symm]
 
-theorem tr_acs_decide {w0 w : window} {first f0 b0 l0 : ℕ} {r1 r2 : node} {s1 s2 : ℕ}
-    (hw : w ≠ win_ord.zero) (hnd : ∀ f b l, ¬ st.acs_decided w f b l = true)
-    (hne : ∀ i, ¬ fm.byz i → ¬ st.entered i w = true) (hn : win_ord.next w0 w)
-    (hb : WinBounds (th := th) st w0 f0 b0 l0)
-    (hr1 : ¬ fm.byz r1) (hd1 : ∃ i, ¬ fm.byz i ∧ A.decided (st.acs_state w) i r1 s1) (hs1 : s1 ≤ first)
-    (hr2 : ¬ fm.byz r2) (hd2 : ∃ i, ¬ fm.byz i ∧ A.decided (st.acs_state w) i r2 s2) (hs2 : first ≤ s2)
-    (hnow : st'.now = st.now)
-    (has : st'.acs_state = st.acs_state)
-    (hd : ∀ x f b l, st'.acs_decided x f b l =
-      (decide (x = w ∧ f = first ∧ b = th.win_boundary first ∧ l = th.win_last first) || st.acs_decided x f b l))
-    (he : st'.entered = st.entered) (hop : st'.opened = st.opened) (how : st'.opened_win = st.opened_win)
-    (hc : st'.completed = st.completed) :
-    (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
-      (.acs_decide w0 w first f0 b0 l0 r1 s1 r2 s2) st' := by
-  cstruct
-  refine ⟨hw, fun f b l => by simpa using hnd f b l, fun i hi => by simpa using hne i hi, hn, hb, hr1, hd1,
-    hs1, hr2, hd2, hs2, ?_⟩
-  intro x f b l; rw [hd x f b l]
-  by_cases h1 : x = w <;> by_cases h2 : f = first <;> by_cases h3 : b = th.win_boundary first <;>
-    by_cases h4 : l = th.win_last first <;> simp [h1, h2, h3, h4, Ne.symm]
-
-theorem tr_enter_window {i : node} {w w' : window} {f b l : ℕ} {a : acsstate}
+theorem tr_enter_window {i : node} {w w' : window} {f : ℕ} {a : acsstate}
     (hi : ¬ fm.byz i) (hin : InWindow st i w) (hn : win_ord.next w w')
-    (hd : st.acs_decided w' f b l = true) (hdec : A.has_decided (st.acs_state w') i)
-    (hrd : ReadyNext th st i w) (hab : A.abandon (st.acs_state w') i a) (hnow : st'.now = st.now)
-    (has : ∀ x, st'.acs_state x = if x = w' then a else st.acs_state x) (hdd : st'.acs_decided = st.acs_decided)
+    (hdec : A.has_decided (st.acs_state w') i) (hrd : ReadyNext st i w)
+    (hf : f = th.acs_first (st.acs_state w') i)
+    (hbey : ∀ f0 b0 l0, Bounds st i w f0 b0 l0 → l0 < f)
+    (hab : A.abandon (st.acs_state w') i a) (hnow : st'.now = st.now)
+    (has : ∀ x, st'.acs_state x = if x = w' then a else st.acs_state x)
+    (hlb : ∀ j x f0 b0 l0, st'.local_bounds j x f0 b0 l0 =
+      ((decide (i = j) && (decide (w' = x) && (decide (f = f0) &&
+        (decide (th.win_boundary f = b0) && decide (th.win_last f = l0))))) ||
+        st.local_bounds j x f0 b0 l0))
     (he : ∀ j x, st'.entered j x = (decide (j = i ∧ x = w') || st.entered j x))
-    (hop : st'.opened = st.opened) (how : st'.opened_win = st.opened_win)
+    (hop : st'.opened = st.opened) (how : st'.aux_opened_win = st.aux_opened_win)
     (hc : st'.completed = st.completed) :
     (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
-      (.enter_window i w w' f b l a) st' := by
+      (.enter_window i w w' f a) st' := by
   cstruct
-  refine ⟨hi, hin.1, hin.2, hn, hd, hdec, hrd, hab, ?_, ?_⟩
+  refine ⟨hi, hin.1, hin.2, hn, hdec, hrd, hbey, hab, ?_, ?_, ?_⟩
   · intro x; rw [has x]; by_cases h1 : x = w' <;> simp [h1, Ne.symm]
   · intro j x; rw [he j x]
     by_cases h1 : j = i <;> by_cases h2 : x = w' <;> simp [h1, h2, Ne.symm]
+  · intro j x f0 b0 l0; rw [hlb j x f0 b0 l0]
 
 end Conductor
 

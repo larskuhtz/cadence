@@ -30,9 +30,6 @@ What has been done, and when, is [History.md](History.md).
 
 ## Soundness instruments
 
-* **Locality, the open model** ([Locality.md](Locality.md) §7). Conductor:
-  `acs_decide` becomes a per-validator step writing per-validator window
-  bounds, and `opened_win` an `aux_` record.
 * **Receiver checks to the correct receivers** ([Locality.md](Locality.md)
   §4.2, B4). Three Byzantine sends are still guarded by the check a correct
   receiver applies. Mvba: a timeout carrying a certificate above its view

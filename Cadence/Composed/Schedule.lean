@@ -555,8 +555,8 @@ def Corollary4Claim (sch : ConductorSchedule view time vfin)
 
 /-- **`𝓡`-Liveness of the composed system, the claim** (Definition 2
 (`def:liveness`), Lemma 2 (`lemma:cadence-liveness`)), at recovery time
-`R`. Under the Conductor's configuration premises and the ACS's constants
-and fault bound, in every composed run that meets the timing model, for
+`R`. Under the Conductor's configuration premises and the ACS's constants,
+in every composed run that meets the timing model, for
 every slot `s` with `s.deadline − Δ ≥ GST + R`, every correct validator
 appends a proposal vector `V` with `V.slot = s` to its local log. Proven at
 the paper's `𝓡 = 2Wτ` (`liveness`) and at `(W + p − 1)τ` (`liveness_sharp`,
@@ -566,7 +566,6 @@ def LivenessClaim (sch : ConductorSchedule view time vfin)
     (thO : Conductor.Theory ℕ window time (Fin n) acsstate) (R : time) : Prop :=
   StartTimes sch thO → WindowShifts sch thO → StartsUnbounded thO → WindowsUnbounded window →
   TA.Δ = sch.Δ → TA.ℓ = sch.ℓ →
-  (Finset.univ.filter (fmF n f hf is_byz hbyz).byz).card ≤ TA.fault_bound →
   ∀ (thG : GTheory merkle_root view Phase PathChoice window time acsstate n)
     (r : TSysRun n f hf is_byz hbyz thO
       (Cadence.chorusTheory (slot := ℕ) (Phase := Phase) (PathChoice := PathChoice) is_proposer
@@ -595,7 +594,6 @@ def CensorshipClaim (sch : ConductorSchedule view time vfin)
     (thO : Conductor.Theory ℕ window time (Fin n) acsstate) (R : time) : Prop :=
   StartTimes sch thO → WindowShifts sch thO → StartsUnbounded thO → WindowsUnbounded window →
   TA.Δ = sch.Δ → TA.ℓ = sch.ℓ →
-  (Finset.univ.filter (fmF n f hf is_byz hbyz).byz).card ≤ TA.fault_bound →
   (∃ m, well_encoded m = true) →
   ∀ (o : OrchSt window time acsstate n) (sci : ℕ → SlotSt merkle_root view Phase PathChoice n)
     (r : TSysRun n f hf is_byz hbyz thO

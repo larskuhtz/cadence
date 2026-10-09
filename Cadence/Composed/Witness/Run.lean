@@ -2,6 +2,7 @@ import Cadence.Composed.Witness.Slot
 import Cadence.Composed.Witness.Periodic
 import Cadence.Composed.Censorship
 import Cadence.Conductor.IdealAcs
+import Cadence.AcsMedian
 
 /-! # Composed.Witness.Run — the composed witness's instance, schedule and run
 
@@ -39,9 +40,9 @@ Time advances by one at the end of every block of `L = 61` steps (a
   step; `27–29` — its append of slot `t − 1`'s vector;
 * `30–40`, at `t = 36k + 4` only (window `k`'s readiness boundary) — each
   correct validator's proposal of slot `36(k + 1)` to window `k + 1`'s ACS,
-  the ACS fixing its decided set and each correct validator's decision, the
-  recording of the decided interval, and each correct validator's entry
-  into window `k + 1`;
+  the ACS fixing its decided set and each correct validator's decision, a
+  `tick` in place at `37`, and each correct validator's entry into window
+  `k + 1`, with the interval it computes from its own decision;
 * `41–43` — each correct validator's opening of slot `t`; `44–46` — its
   participation in slot `t`; `47` — validator 0's proposal, which sends
   every validator its chunk; `48–50` — each correct validator recording it;
@@ -95,8 +96,11 @@ def TA : ACSTemporal (Fin 4) ℕ ACSt ℕ Unit FM.byz (S := AS) :=
   IdealAcs.acsTemporal FM.byz 1 (1 : ℕ) 2 Unit Nat.one_pos
 
 /-- **The Conductor's configuration**: slot `s` starts at `s`, a window's
-last slot is its first plus 35, its readiness boundary its first plus 4. -/
-def thO : Conductor.Theory ℕ ℕ ℕ (Fin 4) ACSt where
+last slot is its first plus 35, its readiness boundary its first plus 4,
+and a validator's first slot of a window is the paper's, the lower median
+of its decided set (`Cadence.medianOf`, Algorithm 7, line 48
+(`line:median-compute`)). -/
+noncomputable def thO : Conductor.Theory ℕ ℕ ℕ (Fin 4) ACSt where
   start_time s := s
   win_last s := s + 35
   win_boundary s := s + 4
@@ -104,6 +108,7 @@ def thO : Conductor.Theory ℕ ℕ ℕ (Fin 4) ACSt where
   genesis_last := 35
   genesis_time := 0
   acs_init_state _ := acs0
+  acs_first st i := medianOf (AS.decided st i)
 
 /-! ## The schedule -/
 
@@ -180,16 +185,17 @@ def acsSt (w n : ℕ) : ACSt where
   ab i := decide (1 ≤ w ∧ i.val < 3 ∧ dB w + 38 + i.val < n)
 
 /-- **The Conductor's state at index `n`.** The clock reads the plateau;
-window `w ≥ 1`'s interval is recorded at `dB w + 37`, entered by `i` at
-`dB w + 38 + i`; slot `s` is opened by `i` at `61s + 41 + i` and completed
+window `w ≥ 1` is entered by `i` at `dB w + 38 + i`, which records its
+interval at `i`; slot `s` is opened by `i` at `61s + 41 + i` and completed
 at `61s + 85 + i` (position 24 + `i` of the next plateau). -/
 def cond (n : ℕ) : CSt where
   now := n / 61
   acs_state w := acsSt w n
-  acs_decided w f b l := decide (1 ≤ w ∧ dB w + 37 < n ∧ f = w * 36 ∧ b = w * 36 + 4 ∧ l = w * 36 + 35)
   entered i w := decide (w = 0 ∨ (1 ≤ w ∧ i.val < 3 ∧ dB w + 38 + i.val < n))
+  local_bounds i w f b l := decide ((w = 0 ∨ (1 ≤ w ∧ i.val < 3 ∧ dB w + 38 + i.val < n)) ∧
+    f = w * 36 ∧ b = w * 36 + 4 ∧ l = w * 36 + 35)
   opened i s := decide (i.val < 3 ∧ s * 61 + 41 + i.val < n)
-  opened_win i s w := decide (i.val < 3 ∧ s * 61 + 41 + i.val < n ∧ w = s / 36)
+  aux_opened_win i s w := decide (i.val < 3 ∧ s * 61 + 41 + i.val < n ∧ w = s / 36)
   completed i s := decide (i.val < 3 ∧ s * 61 + 85 + i.val < n)
 
 /-- **Slot `x`'s local index at composed index `n`**: the number of its
@@ -230,12 +236,8 @@ def clbl (n : ℕ) : CLb :=
   else if t % 36 = 4 ∧ 30 ≤ j ∧ j ≤ 32 then
     .acs_propose (nd (j - 30)) w (w + 1) ((w + 1) * 36) (acsSt (w + 1) (n + 1))
   else if t % 36 = 4 ∧ 33 ≤ j ∧ j ≤ 36 then .acs_step (w + 1) (acsSt (w + 1) (n + 1))
-  else if t % 36 = 4 ∧ j = 37 then
-    .acs_decide w (w + 1) ((w + 1) * 36) (w * 36) (w * 36 + 4) (w * 36 + 35) 0 ((w + 1) * 36) 0
-      ((w + 1) * 36)
   else if t % 36 = 4 ∧ 38 ≤ j ∧ j ≤ 40 then
-    .enter_window (nd (j - 38)) w (w + 1) ((w + 1) * 36) ((w + 1) * 36 + 4) ((w + 1) * 36 + 35)
-      (acsSt (w + 1) (n + 1))
+    .enter_window (nd (j - 38)) w (w + 1) ((w + 1) * 36) (acsSt (w + 1) (n + 1))
   else if 41 ≤ j ∧ j ≤ 43 then .open_slot (nd (j - 41)) t w (w * 36) (w * 36 + 4) (w * 36 + 35)
   else if j = 60 then .tick (t + 1)
   else .tick t

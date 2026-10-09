@@ -55,8 +55,7 @@ configuration premises, each by its name in
 
 * **the ACS is an assumed module**: an arbitrary instance `TA` of its
   temporal level over the fragment the Conductor consumes, with the
-  system's constants (`TA.Δ = Δ`, `TA.ℓ = ℓ`) and at most its
-  `fault_bound` validators Byzantine (P17);
+  system's constants (`TA.Δ = Δ`, `TA.ℓ = ℓ`) (P17);
 * **the configuration**: τ-spaced starting times (`StartTimes`), windows
   of `W` slots with the readiness boundary at the `(p + 1)`-th
   (`WindowShifts`), starting times that are unbounded (`StartsUnbounded`,
@@ -129,10 +128,10 @@ theorem tick_now {t : time}
 /-- **The opening's guards are its enabledness** (Algorithm 7, lines 27–28
 (`line:conductor-wait-for-open`–`line:trigger-open`)). -/
 theorem enabled_open_slot {i : node} {s : ℕ} {w : window} {f b l : ℕ}
-    (hi : ¬ fm.byz i) (he : st.entered i w = true) (hb : WinBounds (th := th) st w f b l)
+    (hi : ¬ fm.byz i) (he : st.entered i w = true) (hb : Bounds st i w f b l)
     (hfs : f ≤ s) (hsl : s ≤ l) (hno : st.opened i s = false)
     (hnow : TotalOrder.le (th.start_time s) st.now)
-    (hbelow : ∀ s' w0 f0 b0 l0, st.entered i w0 = true → WinBounds (th := th) st w0 f0 b0 l0 →
+    (hbelow : ∀ s' w0 f0 b0 l0, st.entered i w0 = true → Bounds st i w0 f0 b0 l0 →
       f0 ≤ s' → s' ≤ l0 → s' < s → st.opened i s' = true) :
     Enabled (Conductor.relationalTransitionSystem ℕ window time node acsstate) th st
       (.open_slot i s w f b l) := by
@@ -272,14 +271,15 @@ noncomputable def idleSt (st₀ : CState window time node acsstate) : ℕ → CS
 
 variable (th) in
 /-- **What the idle run's state at index `n` is**: every validator in
-window 1 and no other, every ACS in its initial state, no interval
-recorded, nothing completed, the clock at `nowSlot n`'s starting time, and
-`(j, s)` opened exactly when `j` is correct, `s` lies in window 1 and its
-opening is before `n`. -/
+window 1 and no other, holding window 1's interval and no other, every ACS
+in its initial state, nothing completed, the clock at `nowSlot n`'s starting
+time, and `(j, s)` opened exactly when `j` is correct, `s` lies in window 1
+and its opening is before `n`. -/
 structure IdleInv (n : ℕ) (st : CState window time node acsstate) : Prop where
   entered : ∀ j x, st.entered j x = true ↔ x = win_ord.zero
   acs : ∀ x, st.acs_state x = th.acs_init_state x
-  decided : ∀ x f b l, st.acs_decided x f b l = false
+  bounds : ∀ j x f b l, Bounds st j x f b l ↔
+    (x = win_ord.zero ∧ f = 0 ∧ b = th.genesis_boundary ∧ l = th.genesis_last)
   completed : ∀ j s, st.completed j s = false
   now : st.now = th.start_time (nowSlot (blk node) n)
   opened : ∀ j s, st.opened j s = true ↔
@@ -293,7 +293,7 @@ theorem idleInv_zero {st₀ : CState window time node acsstate}
     IdleInv th 0 st₀ where
   entered := init_entered hi
   acs x := by rw [acs_state_init hi]
-  decided := init_decided hi
+  bounds := init_bounds hi
   completed := Conductor.completed.init hi
   now := by
     rw [init_now hi, ha.2.2.1.2.2]
@@ -303,14 +303,6 @@ theorem idleInv_zero {st₀ : CState window time node acsstate}
     rw [Conductor.opened.init hi j s]
     simp
 
-omit [Inhabited window] [Inhabited node] [Inhabited acsstate] A [LinearOrder time] [Inhabited time] in
-/-- In the idle run's states, a window's bounds are window 1's. -/
-theorem IdleInv.winBounds {n : ℕ} {st : CState window time node acsstate} (hinv : IdleInv th n st)
-    {w : window} {f b l : ℕ} (h : WinBounds (th := th) st w f b l) :
-    w = win_ord.zero ∧ f = 0 ∧ b = th.genesis_boundary ∧ l = th.genesis_last := by
-  rcases h with h | h
-  · exact h
-  · rw [hinv.decided] at h; exact absurd h Bool.false_ne_true
 
 omit [Fintype node] in
 /-- A label that is enabled is the idle run's step. -/
@@ -330,7 +322,8 @@ theorem idle_tick {n : ℕ} {st st' : CState window time node acsstate} (hinv : 
     IdleInv th (n + 1) st' where
   entered j x := by rw [Conductor.tick.frame_entered htr]; exact hinv.entered j x
   acs x := by rw [Conductor.tick.frame_acs_state htr]; exact hinv.acs x
-  decided x f b l := by rw [Conductor.tick.frame_acs_decided htr]; exact hinv.decided x f b l
+  bounds j x f b l := by
+    simp only [Bounds, Conductor.tick.frame_local_bounds htr]; exact hinv.bounds j x f b l
   completed j s := by rw [Conductor.tick.frame_completed htr]; exact hinv.completed j s
   now := by rw [tick_now htr, nowSlot_succ (Nat.succ_pos _)]
   opened j s := by
@@ -349,7 +342,8 @@ theorem idle_open {n : ℕ} {st st' : CState window time node acsstate} (hinv : 
     IdleInv th (n + 1) st' where
   entered j x := by rw [Conductor.open_slot.frame_entered htr]; exact hinv.entered j x
   acs x := by rw [Conductor.open_slot.frame_acs_state htr]; exact hinv.acs x
-  decided x f b l := by rw [Conductor.open_slot.frame_acs_decided htr]; exact hinv.decided x f b l
+  bounds j x f b l := by
+    simp only [Bounds, Conductor.open_slot.frame_local_bounds htr]; exact hinv.bounds j x f b l
   completed j s := by rw [Conductor.open_slot.frame_completed htr]; exact hinv.completed j s
   now := by
     rw [Conductor.open_slot.frame_now htr, hinv.now, nowSlot_of_mod_ne (Nat.succ_pos _) hq,
@@ -404,13 +398,13 @@ theorem idle_step {n : ℕ} {st : CState window time node acsstate} (hinv : Idle
       rw [hl]
       have hidx := idx_blkNode hq
       have htr := idleNext_tr (enabled_open_slot (th := th) (st := st) hc.1
-        ((hinv.entered _ _).2 rfl) (Or.inl ⟨rfl, rfl, rfl, rfl⟩) (Nat.zero_le _) hc.2
+        ((hinv.entered _ _).2 rfl) ((hinv.bounds _ _ _ _ _).2 ⟨rfl, rfl, rfl, rfl⟩) (Nat.zero_le _) hc.2
         (Bool.eq_false_iff.2 fun h => by
           obtain ⟨-, -, h⟩ := (hinv.opened _ _).1 h
           omega)
         (by rw [hnow]; exact le_rfl)
         (fun s' w0 f0 b0 l0 _ hb _ hl hlt => by
-          obtain ⟨-, -, -, rfl⟩ := hinv.winBounds hb
+          obtain ⟨-, -, -, rfl⟩ := (hinv.bounds _ _ _ _ _).1 hb
           have := Nat.mul_le_mul_right (blk node) (Nat.succ_le_of_lt hlt)
           rw [Nat.succ_mul] at this
           exact (hinv.opened _ _).2 ⟨hc.1, hl, by have := idx_lt (blkNode hq); omega⟩))
@@ -514,23 +508,14 @@ include ha hshift in
 lies below its readiness boundary and is never completed, so no ACS
 proposal is ever due (Algorithm 7, line 23 (`line:ready-check`)). -/
 theorem idle_not_proposeGate {n : ℕ} {st : CState window time node acsstate} (hinv : IdleInv th n st)
-    (i : node) (w' : window) : ¬ proposeGate th i w' st := by
+    (i : node) (w' : window) : ¬ proposeGate i w' st := by
   rintro ⟨w, -, hin, hrd⟩
   obtain rfl : w = win_ord.zero := (hinv.entered i w).1 hin.1
-  have := hrd 0 th.genesis_boundary th.genesis_last (Or.inl ⟨rfl, rfl, rfl, rfl⟩) 0 win_ord.zero 0
-    th.genesis_boundary th.genesis_last ((hinv.entered i _).2 rfl) (Or.inl ⟨rfl, rfl, rfl, rfl⟩)
+  have := hrd 0 th.genesis_boundary th.genesis_last ((hinv.bounds _ _ _ _ _).2 ⟨rfl, rfl, rfl, rfl⟩) 0 win_ord.zero 0
+    th.genesis_boundary th.genesis_last ((hinv.entered i _).2 rfl) ((hinv.bounds _ _ _ _ _).2 ⟨rfl, rfl, rfl, rfl⟩)
     le_rfl (Nat.zero_le _) (genesis_boundary_pos sch ha hshift)
   rw [hinv.completed] at this
   exact Bool.false_ne_true this
-
-omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
-include ha in
-/-- No ACS decides in the idle run: every instance stays initial. -/
-theorem idle_not_decideGate {n : ℕ} {st : CState window time node acsstate} (hinv : IdleInv th n st)
-    (w : window) : ¬ decideGate w st := by
-  rintro ⟨i, -, hd⟩
-  rw [hinv.acs] at hd
-  exact A.init_has_decided _ i (ha.1 w) hd
 
 variable {st₀ : CState window time node acsstate}
   (hi : (Conductor.relationalTransitionSystem ℕ window time node acsstate).init th st₀)
@@ -547,13 +532,12 @@ theorem idleRun_sync {msg : Type} (TA : ACSTemporal node ℕ acsstate time msg f
   refine ⟨⟨fun i w' _ => bff_of_never hδ fun n =>
         idle_not_proposeGate sch ha hshift (idleSt_inv ha hi n) i w',
       fun i w' _ => bff_of_never hδ fun n h =>
-        idle_not_proposeGate sch ha hshift (idleSt_inv ha hi n) i w' h.2,
-      fun w => bff_of_never hδ fun n => idle_not_decideGate ha (idleSt_inv ha hi n) w⟩,
+        idle_not_proposeGate sch ha hshift (idleSt_inv ha hi n) i w' h.2⟩,
     ?_, fun _ => rfl, ?_⟩
   · -- (P-open): `(i, s)` opens at index `s · B + idx i + 2`, at `s`'s starting time.
     rintro N i s hcor ⟨w, f, b, l, -, hb, -, hsl⟩
     have hinvN := idleSt_inv ha hi N
-    obtain ⟨-, -, -, rfl⟩ := hinvN.winBounds hb
+    obtain ⟨-, -, -, rfl⟩ := (hinvN.bounds _ _ _ _ _).1 hb
     by_cases hop : (idleSt th st₀ N).opened i s = true
     · exact ⟨N, le_rfl, le_max_left _ _, hop⟩
     · have := idx_lt i
@@ -626,7 +610,7 @@ variable {window node acsstate : Type} [Inhabited window] [Inhabited node] [Inha
   [A : ACSSafety node ℕ acsstate fm.byz]
   {time : Type} [LinearOrder time] [Inhabited time] [AddCommMonoid time] [IsOrderedAddMonoid time]
   {view : Type} [vord : TotalOrderWithMinimum view] {vfin : ViewOrderEnum view vord}
-  [Fintype node] [DecidablePred fm.byz] {msg : Type}
+  [Fintype node] {msg : Type}
 
 /-- **`Conductor ⊨ OrchestratorTemporal`**, for an arbitrary ACS meeting its
 contract (`TA`). Every field is proven, none is weakened:
@@ -645,14 +629,14 @@ contract (`TA`). Every field is proven, none is weakened:
 Proven from the claims' configuration premises, each by its name: τ-spaced
 starting times (`hstart`), the windows' shape (`hshift`), unbounded
 starting times (`hunb`, F28), a successor for every window (`hwin`, F30),
-the ACS's constants the system's (`hΔ`, `hℓ`) and at most its fault bound
-Byzantine (`hfault`). -/
+the ACS's constants the system's (`hΔ`, `hℓ`). The fault bound is not one of
+them: it enters where the lower median is shown to meet the model's
+assumptions on the first slot (`Cadence.lowerMedian_first_assumptions`). -/
 @[implicit_reducible]
 noncomputable def conductorTemporal (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (th : Conductor.Theory ℕ window time node acsstate)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) (hunb : StartsUnbounded th)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) :
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
     OrchestratorTemporal node ℕ (CState window time node acsstate) time fm.byz
       (S := orchestratorSafety th) :=
   OrchestratorTemporal.mk (S := orchestratorSafety th)
@@ -675,7 +659,7 @@ noncomputable def conductorTemporal (sch : ConductorSchedule view time vfin)
     (recovery_time := sch.recoveryTime)
     (recovery := fun r hadm hcall hterm s hs i hi => by
       obtain ⟨r', rfl, hsync⟩ := hadm
-      exact Conductor.recovery sch TA th hstart hshift hunb hwin hΔ hℓ hfault r' hsync hcall hterm
+      exact Conductor.recovery sch TA th hstart hshift hunb hwin hΔ hℓ r' hsync hcall hterm
         s hs i hi)
 
 /-- **`Conductor ⊨ OrchestratorWithTotality`**: the `d_tot` form of
@@ -687,13 +671,12 @@ is `Conductor.totality`. -/
 noncomputable def conductorWithTotality (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (th : Conductor.Theory ℕ window time node acsstate)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) (hunb : StartsUnbounded th)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) :
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
     OrchestratorWithTotality node ℕ (CState window time node acsstate) time fm.byz
       (S := orchestratorSafety th)
-      (T := conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ hfault) :=
+      (T := conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ) :=
   OrchestratorWithTotality.mk (S := orchestratorSafety th)
-    (T := conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ hfault)
+    (T := conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ)
     (d_tot := sch.d_tot)
     (totality := fun r hadm hcall s => by
       obtain ⟨r', rfl, hsync⟩ := hadm
@@ -705,18 +688,16 @@ and the proven temporal level joined by `orchestrator_of_temporal`. -/
 noncomputable def conductorFull (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (th : Conductor.Theory ℕ window time node acsstate)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) (hunb : StartsUnbounded th)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) :
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
     Orchestrator node ℕ (CState window time node acsstate) time fm.byz :=
-  orchestrator_of_temporal (conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ hfault)
+  orchestrator_of_temporal (conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ)
 
 /-- The join hands back exactly the proven fragment. -/
 theorem conductorFull_toSafety (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (th : Conductor.Theory ℕ window time node acsstate)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) (hunb : StartsUnbounded th)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) :
-    (conductorFull sch TA th hstart hshift hunb hwin hΔ hℓ hfault).toOrchestratorSafety =
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
+    (conductorFull sch TA th hstart hshift hunb hwin hΔ hℓ).toOrchestratorSafety =
       orchestratorSafety th := rfl
 
 /-- **`𝓑`, pinned**: the boundedness bound is the paper's `2W − p`
@@ -724,9 +705,8 @@ theorem conductorFull_toSafety (sch : ConductorSchedule view time vfin)
 theorem conductorTemporal_bound (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (th : Conductor.Theory ℕ window time node acsstate)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) (hunb : StartsUnbounded th)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) :
-    (conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ hfault).bound = 2 * sch.W - sch.p :=
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
+    (conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ).bound = 2 * sch.W - sch.p :=
   rfl
 
 /-- **`𝓡`, pinned**: the recovery time is the paper's `2Wτ` (Theorem 2
@@ -734,9 +714,8 @@ theorem conductorTemporal_bound (sch : ConductorSchedule view time vfin)
 theorem conductorTemporal_recovery_time (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (th : Conductor.Theory ℕ window time node acsstate)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) (hunb : StartsUnbounded th)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) :
-    (conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ hfault).recovery_time =
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
+    (conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ).recovery_time =
       (2 * sch.W) • sch.τ :=
   rfl
 
@@ -746,10 +725,9 @@ Chorus's `d_tot` and `ℓ_chorus`, the constants the Chorus instance proves
 theorem conductorTemporal_caller (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (th : Conductor.Theory ℕ window time node acsstate)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) (hunb : StartsUnbounded th)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) :
-    (conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ hfault).caller_d_tot = sch.d_tot ∧
-      (conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ hfault).caller_ℓ = sch.ℓchorus :=
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
+    (conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ).caller_d_tot = sch.d_tot ∧
+      (conductorTemporal sch TA th hstart hshift hunb hwin hΔ hℓ).caller_ℓ = sch.ℓchorus :=
   ⟨rfl, rfl⟩
 
 /-- **`d_tot`, pinned**: the orchestrator's totality latency is Chorus's
@@ -757,9 +735,8 @@ theorem conductorTemporal_caller (sch : ConductorSchedule view time vfin)
 theorem conductorWithTotality_d_tot (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (th : Conductor.Theory ℕ window time node acsstate)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) (hunb : StartsUnbounded th)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) :
-    (conductorWithTotality sch TA th hstart hshift hunb hwin hΔ hℓ hfault).d_tot = sch.d_tot :=
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
+    (conductorWithTotality sch TA th hstart hshift hunb hwin hΔ hℓ).d_tot = sch.d_tot :=
   rfl
 
 /-- At the schedule's `δ = 0`, the paper's instantaneous local computation,
@@ -767,9 +744,8 @@ theorem conductorWithTotality_d_tot (sch : ConductorSchedule view time vfin)
 theorem conductorWithTotality_d_tot_paper (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (th : Conductor.Theory ℕ window time node acsstate)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) (hunb : StartsUnbounded th)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) :
-    (conductorWithTotality sch TA th hstart hshift hunb hwin hΔ hℓ hfault).d_tot = sch.Δ := by
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
+    (conductorWithTotality sch TA th hstart hshift hunb hwin hΔ hℓ).d_tot = sch.Δ := by
   rw [conductorWithTotality_d_tot]
   exact sch.d_tot_paper
 
@@ -820,23 +796,22 @@ variable {node acsstate : Type} [Inhabited node] [Inhabited acsstate]
   {time : Type} [LinearOrder time] [Inhabited time] [AddCommMonoid time] [IsOrderedAddMonoid time]
   [Archimedean time]
   {view : Type} [vord : TotalOrderWithMinimum view] {vfin : ViewOrderEnum view vord}
-  [Fintype node] [DecidablePred fm.byz] {msg : Type}
+  [Fintype node] {msg : Type}
 
 /-- **`Conductor ⊨ Orchestrator` at the paper's window numbers**: the full
 contract at `window := ℕ` over an Archimedean time, with `WindowsUnbounded`
 and `StartsUnbounded` discharged (`windowsUnbounded_nat`,
 `startsUnbounded_of_startTimes`). What stays with the caller: τ-spaced
 starting times with slot 1 at or after `0`, the windows' shape, and the
-ACS's constants and fault bound. -/
+ACS's constants. -/
 @[implicit_reducible]
 noncomputable def conductorFullNat (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (th : Conductor.Theory ℕ ℕ time node acsstate)
     (hstart : StartTimes sch th) (h0 : 0 ≤ sch.start₀) (hshift : WindowShifts sch th)
-    (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) :
+    (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
     Orchestrator node ℕ (CState ℕ time node acsstate) time fm.byz :=
   conductorFull sch TA th hstart hshift (startsUnbounded_of_startTimes hstart h0)
-    windowsUnbounded_nat hΔ hℓ hfault
+    windowsUnbounded_nat hΔ hℓ
 
 end Nat
 

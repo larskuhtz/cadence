@@ -187,9 +187,9 @@ obligation on the handlers.
 driving the instance's `propose` input, an `acs_step` oracle action for the
 instance's internal steps (Byzantine proposals appearing, the decision
 itself — the contract constrains only correct validators' proposals), and
-`acs_decide` reading `acs.decided` off the state, and `enter_window`
-firing on the validator's *own* decision and driving the instance's
-`abandon` input in the same step (Algorithm 7, lines 44–45
+`enter_window` firing on the validator's *own* decision, computing the
+window's first slot from its own decided set (`acs_first`), and driving the
+instance's `abandon` input in the same step (Algorithm 7, lines 44–45
 (`line:acs-decide`–`line:acs-abandon`)). The module's no-premature-abandonment
 assumption is then the model's invariant `[acs_abandoned_decided]`
 (Proposition 12 (`prop:acs-no-premature-abandonment`)).
@@ -414,7 +414,7 @@ for an arbitrary ACS meeting `ACSSafety` and `ACSTemporal`, with
 
 The hypotheses are the claims' configuration premises by name
 (`StartTimes`, `WindowShifts`, `StartsUnbounded`, `WindowsUnbounded`, the
-ACS's `Δ`, `ℓ` and fault bound), finitely many validators and an ordered
+ACS's `Δ` and `ℓ`), finitely many validators and an ordered
 time ([Premises.md](Premises.md) §9). `Conductor.conductorFullNat`
 discharges `WindowsUnbounded` and `StartsUnbounded` at `window := ℕ` over
 an Archimedean time whose slot 1 starts at or after `0`. `clock_agrees`
@@ -638,14 +638,18 @@ and the fault-pattern transport, which the timed claims fix.
    coincide with the instance's input. What stays out of scope is the
    general statement of [System.lean](../Cadence/System.lean)'s header: that the modules' runs
    implement the glue's oracle steps (trace-level refinement).
-3. **The ACS median bridge.** `acs_decide`'s `require` that a correct pair of
-   the decided set brackets the first slot from below is not derived inside
-   the model: the model does not compute the median, and cardinality is
-   upper-level. It is one `require`, documented at the action. Its
-   justification is a Lean theorem: `Cadence.acs_median_bracket`
-   ([AcsMedian.lean](../Cadence/AcsMedian.lean)) proves, for every ACS meeting the contract and
-   a system with at most `f` Byzantine validators, that the median of a
-   correct decider's set lies between two of its correct pairs. It needs
+3. **The ACS median bridge.** That two correct pairs of a validator's
+   decided set bracket the first slot it computes is not derived inside the
+   model: the model does not compute the median, and cardinality is
+   upper-level. It is a model assumption on the first-slot function,
+   `[acs_first_bracket]`, together with `[acs_first_local]` (the first slot
+   is a function of the decided set alone). That the paper's lower median
+   meets both is a Lean theorem: `Cadence.lowerMedian_first_assumptions`
+   ([AcsMedian.lean](../Cadence/AcsMedian.lean)), from
+   `Cadence.acs_median_bracket`, which proves, for every ACS meeting the
+   contract and a system with at most `f` Byzantine validators, that the
+   median of a correct decider's set lies between two of its correct
+   pairs. It needs
    the contract's `decided_unique` (one slot per validator) and the
    distinct-validator count of `validity_quantitative`, which Module 4
    (`mod:acs`) does not state ([ConductorBounds.md](ConductorBounds.md)

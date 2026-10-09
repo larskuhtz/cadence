@@ -90,8 +90,7 @@ caller conditions, (R-tot) and (R-term), discharged by Chorus through the
 glue (`caller_totality`, `caller_termination`). -/
 theorem recovery_in (hs : SysSync n f hf is_byz hbyz (A := A) sch TA r)
     (hstart : StartTimes sch thO) (hshift : WindowShifts sch thO) (hunb : StartsUnbounded thO)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter (fmF n f hf is_byz hbyz).byz).card ≤ TA.fault_bound) :
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
     ∀ x, r.gst + sch.recoveryTime ≤ thO.start_time x →
       ∀ i, ¬ (fmF n f hf is_byz hbyz).byz i →
         ∃ m, r.clk m ≤ thO.start_time x ∧ (OSI).opened (r.at' m).os i x := by
@@ -101,7 +100,7 @@ theorem recovery_in (hs : SysSync n f hf is_byz hbyz (A := A) sch TA r)
   obtain ⟨r', hr', hsync⟩ := hpo
   have hg : r'.gst = r.gst := congrArg TimedRun.gst hr'
   intro x hx i hi
-  have := Conductor.recovery (fm := fmF n f hf is_byz hbyz) sch TA thO hstart hshift hunb hwin hΔ hℓ hfault
+  have := Conductor.recovery (fm := fmF n f hf is_byz hbyz) sch TA thO hstart hshift hunb hwin hΔ hℓ
     r' hsync (by rw [hr']; exact hcall) (by rw [hr']; exact hterm) x (by rw [hg]; exact hx) i hi
   rw [hr'] at this
   exact (partRun_byTime_iff po _ _).1 this
@@ -111,8 +110,7 @@ include hprop hrot in
 same, from `Conductor.recovery_sharp`. -/
 theorem recovery_sharp_in (hs : SysSync n f hf is_byz hbyz (A := A) sch TA r)
     (hstart : StartTimes sch thO) (hshift : WindowShifts sch thO) (hunb : StartsUnbounded thO)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter (fmF n f hf is_byz hbyz).byz).card ≤ TA.fault_bound) :
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
     ∀ x, r.gst + (sch.W + (sch.p - 1)) • sch.τ ≤ thO.start_time x →
       ∀ i, ¬ (fmF n f hf is_byz hbyz).byz i →
         ∃ m, r.clk m ≤ thO.start_time x ∧ (OSI).opened (r.at' m).os i x := by
@@ -123,7 +121,7 @@ theorem recovery_sharp_in (hs : SysSync n f hf is_byz hbyz (A := A) sch TA r)
   have hg : r'.gst = r.gst := congrArg TimedRun.gst hr'
   intro x hx i hi
   have := Conductor.recovery_sharp (fm := fmF n f hf is_byz hbyz) sch TA thO hstart hshift hunb hwin hΔ hℓ
-    hfault r' hsync (by rw [hr']; exact hcall) (by rw [hr']; exact hterm) x (by rw [hg]; exact hx) i hi
+    r' hsync (by rw [hr']; exact hcall) (by rw [hr']; exact hterm) x (by rw [hg]; exact hx) i hi
   rw [hr'] at this
   exact (partRun_byTime_iff po _ _).1 this
 
@@ -225,15 +223,14 @@ appends a proposal vector for `s` to its local log. Recovery within Cadence
 (`recovery_in`) opens `s` everywhere; `liveness_of_opens` does the rest. -/
 theorem liveness_in (hs : SysSync n f hf is_byz hbyz (A := A) sch TA r)
     (hstart : StartTimes sch thO) (hshift : WindowShifts sch thO) (hunb : StartsUnbounded thO)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter (fmF n f hf is_byz hbyz).byz).card ≤ TA.fault_bound) :
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
     ∀ s, r.gst + sch.recoveryTime ≤ thO.start_time s →
       ∀ i, ¬ (fmF n f hf is_byz hbyz).byz i →
         ∃ m v, (r.at' m).appended i s v = true ∧ (SCI).slot_of v = s := by
   intro s hs' i hi
   obtain ⟨m, v, ha⟩ := liveness_of_opens n f hf is_byz hbyz sch TA hprop hrot hs hunb hΔ (fun i hi => by
     obtain ⟨m, -, hm⟩ := recovery_in n f hf is_byz hbyz sch TA hprop hrot hs hstart hshift hunb hwin hΔ hℓ
-      hfault s hs' i hi
+      s hs' i hi
     exact ⟨m, hm⟩) i hi
   exact ⟨m, v, ha, inv_appended_slot (slot_ord := GI) (fm := fmF n f hf is_byz hbyz) (orch := OSI)
     (sc := SCI) (r.reachable m) hi ha⟩
@@ -243,15 +240,14 @@ include hprop hrot in
 `recovery_sharp_in`. -/
 theorem liveness_sharp_in (hs : SysSync n f hf is_byz hbyz (A := A) sch TA r)
     (hstart : StartTimes sch thO) (hshift : WindowShifts sch thO) (hunb : StartsUnbounded thO)
-    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter (fmF n f hf is_byz hbyz).byz).card ≤ TA.fault_bound) :
+    (hwin : WindowsUnbounded window) (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ) :
     ∀ s, r.gst + (sch.W + (sch.p - 1)) • sch.τ ≤ thO.start_time s →
       ∀ i, ¬ (fmF n f hf is_byz hbyz).byz i →
         ∃ m v, (r.at' m).appended i s v = true ∧ (SCI).slot_of v = s := by
   intro s hs' i hi
   obtain ⟨m, v, ha⟩ := liveness_of_opens n f hf is_byz hbyz sch TA hprop hrot hs hunb hΔ (fun i hi => by
     obtain ⟨m, -, hm⟩ := recovery_sharp_in n f hf is_byz hbyz sch TA hprop hrot hs hstart hshift hunb hwin
-      hΔ hℓ hfault s hs' i hi
+      hΔ hℓ s hs' i hi
     exact ⟨m, hm⟩) i hi
   exact ⟨m, v, ha, inv_appended_slot (slot_ord := GI) (fm := fmF n f hf is_byz hbyz) (orch := OSI)
     (sc := SCI) (r.reachable m) hi ha⟩
@@ -264,8 +260,8 @@ theorem liveness :
     LivenessClaim n f hf is_byz hbyz (A := A) (is_proposer := is_proposer) (well_encoded := well_encoded)
       (mvba_init_state := mvba_init_state) (mvalid := mvalid) (mleader := mleader)
       (Phase := Phase) (PathChoice := PathChoice) sch TA thO sch.recoveryTime :=
-  fun hstart hshift hunb hwin hΔ hℓ hfault _ _ hs =>
-    liveness_in n f hf is_byz hbyz sch TA hprop hrot hs hstart hshift hunb hwin hΔ hℓ hfault
+  fun hstart hshift hunb hwin hΔ hℓ _ _ hs =>
+    liveness_in n f hf is_byz hbyz sch TA hprop hrot hs hstart hshift hunb hwin hΔ hℓ
 
 include hprop hrot in
 /-- **`𝓡`-Liveness at the sharper `𝓡 = (W + p − 1)τ`** (P18). -/
@@ -273,8 +269,8 @@ theorem liveness_sharp :
     LivenessClaim n f hf is_byz hbyz (A := A) (is_proposer := is_proposer) (well_encoded := well_encoded)
       (mvba_init_state := mvba_init_state) (mvalid := mvalid) (mleader := mleader)
       (Phase := Phase) (PathChoice := PathChoice) sch TA thO ((sch.W + (sch.p - 1)) • sch.τ) :=
-  fun hstart hshift hunb hwin hΔ hℓ hfault _ _ hs =>
-    liveness_sharp_in n f hf is_byz hbyz sch TA hprop hrot hs hstart hshift hunb hwin hΔ hℓ hfault
+  fun hstart hshift hunb hwin hΔ hℓ _ _ hs =>
+    liveness_sharp_in n f hf is_byz hbyz sch TA hprop hrot hs hstart hshift hunb hwin hΔ hℓ
 
 end Liveness
 
