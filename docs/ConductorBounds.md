@@ -1428,8 +1428,8 @@ correct validator's record). No action reads it.
   it imports Interfaces.lean.
 * **The Veil families.** D6 edits Interfaces.lean, which Chorus.lean and
   Mvba/Compose.lean import. No Chorus or Mvba VC statement mentions
-  `ACSSafety`, so the pins stay where they are (Chorus 6271, Mvba 1649,
-  FallbackReceipt 220) and the families replay warm. The Chorus model file
+  `ACSSafety`, so the `#veil_status` pins stay where they are and the
+  families replay warm. The Chorus model file
   still rebuilds, which takes about 11 minutes locally.
 * **The slow cells (task 3).** `acs_decide × win_bounds_ordered` goes with
   its action. Veil has no in-module manual cell: `#prove_vc` refuses to

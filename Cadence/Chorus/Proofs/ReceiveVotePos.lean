@@ -28,6 +28,33 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; a negative entry's quorum was received in full, so the new receipt is not in it. -/
+#prove_vc Chorus receive_vote_pos fb_neg_qv_no_rcv_quorum by
+  unveil_local
+  veil_inv_have h_old := fb_neg_qv_no_rcv_quorum
+  veil_inv_have h_rcvd := fb_neg_qv_received
+  intro _hbyz _hj _hc _hsh _hall _hs _hch _hps hnp hnn R J QV q M hR haux hq hall
+  apply h_old R J QV q M hR haux hq
+  intro r1 hr1
+  obtain ⟨hm, hrc⟩ := hall r1 hr1
+  refine ⟨hm, hrc ?_⟩
+  rintro rfl rfl rfl _
+  rcases h_rcvd _ _ _ hR haux _ hm with ⟨M2, hM2⟩ | hn
+  · rw [hnp M2] at hM2; simp at hM2
+  · rw [hnn] at hn; simp at hn
+
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the new receipt's guard is its backing. -/
+#prove_vc Chorus receive_vote_pos vote_rcv_pos_backed by
+  unveil_local
+  veil_inv_have h_old := vote_rcv_pos_backed
+  intro _hbyz _hj hc hsh hall hs _hch _hps _hnp _hnn I R J M hI hrc
+  by_cases hnew : i = I ∧ r = R ∧ j = J ∧ m = M
+  · obtain ⟨rfl, rfl, rfl, rfl⟩ := hnew
+    exact ⟨⟨hc, hsh, hall⟩, hs⟩
+  · exact h_old I R J M hI (hrc (fun e1 e2 e3 e4 => hnew ⟨e1, e2, e3, e4⟩))
+
 #prove_action Chorus receive_vote_pos
 
 end Chorus.Proofs

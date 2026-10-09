@@ -41,6 +41,7 @@ import Cadence.Chorus.Proofs.ByzSendChunk
 import Cadence.Chorus.Proofs.ByzRedisseminateChunk
 import Cadence.Chorus.Proofs.ByzSignVotePos
 import Cadence.Chorus.Proofs.ByzSignVoteNeg
+import Cadence.Chorus.Proofs.ByzCarryVoteChunk
 import Cadence.Chorus.Proofs.ByzCastVote
 import Cadence.Chorus.Proofs.ByzSignFbPos
 import Cadence.Chorus.Proofs.ByzSignFbNeg
@@ -83,6 +84,6 @@ theorem in the import closure, over exactly the standard axioms. Run `#veil_stat
 interactively for the per-cell table (theorem, defining file, per-cell
 axiom set; expect minutes at this scale). -/
 
-/-- info: #veil_status Chorus: 6215/6215 real; axioms: propext, Classical.choice, Quot.sound -/
+/-- info: #veil_status Chorus: 6326/6326 real; axioms: propext, Classical.choice, Quot.sound -/
 #guard_msgs in
 #veil_status Chorus

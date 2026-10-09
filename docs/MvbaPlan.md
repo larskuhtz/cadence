@@ -1900,8 +1900,8 @@ initializer has `P` cells and one does-not-throw cell. Today:
 * **B:** `A = 28`, `P = 52`: **`28·54 + 53 = 1565`**.
 
 Every Mvba cell changes statement (the state has new rows), so the whole
-family re-solves cold. Chorus's pin, 6271, does not change: no action or
-property is added. The contract edit rebuilds the Chorus family. Whether
+family re-solves cold. Chorus's `#veil_status` pin does not change: no
+action or property is added. The contract edit rebuilds the Chorus family. Whether
 Chorus re-solves cold depends on whether class fields enter its VC
 statements; if they do not, only the `send_mvba_cert` column's statements
 change. The PR reports which one happened, as measured. Either way, CI

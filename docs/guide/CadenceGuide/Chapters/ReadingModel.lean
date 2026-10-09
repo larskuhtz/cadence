@@ -212,12 +212,12 @@ entries, and the validator re-broadcasts it.
 {model Cadence.Chorus "action byz_sign_vote_pos"}
 
 A Byzantine validator `r` signs a positive vote entry for any proposer and
-any root, as often as it likes. Its one guard is the check an honest
-receiver makes: a positive vote entry carries the signer's chunk, and a
-vote without one is discarded on receipt. Stated on the sender, the check
-holds only while every correct receiver applies it, so it is a listed gap
-in the model ([Locality.md](../../../Locality.md) §4.2, rule B4), to move
-to the receivers, where the paper has it.
+any root, as often as it likes; its actor marker is its only guard.
+Whether the entry counts is the correct receiver's check, in the
+receiver's guard, where the paper has it: a vote counts only if it has an
+entry for every proposer and each positive entry carries the signer's
+chunk under a root its proposer signed (`receive_vote_pos`, rule R2 of
+[Locality.md](../../../Locality.md) §4.1).
 
 The adversary is a family of such actions, `byz_*`, one per capability:
 each kind of signature, sending a chunk, re-disseminating one, and

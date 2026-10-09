@@ -111,6 +111,7 @@ def cst (m : Nat) : CS where
   msg_vote_pos_sig r j _ := decide (j.val = 0 ∧ r.val < 3 ∧ 8 + r.val < m)
   msg_vote_neg_sig _ _ := false
   msg_vote_cast r := decide (r.val < 3 ∧ 8 + r.val < m)
+  msg_vote_chunk r j _ := decide (j.val = 0 ∧ r.val < 3 ∧ 8 + r.val < m)
   msg_fb_pos_sig _ _ _ := false
   msg_fb_neg_sig _ _ := false
   msg_fallback_sig _ := false

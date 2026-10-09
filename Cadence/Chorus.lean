@@ -254,13 +254,11 @@ Each relation below stands for "this signed message has been produced and is
 observable on the network". Once produced they remain — the network is
 monotone — which is the standard idealisation for asynchronous BFT proofs.
 Honest signers are constrained by their local state in the actions below; the
-Byzantine actions allow Byzantine signers to produce any *network-valid*
-signature attributed to themselves (unforgeability prevents them from
-producing signatures attributed to honest signers; the validity checks that
-every honest receiver performs — chunk backing for positive vote entries,
-`σ_p` for positive fallback entries, entry-completeness for broadcast votes —
-are mirrored as preconditions of the Byzantine actions, because messages
-failing them are discarded on receipt and thus never observable as valid). -/
+Byzantine actions let Byzantine signers send any message under their own
+name, and unforgeability prevents them from producing signatures attributed
+to honest signers ([Locality.md](../docs/Locality.md) §4.2). What a correct
+receiver accepts is its own check, stated in its guard: a vote must be
+complete and carry a chunk for each positive entry (`vote_valid`). -/
 
 /-- Proposer `j` has signed a chunk header `⟨s, j, m⟩` (Algorithm 2 (`alg:proposer-dissemination`)). -/
 relation msg_proposer_signed (j : node) (m : merkle_root)
@@ -279,11 +277,20 @@ relation msg_chunk (s : node) (i : node) (j : node) (m : merkle_root)
 relation msg_vote_pos_sig (r : node) (j : node) (m : merkle_root)
 /-- Validator `r` has signed a negative `vote`-tagged entry `⟨s, j, ⊥⟩`. -/
 relation msg_vote_neg_sig (r : node) (j : node)
-/-- Validator `r` has broadcast its proposal vote (Algorithm 3, line 14 (`line:vote-broadcast`)). A broadcast vote carries a signed entry for
-*every* proposer (plus the chunks backing the positive entries and the
-decryption share); receivers discard incomplete votes, so a cast vote
-implies per-proposer signatures on the network. -/
+/-- Validator `r` has broadcast its proposal vote (Algorithm 3, line 14
+(`line:vote-broadcast`)). The vote's content is on the network beside it:
+its signed entries (`msg_vote_pos_sig`, `msg_vote_neg_sig`), the chunks
+backing its positive entries (`msg_vote_chunk`) and its decryption share
+(`msg_decrypt_share`). Whether a receiver accepts it is the receiver's
+check, `vote_valid`. -/
 relation msg_vote_cast (r : node)
+/-- Sender `r`'s vote carries its assigned chunk — chunk index `r` — under
+proposer `j`'s root `m`, backing its positive entry for `j`
+(Algorithm 3, line 14 (`line:vote-broadcast`)). It is broadcast with the
+vote, so every receiver reads it; `msg_chunk` is the point-to-point message
+carrying the *recipient's* chunk
+([ChorusDesign.md](../docs/ChorusDesign.md) §3.5.2). -/
+relation msg_vote_chunk (r : node) (j : node) (m : merkle_root)
 
 /-- Validator `r` has signed a positive `fb`-tagged entry. -/
 relation msg_fb_pos_sig (r : node) (j : node) (m : merkle_root)
@@ -575,6 +582,25 @@ ghost relation vote_quorum_pos (j : node) (m : merkle_root) :=
 ghost relation vote_quorum_neg (j : node) :=
   ∃ q, nset.supermajority q ∧ ∀ r, nset.member r q → msg_vote_neg_sig r j
 
+/-- Sender `r`'s vote has a valid entry for proposer `j`: a positive entry
+whose carried chunk passes `tryIngestChunk` — it has the sender's index
+(`msg_vote_chunk r j m`) and the proposer's signature on the root verifies
+(`msg_proposer_signed j m`) — or a negative one (Algorithm 4
+(`alg:fast-path-certification`), the vote handler). -/
+ghost relation vote_entry_valid (r : node) (j : node) :=
+  (∃ m, msg_vote_pos_sig r j m ∧ msg_vote_chunk r j m ∧ msg_proposer_signed j m) ∨
+  msg_vote_neg_sig r j
+
+/-- A correct receiver accepts sender `r`'s vote (Algorithm 4
+(`alg:fast-path-certification`), the vote handler): it was broadcast, it
+has a valid entry for every proposer, and its decryption share verifies
+(`tryIngestShare`, Algorithm 6 (`alg:da`)). The entries are per-entry rows,
+so an equivocating sender may support several valid votes; each entry a
+receiver takes is checked on its own, and the entries it takes form one
+valid vote. -/
+ghost relation vote_valid (r : node) :=
+  msg_vote_cast r ∧ msg_decrypt_share r ∧ ∀ j, is_proposer j → vote_entry_valid r j
+
 /-- A positive FallbackQC certificate for `(j, m)`: `f+1` matching positive
 fallback signed entries (Algorithm 5, line 30 (`line:fb-formqc`)). -/
 ghost relation fb_quorum_pos (j : node) (m : merkle_root) :=
@@ -624,12 +650,13 @@ ghost relation fbcommitqc (e : mentries) :=
 ghost relation chunk_received (i : node) (j : node) (m : merkle_root) :=
   ∃ s, msg_chunk s i j m
 
-/-- Data availability for `(j, m)`: `f+1` validators hold their assigned
-chunk — the erasure-code reconstruction threshold (Algorithm 6 (`alg:da`)
-`isDecoded`). A statement about the run, read by no correct validator's
-action. -/
+/-- Data availability for `(j, m)`: `f+1` validators have broadcast their
+assigned chunk under `m` with their votes, so every validator that receives
+those votes holds `f+1` distinct chunks — the erasure-code reconstruction
+threshold (Algorithm 6 (`alg:da`) `isDecoded`). A statement about the run,
+read by no correct validator's action. -/
 ghost relation chunk_quorum (j : node) (m : merkle_root) :=
-  ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → chunk_received r j m
+  ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_vote_chunk r j m
 
 /-- The slot key can be reconstructed: `f+1` extraction shares released
 (Appendix C.2 (`appendix:encryption`)). -/
@@ -720,6 +747,7 @@ after_init {
   msg_vote_pos_sig R J M := false
   msg_vote_neg_sig R J := false
   msg_vote_cast R := false
+  msg_vote_chunk R J M := false
   msg_fb_pos_sig R J M := false
   msg_fb_neg_sig R J := false
   msg_fallback_sig R := false
@@ -901,15 +929,14 @@ action record_chunk (i : node) (j : node) (m : merkle_root) {
 (Algorithm 3, line 14 (`line:vote-broadcast`)). For each proposer `j ∈ Ps`, the validator's
 per-proposer entry is positive `⟨s, j, m⟩` iff it recorded some chunk from
 `j` under `m` before the deadline, and negative otherwise. The vote message
-also carries the chunks backing the positive entries and releases the
-validator's decryption share.
+also carries the chunk assigned to the validator for each positive entry
+(`msg_vote_chunk`) and releases the validator's decryption share.
 
 Algorithm 3 (`alg:voting`)'s "for all pj ∈ Ps" loop is collapsed into this single atomic
 action, whose body uses Veil's auto-quantified capitals (`J`, `M`) to express
 the per-proposer bulk update on the message-signature relations and the local
-entries. The broadcast itself is `msg_vote_cast`; receivers accept a vote
-only if it carries an entry for every proposer, which is why `msg_vote_cast`
-implies per-proposer signatures (invariant `vote_cast_entries`).
+entries. The broadcast itself is `msg_vote_cast`; a correct vote passes
+every receiver's check (invariant `vote_cast_valid`).
 
 Each bulk update is a disjunction with the relation's old value, so it only
 ever adds tuples, by its syntax alone — the (M-update) half of the network
@@ -926,6 +953,7 @@ action vote (i : node) {
   require ¬ local_voted i
 
   msg_vote_pos_sig i J M := msg_vote_pos_sig i J M || (is_proposer J && local_entry_pos i J M)
+  msg_vote_chunk i J M := msg_vote_chunk i J M || (is_proposer J && local_entry_pos i J M)
   msg_vote_neg_sig i J := msg_vote_neg_sig i J || (is_proposer J && decide (∀ M, ¬ local_entry_pos i J M))
   local_entry_neg i J := local_entry_neg i J || (is_proposer J && decide (∀ M, ¬ local_entry_pos i J M))
 
@@ -1066,16 +1094,20 @@ the monotone model the certificates are ghost predicates over the
 signature relations — precisely that derived-at-build-time reading — and
 the precedence is resolved at the MVBA validity check.
 
-The "received ≥ 2f+1 votes" guard is modelled as a witnessed supermajority
-of *broadcast* votes (`msg_vote_cast`). This guard is load-bearing for
+The "received ≥ 2f+1 valid votes" guard is modelled as a witnessed
+supermajority of votes that pass the receiver's check (`vote_valid`). This guard is load-bearing for
 proposal inclusion (Proposition 3 (`prop:honest-positive-entry`)): any 2f+1 broadcast votes
 contain f+1 honest ones, which pin an on-time honest proposer's entry. -/
 
 /-- Vote receipt, positive entry: validator `i` receives sender `r`'s vote
 (Algorithm 3, line 14 (`line:vote-broadcast`)), whose entry for proposer
-`j` is positive on `m`, and keeps it. A vote is one message per sender, so
-a correct receiver keeps one entry per sender and proposer: the first it
-receives. A Byzantine sender that signed conflicting entries reaches
+`j` is positive on `m`, and keeps it. The receiver applies the paper's
+check (Algorithm 4 (`alg:fast-path-certification`), the vote handler): the
+vote is valid as a whole (`vote_valid`: complete, each positive entry
+carrying a chunk that passes `tryIngestChunk`, the share verifying), and
+the entry for `j` is itself one of its valid entries. A vote is one message
+per sender, so a correct receiver keeps one entry per sender and proposer:
+the first it receives. A Byzantine sender that signed conflicting entries reaches
 different receivers with different votes, and each receiver keeps the one
 it got. The read of the network is positive, and the record is `i`'s own
 ([Locality.md](../docs/Locality.md) R1, R2). It sends nothing, so it is
@@ -1084,8 +1116,10 @@ the votes it received" is a statement about `i`'s own state. -/
 action receive_vote_pos (i : node) (r : node) (j : node) (m : merkle_root) {
   require ¬ is_byz i
   require is_proposer j
-  require msg_vote_cast r
+  require vote_valid r
   require msg_vote_pos_sig r j m
+  require msg_vote_chunk r j m
+  require msg_proposer_signed j m
   -- Fired once per sender and proposer: the first entry received is kept.
   require ∀ m2, ¬ local_vote_rcv_pos i r j m2
   require ¬ local_vote_rcv_neg i r j
@@ -1096,7 +1130,7 @@ action receive_vote_pos (i : node) (r : node) (j : node) (m : merkle_root) {
 action receive_vote_neg (i : node) (r : node) (j : node) {
   require ¬ is_byz i
   require is_proposer j
-  require msg_vote_cast r
+  require vote_valid r
   require msg_vote_neg_sig r j
   require ∀ m2, ¬ local_vote_rcv_pos i r j m2
   require ¬ local_vote_rcv_neg i r j
@@ -1107,7 +1141,9 @@ action receive_vote_neg (i : node) (r : node) (j : node) {
 Per the paper an honest validator's fallback signed entry for proposer `j`
 is positive `⟨s, j, m⟩` iff *all* of:
 
-  (b) it collected `f+1` valid positive votes for `(j, m)`;
+  (b) it collected `f+1` valid positive votes for `(j, m)`: votes that
+      pass the receiver's check (`vote_valid`) and whose entry for `j` is
+      positive on `m` and carries its chunk;
   (c) the data is reconstructible — `alg:da.isDecoded(m)`;
   (d) the reconstructed data re-encodes to `m` (Algorithm 6, line 24 (`line:da-reencode`); the paper's proof sketch: an honest validator
       casts fallback-yes only after reconstructing the proposal and
@@ -1115,11 +1151,9 @@ is positive `⟨s, j, m⟩` iff *all* of:
       `well_encoded m`.
 
 (c) needs no guard of its own: a valid positive vote carries its signer's
-assigned chunk (Algorithm 4 (`alg:fast-path-certification`), receive
-handler; `byz_sign_vote_pos` mirrors the check), so the `f+1` positive votes
-of (b) put `f+1` distinct chunks in the validator's hands, which is
-`isDecoded(m)`. The network-level shadow of that step is the invariant
-`vote_pos_quorum_implies_decodable`.
+assigned chunk (Algorithm 4 (`alg:fast-path-certification`), the vote
+handler), so the `f+1` valid positive votes of (b) put `f+1` distinct
+chunks in the validator's hands, which is `isDecoded(m)`.
 
 The signer needs no positive entry of its own (`local_entry_pos i j m`): a
 validator that missed its assigned chunk before the deadline may still
@@ -1144,11 +1178,12 @@ action fb_sign_pos (i : node) (j : node) (m : merkle_root) (q : nodeset) {
   require ¬ msg_commit_cast i
   require local_path i ≠ fallback
   require is_proposer j
-  -- (guard) ≥ 2f+1 proposal votes received (Algorithm 5, line 7 (`line:fb-pathvote-guard`)).
-  require ∃ qv, nset.supermajority qv ∧ ∀ r, nset.member r qv → msg_vote_cast r
-  -- (b) f+1 positive votes for (j, m), which carry their chunks: (c).
+  -- (guard) ≥ 2f+1 valid proposal votes received (Algorithm 5, line 7 (`line:fb-pathvote-guard`)).
+  require ∃ qv, nset.supermajority qv ∧ ∀ r, nset.member r qv → vote_valid r
+  -- (b) f+1 valid positive votes for (j, m), which carry their chunks: (c).
   require nset.greater_than_third q
-  require ∀ r, nset.member r q → msg_vote_pos_sig r j m
+  require msg_proposer_signed j m
+  require ∀ r, nset.member r q → msg_vote_pos_sig r j m ∧ msg_vote_chunk r j m ∧ vote_valid r
   -- (d) Re-encode consistency: the decoded data reproduces `m`.
   require well_encoded m
   -- Fired once: `i` has not signed its fallback entry for `j` yet.
@@ -1737,17 +1772,15 @@ that bound the adversary is *fully Byzantine*:
   signer**. Cryptographic unforgeability prevents it from signing as an
   honest node: the `msg_*` relations grow for Byzantine signers only via
   the actions below, and for honest signers only via honest actions.
-* **Network validity is enforced.** Honest receivers discard malformed
-  messages, so a message that no honest receiver would accept never enters
-  any quorum an honest validator (or the MVBA) observes. The Byzantine
-  actions therefore mirror the receivers' validity checks:
-  - a positive vote entry must carry the signer's valid assigned chunk
-    (Algorithm 4 (`alg:fast-path-certification`), receive handler) — `byz_sign_vote_pos`
-    requires `chunk_received r j m`;
-  - a broadcast vote must carry an entry for every proposer —
-    `byz_cast_vote` requires per-proposer signatures;
-  - a positive fallback entry must carry a verifying proposer signature
-    `σ_p` — `byz_sign_fb_pos` requires `msg_proposer_signed j m`.
+* **Receivers check what they accept.** A correct receiver counts a vote
+  only if it is complete and each positive entry carries a chunk that
+  passes `tryIngestChunk` (`vote_valid`, read by `receive_vote_*` and
+  `fb_sign_pos`, Algorithm 4 (`alg:fast-path-certification`), the vote
+  handler), so a Byzantine vote may be incomplete or carry no chunk. The
+  one check stated on a Byzantine sender is a signature's existence: a
+  positive fallback entry carries the proposer's signature `σ_p`, so
+  `byz_sign_fb_pos` requires `msg_proposer_signed j m` (unforgeability,
+  [Locality.md](../docs/Locality.md) §4.2, B2).
 * It may **equivocate**. A Byzantine proposer may produce two distinct
   signed chunk headers `⟨s, j, m₁⟩` and `⟨s, j, m₂⟩` with `m₁ ≠ m₂` (two
   firings of `byz_sign_proposer`), and may selectively deliver the
@@ -1796,17 +1829,15 @@ action byz_redisseminate_chunk (r : node) (i : node) (j : node) (m : merkle_root
 
 action byz_sign_vote_pos (r : node) (j : node) (m : merkle_root) {
   require is_byz r
-  -- A positive vote entry is network-valid only with the signer's valid
-  -- *assigned* chunk attached; votes with unbacked positive entries are
-  -- discarded by every honest receiver (Algorithm 4 (`alg:fast-path-certification`),
-  -- receive handler: the carried chunk must have the sender's chunk index
-  -- and match the entry's root). This is what makes `f+1` accepted
-  -- positive votes pin `f+1` *distinct* chunks, i.e.
-  -- `vote_pos_quorum_implies_decodable` honest about `isDecoded`.
-  -- This is the receiver's check stated on the sender; it moves to the
-  -- honest receivers ([Locality.md](../docs/Locality.md) §4, B4).
-  require chunk_received r j m
   msg_vote_pos_sig r j m := true
+}
+
+/- A Byzantine voter attaches a chunk with its own index under any root to
+its vote. Nothing limits which chunks the adversary holds; the receiver
+checks the proposer's signature on the root (`vote_entry_valid`). -/
+action byz_carry_vote_chunk (r : node) (j : node) (m : merkle_root) {
+  require is_byz r
+  msg_vote_chunk r j m := true
 }
 
 action byz_sign_vote_neg (r : node) (j : node) {
@@ -1816,12 +1847,6 @@ action byz_sign_vote_neg (r : node) (j : node) {
 
 action byz_cast_vote (r : node) {
   require is_byz r
-  -- A broadcast vote is network-valid only if it carries a signed entry
-  -- for every proposer. This is the receiver's check stated on the sender;
-  -- it moves to the honest receivers ([Locality.md](../docs/Locality.md) §4,
-  -- B4).
-  require ∀ J, is_proposer J →
-    ((∃ M, msg_vote_pos_sig r J M) ∨ msg_vote_neg_sig r J)
   msg_vote_cast r := true
 }
 
@@ -2122,23 +2147,23 @@ invariant [voted_entry_pos_signed]
     ¬ is_byz R ∧ is_proposer J ∧ local_voted R ∧ local_entry_pos R J M →
     msg_vote_pos_sig R J M
 
-/-- A broadcast vote carries an entry for every proposer (receivers discard
-incomplete votes; `byz_cast_vote` mirrors the check). -/
-invariant [vote_cast_entries]
-  ∀ (R : node) (J : node),
-    msg_vote_cast R ∧ is_proposer J →
-    ((∃ M, msg_vote_pos_sig R J M) ∨ msg_vote_neg_sig R J)
+/-- A correct validator's vote passes every receiver's check: it carries
+an entry for every proposer, a chunk with each positive entry under a
+proposer-signed root, and the share (`vote` writes them in one step). A
+Byzantine vote need not; what a receiver takes from one is its own check
+(`vote_rcv_pos_backed`, `vote_rcv_neg_backed`). -/
+invariant [vote_cast_valid]
+  ∀ (R : node),
+    ¬ is_byz R ∧ msg_vote_cast R → vote_valid R
 
-/-- Every network-valid positive vote signature — honest or Byzantine — is
-backed by the signer's delivered chunk: honest votes by
-`local_entry_pos_chunk`, Byzantine ones by the validity precondition of
-`byz_sign_vote_pos`. This is the σ/chunk-carrying discipline of the
-vote message (Algorithm 3 (`alg:voting`)), and it is what makes the erasure-decode
-threshold (c) a consequence of the vote threshold (b) at the network
-level. -/
+/-- A correct voter's positive entry carries its chunk, and its carried
+chunks are exactly its positive entries (`vote` writes both from the same
+local entries; Algorithm 3, line 14 (`line:vote-broadcast`)). With it, the
+`f+1` correct members of a vote supermajority carry `f+1` chunks: the
+erasure-decode threshold (c) follows from the FastQC threshold. -/
 invariant [vote_pos_sig_chunk]
   ∀ (R : node) (J : node) (M : merkle_root),
-    msg_vote_pos_sig R J M → chunk_received R J M
+    ¬ is_byz R → (msg_vote_chunk R J M ↔ msg_vote_pos_sig R J M)
 
 /-! "Backing-quorum" auxiliaries link each aggregated FastQC to a supermajority
 of underlying signed votes. These are *not* in EPR (they have an `∃ q :
@@ -2187,20 +2212,21 @@ invariant [fastqc_post_deadline]
     phase ≠ pre_deadline
 
 /-- An honest positive fallback signed entry is backed by an f+1 quorum of
-positive votes (`fb_sign_pos` (b)); persistent because signatures are. -/
+positive votes carrying their chunks (`fb_sign_pos` (b)); persistent
+because messages are. -/
 invariant [msg_fb_pos_sig_backed]
   ∀ (R : node) (J : node) (M : merkle_root),
     ¬ is_byz R ∧ msg_fb_pos_sig R J M →
-    ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_vote_pos_sig r J M
+    ∃ q, nset.greater_than_third q ∧
+      ∀ r, nset.member r q → msg_vote_pos_sig r J M ∧ msg_vote_chunk r J M
 
 /-- Every network-valid positive fallback entry — honest or Byzantine — pins
 a proposer-signed root: a positive entry carries the proposer's signature
 σ_p on ⟨s, j, m⟩ and receivers verify it (Appendix C.3 (`subsection:fallback_path`)).
 Honest entries via their f+1 vote-quorum backing (the quorum's honest
 voter's `local_entry_pos_signed`), Byzantine ones by the validity
-precondition of `byz_sign_fb_pos`. The σ_p-carrying discipline of the
-entry, mirroring `vote_pos_sig_chunk`'s σ/chunk discipline for votes.
-Deliberately unrestricted by honesty: it is what makes the network-level
+precondition of `byz_sign_fb_pos` (unforgeability,
+[Locality.md](../docs/Locality.md) §4.2, B2). Deliberately unrestricted by honesty: it is what makes the network-level
 build totality ([Chorus/Counting.lean](Chorus/Counting.lean)) hold over an *arbitrary* accepted
 receipt supermajority, Byzantine members included. -/
 invariant [fb_pos_sig_proposer_signed]
@@ -2424,15 +2450,17 @@ invariant [local_committed_pos_neg_excl]
 Every honest positive commit is backed by `f+1` chunks for the committed
 root — the model-level counterpart of "`recoverProposals` does not block"
 (Algorithm 6, line 12 (`line:da-wait`); Proposition 4 (`prop:chorus-totality`)). The chain runs through
-`vote_pos_sig_chunk`: every network-valid positive vote carries its chunk,
-so every vote quorum is itself a chunk quorum. -/
+`vote_pos_sig_chunk`: a correct positive vote carries its chunk, and a
+FastQC's `2f+1` signers include `f+1` correct ones, as in the paper's proof
+of Proposition 4 (`prop:chorus-totality`); a fallback entry's `f+1` valid
+positive votes carry theirs (`msg_fb_pos_sig_backed`). -/
 
-/-- (b) ⇒ (c) at the network level: an f+1 positive-vote quorum makes the
-data decodable, because valid positive votes carry chunks. -/
+/-- A FastQC's root is decodable: its `2f+1` positive signatures include
+`f+1` correct ones (`honest_third_in_supermajority`), each carrying its
+chunk (`vote_pos_sig_chunk`). -/
 invariant [vote_pos_quorum_implies_decodable]
   ∀ (J : node) (M : merkle_root),
-    (∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_vote_pos_sig r J M) →
-    chunk_quorum J M
+    vote_quorum_pos J M → chunk_quorum J M
 
 invariant [local_fastqc_pos_chunks_decodable]
   ∀ (I : node) (J : node) (M : merkle_root),
@@ -2546,15 +2574,16 @@ invariant [fb_neg_qv_backed]
     ¬ is_byz R ∧ aux_fb_neg_qv R J QV →
     nset.supermajority QV ∧ (∀ r, nset.member r QV → msg_vote_cast r)
 
-/-- A correct validator's vote receipt holds what the sender signed and
-broadcast. -/
+/-- A correct validator's vote receipt comes from a vote that passed its
+check (`vote_valid`: complete, chunk-carrying, with its share), and holds
+the entry the sender signed. -/
 invariant [vote_rcv_pos_backed]
   ∀ (I R J : node) (M : merkle_root),
-    ¬ is_byz I ∧ local_vote_rcv_pos I R J M → msg_vote_cast R ∧ msg_vote_pos_sig R J M
+    ¬ is_byz I ∧ local_vote_rcv_pos I R J M → vote_valid R ∧ msg_vote_pos_sig R J M
 
 invariant [vote_rcv_neg_backed]
   ∀ (I R J : node),
-    ¬ is_byz I ∧ local_vote_rcv_neg I R J → msg_vote_cast R ∧ msg_vote_neg_sig R J
+    ¬ is_byz I ∧ local_vote_rcv_neg I R J → vote_valid R ∧ msg_vote_neg_sig R J
 
 /-- The negative entry was signed against votes `R` had received: one entry
 of each sender in `QV`. Receipts are never withdrawn. -/

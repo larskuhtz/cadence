@@ -119,9 +119,11 @@ link:
 
 ## What it uses from the sweep, and what it does not
 
-Stage 3 uses three invariants: `voted_implies_cast`, to put a correct
-voter's vote on the network, `vote_cast_entries`, for the vote to carry an
-entry for every proposer, and `vote_rcv_pos_backed`, for a received
+Stage 3 uses these invariants: `voted_implies_cast`, to put a correct
+voter's vote on the network, `vote_cast_valid`, for the vote to pass the
+receiver's check and carry an entry for every proposer, `vote_pos_sig_chunk`,
+`vote_pos_from_local` and `local_entry_pos_signed`, for a correct positive
+entry to carry its chunk under a signed root, and `vote_rcv_pos_backed`, for a received
 positive entry to be the sender's signature. The two facts [Liveness.md](../../docs/Liveness.md) §4.4 flags as outside the sweep —
 a correct validator's fast commit vote, resp. fallback vote, carries a
 signature per proposer — are **derived** here at run level from the
@@ -317,10 +319,30 @@ theorem msg_vote_pos_sig_mono {l} (htr : (RTS).tr th s l s') :
     simp_all
   case byz_sign_vote_pos =>
     chorus_tr htr
-    obtain ⟨-, -, rfl⟩ := htr
+    obtain ⟨-, rfl⟩ := htr
     chorus_field_simp
     simp_all
   frame_rest htr msg_vote_pos_sig hfr => exact hfr ▸ h
+
+set_option maxHeartbeats 1000000 in
+/-- **`msg_vote_chunk` is monotone** — as `msg_vote_pos_sig_mono`: `vote`
+writes it as a disjunction with its old value, `byz_carry_vote_chunk`
+writes `true`. -/
+theorem msg_vote_chunk_mono {l} (htr : (RTS).tr th s l s') :
+    ∀ (r j : node) (m : merkle_root), s.msg_vote_chunk r j m = true → s'.msg_vote_chunk r j m = true := by
+  intro r j m h
+  cases l
+  case vote i' =>
+    chorus_tr htr
+    obtain ⟨-, -, -, -, -, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  case byz_carry_vote_chunk =>
+    chorus_tr htr
+    obtain ⟨-, rfl⟩ := htr
+    chorus_field_simp
+    simp_all
+  frame_rest htr msg_vote_chunk hfr => exact hfr ▸ h
 
 set_option maxHeartbeats 1000000 in
 /-- **`msg_vote_neg_sig` is monotone** — as `msg_vote_pos_sig_mono`. -/
@@ -339,6 +361,46 @@ theorem msg_vote_neg_sig_mono {l} (htr : (RTS).tr th s l s') :
     chorus_field_simp
     simp_all
   frame_rest htr msg_vote_neg_sig hfr => exact hfr ▸ h
+
+/-- **A vote that passes the receiver's check keeps passing it**: every
+row `vote_valid` reads is a monotone network row. -/
+theorem vote_valid_mono {l} (htr : (RTS).tr th s l s') {r : node}
+    (h : Chorus.vote_valid r th s) : Chorus.vote_valid r th s' := by
+  unfold Chorus.vote_valid Chorus.vote_entry_valid at *
+  obtain ⟨hc, hsh, hall⟩ := h
+  refine ⟨Chorus.msg_vote_cast.mono htr r hc, Chorus.msg_decrypt_share.mono htr r hsh,
+    fun j hj => ?_⟩
+  rcases hall j hj with ⟨m, hs, hch, hps⟩ | hn
+  · exact Or.inl ⟨m, msg_vote_pos_sig_mono htr r j m hs, msg_vote_chunk_mono htr r j m hch,
+      Chorus.msg_proposer_signed.mono htr j m hps⟩
+  · exact Or.inr (msg_vote_neg_sig_mono htr r j hn)
+
+/-- A valid vote's entry for a proposer: positive with its chunk under a
+signed root, or negative. -/
+theorem vote_valid_entry {r j : node} (h : Chorus.vote_valid r th s)
+    (hj : th.is_proposer j = true) :
+    (∃ m, s.msg_vote_pos_sig r j m = true ∧ s.msg_vote_chunk r j m = true ∧
+      s.msg_proposer_signed j m = true) ∨ s.msg_vote_neg_sig r j = true := by
+  unfold Chorus.vote_valid Chorus.vote_entry_valid at h
+  exact h.2.2 j hj
+
+/-- A correct validator's cast vote passes every receiver's check
+(`vote_cast_valid`). -/
+theorem correct_vote_valid
+    (hr : (RTS).reachable th s) {a : node} (ha : ¬ nset.is_byz a = true)
+    (hc : s.msg_vote_cast a = true) : Chorus.vote_valid a th s :=
+  Chorus.reachable_vote_cast_valid hr a ⟨ha, hc⟩
+
+/-- A correct validator's positive vote entry carries its chunk under a
+proposer-signed root (`vote_pos_sig_chunk`, `vote_pos_from_local`,
+`local_entry_pos_signed`). -/
+theorem correct_vote_pos
+    (hr : (RTS).reachable th s) {a j : node} {m : merkle_root} (ha : ¬ nset.is_byz a = true)
+    (h : s.msg_vote_pos_sig a j m = true) :
+    s.msg_vote_chunk a j m = true ∧ s.msg_proposer_signed j m = true :=
+  ⟨(Chorus.reachable_vote_pos_sig_chunk hr a j m ha).mpr h,
+    Chorus.reachable_local_entry_pos_signed hr a j m
+      ⟨ha, Chorus.reachable_vote_pos_from_local hr a j m ⟨ha, h⟩⟩⟩
 
 set_option maxHeartbeats 1000000 in
 /-- **`local_entry_neg` is monotone** — `vote` is its only writer, a
@@ -563,35 +625,41 @@ theorem vote_effect {i : node} (htr : (RTS).tr th s (.vote i) s') :
   chorus_field_simp
 
 /-- `receive_vote_pos`, enabled for a receiver that holds no entry of `r`'s
-vote for `j` yet. -/
+vote for `j` yet, once `r`'s vote passes the receiver's check and its entry
+for `j` is positive on `m` with its chunk under a signed root. -/
 theorem enabled_receive_vote_pos {i r j : node} {m : merkle_root}
     (hi : ¬ nset.is_byz i = true) (hj : th.is_proposer j = true)
-    (hc : s.msg_vote_cast r = true) (hs : s.msg_vote_pos_sig r j m = true)
+    (hv : Chorus.vote_valid r th s) (hs : s.msg_vote_pos_sig r j m = true)
+    (hch : s.msg_vote_chunk r j m = true) (hps : s.msg_proposer_signed j m = true)
     (hnp : ∀ m2, ¬ s.local_vote_rcv_pos i r j m2 = true) (hnn : ¬ s.local_vote_rcv_neg i r j = true) :
     Enabled RTS th s (.receive_vote_pos i r j m) := by
+  unfold Chorus.vote_valid at hv
+  obtain ⟨hc, hsh, hall⟩ := hv
   chorus_enabled
-  exact ⟨_, hi, hj, hc, hs, hnp, hnn, rfl⟩
+  exact ⟨_, hi, hj, hc, hsh, hall, hs, hch, hps, hnp, hnn, rfl⟩
 
 theorem receive_vote_pos_effect {i r j : node} {m : merkle_root}
     (htr : (RTS).tr th s (.receive_vote_pos i r j m) s') :
     s'.local_vote_rcv_pos i r j m = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
+  repeat (obtain ⟨_, htr⟩ := htr)
   chorus_field_simp
 
 theorem enabled_receive_vote_neg {i r j : node}
     (hi : ¬ nset.is_byz i = true) (hj : th.is_proposer j = true)
-    (hc : s.msg_vote_cast r = true) (hs : s.msg_vote_neg_sig r j = true)
+    (hv : Chorus.vote_valid r th s) (hs : s.msg_vote_neg_sig r j = true)
     (hnp : ∀ m2, ¬ s.local_vote_rcv_pos i r j m2 = true) (hnn : ¬ s.local_vote_rcv_neg i r j = true) :
     Enabled RTS th s (.receive_vote_neg i r j) := by
+  unfold Chorus.vote_valid at hv
+  obtain ⟨hc, hsh, hall⟩ := hv
   chorus_enabled
-  exact ⟨_, hi, hj, hc, hs, hnp, hnn, rfl⟩
+  exact ⟨_, hi, hj, hc, hsh, hall, hs, hnp, hnn, rfl⟩
 
 theorem receive_vote_neg_effect {i r j : node}
     (htr : (RTS).tr th s (.receive_vote_neg i r j) s') :
     s'.local_vote_rcv_neg i r j = true := by
   chorus_tr htr
-  obtain ⟨-, -, -, -, -, -, rfl⟩ := htr
+  repeat (obtain ⟨_, htr⟩ := htr)
   chorus_field_simp
 
 theorem enabled_fb_sign_pos {i j : node} {m : merkle_root} {q qv : nodeset}
@@ -599,12 +667,14 @@ theorem enabled_fb_sign_pos {i j : node} {m : merkle_root} {q qv : nodeset}
     (hph : s.phase = Phase_EnumClass.post_fb_arm ∨ s.phase = Phase_EnumClass.post_mvba_arm)
     (hv : s.local_voted i = true) (hnc : ¬ s.msg_commit_cast i = true)
     (hpath : ¬ s.local_path i = PathChoice_EnumClass.fallback) (hj : th.is_proposer j = true)
-    (hqv : nset.supermajority qv) (hqvc : ∀ r, nset.member r qv = true → s.msg_vote_cast r = true)
-    (hq : nset.greater_than_third q) (hqs : ∀ r, nset.member r q = true → s.msg_vote_pos_sig r j m = true)
+    (hqv : nset.supermajority qv) (hqvc : ∀ r, nset.member r qv = true → Chorus.vote_valid r th s)
+    (hq : nset.greater_than_third q) (hps : s.msg_proposer_signed j m = true)
+    (hqs : ∀ r, nset.member r q = true →
+      s.msg_vote_pos_sig r j m = true ∧ s.msg_vote_chunk r j m = true ∧ Chorus.vote_valid r th s)
     (hwe : th.well_encoded m = true) (hfr : ¬ s.local_fb_entry i j = true) :
     Enabled RTS th s (.fb_sign_pos i j m q) := by
   chorus_enabled
-  exact ⟨_, hi, ha.1, ha.2, hph, hv, hnc, hpath, hj, ⟨qv, hqv, hqvc⟩, hq, hqs, hwe, hfr, rfl⟩
+  exact ⟨_, hi, ha.1, ha.2, hph, hv, hnc, hpath, hj, ⟨qv, hqv, hqvc⟩, hq, hps, hqs, hwe, hfr, rfl⟩
 
 theorem fb_sign_pos_effect {i j : node} {m : merkle_root} {q : nodeset}
     (htr : (RTS).tr th s (.fb_sign_pos i j m q) s') :
@@ -1195,7 +1265,7 @@ theorem chunk_quorum_step {l} (htr : (RTS).tr th s l s') {j : node} {m : merkle_
     (h : Chorus.chunk_quorum j m th s) : Chorus.chunk_quorum j m th s' := by
   unfold Chorus.chunk_quorum at h ⊢
   obtain ⟨q, hq, hall⟩ := h
-  exact ⟨q, hq, fun a ha => chunk_received_step htr (hall a ha)⟩
+  exact ⟨q, hq, fun a ha => msg_vote_chunk_mono htr a j m (hall a ha)⟩
 
 theorem fbcommitqc_step {l} (htr : (RTS).tr th s l s') {e : mentries}
     (h : Chorus.fbcommitqc e th s) : Chorus.fbcommitqc e th s' := by
@@ -1798,9 +1868,10 @@ theorem Received.step
     (Chorus.local_vote_rcv_neg.mono htr i a j)
 
 /-- **A correct validator receives every correct voter's vote.** Once a
-correct `a` has cast its vote, the vote carries an entry for every proposer
-(`vote_cast_entries`), and taking it is owed (its sender is correct) and
-enabled at `i` until `i` holds an entry of `a`'s vote for `j`. -/
+correct `a` has cast its vote, the vote passes the receiver's check and
+carries an entry for every proposer (`vote_cast_valid`), and taking it is
+owed (its sender is correct) and enabled at `i` until `i` holds an entry
+of `a`'s vote for `j`. -/
 theorem eventually_received (r : CRun th) (hfj : PerLabel r)
     {A : Nat} (hact : ActiveFrom r A)
     {i a j : node} (hi : ¬ nset.is_byz i = true) (ha : ¬ nset.is_byz a = true)
@@ -1815,17 +1886,23 @@ theorem eventually_received (r : CRun th) (hfj : PerLabel r)
     fun n m2 h => hcon ⟨n, Or.inl ⟨m2, h⟩⟩
   have hnn : ∀ n, ¬ (r.at' n).local_vote_rcv_neg i a j = true :=
     fun n h => hcon ⟨n, Or.inr h⟩
-  rcases Chorus.reachable_vote_cast_entries (r.reachable Nv) a j ⟨hcast Nv le_rfl, hj⟩ with ⟨m, hm⟩ | hm
+  have hval : ∀ n, Nv ≤ n → Chorus.vote_valid a th (r.at' n) := fun n hn =>
+    correct_vote_valid (r.reachable n) ha (hcast n hn)
+  rcases vote_valid_entry (hval Nv le_rfl) hj with ⟨m, hm, hch, hps⟩ | hm
   · obtain ⟨n, -, hfire⟩ := (hfj (.receive_vote_pos i a j m) ⟨fun h => h, fun h => h, fun h => h⟩
         (fun h => h)).fires Nv (fun _ _ => ha)
-      (fun n hn => enabled_receive_vote_pos hi hj (hcast n hn)
+      (fun n hn => enabled_receive_vote_pos hi hj (hval n hn)
         (r.mono (P := fun st => st.msg_vote_pos_sig a j m = true)
           (fun k hk => msg_vote_pos_sig_mono (r.steps k) a j m hk) hm n hn)
+        (r.mono (P := fun st => st.msg_vote_chunk a j m = true)
+          (fun k hk => msg_vote_chunk_mono (r.steps k) a j m hk) hch n hn)
+        (r.mono (P := fun st => st.msg_proposer_signed j m = true)
+          (fun k hk => Chorus.msg_proposer_signed.mono (r.steps k) j m hk) hps n hn)
         (hnp n) (hnn n))
     exact hnp (n + 1) m (receive_vote_pos_effect (hfire ▸ r.steps n))
   · obtain ⟨n, -, hfire⟩ := (hfj (.receive_vote_neg i a j) ⟨fun h => h, fun h => h, fun h => h⟩
         (fun h => h)).fires Nv (fun _ _ => ha)
-      (fun n hn => enabled_receive_vote_neg hi hj (hcast n hn)
+      (fun n hn => enabled_receive_vote_neg hi hj (hval n hn)
         (r.mono (P := fun st => st.msg_vote_neg_sig a j = true)
           (fun k hk => msg_vote_neg_sig_mono (r.steps k) a j hk) hm n hn)
         (hnp n) (hnn n))
@@ -1901,8 +1978,13 @@ theorem eventually_saturated (r : CRun th) (hfj : PerLabel r)
       obtain ⟨n, hn, hfire⟩ := (hfj (.fb_sign_pos i j M q) ⟨fun h => h, fun h => h, fun h => h⟩ (fun h => h)).fires n0
         (fun n hn => ⟨hQ, qv, hqv, hqvh, hq n (by omega)⟩)
         (fun n hn => (enabled_fb_sign_pos hi (hact n (by omega) i hi) (harm n (by omega)) (hv n (by omega)) (hnc n) (hnp n) hj
-          hqv (hq n (by omega)) hq1 (hsig n hn) hwe
-          fun h => hns ⟨n, by omega, fb_entry_sigs r n h⟩))
+          hqv (fun a ha => correct_vote_valid (r.reachable n) (hqvh a ha) (hq n (by omega) a ha)) hq1
+          (let ⟨a0, ha0, _⟩ := nset.greater_than_third_one_honest q hq1
+           (correct_vote_pos (r.reachable n) (hqvh a0 (hq2 a0 ha0).1) (hsig n hn a0 ha0)).2)
+          (fun a ha => ⟨hsig n hn a ha,
+            (correct_vote_pos (r.reachable n) (hqvh a (hq2 a ha).1) (hsig n hn a ha)).1,
+            correct_vote_valid (r.reachable n) (hqvh a (hq2 a ha).1) (hq n (by omega) a (hq2 a ha).1)⟩)
+          hwe fun h => hns ⟨n, by omega, fb_entry_sigs r n h⟩))
       exact hns ⟨n + 1, by omega, Or.inl ⟨M, fb_sign_pos_effect (hfire ▸ r.steps n)⟩⟩
     · -- It never appears: that absence, over the votes of `qv` that `i`
       -- holds, is `fb_sign_neg`'s guard against `qv`, a correct quorum.

@@ -1,15 +1,15 @@
 import Cadence.Chorus
 import Cadence.ProofPrelude
 
-/-! # `Chorus` proofs — action `byz_sign_proposer`
+/-! # `Chorus` proofs — action `byz_carry_vote_chunk`
 
 Scaffolded by `#gen_proof_files Chorus`; yours to edit. Proves every
-registered VC of `byz_sign_proposer` cross-file from the module's persisted VC registry
+registered VC of `byz_carry_vote_chunk` cross-file from the module's persisted VC registry
 (`veil.gen.vcRegistry`), persists them as kernel-checked theorems in this
 file's olean, and emits the per-action preservation lemma consumed by
 [Certify.lean](../Certify.lean)'s `#gen_composition`.
 
-Manual cells go on `#prove_vc Chorus byz_sign_proposer <property> by <tac>` lines
+Manual cells go on `#prove_vc Chorus byz_carry_vote_chunk <property> by <tac>` lines
 *before* the `#prove_action` — it consumes them as-is after a statement
 check. Solver options are read in this file at tactic runtime (no
 `#gen_spec` capture applies on the cross-file path); `veil.smt.trust
@@ -28,15 +28,6 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
-/- Written out: the solver took over 15 s on this cell locally, too close to
-the budget on CI's runner; the new proposer signature only strengthens the hypotheses. -/
-#prove_vc Chorus byz_sign_proposer fb_neg_qv_no_pos_quorum by
-  unveil_local
-  veil_inv_have h_old := fb_neg_qv_no_pos_quorum
-  intro _hbyz hne1 hne2 hne3 hnie
-  exact h_old hne1 hne2 (fun j1 m1 m2 h1 h2 => hne3 j1 m1 m2 (fun _ => h1) (fun _ => h2))
-    (fun j1 m1 h1 => hnie j1 m1 (fun _ => h1))
-
-#prove_action Chorus byz_sign_proposer
+#prove_action Chorus byz_carry_vote_chunk
 
 end Chorus.Proofs
