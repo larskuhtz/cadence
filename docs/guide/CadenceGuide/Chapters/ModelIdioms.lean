@@ -85,9 +85,9 @@ A Byzantine validator's rules are the opposite, prohibitions: it may do
 anything except forge a signature, write what it does not own, or change
 the MVBA other than through its contract (rules B1–B3 of
 [Locality.md](../../../Locality.md) §4.2), since any further restriction
-would weaken the claims. The environment reads and writes only global time. A read or
-a write by a correct step that fits no rule is a gap in the model, to be
-replaced by one that fits.
+would weaken the claims. The environment reads and writes only global
+time. A read or a write by a correct step that fits no rule is a gap in the
+model, to be replaced by one that fits.
 
 # The shared phase
 
@@ -169,9 +169,8 @@ Every other check is the correct receiver's: a vote counts only if it has
 an entry for every proposer and each positive entry carries the signer's
 chunk under a root its proposer signed, so the adversary may send a vote
 that fails the check, and no correct validator counts it. What the
-adversary cannot do is send under a correct
-validator's name or write its rows, which is how the model states that
-signatures cannot be forged. Inside the MVBA it can do whatever the class
+adversary cannot do is send under a correct validator's name or write its
+rows, which is how the model states that signatures cannot be forged. Inside the MVBA it can do whatever the class
 `MVBASafety` leaves unconstrained ([ChorusDesign.md](../../../ChorusDesign.md) §5).
 
 # When a model departs from an idiom

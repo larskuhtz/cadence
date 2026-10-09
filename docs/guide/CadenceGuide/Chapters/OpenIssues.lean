@@ -39,8 +39,7 @@ today:
   is checked against them by hand, as {chapter ModelIdioms}[chapter 4]'s
   audit table records for Chorus, and a checker applying them would make
   the audit a machine check (the V line); every model conforms to the
-  rules (§7), and the receiver checks still stated on the Byzantine sender
-  are listed in §4.2;
+  rules (§7), and every receiver check is the correct receiver's (§4.2);
 * a reference ACS built from the MVBA (the A line), so that the assumed
   module has a message-passing implementation beside its ideal model;
 * a model of the threshold-encryption class, the one primitive class without
