@@ -703,15 +703,15 @@ a Byzantine signer, equivocate (produce two distinct signed chunk
 headers for the same proposer), send chunks of distinct roots to disjoint
 subsets of validators (`byz_send_chunk`), and cast inconsistent votes /
 fallback signatures / commit votes, sending different votes to different
-validators. Cryptographic unforgeability prevents it from signing as an
-honest node: a Byzantine action writes messages only under its own name.
-Honest local state and the phase are updated only by their own actions
-([Locality.md](Locality.md) §4).
+validators. Cryptographic unforgeability prevents it from signing as a
+correct validator: a Byzantine action writes messages only under its own
+name. A correct validator's local state and the phase are updated only by
+their own actions ([Locality.md](Locality.md) §4).
 
-**Network validity is part of the threat model.** Honest receivers
-verify messages before consuming them, so a malformed message never
-enters a quorum any honest validator or the MVBA observes. The
-Byzantine actions mirror the receivers' checks:
+**The adversary's guards.** Correct receivers verify messages before
+consuming them, so a malformed message never enters a quorum any correct
+validator or the MVBA observes. Three Byzantine actions carry a guard for
+such a check:
 
 * `byz_sign_vote_pos` requires the signer's chunk
   (`chunk_received r j m`) — positive vote entries without a valid
@@ -722,20 +722,23 @@ Byzantine actions mirror the receivers' checks:
   fallback entry carries the proposer signature `σ_p`, which receivers
   verify.
 
-These preconditions do not weaken the adversary: they exclude only
-messages that could never influence an honest participant.
+The third is unforgeability ([Locality.md](Locality.md) §4.2, B2): the
+proposer's signature exists only if the proposer signed. The first two are
+receiver checks stated on the Byzantine sender (B4): equivalent to the
+check only while every correct receiver applies it, and listed in Locality
+§4.2 as gaps, to move to the receivers.
 
 **The adversary's share of the anonymous capabilities.** Assembling a
 commit certificate from `2f+1` broadcast commit votes, and re-disseminating a
 chunk once `f+1` chunks are on the network, are capabilities any holder of
-the data has. For a correct sender the first is the honest rule
+the data has. For a correct sender the first is the rule
 `broadcast_commitqc_*`, gated on participation and fired once; the second
 is part of the fallback-entry rule `fb_sign_pos` (Algorithm 5, line 12
-(`line:fb-redisseminate`); since R19, F15). In Byzantine hands they are
+(`line:fb-redisseminate`)). In Byzantine hands they are
 `byz_broadcast_commitqc_*`, with the certificate's signatures as its only
 check ([Locality.md](Locality.md) §4.2, B2), and `byz_redisseminate_chunk`,
-with none: no gate, no record, and no fairness ((F-byz)). Until S1b both were branches of the honest actions;
-splitting them keeps every fair action fired-once
+with none: no gate, no record, and no fairness ((F-byz)). Keeping them out
+of the correct validators' actions keeps every fair action fired-once
 ([Bounds.md](Bounds.md) §6.4.7) without constraining the adversary.
 
 ### Per-relation actions, not a monolithic transition

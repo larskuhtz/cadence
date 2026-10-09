@@ -42,19 +42,21 @@ memory, and a guard could read any component. Distribution is a reading of
 that state, carried by the names of its components
 ({chapter ReadingModel}[chapter 3] has the table):
 
-* *Local rows.* A `local_*` relation is indexed by the validator that owns
-  it, its first argument: `local_entry_pos i j m` is validator `i`'s record.
-* *Messages.* A `msg_*` relation is indexed by its sender, first. A tuple is
+* *Local.* A `local_*` relation is indexed by the validator that owns it,
+  its first argument: `local_entry_pos i j m` is validator `i`'s record.
+  `participating` and `abandoned` are local too.
+* *Network.* A `msg_*` relation is indexed by its sender, first. A tuple is
   a message that has been sent and stays visible. Chunks are the one
   point-to-point message: `msg_chunk s i j m` names its recipient `i`
   second, because a proposer sends each validator its own chunk.
-* *Derived certificates.* A `ghost relation` over the messages, owned by
-  nobody: a validator that has received the signatures can check it.
-* *Auxiliary records.* An `aux_*` relation records history for the proofs.
-  Actions write it and none reads it, so it changes no run.
-* *Global time and the MVBA.* The phase, which the environment moves, and
-  the MVBA's state, used only through the MVBA class at the acting
-  validator's index.
+* *Environment.* The phase, global time, which only the environment moves.
+* *Sub-protocol.* The MVBA's state, used only through the MVBA class at the
+  acting validator's index.
+* *Auxiliary.* An `aux_*` relation records history for the proofs. Actions
+  write it and none reads it, so it changes no run.
+
+A derived certificate is a `ghost relation` over the network, owned by
+nobody: a validator that has received the signatures can check it.
 
 # The rules
 
@@ -156,8 +158,8 @@ can
 * sign any message in its own name, of every kind, as often as it likes;
 * equivocate: sign two roots as a proposer, send different chunks to
   different validators, and send different votes to different validators;
-* form a certificate from signatures that exist and send it, and
-  re-disseminate a chunk once enough are on the network;
+* form a certificate from signatures that exist and send it, and send any
+  chunk of any root under its own name;
 * act at any time, with no fairness, so no liveness argument relies on its
   help ((F-byz), [Premises.md](../../../Premises.md) §3.1).
 
@@ -240,7 +242,7 @@ actions, and what the rest of this chapter is for.
    MVBA's state through an input at its index; auxiliary records, which no
    action reads.
 4. *The adversary.* Every message a Byzantine validator could send that an
-   honest receiver would accept is the update of some `byz_*` action.
+   correct receiver would accept is the update of some `byz_*` action.
 5. *The paper.* The guards and updates are the rule the Paper column
    cites.
 :::
@@ -261,8 +263,7 @@ position: messages and certificates, the phase, and the MVBA class's
 operations. *Negative network reads* are only ever the actor's own sends.
 Configuration, such as `is_proposer`, is fixed data every validator knows
 and is left out. The note names the rules of
-[Locality.md](../../../Locality.md) each row follows; a note marked ⚠ is
-an open item of its §7.
+[Locality.md](../../../Locality.md) each row follows.
 
 The guide's build checks that every action of the model has a row and that
 every relation the derived columns name is part of the model, so the table

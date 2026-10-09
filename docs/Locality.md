@@ -10,9 +10,9 @@ The models describe a distributed protocol only if every correct
 validator's step depends on what that validator can know, and changes only
 what it owns. This page states that requirement once, for every model, as
 rules that each action can be checked against by pattern matching over
-names, index positions and the polarity of a read. A read or a write that
-fits no rule is a gap in the model, to be replaced by one that fits; no
-action has an exception argued for it alone.
+names, index positions and the polarity of a read. A read or a write of a
+correct step that fits no rule is a gap in the model, to be replaced by one
+that fits; no action has an exception argued for it alone.
 
 The last column of each table says whether a rule is **syntactic** —
 decidable from the action's text and the declarations — or needs a
