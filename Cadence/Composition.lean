@@ -421,7 +421,6 @@ theorem completed_frame_internal {l : Conductor.Label slot window time node acss
   | tick => simp only [Completed, Conductor.tick.frame_completed htr]
   | acs_propose => simp only [Completed, Conductor.acs_propose.frame_completed htr]
   | acs_step => simp only [Completed, Conductor.acs_step.frame_completed htr]
-  | acs_decide => simp only [Completed, Conductor.acs_decide.frame_completed htr]
   | enter_window => simp only [Completed, Conductor.enter_window.frame_completed htr]
   | open_slot => simp only [Completed, Conductor.open_slot.frame_completed htr]
 

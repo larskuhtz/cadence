@@ -81,15 +81,6 @@ theorem hΔ : TA.Δ = sch.Δ := rfl
 
 theorem hℓ : TA.ℓ = sch.ℓ := rfl
 
-theorem hfault : (Finset.univ.filter (fmF 4 1 rfl isByz Chorus.Witness.hbyz).byz).card ≤ TA.fault_bound := by
-  have : Finset.univ.filter (fmF 4 1 rfl isByz Chorus.Witness.hbyz).byz = {3} := by
-    ext i
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-    rw [byz_iff, Fin.ext_iff]
-    rfl
-  rw [this]
-  decide
-
 theorem hprop : ∃ J, (fun j : Fin 4 => decide (j.val = 0)) J = true := ⟨0, rfl⟩
 
 /-- (A-leader-rotation-k) at `k = 1`: validator 0 leads every view. -/
@@ -152,8 +143,7 @@ theorem boundedConcurrency_premises_satisfiable :
 jointly satisfiable** (`LivenessClaim`, proven as `Composed.liveness` at
 `𝓡 = 2Wτ` and `Composed.liveness_sharp` at `(W + p − 1)τ`, on the same
 premises): Corollary 4's, and the windows' shape, a successor for every
-window, the ACS's latency the system's, and at most its fault bound
-Byzantine. -/
+window, and the ACS's latency the system's. -/
 theorem liveness_premises_satisfiable :
     ∃ (sch : ConductorSchedule ℕ ℕ natViewOrderEnum)
       (TA : ACSTemporal (Fin 4) ℕ ACSt ℕ Unit (fmF 4 1 rfl isByz Chorus.Witness.hbyz).byz)
@@ -170,10 +160,9 @@ theorem liveness_premises_satisfiable :
         (Cadence.mvbaTheory (nodeset := ByzNSet 4) mvalid mleader) thG),
       StartTimes sch thO ∧ WindowShifts sch thO ∧ StartsUnbounded thO ∧ WindowsUnbounded ℕ ∧
         TA.Δ = sch.Δ ∧ TA.ℓ = sch.ℓ ∧
-        (Finset.univ.filter (fmF 4 1 rfl isByz Chorus.Witness.hbyz).byz).card ≤ TA.fault_bound ∧
         SysSync 4 1 rfl isByz Chorus.Witness.hbyz sch TA r :=
   ⟨sch, TA, thO, _, _, mst 0, _, _, hprop, hrot, thG, run, startTimes, windowShifts, startsUnbounded,
-    windowsUnbounded_nat, hΔ, hℓ, hfault, sysSync⟩
+    windowsUnbounded_nat, hΔ, hℓ, sysSync⟩
 
 /-- **The premises of `𝓡`-Censorship resistance (Definition 3
 (`def:censorship-resistance`)) are jointly satisfiable** (`CensorshipClaim`,
@@ -197,18 +186,17 @@ theorem censorship_premises_satisfiable :
         (Cadence.mvbaTheory (nodeset := ByzNSet 4) mvalid mleader) ⟨fun j _ => is_proposer j, o, sci⟩),
       StartTimes sch thO ∧ WindowShifts sch thO ∧ StartsUnbounded thO ∧ WindowsUnbounded ℕ ∧
         TA.Δ = sch.Δ ∧ TA.ℓ = sch.ℓ ∧
-        (Finset.univ.filter (fmF 4 1 rfl isByz Chorus.Witness.hbyz).byz).card ≤ TA.fault_bound ∧
         (∃ m, well_encoded m = true) ∧
         SysSync 4 1 rfl isByz Chorus.Witness.hbyz sch TA r ∧
         SlotInclusive 4 1 rfl isByz Chorus.Witness.hbyz sch r :=
   ⟨sch, TA, thO, _, _, mst 0, _, _, hprop, hrot, cond 0, fun x => (x, cst 0), run, startTimes, windowShifts,
-    startsUnbounded, windowsUnbounded_nat, hΔ, hℓ, hfault, ⟨(), rfl⟩, sysSync, slotInclusive⟩
+    startsUnbounded, windowsUnbounded_nat, hΔ, hℓ, ⟨(), rfl⟩, sysSync, slotInclusive⟩
 
 /-- **The premises of the Conductor's three timed claims are jointly
 satisfiable** (`Conductor.TotalityClaim`, `Conductor.BoundednessClaim`,
 `Conductor.RecoveryClaim`; [Premises.md](../../docs/Premises.md) §9), on
 the orchestrator's part of the same run: the configuration premises, the
-ACS's constants and fault bound, the Conductor's timing model `Sync`, and
+ACS's constants, the Conductor's timing model `Sync`, and
 the caller's (R-tot) and (R-term), which within the composed run are
 theorems (`Composed.caller_totality`, `Composed.caller_termination`). -/
 theorem conductor_premises_satisfiable :
@@ -218,13 +206,12 @@ theorem conductor_premises_satisfiable :
       (r : TConductorRun (fm := fmF 4 1 rfl isByz Chorus.Witness.hbyz) (A := AS) thO),
       StartTimes sch thO ∧ WindowShifts sch thO ∧ StartsUnbounded thO ∧ WindowsUnbounded ℕ ∧
         TA.Δ = sch.Δ ∧ TA.ℓ = sch.ℓ ∧
-        (Finset.univ.filter (fmF 4 1 rfl isByz Chorus.Witness.hbyz).byz).card ≤ TA.fault_bound ∧
         Conductor.Sync sch TA r ∧
         (orchestratorSafety (fm := fmF 4 1 rfl isByz Chorus.Witness.hbyz) (acs := AS) thO).CallerTotality
           (contractRun r) sch.d_tot ∧
         (orchestratorSafety (fm := fmF 4 1 rfl isByz Chorus.Witness.hbyz) (acs := AS) thO).CallerTermination
           (contractRun r) sch.d_tot sch.ℓchorus := by
-  refine ⟨sch, TA, thO, crun, startTimes, windowShifts, startsUnbounded, windowsUnbounded_nat, hΔ, hℓ, hfault,
+  refine ⟨sch, TA, thO, crun, startTimes, windowShifts, startsUnbounded, windowsUnbounded_nat, hΔ, hℓ,
     csync, ?_, ?_⟩
   · rw [crun_contract]
     exact caller_totality 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) sch hprop hrot glueRows slotAdmissible _
@@ -245,24 +232,24 @@ example := boundedConcurrency 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) (thO :
   thS thM thG
 
 example := liveness 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) sch TA hprop hrot startTimes windowShifts
-  startsUnbounded windowsUnbounded_nat hΔ hℓ hfault thG run sysSync
+  startsUnbounded windowsUnbounded_nat hΔ hℓ thG run sysSync
 
 example := liveness_sharp 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) sch TA hprop hrot startTimes
-  windowShifts startsUnbounded windowsUnbounded_nat hΔ hℓ hfault thG run sysSync
+  windowShifts startsUnbounded windowsUnbounded_nat hΔ hℓ thG run sysSync
 
 example := censorship 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) sch TA hprop hrot startTimes windowShifts
-  startsUnbounded windowsUnbounded_nat hΔ hℓ hfault ⟨(), rfl⟩ (cond 0) (fun x => (x, cst 0)) run sysSync
+  startsUnbounded windowsUnbounded_nat hΔ hℓ ⟨(), rfl⟩ (cond 0) (fun x => (x, cst 0)) run sysSync
   slotInclusive
 
 example := Conductor.totality sch TA thO startsUnbounded hΔ crun csync
 
 example := Conductor.boundedness sch thO windowShifts
 
-example := Conductor.recovery sch TA thO startTimes windowShifts startsUnbounded windowsUnbounded_nat hΔ hℓ hfault
+example := Conductor.recovery sch TA thO startTimes windowShifts startsUnbounded windowsUnbounded_nat hΔ hℓ
   crun csync
 
 example := censorship_sharp 4 1 rfl isByz Chorus.Witness.hbyz (A := AS) sch TA hprop hrot startTimes
-  windowShifts startsUnbounded windowsUnbounded_nat hΔ hℓ hfault ⟨(), rfl⟩ (cond 0) (fun x => (x, cst 0))
+  windowShifts startsUnbounded windowsUnbounded_nat hΔ hℓ ⟨(), rfl⟩ (cond 0) (fun x => (x, cst 0))
   run sysSync slotInclusive
 
 end Composed.Witness

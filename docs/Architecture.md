@@ -100,7 +100,7 @@ here rather than repeating them.
 | [Cadence/Chorus.lean](../Cadence/Chorus.lean) | 55 | 9 safety + 100 invariants + 1 step property | pinned: `#veil_status Chorus` in [Chorus/Certify.lean](../Cadence/Chorus/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 46 manual Lean proofs for e-matching-divergent or near-budget cells (three of them the Byzantine assembly actions' copies of the collector's cells), and one cell that runs the automatic solver step with the Bool-atom fold off rather than a hand proof (`vote × fastqc_complete_implies_mvba_evidence`; [Dependencies.md](Dependencies.md) § "Native shared libraries"); the MVBA enters as a class constraint, so its axioms are hypotheses of every cell |
 | [Cadence/Mvba.lean](../Cadence/Mvba.lean) | 29 | 3 safety + 50 invariants + 1 step property | pinned: `#veil_status Mvba` in [Mvba/Certify.lean](../Cadence/Mvba/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked), + 9 manual Lean proofs: 5 for the argument-carrying cells (the lock-persistence step, at both actions that create a prepare certificate; cross-view certificate agreement, at both actions that create a commit certificate; and agreement at the decision `form_own_commitqc` makes), and 4 frame cells at the two timeout actions that the solver found too slowly for a CI runner |
 | [Cadence/FallbackReceipt.lean](../Cadence/FallbackReceipt.lean) | 9 | 1 safety + 20 invariants | pinned: `#veil_status FallbackReceipt` in [FallbackReceipt/Certify.lean](../Cadence/FallbackReceipt/Certify.lean) | cvc5, **proof-reconstructed** (kernel-checked, no trusted step) |
-| [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 7 | 5 safety + 17 invariants + 3 step properties | 205 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
+| [Cadence/Conductor.lean](../Cadence/Conductor.lean) | 6 | 5 safety + 19 invariants + 3 step properties | 193 | cvc5, **proof-reconstructed** (kernel-checked); the ACS enters as a class constraint |
 | [Cadence/Cadence.lean](../Cadence/Cadence.lean) | 7 | 4 safety + 22 invariants | 216 | cvc5, **proof-reconstructed** (kernel-checked); the sub-protocols enter as class constraints, so the contract axioms are hypotheses of every cell |
 
 The VC count is not arbitrary and can be recomputed from the model: one
@@ -330,9 +330,10 @@ confirm each action follows them.
    contract satisfiable; it is a model, not a protocol. What *is*
    machine-checked is the consumption side: the Conductor takes the ACS's
    two levels as class constraints and hypotheses, so it assumes exactly
-   the class, with one stated bridge (the median-range `require` of
-   `acs_decide`), whose justification is a theorem from the contract and
-   the fault bound (`Cadence.acs_median_bracket`,
+   the class. The first slot each validator computes from its decided set
+   is constrained by two model assumptions (`[acs_first_local]`,
+   `[acs_first_bracket]`), which the paper's lower median meets under the
+   fault bound (`Cadence.lowerMedian_first_assumptions`,
    [AcsMedian.lean](../Cadence/AcsMedian.lean)). The `MVBA`
    contract is **not** on this list, on either side: `Mvba.mvbaSafety`
    ([Cadence/Mvba/Compose.lean](../Cadence/Mvba/Compose.lean)) instantiates

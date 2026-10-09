@@ -48,10 +48,11 @@ Four Veil models plus support files, mirroring the paper's architecture:
   inert. Small and fast (~1 min cold, sweep included).
 * **`Cadence/Conductor.lean`** — the window-based orchestrator: `ACSSafety` as
   a class constraint (one abstract ACS state per window, driven through its
-  `propose` and `abandon` inputs), abstract clock, window structure. Its one
-  stated bridge, `acs_decide`'s median `require`, is justified from the
-  contract by `Cadence.acs_median_bracket` (`AcsMedian.lean`). Fast (~1 min
-  cold).
+  `propose` and `abandon` inputs), abstract clock, window structure. Each validator
+  computes its window bounds from its own ACS decision (`acs_first`); the
+  median bracket is the model assumption `[acs_first_bracket]`, which the
+  lower median meets (`Cadence.lowerMedian_first_assumptions`,
+  `AcsMedian.lean`). Fast (~1 min cold).
 * **`Cadence/FallbackReceipt.lean`** (+ `Totality.lean`) — the
   per-validator fallback receipt/propose layer (`docs/ChorusDesign.md`
   §7.2 explains its rules). Same family shape as Chorus at a small fraction of the scale,
@@ -494,7 +495,7 @@ is a change to what this project *claims*, not a refactor.
       arbitrary ACS meeting `ACSSafety` and `ACSTemporal` (an assumed
       module, P17), the claims' configuration premises (`StartTimes`,
       `WindowShifts`, `StartsUnbounded`, `WindowsUnbounded`, the ACS's
-      `Δ`, `ℓ` and fault bound), finitely many validators and an ordered
+      `Δ` and `ℓ`), finitely many validators and an ordered
       time. `Conductor.conductorFullNat` discharges `WindowsUnbounded` and
       `StartsUnbounded` at `window := ℕ` over an Archimedean time.
 

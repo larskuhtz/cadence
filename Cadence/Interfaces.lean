@@ -896,12 +896,15 @@ adversary ([IdealAcs.lean](Conductor/IdealAcs.lean)): it shows that the
 fields can be met together, and it is the ACS of the composed system's
 witness. What is
 machine-checked is that the Conductor consumes exactly this class
-([Conductor.lean](Conductor.lean) `instantiate acs`), with one documented
-bridge: the median-range guard of its `acs_decide` action. Cardinality is
-outside the first-order fragment, so the bridge is a stated `require`; that
-the median of a decided set meets it is a theorem from this class
-(`Cadence.acs_median_bracket`, [AcsMedian.lean](AcsMedian.lean)), through
-`decided_unique`, `validity_quantitative` and the system's fault bound.
+([Conductor.lean](Conductor.lean) `instantiate acs`). Each validator
+computes its window's first slot from its own decided set, and the model
+assumes two things of that computation (`[acs_first_local]`,
+`[acs_first_bracket]`): cardinality is outside the first-order fragment, so
+the median's bracket is an assumption of the model, not a derivation. That
+the lower median of a decided set meets both is a theorem from this class
+(`Cadence.lowerMedian_first_assumptions`, [AcsMedian.lean](AcsMedian.lean)),
+through `decided_unique`, `validity_quantitative` and the system's fault
+bound.
 
 **Both inputs are in the fragment.** The module's interface is `propose(s)`
 ("a validator proposes slot `s`, thereby starting to participate") and
@@ -1034,6 +1037,13 @@ class ACSSafety (validator slot state : Type) (byz : validator → Prop)
       and needed by the median argument (P16, the section docstring). -/
   decided_unique : ∀ st, reachable st → ∀ i p s s',
     ¬ byz i → decided st i p s → decided st i p s' → s = s'
+  /-- **A decision is final** — once a correct validator has decided, no
+      pair joins its decided set. Module 4 (`mod:acs`)'s interface has one
+      output, `decide(set)`: "a validator decides a set" of validator-slot
+      pairs. With `decided_mono` the set is then fixed, so a validator that
+      reads its set twice reads the same set. -/
+  decided_stable : ∀ st st' i p s, reachable st → trans st st' → ¬ byz i →
+    has_decided st i → decided st' i p s → decided st i p s
 
 /-- The temporal level of Module 4 (`mod:acs`), over a safety instance `S`. -/
 class ACSTemporal (validator slot state time message : Type)

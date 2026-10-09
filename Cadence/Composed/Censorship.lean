@@ -228,15 +228,15 @@ theorem censorship :
     CensorshipClaim n f hf is_byz hbyz (A := A) (is_proposer := is_proposer) (well_encoded := well_encoded)
       (mvba_init_state := mvba_init_state) (mvalid := mvalid) (mleader := mleader)
       (Phase := Phase) (PathChoice := PathChoice) sch TA thO sch.recoveryTime :=
-  fun hstart hshift hunb hwin hΔ hℓ hfault hwe _ _ r hs hincl s hs' j hj hJ => by
+  fun hstart hshift hunb hwin hΔ hℓ hwe _ _ r hs hincl s hs' j hj hJ => by
     have hgs : r.gst ≤ thO.start_time s :=
       le_trans (le_add_of_nonneg_right (nsmul_nonneg sch.τ_pos.le _)) hs'
     obtain ⟨m, hm, ho⟩ := recovery_in n f hf is_byz hbyz sch TA hprop hrot hs hstart hshift hunb hwin hΔ hℓ
-      hfault s hs' j hj
+      s hs' j hj
     exact censorship_of n f hf is_byz hbyz sch TA hs hincl hstart hwe hgs hj hJ hJ ⟨m, hm, ho⟩
       (fun i hi => by
         obtain ⟨m, v, ha, -⟩ := liveness_in n f hf is_byz hbyz sch TA hprop hrot hs hstart hshift hunb hwin
-          hΔ hℓ hfault s hs' i hi
+          hΔ hℓ s hs' i hi
         exact ⟨m, v, ha⟩)
 
 include hprop hrot in
@@ -246,15 +246,15 @@ theorem censorship_sharp :
     CensorshipClaim n f hf is_byz hbyz (A := A) (is_proposer := is_proposer) (well_encoded := well_encoded)
       (mvba_init_state := mvba_init_state) (mvalid := mvalid) (mleader := mleader)
       (Phase := Phase) (PathChoice := PathChoice) sch TA thO ((sch.W + (sch.p - 1)) • sch.τ) :=
-  fun hstart hshift hunb hwin hΔ hℓ hfault hwe _ _ r hs hincl s hs' j hj hJ => by
+  fun hstart hshift hunb hwin hΔ hℓ hwe _ _ r hs hincl s hs' j hj hJ => by
     have hgs : r.gst ≤ thO.start_time s :=
       le_trans (le_add_of_nonneg_right (nsmul_nonneg sch.τ_pos.le _)) hs'
     obtain ⟨m, hm, ho⟩ := recovery_sharp_in n f hf is_byz hbyz sch TA hprop hrot hs hstart hshift hunb hwin
-      hΔ hℓ hfault s hs' j hj
+      hΔ hℓ s hs' j hj
     exact censorship_of n f hf is_byz hbyz sch TA hs hincl hstart hwe hgs hj hJ hJ ⟨m, hm, ho⟩
       (fun i hi => by
         obtain ⟨m, v, ha, -⟩ := liveness_sharp_in n f hf is_byz hbyz sch TA hprop hrot hs hstart hshift
-          hunb hwin hΔ hℓ hfault s hs' i hi
+          hunb hwin hΔ hℓ s hs' i hi
         exact ⟨m, v, ha⟩)
 
 end Censorship

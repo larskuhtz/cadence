@@ -36,9 +36,9 @@ window `ω` by `X`, and the slots below `ω`'s readiness boundary start by
 proposes to the next ACS (the proposal row, `δ = 0`); the ACS decides `ℓ`
 later (its termination, under its two assumptions: Corollary 2
 (`cor:proposal-synchronization`) and Proposition 12
-(`prop:acs-no-premature-abandonment`)); the interval is recorded and every
-correct validator enters the next window (the two other rows). The paper's
-propositions instantiate it:
+(`prop:acs-no-premature-abandonment`)); every correct validator then enters
+the next window, computing its interval from its own decision (the entry
+row). The paper's propositions instantiate it:
 
 * **Proposition 15**: from window 1, with no deadline to keep.
 * **Proposition 16**: a correct proposal at or below `ω`'s first slot (the
@@ -58,13 +58,15 @@ propositions instantiate it:
 
 ## What the proof consumes
 
-The timing model (`Sync`): all three rows, the punctual openings, one
-clock, and the ACS's admissibility once a correct validator has proposed.
-The ACS only through its contract: ℓ-Termination
-(`Cadence.acs_termination_in`), Validity (`validity_quantitative` with the
-fault bound for a correct pair in a decided set, `validity_genuine` for the
-median's brackets), and its input-enabledness; Δ-Totality through Lemma 15
-and its corollaries. The caller through (R-tot) and (R-term). The
+The timing model (`Sync`): both rows, the punctual openings, one clock, and
+the ACS's admissibility once a correct validator has proposed. The ACS only
+through its contract: ℓ-Termination (`Cadence.acs_termination_in`),
+Validity (`validity_genuine`, for the median's brackets), and its
+input-enabledness; Δ-Totality through Lemma 15 and its corollaries. The
+median's brackets are the model's assumption `[acs_first_bracket]` on the
+first slot each validator computes; the lower median meets it under the
+fault bound (`Cadence.lowerMedian_first_assumptions`), which is where the
+fault bound enters. The caller through (R-tot) and (R-term). The
 configuration: τ-spaced and unbounded starting times, the window shifts, and
 a successor for every window (F30). The parameter assumptions: (1) in
 Proposition 17, (2) in Proposition 19, (4) in Propositions 18 and 19, and
@@ -120,15 +122,16 @@ local macro "conductor_enabled" : tactic =>
 set_option maxHeartbeats 2000000 in
 /-- **The `s*` rule at the ACS proposal** (Algorithm 7, lines 38–41
 (`line:ready-time`–`line:sstar-update`)): the proposer had proposed nothing
-to `ACS[w']`, the proposed slot is beyond the predecessor's interval, its
-starting time has not passed, and every slot between them has. -/
+to `ACS[w']`, the proposed slot is beyond its own interval of the current
+window, its starting time has not passed, and every slot between them
+has. -/
 theorem acs_propose_sstar {i : node} {w w' : window} {s : ℕ} {a : acsstate}
     (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
       (.acs_propose i w w' s a) st') :
     win_ord.next w w' ∧ (∀ s', ¬ A.proposed (st.acs_state w') i s') ∧
-      (∀ w0 f0 b0 l0, win_ord.next w0 w' → WinBounds (th := th) st w0 f0 b0 l0 → l0 < s) ∧
+      (∀ f0 b0 l0, Bounds st i w f0 b0 l0 → l0 < s) ∧
       TotalOrder.le st.now (th.start_time s) ∧
-      (∀ s' w0 f0 b0 l0, win_ord.next w0 w' → WinBounds (th := th) st w0 f0 b0 l0 →
+      (∀ s' f0 b0 l0, Bounds st i w f0 b0 l0 →
         l0 < s' → s' < s → ¬ TotalOrder.le st.now (th.start_time s')) := by
   conductor_tr htr
   obtain ⟨-, -, -, h4, h5, -, h7, h8, h9, -⟩ := htr
@@ -166,80 +169,18 @@ theorem acs_propose_new {i : node} {w w' : window} {s : ℕ} {a : acsstate}
   · rw [if_neg hx] at h
     exact Or.inl h
 
-set_option maxHeartbeats 2000000 in
-/-- **What recording a window's interval requires** (Algorithm 7, line 48
-(`line:median-compute`)): the predecessor, and the median's two correct
-witnesses — a pair at or below the first slot and one at or above it, each
-in a correct validator's decided set. -/
-theorem acs_decide_guards {w0 w : window} {first f0 b0 l0 : ℕ} {r1 r2 : node} {s1 s2 : ℕ}
-    (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
-      (.acs_decide w0 w first f0 b0 l0 r1 s1 r2 s2) st') :
-    win_ord.next w0 w ∧
-      ¬ fm.byz r1 ∧ (∃ i, ¬ fm.byz i ∧ A.decided (st.acs_state w) i r1 s1) ∧ s1 ≤ first ∧
-      ¬ fm.byz r2 ∧ (∃ i, ¬ fm.byz i ∧ A.decided (st.acs_state w) i r2 s2) ∧ first ≤ s2 := by
-  conductor_tr htr
-  obtain ⟨-, -, -, h4, -, h6, h7, h8, h9, h10, h11, -⟩ := htr
-  exact ⟨h4, h6, h7, h8, h9, h10, h11⟩
-
-set_option maxHeartbeats 2000000 in
-/-- **What recording a window's interval does**: it adds the window's `W`
-slots from `first`, with their readiness boundary. -/
-theorem acs_decide_decided {w0 w : window} {first f0 b0 l0 : ℕ} {r1 r2 : node} {s1 s2 : ℕ}
-    (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
-      (.acs_decide w0 w first f0 b0 l0 r1 s1 r2 s2) st') (x : window) (f b l : ℕ) :
-    st'.acs_decided x f b l = true ↔
-      (st.acs_decided x f b l = true ∨
-        (x = w ∧ f = first ∧ b = th.win_boundary first ∧ l = th.win_last first)) := by
-  conductor_tr htr
-  repeat (obtain ⟨_, htr⟩ := htr)
-  conductor_field_simp
-  constructor
-  · rintro (⟨rfl, rfl, rfl, rfl⟩ | h)
-    · exact Or.inr ⟨rfl, rfl, rfl, rfl⟩
-    · exact Or.inl h
-  · rintro (h | ⟨rfl, rfl, rfl, rfl⟩)
-    · exact Or.inr h
-    · exact Or.inl ⟨rfl, rfl, rfl, rfl⟩
-
-/-- **Recording a window's interval: the guards are its enabledness.** -/
-theorem enabled_acs_decide {w0 w : window} {first f0 b0 l0 : ℕ} {r1 r2 : node} {s1 s2 : ℕ}
-    (hw : w ≠ win_ord.zero) (hnd : ∀ f b l, ¬ st.acs_decided w f b l = true)
-    (hne : ∀ i, ¬ fm.byz i → ¬ st.entered i w = true) (hn : win_ord.next w0 w)
-    (hb : WinBounds (th := th) st w0 f0 b0 l0)
-    (hr1 : ¬ fm.byz r1) (hd1 : ∃ i, ¬ fm.byz i ∧ A.decided (st.acs_state w) i r1 s1) (hs1 : s1 ≤ first)
-    (hr2 : ¬ fm.byz r2) (hd2 : ∃ i, ¬ fm.byz i ∧ A.decided (st.acs_state w) i r2 s2) (hs2 : first ≤ s2) :
-    Enabled (Conductor.relationalTransitionSystem ℕ window time node acsstate) th st
-      (.acs_decide w0 w first f0 b0 l0 r1 s1 r2 s2) := by
-  conductor_enabled
-  exact ⟨_, hw, hnd, hne, hn, hb, hr1, hd1, hs1, hr2, hd2, hs2, rfl⟩
-
-/-- **Only recording a window's interval records it**: an interval present
-after a step was present before it, or the step recorded it. -/
-theorem decided_step {l : CLabel window time node acsstate}
-    (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st l st')
-    (x : window) (f b l' : ℕ) (h : st'.acs_decided x f b l' = true) :
-    st.acs_decided x f b l' = true ∨
-      ∃ w0 f0 b0 l0 r1 s1 r2 s2, l = .acs_decide w0 x f f0 b0 l0 r1 s1 r2 s2 := by
-  cases l with
-  | tick => rw [Conductor.tick.frame_acs_decided htr] at h; exact Or.inl h
-  | acs_propose => rw [Conductor.acs_propose.frame_acs_decided htr] at h; exact Or.inl h
-  | acs_step => rw [Conductor.acs_step.frame_acs_decided htr] at h; exact Or.inl h
-  | enter_window => rw [Conductor.enter_window.frame_acs_decided htr] at h; exact Or.inl h
-  | open_slot => rw [Conductor.open_slot.frame_acs_decided htr] at h; exact Or.inl h
-  | complete_slot => rw [Conductor.complete_slot.frame_acs_decided htr] at h; exact Or.inl h
-  | acs_decide w0 w first f0 b0 l0 r1 s1 r2 s2 =>
-    rcases (acs_decide_decided htr x f b l').1 h with h | ⟨rfl, rfl, -, -⟩
-    · exact Or.inl h
-    · exact Or.inr ⟨w0, f0, b0, l0, r1, s1, r2, s2, rfl⟩
-
-/-- Initially no window's interval is recorded. -/
-theorem init_decided
+/-- Initially every validator holds window 1's interval and no other
+(Algorithm 7, lines 31–34 (`line:startup-foreach`–`line:startup-last`)). -/
+theorem init_bounds
     (hi : (Conductor.relationalTransitionSystem ℕ window time node acsstate).init th st)
-    (x : window) (f b l : ℕ) :
-    st.acs_decided x f b l = false := by
+    (j : node) (x : window) (f b l : ℕ) :
+    Bounds st j x f b l ↔
+      (x = win_ord.zero ∧ f = 0 ∧ b = th.genesis_boundary ∧ l = th.genesis_last) := by
+  unfold Bounds
   simp only [Conductor.relationalTransitionSystem, Conductor.Init, Conductor.initializer.ext.tr] at hi
   subst_vars
   conductor_field_simp
+  rw [and_assoc, and_assoc]; rfl
 
 /-- Initially the clock reads the configured genesis time. -/
 theorem init_now
@@ -304,23 +245,30 @@ theorem clk_zero {view : Type} [vord : TotalOrderWithMinimum view] {vfin : ViewO
     show (TotalOrderWithMinimum.zero : ℕ) = 0 from rfl]
   simp [ConductorSchedule.startTime]
 
-/-- A window's bounds known at one index are its bounds where a correct
+/-- A window's interval known at one index is the interval a correct
+validator holds wherever it has entered the window. -/
+theorem bounds_at_entry {ω : window} {j : node} (hj : ¬ fm.byz j) {N n0 : ℕ}
+    (he : (r.at' N).entered j ω = true) {f b l : ℕ}
+    (hb : WinBounds (r.at' n0) ω f b l) : Bounds (r.at' N) j ω f b l := by
+  obtain ⟨f', b', l', hb'⟩ := Conductor.reachable_entered_has_bounds (r.reachable N) j ω ⟨hj, he⟩
+  obtain ⟨rfl, rfl, rfl⟩ := winBounds_eq ⟨j, hj, hb'⟩ hb
+  exact hb'
+
+/-- A window's interval known at one index is its interval where a correct
 validator has entered it. -/
 theorem winBounds_at_entry {ω : window} {j : node} (hj : ¬ fm.byz j) {N n0 : ℕ}
     (he : (r.at' N).entered j ω = true) {f b l : ℕ}
-    (hb : WinBounds (th := th) (r.at' n0) ω f b l) : WinBounds (th := th) (r.at' N) ω f b l := by
-  obtain ⟨f', b', l', hb'⟩ := Conductor.reachable_entered_has_bounds (r.reachable N) j ω ⟨hj, he⟩
-  obtain ⟨rfl, rfl, rfl⟩ := winBounds_eq hb' hb
-  exact hb'
+    (hb : WinBounds (r.at' n0) ω f b l) : WinBounds (r.at' N) ω f b l :=
+  ⟨j, hj, bounds_at_entry hj he hb⟩
 
 /-- **A slot of an entered window is opened by the later of the entry and
 its starting time** (`OpenPunctual`, Algorithm 7, line 27
 (`line:conductor-wait-for-open`)). -/
 theorem open_by (hpunct : OpenPunctual r) {ω : window} {j : node} (hj : ¬ fm.byz j) {N n0 : ℕ}
     (he : (r.at' N).entered j ω = true) {f b l : ℕ}
-    (hb : WinBounds (th := th) (r.at' n0) ω f b l) {s : ℕ} (hfs : f ≤ s) (hsl : s ≤ l) :
+    (hb : WinBounds (r.at' n0) ω f b l) {s : ℕ} (hfs : f ≤ s) (hsl : s ≤ l) :
     ∃ n, N ≤ n ∧ r.clk n ≤ max (r.clk N) (th.start_time s) ∧ (r.at' n).opened j s = true :=
-  hpunct N j s hj ⟨ω, f, b, l, he, winBounds_at_entry hj he hb, hfs, hsl⟩
+  hpunct N j s hj ⟨ω, f, b, l, he, bounds_at_entry hj he hb, hfs, hsl⟩
 
 /-- The contract's "by time `t`", on `contractRun`, is the run's. -/
 theorem contract_byTime_iff {t : time} {P : CState window time node acsstate → Prop} :
@@ -352,7 +300,7 @@ variable {window node acsstate : Type} [Inhabited window] [Inhabited node] [Inha
 variable (r) in
 /-- Slot `s` lies in window `ω` or in a window below it. -/
 def Lower (ω : window) (s : ℕ) : Prop :=
-  ∃ w0 n0 f0 b0 l0, (w0 = ω ∨ win_ord.lt w0 ω) ∧ WinBounds (th := th) (r.at' n0) w0 f0 b0 l0 ∧
+  ∃ w0 n0 f0 b0 l0, (w0 = ω ∨ win_ord.lt w0 ω) ∧ WinBounds (r.at' n0) w0 f0 b0 l0 ∧
     f0 ≤ s ∧ s ≤ l0
 
 /-- **(R-term), read on the run**: if every correct validator opens `s` by
@@ -419,20 +367,20 @@ entered `ω` and completed every slot below `ω`'s boundary of `ω` and the
 windows below it, it is in `ω` and ready at every later index at which it
 has not entered `ω`'s successor. -/
 theorem gate_of_completed {ω ω' : window} (hn : win_ord.next ω ω') {f b l n0 : ℕ}
-    (hb : WinBounds (th := th) (r.at' n0) ω f b l) {j : node} (hj : ¬ fm.byz j) {N : ℕ}
+    (hb : WinBounds (r.at' n0) ω f b l) {j : node} (hj : ¬ fm.byz j) {N : ℕ}
     (hentN : (r.at' N).entered j ω = true)
     (hcompN : ∀ s, s < b → Lower r ω s → (r.at' N).completed j s = true)
     {k : ℕ} (hNk : N ≤ k) (hno : ¬ (r.at' k).entered j ω' = true) :
-    InWindow (r.at' k) j ω ∧ ReadyNext th (r.at' k) j ω := by
+    InWindow (r.at' k) j ω ∧ ReadyNext (r.at' k) j ω := by
   have hentk : (r.at' k).entered j ω = true :=
     r.toLRun.mono (P := fun st => st.entered j ω = true) (entered_persists ω j) hentN k hNk
   refine ⟨⟨hentk, fun w' hw' => ?_⟩, ?_⟩
   · rw [win_next_unique hw' hn]
     exact Bool.eq_false_iff.mpr hno
   · intro f' b' l' hb' s w0 f0 b0 l0 he0 hb0 hf0 hl0 hlt
-    obtain ⟨-, rfl, -⟩ := winBounds_eq hb' hb
+    obtain ⟨-, rfl, -⟩ := winBounds_eq ⟨j, hj, hb'⟩ hb
     have hL : Lower r ω s := by
-      refine ⟨w0, k, f0, b0, l0, ?_, hb0, hf0, hl0⟩
+      refine ⟨w0, k, f0, b0, l0, ?_, ⟨j, hj, hb0⟩, hf0, hl0⟩
       rcases win_trichotomy w0 ω with h | h | h
       · exact Or.inr h
       · exact Or.inl h
@@ -446,7 +394,7 @@ theorem gate_of_completed {ω ω' : window} (hn : win_ord.next ω ω') {f b l n0
 
 end Completions
 
-/-! ## The three rows, and the ACS's termination, by a deadline
+/-! ## The two rows, and the ACS's termination, by a deadline
 
 Each of the Conductor's handlers fires as soon as its gate is open (`δ = 0`),
 so a gate open from an index whose clock and GST are at most `Y` has fired
@@ -476,10 +424,10 @@ has not entered `ω`'s successor `ω'`, it proposes to `ACS[ω']` by
 `max(clk N, GST)`. -/
 theorem propose_by (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (hrows : TimedRows sch r)
     (hunb : StartsUnbounded th) {ω ω' : window} (hn : win_ord.next ω ω') {j : node}
-    (hj : ¬ fm.byz j) {N : ℕ} {f b l : ℕ} (hb : WinBounds (th := th) (r.at' N) ω f b l)
+    (hj : ¬ fm.byz j) {N : ℕ} {f b l : ℕ} (hb : WinBounds (r.at' N) ω f b l)
     {Y : time} (hcN : r.clk N ≤ Y) (hgY : r.gst ≤ Y)
     (hgate : ∀ k, N ≤ k → ¬ (r.at' k).entered j ω' = true →
-      InWindow (r.at' k) j ω ∧ ReadyNext th (r.at' k) j ω) :
+      InWindow (r.at' k) j ω ∧ ReadyNext (r.at' k) j ω) :
     ∃ m, r.clk m ≤ Y ∧ ∃ s, A.proposed ((r.at' m).acs_state ω') j s := by
   by_contra hno
   have hwin := row_window (sch := sch) hcN hgY
@@ -502,13 +450,11 @@ theorem propose_by (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (hrows :
     obtain ⟨a', ha'⟩ := TA.propose_enabled _ j ss hreach hj hnab hnp
     refine ⟨.acs_propose j ω ω' ss a', ⟨ω, ss, a', rfl⟩,
       enabled_acs_propose hj hin' hn hnp hrd' ?_ hnow ?_ ha'⟩
-    · intro w0 f0 b0 l0 hn0 hb0
-      obtain rfl := win_pred_unique hn0 hn
-      obtain ⟨-, -, rfl⟩ := winBounds_unique (r.reachable k) hb0 hbk
+    · intro f0 b0 l0 hb0
+      obtain ⟨-, -, rfl⟩ := winBounds_unique (r.reachable k) ⟨j, hj, hb0⟩ hbk
       exact hlss
-    · intro s0 w0 f0 b0 l0 hn0 hb0 hl0 hs0
-      obtain rfl := win_pred_unique hn0 hn
-      obtain ⟨-, -, rfl⟩ := winBounds_unique (r.reachable k) hb0 hbk
+    · intro s0 f0 b0 l0 hb0 hl0 hs0
+      obtain ⟨-, -, rfl⟩ := winBounds_unique (r.reachable k) ⟨j, hj, hb0⟩ hbk
       exact hfirst s0 hl0 hs0)
   obtain ⟨w0, s0, a0, hl0⟩ := hlx
   have htr0 := r.steps x
@@ -539,74 +485,17 @@ theorem decide_by {TA : ACSTemporal node ℕ acsstate time msg fm.byz} (hsync : 
   rw [max_eq_left hgY, hℓ] at h
   exact h
 
-omit [Inhabited node] [Inhabited acsstate] [Inhabited time] [IsOrderedAddMonoid time] in
-/-- **A correct validator's decided set holds a pair of a correct
-validator**: it has pairs of `2f + 1` distinct validators (Module 4
-(`mod:acs`), Validity), and at most `f` are Byzantine. -/
-theorem correct_pair [Fintype node] [DecidablePred fm.byz] (TA : ACSTemporal node ℕ acsstate time msg fm.byz)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound) {st : acsstate} (hst : A.reachable st)
-    {i : node} (hi : ¬ fm.byz i) (hd : A.has_decided st i) :
-    ∃ q s, ¬ fm.byz q ∧ A.decided st i q s := by
-  obtain ⟨g, hinj, hg⟩ := TA.validity_quantitative st hst i hi hd
-  by_contra hno
-  have hall : ∀ k, fm.byz (g k) := fun k => by
-    by_contra hk
-    obtain ⟨s, hs⟩ := hg k
-    exact hno ⟨g k, s, hk, hs⟩
-  have hsub : Finset.univ.map ⟨g, hinj⟩ ⊆ Finset.univ.filter fm.byz := by
-    intro x hx
-    obtain ⟨k, -, rfl⟩ := Finset.mem_map.1 hx
-    exact Finset.mem_filter.2 ⟨Finset.mem_univ _, hall k⟩
-  have := Finset.card_le_card hsub
-  simp only [Finset.card_map, Finset.card_univ, Fintype.card_fin] at this
-  omega
-
-/-- **The decided interval's row, by a deadline** (Algorithm 7, line 48
-(`line:median-compute`)): once a correct validator has decided in `ACS[ω']`
-at an index whose clock is at most `Z ≥ GST`, `ω'`'s interval is recorded by
-`Z`. The median's witnesses are one correct pair of the decided set, which
-the fault bound provides (`correct_pair`). -/
-theorem record_by [Fintype node] [DecidablePred fm.byz] (TA : ACSTemporal node ℕ acsstate time msg fm.byz)
-    (hrows : TimedRows sch r) (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
-    {ω ω' : window} (hn : win_ord.next ω ω') {N : ℕ} {f b l : ℕ}
-    (hb : WinBounds (th := th) (r.at' N) ω f b l) {Z : time} (hcN : r.clk N ≤ Z) (hgZ : r.gst ≤ Z)
-    {i : node} (hi : ¬ fm.byz i) (hd : A.has_decided ((r.at' N).acs_state ω') i) :
-    ∃ m, r.clk m ≤ Z ∧ ∃ f' b' l', (r.at' m).acs_decided ω' f' b' l' = true := by
-  by_contra hno
-  have hwin := row_window (sch := sch) hcN hgZ
-  obtain ⟨x, -, hlx, hcx⟩ := (hrows.decide ω').diag le_rfl N (fun k hk hck => by
-    have hck' := hwin k hck
-    have hnd : ∀ f' b' l', ¬ (r.at' k).acs_decided ω' f' b' l' = true :=
-      fun f' b' l' h => hno ⟨k, hck', f', b', l', h⟩
-    have hdk : A.has_decided ((r.at' k).acs_state ω') i :=
-      r.toLRun.mono (P := fun st => A.has_decided (st.acs_state ω') i)
-        (fun m hm => has_decided_persists (r.steps m) ω' hm) hd k hk
-    refine ⟨trivial, ⟨i, hi, hdk⟩, ?_⟩
-    obtain ⟨q, s, hq, hqs⟩ :=
-      correct_pair TA hfault (Conductor.reachable_acs_reachable (r.reachable k) ω') hi hdk
-    have hne : ∀ i', ¬ fm.byz i' → ¬ (r.at' k).entered i' ω' = true := fun i' hi' h => by
-      obtain ⟨f', b', l', hb'⟩ := Conductor.reachable_entered_has_bounds (r.reachable k) i' ω' ⟨hi', h⟩
-      rcases hb' with ⟨hz, -⟩ | hd'
-      · exact win_next_ne_zero hn hz
-      · exact hnd f' b' l' hd'
-    exact ⟨.acs_decide ω ω' s f b l q s q s, ⟨ω, s, f, b, l, q, s, q, s, rfl⟩,
-      enabled_acs_decide (win_next_ne_zero hn) hnd hne hn (winBounds_later hb hk)
-        hq ⟨i, hi, hqs⟩ le_rfl hq ⟨i, hi, hqs⟩ le_rfl⟩)
-  obtain ⟨w0, first, f0, b0, l0, r1, s1, r2, s2, hl0⟩ := hlx
-  have htr0 := r.steps x
-  rw [hl0] at htr0
-  exact hno ⟨x + 1, hwin _ hcx, first, _, _, (acs_decide_decided htr0 ω' first _ _).2 (Or.inr ⟨rfl, rfl, rfl, rfl⟩)⟩
-
 /-- **The entry row, by a deadline** (Algorithm 7, line 44
-(`line:acs-decide`)): if at index `N` `ω'`'s interval is recorded and `p_j`
-has decided in `ACS[ω']`, and from `N` on `p_j` is in `ω` and ready
-whenever it has not entered `ω'`, it enters `ω'` by `max(clk N, GST)`. -/
+(`line:acs-decide`)): if at index `N` `p_j` has decided in `ACS[ω']`, and
+from `N` on `p_j` is in `ω` and ready whenever it has not entered `ω'`, it
+enters `ω'`, computing the window's interval from its own decision, by
+`max(clk N, GST)`. -/
 theorem enter_by (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (hrows : TimedRows sch r)
     {ω ω' : window} (hn : win_ord.next ω ω') {j : node} (hj : ¬ fm.byz j) {N : ℕ}
-    {Z : time} (hcN : r.clk N ≤ Z) (hgZ : r.gst ≤ Z) {f' b' l' : ℕ}
-    (hrec : (r.at' N).acs_decided ω' f' b' l' = true) (hdec : A.has_decided ((r.at' N).acs_state ω') j)
+    {Z : time} (hcN : r.clk N ≤ Z) (hgZ : r.gst ≤ Z)
+    (hdec : A.has_decided ((r.at' N).acs_state ω') j)
     (hgate : ∀ k, N ≤ k → ¬ (r.at' k).entered j ω' = true →
-      InWindow (r.at' k) j ω ∧ ReadyNext th (r.at' k) j ω) :
+      InWindow (r.at' k) j ω ∧ ReadyNext (r.at' k) j ω) :
     ∃ m, r.clk m ≤ Z ∧ (r.at' m).entered j ω' = true := by
   by_contra hno
   have hwin := row_window (sch := sch) hcN hgZ
@@ -618,14 +507,12 @@ theorem enter_by (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (hrows : T
       r.toLRun.mono (P := fun st => A.has_decided (st.acs_state ω') j)
         (fun m hm => has_decided_persists (r.steps m) ω' hm) hdec k hk
     refine ⟨trivial, ⟨hdjk, ω, hn, hin', hrd'⟩, ?_⟩
-    have hreck : (r.at' k).acs_decided ω' f' b' l' = true :=
-      r.toLRun.mono (P := fun st => st.acs_decided ω' f' b' l' = true)
-        (fun m hm => Conductor.acs_decided.mono (r.steps m) ω' f' b' l' hm) hrec k hk
     obtain ⟨a', ha'⟩ :=
       TA.abandon_enabled _ j (Conductor.reachable_acs_reachable (r.reachable k) ω') hj
-    exact ⟨.enter_window j ω ω' f' b' l' a', ⟨ω, f', b', l', a', rfl⟩,
-      enabled_enter_window hj hin' hn hreck hdjk hrd' ha'⟩)
-  obtain ⟨w0, f0, b0, l0, a0, hl0⟩ := hlx
+    exact ⟨.enter_window j ω ω' _ a', ⟨ω, _, a', rfl⟩,
+      enabled_enter_window hj hin' hn hdjk hrd' rfl
+        (fun _ _ _ hb => entry_beyond (r.reachable k) hj hn hdjk hb) ha'⟩)
+  obtain ⟨w0, f0, a0, hl0⟩ := hlx
   have htr0 := r.steps x
   rw [hl0] at htr0
   exact hno ⟨x + 1, hwin _ hcx, (enter_window_entered htr0 j ω').2 (Or.inr ⟨rfl, rfl⟩)⟩
@@ -701,7 +588,7 @@ omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
 theorem start_time_lt
     (hth : (Conductor.relationalTransitionSystem ℕ window time node acsstate).assumptions th)
     {s s' : ℕ} (h : s < s') : th.start_time s < th.start_time s' :=
-  lt_of_le_of_ne (hth.2.2.2 s s' h).1 (hth.2.2.2 s s' h).2
+  lt_of_le_of_ne (hth.2.2.2.1 s s' h).1 (hth.2.2.2.1 s s' h).2
 
 omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
 /-- Starting times order slots. -/
@@ -715,16 +602,24 @@ omit [IsOrderedAddMonoid time] in
 /-- **A window's bounds are its first slot's shifts**: the readiness
 boundary is `f + p` and the last slot `f + (W − 1)` (`[win_bounds_shift]`). -/
 theorem bounds_shift (hshift : WindowShifts sch th) {ω : window} {n f b l : ℕ}
-    (hb : WinBounds (th := th) (r.at' n) ω f b l) : b = f + sch.p ∧ l = f + (sch.W - 1) := by
-  obtain ⟨hb', hl'⟩ := Conductor.reachable_win_bounds_shift (r.reachable n) ω f b l hb
+    (hb : WinBounds (r.at' n) ω f b l) : b = f + sch.p ∧ l = f + (sch.W - 1) := by
+  obtain ⟨hb', hl'⟩ := winBounds_shift (r.reachable n) hb
   exact ⟨hb'.trans (hshift.2 f), hl'.trans (hshift.1 f)⟩
 
 omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
-/-- Window 1 starts at slot 1. -/
-theorem zero_first {n f b l : ℕ} (hb : WinBounds (th := th) (r.at' n) win_ord.zero f b l) : f = 0 := by
-  rcases hb with ⟨-, rfl, -, -⟩ | hd
-  · rfl
-  · exact absurd rfl (Conductor.reachable_decided_nonzero (r.reachable n) _ f b l hd)
+/-- Window 1 starts at slot 1 (`[bounds_genesis]`). -/
+theorem zero_first {n f b l : ℕ} (hb : WinBounds (r.at' n) win_ord.zero f b l) : f = 0 := by
+  obtain ⟨i, -, h⟩ := hb
+  exact (Conductor.reachable_bounds_genesis (r.reachable n) i f b l h).1
+
+omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
+/-- Every correct validator holds window 1's interval from the start. -/
+theorem genesis_winBounds {i : node} (hi : ¬ fm.byz i) :
+    WinBounds (r.at' 0) win_ord.zero 0 th.genesis_boundary th.genesis_last := by
+  obtain ⟨f, b, l, h⟩ := Conductor.reachable_entered_has_bounds (r.reachable 0) i win_ord.zero
+    ⟨hi, Conductor.reachable_entered_zero (r.reachable 0) i⟩
+  obtain ⟨rfl, rfl, rfl⟩ := Conductor.reachable_bounds_genesis (r.reachable 0) i f b l h
+  exact ⟨i, hi, h⟩
 
 end Arith
 
@@ -758,7 +653,7 @@ The engine of Propositions 15–19: once every correct validator has entered
 `ω`, the slots below `ω`'s readiness boundary complete `ℓ_chorus` after
 they are all open (R-term), every correct validator proposes to the next
 ACS as soon as it is ready, the ACS decides `ℓ` later (its termination),
-the interval is recorded and every correct validator enters `ω`'s
+and every correct validator enters `ω`'s
 successor at once (`δ = 0`). -/
 
 section Engine
@@ -780,33 +675,27 @@ theorem clk_max_le {a b : ℕ} {t : time} (ha : r.clk a ≤ t) (hb : r.clk b ≤
   · rw [max_eq_left h]; exact ha
 
 omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
-/-- **A recorded interval is bracketed by two correct proposals** (the
-median's range, Algorithm 7, line 48 (`line:median-compute`), recorded by
-`acs_decide`): a window other than window 1 has a correct validator's
-proposal at or below its first slot and one at or above it. -/
+/-- **A window's interval is bracketed by two correct proposals** (the
+median's range, Algorithm 7, line 48 (`line:median-compute`)): a window
+other than window 1 has a correct validator's proposal at or below its first
+slot and one at or above it. A correct validator holding the interval
+computed it from its own decision (`[bounds_decided]`), and the first slot
+it computes is bracketed by two correct pairs of its decided set
+(`[acs_first_bracket]`), which are genuine proposals (`validity_genuine`). -/
 theorem recorded_bracket {ω : window} (hω : ω ≠ win_ord.zero) {n f b l : ℕ}
-    (hb : WinBounds (th := th) (r.at' n) ω f b l) :
+    (hb : WinBounds (r.at' n) ω f b l) :
     ∃ r1 s1 r2 s2, ¬ fm.byz r1 ∧ ¬ fm.byz r2 ∧ s1 ≤ f ∧ f ≤ s2 ∧
       (∃ m, A.proposed ((r.at' m).acs_state ω) r1 s1) ∧
       (∃ m, A.proposed ((r.at' m).acs_state ω) r2 s2) := by
-  have hd : (r.at' n).acs_decided ω f b l = true := by
-    rcases hb with ⟨hz, -⟩ | hd
-    · exact (hω hz).elim
-    · exact hd
-  have h0 : ¬ (r.at' 0).acs_decided ω f b l = true := by
-    rw [init_decided r.starts]
-    exact Bool.false_ne_true
-  obtain ⟨e, -, hne, he1⟩ :=
-    exists_first_step (P := fun k => (r.at' k).acs_decided ω f b l = true) h0 hd
-  have htr := r.steps e
-  rcases decided_step htr ω f b l he1 with h | ⟨w0, f0, b0, l0, r1, s1, r2, s2, hl⟩
-  · exact (hne h).elim
-  rw [hl] at htr
-  obtain ⟨-, hr1, ⟨i1, hi1, hd1⟩, hs1, hr2, ⟨i2, hi2, hd2⟩, hs2⟩ := acs_decide_guards htr
-  have hreach := Conductor.reachable_acs_reachable (r.reachable e) ω
+  obtain ⟨i, hi, hbi⟩ := hb
+  obtain ⟨hdec, hf⟩ := Conductor.reachable_bounds_decided (r.reachable n) i ω f b l ⟨hi, hbi, hω⟩
+  have hreach := Conductor.reachable_acs_reachable (r.reachable n) ω
+  obtain ⟨⟨r1, s1, hr1, hd1, hs1⟩, ⟨r2, s2, hr2, hd2, hs2⟩⟩ :=
+    r.holds.2.2.2.2.2 _ i ⟨hreach, hi, hdec⟩
+  subst hf
   exact ⟨r1, s1, r2, s2, hr1, hr2, hs1, hs2,
-    ⟨e, A.validity_genuine _ hreach i1 r1 s1 hi1 hr1 hd1⟩,
-    ⟨e, A.validity_genuine _ hreach i2 r2 s2 hi2 hr2 hd2⟩⟩
+    ⟨n, A.validity_genuine _ hreach i r1 s1 hi hr1 hd1⟩,
+    ⟨n, A.validity_genuine _ hreach i r2 s2 hi hr2 hd2⟩⟩
 
 omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
 /-- **The `s*` rule, read on the run**: a correct proposal to `ω'` from
@@ -815,7 +704,7 @@ whose starting time has not passed at `e`, and every slot strictly between
 them had started before `e` (Algorithm 7, lines 38–41
 (`line:ready-time`–`line:sstar-update`)). -/
 theorem sstar_slot (hclock : ClockAgrees r) {ω ω' : window} (hn : win_ord.next ω ω')
-    {n0 f b l : ℕ} (hb : WinBounds (th := th) (r.at' n0) ω f b l) {e : ℕ} {q : node} {w : window}
+    {n0 f b l : ℕ} (hb : WinBounds (r.at' n0) ω f b l) {e : ℕ} {q : node} {w : window}
     {s : ℕ} {a : acsstate} (hl : r.lbl e = .acs_propose q w ω' s a) :
     l < s ∧ r.clk e ≤ th.start_time s ∧ ∀ s', l < s' → s' < s → th.start_time s' < r.clk e := by
   have htr := r.steps e
@@ -823,10 +712,10 @@ theorem sstar_slot (hclock : ClockAgrees r) {ω ω' : window} (hn : win_ord.next
   obtain ⟨hq, hin, hnw, -⟩ := acs_propose_guards htr
   obtain ⟨-, -, hbeyond, hnow, hfirst⟩ := acs_propose_sstar htr
   obtain rfl := win_pred_unique hnw hn
-  have hbe := winBounds_at_entry hq hin.1 hb
-  refine ⟨hbeyond w f b l hn hbe, by rw [hclock e]; exact hnow, fun s' hl' hs' => ?_⟩
+  have hbe := bounds_at_entry hq hin.1 hb
+  refine ⟨hbeyond f b l hbe, by rw [hclock e]; exact hnow, fun s' hl' hs' => ?_⟩
   rw [hclock e]
-  exact not_le.mp (hfirst s' w f b l hn hbe hl' hs')
+  exact not_le.mp (hfirst s' f b l hbe hl' hs')
 
 omit [AddCommMonoid time] [IsOrderedAddMonoid time] in
 /-- Every correct proposal to `ACS[ω']` is made at a step no later than the
@@ -840,18 +729,17 @@ theorem proposal_step_by {ω' : window} {Y : time}
   obtain ⟨e, hem, hl⟩ := proposal_before hq hn hm'
   exact ⟨e, le_trans (r.clk_le_of_le hem.le) hm, hl⟩
 
-variable [Fintype node] [DecidablePred fm.byz]
 
 /-- **The successor window, timed.** If every correct validator has entered
 `ω` by `X` and every slot below `ω`'s readiness boundary `b` starts by `T`,
 then with `Y ≥ max(X, T, GST) + ℓ_chorus` every correct validator proposes
 to `ACS[ω']` by `Y` and enters `ω`'s successor `ω'` by `Y + ℓ`. -/
 theorem succ_window (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (hΔ : TA.Δ = sch.Δ)
-    (hℓ : TA.ℓ = sch.ℓ) (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
+    (hℓ : TA.ℓ = sch.ℓ)
     (hcall : (orchestratorSafety th).CallerTotality (contractRun r) sch.Δ)
     (hterm : (orchestratorSafety th).CallerTermination (contractRun r) sch.Δ sch.ℓchorus)
     {ω ω' : window} (hn : win_ord.next ω ω') {n0 f b l : ℕ}
-    (hb : WinBounds (th := th) (r.at' n0) ω f b l) {X T Y : time}
+    (hb : WinBounds (r.at' n0) ω f b l) {X T Y : time}
     (hT : ∀ s, s < b → th.start_time s ≤ T) (hY : max (max X T) r.gst + sch.ℓchorus ≤ Y)
     (hall : ∀ j, ¬ fm.byz j → ∃ m, r.clk m ≤ X ∧ (r.at' m).entered j ω = true) :
     (∀ j, ¬ fm.byz j → ∃ m, r.clk m ≤ Y ∧ ∃ s, A.proposed ((r.at' m).acs_state ω') j s) ∧
@@ -874,19 +762,8 @@ theorem succ_window (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (hΔ : T
   have hdec2 : A.has_decided ((r.at' (max N md)).acs_state ω') j :=
     r.toLRun.mono (P := fun st => A.has_decided (st.acs_state ω') j)
       (fun m hm => has_decided_persists (r.steps m) ω' hm) hdec _ (le_max_right _ _)
-  have hb2 := winBounds_later (winBounds_at_entry hj he hb) (le_max_left N md)
-  obtain ⟨mr, hmr, f', b', l', hrec⟩ :=
-    record_by TA hsync.1 hfault hn hb2 hc2 (le_trans hgY hYℓ) hj hdec2
-  have hc3 : r.clk (max (max N md) mr) ≤ Y + sch.ℓ := clk_max_le hc2 hmr
-  have hrec3 : (r.at' (max (max N md) mr)).acs_decided ω' f' b' l' = true :=
-    r.toLRun.mono (P := fun st => st.acs_decided ω' f' b' l' = true)
-    (fun m hm => Conductor.acs_decided.mono (r.steps m) ω' f' b' l' hm) hrec _ (le_max_right _ _)
-  have hdec3 : A.has_decided ((r.at' (max (max N md) mr)).acs_state ω') j :=
-    r.toLRun.mono (P := fun st => A.has_decided (st.acs_state ω') j)
-    (fun m hm => has_decided_persists (r.steps m) ω' hm) hdec2 _ (le_max_left _ _)
-  exact enter_by TA hsync.1 hn hj hc3 (le_trans hgY hYℓ) hrec3 hdec3
-    (fun k hk hno => gate_of_completed hn hb hj he hc
-      (le_trans (le_trans (le_max_left N md) (le_max_left _ mr)) hk) hno)
+  exact enter_by TA hsync.1 hn hj hc2 (le_trans hgY hYℓ) hdec2
+    (fun k hk hno => gate_of_completed hn hb hj he hc (le_trans (le_max_left N md) hk) hno)
 
 end Engine
 
@@ -921,13 +798,12 @@ theorem open_to_complete (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (h�
   rw [max_eq_left (gst_le_ref_add hd n)] at hm
   exact ⟨m, hm, hc⟩
 
-variable [Fintype node] [DecidablePred fm.byz]
 
 /-- **Every window of the chain is entered by some time** (Proposition 15
 (`prop:enters-every-window`), with its deadline): window 1 at the start, and
 each successor by `succ_window`. -/
 theorem window_entered_by (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (hΔ : TA.Δ = sch.Δ)
-    (hℓ : TA.ℓ = sch.ℓ) (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
+    (hℓ : TA.ℓ = sch.ℓ)
     (hcall : (orchestratorSafety th).CallerTotality (contractRun r) sch.Δ)
     (hterm : (orchestratorSafety th).CallerTermination (contractRun r) sch.Δ sch.ℓchorus)
     {k : ℕ} {ω : window} (h : WinSucc win_ord.zero k ω) :
@@ -940,7 +816,7 @@ theorem window_entered_by (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (h
     · obtain ⟨i, hi⟩ := hex
       obtain ⟨m, -, he⟩ := hX i hi
       obtain ⟨f, b, l, hb⟩ := Conductor.reachable_entered_has_bounds (r.reachable m) i _ ⟨hi, he⟩
-      exact ⟨_, (succ_window hsync hunb hΔ hℓ hfault hcall hterm hn hb (T := th.start_time b)
+      exact ⟨_, (succ_window hsync hunb hΔ hℓ hcall hterm hn ⟨i, hi, hb⟩ (T := th.start_time b)
         (fun s hs => start_time_mono r.holds hs.le) le_rfl hX).2⟩
     · exact ⟨r.clk 0, fun j hj => (hex ⟨j, hj⟩).elim⟩
 
@@ -948,49 +824,48 @@ theorem window_entered_by (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (h
 eventually enters every window — window 1 and each of its successors. -/
 theorem enters_every_window (hsync : Sync sch TA r) (hunb : StartsUnbounded th)
     (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
     (hcall : (orchestratorSafety th).CallerTotality (contractRun r) sch.Δ)
     (hterm : (orchestratorSafety th).CallerTermination (contractRun r) sch.Δ sch.ℓchorus)
     {k : ℕ} {ω : window} (h : WinSucc win_ord.zero k ω) {j : node} (hj : ¬ fm.byz j) :
     ∃ m, (r.at' m).entered j ω = true := by
-  obtain ⟨X, hX⟩ := window_entered_by hsync hunb hΔ hℓ hfault hcall hterm h
+  obtain ⟨X, hX⟩ := window_entered_by hsync hunb hΔ hℓ hcall hterm h
   obtain ⟨m, -, he⟩ := hX j hj
   exact ⟨m, he⟩
 
-/-- The `k`-th window's interval is recorded, and starts at slot `k + 1` or
+/-- The `k`-th window's interval is held by a correct validator, and starts at slot `k + 1` or
 later (`[win_bounds_ordered]`). -/
 theorem chain_bounds (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (hΔ : TA.Δ = sch.Δ)
-    (hℓ : TA.ℓ = sch.ℓ) (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
+    (hℓ : TA.ℓ = sch.ℓ)
     (hcall : (orchestratorSafety th).CallerTotality (contractRun r) sch.Δ)
     (hterm : (orchestratorSafety th).CallerTermination (contractRun r) sch.Δ sch.ℓchorus)
     {i₀ : node} (hi₀ : ¬ fm.byz i₀) {k : ℕ} {ω : window} (h : WinSucc win_ord.zero k ω) :
-    ∃ n f b l, WinBounds (th := th) (r.at' n) ω f b l ∧ k ≤ f := by
+    ∃ n f b l, WinBounds (r.at' n) ω f b l ∧ k ≤ f := by
   induction h with
-  | refl => exact ⟨0, 0, th.genesis_boundary, th.genesis_last, Or.inl ⟨rfl, rfl, rfl, rfl⟩, le_rfl⟩
+  | refl => exact ⟨0, 0, th.genesis_boundary, th.genesis_last, genesis_winBounds hi₀, le_rfl⟩
   | @next k ω₁ ω₂ h₁ hn ih =>
     obtain ⟨n₁, f₁, b₁, l₁, hb₁, hk⟩ := ih
-    obtain ⟨m, he⟩ := enters_every_window hsync hunb hΔ hℓ hfault hcall hterm (.next h₁ hn) hi₀
+    obtain ⟨m, he⟩ := enters_every_window hsync hunb hΔ hℓ hcall hterm (.next h₁ hn) hi₀
     obtain ⟨f₂, b₂, l₂, hb₂⟩ := Conductor.reachable_entered_has_bounds (r.reachable m) i₀ ω₂ ⟨hi₀, he⟩
-    obtain ⟨h1, h2, h3⟩ := pred_last_lt hn hb₁ hb₂
-    exact ⟨m, f₂, b₂, l₂, hb₂, by omega⟩
+    obtain ⟨h1, h2, h3⟩ := pred_last_lt hn hb₁ ⟨i₀, hi₀, hb₂⟩
+    exact ⟨m, f₂, b₂, l₂, ⟨i₀, hi₀, hb₂⟩, by omega⟩
 
 /-- **The smallest post-GST window exists**: some window of the chain
 starts at or after GST, and the least one is window 1 or follows a window
 that starts before GST. -/
 theorem exists_post_gst (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (hΔ : TA.Δ = sch.Δ)
-    (hℓ : TA.ℓ = sch.ℓ) (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
+    (hℓ : TA.ℓ = sch.ℓ)
     (hcall : (orchestratorSafety th).CallerTotality (contractRun r) sch.Δ)
     (hterm : (orchestratorSafety th).CallerTermination (contractRun r) sch.Δ sch.ℓchorus)
     (hwin : WindowsUnbounded window) {i₀ : node} (hi₀ : ¬ fm.byz i₀) :
-    ∃ k ω n f b l, WinSucc win_ord.zero k ω ∧ WinBounds (th := th) (r.at' n) ω f b l ∧
+    ∃ k ω n f b l, WinSucc win_ord.zero k ω ∧ WinBounds (r.at' n) ω f b l ∧
       r.gst ≤ th.start_time f ∧
       (k = 0 ∨ ∃ ω₁ n₁ f₁ b₁ l₁, win_ord.next ω₁ ω ∧
-        WinBounds (th := th) (r.at' n₁) ω₁ f₁ b₁ l₁ ∧ th.start_time f₁ < r.gst) := by
-  have hex : ∃ k, ∃ ω n f b l, WinSucc win_ord.zero k ω ∧ WinBounds (th := th) (r.at' n) ω f b l ∧
+        WinBounds (r.at' n₁) ω₁ f₁ b₁ l₁ ∧ th.start_time f₁ < r.gst) := by
+  have hex : ∃ k, ∃ ω n f b l, WinSucc win_ord.zero k ω ∧ WinBounds (r.at' n) ω f b l ∧
       r.gst ≤ th.start_time f := by
     obtain ⟨s0, hs0⟩ := hunb r.gst
     obtain ⟨ω, hω⟩ := WinSucc.exists hwin win_ord.zero s0
-    obtain ⟨n, f, b, l, hb, hk⟩ := chain_bounds hsync hunb hΔ hℓ hfault hcall hterm hi₀ hω
+    obtain ⟨n, f, b, l, hb, hk⟩ := chain_bounds hsync hunb hΔ hℓ hcall hterm hi₀ hω
     exact ⟨s0, ω, n, f, b, l, hω, hb, le_trans hs0 (start_time_mono r.holds hk)⟩
   obtain ⟨ω, n, f, b, l, hω, hb, hg⟩ := Nat.find_spec hex
   refine ⟨Nat.find hex, ω, n, f, b, l, hω, hb, hg, ?_⟩
@@ -999,7 +874,7 @@ theorem exists_post_gst (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (hΔ
   | refl => exact Or.inl rfl
   | @next k' ω₁ _ h₁ hn =>
     refine Or.inr ?_
-    obtain ⟨n₁, f₁, b₁, l₁, hb₁, -⟩ := chain_bounds hsync hunb hΔ hℓ hfault hcall hterm hi₀ h₁
+    obtain ⟨n₁, f₁, b₁, l₁, hb₁, -⟩ := chain_bounds hsync hunb hΔ hℓ hcall hterm hi₀ h₁
     refine ⟨ω₁, n₁, f₁, b₁, l₁, hn, hb₁, not_le.mp fun h => ?_⟩
     exact Nat.find_min hex (show k' < Nat.find hex by omega) ⟨ω₁, n₁, f₁, b₁, l₁, h₁, hb₁, h⟩
 
@@ -1011,10 +886,10 @@ bracket) was made by `T₁(ω)`, from the predecessor, ready; every correct
 validator is then ready and has proposed by `max(T₁(ω), GST) + Δ`
 (Corollaries 1–3), decides `ℓ` later (the ACS's termination), and enters. -/
 theorem window_open_time (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (hΔ : TA.Δ = sch.Δ)
-    (hℓ : TA.ℓ = sch.ℓ) (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
+    (hℓ : TA.ℓ = sch.ℓ)
     (hcall : (orchestratorSafety th).CallerTotality (contractRun r) sch.Δ)
     (hstart : StartTimes sch th) {ω : window} {n0 f b l : ℕ}
-    (hb : WinBounds (th := th) (r.at' n0) ω f b l) {j : node} (hj : ¬ fm.byz j) :
+    (hb : WinBounds (r.at' n0) ω f b l) {j : node} (hj : ¬ fm.byz j) :
     ∃ m, r.clk m ≤ max (th.start_time f) r.gst + sch.Δ + sch.ℓ ∧ (r.at' m).entered j ω = true := by
   have hd : (0 : time) ≤ sch.Δ := sch.mvba.Δ_pos.le
   have hℓ0 : (0 : time) ≤ sch.ℓ := sch.ℓ_pos.le
@@ -1063,21 +938,9 @@ theorem window_open_time (hsync : Sync sch TA r) (hunb : StartsUnbounded th) (h�
   have hdec2 : A.has_decided ((r.at' (max N md)).acs_state ω) j :=
     r.toLRun.mono (P := fun st => A.has_decided (st.acs_state ω) j)
       (fun m hm => has_decided_persists (r.steps m) ω hm) hdec _ (le_max_right _ _)
-  have hb2 := winBounds_later (winBounds_at_entry hj hentN hbw) (le_max_left N md)
-  -- ... the interval is recorded, and it enters.
-  obtain ⟨mr, hmr, f', b', l', hrec⟩ :=
-    record_by TA hsync.1 hfault hnw hb2 hc2 (le_trans hgY hYℓ) hj hdec2
-  have hc3 : r.clk (max (max N md) mr) ≤ max (th.start_time f) r.gst + sch.Δ + sch.ℓ :=
-    clk_max_le hc2 hmr
-  have hrec3 : (r.at' (max (max N md) mr)).acs_decided ω f' b' l' = true :=
-    r.toLRun.mono (P := fun st => st.acs_decided ω f' b' l' = true)
-    (fun m hm => Conductor.acs_decided.mono (r.steps m) ω f' b' l' hm) hrec _ (le_max_right _ _)
-  have hdec3 : A.has_decided ((r.at' (max (max N md) mr)).acs_state ω) j :=
-    r.toLRun.mono (P := fun st => A.has_decided (st.acs_state ω) j)
-    (fun m hm => has_decided_persists (r.steps m) ω hm) hdec2 _ (le_max_left _ _)
-  exact enter_by TA hsync.1 hnw hj hc3 (le_trans hgY hYℓ) hrec3 hdec3
-    (fun k hk hno => gate_of_ready hr1 hin hnw hbw hj hentN hcompN
-      (le_trans (le_trans (le_max_left N md) (le_max_left _ mr)) hk) hno)
+  -- ... and it enters, computing the interval from its own decision.
+  exact enter_by TA hsync.1 hnw hj hc2 (le_trans hgY hYℓ) hdec2
+    (fun k hk hno => gate_of_ready hr1 hin hnw hbw hj hentN hcompN (le_trans (le_max_left N md) hk) hno)
 
 /-- **Proposition 17 (`prop:window-progression`)**: if every correct
 validator enters a post-GST window `ω` by `T_p(ω)`, the starting time of
@@ -1090,15 +953,14 @@ first slot starts (assumption (1)), so every correct proposal is that slot
 (assumption (1)). -/
 theorem window_progression (hsync : Sync sch TA r) (hunb : StartsUnbounded th)
     (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
     (hcall : (orchestratorSafety th).CallerTotality (contractRun r) sch.Δ)
     (hterm : (orchestratorSafety th).CallerTermination (contractRun r) sch.Δ sch.ℓchorus)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th)
     {ω ω' : window} (hn : win_ord.next ω ω') {n0 f b l : ℕ}
-    (hb : WinBounds (th := th) (r.at' n0) ω f b l) (hpost : r.gst ≤ th.start_time f)
+    (hb : WinBounds (r.at' n0) ω f b l) (hpost : r.gst ≤ th.start_time f)
     (hall : ∀ j, ¬ fm.byz j →
       ∃ m, r.clk m ≤ th.start_time (f + (sch.p - 1)) ∧ (r.at' m).entered j ω = true) :
-    (∀ n f' b' l', WinBounds (th := th) (r.at' n) ω' f' b' l' → f' = l + 1) ∧
+    (∀ n f' b' l', WinBounds (r.at' n) ω' f' b' l' → f' = l + 1) ∧
       ∀ j, ¬ fm.byz j → ∃ m, r.clk m ≤ th.start_time (l + 1) ∧ (r.at' m).entered j ω' = true := by
   obtain ⟨rfl, rfl⟩ := bounds_shift hshift hb
   have hW := sch.one_le_W
@@ -1108,7 +970,7 @@ theorem window_progression (hsync : Sync sch TA r) (hunb : StartsUnbounded th)
   have hY : max (max (th.start_time (f + (sch.p - 1))) (th.start_time (f + (sch.p - 1)))) r.gst +
       sch.ℓchorus ≤ th.start_time (f + (sch.p - 1)) + sch.ℓchorus := by
     rw [max_self, max_eq_left hgT]
-  obtain ⟨hprop, hent⟩ := succ_window hsync hunb hΔ hℓ hfault hcall hterm hn hb hT hY hall
+  obtain ⟨hprop, hent⟩ := succ_window hsync hunb hΔ hℓ hcall hterm hn hb hT hY hall
   -- `T_p(ω) + ℓ_chorus + ℓ ≤ T₁(ω + 1)`: assumption (1), with `ℓ_chorus ≤ Φ_oc`.
   have harith : th.start_time (f + (sch.p - 1)) + sch.ℓchorus + sch.ℓ ≤
       th.start_time (f + (sch.W - 1) + 1) := by
@@ -1145,16 +1007,15 @@ correct validator by its `T_p`, and from the first successor on by its
 `T₁`. -/
 theorem progression_chain (hsync : Sync sch TA r) (hunb : StartsUnbounded th)
     (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
     (hcall : (orchestratorSafety th).CallerTotality (contractRun r) sch.Δ)
     (hterm : (orchestratorSafety th).CallerTermination (contractRun r) sch.Δ sch.ℓchorus)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) {i₀ : node} (hi₀ : ¬ fm.byz i₀)
-    {ωs : window} {n0 fs bs ls : ℕ} (hb : WinBounds (th := th) (r.at' n0) ωs fs bs ls)
+    {ωs : window} {n0 fs bs ls : ℕ} (hb : WinBounds (r.at' n0) ωs fs bs ls)
     (hpost : r.gst ≤ th.start_time fs)
     (hall : ∀ j, ¬ fm.byz j →
       ∃ m, r.clk m ≤ th.start_time (fs + (sch.p - 1)) ∧ (r.at' m).entered j ωs = true)
     {k : ℕ} {ω : window} (h : WinSucc ωs k ω) :
-    (∃ n b l, WinBounds (th := th) (r.at' n) ω (fs + k * sch.W) b l) ∧
+    (∃ n b l, WinBounds (r.at' n) ω (fs + k * sch.W) b l) ∧
       (∀ j, ¬ fm.byz j →
         ∃ m, r.clk m ≤ th.start_time (fs + k * sch.W + (sch.p - 1)) ∧ (r.at' m).entered j ω = true) ∧
       (0 < k → ∀ j, ¬ fm.byz j →
@@ -1167,7 +1028,7 @@ theorem progression_chain (hsync : Sync sch TA r) (hunb : StartsUnbounded th)
     have hpost₁ : r.gst ≤ th.start_time (fs + k * sch.W) :=
       le_trans hpost (start_time_mono r.holds (by omega))
     obtain ⟨hpt1, hpt2⟩ :=
-      window_progression hsync hunb hΔ hℓ hfault hcall hterm hstart hshift hn hb₁ hpost₁ hall₁
+      window_progression hsync hunb hΔ hℓ hcall hterm hstart hshift hn hb₁ hpost₁ hall₁
     obtain ⟨-, rfl⟩ := bounds_shift hshift hb₁
     have hW := sch.one_le_W
     have hnext : fs + k * sch.W + (sch.W - 1) + 1 = fs + (k + 1) * sch.W := by
@@ -1175,10 +1036,10 @@ theorem progression_chain (hsync : Sync sch TA r) (hunb : StartsUnbounded th)
     rw [hnext] at hpt2
     obtain ⟨m, -, he⟩ := hpt2 i₀ hi₀
     obtain ⟨f₂, b₂, l₂, hb₂⟩ := Conductor.reachable_entered_has_bounds (r.reachable m) i₀ ω₂ ⟨hi₀, he⟩
-    have hf₂ := hpt1 m f₂ b₂ l₂ hb₂
+    have hf₂ := hpt1 m f₂ b₂ l₂ ⟨i₀, hi₀, hb₂⟩
     rw [hnext] at hf₂
     subst hf₂
-    refine ⟨⟨m, b₂, l₂, hb₂⟩, fun j hj => ?_, fun _ => hpt2⟩
+    refine ⟨⟨m, b₂, l₂, ⟨i₀, hi₀, hb₂⟩⟩, fun j hj => ?_, fun _ => hpt2⟩
     obtain ⟨m', hm', he'⟩ := hpt2 j hj
     exact ⟨m', le_trans hm' (start_time_mono r.holds (by omega)), he'⟩
 
@@ -1191,26 +1052,25 @@ by its starting time. `ω*` itself is entered by `T_p(ω*)`: Proposition 16
 and assumption (4). -/
 theorem smooth_windows (hsync : Sync sch TA r) (hunb : StartsUnbounded th)
     (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
     (hcall : (orchestratorSafety th).CallerTotality (contractRun r) sch.Δ)
     (hterm : (orchestratorSafety th).CallerTermination (contractRun r) sch.Δ sch.ℓchorus)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th) {i₀ : node} (hi₀ : ¬ fm.byz i₀)
-    {ωs : window} {n0 fs bs ls : ℕ} (hb : WinBounds (th := th) (r.at' n0) ωs fs bs ls)
+    {ωs : window} {n0 fs bs ls : ℕ} (hb : WinBounds (r.at' n0) ωs fs bs ls)
     (hpost : r.gst ≤ th.start_time fs) {k : ℕ} {ω : window} (h : WinSucc ωs (k + 1) ω) :
-    (∃ n b l, WinBounds (th := th) (r.at' n) ω (fs + (k + 1) * sch.W) b l) ∧
+    (∃ n b l, WinBounds (r.at' n) ω (fs + (k + 1) * sch.W) b l) ∧
       ∀ s, fs + (k + 1) * sch.W ≤ s → s < fs + (k + 2) * sch.W → ∀ j, ¬ fm.byz j →
         ∃ m, r.clk m ≤ th.start_time s ∧ (r.at' m).opened j s = true := by
   have hall : ∀ j, ¬ fm.byz j →
       ∃ m, r.clk m ≤ th.start_time (fs + (sch.p - 1)) ∧ (r.at' m).entered j ωs = true := by
     intro j hj
-    obtain ⟨m, hm, he⟩ := window_open_time hsync hunb hΔ hℓ hfault hcall hstart hb hj
+    obtain ⟨m, hm, he⟩ := window_open_time hsync hunb hΔ hℓ hcall hstart hb hj
     refine ⟨m, le_trans hm ?_, he⟩
     rw [max_eq_left hpost, start_add hstart, add_assoc]
     have h4 := sch.assm_four_d
     rw [sch.d_tot_paper] at h4
     exact add_le_add_right h4 _
   obtain ⟨⟨n, b, l, hbω⟩, -, hT₁⟩ :=
-    progression_chain hsync hunb hΔ hℓ hfault hcall hterm hstart hshift hi₀ hb hpost hall h
+    progression_chain hsync hunb hΔ hℓ hcall hterm hstart hshift hi₀ hb hpost hall h
   refine ⟨⟨n, b, l, hbω⟩, fun s hs1 hs2 j hj => ?_⟩
   obtain ⟨-, rfl⟩ := bounds_shift hshift hbω
   obtain ⟨m, hm, he⟩ := hT₁ (Nat.succ_pos k) j hj
@@ -1232,13 +1092,12 @@ started when it was made, which starts within `τ` of that time, by
 `GST + Wτ` (assumption (2)). -/
 theorem first_post_gst_window_time (hsync : Sync sch TA r) (hunb : StartsUnbounded th)
     (hΔ : TA.Δ = sch.Δ) (hℓ : TA.ℓ = sch.ℓ)
-    (hfault : (Finset.univ.filter fm.byz).card ≤ TA.fault_bound)
     (hcall : (orchestratorSafety th).CallerTotality (contractRun r) sch.Δ)
     (hterm : (orchestratorSafety th).CallerTermination (contractRun r) sch.Δ sch.ℓchorus)
     (hstart : StartTimes sch th) (hshift : WindowShifts sch th)
     {ω₁ ω : window} (hn : win_ord.next ω₁ ω) {n₁ f₁ b₁ l₁ : ℕ}
-    (hb₁ : WinBounds (th := th) (r.at' n₁) ω₁ f₁ b₁ l₁) (hpre : th.start_time f₁ < r.gst)
-    {n f b l : ℕ} (hb : WinBounds (th := th) (r.at' n) ω f b l) :
+    (hb₁ : WinBounds (r.at' n₁) ω₁ f₁ b₁ l₁) (hpre : th.start_time f₁ < r.gst)
+    {n f b l : ℕ} (hb : WinBounds (r.at' n) ω f b l) :
     th.start_time f ≤ r.gst + sch.W • sch.τ := by
   obtain ⟨rfl, rfl⟩ := bounds_shift hshift hb₁
   have hW := sch.one_le_W
@@ -1252,7 +1111,7 @@ theorem first_post_gst_window_time (hsync : Sync sch TA r) (hunb : StartsUnbound
   have hall : ∀ j, ¬ fm.byz j →
       ∃ m, r.clk m ≤ r.gst + (sch.p - 1) • sch.τ ∧ (r.at' m).entered j ω₁ = true := by
     intro j hj
-    obtain ⟨m, hm, he⟩ := window_open_time hsync hunb hΔ hℓ hfault hcall hstart hb₁ hj
+    obtain ⟨m, hm, he⟩ := window_open_time hsync hunb hΔ hℓ hcall hstart hb₁ hj
     rw [max_eq_right hpre.le] at hm
     exact ⟨m, le_trans hm hX, he⟩
   have hT : ∀ s, s < f₁ + sch.p → th.start_time s ≤ r.gst + (sch.p - 1) • sch.τ := by
@@ -1264,7 +1123,7 @@ theorem first_post_gst_window_time (hsync : Sync sch TA r) (hunb : StartsUnbound
   have hY : max (max (r.gst + (sch.p - 1) • sch.τ) (r.gst + (sch.p - 1) • sch.τ)) r.gst +
       sch.ℓchorus ≤ r.gst + (sch.p - 1) • sch.τ + sch.ℓchorus := by
     rw [max_self, max_eq_left hgX]
-  obtain ⟨hprop, -⟩ := succ_window hsync hunb hΔ hℓ hfault hcall hterm hn hb₁ hT hY hall
+  obtain ⟨hprop, -⟩ := succ_window hsync hunb hΔ hℓ hcall hterm hn hb₁ hT hY hall
   -- The median's upper bracket: a correct proposal at or above the first slot.
   obtain ⟨-, -, r2, s2, -, hr2, -, hs2, -, ⟨m2, hm2⟩⟩ := recorded_bracket (win_next_ne_zero hn) hb
   obtain ⟨e, hce, w, a, hl⟩ := proposal_step_by hprop hr2 hm2
@@ -1299,7 +1158,6 @@ variable {window node acsstate : Type} [Inhabited window] [Inhabited node] [Inha
   [A : ACSSafety node ℕ acsstate fm.byz]
   {time : Type} [LinearOrder time] [Inhabited time] [AddCommMonoid time] [IsOrderedAddMonoid time]
   {view : Type} [vord : TotalOrderWithMinimum view] {vfin : ViewOrderEnum view vord}
-  [Fintype node] [DecidablePred fm.byz]
 
 /-- **`(2Wτ)`-Recovery** (Lemma 16 (`lemma:conductor-recovery`)), the target
 `RecoveryClaim` of [Schedule.lean](Schedule.lean): every slot whose starting
@@ -1312,11 +1170,11 @@ theorem recovery {msg : Type} (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz)
     (th : Conductor.Theory ℕ window time node acsstate) :
     RecoveryClaim sch TA th := by
-  intro hstart hshift hunb hwin hΔ hℓ hfault r hsync hcall hterm s hs i hi
+  intro hstart hshift hunb hwin hΔ hℓ r hsync hcall hterm s hs i hi
   rw [sch.d_tot_paper] at hcall hterm
   rw [contract_byTime_iff]
   obtain ⟨k, ω, n, f, b, l, hk, hb, hpost, hcase⟩ :=
-    exists_post_gst hsync hunb hΔ hℓ hfault hcall hterm hwin hi
+    exists_post_gst hsync hunb hΔ hℓ hcall hterm hwin hi
   have hW := sch.one_le_W
   by_cases hsW : f + sch.W ≤ s
   · -- `s` lies in the `j`-th window after `ω*`, `j ≥ 1`.
@@ -1330,7 +1188,7 @@ theorem recovery {msg : Type} (sch : ConductorSchedule view time vfin)
     obtain ⟨j, rfl⟩ : ∃ j, q = j + 1 := ⟨q - 1, by omega⟩
     obtain ⟨ω', hω'⟩ := WinSucc.exists hwin ω (j + 1)
     obtain ⟨-, hopen⟩ :=
-      smooth_windows hsync hunb hΔ hℓ hfault hcall hterm hstart hshift hi hb hpost hω'
+      smooth_windows hsync hunb hΔ hℓ hcall hterm hstart hshift hi hb hpost hω'
     have e1 : (j + 1) * sch.W = sch.W * (j + 1) := Nat.mul_comm _ _
     have e2 : (j + 2) * sch.W = sch.W * (j + 1) + sch.W := by
       rw [show j + 2 = (j + 1) + 1 from rfl, Nat.succ_mul, Nat.mul_comm]
@@ -1350,7 +1208,7 @@ theorem recovery {msg : Type} (sch : ConductorSchedule view time vfin)
       exfalso
       apply hsW
       have h19 :=
-        first_post_gst_window_time hsync hunb hΔ hℓ hfault hcall hterm hstart hshift hn hb₁ hpre hb
+        first_post_gst_window_time hsync hunb hΔ hℓ hcall hterm hstart hshift hn hb₁ hpre hb
       refine le_of_start_le r.holds ?_
       rw [start_add hstart]
       refine le_trans ?_ hs
@@ -1368,17 +1226,17 @@ theorem recovery_sharp {msg : Type} (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz)
     (th : Conductor.Theory ℕ window time node acsstate) :
     StartTimes sch th → WindowShifts sch th → StartsUnbounded th → WindowsUnbounded window →
-    TA.Δ = sch.Δ → TA.ℓ = sch.ℓ → (Finset.univ.filter fm.byz).card ≤ TA.fault_bound →
+    TA.Δ = sch.Δ → TA.ℓ = sch.ℓ →
     ∀ r : TConductorRun th, Sync sch TA r →
       (orchestratorSafety th).CallerTotality (contractRun r) sch.d_tot →
       (orchestratorSafety th).CallerTermination (contractRun r) sch.d_tot sch.ℓchorus →
       ∀ s, r.gst + (sch.W + (sch.p - 1)) • sch.τ ≤ th.start_time s →
         ∀ i, ¬ fm.byz i → (contractRun r).byTime (th.start_time s) (fun st => Opened st i s) := by
-  intro hstart hshift hunb hwin hΔ hℓ hfault r hsync hcall hterm s hs i hi
+  intro hstart hshift hunb hwin hΔ hℓ r hsync hcall hterm s hs i hi
   rw [sch.d_tot_paper] at hcall hterm
   rw [contract_byTime_iff]
   obtain ⟨k, ω, n, f, b, l, hk, hb, hpost, hcase⟩ :=
-    exists_post_gst hsync hunb hΔ hℓ hfault hcall hterm hwin hi
+    exists_post_gst hsync hunb hΔ hℓ hcall hterm hwin hi
   have hW := sch.one_le_W
   by_cases hsW : f + sch.W ≤ s
   · obtain ⟨q, hq⟩ : ∃ q, q = (s - f) / sch.W := ⟨_, rfl⟩
@@ -1391,7 +1249,7 @@ theorem recovery_sharp {msg : Type} (sch : ConductorSchedule view time vfin)
     obtain ⟨j, rfl⟩ : ∃ j, q = j + 1 := ⟨q - 1, by omega⟩
     obtain ⟨ω', hω'⟩ := WinSucc.exists hwin ω (j + 1)
     obtain ⟨-, hopen⟩ :=
-      smooth_windows hsync hunb hΔ hℓ hfault hcall hterm hstart hshift hi hb hpost hω'
+      smooth_windows hsync hunb hΔ hℓ hcall hterm hstart hshift hi hb hpost hω'
     have e1 : (j + 1) * sch.W = sch.W * (j + 1) := Nat.mul_comm _ _
     have e2 : (j + 2) * sch.W = sch.W * (j + 1) + sch.W := by
       rw [show j + 2 = (j + 1) + 1 from rfl, Nat.succ_mul, Nat.mul_comm]
@@ -1408,14 +1266,14 @@ theorem recovery_sharp {msg : Type} (sch : ConductorSchedule view time vfin)
       exact ⟨m, le_trans hm (max_le (h0 ▸ start_time_mono r.holds (Nat.zero_le s)) le_rfl), ho⟩
     · -- `s` lies in `ω*`, at or after its `p`-th slot, which `ω*`'s entry precedes.
       have h19 :=
-        first_post_gst_window_time hsync hunb hΔ hℓ hfault hcall hterm hstart hshift hn hb₁ hpre hb
+        first_post_gst_window_time hsync hunb hΔ hℓ hcall hterm hstart hshift hn hb₁ hpre hb
       have hsp : f + (sch.p - 1) ≤ s := by
         refine le_of_start_le r.holds ?_
         rw [start_add hstart]
         refine le_trans ?_ hs
         rw [add_nsmul, ← add_assoc]
         exact add_le_add_left h19 _
-      obtain ⟨m, hm, he⟩ := window_open_time hsync hunb hΔ hℓ hfault hcall hstart hb hi
+      obtain ⟨m, hm, he⟩ := window_open_time hsync hunb hΔ hℓ hcall hstart hb hi
       have hent : r.clk m ≤ th.start_time s := by
         refine le_trans hm (le_trans ?_ (start_time_mono r.holds hsp))
         rw [max_eq_left hpost, start_add hstart, add_assoc]

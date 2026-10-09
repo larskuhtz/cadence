@@ -132,22 +132,44 @@ local macro "conductor_field_simp" : tactic =>
 set_option maxHeartbeats 2000000 in
 /-- **What window entry requires** (Algorithm 7, line 44
 (`line:acs-decide`)): the validator is correct, in the predecessor window
-and ready, the window's interval is recorded, and its own ACS instance has
-decided. -/
-theorem enter_window_guards {i : node} {w w' : window} {f b l : ℕ} {a : acsstate}
+and ready, its own ACS instance has decided, and the first slot is the one
+it computes from its decision (Algorithm 7, line 48
+(`line:median-compute`)). -/
+theorem enter_window_guards {i : node} {w w' : window} {f : ℕ} {a : acsstate}
     (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
-      (.enter_window i w w' f b l a) st') :
-    ¬ fm.byz i ∧ InWindow st i w ∧ win_ord.next w w' ∧ st.acs_decided w' f b l = true ∧
-      A.has_decided (st.acs_state w') i ∧ ReadyNext th st i w := by
+      (.enter_window i w w' f a) st') :
+    ¬ fm.byz i ∧ InWindow st i w ∧ win_ord.next w w' ∧
+      A.has_decided (st.acs_state w') i ∧ ReadyNext st i w ∧
+      f = th.acs_first (st.acs_state w') i := by
   conductor_tr htr
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, -, -⟩ := htr
-  exact ⟨h1, ⟨h2, fun x hx => Bool.eq_false_iff.mpr (h3 x hx)⟩, h4, h5, h6, h7⟩
+  obtain ⟨h1, h2, h3, h4, h6, h7, h8, -, -, -⟩ := htr
+  exact ⟨h1, ⟨h2, fun x hx => Bool.eq_false_iff.mpr (h3 x hx)⟩, h4, h6, h7, h8⟩
+
+set_option maxHeartbeats 2000000 in
+/-- **What window entry does** to the intervals: it adds the validator's
+interval of the entered window, computed from the first slot. -/
+theorem enter_window_bounds {i : node} {w w' : window} {f : ℕ} {a : acsstate}
+    (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
+      (.enter_window i w w' f a) st') (j : node) (x : window) (f0 b0 l0 : ℕ) :
+    Bounds st' j x f0 b0 l0 ↔ (Bounds st j x f0 b0 l0 ∨
+      (j = i ∧ x = w' ∧ f0 = f ∧ b0 = th.win_boundary f ∧ l0 = th.win_last f)) := by
+  unfold Bounds
+  conductor_tr htr
+  repeat (obtain ⟨_, htr⟩ := htr)
+  conductor_field_simp
+  constructor
+  · rintro (⟨rfl, rfl, rfl, rfl, rfl⟩ | h)
+    · exact Or.inr ⟨rfl, rfl, rfl, rfl, rfl⟩
+    · exact Or.inl h
+  · rintro (h | ⟨rfl, rfl, rfl, rfl, rfl⟩)
+    · exact Or.inr h
+    · exact Or.inl ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 set_option maxHeartbeats 2000000 in
 /-- **What window entry does** to `entered`: it adds the one pair. -/
-theorem enter_window_entered {i : node} {w w' : window} {f b l : ℕ} {a : acsstate}
+theorem enter_window_entered {i : node} {w w' : window} {f : ℕ} {a : acsstate}
     (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
-      (.enter_window i w w' f b l a) st') (j : node) (x : window) :
+      (.enter_window i w w' f a) st') (j : node) (x : window) :
     st'.entered j x = true ↔ (st.entered j x = true ∨ (j = i ∧ x = w')) := by
   conductor_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)
@@ -167,7 +189,7 @@ ready. -/
 theorem acs_propose_guards {i : node} {w w' : window} {s : ℕ} {a : acsstate}
     (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
       (.acs_propose i w w' s a) st') :
-    ¬ fm.byz i ∧ InWindow st i w ∧ win_ord.next w w' ∧ ReadyNext th st i w := by
+    ¬ fm.byz i ∧ InWindow st i w ∧ win_ord.next w w' ∧ ReadyNext st i w := by
   conductor_tr htr
   obtain ⟨h1, h2, h3, h4, -, h6, -⟩ := htr
   exact ⟨h1, ⟨h2, fun x hx => Bool.eq_false_iff.mpr (h3 x hx)⟩, h4, h6⟩
@@ -186,18 +208,17 @@ entered before it, or the step is that validator's entry into that window. -/
 theorem entered_step {l : CLabel window time node acsstate}
     (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st l st')
     (j : node) (x : window) (h : st'.entered j x = true) :
-    st.entered j x = true ∨ ∃ w f b l' a, l = .enter_window j w x f b l' a := by
+    st.entered j x = true ∨ ∃ w f a, l = .enter_window j w x f a := by
   cases l with
   | tick => rw [Conductor.tick.frame_entered htr] at h; exact Or.inl h
   | acs_propose => rw [Conductor.acs_propose.frame_entered htr] at h; exact Or.inl h
   | acs_step => rw [Conductor.acs_step.frame_entered htr] at h; exact Or.inl h
-  | acs_decide => rw [Conductor.acs_decide.frame_entered htr] at h; exact Or.inl h
   | open_slot => rw [Conductor.open_slot.frame_entered htr] at h; exact Or.inl h
   | complete_slot => rw [Conductor.complete_slot.frame_entered htr] at h; exact Or.inl h
-  | enter_window i w w' f b l' a =>
+  | enter_window i w w' f a =>
     rcases (enter_window_entered htr j x).1 h with h | ⟨rfl, rfl⟩
     · exact Or.inl h
-    · exact Or.inr ⟨w, f, b, l', a, rfl⟩
+    · exact Or.inr ⟨w, f, a, rfl⟩
 
 /-- **Only the validator's own ACS proposal records it**: a correct
 validator's proposal to `ACS[x]` present after a step was present before it,
@@ -212,7 +233,6 @@ theorem proposed_step {l : CLabel window time node acsstate}
     A.proposed (st.acs_state x) p s ∨ ∃ w s' a, l = .acs_propose p w x s' a := by
   cases l with
   | tick => rw [Conductor.tick.frame_acs_state htr] at h; exact Or.inl h
-  | acs_decide => rw [Conductor.acs_decide.frame_acs_state htr] at h; exact Or.inl h
   | open_slot => rw [Conductor.open_slot.frame_acs_state htr] at h; exact Or.inl h
   | complete_slot => rw [Conductor.complete_slot.frame_acs_state htr] at h; exact Or.inl h
   | acs_step w a =>
@@ -233,7 +253,7 @@ theorem proposed_step {l : CLabel window time node acsstate}
       · subst hpi; exact Or.inr ⟨w, s', a, rfl⟩
       · exact Or.inl ((A.propose_frame _ i s' a p s hs hp (Or.inl hpi)).1 h)
     · rw [if_neg hx] at h; exact Or.inl h
-  | enter_window i w w' f b l' a =>
+  | enter_window i w w' f a =>
     obtain ⟨hs, he⟩ := enter_window_acs htr
     rw [he x] at h
     by_cases hx : x = w'
@@ -253,12 +273,20 @@ theorem acs_state_step {l : CLabel window time node acsstate}
     exact Or.inr h
   · exact Or.inl ((acsComponent th x).frame st l st' htr hl)
 
-/-- The bounds of a window persist. -/
+/-- A validator's interval of a window persists. -/
+theorem bounds_mono {l : CLabel window time node acsstate}
+    (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st l st')
+    {i : node} {w : window} {f b l' : ℕ} (h : Bounds st i w f b l') :
+    Bounds st' i w f b l' :=
+  Conductor.local_bounds.mono htr i w f b l' h
+
+/-- The interval of a window persists. -/
 theorem winBounds_mono {l : CLabel window time node acsstate}
     (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st l st')
-    {w : window} {f b l' : ℕ} (h : WinBounds (th := th) st w f b l') :
-    WinBounds (th := th) st' w f b l' :=
-  h.imp_right (Conductor.acs_decided.mono htr w f b l')
+    {w : window} {f b l' : ℕ} (h : WinBounds st w f b l') :
+    WinBounds st' w f b l' :=
+  let ⟨i, hi, h⟩ := h
+  ⟨i, hi, bounds_mono htr h⟩
 
 end Steps
 
@@ -275,8 +303,8 @@ variable {window node acsstate time : Type} [Inhabited window] [Inhabited node] 
 /-- **An entered window other than window 1 has an entered predecessor.**
 Window entry requires the validator to be in the predecessor
 (Algorithm 7, line 44 (`line:acs-decide`)), and entry is never undone. An
-induction over reachability: the model's invariants record the predecessor
-of a decided window only in `acs_decide`'s guard. -/
+induction over reachability: the model records the predecessor only in
+`enter_window`'s guard. -/
 theorem entered_pred
     (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st) :
     ∀ j x, st.entered j x = true → x = win_ord.zero ∨ ∃ w, win_ord.next w x ∧ st.entered j w = true := by
@@ -285,26 +313,103 @@ theorem entered_pred
   | step s s' _ hn ih =>
     intro j x h
     obtain ⟨l, htr⟩ := hn
-    rcases entered_step htr j x h with h0 | ⟨w, f, b, l', a, rfl⟩
+    rcases entered_step htr j x h with h0 | ⟨w, f, a, rfl⟩
     · rcases ih j x h0 with h1 | ⟨w, hw, hwe⟩
       · exact Or.inl h1
       · exact Or.inr ⟨w, hw, Conductor.entered.mono htr j w hwe⟩
     · obtain ⟨-, hin, hnx, -⟩ := enter_window_guards htr
       exact Or.inr ⟨w, hnx, Conductor.entered.mono htr j w hin.1⟩
 
-/-- **A window has one set of bounds**: window 1's are the configuration's
-and it is never ACS-decided (`[decided_nonzero]`); a later window's
-decision is unique (`[window_assignment_agreement]`). -/
+/-- **The entry step's "beyond the current window" guard removes no
+behaviour.** At every reachable state, a correct validator that has decided
+in `ACS[w']` computes a first slot beyond its own interval of `w'`'s
+predecessor: the first slot's lower bracket (`[acs_first_bracket]`) is a
+correct validator's genuine proposal (`validity_genuine`), and every correct
+proposal lies beyond the predecessor's interval
+(`[acs_proposal_above_prev]`). So whenever `enter_window`'s other guards
+hold, this one does too. -/
+theorem entry_beyond
+    (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
+    {i : node} (hi : ¬ fm.byz i) {w w' : window} (hn : win_ord.next w w')
+    (hd : A.has_decided (st.acs_state w') i) {f0 b0 l0 : ℕ} (hb : Bounds st i w f0 b0 l0) :
+    l0 < th.acs_first (st.acs_state w') i := by
+  have hreach := Conductor.reachable_acs_reachable hr w'
+  obtain ⟨⟨r1, s1, hr1, hd1, hs1⟩, -⟩ :=
+    (Veil.RelationalTransitionSystem.reachable_assumptions _ th _ hr).2.2.2.2.2 _ i ⟨hreach, hi, hd⟩
+  have hp := A.validity_genuine _ hreach i r1 s1 hi hr1 hd1
+  have hlt : l0 < s1 :=
+    Conductor.reachable_acs_proposal_above_prev hr r1 i w' s1 w f0 b0 l0 ⟨hr1, hp, hn, hi, hb⟩
+  exact lt_of_lt_of_le hlt hs1
+
+/-- **Correct validators agree on a window's interval**
+(`[window_assignment_agreement]`, Proposition 9 (`prop:window-agreement`)). -/
+theorem bounds_agree
+    (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
+    {i j : node} (hi : ¬ fm.byz i) (hj : ¬ fm.byz j) {w : window} {f b l f' b' l' : ℕ}
+    (h₁ : Bounds st i w f b l) (h₂ : Bounds st j w f' b' l') :
+    f = f' ∧ b = b' ∧ l = l' :=
+  Conductor.reachable_window_assignment_agreement hr i j w f b l f' b' l' ⟨hi, hj, h₁, h₂⟩
+
+/-- **A window has one interval**: any two correct validators' intervals of
+it are equal. -/
 theorem winBounds_unique
     (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
     {w : window} {f b l f' b' l' : ℕ}
-    (h₁ : WinBounds (th := th) st w f b l) (h₂ : WinBounds (th := th) st w f' b' l') :
-    f = f' ∧ b = b' ∧ l = l' := by
-  rcases h₁ with ⟨hw, rfl, rfl, rfl⟩ | h₁ <;> rcases h₂ with ⟨hw', rfl, rfl, rfl⟩ | h₂
-  · exact ⟨rfl, rfl, rfl⟩
-  · exact absurd hw (Conductor.reachable_decided_nonzero hr w f' b' l' h₂)
-  · exact absurd hw' (Conductor.reachable_decided_nonzero hr w f b l h₁)
-  · exact Conductor.reachable_window_assignment_agreement hr w f b l f' b' l' ⟨h₁, h₂⟩
+    (h₁ : WinBounds st w f b l) (h₂ : WinBounds st w f' b' l') :
+    f = f' ∧ b = b' ∧ l = l' :=
+  let ⟨_, hi, h₁⟩ := h₁
+  let ⟨_, hj, h₂⟩ := h₂
+  bounds_agree hr hi hj h₁ h₂
+
+/-- A correct validator's interval of a window is the window's interval, and
+the window's interval is the interval of every correct validator that holds
+one. -/
+theorem bounds_eq_winBounds
+    (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
+    {i : node} (hi : ¬ fm.byz i) {w : window} {f b l f' b' l' : ℕ}
+    (h₁ : Bounds st i w f b l) (h₂ : WinBounds st w f' b' l') :
+    f = f' ∧ b = b' ∧ l = l' :=
+  winBounds_unique hr ⟨i, hi, h₁⟩ h₂
+
+/-- **A correct validator that has entered a window holds the window's
+interval** (`[entered_has_bounds]`, then agreement). -/
+theorem bounds_of_entered
+    (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
+    {i : node} (hi : ¬ fm.byz i) {w : window} (he : st.entered i w = true) {f b l : ℕ}
+    (hw : WinBounds st w f b l) : Bounds st i w f b l := by
+  obtain ⟨f0, b0, l0, h0⟩ := Conductor.reachable_entered_has_bounds hr i w ⟨hi, he⟩
+  obtain ⟨rfl, rfl, rfl⟩ := bounds_eq_winBounds hr hi h0 hw
+  exact h0
+
+/-- A window's interval is in order: first ≤ boundary ≤ last
+(`[bounds_shape]`). -/
+theorem winBounds_shape
+    (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
+    {w : window} {f b l : ℕ} (h : WinBounds st w f b l) : f ≤ b ∧ b ≤ l :=
+  let ⟨j, _, h⟩ := h
+  Conductor.reachable_bounds_shape hr j w f b l h
+
+/-- A window's boundary and last slot are the shifts of its first
+(`[win_bounds_shift]`). -/
+theorem winBounds_shift
+    (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
+    {w : window} {f b l : ℕ} (h : WinBounds st w f b l) :
+    b = th.win_boundary f ∧ l = th.win_last f :=
+  let ⟨j, _, h⟩ := h
+  Conductor.reachable_win_bounds_shift hr j w f b l h
+
+/-- **Later windows' intervals lie strictly above** (`[win_bounds_ordered]`,
+Proposition 8 (`prop:acs-fate-range`)): a validator holding the later
+window's interval has entered both windows, and holds both intervals. -/
+theorem winBounds_ordered
+    (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
+    {w w' : window} (hlt : win_ord.lt w w') {f b l f' b' l' : ℕ}
+    (h₁ : WinBounds st w f b l) (h₂ : WinBounds st w' f' b' l') : l < f' := by
+  obtain ⟨j, hj, h2⟩ := h₂
+  have he' := Conductor.reachable_bounds_entered hr j w' f' b' l' ⟨hj, h2⟩
+  have he := Conductor.reachable_entered_prefix hr j w w' ⟨hj, he', hlt⟩
+  have h1 := bounds_of_entered hr hj he h₁
+  exact Conductor.reachable_win_bounds_ordered hr j w w' f b l f' b' l' ⟨hj, hlt, h1, h2⟩
 
 end Reachable
 
@@ -332,10 +437,10 @@ theorem opened_above
     (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
     {i : node} (hi : ¬ fm.byz i) {s : ℕ} (hnc : ¬ st.completed i s = true)
     {ws : window} {fs bs ls : ℕ} (hent : st.entered i ws = true)
-    (hbs : WinBounds (th := th) st ws fs bs ls) (hfs : fs ≤ s) (hsl : s ≤ ls)
+    (hbs : Bounds st i ws fs bs ls) (hfs : fs ≤ s) (hsl : s ≤ ls)
     {t : ℕ} (ht : st.opened i t = true) (hst : s < t) :
     t ≤ ls ∨ ∃ wn fn bn ln, win_ord.next ws wn ∧ st.entered i wn = true ∧
-      WinBounds (th := th) st wn fn bn ln ∧ fn ≤ t ∧ t ≤ ln := by
+      Bounds st i wn fn bn ln ∧ fn ≤ t ∧ t ≤ ln := by
   obtain ⟨wt, hwt⟩ := Conductor.reachable_opened_backed hr i t ⟨hi, ht⟩
   have hentt := Conductor.reachable_opened_win_entered hr i t wt ⟨hi, hwt⟩
   obtain ⟨ft, bt, lt', hbt⟩ := Conductor.reachable_entered_has_bounds hr i wt ⟨hi, hentt⟩
@@ -348,15 +453,15 @@ theorem opened_above
     rcases win_trichotomy ws w0 with hlt0 | rfl | hlt0
     · obtain ⟨f0, b0, l0, hb0⟩ := Conductor.reachable_entered_has_bounds hr i w0 ⟨hi, he0⟩
       have hsep : ls < f0 :=
-        Conductor.reachable_win_bounds_ordered hr ws w0 fs bs ls f0 b0 l0 ⟨hlt0, hbs, hb0⟩
-      have hfb : f0 ≤ b0 := (Conductor.reachable_bounds_shape hr w0 f0 b0 l0 hb0).1
+        Conductor.reachable_win_bounds_ordered hr i ws w0 fs bs ls f0 b0 l0 ⟨hi, hlt0, hbs, hb0⟩
+      have hfb : f0 ≤ b0 := (Conductor.reachable_bounds_shape hr i w0 f0 b0 l0 hb0).1
       exact (hnc (Conductor.reachable_bounded_tail hr i s wt w0 ws f0 b0 l0 fs bs ls
         ⟨hi, hentt, hn0, hb0, hent, hbs, hfs, hsl, show s < b0 by omega⟩)).elim
     · exact Or.inr ⟨wt, ft, bt, lt', hn0, hentt, hbt, hct⟩
     · exact (win_not_le_of_lt hlt (win_next_le_of_lt hn0 hlt0)).elim
   · exact Or.inl (Conductor.reachable_opened_win_contained hr i t ws fs bs ls ⟨hi, hwt, hbs⟩).2
   · have hsep : lt' < fs :=
-      Conductor.reachable_win_bounds_ordered hr wt ws ft bt lt' fs bs ls ⟨hlt, hbt, hbs⟩
+      Conductor.reachable_win_bounds_ordered hr i wt ws ft bt lt' fs bs ls ⟨hi, hlt, hbt, hbs⟩
     have h1 : t ≤ lt' := hct.2
     have h2 : fs ≤ s := hfs
     have h3 : lt' < fs := hsep
@@ -381,7 +486,7 @@ theorem boundedness (sch : ConductorSchedule view time vfin)
   have hent := Conductor.reachable_opened_win_entered hr' i s ws ⟨hi, hws⟩
   obtain ⟨fs, bs, ls, hbs⟩ := Conductor.reachable_entered_has_bounds hr' i ws ⟨hi, hent⟩
   obtain ⟨hfs, hsl⟩ := Conductor.reachable_opened_win_contained hr' i s ws fs bs ls ⟨hi, hws, hbs⟩
-  obtain ⟨hb, hl⟩ := Conductor.reachable_win_bounds_shift hr' ws fs bs ls hbs
+  obtain ⟨hb, hl⟩ := Conductor.reachable_win_bounds_shift hr' i ws fs bs ls hbs
   have hbs' : bs = fs + sch.p := hb.trans (hshift.2 fs)
   have hls' : ls = fs + (sch.W - 1) := hl.trans (hshift.1 fs)
   have hpW := sch.p_lt_W
@@ -394,7 +499,7 @@ theorem boundedness (sch : ConductorSchedule view time vfin)
   · obtain ⟨wn, hn, hen⟩ := hex
     obtain ⟨fn, bn, ln, hbn⟩ := Conductor.reachable_entered_has_bounds hr' i wn ⟨hi, hen⟩
     have hln : ln = fn + (sch.W - 1) :=
-      (Conductor.reachable_win_bounds_shift hr' wn fn bn ln hbn).2.trans (hshift.1 fn)
+      (Conductor.reachable_win_bounds_shift hr' i wn fn bn ln hbn).2.trans (hshift.1 fn)
     have hbsle : bs ≤ s := by
       by_contra hlt
       exact hnc' (Conductor.reachable_bounded_tail hr' i s wn ws ws fs bs ls fs bs ls
@@ -405,7 +510,7 @@ theorem boundedness (sch : ConductorSchedule view time vfin)
       rcases opened_above hr' hi hnc' hent hbs hfs hsl (hgk k).1 (hgt k) with h | ⟨wn', fn', bn', ln', hn', -, hb', h1, h2⟩
       · exact Finset.mem_union_left _ (Finset.mem_Ioc.2 ⟨hgt k, h⟩)
       · obtain rfl := win_next_unique hn hn'
-        obtain ⟨rfl, -, rfl⟩ := winBounds_unique hr' hb' hbn
+        obtain ⟨rfl, -, rfl⟩ := bounds_agree hr' hi hi hb' hbn
         exact Finset.mem_union_right _ (Finset.mem_Icc.2 ⟨h1, h2⟩)
     have := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
     rw [hcard, Nat.card_Ioc, Nat.card_Icc] at this
@@ -439,3 +544,9 @@ info: 'Conductor.boundedness' depends on axioms: [propext, Classical.choice, Quo
 -/
 #guard_msgs in
 #print axioms Conductor.boundedness
+
+/--
+info: 'Conductor.entry_beyond' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.entry_beyond

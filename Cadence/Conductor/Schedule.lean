@@ -45,17 +45,23 @@ prints the whole list.
 * **The ACS** is an arbitrary instance of its contract, `ACSSafety` and
   `ACSTemporal` ([Interfaces.lean](../Interfaces.lean)), an **assumed
   module** (P17): the target leaves it unspecified. Its constants are the
-  system's (`TA.Δ = Δ`, `TA.ℓ = ℓ`, F23), at most its `fault_bound`
-  validators are Byzantine. That it accepts its two inputs is the
-  contract's (`ACSTemporal.propose_enabled`, `abandon_enabled`, F26).
+  system's (`TA.Δ = Δ`, `TA.ℓ = ℓ`, F23). That it accepts its two inputs
+  is the contract's (`ACSTemporal.propose_enabled`, `abandon_enabled`,
+  F26).
+* **The first slot** of a window is the one each validator computes from
+  its own decision, `acs_first`, constrained by the model's assumptions
+  `[acs_first_local]` and `[acs_first_bracket]`. The paper's lower median
+  meets both when at most the ACS's `fault_bound` validators are Byzantine
+  (`Cadence.lowerMedian_first_assumptions`).
   [IdealAcs.lean](IdealAcs.lean) meets all of it.
 
 ## What is assumed of a run
 
-* **The rows** (`TimedRows`): the Conductor's three honest handlers fire
+* **The rows** (`TimedRows`): the Conductor's two honest handlers fire
   `δ` after their gates open — the ACS proposal (Algorithm 7, line 37
-  (`line:ready`)), window entry (Algorithm 7, line 44 (`line:acs-decide`))
-  and the recording of the decided interval. All are local: the Conductor's
+  (`line:ready`)) and window entry, with the window's interval computed
+  from the validator's own decision (Algorithm 7, lines 44–52
+  (`line:acs-decide`–`line:last-update`)). Both are local: the Conductor's
   only cross-validator channel is the ACS, whose timing enters through its
   own `Admissible`.
 * **(P-open)** (`OpenPunctual`): the opening timer is punctual — a slot
@@ -79,12 +85,10 @@ before the rule is due, so a gate that mentioned protocol progress would
 let the clause assume it. Every gate mentions only the acting validator's
 own local state (its window, the windows' intervals it holds, its
 completions) and the output of its own ACS instance that its rule fires
-upon (F22). The one exception is the recording of the decided interval,
-`acs_decide`, a global step of the model that stands for every validator's
-median computation: its gate is that some correct validator's ACS has
-output a decision. Everything else a rule's guard needs — the interval
-having been recorded, the ACS accepting the input — is protocol state the
-proofs establish, or the ACS contract's input-enabledness.
+upon (F22). There is no exception: the window's interval is computed in the
+entry step itself, from the validator's own decision. Everything else a
+rule's guard needs — the ACS accepting the input — is the ACS contract's
+input-enabledness.
 
 ## What this file does not do
 
@@ -346,65 +350,63 @@ noncomputable def contractRun (r : TConductorRun th) :
 
 /-! ### A validator's local state, read off the model's state
 
-The model's ghost relations, restated over the state's fields: the bounds of
-a window, the window a validator is in, its readiness, and the slots it has
-scheduled. Window intervals are global in the model because ACS agreement
-makes every correct validator compute the same one; each validator holds
-the intervals of the windows it entered. -/
+The model's ghost relations, restated over the state's fields: a
+validator's interval of a window, the window it is in, its readiness, and
+the slots it has scheduled. Each validator holds the intervals of the
+windows it entered, computed from its own ACS decision; all correct
+validators hold the same one (`[window_assignment_agreement]`), which
+`WinBounds` reads as the window's interval. -/
 
-/-- The bounds of window `w` (the model's `win_bounds`): window 1's are the
-configuration's, later windows' the recorded ACS decision. -/
+/-- `i`'s interval of window `w` (the model's `local_bounds`). -/
+def Bounds (st : CState window time node acsstate) (i : node) (w : window) (f b l : ℕ) : Prop :=
+  st.local_bounds i w f b l = true
+
+/-- The interval of window `w`, as some correct validator holds it. Every
+correct validator that holds an interval of `w` holds this one
+(`[window_assignment_agreement]`), so it is the window's interval. A
+proof-side reading: no gate reads it. -/
 def WinBounds (st : CState window time node acsstate) (w : window) (f b l : ℕ) : Prop :=
-  (w = win_ord.zero ∧ f = 0 ∧ b = th.genesis_boundary ∧ l = th.genesis_last) ∨
-    st.acs_decided w f b l = true
+  ∃ i, ¬ fm.byz i ∧ Bounds st i w f b l
 
 /-- `i` is in window `w` (the model's `in_window`, the paper's
 `current_window_i`): it has entered `w` and not `w`'s successor. -/
 def InWindow (st : CState window time node acsstate) (i : node) (w : window) : Prop :=
   st.entered i w = true ∧ ∀ w', win_ord.next w w' → st.entered i w' = false
 
-variable (th) in
 /-- `i` is ready to leave window `w` (the model's `ready_next`, Algorithm 7,
 line 23 (`line:ready-check`)): every slot it has scheduled strictly below
-`w`'s readiness boundary is completed. -/
+its interval of `w`'s readiness boundary is completed. -/
 def ReadyNext (st : CState window time node acsstate) (i : node) (w : window) : Prop :=
-  ∀ f b l, WinBounds (th := th) st w f b l →
-    ∀ s w0 f0 b0 l0, st.entered i w0 = true → WinBounds (th := th) st w0 f0 b0 l0 →
+  ∀ f b l, Bounds st i w f b l →
+    ∀ s w0 f0 b0 l0, st.entered i w0 = true → Bounds st i w0 f0 b0 l0 →
       f0 ≤ s → s ≤ l0 → s < b → st.completed i s = true
 
-variable (th) in
 /-- `i` has scheduled slot `s` (the model's `slot_scheduled`, the paper's
 eager `opened_i`, Algorithm 7, line 51 (`line:acs-opened-update`)): `s` lies
-in the interval of a window `i` has entered. -/
+in `i`'s interval of a window `i` has entered. -/
 def Scheduled (st : CState window time node acsstate) (i : node) (s : ℕ) : Prop :=
-  ∃ w f b l, st.entered i w = true ∧ WinBounds (th := th) st w f b l ∧ f ≤ s ∧ s ≤ l
+  ∃ w f b l, st.entered i w = true ∧ Bounds st i w f b l ∧ f ≤ s ∧ s ≤ l
 
 /-! ### The gates -/
 
-variable (th) in
 /-- The ACS proposal's gate (Algorithm 7, line 37 (`line:ready`)): `i` is
 in `w'`'s predecessor and ready. -/
 def proposeGate (i : node) (w' : window) (st : CState window time node acsstate) : Prop :=
-  ∃ w, win_ord.next w w' ∧ InWindow st i w ∧ ReadyNext th st i w
+  ∃ w, win_ord.next w w' ∧ InWindow st i w ∧ ReadyNext st i w
 
-variable (th) in
 /-- Window entry's gate (Algorithm 7, line 44 (`line:acs-decide`)): `i`'s
 **own** `ACS[w']` has decided (F22), and `i` is in `w'`'s predecessor and
-ready. -/
+ready. The entry step computes the window's interval from that decision
+(Algorithm 7, line 48 (`line:median-compute`)). -/
 def enterGate (i : node) (w' : window) (st : CState window time node acsstate) : Prop :=
-  A.has_decided (st.acs_state w') i ∧ proposeGate th i w' st
-
-/-- The decided interval's gate: some correct validator's `ACS[w]` has
-output a decision, which the recording step reads (the model's
-`acs_decide`, Algorithm 7, line 48 (`line:median-compute`)). -/
-def decideGate (w : window) (st : CState window time node acsstate) : Prop :=
-  ∃ i, ¬ fm.byz i ∧ A.has_decided (st.acs_state w) i
+  A.has_decided (st.acs_state w') i ∧ proposeGate i w' st
 
 /-! ### The rows' label families
 
 Each handler has a parameter that is a result, not a choice (the ACS's
-next state, the first slot `s*` its guards determine, the decided interval),
-so each row is a family, fair as a whole, as Chorus's proposal is. -/
+next state, the first slot `s*` its guards determine, the first slot of the
+interval), so each row is a family, fair as a whole, as Chorus's proposal
+is. -/
 
 /-- `i`'s ACS proposal to `ACS[w']`, for any first slot and ACS successor. -/
 def ProposeLabel (i : node) (w' : window) : CLabel window time node acsstate → Prop :=
@@ -412,11 +414,7 @@ def ProposeLabel (i : node) (w' : window) : CLabel window time node acsstate →
 
 /-- `i`'s entry into `w'`. -/
 def EnterLabel (i : node) (w' : window) : CLabel window time node acsstate → Prop :=
-  fun l => ∃ w f b l' a, l = .enter_window i w w' f b l' a
-
-/-- The recording of `w`'s decided interval. -/
-def DecideLabel (w : window) : CLabel window time node acsstate → Prop :=
-  fun l => ∃ w0 first f0 b0 l0 r1 s1 r2 s2, l = .acs_decide w0 w first f0 b0 l0 r1 s1 r2 s2
+  fun l => ∃ w f a, l = .enter_window i w w' f a
 
 /-! ### The premises -/
 
@@ -436,14 +434,11 @@ structure TimedRows {view : Type} [vord : TotalOrderWithMinimum view] {vfin : Vi
   /-- The ACS proposal (Algorithm 7, lines 37–43
   (`line:ready`–`line:proposed-update`)). -/
   propose : ∀ i w', ¬ fm.byz i →
-    BufferedFairFamily r sch.δ sch.δ (fun _ => True) (proposeGate th i w') (ProposeLabel i w')
-  /-- Window entry (Algorithm 7, lines 44–52
-  (`line:acs-decide`–`line:last-update`)). -/
+    BufferedFairFamily r sch.δ sch.δ (fun _ => True) (proposeGate i w') (ProposeLabel i w')
+  /-- Window entry, with the window's interval computed from `i`'s own
+  decision (Algorithm 7, lines 44–52 (`line:acs-decide`–`line:last-update`)). -/
   enter : ∀ i w', ¬ fm.byz i →
-    BufferedFairFamily r sch.δ sch.δ (fun _ => True) (enterGate th i w') (EnterLabel i w')
-  /-- The decided interval (Algorithm 7, line 48 (`line:median-compute`)). -/
-  decide : ∀ w,
-    BufferedFairFamily r sch.δ sch.δ (fun _ => True) (decideGate w) (DecideLabel w)
+    BufferedFairFamily r sch.δ sch.δ (fun _ => True) (enterGate i w') (EnterLabel i w')
 
 /-- **(P-open)** — the opening timer is punctual
 ([Premises.md](../../docs/Premises.md) §9.3).
@@ -458,7 +453,7 @@ and needs no premise (`[opened_after_start]`). The model lets an enabled
 opening wait ("Timing relaxation" in [Conductor.lean](../Conductor.lean));
 this premise is what removes that freedom from the timed claims. -/
 def OpenPunctual (r : TConductorRun th) : Prop :=
-  ∀ N i s, ¬ fm.byz i → Scheduled th (r.at' N) i s →
+  ∀ N i s, ¬ fm.byz i → Scheduled (r.at' N) i s →
     ∃ n, N ≤ n ∧ r.clk n ≤ max (r.clk N) (th.start_time s) ∧ (r.at' n).opened i s = true
 
 /-- **One clock** — the run's clock is the Conductor's `now`
@@ -523,9 +518,9 @@ theorem acs_propose_acs {i : node} {w w' : window} {s : ℕ} {a : acsstate}
 set_option maxHeartbeats 2000000 in
 /-- Window entry gives `ACS[w']` its `abandon` input and leaves every other
 window's ACS alone. -/
-theorem enter_window_acs {i : node} {w w' : window} {f b l : ℕ} {a : acsstate}
+theorem enter_window_acs {i : node} {w w' : window} {f : ℕ} {a : acsstate}
     (htr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
-      (.enter_window i w w' f b l a) st') :
+      (.enter_window i w w' f a) st') :
     A.abandon (st.acs_state w') i a ∧ ∀ x, st'.acs_state x = if x = w' then a else st.acs_state x := by
   conductor_tr htr
   repeat (obtain ⟨_, htr⟩ := htr)
@@ -546,7 +541,7 @@ the two inputs the Conductor gives it. -/
 def AcsLabel (w : window) : CLabel window time node acsstate → Prop
   | .acs_step w' _ => w' = w
   | .acs_propose _ _ w' _ _ => w' = w
-  | .enter_window _ _ w' _ _ _ _ => w' = w
+  | .enter_window _ _ w' _ _ => w' = w
   | _ => False
 
 /-- **Window `w`'s ACS is a component of the Conductor**: its state is
@@ -567,8 +562,7 @@ noncomputable def acsComponent (th : Conductor.Theory ℕ window time node acsst
       rw [(acs_propose_acs htr).2 w, if_neg (Ne.symm hl)]
     | acs_step w' a =>
       rw [(acs_step_acs htr).2 w, if_neg (Ne.symm hl)]
-    | acs_decide => exact congrFun (Conductor.acs_decide.frame_acs_state htr) w
-    | enter_window i w0 w' f b l a =>
+    | enter_window i w0 w' f a =>
       rw [(enter_window_acs htr).2 w, if_neg (Ne.symm hl)]
     | open_slot => exact congrFun (Conductor.open_slot.frame_acs_state htr) w
     | complete_slot => exact congrFun (Conductor.complete_slot.frame_acs_state htr) w
@@ -588,7 +582,7 @@ noncomputable def acsComponent (th : Conductor.Theory ℕ window time node acsst
       show A.trans (s.acs_state w) (s'.acs_state w)
       rw [he w, if_pos rfl]
       exact A.step_trans _ _ hp
-    | enter_window i w0 w' f b l a =>
+    | enter_window i w0 w' f a =>
       cases hl
       obtain ⟨hp, he⟩ := enter_window_acs htr
       refine ⟨(), ?_⟩
@@ -705,19 +699,25 @@ def BoundednessClaim (sch : ConductorSchedule view time vfin)
 Over an ordered time (F27), under the timing model at τ-spaced, unbounded
 starting times (`StartsUnbounded`, F28), with windows of the schedule's
 shape that each have a successor (`WindowsUnbounded`, F30), with the ACS's
-`Δ` and `ℓ` the system's, at most its fault
-bound Byzantine, and if the caller's completions are total ((R-tot) at
-`d_tot`) and terminate ((R-term) at `d_tot` and
-`ℓ_chorus`): every slot whose starting time is at least `GST + 2Wτ` is
-opened by every correct validator by its starting time — with Integrity's
-timing half, exactly then. The proof is Propositions 14–19, in
+`Δ` and `ℓ` the system's, and if the caller's completions are total
+((R-tot) at `d_tot`) and terminate ((R-term) at `d_tot` and `ℓ_chorus`):
+every slot whose starting time is at least `GST + 2Wτ` is opened by every
+correct validator by its starting time — with Integrity's timing half,
+exactly then. The proof is Propositions 14–19, in
 [Recovery.lean](Recovery.lean) (`Conductor.recovery`); the four parameter
-assumptions are the schedule's fields. -/
+assumptions are the schedule's fields.
+
+It holds for every first-slot rule that meets the model's assumptions
+`[acs_first_local]` and `[acs_first_bracket]`
+([Conductor.lean](../Conductor.lean)); the paper's lower median of the
+decided set (Algorithm 7, line 48 (`line:median-compute`)) is one, when at
+most the ACS's `fault_bound` validators are Byzantine
+(`Cadence.lowerMedian_first_assumptions`, [AcsMedian.lean](../AcsMedian.lean)). -/
 def RecoveryClaim [IsOrderedAddMonoid time] {msg : Type} (sch : ConductorSchedule view time vfin)
     (TA : ACSTemporal node ℕ acsstate time msg fm.byz)
     (th : Conductor.Theory ℕ window time node acsstate) : Prop :=
   StartTimes sch th → WindowShifts sch th → StartsUnbounded th → WindowsUnbounded window →
-  TA.Δ = sch.Δ → TA.ℓ = sch.ℓ → (Finset.univ.filter fm.byz).card ≤ TA.fault_bound →
+  TA.Δ = sch.Δ → TA.ℓ = sch.ℓ →
   ∀ r : TConductorRun th, Sync sch TA r →
     (orchestratorSafety th).CallerTotality (contractRun r) sch.d_tot →
     (orchestratorSafety th).CallerTermination (contractRun r) sch.d_tot sch.ℓchorus →

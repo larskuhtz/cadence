@@ -223,13 +223,14 @@ auditor reads each.
   cannot mention it. The check is stated at Chorus's decision handlers, and
   its liveness direction is the premise {decl}`Chorus.ValidBridge`
   ({chapter ReadingModel}[chapter 3] reads the handler).
-* *The ACS median bridge.* The Conductor's `acs_decide` requires that the
-  new window's first slot lies between two correct validators' pairs of a
-  correct decider's set, one at or below it and one at or above. The
-  bracket stands in for the median the paper takes as the first slot: that
-  the median of a correct validator's decided set lies between two of its
-  correct pairs, for every ACS meeting the contract, is a theorem,
-  {decl}`Cadence.acs_median_bracket`.
+* *The ACS median bridge.* Each validator computes a new window's first
+  slot from its own decided set, and the Conductor model assumes two things
+  of that computation: it depends on the decided set alone, and two correct
+  validators' pairs of the set bracket it, one at or below it and one at or
+  above. The bracket stands in for the median the paper takes as the first
+  slot: that the lower median meets both, for every ACS meeting the
+  contract and at most `f` Byzantine validators, is a theorem,
+  {decl}`Cadence.lowerMedian_first_assumptions`.
 * *The fault pattern.* MCP Safety takes the hypothesis that the Conductor
   and Chorus agree on who is Byzantine. The timed claims state every module
   at one fault pattern and need none.

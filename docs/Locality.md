@@ -196,7 +196,7 @@ operation an action uses is one of:
 |---|---|---|
 | an **input** at the actor's index | `mvba.propose st x v next`, `acs.abandon st x next` | W3 |
 | an **output or record** at the actor's index | `mvba.decided st x v`, `acs.has_decided st x` | R6 |
-| a **pure function** of data the node holds | `mvba.entries v` | R5 |
+| a **pure function** of data the node holds | `mvba.entries v`; the Conductor's `acs_first (acs_state w) x`, the first slot `x` computes from its own decided set | R5; for `acs_first`, a *semantic step*: the model's assumption `[acs_first_local]` that it reads only the decided set at its index |
 | a **check** of a message the node holds | `mvba.certifies st c e`, for a certificate `c` the node has received | R2: the check holds iff the signatures it verifies are on the sub-protocol's network, which a contract field keeps monotone (`certified_mono`) |
 
 The sub-protocol's own step (`mvba.step`) is not invoked by a node: it is the
@@ -231,7 +231,7 @@ The auxiliary relations of every model:
 | Model | Auxiliary relations |
 |---|---|
 | Chorus | `aux_mvba_decided_pos`, `aux_mvba_decided_neg` (the certified entries), `aux_fb_neg_qv` (the vote quorum behind a negative fallback entry) |
-| Conductor | `opened_win` (the window a slot was opened in), an auxiliary record under its old name ([TODO.md](TODO.md)) |
+| Conductor | `aux_opened_win` (the window a slot was opened in) |
 | Cadence (glue), FallbackReceipt, Mvba | none |
 
 | Model | Local rows (§2) | Status |
@@ -240,4 +240,4 @@ The auxiliary relations of every model:
 | FallbackReceipt | every relation (one validator) | conforms |
 | Chorus | `local_*`, `participating`, `abandoned` | conforms, checked action by action in the guide's audit table ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)); `send_mvba_cert` sends the certificate its own decision output (`mvba.decidedCert`, an output at the actor's index, R6) |
 | Mvba | every relation except `msg_*` | conforms: the view timer is the validator's own step, every certificate is sent by its former or forwarder under its own name, a decision records its certificate (`decided_qc`), and the adversary aggregates only under its own name (`byz_form_*`); no B4 guard: a Byzantine timeout may carry a certificate of any view, and the timeout-certificate rules read one above the timeout's view as `⊥`, as the supplement's receiver does; [MvbaPlan.md](MvbaPlan.md) §11 has the design |
-| Conductor | `entered`, `opened`, `completed` | open: the global `acs_decided` |
+| Conductor | `entered`, `local_bounds`, `opened`, `completed` | conforms: each validator computes its window's interval from its own ACS decision in its entry step (`acs_first`, Algorithm 7, line 48 (`line:median-compute`)) and keeps it in its own row, so agreement on the intervals is a property (`[window_assignment_agreement]`), not a shared write; [ConductorBounds.md](ConductorBounds.md) §10 has the design |
