@@ -57,6 +57,23 @@ namespace Chorus.Proofs
   · have hz := h_commitqc_neg_mvba_pos_excl C J M (hqcneg (fun h1 h2 => hnew ⟨h1, h2⟩))
     rw [hz] at hb; simp at hb
 
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the two certificates' supermajorities meet in a correct signer. -/
+#prove_vc Chorus byz_broadcast_commitqc_neg commitqc_pos_neg_excl by
+  unveil_local
+  veil_inv_have h_old := commitqc_pos_neg_excl
+  veil_inv_have h_back := msg_commitqc_pos_backed
+  veil_inv_have h_excl := commit_pos_sig_neg_excl
+  intro _hbyz hsup hq C1 C2 J M hpos
+  refine ⟨?_, h_old C1 C2 J M hpos⟩
+  intro _ hjJ
+  subst hjJ
+  obtain ⟨Q, hQ_sup, hQ⟩ := h_back C1 j M hpos
+  obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest Q q hQ_sup hsup
+  have hx := h_excl b j M (Bool.eq_false_iff.mpr hb_hon) (hQ b hb1).1
+  have hy := (hq b hb2).1
+  rw [hx] at hy; simp at hy
+
 #prove_action Chorus byz_broadcast_commitqc_neg
 
 end Chorus.Proofs

@@ -28,6 +28,23 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the vote quorums only grow. -/
+#prove_vc Chorus cast_fast_commit fast_path_implies_vote_quorums by
+  unveil_local
+  veil_inv_have h_old := fast_path_implies_vote_quorums
+  veil_inv_have h_cpf := commit_pos_sig_from_local_fastqc
+  veil_inv_have h_cnf := commit_neg_sig_from_local_fastqc
+  veil_inv_have h_fqb := local_fastqc_pos_backed
+  veil_inv_have h_fqnb := local_fastqc_neg_backed
+  intro hbyz _hpart _hab _hnc _hnp hsigs I0 hI0 hpath J hJ
+  by_cases hI : i = I0
+  · subst hI
+    rcases hsigs J hJ with ⟨M, hM⟩ | hN
+    · exact Or.inl ⟨M, h_fqb i J M hbyz (h_cpf i J M hbyz hM)⟩
+    · exact Or.inr (h_fqnb i J hbyz (h_cnf i J hbyz hN))
+  · exact h_old I0 hI0 (hpath hI) J hJ
+
 #prove_action Chorus cast_fast_commit
 
 end Chorus.Proofs

@@ -158,9 +158,25 @@ runs up to the budget on CI's 4-core runner. -/
     rename_i hix; subst hix
     exfalso
     rcases h_rcvd R J QV hR haux i hxQV with ⟨M', hM'⟩ | hn
-    · exact absurd (h_cv i hbyz (h_rp R i J M' hR hM').1) (by simp [hnv])
-    · exact absurd (h_cv i hbyz (h_rn R i J hR hn).1) (by simp [hnv])
+    · exact absurd (h_cv i hbyz (h_rp R i J M' hR hM').1.1) (by simp [hnv])
+    · exact absurd (h_cv i hbyz (h_rn R i J hR hn).1.1) (by simp [hnv])
   · simp [hpre]
+
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the vote quorums only grow. -/
+#prove_vc Chorus vote fast_path_implies_vote_quorums by
+  unveil_local
+  veil_inv_have h_old := fast_path_implies_vote_quorums
+  intro _hbyz _hpart _hab _hph _hnv I0 hI0 hpath J hJ
+  rcases h_old I0 hI0 hpath J hJ with ⟨M, q, hq, hall⟩ | ⟨q, hq, hall⟩
+  · refine Or.inl ⟨M, q, hq, fun r hr => ?_⟩
+    split
+    · rename_i h; subst h; exact Or.inl (hall _ hr)
+    · exact hall r hr
+  · refine Or.inr ⟨q, hq, fun r hr => ?_⟩
+    split
+    · rename_i h; subst h; exact Or.inl (hall _ hr)
+    · exact hall r hr
 
 #prove_action Chorus vote
 

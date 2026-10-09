@@ -62,6 +62,62 @@ namespace Chorus.Proofs
   intro _hbyz _hsup_q _hq
   exact h_progress_fallback_signing
 
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the new certificate's supermajority meets an old one's in a correct signer, whose commit entry is unique. -/
+#prove_vc Chorus byz_broadcast_commitqc_pos commitqc_pos_unique by
+  unveil_local
+  veil_inv_have h_old := commitqc_pos_unique
+  veil_inv_have h_back := msg_commitqc_pos_backed
+  veil_inv_have h_cu := commit_pos_sig_unique
+  intro _hbyz hsup hq C1 C2 J M1 M2 h1 h2
+  have key : ∀ C M2, st.msg_commitqc_pos C j M2 = true → m = M2 := by
+    intro C M2 hC
+    obtain ⟨Q2, hQ2_sup, hQ2⟩ := h_back C j M2 hC
+    obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest q Q2 hsup hQ2_sup
+    exact h_cu b j m M2 (Bool.eq_false_iff.mpr hb_hon) (hq b hb1).1 (hQ2 b hb2).1
+  by_cases n1 : r = C1 ∧ j = J ∧ m = M1
+  · obtain ⟨rfl, rfl, rfl⟩ := n1
+    by_cases n2 : r = C2 ∧ m = M2
+    · exact n2.2
+    · exact key C2 M2 (h2 (fun e1 _ e3 => n2 ⟨e1, e3⟩))
+  · by_cases n2 : r = C2 ∧ j = J ∧ m = M2
+    · obtain ⟨rfl, rfl, rfl⟩ := n2
+      exact (key C1 M1 (h1 (fun e1 e2 e3 => n1 ⟨e1, e2, e3⟩))).symm
+    · exact h_old C1 C2 J M1 M2 (h1 (fun e1 e2 e3 => n1 ⟨e1, e2, e3⟩))
+        (h2 (fun e1 e2 e3 => n2 ⟨e1, e2, e3⟩))
+
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the new certificate's correct signer holds a FastQC, whose vote supermajority meets a negative MVBA record's evidence in a correct validator. -/
+#prove_vc Chorus byz_broadcast_commitqc_pos commitqc_pos_mvba_neg_excl by
+  unveil_local
+  veil_inv_have h_old := commitqc_pos_mvba_neg_excl
+  veil_inv_have h_mdnb := mvba_decided_neg_backed
+  veil_inv_have h_cpf := commit_pos_sig_from_local_fastqc
+  veil_inv_have h_fqb := local_fastqc_pos_backed
+  veil_inv_have h_vupn := vote_unique_pos_neg
+  veil_inv_have h_ccf := commit_cast_fallback_sig_excl
+  intro _hbyz hsup hq C J M hrow
+  by_cases hnew : r = C ∧ j = J ∧ m = M
+  · obtain ⟨rfl, rfl, rfl⟩ := hnew
+    cases hneg : st.aux_mvba_decided_neg j
+    · rfl
+    · exfalso
+      obtain ⟨a, ha_mem, ha_hon⟩ :=
+        nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hsup)
+      have ha' := Bool.eq_false_iff.mpr ha_hon
+      obtain ⟨Qm, hQm_sup, hQm⟩ := h_fqb a j m ha' (h_cpf a j m ha' (hq a ha_mem).1)
+      rcases h_mdnb j hneg with ⟨Qn, hQn_sup, hQn⟩ | ⟨-, ⟨qf, hqf_sup, hqf⟩⟩
+      · obtain ⟨b, hb1, hb2, hb_hon⟩ :=
+          nset.supermajorities_intersect_in_honest Qm Qn hQm_sup hQn_sup
+        have hx := h_vupn b j m (Bool.eq_false_iff.mpr hb_hon) (hQm b hb1)
+        have hy := hQn b hb2
+        rw [hx] at hy; simp at hy
+      · obtain ⟨d, hd1, hd2, hd_hon⟩ := nset.supermajorities_intersect_in_honest q qf hsup hqf_sup
+        have hcf := h_ccf d (Bool.eq_false_iff.mpr hd_hon) (hq d hd1).2
+        have hy := hqf d hd2
+        rw [hcf] at hy; simp at hy
+  · exact h_old C J M (hrow (fun e1 e2 e3 => hnew ⟨e1, e2, e3⟩))
+
 #prove_action Chorus byz_broadcast_commitqc_pos
 
 end Chorus.Proofs

@@ -134,6 +134,30 @@ solver found this cell close to its budget on CI's runner. -/
       rw [hx] at hy; simp at hy
     · exact hm12 (h_proposer_unique_root j m1 m2 hbyzJ hp1 hp2)
 
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; each negative witness needs a correct validator's negative vote or entry, or an equivocating correct proposer. -/
+#prove_vc Chorus commit_assign_neg_mvba inclusion_no_mvba_neg by
+  unveil_local
+  veil_inv_have h_old := inclusion_no_mvba_neg
+  veil_inv_have h_nvn := inclusion_no_honest_vote_neg
+  veil_inv_have h_nfn := inclusion_no_honest_fb_neg
+  veil_inv_have h_pur := proposer_unique_root
+  intro _hbyz _hpart _hab _hcom _hprop _hmsg _hcert _hval hev _hcp _hcn J M hbyzJ hpropJ hall hwe
+  refine ⟨?_, h_old J M hbyzJ hpropJ hall hwe⟩
+  rintro rfl
+  rcases hev with ⟨Qn, hQn_sup, hQn⟩ | ⟨harm, -⟩
+  · obtain ⟨a, ha_mem, ha_hon⟩ :=
+      nset.greater_than_third_one_honest Qn (nset.supermajority_greater_than_third Qn hQn_sup)
+    have hx := h_nvn j a M hbyzJ hpropJ hall hwe (Bool.eq_false_iff.mpr ha_hon)
+    have hy := hQn a ha_mem
+    rw [hx] at hy; simp at hy
+  · rcases harm with ⟨qn, hqn_gtt, hqn⟩ | ⟨m1, m2, hm12, hp1, hp2⟩
+    · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qn hqn_gtt
+      have hx := h_nfn j a M hbyzJ hpropJ hall hwe (Bool.eq_false_iff.mpr ha_hon)
+      have hy := hqn a ha_mem
+      rw [hx] at hy; simp at hy
+    · exact hm12 (h_pur j m1 m2 hbyzJ hp1 hp2)
+
 #prove_action Chorus commit_assign_neg_mvba
 
 end Chorus.Proofs

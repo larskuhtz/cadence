@@ -33,10 +33,11 @@ namespace Chorus.Proofs
   unveil_local
   veil_inv_have h_fb_neg_sig_has_witness := fb_neg_sig_has_witness
   veil_inv_have h_fb_neg_qv_backed := fb_neg_qv_backed
-  veil_inv_have h_fb_neg_qv_is_proposer := fb_neg_qv_is_proposer
   veil_inv_have h_fb_neg_qv_no_pos_quorum := fb_neg_qv_no_pos_quorum
-  veil_inv_have h_vote_cast_entries := vote_cast_entries
-  intro _hbyz_r _sender _hchunk hne1 hne2 hne3 hnie R J M hbyzR hfb x hsup_x
+  veil_inv_have h_rcvd := fb_neg_qv_received
+  veil_inv_have h_rp := vote_rcv_pos_backed
+  veil_inv_have h_rn := vote_rcv_neg_backed
+  intro _hbyz_r hne1 hne2 hne3 hnie R J M hbyzR hfb x hsup_x
   -- Pre-state no-equivocation from the post-state hypotheses (pre-state
   -- signatures persist into the post state).
   have hne1' : ∀ a b c1 c2, st.msg_vote_pos_sig a b c1 = true →
@@ -48,8 +49,7 @@ namespace Chorus.Proofs
     intro a b c h1
     exact hne2 a b c (fun _ => h1)
   obtain ⟨qv, hqv⟩ := h_fb_neg_sig_has_witness R J hbyzR hfb
-  obtain ⟨hqv_sup, hqv_cast⟩ := h_fb_neg_qv_backed R J qv hbyzR hqv
-  have hpropJ := h_fb_neg_qv_is_proposer R J qv hbyzR hqv
+  obtain ⟨hqv_sup, -⟩ := h_fb_neg_qv_backed R J qv hbyzR hqv
   obtain ⟨t, ht_gtt, ht⟩ :=
     cnt.supermajorities_share_third qv x hqv_sup hsup_x
   -- `no_invalid_encoding` passes through unadapted: this action leaves the
@@ -59,18 +59,19 @@ namespace Chorus.Proofs
   obtain ⟨hb_qv, hb_x⟩ := ht b hb_t
   have hb_sig_false : st.msg_vote_pos_sig b J M = false := hb_nosig hb_qv
   refine ⟨b, hb_x, ?_, hb_sig_false⟩
-  -- b is not the newly signed tuple: if it were, b (= r) had already cast a
-  -- complete vote, so under no-equivocation its pre-state entry for J is
-  -- exactly (pos, m) — contradicting the absent pre-state signature — or a
-  -- negative entry — contradicting the new positive signature.
+  -- b is not the newly signed tuple: if it were, R received b's (= r's)
+  -- entry for J, so under no-equivocation that entry is exactly (pos, m) —
+  -- contradicting the absent pre-state signature — or a negative entry —
+  -- contradicting the new positive signature.
   rintro rfl rfl rfl
-  have hcast_r := hqv_cast r hb_qv
-  rcases h_vote_cast_entries r j hcast_r hpropJ with ⟨M0, hM0⟩ | hneg
-  · have hM0m : M0 = m := hne1 r j M0 m (fun _ => hM0) (fun h => absurd rfl (h rfl rfl))
+  rcases h_rcvd R j qv hbyzR hqv r hb_qv with ⟨M0, hM0⟩ | hneg
+  · obtain ⟨-, hs⟩ := h_rp R r j M0 hbyzR hM0
+    have hM0m : M0 = m := hne1 r j M0 m (fun _ => hs) (fun h => absurd rfl (h rfl rfl))
     subst hM0m
-    rw [hb_sig_false] at hM0; simp at hM0
-  · have hx2 := hne2 r j m (fun h => absurd rfl (h rfl rfl))
-    rw [hx2] at hneg; simp at hneg
+    rw [hb_sig_false] at hs; simp at hs
+  · obtain ⟨-, hn'⟩ := h_rn R r j hbyzR hneg
+    have hx2 := hne2 r j m (fun h => absurd rfl (h rfl rfl))
+    rw [hx2] at hn'; simp at hn'
 
 /- Written out: the solver closes this cell, but its time varies between
 runs up to the budget on CI's 4-core runner. -/
@@ -78,7 +79,7 @@ runs up to the budget on CI's 4-core runner. -/
 #prove_vc Chorus byz_sign_vote_pos fast_path_implies_vote_quorums by
   unveil_local
   veil_inv_have h_old := fast_path_implies_vote_quorums
-  intro _hbyz _x _hchunk I0 hI0 hpath J hJ
+  intro _hbyz I0 hI0 hpath J hJ
   rcases h_old I0 hI0 hpath J hJ with ⟨M, q, hq, hall⟩ | hneg
   · exact Or.inl ⟨M, q, hq, fun r hr _ => hall r hr⟩
   · exact Or.inr hneg
@@ -92,7 +93,7 @@ runs up to the budget on CI's 4-core runner. -/
   veil_inv_have h_rcvd := fb_neg_qv_received
   veil_inv_have h_rp := vote_rcv_pos_backed
   veil_inv_have h_rn := vote_rcv_neg_backed
-  intro _hbyz _x _hchunk hne1 hne2 hne3 hnie R J QV q M hR haux hq
+  intro _hbyz hne1 hne2 hne3 hnie R J QV q M hR haux hq
   have hne1' : ∀ a b c1 c2, st.msg_vote_pos_sig a b c1 = true →
       st.msg_vote_pos_sig a b c2 = true → c1 = c2 :=
     fun a b c1 c2 h1 h2 => hne1 a b c1 c2 (fun _ => h1) (fun _ => h2)
@@ -119,7 +120,7 @@ runs up to the budget on CI's 4-core runner. -/
 #prove_vc Chorus byz_sign_vote_pos fastqc_complete_implies_mvba_evidence by
   unveil_local
   veil_inv_have h_old := fastqc_complete_implies_mvba_evidence
-  intro _hbyz _x _hchunk I hI hcomp J hJ
+  intro _hbyz I hI hcomp J hJ
   rcases h_old I hI hcomp J hJ with ⟨M, q, hq, hall⟩ | hneg
   · exact Or.inl ⟨M, q, hq, fun r hr _ => hall r hr⟩
   · exact Or.inr hneg

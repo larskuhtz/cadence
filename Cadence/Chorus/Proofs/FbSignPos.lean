@@ -28,27 +28,15 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
-/- Written out: the solver closes this cell, but its time varies between
-runs up to the budget on CI's 4-core runner. -/
-
-#prove_vc Chorus fb_sign_pos vote_pos_quorum_implies_decodable by
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the new fallback entry only adds to a FallbackQC. -/
+#prove_vc Chorus fb_sign_pos mvba_decided_pos_backed by
   unveil_local
-  veil_inv_have h_old := vote_pos_quorum_implies_decodable
-  intro _hbyz _hpart _hab _hph _hvoted _hcast _hpath _hprop _qv _hqv _hqvc _hq _hqs _hwe _hfresh
-    J M x hx hsig
-  obtain ⟨q, hq, hall⟩ := h_old J M x hx hsig
-  exact ⟨q, hq, fun r hr => let ⟨s, hs⟩ := hall r hr; ⟨s, fun _ => hs⟩⟩
-
-/- Written out: the solver closes this cell, but its time varies between
-runs up to the budget on CI's 4-core runner. -/
-
-#prove_vc Chorus fb_sign_pos msg_commitqc_pos_chunks_decodable by
-  unveil_local
-  veil_inv_have h_old := msg_commitqc_pos_chunks_decodable
-  intro _hbyz _hpart _hab _hph _hvoted _hcast _hpath _hprop _qv _hqv _hqvc _hq _hqs _hwe _hfresh
-    C J M hC
-  obtain ⟨q, hq, hall⟩ := h_old C J M hC
-  exact ⟨q, hq, fun r hr => let ⟨s, hs⟩ := hall r hr; ⟨s, fun _ => hs⟩⟩
+  veil_inv_have h_old := mvba_decided_pos_backed
+  intro _h1 _h2 _h3 _h4 _h5 _h6 _h7 _h8 _x _hx _hxv _hq _hps _hqs _hwe _hfr J M hJM
+  rcases h_old J M hJM with h | ⟨⟨q, hq, hall⟩, hc⟩
+  · exact Or.inl h
+  · exact Or.inr ⟨⟨q, hq, fun r hr _ => hall r hr⟩, hc⟩
 
 #prove_action Chorus fb_sign_pos
 

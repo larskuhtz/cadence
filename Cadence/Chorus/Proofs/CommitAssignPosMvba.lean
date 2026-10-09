@@ -62,10 +62,10 @@ solver closes this cell only near its budget, so it is written out. -/
   by_cases hnew : j = J ∧ m = M
   · obtain ⟨rfl, rfl⟩ := hnew
     rcases hev with ⟨-, ⟨q, hq_sup, hq⟩⟩ | ⟨-, ⟨qf, hqf_gtt, hqf⟩, -⟩
-    · exact h_dec j m q (nset.supermajority_greater_than_third q hq_sup) hq
+    · exact h_dec j m q hq_sup hq
     · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qf hqf_gtt
       obtain ⟨q, hq_gtt, hq⟩ := h_fb a j m (Bool.eq_false_iff.mpr ha_hon) (hqf a ha_mem)
-      exact h_dec j m q hq_gtt hq
+      exact ⟨q, hq_gtt, fun r hr => (hq r hr).2⟩
   · exact h_old J M (hpost (fun h1 h2 => hnew ⟨h1, h2⟩))
 
 /- Written out: the solver closes this cell, but its time varies between
@@ -115,7 +115,7 @@ runs up to the budget on CI's 4-core runner. -/
       obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qf hqf_gtt
       obtain ⟨q, hq_gtt, hq⟩ := h_fb a j m (Bool.eq_false_iff.mpr ha_hon) (hqf a ha_mem)
       obtain ⟨d, hd1, hd2⟩ := cnt.supermajority_meets_third Qf q hQf_sup hq_gtt
-      exact hne1 d j M1 m (hQf d hd1) (hq d hd2)
+      exact hne1 d j M1 m (hQf d hd1) (hq d hd2).1
   · exact h_old hne1 hne2 hne3 hnie I1 I2 J M1 M2 h1 h2 hfq
       (hpost (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩))
 
@@ -140,6 +140,46 @@ proposer's root. Written out for the same reason as
       exact h_inclusion_fb_pos_unique j a M m hbyzJ hpropJ hall hwe
         (Bool.eq_false_iff.mpr ha_hon) (hqf a ha_mem)
   · exact h_pi J I M M' hbyzJ hpropJ hall hwe hI (hc (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩))
+
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the new record's evidence meets the FastQC's vote supermajority. -/
+#prove_vc Chorus commit_assign_pos_mvba spec_fastqc_pos_mvba_pos_unique by
+  unveil_local
+  veil_inv_have h_old := spec_fastqc_pos_mvba_pos_unique
+  veil_inv_have h_fqb := local_fastqc_pos_backed
+  veil_inv_have h_vu := vote_unique_pos
+  veil_inv_have h_fb := msg_fb_pos_sig_backed
+  intro _hbyz _hpart _hab _hcom _hprop _hmsg _hcert _hval hev _hfresh _hneg hne1 hne2 hne3 hnie
+    I J M M' hI hfq hpost
+  by_cases hnew : j = J ∧ m = M'
+  · obtain ⟨rfl, rfl⟩ := hnew
+    obtain ⟨Qf, hQf_sup, hQf⟩ := h_fqb I j M hI hfq
+    rcases hev with ⟨-, ⟨Q2, hQ2_sup, hQ2⟩⟩ | ⟨-, ⟨qf, hqf_gtt, hqf⟩, -⟩
+    · obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest Qf Q2 hQf_sup hQ2_sup
+      exact h_vu b j M m (Bool.eq_false_iff.mpr hb_hon) (hQf b hb1) (hQ2 b hb2)
+    · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qf hqf_gtt
+      obtain ⟨q, hq_gtt, hq⟩ := h_fb a j m (Bool.eq_false_iff.mpr ha_hon) (hqf a ha_mem)
+      obtain ⟨d, hd1, hd2⟩ := cnt.supermajority_meets_third Qf q hQf_sup hq_gtt
+      exact hne1 d j M m (hQf d hd1) (hq d hd2).1
+  · exact h_old hne1 hne2 hne3 hnie I J M M' hI hfq (hpost (fun e1 e2 => hnew ⟨e1, e2⟩))
+
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the new record's evidence has a correct signer, which signed only the premise's root. -/
+#prove_vc Chorus commit_assign_pos_mvba inclusion_mvba_pos_unique by
+  unveil_local
+  veil_inv_have h_old := inclusion_mvba_pos_unique
+  veil_inv_have h_vpu := inclusion_vote_pos_unique
+  veil_inv_have h_fpu := inclusion_fb_pos_unique
+  intro _hbyz _hpart _hab _hcom _hprop _hmsg _hcert _hval hev _hfresh _hneg J M M' hJ hJp hall hwe hpost
+  by_cases hnew : j = J ∧ m = M'
+  · obtain ⟨rfl, rfl⟩ := hnew
+    rcases hev with ⟨-, ⟨q, hq_sup, hq⟩⟩ | ⟨-, ⟨qf, hqf_gtt, hqf⟩, -⟩
+    · obtain ⟨b, hb, hbh⟩ :=
+        nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hq_sup)
+      exact h_vpu j b M m hJ hJp hall hwe (Bool.eq_false_iff.mpr hbh) (hq b hb)
+    · obtain ⟨a, ha, hah⟩ := nset.greater_than_third_one_honest qf hqf_gtt
+      exact h_fpu j a M m hJ hJp hall hwe (Bool.eq_false_iff.mpr hah) (hqf a ha)
+  · exact h_old J M M' hJ hJp hall hwe (hpost (fun e1 e2 => hnew ⟨e1, e2⟩))
 
 #prove_action Chorus commit_assign_pos_mvba
 
