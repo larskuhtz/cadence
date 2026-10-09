@@ -509,6 +509,198 @@ The model-level DA safety theorem is
 has `f+1` chunks held for the committed root — the counterpart of
 "`recoverProposals` does not block" (Algorithm 6, line 12 (`line:da-wait`)).
 
+### 3.5.3 Vote validity at the receivers (R39 design, for review)
+
+*Status: design, awaiting review. Once implemented, this section and
+§3.5.2 are rewritten to describe the model as it then is.*
+
+Two Byzantine actions still carry the check a correct receiver applies
+([Locality.md](Locality.md) §4.2, B4): `byz_cast_vote` requires a signed
+entry for every proposer, and `byz_sign_vote_pos` requires
+`chunk_received r j m`. This design moves both checks to the correct
+receivers, where the paper has them.
+
+**The paper's receiver.** Algorithm 4 (`alg:fast-path-certification`), the
+vote handler, upon receiving `⟨Vote, s, SignedEntries, Chunks,
+DecryptShare⟩` from `p_r`:
+
+> for each proposer `p_j ∈ s.proposers`: if `SignedEntries` has no entry
+> for `p_j`, or its signature fails verification under `p_r`: return.
+> Let `⟨⟨s, j, ρ⟩, σ⟩` be the signed entry for `p_j`. If `ρ ≠ ⊥`, and
+> either no `m ∈ Chunks` has (chunk index `r` and matching `ρ`), or
+> `tryIngestChunk(m) = false`: return.
+> If `tryIngestShare(r, DecryptShare) = false`: return.
+> For each signed entry `pv = ⟨E, σ⟩ ∈ SignedEntries` with
+> `E = ⟨s, j, ρ⟩`: `Votes(j, ρ) ← Votes(j, ρ) ∪ {pv}`.
+
+`tryIngestChunk` (Algorithm 6 (`alg:da`)) rejects a chunk unless `j` is a
+proposer of the slot, the proposer's signature on `⟨Root, s, j, ρ⟩`
+verifies, and the Merkle proof verifies index `r` against `ρ`.
+`tryIngestShare` verifies the decryption share. So the handler is atomic:
+a vote is accepted only if it is complete, every positive entry carries
+a valid chunk with the sender's index, and the share verifies; only then
+do its entries count. Both checks the B4 table lists are stated; there is
+no paper-side finding. What a correct vote carries is Algorithm 3, line 14
+(`line:vote-broadcast`): one signed entry per proposer, the chunk assigned
+to the voter for each positive entry, and the share.
+
+**(a) Completeness.** `byz_cast_vote` drops its guard: a Byzantine
+validator casts any vote, complete or not. The check moves into a ghost
+over the sender's broadcast rows, read positively by the receivers (R2):
+
+```
+ghost relation vote_entry_valid (r j : node) :=
+  (∃ m, msg_vote_pos_sig r j m ∧ msg_vote_chunk r j m ∧ msg_proposer_signed j m)
+  ∨ msg_vote_neg_sig r j
+ghost relation vote_valid (r : node) :=
+  msg_vote_cast r ∧ msg_decrypt_share r ∧ ∀ j, is_proposer j → vote_entry_valid r j
+```
+
+`vote_valid r` holds iff some complete vote of `r` passes the handler.
+The model keeps a vote's entries as per-entry signature rows, so an
+equivocating sender's rows may support several such votes; a receiver
+that takes `r`'s entry for `j` from one and its entry for `j′` from
+another still holds entries that form one valid vote, because each entry
+is checked on its own. The correct steps that count *votes* read it:
+
+| Action | Old guard | New guard | The paper's rule |
+|---|---|---|---|
+| `receive_vote_pos i r j m` | `msg_vote_cast r`, `msg_vote_pos_sig r j m` | `vote_valid r`, `msg_vote_pos_sig r j m`, `msg_vote_chunk r j m`, `msg_proposer_signed j m` | the vote handler: the whole vote is checked, then entry `j` counts |
+| `receive_vote_neg i r j` | `msg_vote_cast r`, `msg_vote_neg_sig r j` | `vote_valid r`, `msg_vote_neg_sig r j` | the same |
+| `fb_sign_pos i j m q`, the `2f+1` guard | `∃ qv, supermajority qv ∧ ∀ r ∈ qv, msg_vote_cast r` | `… ∀ r ∈ qv, vote_valid r` | "at least `2f+1` valid Vote messages have been received" (Algorithm 5, line 7 (`line:fb-pathvote-guard`)) |
+| `fb_sign_pos i j m q`, (b) | `∀ r ∈ q, msg_vote_pos_sig r j m` | `∀ r ∈ q, msg_vote_pos_sig r j m ∧ msg_vote_chunk r j m ∧ vote_valid r`, and `msg_proposer_signed j m` | "collected `f+1` valid positive votes for `(p_j, ρ)`" (Algorithm 5, line 8 (`line:fb-cast-entry`)) |
+| `fb_sign_neg i j qv` | its own receipts | unchanged: the receipts are now taken only from valid votes | "among the votes received" |
+| `byz_cast_vote r` | an entry for every proposer | none | — |
+
+`vote_cast_entries` (every cast vote carries an entry per proposer) is
+false of a Byzantine sender once its guard is gone. It becomes two facts:
+on the receiver side, `vote_rcv_pos_backed` / `vote_rcv_neg_backed` gain
+`vote_valid R` (a correct receipt comes from a valid vote), and on the
+sender side, restated for correct senders, *a correct validator's cast
+vote is valid* (`¬ is_byz R ∧ msg_vote_cast R → vote_valid R`), which is
+what the liveness proofs use: they apply it only to correct voters
+(`vote_pos_sig_frozen`, `eventually_received`).
+
+**`aggregate_fastqc_*` keeps its signature read — a change to the plan.**
+The kick-off asked that every vote-quorum read behind a FastQC count only
+complete votes. The paper's FastQC is a transferable certificate, "an
+aggregate of `2f+1` matching signed entries" (Algorithm 4, line 18
+(`line:fast-formqc`)), and a correct validator also *adopts* one: from any
+valid fast meta-block (Algorithm 4 (`alg:fast-path-certification`), the
+`FastBlock` handler) and from a fallback vote (Algorithm 5, line 20
+(`line:fb-harvest`)). A FastQC carries no chunks and no votes, so its only
+check is its signatures, and the adversary, which reads every signed entry
+on the network, can assemble one from any `2f+1` and send it in a
+`FastBlock`. `aggregate_fastqc_*` models formation and adoption together
+(its doc comment says so, and its (F-justice) Owed condition already names
+the `FastBlock` route), so its guard is the adoption check: `2f+1`
+signatures. Filtering it by `vote_valid` would remove runs the paper
+allows a correct validator, which weakens every claim. The decodability
+of a FastQC root does not need the filter either; see (b).
+
+**(b) The carried chunk.** `byz_sign_vote_pos` drops `chunk_received r j m`.
+A positive vote entry's chunk becomes a message of its own:
+
+```
+/-- Sender `r`'s vote carries its assigned chunk (index `r`) under
+proposer `j`'s root `m`, backing its positive entry for `j`. -/
+relation msg_vote_chunk (r : node) (j : node) (m : merkle_root)
+```
+
+It is written by `vote` beside the positive entry
+(`msg_vote_chunk i J M := msg_vote_chunk i J M || (is_proposer J && local_entry_pos i J M)`;
+a correct voter holds that chunk, `local_entry_pos_chunk`), and by a new
+Byzantine action `byz_carry_vote_chunk r j m`, guarded by its actor marker
+only (unfair, (F-byz)).
+
+*Why a new relation, and not `msg_chunk` at sender `r`.* `msg_chunk s i j m`
+is the point-to-point message carrying *`i`'s* chunk, sent to `i`. The
+vote's chunk has the *sender's* index `r` and is broadcast with the vote,
+so `msg_chunk r I j m` would carry the wrong index, and `msg_chunk r r j m`
+("`r` holds its chunk") is a point-to-point row at recipient `r`, which a
+correct receiver `i ≠ r` may not read (R2). `msg_vote_chunk` is a broadcast
+row at sender `r`, which every correct receiver reads positively (R2), and
+which a Byzantine sender writes only under its own name (B1).
+
+*Why the Byzantine action needs no guard.* The model does not track chunk
+contents; a chunk passes the Merkle check iff it is the real chunk of `ρ`
+at its index, which its holder can show. Nothing limits what the adversary
+reads (§4.2), so it holds every chunk any validator was sent, and for its
+own proposers' roots every chunk it chose to make — the same reading as
+`byz_redisseminate_chunk` since R36b. The check left to the receiver is
+the one the model can state: `j` is a proposer and its signature on `ρ`
+is on the network (`msg_proposer_signed j m`), which `tryIngestChunk`
+checks and which the old guard did not. A separate action rather than a
+flag on `byz_sign_vote_pos` follows the file's one-capability-per-action
+convention (§5) and leaves signing and carrying independent.
+
+*Decodability counts carried chunks.* The ghost becomes
+
+```
+ghost relation chunk_quorum (j : node) (m : merkle_root) :=
+  ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_vote_chunk r j m
+```
+
+`f+1` validators broadcast their chunk under `m`, so every correct
+validator that receives those votes holds `f+1` chunks: `isDecoded(m)`.
+This is the paper's own argument (Proposition 4 (`prop:chorus-totality`),
+the proof's FastQC case: the `2f+1` positive signed entries "include at
+least `f+1` from honest validators, each of which included the chunk
+assigned to it in its first-round vote"), where the current ghost counts
+chunks held privately. The invariants follow:
+
+| Invariant | Old | New |
+|---|---|---|
+| `vote_pos_sig_chunk` | every positive vote signature is chunk-backed (`chunk_received`) | correct senders only: `¬ is_byz R → (msg_vote_chunk R J M ↔ msg_vote_pos_sig R J M)` |
+| `vote_pos_quorum_implies_decodable` | `f+1` positive signatures → `chunk_quorum` | `vote_quorum_pos J M → chunk_quorum J M`: `2f+1` signatures hold `f+1` correct ones (`honest_third_in_supermajority`), each carrying its chunk |
+| `msg_fb_pos_sig_backed` | `f+1` positive signatures | `f+1` valid positive votes: `msg_vote_pos_sig r J M ∧ msg_vote_chunk r J M ∧ vote_valid r` |
+| `local_fastqc_pos_chunks_decodable`, `mvba_decided_pos_chunks_decodable`, `msg_commitqc_pos_chunks_decodable` | statement unchanged | over the new `chunk_quorum`; the FallbackQC route through `msg_fb_pos_sig_backed`, the FastQC routes through `vote_pos_quorum_implies_decodable` |
+
+`avail_ready_chunks` and the commit availability condition keep
+`chunk_received`: `AvailReady` is the validator's *own* assigned chunk
+received (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit
+availability condition"), a different fact.
+
+**Statement changes for review.**
+
+* **A claim:** `Chorus.local_committed_pos_implies_decodable`
+  ([Chorus/Compose.lean](../Cadence/Chorus/Compose.lean), axiom-pinned)
+  spells out the old ghost: "`f+1` validators `r` with
+  `∃ s, msg_chunk s r J M`". It becomes "`f+1` validators `r` with
+  `msg_vote_chunk r J M`": the chunks were broadcast, not merely held. It
+  is not in [Cadence.lean](../Cadence.lean)'s index.
+* **Faithfulness additions beyond the two B4 checks:** `vote_valid`
+  includes the proposer-signature half of `tryIngestChunk`
+  (`msg_proposer_signed j m`) and `tryIngestShare` (`msg_decrypt_share r`).
+  Today's receivers accept a positive entry on an unsigned root, and a vote
+  without a share, which the paper's handler rejects. Neither restricts the
+  adversary: `byz_sign_proposer` only for a Byzantine proposer, and
+  `byz_release_msg_decrypt_share`, are unguarded, and B2 already forbids
+  forging a correct proposer's signature.
+* No contract, premise or (F-justice) label changes.
+
+**(c) Timing rows and premises.** None move. Every row the change touches
+is owed only for correct senders ([Premises.md](Premises.md), the
+(F-justice) table: `receive_vote_*` "the voter `r` is correct";
+`fb_sign_pos` "`q` is correct and a correct supermajority has cast its
+votes"), and a correct vote is atomic: its entries, chunks, share and cast
+are written in one `vote` step, so it is valid from the step it is cast,
+and the enabling time of each row is unchanged. The proofs gain one
+hypothesis per row, discharged by "a correct cast vote is valid". The new
+Byzantine action is unfair, so it has no row. The liveness files change
+mechanically: the new label in the label-class matches, the new relation
+in the frame lists ([Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)),
+the enabledness lemmas `enabled_receive_vote_*` and `fb_sign_pos`'s.
+
+**(d) The pin.** `#veil_status Chorus` counts one cell per action and
+property, one does-not-throw cell per action, and one cell per property
+at the initializer: `A · (P + 1) + P`, today `55 · 111 + 110 = 6215`. The
+design adds one action (`byz_carry_vote_chunk`) and no property — four
+invariants are restated and two strengthened, none added or removed — so
+`56 · 111 + 110 = 6326` (+111). A helper invariant found necessary during
+the proofs adds `A + 1 = 57` cells each; any such addition will be listed
+in the PR.
+
 ## 4. Cryptographic primitives
 
 [Cadence/Primitives.lean](../Cadence/Primitives.lean) declares type classes that state
