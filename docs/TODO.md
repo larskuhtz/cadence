@@ -67,7 +67,7 @@ they are listed here because this project would use them.
 * **Liveness inside the models** — liveness-to-safety, surface syntax for
   an action's fairness class, and reachability-directed trace generation
   would let the models state and check their liveness content per action,
-  as they do safety; today the fairness premises are hypotheses of
+  as they do safety; the fairness premises are hypotheses of
   plain-Lean theorems ([Liveness.md](Liveness.md) §3).
 
 ## The monitor
