@@ -484,8 +484,9 @@ before the deadline, and the waits of `cast_fb_commit` and
 `mvba_avail_ready` after it. The timing premise owes each of them within
 `Δ` of a correct sender's send after GST (§7). A Byzantine proposer sends
 any chunk to anyone (`byz_send_chunk`, unconstrained recipient and root),
-and a Byzantine holder of `f+1` chunks can re-disseminate at any time
-(`byz_redisseminate_chunk`); both unfair.
+and any Byzantine validator sends any chunk of any root under its own name
+at any time (`byz_redisseminate_chunk`, guarded by its actor marker only;
+the receiver checks the proposer's signature); both unfair.
 
 The decoding threshold (`isDecoded`) is the ghost `chunk_quorum j m`
 (`f+1` validators hold their chunk). A *valid* positive vote entry carries
@@ -731,8 +732,9 @@ the data has. For a correct sender the first is the honest rule
 `broadcast_commitqc_*`, gated on participation and fired once; the second
 is part of the fallback-entry rule `fb_sign_pos` (Algorithm 5, line 12
 (`line:fb-redisseminate`); since R19, F15). In Byzantine hands they are
-`byz_broadcast_commitqc_*` and `byz_redisseminate_chunk`: the same validity
-checks, no gate, no record, and no fairness ((F-byz)). Until S1b both were branches of the honest actions;
+`byz_broadcast_commitqc_*`, with the certificate's signatures as its only
+check ([Locality.md](Locality.md) §4.2, B2), and `byz_redisseminate_chunk`,
+with none: no gate, no record, and no fairness ((F-byz)). Until S1b both were branches of the honest actions;
 splitting them keeps every fair action fired-once
 ([Bounds.md](Bounds.md) §6.4.7) without constraining the adversary.
 

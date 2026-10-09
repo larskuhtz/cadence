@@ -1495,8 +1495,8 @@ Modelling notes:
   Algorithm 5, line 39 (`line:fb-commit-wait`) sends the validator's *own*
   chunk, which `chunk_quorum` already counts once the validator holds it,
   so it changes no relation and has no step.
-  A Byzantine holder of `f+1` chunks can re-disseminate at any time, unfairly,
-  as `byz_redisseminate_chunk`.
+  A Byzantine validator can send any chunk under its own name at any time,
+  unfairly, as `byz_redisseminate_chunk`.
 * **The DA wait is the paper's, under the `FallbackQC` entries of the
   validator's own `B′`** (Algorithm 5, line 38 (`line:fb-commit-foreach`)). Correct validators agree
   on entries but may decide representations whose certificates differ, so
@@ -1785,14 +1785,12 @@ action byz_send_chunk (i : node) (j : node) (m : merkle_root) {
   msg_chunk j i j m := true
 }
 
-/- A Byzantine sender re-disseminates a decodable chunk (the capability any
-holder of `f+1` chunks has; the correct signer's re-dissemination is part of
-`fb_sign_pos`). -/
+/- A Byzantine sender sends any chunk of any root, under its own name. The
+receiver checks the proposer and its signature (`record_chunk`); nothing
+limits which chunks the adversary knows. The correct signer's
+re-dissemination is part of `fb_sign_pos`. -/
 action byz_redisseminate_chunk (r : node) (i : node) (j : node) (m : merkle_root) {
   require is_byz r
-  require is_proposer j
-  require msg_proposer_signed j m
-  require chunk_quorum j m
   msg_chunk r i j m := true
 }
 
@@ -1805,6 +1803,8 @@ action byz_sign_vote_pos (r : node) (j : node) (m : merkle_root) {
   -- and match the entry's root). This is what makes `f+1` accepted
   -- positive votes pin `f+1` *distinct* chunks, i.e.
   -- `vote_pos_quorum_implies_decodable` honest about `isDecoded`.
+  -- This is the receiver's check stated on the sender; it moves to the
+  -- honest receivers ([Locality.md](../docs/Locality.md) §4, B4).
   require chunk_received r j m
   msg_vote_pos_sig r j m := true
 }
@@ -1817,7 +1817,9 @@ action byz_sign_vote_neg (r : node) (j : node) {
 action byz_cast_vote (r : node) {
   require is_byz r
   -- A broadcast vote is network-valid only if it carries a signed entry
-  -- for every proposer.
+  -- for every proposer. This is the receiver's check stated on the sender;
+  -- it moves to the honest receivers ([Locality.md](../docs/Locality.md) §4,
+  -- B4).
   require ∀ J, is_proposer J →
     ((∃ M, msg_vote_pos_sig r J M) ∨ msg_vote_neg_sig r J)
   msg_vote_cast r := true
@@ -1830,6 +1832,7 @@ action byz_sign_fb_pos (r : node) (j : node) (m : merkle_root) {
   -- NOT required here: it is the caster's local computation over the
   -- reconstructed data, which a receiver cannot re-check at receipt time,
   -- so a Byzantine caster may fallback-yes an ill-encoded root.
+  -- The signature is unforgeable ([Locality.md](../docs/Locality.md) §4, B2).
   require msg_proposer_signed j m
   msg_fb_pos_sig r j m := true
 }

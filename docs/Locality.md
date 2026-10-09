@@ -88,6 +88,18 @@ Every action has exactly one actor.
 
 ## 4. The rules
 
+The rules read differently for the two kinds of validator, because
+constraining each one moves the claims in opposite directions. A theorem
+about the models holds for every run they allow. Restricting a correct
+validator to what it can know and own makes those runs *more* like the real
+protocol's, and the claims stronger; restricting a Byzantine validator
+removes attacks, and makes the claims weaker. So a correct validator's rules
+are **permissions** (§4.1): it may do only what they allow. A Byzantine
+validator's rules are **prohibitions** (§4.2): it may do anything they do not
+forbid, and each prohibition is either cryptography or a gap that is listed.
+
+### 4.1 Correct validators: what a step may do
+
 **A correct validator `x`** reads only:
 
 | Rule | Read | Check |
@@ -107,19 +119,60 @@ and writes only:
 | **W2** | network rows at sender `x`, only by `:= true` (or a disjunction with the old value) | syntactic |
 | **W3** | the sub-protocol state, only as `st := next` after `require <c>.<input> st x … next` | syntactic; *semantic step*: that an input changes no other validator's part, which is the contract's frame fields |
 
+The rules bound what a correct step can *know*; they do not say what it
+*must* do. That is the paper's algorithm, which each action follows, and
+a correct step that waits for less than the paper's handler does, or more,
+is a faithfulness matter, checked against the paper
+([PaperAlignment.md](PaperAlignment.md)), not a locality one.
+
 The actor guard reads the fault predicate at the actor's own index. It marks
 the step as a correct validator's, which is how §3 recognises the actor, and
 reads nothing about any other validator: no correct step reads the fault
 status of another validator, in a guard or in an update.
 
-**A Byzantine validator `x`** may read anything: a coalition of Byzantine
-validators is subsumed by an unconstrained one, and so is ignoring a message
-it has read. It writes only network rows at sender `x` (unforgeability),
-monotonically (W2), and the sub-protocol state only through the contract,
-whose Byzantine behaviour is the contract's. It never writes a correct
-validator's local state or the environment's. *Check*: syntactic. That a
-Byzantine message passes the checks a correct receiver applies is a
-faithfulness matter, stated per action, not a locality one.
+### 4.2 Byzantine validators: what a step must not do
+
+**A Byzantine validator `x`** may do anything the following rules do not
+forbid.
+
+| Rule | Prohibition | Check |
+|---|---|---|
+| **B1** | it writes no correct validator's local state and no environment state; it writes network rows only at sender `x`, and only by `:= true` | syntactic |
+| **B2** | it forges no signature: a row carrying a correct validator's signature is sent only by that validator, a certificate is formed only from signatures on the network, and a proposer-signed root only exists if its proposer signed it (`msg_proposer_signed`) | syntactic: the guard reads the signature's network row positively |
+| **B3** | it changes the sub-protocol state only through the contract, whose own Byzantine behaviour is the implementing model's | syntactic |
+| **B4** | it sends no message that every correct receiver would reject: the check a correct receiver applies is stated as a guard on the Byzantine sender | syntactic; listed below, each one a gap |
+
+**Nothing limits what a Byzantine step reads.** A coalition of Byzantine
+validators is subsumed by one unconstrained adversary, and the models let it
+read even a correct validator's local state, which the paper's adversary,
+seeing only the messages sent to it, cannot. That makes the adversary
+stronger than the paper's, and every claim holds against it; no proof relies
+on what a Byzantine validator does not know.
+
+**B2 models signatures by their absence.** Every message on the network
+carries valid signatures; one with an invalid signature is modelled as never
+sent, which is the same as a correct receiver discarding it. So B2 is the
+cryptographic assumption, part of the locality rules in the inventory of
+what has to be believed ([Architecture.md](Architecture.md) §4, item 1),
+not a restriction of the adversary's choices. A certificate's content is
+what its signatures determine: a timeout certificate's `highPrepQC` is the
+highest certificate its members carry (Supplement, Algorithm 1, line 4
+(`line:mvba:derived`)), which is why `byz_form_tc_lock` reads its members'
+views.
+
+**B4 is a gap in the model, to be closed.** A guard that stands for a
+receiver's check is equivalent to the check only while every correct
+receiver applies it, and it hides the check from the correct side, where
+the paper has it. Each one moves to the correct receivers, after which only
+B1–B3 constrain the adversary. The B4 guards that remain:
+
+| Model | Action | Guard | The receiver's check (paper) |
+|---|---|---|---|
+| Chorus | `byz_sign_vote_pos` | `chunk_received r j m` | a positive entry carries its chunk, which the receiver verifies (Algorithm 4 (`alg:fast-path-certification`), the vote handler) |
+| Chorus | `byz_cast_vote` | an entry for every proposer | a vote carries an entry for every proposer (Algorithm 4 (`alg:fast-path-certification`), the vote handler) |
+| Mvba | `byz_timeout_qc` | `vord.le w v` | a certificate above the timeout's view counts as `⊥` (the [Mvba.lean](../Cadence/Mvba.lean) header); when it moves, `byz_form_tc_lock`'s derived `highPrepQC` reads such a member as `⊥` too |
+
+### 4.3 The environment and the sub-protocol
 
 **The environment** reads and writes only environment state. It never
 reads or writes a validator's state or the network. *Check*: syntactic.

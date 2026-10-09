@@ -34,7 +34,7 @@ runs up to the budget on CI's 4-core runner. -/
 #prove_vc Chorus byz_redisseminate_chunk local_fastqc_pos_chunks_decodable by
   unveil_local
   veil_inv_have h_old := local_fastqc_pos_chunks_decodable
-  intro _hbyz _hprop _hsig _x _hx _hall I J M hI hfq
+  intro _hbyz I J M hI hfq
   obtain ⟨q, hq, hall⟩ := h_old I J M hI hfq
   refine ⟨q, hq, fun r hr => ?_⟩
   obtain ⟨s, hs⟩ := hall r hr

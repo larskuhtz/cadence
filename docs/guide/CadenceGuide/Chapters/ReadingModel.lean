@@ -212,16 +212,21 @@ entries, and the validator re-broadcasts it.
 {model Cadence.Chorus "action byz_sign_vote_pos"}
 
 A Byzantine validator `r` signs a positive vote entry for any proposer and
-any root, as often as it likes. The one guard it meets is the check an
-honest receiver makes: a positive vote entry carries the signer's chunk,
-and a vote without one is discarded on receipt, so it could never influence
-a correct validator.
+any root, as often as it likes. Its one guard is the check an honest
+receiver makes: a positive vote entry carries the signer's chunk, and a
+vote without one is discarded on receipt. Stated on the sender, the check
+holds only while every correct receiver applies it, so it is a listed gap
+in the model ([Locality.md](../../../Locality.md) §4.2, rule B4), to move
+to the receivers, where the paper has it.
 
 The adversary is a family of such actions, `byz_*`, one per capability:
 each kind of signature, sending a chunk, re-disseminating one, and
 forming and sending a commit certificate. Each writes only its own
-messages, so signatures cannot be forged. {chapter ModelIdioms}[Chapter 4] explains why the
-adversary has to be at least this strong.
+messages, so signatures cannot be forged. Beyond that, a Byzantine action
+may do anything the rules of [Locality.md](../../../Locality.md) §4.2 do
+not forbid, since every restriction of the adversary weakens the claims.
+{chapter ModelIdioms}[Chapter 4] explains why the adversary has to be at
+least this strong.
 
 # The MVBA as a consumed contract
 
