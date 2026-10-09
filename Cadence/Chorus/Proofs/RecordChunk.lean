@@ -50,6 +50,21 @@ runs up to the budget on CI's 4-core runner. -/
     exact h_vpd a (Bool.eq_false_iff.mpr ha_hon) hv hph
   · exact h_mdp J M' (Or.inl haux) hph
 
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; before the deadline no correct validator has voted, so no commit certificate exists. -/
+#prove_vc Chorus record_chunk inclusion_commitqc_pos_root by
+  unveil_local
+  veil_inv_have h_votes := msg_commitqc_pos_votes
+  veil_inv_have h_sv := vote_sig_pos_implies_voted
+  veil_inv_have h_vpd := voted_post_deadline
+  intro _hbyz _hj _x _hx _hps hph _hnp _hnn C J M M' _hJ _hJp _hall _hwe hqc
+  exfalso
+  obtain ⟨q, hq, hallq⟩ := h_votes C J M' hqc
+  obtain ⟨b, hb, hbh⟩ :=
+    nset.greater_than_third_one_honest q (nset.supermajority_greater_than_third q hq)
+  have hb' := Bool.eq_false_iff.mpr hbh
+  exact h_vpd b hb' (h_sv b J M' hb' (hallq b hb)) hph
+
 #prove_action Chorus record_chunk
 
 end Chorus.Proofs

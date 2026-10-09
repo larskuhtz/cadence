@@ -152,6 +152,7 @@ def ByzLabel : Chorus.Label slot node nodeset merkle_root mstate mvalue mentries
   | .byz_send_chunk .. => True
   | .byz_redisseminate_chunk .. => True
   | .byz_sign_vote_pos .. => True
+  | .byz_carry_vote_chunk .. => True
   | .byz_sign_vote_neg .. => True
   | .byz_cast_vote .. => True
   | .byz_sign_fb_pos .. => True
@@ -440,6 +441,7 @@ theorem mvba_st_frame_of_not_step
   case byz_sign_proposer => exact Chorus.byz_sign_proposer.frame_mvba_st htr
   case byz_send_chunk => exact Chorus.byz_send_chunk.frame_mvba_st htr
   case byz_sign_vote_pos => exact Chorus.byz_sign_vote_pos.frame_mvba_st htr
+  case byz_carry_vote_chunk => exact Chorus.byz_carry_vote_chunk.frame_mvba_st htr
   case byz_sign_vote_neg => exact Chorus.byz_sign_vote_neg.frame_mvba_st htr
   case byz_cast_vote => exact Chorus.byz_cast_vote.frame_mvba_st htr
   case byz_sign_fb_pos => exact Chorus.byz_sign_fb_pos.frame_mvba_st htr
@@ -1008,6 +1010,7 @@ theorem justice_enabledMove
   case byz_send_chunk => exact absurd trivial hl.1
   case byz_redisseminate_chunk => exact absurd trivial hl.1
   case byz_sign_vote_pos => exact absurd trivial hl.1
+  case byz_carry_vote_chunk => exact absurd trivial hl.1
   case byz_sign_vote_neg => exact absurd trivial hl.1
   case byz_cast_vote => exact absurd trivial hl.1
   case byz_sign_fb_pos => exact absurd trivial hl.1

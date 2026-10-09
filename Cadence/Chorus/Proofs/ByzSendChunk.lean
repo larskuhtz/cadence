@@ -28,18 +28,6 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
-/- Written out: the solver closes this cell, but its time varies between
-runs up to the budget on CI's 4-core runner. -/
-
-#prove_vc Chorus byz_send_chunk mvba_decided_pos_chunks_decodable by
-  unveil_local
-  veil_inv_have h_old := mvba_decided_pos_chunks_decodable
-  intro _hbyz J M haux
-  obtain ⟨q, hq, hall⟩ := h_old J M haux
-  refine ⟨q, hq, fun r hr => ?_⟩
-  obtain ⟨s, hs⟩ := hall r hr
-  exact ⟨s, fun _ => hs⟩
-
 #prove_action Chorus byz_send_chunk
 
 end Chorus.Proofs

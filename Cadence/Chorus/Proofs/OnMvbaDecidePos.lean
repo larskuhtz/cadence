@@ -95,10 +95,10 @@ runs up to the budget on CI's 4-core runner. -/
   by_cases hnew : j = J ∧ m = M
   · obtain ⟨rfl, rfl⟩ := hnew
     rcases hev with ⟨-, ⟨q, hq_sup, hq⟩⟩ | ⟨-, ⟨qf, hqf_gtt, hqf⟩, -⟩
-    · exact h_dec j m q (nset.supermajority_greater_than_third q hq_sup) hq
+    · exact h_dec j m q hq_sup hq
     · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qf hqf_gtt
       obtain ⟨q, hq_gtt, hq⟩ := h_fb a j m (Bool.eq_false_iff.mpr ha_hon) (hqf a ha_mem)
-      exact h_dec j m q hq_gtt hq
+      exact ⟨q, hq_gtt, fun r hr => (hq r hr).2⟩
   · exact h_old J M (hpost (fun h1 h2 => hnew ⟨h1, h2⟩))
 
 #prove_action Chorus on_mvba_decide_pos

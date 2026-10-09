@@ -982,6 +982,7 @@ theorem sent_mono {l} (htr : (atMvba thM).tr thS s l s') (i : node)
   | votePos j m => exact Chorus.msg_vote_pos_sig_mono htr i j m h
   | voteNeg j => exact Chorus.msg_vote_neg_sig_mono htr i j h
   | voteCast => exact Chorus.msg_vote_cast.mono htr i h
+  | voteChunk j m => exact Chorus.msg_vote_chunk_mono htr i j m h
   | fbPos j m => exact Chorus.msg_fb_pos_sig.mono htr i j m h
   | fbNeg j => exact Chorus.msg_fb_neg_sig.mono htr i j h
   | fallback => exact Chorus.msg_fallback_sig.mono htr i h

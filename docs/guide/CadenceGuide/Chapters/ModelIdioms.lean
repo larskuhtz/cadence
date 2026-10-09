@@ -82,10 +82,10 @@ and writes
 
 These rules are permissions: a correct step may do only what they allow.
 A Byzantine validator's rules are the opposite, prohibitions: it may do
-anything except forge a signature or write what it does not own, and
-every further restriction is listed as a gap to close
-([Locality.md](../../../Locality.md) §4.2), since each one would weaken
-the claims. The environment reads and writes only global time. A read or
+anything except forge a signature, write what it does not own, or change
+the MVBA other than through its contract (rules B1–B3 of
+[Locality.md](../../../Locality.md) §4.2), since any further restriction
+would weaken the claims. The environment reads and writes only global time. A read or
 a write by a correct step that fits no rule is a gap in the model, to be
 replaced by one that fits.
 
@@ -135,13 +135,13 @@ Where the paper's rule does depend on what a validator has *not* received,
 the model gives the validator that state. The fallback entry is negative
 when, among the votes the validator received, no root has enough positive
 votes. So the validator keeps a receipt of each vote it receives,
-`receive_vote_pos` and `receive_vote_neg`, and `fb_sign_neg` reads its own
-receipts:
+`receive_vote_pos` and `receive_vote_neg`, which take only votes that pass
+the paper's check, and `fb_sign_neg` reads its own receipts:
 
 {model Cadence.Chorus "action fb_sign_neg"}
 
 Monotone updates hold by the form of every update: Veil's generated
-monotonicity lemmas cover the updates that write `true`, and the three bulk
+monotonicity lemmas cover the updates that write `true`, and the bulk
 updates of `vote` are proven monotone by hand. The rules on reads are
 checked by reading each action, and the audit table below records that
 check ([Architecture.md](../../../Architecture.md) §4,
@@ -163,12 +163,13 @@ can
 * act at any time, with no fairness, so no liveness argument relies on its
   help ((F-byz), [Premises.md](../../../Premises.md) §3.1).
 
-Its guards are the checks an honest receiver makes: a positive vote entry
-carries the signer's chunk, a vote has an entry for every proposer, a
-positive fallback entry carries the proposer's signature, a certificate
-has its signatures. A message failing them is discarded on receipt, so
-these guards remove only messages that could never influence a correct
-validator. What the adversary cannot do is send under a correct
+Its only guards are signatures that must exist: a positive fallback entry
+carries the proposer's signature, and a certificate has its signatures.
+Every other check is the correct receiver's: a vote counts only if it has
+an entry for every proposer and each positive entry carries the signer's
+chunk under a root its proposer signed, so the adversary may send a vote
+that fails the check, and no correct validator counts it. What the
+adversary cannot do is send under a correct
 validator's name or write its rows, which is how the model states that
 signatures cannot be forged. Inside the MVBA it can do whatever the class
 `MVBASafety` leaves unconstrained ([ChorusDesign.md](../../../ChorusDesign.md) §5).

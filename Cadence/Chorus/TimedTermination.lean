@@ -147,7 +147,7 @@ theorem fb_pos_sig_flip {l} {k j : node} {m : merkle_root}
   cases l
   case fb_sign_pos i' j' m' q =>
     chorus_tr htr
-    obtain ⟨-, -, -, -, -, hc, hp, -, -, -, -, -, -, rfl⟩ := htr
+    obtain ⟨-, -, -, -, -, hc, hp, -, -, -, -, -, -, -, rfl⟩ := htr
     chorus_field_simp
     by_cases hik : i' = k
     · subst hik

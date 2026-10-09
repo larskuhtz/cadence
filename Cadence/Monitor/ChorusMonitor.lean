@@ -246,6 +246,7 @@ def decodeLabel (act : String) (args : List Json) : Except String Lbl :=
   | "byz_send_chunk", [a,b,c]        => do pure (.byz_send_chunk (← dNode a) (← dNode b) (← dRoot c))
   | "byz_redisseminate_chunk", [a,b,c,d] => do pure (.byz_redisseminate_chunk (← dNode a) (← dNode b) (← dNode c) (← dRoot d))
   | "byz_sign_vote_pos", [a,b,c]     => do pure (.byz_sign_vote_pos (← dNode a) (← dNode b) (← dRoot c))
+  | "byz_carry_vote_chunk", [a,b,c]  => do pure (.byz_carry_vote_chunk (← dNode a) (← dNode b) (← dRoot c))
   | "byz_sign_vote_neg", [a,b]       => do pure (.byz_sign_vote_neg (← dNode a) (← dNode b))
   | "byz_cast_vote", [a]             => do pure (.byz_cast_vote (← dNode a))
   | "byz_sign_fb_pos", [a,b,c]       => do pure (.byz_sign_fb_pos (← dNode a) (← dNode b) (← dRoot c))

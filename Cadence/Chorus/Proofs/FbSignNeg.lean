@@ -145,6 +145,31 @@ runs up to the budget on CI's 4-core runner. -/
     exact hguard M q hq hall
   · exact h_old R J QV q M hR (haux (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩)) hq hall
 
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; under the premise every correct vote in the received supermajority is positive on the root. -/
+#prove_vc Chorus fb_sign_neg inclusion_no_honest_fb_neg by
+  unveil_local
+  veil_inv_have h_old := inclusion_no_honest_fb_neg
+  veil_inv_have h_rp := vote_rcv_pos_backed
+  veil_inv_have h_rn := vote_rcv_neg_backed
+  veil_inv_have h_vpu := inclusion_vote_pos_unique
+  veil_inv_have h_vnn := inclusion_no_honest_vote_neg
+  intro hbyz _hpart _hab _hph _hv _hnc _hpath _hj hqv hrcv hnone _hfr J R M hJ hJp hall hwe hR
+  refine ⟨?_, h_old J R M hJ hJp hall hwe hR⟩
+  rintro rfl rfl
+  obtain ⟨t, ht_gtt, ht⟩ := cnt.honest_third_in_supermajority qv hqv
+  have hw := hnone M t ht_gtt (fun a ha => by
+    obtain ⟨ham, hah⟩ := ht a ha
+    refine ⟨ham, ?_⟩
+    rcases hrcv a ham with ⟨m2, hm2⟩ | hn
+    · have hs := (h_rp _ a _ m2 hbyz hm2).2
+      have he := h_vpu _ a M m2 hJ hJp hall hwe (Bool.eq_false_iff.mpr hah) hs
+      subst he; exact hm2
+    · have hs := (h_rn _ a _ hbyz hn).2
+      have hx := h_vnn _ a M hJ hJp hall hwe (Bool.eq_false_iff.mpr hah)
+      rw [hx] at hs; simp at hs)
+  rw [hwe] at hw; simp at hw
+
 #prove_action Chorus fb_sign_neg
 
 end Chorus.Proofs

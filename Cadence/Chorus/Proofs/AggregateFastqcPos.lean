@@ -51,7 +51,7 @@ invariant conjuncts it needs are named, not indexed
       have hrf_hon' : ByzNodeSet.is_byz rf = false := Bool.eq_false_iff.mpr hrf_hon
       obtain ⟨qv2, hqv2_gtt, hqv2⟩ := h_msg_fb_pos_sig_backed rf j M' hrf_hon' (hqf rf hrf_mem)
       obtain ⟨b, hb1, hb2⟩ := cnt.supermajority_meets_third q qv2 hsup_q hqv2_gtt
-      exact hne1 b j m M' (hq_sigs b hb1) (hqv2 b hb2)
+      exact hne1 b j m M' (hq_sigs b hb1) (hqv2 b hb2).1
   · have hold : st.local_fastqc_pos I J M = true := hfq (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩)
     exact h_spec_fastqc_pos_mvba_pos_unique hne1 hne2 hne3 hnie I J M M' hbyz_I hold hmv
 
@@ -93,6 +93,30 @@ runs up to the budget on CI's 4-core runner. -/
           rw [hb_false] at hy; simp at hy
         · exact hm12 (hne3 j m1 m2 hp1 hp2)
   · exact h_old hne1 hne2 hne3 hnie I1 I2 J M h1 h2 (hpost (fun h1 h2 h3 => hnew ⟨h1, h2, h3⟩))
+
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the two FastQCs' vote supermajorities meet in a correct signer. -/
+#prove_vc Chorus aggregate_fastqc_pos local_fastqc_pos_cross_unique by
+  unveil_local
+  veil_inv_have h_old := local_fastqc_pos_cross_unique
+  veil_inv_have h_fqb := local_fastqc_pos_backed
+  veil_inv_have h_vu := vote_unique_pos
+  intro _hbyz hsup hq _hfresh I1 I2 J M1 M2 hI1 hI2 h1 h2
+  have key : ∀ I M2, ByzNodeSet.is_byz I = false → st.local_fastqc_pos I j M2 = true → m = M2 := by
+    intro I M2 hI hf
+    obtain ⟨Q2, hQ2_sup, hQ2⟩ := h_fqb I j M2 hI hf
+    obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest q Q2 hsup hQ2_sup
+    exact h_vu b j m M2 (Bool.eq_false_iff.mpr hb_hon) (hq b hb1) (hQ2 b hb2)
+  by_cases n1 : i = I1 ∧ j = J ∧ m = M1
+  · obtain ⟨rfl, rfl, rfl⟩ := n1
+    by_cases n2 : i = I2 ∧ m = M2
+    · exact n2.2
+    · exact key I2 M2 hI2 (h2 (fun e1 _ e3 => n2 ⟨e1, e3⟩))
+  · by_cases n2 : i = I2 ∧ j = J ∧ m = M2
+    · obtain ⟨rfl, rfl, rfl⟩ := n2
+      exact (key I1 M1 hI1 (h1 (fun e1 e2 e3 => n1 ⟨e1, e2, e3⟩))).symm
+    · exact h_old I1 I2 J M1 M2 hI1 hI2 (h1 (fun e1 e2 e3 => n1 ⟨e1, e2, e3⟩))
+        (h2 (fun e1 e2 e3 => n2 ⟨e1, e2, e3⟩))
 
 #prove_action Chorus aggregate_fastqc_pos
 

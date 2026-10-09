@@ -165,13 +165,12 @@ the timeout carrying it (Supplement, Algorithm 1, line 4
 **B4 is a gap in the model, to be closed.** A guard that stands for a
 receiver's check is equivalent to the check only while every correct
 receiver applies it, and it hides the check from the correct side, where
-the paper has it. Each one moves to the correct receivers, after which only
-B1–B3 constrain the adversary. The B4 guards that remain:
+the paper has it. None remain: every receiver check is a guard of the
+correct receiver, and only B1–B3 constrain the adversary. The table lists
+the B4 guards a model carries, and is empty:
 
 | Model | Action | Guard | The receiver's check (paper) |
 |---|---|---|---|
-| Chorus | `byz_sign_vote_pos` | `chunk_received r j m` | a positive entry carries its chunk, which the receiver verifies (Algorithm 4 (`alg:fast-path-certification`), the vote handler) |
-| Chorus | `byz_cast_vote` | an entry for every proposer | a vote carries an entry for every proposer (Algorithm 4 (`alg:fast-path-certification`), the vote handler) |
 
 ### 4.3 The environment and the sub-protocol
 
@@ -238,6 +237,6 @@ The auxiliary relations of every model:
 |---|---|---|
 | Cadence (glue) | `skipped`, `resolved`, `delivered`, `appended` | conforms |
 | FallbackReceipt | every relation (one validator) | conforms |
-| Chorus | `local_*`, `participating`, `abandoned` | conforms, checked action by action in the guide's audit table ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)); `send_mvba_cert` sends the certificate its own decision output (`mvba.decidedCert`, an output at the actor's index, R6) |
+| Chorus | `local_*`, `participating`, `abandoned` | conforms, checked action by action in the guide's audit table ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)); `send_mvba_cert` sends the certificate its own decision output (`mvba.decidedCert`, an output at the actor's index, R6); no B4 guard: a Byzantine vote may be incomplete or carry any chunk, and the vote receipts and the fallback entry count only votes that pass the paper's vote handler (`vote_valid`, [ChorusDesign.md](ChorusDesign.md) §3.5.3) |
 | Mvba | every relation except `msg_*` | conforms: the view timer is the validator's own step, every certificate is sent by its former or forwarder under its own name, a decision records its certificate (`decided_qc`), and the adversary aggregates only under its own name (`byz_form_*`); no B4 guard: a Byzantine timeout may carry a certificate of any view, and the timeout-certificate rules read one above the timeout's view as `⊥`, as the supplement's receiver does; [MvbaPlan.md](MvbaPlan.md) §11 has the design |
 | Conductor | `entered`, `local_bounds`, `opened`, `completed` | conforms: each validator computes its window's interval from its own ACS decision in its entry step (`acs_first`, Algorithm 7, line 48 (`line:median-compute`)) and keeps it in its own row, so agreement on the intervals is a property (`[window_assignment_agreement]`), not a shared write; [ConductorBounds.md](ConductorBounds.md) §10 has the design |

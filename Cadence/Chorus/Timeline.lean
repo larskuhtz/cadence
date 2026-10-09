@@ -45,7 +45,7 @@ reached, and the goal widened by the lapse of the step's anti-monotone
 guards, as in the untimed links. Two facts the untimed chain did not need:
 
 * **a correct vote is frozen once cast** (`vote_pos_sig_frozen`): from the
-  invariants `vote_cast_entries`, `vote_unique_pos` and
+  invariants `vote_cast_valid`, `vote_unique_pos` and
   `vote_unique_pos_neg`. So whether the honest quorum's votes are positive
   evidence for a proposer is settled at the index at which they have all
   voted, and the fallback entry's case split (`fb_sign_pos` on the evidence,
@@ -199,14 +199,14 @@ theorem record_chunk_effect {i j : node} {m : merkle_root}
 /-- **A correct vote is frozen once cast.** If a correct validator `a` has
 voted at `N`, a positive vote signature of `a` for a proposer at a later
 index was already there at `N`: at `N` its vote carries an entry for the
-proposer (`vote_cast_entries`), which is unique (`vote_unique_pos`) and
+proposer (`vote_cast_valid`), which is unique (`vote_unique_pos`) and
 excludes a negative one (`vote_unique_pos_neg`), and both persist. -/
 theorem vote_pos_sig_frozen (r : LRun RTS th) {a J : node} {M : merkle_root}
     (ha : ¬ nset.is_byz a = true) (hJ : th.is_proposer J = true) {N n : Nat}
     (hv : (r.at' N).local_voted a = true) (hn : N ≤ n)
     (h : (r.at' n).msg_vote_pos_sig a J M = true) : (r.at' N).msg_vote_pos_sig a J M = true := by
   have hc := Chorus.reachable_voted_implies_cast (r.reachable N) a ⟨ha, hv⟩
-  rcases Chorus.reachable_vote_cast_entries (r.reachable N) a J ⟨hc, hJ⟩ with ⟨M', hM'⟩ | hneg
+  rcases vote_valid_entry (correct_vote_valid (r.reachable N) ha hc) hJ with ⟨M', hM', -, -⟩ | hneg
   · have hM'n := r.mono (P := fun st => st.msg_vote_pos_sig a J M' = true)
       (fun k hk => msg_vote_pos_sig_mono (r.steps k) a J M' hk) hM' n hn
     obtain rfl := Chorus.reachable_vote_unique_pos (r.reachable n) a J M M' ⟨ha, h, hM'n⟩
@@ -416,7 +416,7 @@ From the index `Nv` at which every correct validator has voted (by
 `M + Δ + δ`), `i` takes each correct voter's vote: `receive_vote_*` is a
 `Δ`-row on the vote, owed because its sender is correct, and its guard
 lapses only by the receipt. The vote carries an entry for every proposer
-(`vote_cast_entries`). -/
+(`vote_cast_valid`): it passes the receiver's check. -/
 theorem within_received [Fintype node] (sch : Schedule view time) {r : TChorusRun thS thM time}
     (hTJ : TimedJustice sch r) {t : time}
     {Nv : Nat} (hcv : r.clk Nv ≤ max t r.gst + sch.Δ + sch.δ)
@@ -452,21 +452,27 @@ theorem within_received [Fintype node] (sch : Schedule view time) {r : TChorusRu
           Chorus.reachable_voted_implies_cast (r.reachable n) a
             ⟨ha, r.mono (P := fun st => st.local_voted a = true)
               (fun k hk => Chorus.local_voted.mono (r.steps k) a hk) (hvoted a ha) n hn⟩
-        rcases Chorus.reachable_vote_cast_entries (r.reachable Nv) a J ⟨hcast Nv le_rfl, hJ⟩ with
-          ⟨m, hsm⟩ | hsn
+        rcases vote_valid_entry (correct_vote_valid (r.reachable Nv) ha (hcast Nv le_rfl)) hJ with
+          ⟨m, hsm, hch, hps⟩ | hsn
         · obtain ⟨k, hk, hck, hk'⟩ := r.withinFrom_of_bufferedFair (P := fun st => Received st i a J)
             (hTJ.rows (.receive_vote_pos i a J m) .net rfl (fun h => h)) (le_max_left _ _) hW
             (fun _ _ h => Or.inl ⟨m, receive_vote_pos_effect h⟩)
-            (fun n hn _ hnot => ⟨ha, fun _ => enabled_receive_vote_pos hi hJ (hcast n hn)
+            (fun n hn _ hnot => ⟨ha, fun _ => enabled_receive_vote_pos hi hJ
+              (correct_vote_valid (r.reachable n) ha (hcast n hn))
               (r.mono (P := fun st => st.msg_vote_pos_sig a J m = true)
                 (fun k hk => msg_vote_pos_sig_mono (r.steps k) a J m hk) hsm n hn)
+              (r.mono (P := fun st => st.msg_vote_chunk a J m = true)
+                (fun k hk => msg_vote_chunk_mono (r.steps k) a J m hk) hch n hn)
+              (r.mono (P := fun st => st.msg_proposer_signed J m = true)
+                (fun k hk => Chorus.msg_proposer_signed.mono (r.steps k) J m hk) hps n hn)
               (fun m2 h => hnot (Or.inl ⟨m2, h⟩)) (fun h => hnot (Or.inr h))⟩)
             (fun _ _ _ _ => trivial)
           exact ⟨k, hk, hck, fun _ => hk'⟩
         · obtain ⟨k, hk, hck, hk'⟩ := r.withinFrom_of_bufferedFair (P := fun st => Received st i a J)
             (hTJ.rows (.receive_vote_neg i a J) .net rfl (fun h => h)) (le_max_left _ _) hW
             (fun _ _ h => Or.inr (receive_vote_neg_effect h))
-            (fun n hn _ hnot => ⟨ha, fun _ => enabled_receive_vote_neg hi hJ (hcast n hn)
+            (fun n hn _ hnot => ⟨ha, fun _ => enabled_receive_vote_neg hi hJ
+              (correct_vote_valid (r.reachable n) ha (hcast n hn))
               (r.mono (P := fun st => st.msg_vote_neg_sig a J = true)
                 (fun k hk => msg_vote_neg_sig_mono (r.steps k) a J hk) hsn n hn)
               (fun m2 h => hnot (Or.inl ⟨m2, h⟩)) (fun h => hnot (Or.inr h))⟩)
@@ -555,7 +561,13 @@ theorem within_fb_sig [Fintype node] (sch : Schedule view time) {r : TChorusRun 
       (fun n hn hc hnot => ⟨⟨hQ, qv, hqv, hqvh, hcast n hn⟩, fun hg => ?_⟩)
       (fun n hn hc _ => ⟨hact n (by omega) hc i hi, hNf n (by omega)⟩)
     obtain ⟨hnc, hnp, hnf⟩ := hstuck n hnot
-    exact enabled_fb_sign_pos hi hg.1 hg.2 (hvi n hn) hnc hnp hJ hqv (hcast n hn) hq1 (hsig n hn)
+    exact enabled_fb_sign_pos hi hg.1 hg.2 (hvi n hn) hnc hnp hJ hqv
+      (fun a ha => correct_vote_valid (r.reachable n) (hqvh a ha) (hcast n hn a ha)) hq1
+      (let ⟨a0, ha0, _⟩ := nset.greater_than_third_one_honest q hq1
+       (correct_vote_pos (r.reachable n) (hqvh a0 (hq2 a0 ha0).1) (hsig n hn a0 ha0)).2)
+      (fun a ha => ⟨hsig n hn a ha,
+        (correct_vote_pos (r.reachable n) (hqvh a (hq2 a ha).1) (hsig n hn a ha)).1,
+        correct_vote_valid (r.reachable n) (hqvh a (hq2 a ha).1) (hcast n hn a (hq2 a ha).1)⟩)
       hwe hnf
   · -- None, and none ever appears among `i`'s receipts: each receipt is the
     -- sender's signed entry, frozen since `Nv`. `fb_sign_neg` once `i` holds
