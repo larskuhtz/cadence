@@ -362,7 +362,8 @@ own sends in either polarity.
 | `msg_proposer_signed j m` | outer chunk-header signature `σ` on `⟨s, j, mroot⟩` (Algorithm 2 (`alg:proposer-dissemination`)). |
 | `msg_chunk s i j m` | sender `s` has sent validator `i` its assigned chunk under `j`'s root `m`: the proposer's send (Algorithm 2 (`alg:proposer-dissemination`)) or a fallback signer's re-dissemination (Algorithm 5, line 12 (`line:fb-redisseminate`)). The only point-to-point message — see §3.5.1. |
 | `msg_vote_pos_sig r j m`, `msg_vote_neg_sig r j` | per-proposer signed entries of the `Vote` broadcast (Algorithm 3 (`alg:voting`)). |
-| `msg_vote_cast r` | `r` has broadcast its `Vote` (Algorithm 3, line 14 (`line:vote-broadcast`)). Receivers discard votes without an entry per proposer, so a cast vote implies per-proposer signatures (`vote_cast_entries`). |
+| `msg_vote_cast r` | `r` has broadcast its `Vote` (Algorithm 3, line 14 (`line:vote-broadcast`)). Whether a receiver accepts it is the receiver's check, `vote_valid` (§3.5.3). |
+| `msg_vote_chunk r j m` | the chunk with index `r` under `j`'s root `m` that `r`'s `Vote` carries for its positive entry (Algorithm 3, line 14 (`line:vote-broadcast`)); broadcast with the vote (§3.5.3). |
 | `msg_fb_pos_sig r j m`, `msg_fb_neg_sig r j` | per-proposer signed fallback entries in the `FallbackVote` broadcast (Algorithm 5 (`alg:fallback`)). |
 | `msg_fallback_sig r` | the `σ_r` on `⟨fallback, s⟩` in the `FallbackVote` broadcast. |
 | `msg_commit_pos_sig r j m`, `msg_commit_neg_sig r j` | per-proposer signature inside the `CommitVote` (Algorithm 4 (`alg:fast-path-certification`)). |
@@ -488,37 +489,26 @@ and any Byzantine validator sends any chunk of any root under its own name
 at any time (`byz_redisseminate_chunk`, guarded by its actor marker only;
 the receiver checks the proposer's signature); both unfair.
 
-The decoding threshold (`isDecoded`) is the ghost `chunk_quorum j m`
-(`f+1` validators hold their chunk). A *valid* positive vote entry carries
-the signer's chunk — receivers discard unbacked positive entries
-(Algorithm 4 (`alg:fast-path-certification`), receive handler). The model
-enforces this for Byzantine signers as a validity precondition on
-`byz_sign_vote_pos` and derives it for honest signers, yielding the
-invariant `vote_pos_sig_chunk`: *every* positive vote signature is
-chunk-backed. Consequently an f+1 positive-vote quorum is itself a chunk
-quorum (`vote_pos_quorum_implies_decodable`), and a validator that holds
-`f+1` valid positive votes holds `f+1` chunks: the fallback rules' "decodable
-data" condition is met by the votes they count.
-
-The decided validator's broadcast of its *own* chunk (Algorithm 5, line 39
-(`line:fb-commit-wait`)) changes no relation: `chunk_quorum` counts a
-validator's chunk once it holds it.
+The decoding threshold (`isDecoded`) is the ghost `chunk_quorum j m`:
+`f+1` validators broadcast their chunk under `m` with their votes
+(`msg_vote_chunk`), so every validator that receives those votes holds
+`f+1` distinct chunks. A valid positive vote entry carries the signer's
+chunk, and a receiver counts only valid votes (§3.5.3), so a validator
+that holds `f+1` valid positive votes holds `f+1` chunks: the fallback
+rules' "decodable data" condition is met by the votes they count, and a
+correct positive fallback entry is backed by `f+1` chunk-carrying votes
+(`msg_fb_pos_sig_backed`). A FastQC's `2f+1` signers include `f+1`
+correct ones, each carrying its chunk (`vote_pos_sig_chunk`), so its root
+is decodable too (`vote_pos_quorum_implies_decodable`) — the paper's own
+argument (Proposition 4 (`prop:chorus-totality`), the proof's FastQC case).
 
 The model-level DA safety theorem is
 `local_committed_pos_implies_decodable`: every honest positive commit
-has `f+1` chunks held for the committed root — the counterpart of
-"`recoverProposals` does not block" (Algorithm 6, line 12 (`line:da-wait`)).
+has `f+1` validators that broadcast their chunk for the committed root —
+the counterpart of "`recoverProposals` does not block" (Algorithm 6,
+line 12 (`line:da-wait`)).
 
-### 3.5.3 Vote validity at the receivers (R39 design, for review)
-
-*Status: design, awaiting review. Once implemented, this section and
-§3.5.2 are rewritten to describe the model as it then is.*
-
-Two Byzantine actions still carry the check a correct receiver applies
-([Locality.md](Locality.md) §4.2, B4): `byz_cast_vote` requires a signed
-entry for every proposer, and `byz_sign_vote_pos` requires
-`chunk_received r j m`. This design moves both checks to the correct
-receivers, where the paper has them.
+### 3.5.3 Vote validity at the receivers
 
 **The paper's receiver.** Algorithm 4 (`alg:fast-path-certification`), the
 vote handler, upon receiving `⟨Vote, s, SignedEntries, Chunks,
@@ -535,18 +525,14 @@ DecryptShare⟩` from `p_r`:
 
 `tryIngestChunk` (Algorithm 6 (`alg:da`)) rejects a chunk unless `j` is a
 proposer of the slot, the proposer's signature on `⟨Root, s, j, ρ⟩`
-verifies, and the Merkle proof verifies index `r` against `ρ`.
-`tryIngestShare` verifies the decryption share. So the handler is atomic:
-a vote is accepted only if it is complete, every positive entry carries
-a valid chunk with the sender's index, and the share verifies; only then
-do its entries count. Both checks the B4 table lists are stated; there is
-no paper-side finding. What a correct vote carries is Algorithm 3, line 14
-(`line:vote-broadcast`): one signed entry per proposer, the chunk assigned
-to the voter for each positive entry, and the share.
+verifies, and the Merkle proof verifies index `r` against `ρ`;
+`tryIngestShare` verifies the decryption share. The handler is atomic: a
+vote counts only if it is complete, every positive entry carries a valid
+chunk with the sender's index, and the share verifies. A correct vote
+carries exactly that (Algorithm 3, line 14 (`line:vote-broadcast`)).
 
-**(a) Completeness.** `byz_cast_vote` drops its guard: a Byzantine
-validator casts any vote, complete or not. The check moves into a ghost
-over the sender's broadcast rows, read positively by the receivers (R2):
+**In the model** the check is a ghost over the sender's broadcast rows,
+which a correct receiver reads positively ([Locality.md](Locality.md) R2):
 
 ```
 ghost relation vote_entry_valid (r j : node) :=
@@ -556,150 +542,58 @@ ghost relation vote_valid (r : node) :=
   msg_vote_cast r ∧ msg_decrypt_share r ∧ ∀ j, is_proposer j → vote_entry_valid r j
 ```
 
-`vote_valid r` holds iff some complete vote of `r` passes the handler.
-The model keeps a vote's entries as per-entry signature rows, so an
-equivocating sender's rows may support several such votes; a receiver
-that takes `r`'s entry for `j` from one and its entry for `j′` from
-another still holds entries that form one valid vote, because each entry
-is checked on its own. The correct steps that count *votes* read it:
+The model keeps a vote's entries as per-entry rows, so an equivocating
+sender's rows may support several valid votes; a receiver that takes `r`'s
+entry for `j` from one and its entry for `j′` from another holds entries
+that form one valid vote, because each entry is checked on its own. The
+correct steps that count *votes* read it:
 
-| Action | Old guard | New guard | The paper's rule |
-|---|---|---|---|
-| `receive_vote_pos i r j m` | `msg_vote_cast r`, `msg_vote_pos_sig r j m` | `vote_valid r`, `msg_vote_pos_sig r j m`, `msg_vote_chunk r j m`, `msg_proposer_signed j m` | the vote handler: the whole vote is checked, then entry `j` counts |
-| `receive_vote_neg i r j` | `msg_vote_cast r`, `msg_vote_neg_sig r j` | `vote_valid r`, `msg_vote_neg_sig r j` | the same |
-| `fb_sign_pos i j m q`, the `2f+1` guard | `∃ qv, supermajority qv ∧ ∀ r ∈ qv, msg_vote_cast r` | `… ∀ r ∈ qv, vote_valid r` | "at least `2f+1` valid Vote messages have been received" (Algorithm 5, line 7 (`line:fb-pathvote-guard`)) |
-| `fb_sign_pos i j m q`, (b) | `∀ r ∈ q, msg_vote_pos_sig r j m` | `∀ r ∈ q, msg_vote_pos_sig r j m ∧ msg_vote_chunk r j m ∧ vote_valid r`, and `msg_proposer_signed j m` | "collected `f+1` valid positive votes for `(p_j, ρ)`" (Algorithm 5, line 8 (`line:fb-cast-entry`)) |
-| `fb_sign_neg i j qv` | its own receipts | unchanged: the receipts are now taken only from valid votes | "among the votes received" |
-| `byz_cast_vote r` | an entry for every proposer | none | — |
-
-`vote_cast_entries` (every cast vote carries an entry per proposer) is
-false of a Byzantine sender once its guard is gone. It becomes two facts:
-on the receiver side, `vote_rcv_pos_backed` / `vote_rcv_neg_backed` gain
-`vote_valid R` (a correct receipt comes from a valid vote), and on the
-sender side, restated for correct senders, *a correct validator's cast
-vote is valid* (`¬ is_byz R ∧ msg_vote_cast R → vote_valid R`), which is
-what the liveness proofs use: they apply it only to correct voters
-(`vote_pos_sig_frozen`, `eventually_received`).
-
-**`aggregate_fastqc_*` keeps its signature read — a change to the plan.**
-The kick-off asked that every vote-quorum read behind a FastQC count only
-complete votes. The paper's FastQC is a transferable certificate, "an
-aggregate of `2f+1` matching signed entries" (Algorithm 4, line 18
-(`line:fast-formqc`)), and a correct validator also *adopts* one: from any
-valid fast meta-block (Algorithm 4 (`alg:fast-path-certification`), the
-`FastBlock` handler) and from a fallback vote (Algorithm 5, line 20
-(`line:fb-harvest`)). A FastQC carries no chunks and no votes, so its only
-check is its signatures, and the adversary, which reads every signed entry
-on the network, can assemble one from any `2f+1` and send it in a
-`FastBlock`. `aggregate_fastqc_*` models formation and adoption together
-(its doc comment says so, and its (F-justice) Owed condition already names
-the `FastBlock` route), so its guard is the adoption check: `2f+1`
-signatures. Filtering it by `vote_valid` would remove runs the paper
-allows a correct validator, which weakens every claim. The decodability
-of a FastQC root does not need the filter either; see (b).
-
-**(b) The carried chunk.** `byz_sign_vote_pos` drops `chunk_received r j m`.
-A positive vote entry's chunk becomes a message of its own:
-
-```
-/-- Sender `r`'s vote carries its assigned chunk (index `r`) under
-proposer `j`'s root `m`, backing its positive entry for `j`. -/
-relation msg_vote_chunk (r : node) (j : node) (m : merkle_root)
-```
-
-It is written by `vote` beside the positive entry
-(`msg_vote_chunk i J M := msg_vote_chunk i J M || (is_proposer J && local_entry_pos i J M)`;
-a correct voter holds that chunk, `local_entry_pos_chunk`), and by a new
-Byzantine action `byz_carry_vote_chunk r j m`, guarded by its actor marker
-only (unfair, (F-byz)).
-
-*Why a new relation, and not `msg_chunk` at sender `r`.* `msg_chunk s i j m`
-is the point-to-point message carrying *`i`'s* chunk, sent to `i`. The
-vote's chunk has the *sender's* index `r` and is broadcast with the vote,
-so `msg_chunk r I j m` would carry the wrong index, and `msg_chunk r r j m`
-("`r` holds its chunk") is a point-to-point row at recipient `r`, which a
-correct receiver `i ≠ r` may not read (R2). `msg_vote_chunk` is a broadcast
-row at sender `r`, which every correct receiver reads positively (R2), and
-which a Byzantine sender writes only under its own name (B1).
-
-*Why the Byzantine action needs no guard.* The model does not track chunk
-contents; a chunk passes the Merkle check iff it is the real chunk of `ρ`
-at its index, which its holder can show. Nothing limits what the adversary
-reads (§4.2), so it holds every chunk any validator was sent, and for its
-own proposers' roots every chunk it chose to make — the same reading as
-`byz_redisseminate_chunk` since R36b. The check left to the receiver is
-the one the model can state: `j` is a proposer and its signature on `ρ`
-is on the network (`msg_proposer_signed j m`), which `tryIngestChunk`
-checks and which the old guard did not. A separate action rather than a
-flag on `byz_sign_vote_pos` follows the file's one-capability-per-action
-convention (§5) and leaves signing and carrying independent.
-
-*Decodability counts carried chunks.* The ghost becomes
-
-```
-ghost relation chunk_quorum (j : node) (m : merkle_root) :=
-  ∃ q, nset.greater_than_third q ∧ ∀ r, nset.member r q → msg_vote_chunk r j m
-```
-
-`f+1` validators broadcast their chunk under `m`, so every correct
-validator that receives those votes holds `f+1` chunks: `isDecoded(m)`.
-This is the paper's own argument (Proposition 4 (`prop:chorus-totality`),
-the proof's FastQC case: the `2f+1` positive signed entries "include at
-least `f+1` from honest validators, each of which included the chunk
-assigned to it in its first-round vote"), where the current ghost counts
-chunks held privately. The invariants follow:
-
-| Invariant | Old | New |
+| Action | Guard | The paper's rule |
 |---|---|---|
-| `vote_pos_sig_chunk` | every positive vote signature is chunk-backed (`chunk_received`) | correct senders only: `¬ is_byz R → (msg_vote_chunk R J M ↔ msg_vote_pos_sig R J M)` |
-| `vote_pos_quorum_implies_decodable` | `f+1` positive signatures → `chunk_quorum` | `vote_quorum_pos J M → chunk_quorum J M`: `2f+1` signatures hold `f+1` correct ones (`honest_third_in_supermajority`), each carrying its chunk |
-| `msg_fb_pos_sig_backed` | `f+1` positive signatures | `f+1` valid positive votes: `msg_vote_pos_sig r J M ∧ msg_vote_chunk r J M ∧ vote_valid r` |
-| `local_fastqc_pos_chunks_decodable`, `mvba_decided_pos_chunks_decodable`, `msg_commitqc_pos_chunks_decodable` | statement unchanged | over the new `chunk_quorum`; the FallbackQC route through `msg_fb_pos_sig_backed`, the FastQC routes through `vote_pos_quorum_implies_decodable` |
+| `receive_vote_pos i r j m` | `vote_valid r`, `msg_vote_pos_sig r j m`, `msg_vote_chunk r j m`, `msg_proposer_signed j m` | the vote handler: the whole vote is checked, then its entry for `j` counts |
+| `receive_vote_neg i r j` | `vote_valid r`, `msg_vote_neg_sig r j` | the same |
+| `fb_sign_pos i j m q` | `2f+1` senders with `vote_valid`; `f+1` senders with `msg_vote_pos_sig r j m ∧ msg_vote_chunk r j m ∧ vote_valid r`; `msg_proposer_signed j m` | "at least `2f+1` valid Vote messages have been received" (Algorithm 5, line 7 (`line:fb-pathvote-guard`)); "collected `f+1` valid positive votes for `(p_j, ρ)`" (Algorithm 5, line 8 (`line:fb-cast-entry`)) |
+| `fb_sign_neg i j qv` | `i`'s own receipts, which come only from valid votes | "among the votes received" |
 
-`avail_ready_chunks` and the commit availability condition keep
-`chunk_received`: `AvailReady` is the validator's *own* assigned chunk
-received (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit
-availability condition"), a different fact.
+The Byzantine sends carry no receiver check: `byz_cast_vote` casts any
+vote, complete or not, `byz_sign_vote_pos` signs any positive entry, and
+`byz_carry_vote_chunk` attaches any chunk. Completeness is a receiver-side
+fact (`vote_rcv_pos_backed`, `vote_rcv_neg_backed`: a correct receipt
+comes from a valid vote) and, for correct senders, a sender-side one
+(`vote_cast_valid`: a correct cast vote is valid), which is what the
+liveness proofs use.
 
-**Statement changes for review.**
+**A FastQC is checked by its signatures.** The paper's FastQC is a
+transferable certificate, "an aggregate of `2f+1` matching signed entries"
+(Algorithm 4, line 18 (`line:fast-formqc`)), and a correct validator also
+*adopts* one: from any valid fast meta-block (Algorithm 4
+(`alg:fast-path-certification`), the `FastBlock` handler) and from a
+fallback vote (Algorithm 5, line 20 (`line:fb-harvest`)). A FastQC carries
+no chunks and no votes, so its only check is its signatures, and the
+adversary, which reads every signed entry on the network, can assemble
+one from any `2f+1` and send it in a `FastBlock`. `aggregate_fastqc_*`
+models formation and adoption together, so its guard is the adoption
+check, `2f+1` signatures; reading `vote_valid` there would remove runs the
+paper allows a correct validator. The decodability of a FastQC's root does
+not depend on it (§3.5.2).
 
-* **A claim:** `Chorus.local_committed_pos_implies_decodable`
-  ([Chorus/Compose.lean](../Cadence/Chorus/Compose.lean), axiom-pinned)
-  spells out the old ghost: "`f+1` validators `r` with
-  `∃ s, msg_chunk s r J M`". It becomes "`f+1` validators `r` with
-  `msg_vote_chunk r J M`": the chunks were broadcast, not merely held. It
-  is not in [Cadence.lean](../Cadence.lean)'s index.
-* **Faithfulness additions beyond the two B4 checks:** `vote_valid`
-  includes the proposer-signature half of `tryIngestChunk`
-  (`msg_proposer_signed j m`) and `tryIngestShare` (`msg_decrypt_share r`).
-  Today's receivers accept a positive entry on an unsigned root, and a vote
-  without a share, which the paper's handler rejects. Neither restricts the
-  adversary: `byz_sign_proposer` only for a Byzantine proposer, and
-  `byz_release_msg_decrypt_share`, are unguarded, and B2 already forbids
-  forging a correct proposer's signature.
-* No contract, premise or (F-justice) label changes.
-
-**(c) Timing rows and premises.** None move. Every row the change touches
-is owed only for correct senders ([Premises.md](Premises.md), the
-(F-justice) table: `receive_vote_*` "the voter `r` is correct";
-`fb_sign_pos` "`q` is correct and a correct supermajority has cast its
-votes"), and a correct vote is atomic: its entries, chunks, share and cast
-are written in one `vote` step, so it is valid from the step it is cast,
-and the enabling time of each row is unchanged. The proofs gain one
-hypothesis per row, discharged by "a correct cast vote is valid". The new
-Byzantine action is unfair, so it has no row. The liveness files change
-mechanically: the new label in the label-class matches, the new relation
-in the frame lists ([Chorus/Compose.lean](../Cadence/Chorus/Compose.lean)),
-the enabledness lemmas `enabled_receive_vote_*` and `fb_sign_pos`'s.
-
-**(d) The pin.** `#veil_status Chorus` counts one cell per action and
-property, one does-not-throw cell per action, and one cell per property
-at the initializer: `A · (P + 1) + P`, today `55 · 111 + 110 = 6215`. The
-design adds one action (`byz_carry_vote_chunk`) and no property — four
-invariants are restated and two strengthened, none added or removed — so
-`56 · 111 + 110 = 6326` (+111). A helper invariant found necessary during
-the proofs adds `A + 1 = 57` cells each; any such addition will be listed
-in the PR.
+**Why the carried chunk is its own relation.** `msg_chunk s i j m` is the
+point-to-point message carrying *`i`'s* chunk, sent to `i`. A vote's chunk
+has the *sender's* index `r` and is broadcast with the vote, so
+`msg_chunk r I j m` would carry the wrong index, and `msg_chunk r r j m`
+("`r` holds its chunk") is a point-to-point row at recipient `r`, which a
+correct receiver `i ≠ r` may not read (R2). `msg_vote_chunk r j m` is a
+broadcast row at sender `r`: every correct receiver reads it positively
+(R2), and a Byzantine sender writes it only under its own name (B1).
+`byz_carry_vote_chunk` needs no guard: the model does not track chunk
+contents, and a chunk passes the Merkle check iff it is the real chunk of
+`ρ` at its index, which its holder can show. Nothing limits what the
+adversary reads ([Locality.md](Locality.md) §4.2), so it holds every chunk
+any validator was sent, and for its own proposers' roots every chunk it
+chose to make — the reading `byz_redisseminate_chunk` has too. The part of
+`tryIngestChunk` the model can state, the proposer's signature on the
+root, is the receiver's check (`msg_proposer_signed j m` in
+`vote_entry_valid`).
 
 ## 4. Cryptographic primitives
 
@@ -900,22 +794,14 @@ honest node: a Byzantine action writes messages only under its own name.
 Honest local state and the phase are updated only by their own actions
 ([Locality.md](Locality.md) §4).
 
-**Network validity is part of the threat model.** Honest receivers
-verify messages before consuming them, so a malformed message never
-enters a quorum any honest validator or the MVBA observes. The
-Byzantine actions mirror the receivers' checks:
-
-* `byz_sign_vote_pos` requires the signer's chunk
-  (`chunk_received r j m`) — positive vote entries without a valid
-  chunk are discarded (Algorithm 4 (`alg:fast-path-certification`), receive handler);
-* `byz_cast_vote` requires a signed entry per proposer — incomplete
-  votes are discarded;
-* `byz_sign_fb_pos` requires `msg_proposer_signed j m` — the positive
-  fallback entry carries the proposer signature `σ_p`, which receivers
-  verify.
-
-These preconditions do not weaken the adversary: they exclude only
-messages that could never influence an honest participant.
+**Receivers check what they accept.** A correct receiver counts a vote
+only if it passes the paper's vote handler (`vote_valid`, §3.5.3), so a
+Byzantine vote may be incomplete, carry no chunk, or carry any chunk
+(`byz_cast_vote`, `byz_sign_vote_pos`, `byz_carry_vote_chunk`, each guarded
+by its actor marker only). The one Byzantine guard that reads a message is
+unforgeability ([Locality.md](Locality.md) §4.2, B2): `byz_sign_fb_pos`
+requires `msg_proposer_signed j m`, because a positive fallback entry
+carries the proposer signature `σ_p`.
 
 **The adversary's share of the anonymous capabilities.** Assembling a
 commit certificate from `2f+1` broadcast commit votes, and re-disseminating a
@@ -1040,7 +926,7 @@ signed-implies-voted family (`vote_sig_pos_implies_voted`,
 `vote_sig_neg_implies_voted`, `local_entry_neg_implies_voted`,
 `vote_cast_implies_voted`, `voted_implies_cast`, `share_implies_voted`),
 `vote_pos_from_local`, `vote_neg_from_local`, `vote_unique_pos`,
-`vote_unique_pos_neg`, `voted_entry_pos_signed`, `vote_cast_entries`,
+`vote_unique_pos_neg`, `voted_entry_pos_signed`, `vote_cast_valid`,
 `vote_pos_sig_chunk`.
 
 Phase timestamps: `voted_post_deadline`, `fastqc_post_deadline`,
@@ -1383,11 +1269,10 @@ Around the receipt layer the paper also fixes the MVBA module interface
 (Module 3 (`mod:mvba`)), the fallback commit round (§6.7), and an explicit
 participation convention. The model tracks all three, and none of them
 contradicts a proven safety invariant. One guard is worth naming because
-the model depends on it: a positive vote is accepted only if it carries its
-*sender's assigned* chunk (`byz_sign_vote_pos` requires
-`chunk_received r j m`), which is what makes
-`vote_pos_quorum_implies_decodable`'s reading of `isDecoded` honest —
-f+1 accepted positive votes pin f+1 *distinct* chunks.
+the model depends on it: a correct receiver accepts a positive vote only
+if it carries its *sender's assigned* chunk (`vote_valid`, §3.5.3), which
+is what makes the fallback rules' reading of `isDecoded` honest — `f+1`
+accepted positive votes pin `f+1` *distinct* chunks.
 
 ## 8. Abstractions worth flagging for review
 
