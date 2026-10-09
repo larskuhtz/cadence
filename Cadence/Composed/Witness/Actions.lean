@@ -252,6 +252,7 @@ theorem tr_enter_window {i : node} {w w' : window} {f : ℕ} {a : acsstate}
     (hi : ¬ fm.byz i) (hin : InWindow st i w) (hn : win_ord.next w w')
     (hdec : A.has_decided (st.acs_state w') i) (hrd : ReadyNext st i w)
     (hf : f = th.acs_first (st.acs_state w') i)
+    (hbey : ∀ f0 b0 l0, Bounds st i w f0 b0 l0 → l0 < f)
     (hab : A.abandon (st.acs_state w') i a) (hnow : st'.now = st.now)
     (has : ∀ x, st'.acs_state x = if x = w' then a else st.acs_state x)
     (hlb : ∀ j x f0 b0 l0, st'.local_bounds j x f0 b0 l0 =
@@ -264,7 +265,7 @@ theorem tr_enter_window {i : node} {w w' : window} {f : ℕ} {a : acsstate}
     (Conductor.relationalTransitionSystem ℕ window time node acsstate).tr th st
       (.enter_window i w w' f a) st' := by
   cstruct
-  refine ⟨hi, hin.1, hin.2, hn, hdec, hrd, hab, ?_, ?_, ?_⟩
+  refine ⟨hi, hin.1, hin.2, hn, hdec, hrd, hbey, hab, ?_, ?_, ?_⟩
   · intro x; rw [has x]; by_cases h1 : x = w' <;> simp [h1, Ne.symm]
   · intro j x; rw [he j x]
     by_cases h1 : j = i <;> by_cases h2 : x = w' <;> simp [h1, h2, Ne.symm]

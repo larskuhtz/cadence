@@ -1459,14 +1459,25 @@ The design is implemented as §10.3–§10.5 describe, with these changes.
    `acs_first st i = acs_first st' j`. This is what "a function of the
    decided set alone" means, and the lower median meets it
    (`Cadence.medianOf_local`).
-2. **Two helper invariants.** `[first_agree]` (two correct deciders of one
-   instance compute the same first slot) and `[first_above_prev]` (a correct
-   decider's first slot lies beyond every correct validator's interval of
-   the predecessor). They state once, at the ACS's decision, what the entry
-   cells otherwise re-derived. This is the plan's step 2 for the slow
-   cells; no manual cell and no family split was needed.
-3. **The counts.** 6 actions and 25 properties (5 safety + 20 invariants),
-   with 3 step properties: **200** cells, not the planned 186. The
+2. **A helper invariant and a derivable guard.** These are the plan's step 2
+   for the slow cells; no manual cell and no family split was needed.
+   * `[first_agree]`: two correct deciders of one instance compute the
+     same first slot.
+   * `enter_window` requires that the new first slot lies beyond the
+     validator's own interval of its current window. This is a local read:
+     its own record and its own computed slot. It is derivable, so it removes
+     no behaviour: `Conductor.entry_beyond` proves it at every reachable
+     state from `[acs_first_bracket]`, `validity_genuine` and
+     `[acs_proposal_above_prev]`. Entry's enabledness proofs use it.
+   * A first version stated the same fact as a helper invariant,
+     `[first_above_prev]`, over `acs_first (acs_state w') i`. CI measured
+     that cell at `enter_window` at 146.2 s of 180 s (run 37858531727),
+     against 8.3 s locally. Every step that moves an ACS state makes the
+     solver re-derive that `acs_first` is unchanged across the transition.
+     A record-free variant was worse still (114 s locally at `acs_step`).
+     The guard avoids both.
+3. **The counts.** 6 actions and 24 properties (5 safety + 19 invariants),
+   with 3 step properties: **193** cells, not the planned 186. The
    [Architecture.md](Architecture.md) §2 row has them.
 4. **The composed claims drop the fault bound too.** `LivenessClaim` and
    `CensorshipClaim` used it only to pass it to `Conductor.recovery`, so
@@ -1484,20 +1495,19 @@ The design is implemented as §10.3–§10.5 describe, with these changes.
    window's first slot), and plateau position 37, the old recording step,
    is a `tick` in place.
 
-**The slow cells.** Cold, on this machine. The first column was measured
-before the helper invariants, the second with them; both were taken while
-another session's build ran (load average 6–11), so they overstate:
+**The slow cells.** Cold, on this machine. The first column is the design
+without any helper, measured under load (load average 6–11); the second is
+the final model, measured with the machine quiet (load 2–4):
 
-| cell | without the helpers | with them |
+| cell | first build | final |
 |---|---|---|
-| `enter_window × bounded_tail` | 20.2 s | 4.4 s |
-| `enter_window × open_local_order` | 8.9 s | 2.3 s |
+| `enter_window × bounded_tail` | 20.2 s | 3.6 s |
+| `enter_window × open_local_order` | 8.9 s | 3.3 s |
+| `open_slot × open_prefix_agreement` | 10.7 s | 3.6 s |
+| `enter_window × acs_proposal_above_prev` | 10.2 s | 2.0 s |
 | `acs_decide × win_bounds_ordered` | (action removed) | — |
-| `enter_window × first_above_prev` | — | 9.6 s |
-| `acs_step × first_above_prev` | — | 5.8 s |
-| `acs_propose × first_above_prev` | — | 6.1 s |
-| `open_slot × open_prefix_agreement` | 10.7 s | 4.4 s |
 
-The slowest is 9.6 s, 5% of the 180 s budget; CI runs 3–8× slower, so 16–43%.
-Before this change the three historically slow cells ran at 54–65% of the
-budget on several CI runs.
+The slowest is 3.6 s. The one CI measurement of this model family gives a
+local-to-CI factor of up to 17 for these cells (8.3 s → 146.2 s), so about
+60 s on CI, a third of the budget. Before this change the three
+historically slow cells ran at 54–65% of the budget on several CI runs.

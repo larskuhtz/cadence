@@ -142,7 +142,7 @@ theorem enter_window_guards {i : node} {w w' : window} {f : ℕ} {a : acsstate}
       A.has_decided (st.acs_state w') i ∧ ReadyNext st i w ∧
       f = th.acs_first (st.acs_state w') i := by
   conductor_tr htr
-  obtain ⟨h1, h2, h3, h4, h6, h7, h8, -, -⟩ := htr
+  obtain ⟨h1, h2, h3, h4, h6, h7, h8, -, -, -⟩ := htr
   exact ⟨h1, ⟨h2, fun x hx => Bool.eq_false_iff.mpr (h3 x hx)⟩, h4, h6, h7, h8⟩
 
 set_option maxHeartbeats 2000000 in
@@ -319,6 +319,27 @@ theorem entered_pred
       · exact Or.inr ⟨w, hw, Conductor.entered.mono htr j w hwe⟩
     · obtain ⟨-, hin, hnx, -⟩ := enter_window_guards htr
       exact Or.inr ⟨w, hnx, Conductor.entered.mono htr j w hin.1⟩
+
+/-- **The entry step's "beyond the current window" guard removes no
+behaviour.** At every reachable state, a correct validator that has decided
+in `ACS[w']` computes a first slot beyond its own interval of `w'`'s
+predecessor: the first slot's lower bracket (`[acs_first_bracket]`) is a
+correct validator's genuine proposal (`validity_genuine`), and every correct
+proposal lies beyond the predecessor's interval
+(`[acs_proposal_above_prev]`). So whenever `enter_window`'s other guards
+hold, this one does too. -/
+theorem entry_beyond
+    (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
+    {i : node} (hi : ¬ fm.byz i) {w w' : window} (hn : win_ord.next w w')
+    (hd : A.has_decided (st.acs_state w') i) {f0 b0 l0 : ℕ} (hb : Bounds st i w f0 b0 l0) :
+    l0 < th.acs_first (st.acs_state w') i := by
+  have hreach := Conductor.reachable_acs_reachable hr w'
+  obtain ⟨⟨r1, s1, hr1, hd1, hs1⟩, -⟩ :=
+    (Veil.RelationalTransitionSystem.reachable_assumptions _ th _ hr).2.2.2.2.2 _ i ⟨hreach, hi, hd⟩
+  have hp := A.validity_genuine _ hreach i r1 s1 hi hr1 hd1
+  have hlt : l0 < s1 :=
+    Conductor.reachable_acs_proposal_above_prev hr r1 i w' s1 w f0 b0 l0 ⟨hr1, hp, hn, hi, hb⟩
+  exact lt_of_lt_of_le hlt hs1
 
 /-- **Correct validators agree on a window's interval**
 (`[window_assignment_agreement]`, Proposition 9 (`prop:window-agreement`)). -/
@@ -523,3 +544,9 @@ info: 'Conductor.boundedness' depends on axioms: [propext, Classical.choice, Quo
 -/
 #guard_msgs in
 #print axioms Conductor.boundedness
+
+/--
+info: 'Conductor.entry_beyond' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.entry_beyond

@@ -313,8 +313,8 @@ theorem cstep_enter (n : ℕ) (h : n / 61 % 36 = 4 ∧ 38 ≤ n % 61 ∧ n % 61 
   have hv := nd_val (n % 61 - 38)
   have hi : (nd (n % 61 - 38)).val < 3 := by omega
   refine tr_enter_window ((correct_iff _).2 hi) (inWindow_at n _ hi h.1 (by simp; omega)) rfl ?_
-    (readyNext_at n _ hi h.1 (by simp; omega)) (first_at n h.1 _ hi (by omega)).symm ?_
-    (cond_now n (by omega)) ?_ ?_ ?_ (cond_opened n (by omega)) (cond_opened_win n (by omega))
+    (readyNext_at n _ hi h.1 (by simp; omega)) (first_at n h.1 _ hi (by omega)).symm
+    (fun f0 b0 l0 hb => by rw [bounds_iff] at hb; omega) ?_ (cond_now n (by omega)) ?_ ?_ ?_ (cond_opened n (by omega)) (cond_opened_win n (by omega))
     (cond_completed n (by omega))
   · show decide _ = true; simp only [decide_eq_true_eq, dB, nd_val]; omega
   · show acsSt _ (n + 1) = _

@@ -510,7 +510,8 @@ theorem enter_by (TA : ACSTemporal node ℕ acsstate time msg fm.byz) (hrows : T
     obtain ⟨a', ha'⟩ :=
       TA.abandon_enabled _ j (Conductor.reachable_acs_reachable (r.reachable k) ω') hj
     exact ⟨.enter_window j ω ω' _ a', ⟨ω, _, a', rfl⟩,
-      enabled_enter_window hj hin' hn hdjk hrd' rfl ha'⟩)
+      enabled_enter_window hj hin' hn hdjk hrd' rfl
+        (fun _ _ _ hb => entry_beyond (r.reachable k) hj hn hdjk hb) ha'⟩)
   obtain ⟨w0, f0, a0, hl0⟩ := hlx
   have htr0 := r.steps x
   rw [hl0] at htr0

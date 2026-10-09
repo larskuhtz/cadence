@@ -509,6 +509,12 @@ action enter_window (i : node) (w : window) (w' : window) (f : slot)
   require ready_next i w
   -- The median of `i`'s decided set (Algorithm 7, line 48).
   require f = acs_first (acs_state w') i
+  -- The new window lies beyond `i`'s current one. Derivable, so it removes
+  -- no behaviour (`Conductor.entry_beyond`, at every reachable state):
+  -- `[acs_first_bracket]`'s lower pair is a correct proposal, which lies
+  -- beyond the current window (`[acs_proposal_above_prev]`). Stated so the
+  -- entry cells read it instead of re-deriving it.
+  require ∀ (f0 b0 l0 : slot), local_bounds i w f0 b0 l0 → slot_ord.lt l0 f
   -- `ACS[w'].abandon()`: an input transition of the instance's state.
   require acs.abandon (acs_state w') i acs_next
   local_bounds i w' f (win_boundary f) (win_last f) := true
@@ -710,17 +716,6 @@ invariant [first_agree]
     acs.has_decided (acs_state w) j →
     acs_first (acs_state w) i = acs_first (acs_state w) j
 
-/-- A correct decider's first slot of window `w'` lies beyond every correct
-validator's interval of `w'`'s predecessor: `[acs_first_bracket]`'s lower
-pair is a correct proposal, which `[acs_proposal_above_prev]` places there.
-Stated once, at the ACS's decision, so that the entry step's cells read it
-instead of re-deriving it. -/
-invariant [first_above_prev]
-  ∀ (i j : node) (w0 w' : window) (f0 b0 l0 : slot),
-    ¬ fm.byz i ∧ acs.has_decided (acs_state w') i ∧ win_ord.next w0 w' ∧
-    ¬ fm.byz j ∧ local_bounds j w0 f0 b0 l0 →
-    slot_ord.lt l0 (acs_first (acs_state w') i)
-
 /-- An honest proposal to `ACS[w']` presupposes having entered the
 predecessor window (the Algorithm 7, line 37 (`line:ready`) activation context). -/
 invariant [proposal_prev_entered]
@@ -899,9 +894,10 @@ default, for the same reason the proof files carry it
 slowest machine that runs cold, which is CI's 4-core runner. The sweep's
 cell times are in [ConductorBounds.md](../docs/ConductorBounds.md) §10.
 A cell that starts needing minutes is diverging, and wants the fact it
-re-derives stated as an invariant instead (`[first_agree]`,
-`[first_above_prev]`). File-level, before `#gen_spec`: solver options are
-captured there ([CLAUDE.md](../CLAUDE.md), "Build"). -/
+re-derives stated once instead: as an invariant (`[first_agree]`), or as a
+derivable guard (`enter_window`'s "beyond the current window", proven to
+hold at every reachable state by `Conductor.entry_beyond`). File-level,
+before `#gen_spec`: solver options are captured there ([CLAUDE.md](../CLAUDE.md), "Build"). -/
 set_option veil.smt.timeout 180
 
 #gen_spec
