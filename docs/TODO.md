@@ -31,13 +31,10 @@ What has been done, and when, is [History.md](History.md).
 ## Soundness instruments
 
 * **Receiver checks to the correct receivers** ([Locality.md](Locality.md)
-  §4.2, B4). Three Byzantine sends are still guarded by the check a correct
-  receiver applies. Mvba: a timeout carrying a certificate above its view
-  counts as `⊥` in the correct and Byzantine timeout-certificate rules,
-  and `byz_timeout_qc` drops `vord.le w v`. Chorus: the correct receivers
-  of a vote check that it carries an entry for every proposer, and that a
-  positive entry carries its chunk; `byz_cast_vote` and `byz_sign_vote_pos`
-  drop their guards.
+  §4.2, B4). Two Byzantine sends in Chorus are still guarded by the check
+  a correct receiver applies: the correct receivers of a vote check that it
+  carries an entry for every proposer, and that a positive entry carries
+  its chunk; `byz_cast_vote` and `byz_sign_vote_pos` drop their guards.
 * **A locality checker** — the rules of [Locality.md](Locality.md) are
   checked by hand, action by action (the guide's audit table), and a
   violation would not fail the build ([Architecture.md](Architecture.md) §4

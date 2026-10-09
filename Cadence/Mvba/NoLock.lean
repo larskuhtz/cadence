@@ -394,7 +394,8 @@ action form_own_tc_lock (i : node) (v : view) (q : nodeset) (r0 : node) (s : nod
   require msg_prepqc s w e
   require vord.le w v
   require ∀ r, nset.member r q →
-    msg_timeout_noqc r v ∨ ∃ W E, msg_timeout_qc r v W E ∧ vord.le W w
+    msg_timeout_noqc r v ∨
+      ∃ W E, msg_timeout_qc r v W E ∧ (vord.le W w ∨ vord.lt v W)
   tc_formed i v := true
   msg_tc i v := true
   msg_tc_lock i v w e := true

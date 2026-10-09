@@ -51,6 +51,7 @@ found it with too little headroom for a 4-core CI runner. -/
   veil_inv_have h_tc_lock_backed := tc_lock_backed
   veil_inv_have h_honest_timeout_qc_held := honest_timeout_qc_held
   veil_inv_have h_timeout_qc_backed := timeout_qc_backed
+  veil_inv_have h_timeout_qc_view_le := timeout_qc_view_le
   veil_inv_have h_prepqc_unique := prepqc_unique
   veil_inv_have h_blocks := prepqc_blocks_lower_commits
   clear hinv
@@ -87,20 +88,34 @@ found it with too little headroom for a 4-core CI runner. -/
           exact absurd (TotalOrderWithMinimum.le_antisymm _ _ hlt'.1 hle) hlt'.2
     rcases hjust with ⟨s0, hnolock⟩ | ⟨s0, w, hlock⟩
     · -- The justifying certificate has no lock: its quorum meets `Q` in an
-      -- honest `n` that timed out at `PV ≥ V` carrying `⊥`.
+      -- honest `n` that timed out at `PV ≥ V` carrying `⊥` (a correct
+      -- `Timeout` never carries a certificate above its view, which the
+      -- rule would also read as `⊥`).
       obtain ⟨qt, hqt_sup, hqt⟩ := h_tc_nolock_backed s0 PV hnolock
       obtain ⟨n, hnQ, hnq, hn_hon⟩ :=
         nset.supermajorities_intersect_in_honest Q qt hsup_Q hqt_sup
-      exact ⟨n, hnQ, Bool.eq_false_iff.mpr hn_hon, Or.inl ⟨PV, hVPV, Or.inl (hqt n hnq)⟩⟩
+      have hn_hon' : ByzNodeSet.is_byz n = false := Bool.eq_false_iff.mpr hn_hon
+      rcases hqt n hnq with hnoqc | ⟨w', ⟨x, hto⟩, hgt⟩
+      · exact ⟨n, hnQ, hn_hon', Or.inl ⟨PV, hVPV, Or.inl hnoqc⟩⟩
+      · have h := (TotalOrderWithMinimum.le_lt PV w').mp hgt
+        exact absurd (TotalOrderWithMinimum.le_antisymm _ _ h.1
+          (h_timeout_qc_view_le n PV w' x hn_hon' hto)) h.2
     · -- The justifying certificate's lock is `(w, e)`, `w ≤ PV`, and every
-      -- member carries `⊥` or a certificate of view `≤ w`.
+      -- member carries `⊥`, a certificate of view `≤ w`, or one above `PV`,
+      -- which a correct member never carries.
       obtain ⟨⟨S1, hpq_w⟩, -, qt, hqt_sup, hqt⟩ := h_tc_lock_backed s0 PV w e hlock
       obtain ⟨n, hnQ, hnq, hn_hon⟩ :=
         nset.supermajorities_intersect_in_honest Q qt hsup_Q hqt_sup
       have hn_hon' : ByzNodeSet.is_byz n = false := Bool.eq_false_iff.mpr hn_hon
       rcases hqt n hnq with hnoqc | ⟨w', ⟨x, hto⟩, hw'_le⟩
       · exact ⟨n, hnQ, hn_hon', Or.inl ⟨PV, hVPV, Or.inl hnoqc⟩⟩
-      · -- `n` carries a certificate `(w', x)` with `w' ≤ w`: either it is
+      · rcases hw'_le with hw'_le | hgt
+        swap
+        · -- A correct `Timeout`'s certificate is never above its view.
+          have h := (TotalOrderWithMinimum.le_lt PV w').mp hgt
+          exact absurd (TotalOrderWithMinimum.le_antisymm _ _ h.1
+            (h_timeout_qc_view_le n PV w' x hn_hon' hto)) h.2
+        -- `n` carries a certificate `(w', x)` with `w' ≤ w`: either it is
         -- below `V` (then `n` left `V` without a view-`≥ V` lock), or
         -- `V ≤ w' ≤ w`.
         have hcase : TotalOrderWithMinimum.lt w' V ∨ TotalOrderWithMinimum.le V w' := by
