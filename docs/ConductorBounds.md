@@ -115,7 +115,7 @@ per validator, and the median argument behind Proposition 7
 (`prop:acs-nonoverlap`), and the model's median bridge, need at most `f`
 Byzantine-attributed pairs. The contract carries the
 one-pair-per-validator field, which every natural ACS satisfies. **F25:** the
-model now covers all of the paper's `p ∈ {0, …, W − 1}`. The other findings
+model covers all of the paper's `p ∈ {0, …, W − 1}`. The other findings
 concern the timed statements and the model's timing freedoms.
 
 **The design in one place.**
@@ -265,6 +265,7 @@ Proposition 14 consume it. The paper side of C4 and C5 is P15.
 | field of `ACSTemporal` / `ACSSafety` | timed? | used in |
 |---|---|---|
 | `agreement`, `validity_genuine`, `integrity` | no | safety, and Proposition 16's "a correct proposer proposed by `T₁(ω)`" |
+| `decided_stable`, `decided_unique` | no | `[window_assignment_agreement]` (a decided set is final, §10.3), and the median's hypothesis of one pair per validator (C6) |
 | `validity_quantitative` with `fault_bound` | no (cardinality) | that the lower median meets the model's `[acs_first_bracket]` (`Cadence.lowerMedian_first_assumptions`), which gives the median brackets of Propositions 7, 16, 17, 19 |
 | `abandon`, `abandoned` and `NoPrematureAbandon` | no | the antecedent of both timed fields; Proposition 12 discharges it |
 | `SyncProposals` (Δ-synchronized proposals) | yes | the antecedent of both timed fields; Corollary 2 discharges it |
@@ -643,10 +644,11 @@ with their proposals and closing records, is in
     slot strictly between `l0` and `s*` already started. The paper's `s*`
     is `max(earliest not passed, l0 + 1)`, which meets all three; with
     strictly increasing starting times nothing else does;
-  * the upper bracket: a second correct witness pair `(r2, s2)` with
-    `first ≤ s2`. The paper's median is between two correct estimates
-    (the paragraph before Algorithm 7 (`algorithm:conductor`)), proven from
-    the contract by `Cadence.acs_median_bracket`;
+  * the upper bracket: `[acs_first_bracket]` gives a correct pair at or
+    above the first slot as well as one at or below it. The paper's median
+    is between two correct estimates (the paragraph before Algorithm 7
+    (`algorithm:conductor`)), and the lower median meets the assumption
+    (`Cadence.lowerMedian_first_assumptions`);
   * `[start_time_strict]` (Appendix A.1 (`subsection:mcp-preliminaries`):
     `τ > 0`), and `[genesis_window]` starts the clock at slot 1's starting
     time (the proof of Proposition 16 (`prop:window-open-time`): "every
@@ -820,9 +822,9 @@ with their proposals and closing records, is in
   never needs the decided interval's row, for which the fault bound gives
   correct median witnesses: a validator enters a window only after a
   correct validator has, and by then the interval is recorded. **Closed:**
-  the premise is not in `TotalityClaim`. Since R37 it is not in
-  `RecoveryClaim` either: each validator computes its interval in its entry
-  step, there is no recording row, and the fault bound enters only where
+  the premise is not in `TotalityClaim`, `RecoveryClaim`,
+  `LivenessClaim` or `CensorshipClaim`: each validator computes its
+  interval in its entry step, and the fault bound enters only where
   the lower median is shown to meet the model's first-slot assumptions
   (`Cadence.lowerMedian_first_assumptions`, §10).
 * **F30: Recovery needs every window to have a successor.** The model's
@@ -1157,39 +1159,15 @@ belong to. The plan, the per-stage records and the sizing are in
   its re-issued `abandon`, the ideal ACS by construction, and each part's
   `Admissible` accepts the stutters.
 
-## 10. The Conductor follows the locality idiom (R37 design)
+## 10. The Conductor and the locality rules
 
-*Design, approved by Lars on 2026-10-08 with all decisions as proposed
-(option A). Each item that changes a contract, a claim or a premise is
-marked **(decision)**. §10.7 records what was built and where it departs
-from the plan.*
+The Conductor follows [Locality.md](Locality.md)'s rules: each validator
+computes its window's interval from its own ACS decision, in its entry
+step, and keeps it in its own row. This section is the design, and the
+argument that agreement on the intervals still holds. The design record
+with the options weighed is in the repository at commit `618165c`.
 
-The rules are [Locality.md](Locality.md)'s. Its §7 lists the Conductor as
-open, for the global `acs_decided`. This section is the plan that closes
-it.
-
-### 10.1 What does not conform
-
-* **`acs_decide` has no actor.** It reads every correct validator's
-  `entered` (the "decision precedes entry" `require`), the fault status of
-  its witnesses `r1`, `r2` and of an arbitrary decider, and the global
-  record of the predecessor window. It writes the global `acs_decided`. So
-  it breaks R1 and R5, and its write fits no rule.
-* **Every honest action reads the global record**, through `win_bounds`:
-  `acs_propose` (the `s*` guards and `ready_next`), `enter_window`,
-  `open_slot` and the ghost `slot_scheduled`. Those reads break R1.
-* **`opened_win` is auxiliary under its old name.** `open_slot` writes it
-  and `after_init` initialises it. No action reads it, in a guard or on a
-  right-hand side. Only the invariants `[opened_backed]`,
-  `[opened_win_entered]` and `[opened_win_contained]` read it. So it is
-  auxiliary, and only the `aux_` prefix is missing.
-* **Nothing else is open.** `tick` is the environment's (R4), and
-  `acs_step` is the sub-protocol's. `acs_propose`, `enter_window`,
-  `open_slot` and `complete_slot` read the ACS only through its operations
-  at their own index (`proposed`, `has_decided`, `propose`, `abandon`). The
-  glue already conforms ([Locality.md](Locality.md) §7).
-
-### 10.2 The paper
+### 10.1 The paper
 
 Algorithm 7, line 48 (`line:median-compute`) is a step of the handler at
 Algorithm 7, line 44 (`line:acs-decide`): "**upon**
@@ -1209,107 +1187,83 @@ entry step, and holds it in its own `last_i`. Proposition 9
 values. Its proof is ACS agreement: the same decided set gives the same
 median.
 
-### 10.3 The design (option A, recommended)
+### 10.2 The design
 
-**D1. A local record of window bounds.** A new relation
-`local_bounds i w f b l` holds `i`'s first slot, readiness boundary and last
-slot of window `w` (the paper's `s*` and `last_i[w]`). `after_init` sets
-window 1's record at every validator from the configuration, as Algorithm
-7, lines 31–34 (`line:startup-foreach`–`line:startup-last`) do. `acs_decided`
-is removed.
+**A local record of window bounds.** The relation `local_bounds i w f b l`
+holds `i`'s first slot, readiness boundary and last slot of window `w` (the
+paper's `s*` and `last_i[w]`). `after_init` sets window 1's record at every
+validator from the configuration, as Algorithm 7, lines 31–34
+(`line:startup-foreach`–`line:startup-last`) do. Every guard of a correct
+validator that needs an interval (`ready_next`, `slot_scheduled`,
+`acs_propose`'s `s*` guards, `open_slot`) reads `i`'s own `local_bounds`.
 
-**D2. The median as a function of the validator's own decision.** A new
-configuration function, `immutable function acs_first : acsstate → node →
-slot`, is the first slot that `i` computes from its decided set at ACS
-state `st`. Two model assumptions constrain it **(decision)**:
+**The first slot as a function of the validator's own decision.** The
+configuration function `immutable function acs_first : acsstate → node →
+slot` is the first slot that `i` computes from its decided set at ACS state
+`st`. Two model assumptions constrain it:
 
-* `[acs_first_local]`: `acs_first st i` depends only on `i`'s decided set.
-  If `∀ p s, acs.decided st i p s ↔ acs.decided st' i p s`, then
-  `acs_first st i = acs_first st' i`. This is
+* `[acs_first_local]`: the first slot is a function of the decided set
+  alone. If `i`'s decided set at `st` and `j`'s at `st'` hold the same
+  pairs, then `acs_first st i = acs_first st' j`. This is
   [Locality.md](Locality.md) §5's "pure function of data the node holds",
-  stated as a fact the solver uses. It is first-order.
-* `[acs_first_bracket]`: the one stated bridge, moved from a `require` of
-  `acs_decide` to an assumption about the function. At a reachable ACS
-  state, for a correct `i` that has decided, two pairs of correct
-  validators in `i`'s set bracket `acs_first st i`: one at or below it, one
-  at or above it. The `require` read other validators' fault status, which
-  a correct step may not do. An assumption may.
+  stated as a fact the solver uses.
+* `[acs_first_bracket]`: the ACS median bridge. At a reachable ACS state,
+  for a correct `i` that has decided, two pairs of correct validators in
+  `i`'s set bracket `acs_first st i`: one at or below it, one at or above
+  it. A correct step may not read another validator's fault status; an
+  assumption may.
 
-Both assumptions are discharged at `slot := ℕ`, with `acs_first` the lower
-median of the decided set. A new theorem proves this from
-`Cadence.acs_median_bracket` and the fault bound
+The lower median of the decided set meets both, at `slot := ℕ` and under
+the fault bound: `Cadence.lowerMedian_first_assumptions`
 ([AcsMedian.lean](../Cadence/AcsMedian.lean)). The composed witness
 instantiates `acs_first` with that median.
 
-**D3. Window entry computes the interval (Algorithm 7, lines 44–52).**
-`enter_window i w w' f acs_next` keeps today's guards:
+**Window entry computes the interval** (Algorithm 7, lines 44–52).
+`enter_window i w w' f acs_next` requires that `i` is correct, in `w`, and
+ready; that `w'` is the successor of `w`; that `i`'s own `ACS[w']` has
+decided; and the `abandon` input. It requires
+`f = acs_first (acs_state w') i`, and that `f` lies beyond `i`'s own
+interval of `w`. That last guard reads only `i`'s own record and its own
+computed slot, and it removes no behaviour: `Conductor.entry_beyond` proves
+it at every reachable state from `[acs_first_bracket]`, `validity_genuine`
+and `[acs_proposal_above_prev]`. The action writes
+`local_bounds i w' f (win_boundary f) (win_last f)`, `entered i w'` and the
+ACS state.
 
-* `¬ fm.byz i`;
-* `i` is in `w`, and `w'` is its successor;
-* `i`'s own `ACS[w']` has decided;
-* `i` is ready;
-* the `abandon` input.
+**`aux_opened_win` is auxiliary.** `open_slot` writes it and `after_init`
+initialises it; only invariants read it.
 
-It adds `require f = acs_first (acs_state w') i` and writes
-`local_bounds i w' f (win_boundary f) (win_last f)`, then `entered i w'` and
-the ACS state. The action loses its `b` and `l` parameters, and its guard
-no longer reads a global record. **`acs_decide` is removed.** Its
-10-parameter label is what forces the raised `synthInstance` budgets.
+**A decision is final.** `ACSSafety.decided_stable` states that once a
+correct validator has decided, its decided set does not change: Module 4
+(`mod:acs`)'s `decide(set)` is one output. The relational encoding
+(`has_decided` plus one `decided` row per pair) would otherwise allow a
+decided set to grow after the decision, and per-validator records written
+at different times need the field: `i`'s set when `i` entered must equal
+`j`'s set when `j` entered. No other field implies it. In a counter-model
+that meets every other field, every correct decider holds
+`{(a,1),(b,2),(c,3)}`, and one internal step later that set plus `(d,4)`:
+agreement is stated at one state, `decided_mono` lets sets grow,
+`decided_unique` holds since `d` is new, and validity holds whether `d` is
+correct and proposed 4 or is Byzantine. The ideal ACS meets the field,
+since its decided set is fixed before any validator outputs `decide`
+([IdealAcs.lean](../Cadence/Conductor/IdealAcs.lean)).
 
-*Option B, not recommended:* keep a separate step `acs_decide i w'` at the
-actor `i`, guarded only by `i`'s own decision, that writes
-`local_bounds i w' …`. It conforms too. But it splits the paper's one
-handler, keeps one more action, and keeps a timing row of its own.
+### 10.3 Agreement on the intervals
 
-**D4. Every honest guard reads its own record.** `ready_next i w`,
-`slot_scheduled i s`, `acs_propose`'s three `s*` guards and `open_slot`
-read `local_bounds i …` in place of `win_bounds`.
+The window propositions are stated over the validators' own records, as
+the paper states them:
 
-**D5. `opened_win` becomes `aux_opened_win`.** Only the name changes.
+| property | statement |
+|---|---|
+| `window_assignment_agreement` (safety, Proposition 9) | two correct validators' records of a window are equal |
+| `win_separation` (safety, Proposition 7) | over `i`'s own records of `w0` and `w` |
+| `bounded_tail` (safety, Lemma 14's interval form) | over `i`'s own records |
+| `bounds_genesis` | `i`'s record of window 1 is the configuration's |
+| `bounds_decided` | `i`'s record of a window `w ≠ 1` is `acs_first` of `i`'s own `ACS[w]` decision, and `i` has decided there |
+| `bounds_entered` | `i` holds a record only of a window it has entered |
+| `first_agree` | two correct deciders of one instance compute the same first slot |
 
-**D6. The ACS contract states that a decision is final (decision).**
-`ACSSafety` gains one first-order field:
-
-```lean
-  /-- **A decision is final** — once a correct validator has decided, its
-      decided set does not change: Module 4 (`mod:acs`)'s `decide(set)` is
-      one output. -/
-  decided_stable : ∀ st st' i p s, reachable st → trans st st' → ¬ byz i →
-    has_decided st i → decided st' i p s → decided st i p s
-```
-
-The relational encoding (`has_decided` plus one `decided` row per pair)
-allows a decided set to grow after the decision. Module 4 (`mod:acs`) does
-not: its output is one set.
-
-* With a single global record this never mattered, because the record was
-  written once.
-* Per-validator records are written at different times, so agreement
-  between two records needs the field: `i`'s set when `i` entered must
-  equal `j`'s set when `j` entered.
-
-The ideal ACS meets the field, since its decided set is fixed before any
-validator outputs `decide` ([IdealAcs.lean](../Cadence/Conductor/IdealAcs.lean)).
-The new field gets a docstring for the guide's `{contractFields}`.
-
-**D7. The model's properties.** The per-validator propositions are stated
-over the validator's own records, as the paper states them:
-
-| property | today | after |
-|---|---|---|
-| `window_assignment_agreement` (safety, Proposition 9) | one global record per window | two correct validators' records of a window are equal |
-| `win_separation` (safety, Proposition 7) | over the global record | over `i`'s own records of `w0` and `w` |
-| `bounded_tail` (safety, Lemma 14's interval form) | `win_bounds` | `i`'s own records |
-| `open_prefix_agreement`, `opened_after_start` | unchanged | unchanged |
-| `decided_nonzero` | global | replaced by `bounds_genesis`: `i`'s record of window 1 is the configuration's |
-| `decided_downward_closed` | global | removed: it follows from `[entered_prefix]` and `[entered_has_bounds]`, and nothing downstream reads it |
-| new `bounds_decided` | — | `i`'s record of a window `w ≠ 1` is `acs_first` of `i`'s own `ACS[w]` decision, and `i` has decided there |
-| new `bounds_entered` | — | `i` holds a record only of a window it has entered |
-| `bounds_shape`, `win_bounds_shift`, `win_bounds_ordered`, `entered_has_bounds`, `acs_proposal_above_prev`, `opened_win_contained`, `open_local_order` | `win_bounds` | `i`'s own records (for `acs_proposal_above_prev`, the proposer's) |
-| the others | unchanged | unchanged |
-
-Agreement on the bounds then follows from the contract, not from a shared
-write:
+Agreement on the bounds follows from the contract:
 
 * `[bounds_decided]` makes each record `acs_first` of the validator's own
   decision;
@@ -1318,196 +1272,57 @@ write:
   record was written;
 * `[acs_first_local]` turns equal sets into equal first slots.
 
-The solver checks this per action, as the safety property
-`[window_assignment_agreement]`. Separation at entry uses
-`[acs_first_bracket]`'s lower pair. That pair is a correct proposer `r1`'s
-proposal, which lies above `r1`'s own record of `w0`
-(`[acs_proposal_above_prev]`). By agreement, `r1`'s record of `w0` equals
-`i`'s.
+Separation at entry uses `[acs_first_bracket]`'s lower pair. That pair is a
+correct proposer `r1`'s proposal, which lies above `r1`'s own record of
+`w0` (`[acs_proposal_above_prev]`). By agreement, `r1`'s record of `w0`
+equals `i`'s.
 
-`win_bounds` stays only as a proof-side ghost, and only if the downstream
-proofs still want a window-level name (window 1's configuration, or some
-correct validator's record). No action reads it.
+In [Schedule.lean](../Cadence/Conductor/Schedule.lean), `Bounds` is a
+validator's interval and `WinBounds` is the interval some correct validator
+holds, which the proofs read as the window's interval
+(`Conductor.winBounds_unique`, by agreement).
 
-### 10.4 Reads and writes, old → new
+### 10.4 Timing rows and premises
 
-| Action | Reads (old → new) | Writes (old → new) |
-|---|---|---|
-| `acs_decide w0 w first f0 b0 l0 r1 s1 r2 s2` | every correct `entered`, the fault status of `r1`, `r2` and a decider, `acs_decided`, `win_bounds w0`, `acs.decided` at any correct decider → **removed** | `acs_decided w …` → removed |
-| `enter_window i w w' f b l a` → `enter_window i w w' f a` | `acs_decided w' f b l`, `win_bounds` (in `ready_next`) → `acs_first (acs_state w') i` and `i`'s own records | + `local_bounds i w' f (win_boundary f) (win_last f)` |
-| `acs_propose i w w' s* a` | `win_bounds w0 …` (`s*` guards, `ready_next`) → `local_bounds i w …` | unchanged |
-| `open_slot i s w f b l` | `win_bounds w f b l` and the in-order guard's `win_bounds` → `i`'s own records | `opened_win` → `aux_opened_win` |
-| `tick`, `acs_step`, `complete_slot` | unchanged | unchanged |
+* **Entry is one row.** The median computation is part of `enter_window`,
+  whose row (`TimedRows.enter`, `δ`, gated on `i`'s own decision and
+  readiness, F22) is the paper's handler. Every gate reads only the
+  actor's own state.
+* **No claim takes the fault bound** from the Conductor: `RecoveryClaim`,
+  `Conductor.recovery`, `recovery_sharp`, the contract instances, and the
+  composed `LivenessClaim` and `CensorshipClaim` do not use it. It enters
+  where the lower median is shown to meet the model's assumptions
+  (`Cadence.lowerMedian_first_assumptions`), which the witness uses
+  (`Composed.Witness.cholds`).
+* **No premise that `acs_first` is the median.** A Veil model's assumptions
+  are conjuncts of its initial-state predicate
+  (`Conductor.orchestratorSafety th` has `init st := assumptions th ∧ …`),
+  so no theorem takes `[acs_first_local]` or `[acs_first_bracket]` as a
+  hypothesis. The claims hold for every first-slot rule that meets the two
+  assumptions, and the paper's lower median is one such rule: the median
+  theorem shows that, and the composed witness uses it.
+  [Premises.md](Premises.md) §9.2, the docstring of `RecoveryClaim` and the
+  index in [Cadence.lean](../Cadence.lean) name it.
 
-### 10.5 Timing rows and premises
+### 10.5 The sweep's slow cells
 
-* **The `acs_decide` row goes (decision).** `TimedRows.decide`,
-  `decideGate` and `DecideLabel` are removed.
-  * The median computation becomes part of `enter_window`. Its row
-    (`TimedRows.enter`, `δ`, gated on `i`'s own decision and readiness,
-    F22) keeps its meaning. Only `EnterLabel` loses two label arguments.
-  * The gate checklist's one exception, a gate that reads another
-    validator's decision, disappears. Every gate is then the actor's own
-    state.
-  * [Premises.md](Premises.md) §9.3 loses the `decide` row, and the §6.4
-    table here loses its `acs_decide` line.
-* **`RecoveryClaim`'s fault bound (decision).** Recovery reads the fault
-  bound in one place: `correct_pair`, which builds witnesses for the
-  `acs_decide` row (`record_by`). Under D2 the bracket is the theory's
-  assumption `[acs_first_bracket]`, so the hypothesis
-  `(Finset.univ.filter fm.byz).card ≤ TA.fault_bound` goes unused.
-  * Proposed: remove the hypothesis from `RecoveryClaim`,
-    `Conductor.recovery` and `recovery_sharp`. The fault bound moves to the
-    theorem that the lower median meets `[acs_first_local]` and
-    `[acs_first_bracket]` (D2). The witness uses that theorem.
-  * The composed claims keep the hypothesis wherever they still use it;
-    this is to be checked. Either way it remains a premise of the system.
-* **No premise that `acs_first` is the median (decision).** A Veil model's
-  assumptions are conjuncts of its initial-state predicate
-  (`Conductor.orchestratorSafety th` has `init st := assumptions th ∧ …`).
-  So no theorem takes `[acs_first_local]` or `[acs_first_bracket]` as a
-  hypothesis. What they need is to be satisfiable at the system's
-  configuration, and two things show that:
-  * the theorem of D2: the lower median meets both assumptions;
-  * the composed witness, which defines `acs_first` as that median.
+The Conductor's in-file sweep has no manual cells (Veil runs `#prove_vc`
+only outside the defining module), so a fact the solver keeps re-deriving
+is stated once instead: as the invariant `[first_agree]`, or as the
+derivable entry guard above. Stated as an invariant over
+`acs_first (acs_state w') i`, the entry guard's fact cost 146.2 s of 180 s
+on CI (run 37858531727): every step that moves an ACS state made the solver
+re-derive that `acs_first` is unchanged.
 
-  The claims add no `MedianFirst` premise, since the proofs would not use
-  one. They hold for every first-slot rule that meets the two assumptions,
-  and the paper's lower median is one such rule. To keep that visible on
-  the claim surface, the median theorem is named in three places:
-  * [Premises.md](Premises.md) §9, where both assumptions are listed as
-    model assumptions discharged at the median, not as open premises;
-  * the docstring of `RecoveryClaim`;
-  * the index in [Cadence.lean](../Cadence.lean).
-* **Why `decided_stable` is a field and not a lemma.** No existing field
-  implies it. Here is a counter-model that meets every field:
-  * every correct decider holds `{(a,1),(b,2),(c,3)}`;
-  * one internal step later, every correct decider holds that set plus
-    `(d,4)`.
+The slowest cells, cold on a development machine:
 
-  Agreement is stated at one state, so it allows the step. The other fields
-  allow it too: `decided_mono` lets sets grow, `decided_unique` holds since
-  `d` is new, and validity holds whether `d` is correct and proposed 4 or
-  is Byzantine.
-* **No other claim statement changes.** These keep their statements, since
-  each names the row only through `Sync`:
-  * `TotalityClaim` and `BoundednessClaim`, and `RecoveryClaim` apart from
-    the item above;
-  * the K7 composed claims;
-  * `Conductor.orchestratorSafety`, `conductorTemporal` and
-    `conductorFull`;
-  * System.lean's theorem.
+| cell | time |
+|---|---|
+| `enter_window × bounded_tail` | 3.6 s |
+| `open_slot × open_prefix_agreement` | 3.6 s |
+| `enter_window × open_local_order` | 3.3 s |
+| `enter_window × acs_proposal_above_prev` | 2.0 s |
 
-  The theory gains a field, `acs_first`, and two assumptions. The safety
-  instance's `init` already carries the theory's assumptions.
-* **Internal statements that change:**
-  * `WinBounds`, `ReadyNext` and `Scheduled` in
-    [Schedule.lean](../Cadence/Conductor/Schedule.lean) read the
-    validator's own record;
-  * Proposition 16's premise in `window_open_time` ("a window whose
-    interval is recorded"), and the premises of `window_progression` and
-    `first_post_gst_window_time`, become "some correct validator holds a
-    record of `ω`";
-  * `record_by`, `enter_by`, `recorded_bracket`, `acs_decide_guards`,
-    `decided_step` and `enabled_acs_decide` are rewritten or removed.
-
-  Recovery's proof gets simpler. Entry no longer waits for a global
-  recording step, and `recorded_bracket` becomes `[acs_first_bracket]` at
-  the entering validator's own decision.
-
-### 10.6 Counts and builds
-
-* **The Conductor's sweep.** It goes from 7 actions to 6, and from 22
-  properties to 23 (5 safety + 18 invariants), with the same 3 step
-  properties. Today's 205 fits
-  `actions × (properties + step properties) + properties + actions + 1`,
-  so the expected count is 6 × 26 + 23 + 6 + 1 = **186**. The build will
-  confirm it, and Architecture §2 will record it.
-* **The glue's sweep** does not move. The glue does not consume
-  `ACSSafety`, so its statements are unchanged. It recompiles only because
-  it imports Interfaces.lean.
-* **The Veil families.** D6 edits Interfaces.lean, which Chorus.lean and
-  Mvba/Compose.lean import. No Chorus or Mvba VC statement mentions
-  `ACSSafety`, so the `#veil_status` pins stay where they are and the
-  families replay warm. The Chorus model file
-  still rebuilds, which takes about 11 minutes locally.
-* **The slow cells (task 3).** `acs_decide × win_bounds_ordered` goes with
-  its action. Veil has no in-module manual cell: `#prove_vc` refuses to
-  run inside the defining module, and an in-file sweep has no other manual
-  mechanism. In order of preference:
-  1. Measure the re-cut cells `enter_window × bounded_tail` and
-     `enter_window × open_local_order` cold. The rewrite changes both,
-     because `enter_window` now writes the record its own guards read.
-  2. If one stays slow, materialise the fact the solver re-derives, as a
-     witness parameter or a derivable `require`. This is the model's
-     existing remedy.
-  3. If that is not enough, move the Conductor to the model-file +
-     proof-family shape of Chorus and the MVBA, where `#prove_vc` cells
-     exist. That is a larger change: a `Conductor/Proofs/` family, a
-     `Certify.lean` with a `#veil_status Conductor` pin, and
-     `#gen_composition` over it. I would stop and report before doing it.
-
-### 10.7 As built
-
-The design is implemented as §10.3–§10.5 describe, with these changes.
-
-1. **`[acs_first_local]` compares two validators.** As first written it
-   compared one validator at two ACS states, which says nothing across
-   validators: the cold sweep refuted `[window_assignment_agreement]` and
-   `[acs_proposal_above_prev]` at `enter_window`. The assumption now reads:
-   if `i`'s decided set at `st` and `j`'s at `st'` hold the same pairs,
-   `acs_first st i = acs_first st' j`. This is what "a function of the
-   decided set alone" means, and the lower median meets it
-   (`Cadence.medianOf_local`).
-2. **A helper invariant and a derivable guard.** These are the plan's step 2
-   for the slow cells; no manual cell and no family split was needed.
-   * `[first_agree]`: two correct deciders of one instance compute the
-     same first slot.
-   * `enter_window` requires that the new first slot lies beyond the
-     validator's own interval of its current window. This is a local read:
-     its own record and its own computed slot. It is derivable, so it removes
-     no behaviour: `Conductor.entry_beyond` proves it at every reachable
-     state from `[acs_first_bracket]`, `validity_genuine` and
-     `[acs_proposal_above_prev]`. Entry's enabledness proofs use it.
-   * A first version stated the same fact as a helper invariant,
-     `[first_above_prev]`, over `acs_first (acs_state w') i`. CI measured
-     that cell at `enter_window` at 146.2 s of 180 s (run 37858531727),
-     against 8.3 s locally. Every step that moves an ACS state makes the
-     solver re-derive that `acs_first` is unchanged across the transition.
-     A record-free variant was worse still (114 s locally at `acs_step`).
-     The guard avoids both.
-3. **The counts.** 6 actions and 24 properties (5 safety + 19 invariants),
-   with 3 step properties: **193** cells, not the planned 186. The
-   [Architecture.md](Architecture.md) §2 row has them.
-4. **The composed claims drop the fault bound too.** `LivenessClaim` and
-   `CensorshipClaim` used it only to pass it to `Conductor.recovery`, so
-   it left them with decision 5. It stays a fact of the composed system: the
-   witness uses it to show its first slot, the lower median, meets the
-   model's assumptions (`Composed.Witness.cholds`).
-5. **`win_bounds` is gone from the model.** Every property reads a
-   validator's own `local_bounds`. In
-   [Schedule.lean](../Cadence/Conductor/Schedule.lean), `Bounds` is a
-   validator's interval and `WinBounds` is the interval some correct
-   validator holds, which the proofs read as the window's interval
-   (`Conductor.winBounds_unique`, by agreement).
-6. **The witness.** Its theory's first slot is `Cadence.medianOf` of the
-   ideal ACS's decided set (`Composed.Witness.first_at` evaluates it to the
-   window's first slot), and plateau position 37, the old recording step,
-   is a `tick` in place.
-
-**The slow cells.** Cold, on this machine. The first column is the design
-without any helper, measured under load (load average 6–11); the second is
-the final model, measured with the machine quiet (load 2–4):
-
-| cell | first build | final |
-|---|---|---|
-| `enter_window × bounded_tail` | 20.2 s | 3.6 s |
-| `enter_window × open_local_order` | 8.9 s | 3.3 s |
-| `open_slot × open_prefix_agreement` | 10.7 s | 3.6 s |
-| `enter_window × acs_proposal_above_prev` | 10.2 s | 2.0 s |
-| `acs_decide × win_bounds_ordered` | (action removed) | — |
-
-The slowest is 3.6 s. The one CI measurement of this model family gives a
-local-to-CI factor of up to 17 for these cells (8.3 s → 146.2 s), so about
-60 s on CI, a third of the budget. Before this change the three
-historically slow cells ran at 54–65% of the budget on several CI runs.
+The one CI measurement of this model family gave a local-to-CI factor of up
+to 17 for these cells, about 60 s on CI, a third of the budget. The sweep's
+cell count is in [Architecture.md](Architecture.md) §2.

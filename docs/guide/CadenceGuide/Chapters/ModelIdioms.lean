@@ -42,19 +42,21 @@ memory, and a guard could read any component. Distribution is a reading of
 that state, carried by the names of its components
 ({chapter ReadingModel}[chapter 3] has the table):
 
-* *Local rows.* A `local_*` relation is indexed by the validator that owns
-  it, its first argument: `local_entry_pos i j m` is validator `i`'s record.
-* *Messages.* A `msg_*` relation is indexed by its sender, first. A tuple is
+* *Local.* A `local_*` relation is indexed by the validator that owns it,
+  its first argument: `local_entry_pos i j m` is validator `i`'s record.
+  `participating` and `abandoned` are local too.
+* *Network.* A `msg_*` relation is indexed by its sender, first. A tuple is
   a message that has been sent and stays visible. Chunks are the one
   point-to-point message: `msg_chunk s i j m` names its recipient `i`
   second, because a proposer sends each validator its own chunk.
-* *Derived certificates.* A `ghost relation` over the messages, owned by
-  nobody: a validator that has received the signatures can check it.
-* *Auxiliary records.* An `aux_*` relation records history for the proofs.
-  Actions write it and none reads it, so it changes no run.
-* *Global time and the MVBA.* The phase, which the environment moves, and
-  the MVBA's state, used only through the MVBA class at the acting
-  validator's index.
+* *Environment.* The phase, global time, which only the environment moves.
+* *Sub-protocol.* The MVBA's state, used only through the MVBA class at the
+  acting validator's index.
+* *Auxiliary.* An `aux_*` relation records history for the proofs. Actions
+  write it and none reads it, so it changes no run.
+
+A derived certificate is a `ghost relation` over the network, owned by
+nobody: a validator that has received the signatures can check it.
 
 # The rules
 
@@ -83,9 +85,9 @@ A Byzantine validator's rules are the opposite, prohibitions: it may do
 anything except forge a signature, write what it does not own, or change
 the MVBA other than through its contract (rules B1–B3 of
 [Locality.md](../../../Locality.md) §4.2), since any further restriction
-would weaken the claims. The environment reads and writes only global time. A read or
-a write by a correct step that fits no rule is a gap in the model, to be
-replaced by one that fits.
+would weaken the claims. The environment reads and writes only global
+time. A read or a write by a correct step that fits no rule is a gap in the
+model, to be replaced by one that fits.
 
 # The shared phase
 
@@ -167,9 +169,8 @@ Every other check is the correct receiver's: a vote counts only if it has
 an entry for every proposer and each positive entry carries the signer's
 chunk under a root its proposer signed, so the adversary may send a vote
 that fails the check, and no correct validator counts it. What the
-adversary cannot do is send under a correct
-validator's name or write its rows, which is how the model states that
-signatures cannot be forged. Inside the MVBA it can do whatever the class
+adversary cannot do is send under a correct validator's name or write its
+rows, which is how the model states that signatures cannot be forged. Inside the MVBA it can do whatever the class
 `MVBASafety` leaves unconstrained ([ChorusDesign.md](../../../ChorusDesign.md) §5).
 
 # When a model departs from an idiom
@@ -241,7 +242,7 @@ actions, and what the rest of this chapter is for.
    MVBA's state through an input at its index; auxiliary records, which no
    action reads.
 4. *The adversary.* Every message a Byzantine validator could send that an
-   honest receiver would accept is the update of some `byz_*` action.
+   correct receiver would accept is the update of some `byz_*` action.
 5. *The paper.* The guards and updates are the rule the Paper column
    cites.
 :::
@@ -262,8 +263,7 @@ position: messages and certificates, the phase, and the MVBA class's
 operations. *Negative network reads* are only ever the actor's own sends.
 Configuration, such as `is_proposer`, is fixed data every validator knows
 and is left out. The note names the rules of
-[Locality.md](../../../Locality.md) each row follows; a note marked ⚠ is
-an open item of its §7.
+[Locality.md](../../../Locality.md) each row follows.
 
 The guide's build checks that every action of the model has a row and that
 every relation the derived columns name is part of the model, so the table

@@ -157,6 +157,10 @@ design, with the contract's signatures, is
 
 ## 2. The model
 
+*This section is the plan the model was built from. The model as built is
+the header of [Mvba.lean](../Cadence/Mvba.lean); §11 records how it came to
+follow [Locality.md](Locality.md)'s rules.*
+
 ### 2.1 Placement
 
 The verified-module file family, exactly as `FallbackReceipt` has it: a
@@ -414,15 +418,16 @@ fork's fairness annotations will carry once they exist
 > step 5 gives the argument).
 
 The classes, then: **unfair** for the `byz_*` family (F-byz); **weakly
-fair** for the honest message handlers, certificate assemblies, view changes
-and the two timeouts (F-justice); **timer** for `expire_timer` alone,
-governed by (A-viewsync)'s two clauses; **availability** for
-`become_avail_ready` alone, governed by (F-avail); and the two contract
-inputs `propose` / `abandon`, which are the *caller's* and carry no fairness
-at all — that every correct validator proposes is a premise of the claim, as
-it is in Supplement, Theorem 2 (`thm:termination`). Five classes, and the two environment ones are
-separate from the scheduler's on purpose: each names a different party that
-has to deliver something.
+fair** for the correct validators' message handlers, their own certificate
+formations, view changes and the two timeouts (F-justice); **timer** for
+`expire_timer`, the validator's own step, governed by (A-viewsync)'s two
+clauses; **availability** for `become_avail_ready`, the caller's input,
+governed by (F-avail); and the contract inputs `propose`, `abandon` and
+`decide` on a transferred certificate, which are the *caller's* and carry no
+fairness at all — that every correct validator proposes is a premise of the
+claim, as it is in Supplement, Theorem 2 (`thm:termination`). Five classes;
+the timer and the availability input are separate from the scheduler's on
+purpose: each names a different party that has to deliver something.
 
 **Claim level — what those assumptions can and cannot deliver.** §3.1(a) has
 a consequence that is easy to misread as an argument about fairness
@@ -1151,7 +1156,7 @@ of each cell rather than a cell, so `#veil_status Mvba` stayed at 725. Step
 
 ### 3.6 Design constraints that must not be violated
 
-Two choices would foreclose all of the above. Both are currently satisfied,
+Two choices would foreclose all of the above. Both are satisfied,
 and neither may be traded away for a safety-side simplification.
 
 * **Do not model view advancement as unguarded nondeterminism.** Letting any
@@ -1159,9 +1164,10 @@ and neither may be traded away for a safety-side simplification.
   behaviours — and liveness-fatal: a run that advances views forever starves
   every decision, so no well-founded ranking can exist and the fair-progress
   chain cannot be stated, let alone proven. Keep the timeout-certificate
-  structure that gates advancement (`form_tc` requires `2f+1` timeouts;
-  `sync_view` requires `msg_tc`); abstract the *timing* only (`timeout i v`
-  is enabled, not timed).
+  structure that gates advancement (`form_own_tc_*` and `byz_form_tc_*`
+  require `2f+1` timeouts; each `sync_view_*` requires a sent timeout
+  certificate); abstract the *timing* only (the timeout actions wait for the
+  `expire_timer` marker, which carries no clock).
 * **Keep view-indexed state monotone.** Accumulating relations
   (`entered i v`, `voted i v`, `local_prepqc i v e`) rather than mutable
   current-view fields. This is what makes §3.1(a)'s disabling analysable —
@@ -1659,14 +1665,14 @@ whose §9 records what it superseded and §10 the Veil facts that cost time
 to find. That draft also expected lock persistence to need a counting
 theorem outside the invariant clump; §2.6 explains why it does not.
 
-## 11. The MVBA follows the locality idiom (R36) — design
+## 11. The MVBA follows the locality rules (R36)
 
 *Status: approved by Lars on 2026-10-08 with option A, and implemented;
-§11.8 records what changed during implementation. The rules are
-[Locality.md](Locality.md). Its §7 records this model as open, with
-environment-written timers and sender-less certificates, and records
-Chorus's `send_mvba_cert` as open, because the contract does not output a
-decision's certificate.*
+§11.8 records what changed during implementation, and §11.9 the timeout
+check that followed. The rules are [Locality.md](Locality.md); its §7 lists
+this model, and Chorus's `send_mvba_cert`, as conforming. The design below
+is written against the model before the change, which had
+environment-written timers and sender-less certificates.*
 
 ### 11.1 What the supplement says, read for the idiom
 
@@ -1860,7 +1866,7 @@ Every honest formation and forward already requires `∃ E, input i E` and
 
 `decided_backed` reads `decided_qc` instead of the network.
 
-### 11.4 The fairness premise: option A or B (Lars to choose)
+### 11.4 The fairness premise: option A or B (option A adopted)
 
 * **A (recommended): forward, and owe by correct sender.** This is the
   design above, with `Owed (sync_view_* i s …) := ¬ is_byz s` (the leaders
@@ -1890,7 +1896,7 @@ Every honest formation and forward already requires `∃ E, input i E` and
 `#veil_status Mvba` is `A·(P+2) + P + 1`, where `A` is the number of
 actions and `P` the number of safety properties and invariants. Each action
 has `P` cells, one step-property cell and one does-not-throw cell; the
-initializer has `P` cells and one does-not-throw cell. Today:
+initializer has `P` cells and one does-not-throw cell. Before the change:
 `28·52 + 51 = 1507`, with `P = 50`.
 
 * **A:** −4 anonymous assemblies, +4 `byz_form_*`, −1 `sync_view`,
@@ -1940,6 +1946,25 @@ The scenario syncs on a lock certificate without adopting it, through
 exist: at most the three participants and node 0. `(sequential := true)`
 stays.
 
+### 11.7 What is re-proven
+
+On the Mvba side:
+
+* `Mvba.mvbaSafety` (new fields), `Mvba.termination`,
+  `Mvba.bounded_termination`, `Mvba.mvbaTemporal` and `Mvba.mvbaFull`;
+* both MVBA witnesses
+  ([Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)'s run gains the
+  forwards and the senders).
+
+On the Chorus side:
+
+* `Chorus.termination` and the timed claims (the `send_mvba_cert` label
+  loses `v`, and the certificate comes from `decided_certified`);
+* `Composed/`, the Chorus witness, and the monitor's MVBA stub
+  (`decidedCert`).
+
+Untouched: the Conductor and the glue.
+
 ### 11.8 As built: what changed against the design
 
 Implementation (2026-10-08) followed §11.2–§11.6 with option A, approved by
@@ -1981,21 +2006,17 @@ witness changed only by the sender arguments, `byz_form_commitqc` at
 node 0, `decided_qc` and the forwards; the module builds in about two and a
 half minutes on one core.
 
-### 11.7 What is re-proven
+### 11.9 The timeout view check at the receivers (R38)
 
-On the Mvba side:
-
-* `Mvba.mvbaSafety` (new fields), `Mvba.termination`,
-  `Mvba.bounded_termination`, `Mvba.mvbaTemporal` and `Mvba.mvbaFull`;
-* both MVBA witnesses
-  ([Mvba/Witness.lean](../Cadence/Mvba/Witness.lean)'s run gains the
-  forwards and the senders).
-
-On the Chorus side:
-
-* `Chorus.termination` and the timed claims (the `send_mvba_cert` label
-  loses `v`, and the certificate comes from `decided_certified`);
-* `Composed/`, the Chorus witness, and the monitor's MVBA stub
-  (`decidedCert`).
-
-Untouched: the Conductor and the glue.
+A timeout may carry a prepare certificate of any view. The supplement's
+receiver reads one above the timeout's view as `⊥` (Supplement, Algorithm 1,
+line 4 (`line:mvba:derived`)), and so do the model's timeout-certificate
+rules: each member of `form_own_tc_lock`, `form_own_tc_nolock`,
+`byz_form_tc_lock` and `byz_form_tc_nolock` either carries no certificate,
+or one within the bound, or one above its own view, which counts as none.
+`byz_timeout_qc` has no view guard, so no receiver check is stated on the
+Byzantine sender ([Locality.md](Locality.md) §4.2, B4).
+`timeout_qc_view_le` holds of correct senders only, and the liveness lemma
+`exists_dominating_timeout` sorts each member's certificate into `⊥` or one
+of view at most `v`. The pin is unchanged, and NoLock keeps its pinned
+counterexample.

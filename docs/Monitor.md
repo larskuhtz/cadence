@@ -252,7 +252,7 @@ pins the nondeterminism at the monitored components' boundary. See
 [Architecture.md](Architecture.md) §4.
 
 **The MVBA leg is a coverage gap.** Chorus consumes the MVBA as the class
-constraint `MVBASafety` over three abstract sorts, and no implementation
+constraint `MVBASafety` over four abstract sorts, and no implementation
 event corresponds to them: the MVBA's internal state and messages are not
 observable at the Chorus trace boundary, and the emitter does not emit
 decisions. The monitor
@@ -263,8 +263,9 @@ which the oracle step `mvba_step` is a silent no-op (tagged *internal*, so
 Stage B absorbs it) and the decision handlers `on_mvba_decide_*` and
 `mvba_terminate`, the fallback commit vote `cast_fb_commit` (it
 reads the validator's own decision), and the decision handoff
-`accept_mvba_commitqc` (nothing is ever certified under the stub, so
-`accept` never holds), can **never be enabled**: a trace carrying a fallback-path
+`send_mvba_cert` and `accept_mvba_commitqc` (no decision outputs a
+certificate under the stub, and nothing is certified, so `decidedCert` and
+`accept` never hold), can **never be enabled**: a trace carrying a fallback-path
 decision is rejected at the first handler. That is a limit of the monitor,
 not of the model — the model's MVBA is the verified `Mvba` instance
 ([Cadence/System.lean](../Cadence/System.lean)) — and closing it means giving the monitor a real
@@ -275,7 +276,7 @@ so that a decision event can seed a `decided`-true stub state. The fixtures
 under [traces/](../traces) are fast-path only and never reach the MVBA, so they are
 unaffected.
 
-**The participation inputs.** Since the participation edit the model's
+**The participation inputs.** The model's
 sending rules require `participating i ∧ ¬ abandoned i`, so a trace must
 open with a `participate` event per node (the slot's `open`), and
 `broadcast_commitqc_*` carries its sender as the first argument. The fixtures under [traces/](../traces) were edited by hand to
@@ -287,7 +288,7 @@ coverage gap as the decision handlers. In single-node mode another node's
 as that node's message.
 
 **The fired-once guards** (S1b, [Bounds.md](Bounds.md) §6.4.7). Every fair
-action now refuses to fire a second time: a validator aggregates a given
+action refuses to fire a second time: a validator aggregates a given
 FastQC once, a collector broadcasts one commit certificate per proposer, a
 proposer's chunk is delivered to a given validator once, and so on. A trace that
 repeats such a line for the same actor is therefore rejected at the repeat.

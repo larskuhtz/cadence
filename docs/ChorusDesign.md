@@ -789,10 +789,10 @@ a Byzantine signer, equivocate (produce two distinct signed chunk
 headers for the same proposer), send chunks of distinct roots to disjoint
 subsets of validators (`byz_send_chunk`), and cast inconsistent votes /
 fallback signatures / commit votes, sending different votes to different
-validators. Cryptographic unforgeability prevents it from signing as an
-honest node: a Byzantine action writes messages only under its own name.
-Honest local state and the phase are updated only by their own actions
-([Locality.md](Locality.md) §4).
+validators. Cryptographic unforgeability prevents it from signing as a
+correct validator: a Byzantine action writes messages only under its own
+name. A correct validator's local state and the phase are updated only by
+their own actions ([Locality.md](Locality.md) §4).
 
 **Receivers check what they accept.** A correct receiver counts a vote
 only if it passes the paper's vote handler (`vote_valid`, §3.5.3), so a
@@ -806,14 +806,14 @@ carries the proposer signature `σ_p`.
 **The adversary's share of the anonymous capabilities.** Assembling a
 commit certificate from `2f+1` broadcast commit votes, and re-disseminating a
 chunk once `f+1` chunks are on the network, are capabilities any holder of
-the data has. For a correct sender the first is the honest rule
+the data has. For a correct sender the first is the rule
 `broadcast_commitqc_*`, gated on participation and fired once; the second
 is part of the fallback-entry rule `fb_sign_pos` (Algorithm 5, line 12
-(`line:fb-redisseminate`); since R19, F15). In Byzantine hands they are
+(`line:fb-redisseminate`)). In Byzantine hands they are
 `byz_broadcast_commitqc_*`, with the certificate's signatures as its only
 check ([Locality.md](Locality.md) §4.2, B2), and `byz_redisseminate_chunk`,
-with none: no gate, no record, and no fairness ((F-byz)). Until S1b both were branches of the honest actions;
-splitting them keeps every fair action fired-once
+with none: no gate, no record, and no fairness ((F-byz)). Keeping them out
+of the correct validators' actions keeps every fair action fired-once
 ([Bounds.md](Bounds.md) §6.4.7) without constraining the adversary.
 
 ### Per-relation actions, not a monolithic transition

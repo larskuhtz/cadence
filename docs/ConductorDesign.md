@@ -126,10 +126,14 @@ fields, not substitutes for them.
   levels `Chorus.chorusTemporal` and `Chorus.chorusWithTotality`, joined as
   `Chorus.slotConsensusFull`
   ([Cadence/Chorus/Temporal.lean](../Cadence/Chorus/Temporal.lean)).
-* `ACS` — agreement, genuine validity, integrity, the `propose` input in
-  the fragment; quantitative validity, ℓ-termination, Δ-totality,
-  quiescence in the full class (Module 4 (`mod:acs`)). No instance (standard
-  primitive); the Conductor consumes the fragment as its `acs` constraint.
+* `ACS` — agreement, genuine validity, integrity, one slot per validator
+  (`decided_unique`), a final decision (`decided_stable`), and the
+  `propose` and `abandon` inputs in the fragment; quantitative validity,
+  ℓ-termination, Δ-totality, quiescence in the full class (Module 4
+  (`mod:acs`)). No protocol instance: the ACS is an assumed module, and the
+  ideal ACS (`Cadence.IdealAcs.acsSafety`, `Cadence.IdealAcs.acsTemporal`)
+  shows the class is consistent. The Conductor consumes the fragment as its
+  `acs` constraint.
 * `Orchestrator` — open-prefix agreement, Monotonicity, Integrity's
   at-most-once half, the `complete` input in the fragment; Integrity's
   totality, B-boundedness and R-recovery in the temporal class
@@ -173,7 +177,7 @@ fields, not substitutes for them.
   (2W−p) is a one-line corollary at the meta/Lean level — do **not**
   attempt cardinality counting in SMT.
 * **Integrity part 2** ("no open before the slot's starting time") —
-  trivial given the clock-guard on the open action (see §4, clocks);
+  trivial given the clock-guard on the open action (ingredient 3 below, the abstract clock);
   the real content is the clock-synchronization assumption.
 
 ### What is proven over timed runs
@@ -201,8 +205,8 @@ fields, not substitutes for them.
    (Algorithm 7, line 48 (`line:median-compute`)), so the assignment is execution-dependent
    state. The encoding therefore splits — static order structure only
    (`TotalOrderWithMinimum` on `slot` and `window`, no `+W` arithmetic in
-   the SMT layer), with the intervals themselves as oracle state in the
-   Conductor. That split introduces **no new axioms**; the details are in
+   the SMT layer), with the intervals themselves as each validator's own
+   state (`local_bounds`), computed in its entry step. That split introduces **no new axioms**; the details are in
    [Cadence/Windows.lean](../Cadence/Windows.lean). What *is* static is a
    window's width: the immutable shift functions `win_last` and
    `win_boundary` (the `+ (W − 1)` of Algorithm 7, line 52
@@ -254,10 +258,12 @@ The Conductor has no Byzantine message surface beyond ACS: its only inputs
 are local `completed(s)` callbacks and ACS decisions. Byzantine influence
 enters in two places — (i) ACS decided sets containing up to f faulty pairs
 (one per Byzantine validator, `ACSSafety.decided_unique`), covered by the
-median-range `require` that `Cadence.acs_median_bracket` justifies, and (ii) Byzantine validators' own ACS proposals, which
+model assumption `[acs_first_bracket]` on the first slot each validator
+computes, which the lower median meets under the fault bound
+(`Cadence.lowerMedian_first_assumptions`), and (ii) Byzantine validators' own ACS proposals, which
 are internal steps of the ACS instance and which the contract leaves
-unconstrained. The module therefore needs no quorum machinery of its own;
-`ByzNodeSet` enters only through the median lemma.
+unconstrained. The module therefore needs no quorum machinery and no
+`ByzNodeSet`; the fault pattern is the ACS contract's.
 
 ## 4. The Cadence glue module and the top-level properties
 
@@ -307,9 +313,10 @@ Algorithm 1 (`algorithm:cadence`) is its own small Veil module:
   module's reachable states, not an SMT invariant (positions are list
   arithmetic).
 * ℓ-liveness and c-censorship-resistance carry real-time parameters
-  (GST + R, ℓ_MVBA, …) — they compose the meta-layer termination /
-  recovery axioms and live at the meta layer, exactly like Chorus's
-  ℓ-termination does today.
+  (GST + R, ℓ_MVBA, …) — they are proven over timed runs of the composed
+  system from the modules' temporal instances (`Composed.liveness`,
+  `Composed.censorship`; [CompositionContracts.md](CompositionContracts.md)
+  §6).
 * Hiding: the paper's composition lemma is one line — proposals flow only
   through per-slot instances — and at this abstraction the glue module has no
   other channel. It is therefore documented rather than proven here; the

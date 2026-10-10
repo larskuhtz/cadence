@@ -10,9 +10,9 @@ The models describe a distributed protocol only if every correct
 validator's step depends on what that validator can know, and changes only
 what it owns. This page states that requirement once, for every model, as
 rules that each action can be checked against by pattern matching over
-names, index positions and the polarity of a read. A read or a write that
-fits no rule is a gap in the model, to be replaced by one that fits; no
-action has an exception argued for it alone.
+names, index positions and the polarity of a read. A read or a write of a
+correct step that fits no rule is a gap in the model, to be replaced by one
+that fits; no action has an exception argued for it alone.
 
 The last column of each table says whether a rule is **syntactic** —
 decidable from the action's text and the declarations — or needs a
@@ -162,7 +162,7 @@ the timeout carrying it (Supplement, Algorithm 1, line 4
 `byz_form_tc_nolock` read their members' views, as the correct
 `form_own_tc_*` do.
 
-**B4 is a gap in the model, to be closed.** A guard that stands for a
+**B4 marks a gap in the model.** A guard that stands for a
 receiver's check is equivalent to the check only while every correct
 receiver applies it, and it hides the check from the correct side, where
 the paper has it. None remain: every receiver check is a guard of the
@@ -224,6 +224,10 @@ decides is then recorded in its own local state, never left to be derived
 again from the network by a later step.
 
 ## 7. The models against the rules
+
+Every model conforms to the rules. The tables list each model's auxiliary
+relations and local rows, and what conforming took where it is not
+evident.
 
 The auxiliary relations of every model:
 

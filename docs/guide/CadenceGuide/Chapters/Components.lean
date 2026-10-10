@@ -82,8 +82,8 @@ fallback path, one more round, an MVBA instance and a final round of commit
 votes. {cite}`mod:slotconsensus` is its specification.
 
 *The model.* One slot instance, with the paper's participation interface
-(`participate`, `propose`, `abandon`), honest actions for the rules of
-{cite}`alg:proposer-dissemination` to {cite}`alg:da`, and one adversary action
+(`participate`, `propose`, `abandon`), correct validators' actions for the
+rules of {cite}`alg:proposer-dissemination` to {cite}`alg:da`, and one adversary action
 per capability of a Byzantine validator. It abstracts:
 
 * the MVBA, which enters as its contract, a class over an abstract state; the
@@ -128,8 +128,9 @@ view that does not decide. The supplement is part of the paper target.
 views, timeouts, timeout certificates and the lock. The value agreed on is a
 meta-block, and agreement is over its entry vector. It abstracts:
 
-* time: the model has no clock, and the view timer is a marker the
-  environment sets; the timing model lives in the timed claim, over runs;
+* time: the model has no clock, and a validator's view timer is a step of
+  its own that may fire at any time after it enters the view; the timing model lives in the timed
+  claim, over runs;
 * `Recover`, as a choice among the valid meta-blocks with the given entries,
   which contains the supplement's choice;
 * persistence and crash recovery, which the supplement handles separately;
@@ -167,8 +168,9 @@ next window to that window's ACS instance, and the median of the decided
 proposals becomes the window's first slot. {cite}`mod:orchestrator_2` is its
 specification.
 
-*The model.* Windows, the readiness check, the ACS proposals and the median
-rule, with the slot openings at their starting times. It abstracts:
+*The model.* Windows, the readiness check, the ACS proposals and the first
+slot each validator computes from its own decided set, with the slot
+openings at their starting times. It abstracts:
 
 * the ACS, which enters as its contract, one abstract instance per window;
   the ACS is an assumed module ({chapter Contracts}[chapter 5]);
@@ -177,7 +179,11 @@ rule, with the slot openings at their starting times. It abstracts:
 * punctual opening: the model lets an enabled opening wait, which only adds
   behaviours, and requires openings in slot order where the paper's argument
   uses punctuality;
-* counting, replaced by intervals of slots.
+* counting, replaced by intervals of slots;
+* the median, as a first-slot function with two model assumptions: it
+  depends on the decided set alone, and two correct validators' pairs
+  bracket it. The lower median meets both
+  ({decl}`Cadence.lowerMedian_first_assumptions`).
 
 The Conductor has no Byzantine message surface of its own: Byzantine
 validators act through their ACS proposals.

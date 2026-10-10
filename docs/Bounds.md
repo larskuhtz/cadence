@@ -1899,12 +1899,9 @@ disable themselves after firing: `vote` (`¬ local_voted`), `send_commit`
 (`∀ E, ¬ decided`), the leader's proposal (`¬ proposed_in`), and
 `adopt_prepqc` (the lock-view guard). The others got the guard:
 
-* **Mvba: the anonymous assemblies** `form_prepqc`, `form_commitqc`,
-  `form_tc_lock` and `form_tc_nolock` (removed since; the adversary now
-  aggregates under its own name, `byz_form_*`, [MvbaPlan.md](MvbaPlan.md)
-  §11). They had no validator, and a quorum
-  parameter `q`, so once the certificate exists every `q`-variant stays
-  enabled without effect. In the supplement (at the paper target) each is a
+* **Mvba: certificate formation.** A certificate formed by no validator
+  would carry a quorum parameter `q`, so once the certificate exists every
+  `q`-variant would stay enabled without effect. In the supplement (at the paper target) each is a
   step of one validator with a local condition:
   * `TryFormPrepQC`: pᵢ forms `prepareQC` if it "has not already formed a
     prepare certificate in the current view" (`adopt_prepqc`, §6.2.4);
@@ -2039,13 +2036,13 @@ What the lemma required:
     that it has not already learned a decision certificate", form the
     `CommitQC`, record it as `DecidedQC_i` and decide. `DecidedQC_i` is set
     exactly when a validator decides (both decision paths set it), so the
-    guard is `∀ E, ¬ decided i E`; since R36 the certificate is recorded
+    guard is `∀ E, ¬ decided i E`; the certificate is recorded
     in `decided_qc i v e` and sent under `i`'s name, where `decide` reads it.
-  * `form_own_tc_lock i v q r₀ w e` and `form_own_tc_nolock i v q` —
+  * `form_own_tc_lock i v q r₀ s w e` and `form_own_tc_nolock i v q` —
     `HandleTimeout`, "upon first collecting `2f+1` valid timeout messages":
     the local record `tc_formed i v`, whose absence is the guard.
     The certificate goes on the network; `SyncView` is the next step
-    (`sync_view`, `sync_view_adopt`).
+    (`sync_view_nolock`, `sync_view_lock`, `sync_view_adopt`).
 
   The adversary's aggregation is `byz_form_*`, in `ByzLabel`, with no
   hop-table row. Only positive reads of `msg_*`; at most 7 parameters. One
@@ -2093,7 +2090,7 @@ What the lemma required:
   `sequential := true`, finds agreement violated, and the file pins the
   witness.
 * **Chorus:** `MvbaAdmissible`'s `Mvba.FJustice` of the projected run
-  ranges over the per-validator steps, not the anonymous assemblies.
+  ranges over the per-validator steps.
 
 **The premises, and the bridges.**
 

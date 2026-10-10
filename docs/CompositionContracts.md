@@ -42,7 +42,7 @@ The design below removes the first by making contracts **consumable as type
 class constraints**, and the second by making the temporal obligations
 **fields of a class**: an implementation discharges them by providing an
 instance, and a class with no protocol instance is an obligation left
-open, stated once. Today that is only the ACS's, the assumed module; its one
+open, stated once. That is only the ACS's, the assumed module; its one
 instance is an ideal model ([IdealAcs.lean](../Cadence/Conductor/IdealAcs.lean)),
 a consistency witness.
 
@@ -194,11 +194,13 @@ instance's `abandon` input in the same step (Algorithm 7, lines 44–45
 assumption is then the model's invariant `[acs_abandoned_decided]`
 (Proposition 12 (`prop:acs-no-premature-abandonment`)).
 
-One **stated bridge** remains a `require` rather than a class property: that
-the decided first slot is bracketed from below by a *correct* pair of the
-decided set. Cardinality is outside the first-order fragment, so the model
-cannot derive it; that it removes no behaviour of a correct ACS is a Lean
-theorem from the contract, `Cadence.acs_median_bracket` (§7 item 3).
+One **stated bridge** remains a model assumption rather than a class
+property: the first slot a validator computes from its decided set
+(`acs_first`) is a function of that set (`[acs_first_local]`) and is
+bracketed from below and from above by correct pairs of it
+(`[acs_first_bracket]`). Cardinality is outside the first-order fragment,
+so the model cannot derive it; that the paper's lower median meets both is
+a Lean theorem, `Cadence.lowerMedian_first_assumptions` (§7 item 3).
 
 ### Chorus ([Chorus.lean](../Cadence/Chorus.lean))
 
@@ -420,7 +422,7 @@ discharges `WindowsUnbounded` and `StartsUnbounded` at `window := ℕ` over
 an Archimedean time whose slot 1 starts at or after `0`. `clock_agrees`
 ties a run's clock to the Conductor's own `now`.
 
-**Totality and Recovery are in rely form (C5, decided 2026-10-03).** They
+**Totality and Recovery are in rely form (C5).** They
 hold of the Conductor only "when run within Cadence": a caller that never
 completes a slot leaves every correct validator in window 1 (F17,
 [ConductorBounds.md](ConductorBounds.md) §2.3). The two conditions the
@@ -558,6 +560,13 @@ schedule is a function). A correct leader is a liveness premise of the
 timed instance (`LeaderRotation`), not of the safety instance
 ([Premises.md](Premises.md) §2.5).
 
+The Conductor's two `assumption`s, `[acs_first_local]` and
+`[acs_first_bracket]`, enter its instance the same way, as the
+`assumptions` conjunct of `Conductor.orchestratorSafety`'s `init`. The
+lower median meets both when at most `f` validators are Byzantine
+(`Cadence.lowerMedian_first_assumptions`), and the composed witness uses
+that median.
+
 No temporal obligation enters: MCP Safety is a safety property and needs only
 the proven fragments.
 
@@ -641,7 +650,7 @@ and the fault-pattern transport, which the timed claims fix.
 3. **The ACS median bridge.** That two correct pairs of a validator's
    decided set bracket the first slot it computes is not derived inside the
    model: the model does not compute the median, and cardinality is
-   upper-level. It is a model assumption on the first-slot function,
+   outside the first-order fragment. It is a model assumption on the first-slot function,
    `[acs_first_bracket]`, together with `[acs_first_local]` (the first slot
    is a function of the decided set alone). That the paper's lower median
    meets both is a Lean theorem: `Cadence.lowerMedian_first_assumptions`

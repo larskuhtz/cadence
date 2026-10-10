@@ -71,38 +71,40 @@ in {cite}`alg:proposer-dissemination` to {cite}`alg:da`.
 
 # The state
 
-Every state component of Chorus falls into one of four categories, and its
-name says which:
+Every state component of Chorus is of one of five kinds, and its name says
+which:
 
 :::table +header
 *
-  * Category
+  * Kind
   * Named
   * Stands for
 *
-  * message
+  * network
   * `msg_*`, sender first
   * a message its sender has sent, which stays visible
 *
-  * derived certificate
-  * `ghost relation`
-  * a fact about the messages, such as "a supermajority signed this"
-*
   * local
-  * `local_*`, owner first
+  * `local_*`, owner first, and `participating`, `abandoned`
   * one validator's own record, read and written by its own actions only
+*
+  * environment
+  * `phase`
+  * global time, which only the environment moves
+*
+  * sub-protocol
+  * `mvba_st`
+  * the MVBA's state, used only through the MVBA's contract
 *
   * auxiliary
   * `aux_*`
   * a history record for the proofs, read by no action
-*
-  * global time, the MVBA
-  * a bare name
-  * the phase, which the environment moves, and the MVBA's state
 :::
 
-Configuration sits beside them, as `immutable` relations. Here is one
-declaration of each kind.
+A `ghost relation` is a named formula over these, such as a derived
+certificate, "a supermajority signed this". Configuration sits beside them,
+as `immutable` relations. Here is a declaration of each kind a reader meets
+first; the MVBA's state has a section of its own below.
 
 ## Configuration
 
@@ -120,7 +122,7 @@ A tuple `(r, j, m)` is validator `r`'s signature on the positive vote entry
 for proposer `j` and root `m`. The first argument is the signer. Actions
 only ever add tuples, so a message, once sent, stays visible to every
 validator: the network is *monotone*. A correct validator's row is written
-only by its own honest actions; a Byzantine validator's row only by the
+only by its own actions; a Byzantine validator's row only by the
 adversary's. {chapter ModelIdioms}[Chapter 4] explains why this reading of the network is sound
 for safety, and what it asks of every action.
 
@@ -155,16 +157,16 @@ guard reading the phase: "the deadline has passed" is
 `phase ≠ pre_deadline`. The phase is one value for all validators, and
 {chapter ModelIdioms}[chapter 4] says what that asks you to accept.
 
-# Four honest actions
+# Four actions of a correct validator
 
 ## A proposer proposes
 
 {model Cadence.Chorus "action propose"}
 
-Read the guards in order. `¬ is_byz j` makes this an honest action: it
-belongs to a correct validator, the proposer `j`. Every protocol rule of a
-correct validator starts this way (the caller's inputs, `participate` and
-`abandon`, are labelled as inputs instead), and Byzantine validators have actions of their own. The
+Read the guards in order. `¬ is_byz j` makes this a correct validator's
+action, the proposer `j`'s. Every action of a correct validator starts this
+way (the caller's inputs, `participate` and `abandon`, are labelled as
+inputs instead), and Byzantine validators have actions of their own. The
 next two guards are the participation gate: `j` has joined the slot and has
 not left it, which every action that sends a message requires. Then `j` is
 a proposer, its root is validly encoded, and the deadline has not passed.
