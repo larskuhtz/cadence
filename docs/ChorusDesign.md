@@ -702,8 +702,8 @@ decision outputs (`send_mvba_cert i c`, guarded by the contract's output
 `mvba.decidedCert` at `i`; `msg_mvba_cert i c`). A receiver hands
 it to its own MVBA (`accept_mvba_commitqc`), and finalizes on it
 (`commit_assign_pos_mvba i j m s c v` / `commit_assign_neg_mvba`): the
-received certificate `c`, checked with the contract's `mvba.certifies`
-against a representation `v` of its entries (the recovered meta-block),
+received certificate `c`, checked at `i`'s own index with the contract's
+`mvba.certifies` ([Locality.md](Locality.md) R6) against a representation `v` of its entries (the recovered meta-block),
 the certificates `v` names checked against the network (the bridge
 below), and the certificate re-broadcast under the finalizer's own name.
 The route's agreement with the fast path is `commitqc_pos_mvba_consistent`

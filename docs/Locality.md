@@ -109,7 +109,7 @@ forbid, and each prohibition is either cryptography or a gap that is listed.
 | **R3** | network rows at sender `x`, in either polarity: what it has sent is its own state | syntactic |
 | **R4** | environment state (global time) | syntactic |
 | **R5** | configuration and its parameters; the fault predicate only at `x` (the actor guard `¬ is_byz x`) | syntactic |
-| **R6** | the sub-protocol's operations at index `x` (`mvba.decided mvba_st x v`) | syntactic |
+| **R6** | the sub-protocol's operations at index `x` (`mvba.decided mvba_st x v`, `mvba.certifies mvba_st x c e`): an interface operation a guard reads takes the actor's index, unless it is global time (R4) or a pure function of its arguments (R5) | syntactic; *semantic step*, per instance: that the instance defines the operation at `x` from what `x` holds (§5) |
 
 and writes only:
 
@@ -194,9 +194,32 @@ operation an action uses is one of:
 | Operation | Example | Rule |
 |---|---|---|
 | an **input** at the actor's index | `mvba.propose st x v next`, `acs.abandon st x next` | W3 |
-| an **output or record** at the actor's index | `mvba.decided st x v`, `acs.has_decided st x` | R6 |
-| a **pure function** of data the node holds | `mvba.entries v`; the Conductor's `acs_first (acs_state w) x`, the first slot `x` computes from its own decided set | R5; for `acs_first`, a *semantic step*: the model's assumption `[acs_first_local]` that it reads only the decided set at its index |
-| a **check** of a message the node holds | `mvba.certifies st c e`, for a certificate `c` the node has received | R2: the check holds iff the signatures it verifies are on the sub-protocol's network, which a contract field keeps monotone (`certified_mono`) |
+| an **output, record or check** at the actor's index | `mvba.decided st x v`, `acs.has_decided st x`; `mvba.certifies st x c e`, `x`'s check of a certificate `c` it has received; the Conductor's `acs_first (acs_state w) x`, the first slot `x` computes from its own decision | R6 |
+| a **pure function** of its arguments | `mvba.entries v` | R5 |
+
+**What the index gives, and what it does not.** The index makes the
+consumer's side syntactic: a guard reads the contract only at the actor's
+own index, which a checker matches like any other index position. It does
+not by itself stop an instance from defining the operation at `x` from
+other validators' state, since the operation still receives the whole
+sub-protocol state. That is an obligation on the **instance**, a semantic
+step per instance:
+
+* `Mvba.mvbaSafety` meets it: `certifies st x c e` holds for a commit
+  certificate some validator sent on the MVBA's network, a positive read
+  (R2), and the Mvba model conforms to these rules. The check is the same
+  at every index, the supplement's "which any party can check"
+  (Supplement, Section 1.2 (`subsec:mvba-protocol`)); the index fixes where
+  a guard reads, not what the instance computes;
+* for `acs_first`, the model's assumption `[acs_first_local]` says it reads
+  only the decided set at its index, and the lower median meets it;
+* for the ACS's own operations (`proposed`, `has_decided`) it is open: the
+  ACS is an assumed module, whose only instance is the ideal one.
+
+Operations that only the contract's fields or a consumer's invariants
+mention (`SlotConsensusSafety.tag`, `deadline_passed`,
+`payload_recoverable`, `OrchestratorSafety.clock`, `mvba.availReady`) are
+not read by any guard and need no index.
 
 The sub-protocol's own step (`mvba.step`) is not invoked by a node: it is the
 sub-protocol's actors, whose locality the implementing model checks.
@@ -209,7 +232,9 @@ or several states, and are used only in invariants and proofs, which are
 not bound by locality. A field never appears in a guard; that would be
 restating a contract property in a consumer, which the composition already
 forbids. *Check*: syntactic — a guard's contract terms are the operations
-above, at the actor's index where they take one.
+above, each at the actor's index unless it is a pure function of its
+arguments or global time; that the instance defines it locally is the
+per-instance step above.
 
 ## 6. Certificates
 
