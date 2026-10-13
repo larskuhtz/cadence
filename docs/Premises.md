@@ -80,6 +80,31 @@ theorem of [Composed/Witness/](../Cadence/Composed/Witness/) that meets it
 there, and the four `…_premises_satisfiable` theorems meet them all
 together.*
 
+**The premises by name.** The guide and this page name each premise of
+the composed claims the same way; the right column says where the
+premise sits in the claims' statements, and the sections below take them
+in that order.
+
+| Premise (tag) | In the statement | Below |
+|---|---|---|
+| Validators and faults | `n`, `f`, the fault pattern `fmF`; the time theory | §0.2 |
+| Partial synchrony, (Δδ-justice), (Δ-justice) | inside `SlotAdmissible` and `OrchAdmissible` | §0.3 |
+| Local steps take no time (`δ = 0`) | `ConductorSchedule.δ_zero`, `GlueRows` | §0.2, §0.3 |
+| Synchronized clocks, (P-phase), (T-timer), (P-open) | inside `SlotAdmissible` and `OrchAdmissible` | §0.3 |
+| Fair scheduling, (F-justice) | inside `SlotAdmissible` | §0.3 |
+| The assumed ACS | `TA : ACSTemporal …`, `TA.Δ = sch.Δ`, `TA.ℓ = sch.ℓ`; inside `OrchAdmissible` | §0.2 |
+| The configuration | `ConductorSchedule`, `StartTimes`, `StartsUnbounded`, `WindowShifts`, `WindowsUnbounded` | §0.2 |
+| Correct MVBA leaders, (A-leader-rotation-k) | `hrot : Mvba.LeaderRotation …` | §0.2 |
+| A proposer per slot | `hprop` | §0.2 |
+| The certificate bridge, (ValidBridge) | inside `SlotAdmissible` | §0.3 |
+| On time at the deadline, (P-incl) | `SlotInclusive` (censorship resistance only) | §0.3 |
+| A proposal to make | `∃ m, well_encoded m` (censorship resistance only) | §0.2 |
+
+`SysSync` is `GlueRows ∧ OrchAdmissible ∧ SlotAdmissible`: the whole run
+premise. `OrchAdmissible` is the Conductor's timing model on its part of
+the run (§9.3), `SlotAdmissible` Chorus's on every started slot's part
+(§3–§5).
+
 ### 0.1 The claims
 
 | Claim | What it says | Proven by |
@@ -755,8 +780,10 @@ validator.
   by the deadline is processed before the deadline handler. A chunk sent
   at `D − Δ` may arrive exactly at `D`, where the deadline marker may also
   fire (F31).
-* **Plausible:** the paper's Proposition 3 reads it so; an implementation
-  processes its inbox before the timer that closes it at the same instant.
+* **Plausible:** the proof of the paper's Proposition 3 relies on this
+  reading, and the paper states no rule for the tie (P19); an
+  implementation processes its inbox before the timer that closes it at
+  the same instant.
 * **Satisfiable:** `Chorus.Witness.deadlineInclusive`: the Chorus witness
   of §1 meets it, at any schedule; on every slot of the composed witness,
   `Composed.Witness.slotInclusive`.
@@ -901,29 +928,33 @@ it can miss an unused premise but not invent one. It finds the one
 antecedent a proof discards by name (the first exception below), and the
 proof steps named in the "Used in" lines were read besides.
 
-**Result.** Every premise of every claim in §1 is used, with one
-exception, kept by decision. Two premises the analysis found redundant are
-no longer premises (the analysis and the change are recorded in
-[History.md](History.md)):
+**Result.** Every premise of every claim in §1 is used, with two
+exceptions, both kept: the paper states the first as a caller condition,
+and the second forms a contract instance the claims name.
 
 * **Unused: the timed MVBA claim's `Valid` antecedent.**
   `Mvba.timed_termination` (and so `Mvba.mvbaTemporal`'s `termination`)
   does not use "every correct validator proposes a `Valid` value": the
   model's `propose` checks validity itself. The antecedent is part of the
   contract field `MVBATemporal.termination`, Module 3 (`mod:mvba`)'s
-  caller condition, which another implementation may need. *Kept*
-  (decided 2026-10-03): it is the paper's caller condition; not used by
-  this instance's proof.
-* **Implied, and now derived: `ByzNodeSetHonestQuorum` in the timed
-  Chorus claims at the system's MVBA.** `Chorus.timed_termination_atMvba`
-  and `Chorus.timed_termination_tight_atMvba` took it as a hypothesis,
-  but at the family they are stated at it is a theorem (`Chorus.hqeFin`).
-  The two theorems derive it inside and do not take it.
-* **Unused and implied, and so not an assumption: "above every view there
-  is a correct-led one".** No proof of a claim in §1 needs it, and
-  `LeaderRotation` (§2.5) implies it. [Mvba.lean](../Cadence/Mvba.lean)
-  does not assume it, so the MVBA's safety claims hold for every leader
-  schedule.
+  caller condition, which another implementation may need.
+* **Used only by the instance it forms: the slot has a proposer** (§2.10).
+  `Chorus.chorusTemporal` uses it in `admissible_exists`, to show that its
+  admissible runs exist. Corollary 4 and the claims that follow it take it
+  because their statements name that instance, and no step of their proofs
+  uses it.
+
+Two hypotheses the analysis found redundant are not premises
+([History.md](History.md) records the analysis):
+
+* **`ByzNodeSetHonestQuorum` in the timed Chorus claims at the system's
+  MVBA** is a theorem at the family they are stated at (`Chorus.hqeFin`),
+  so `Chorus.timed_termination_atMvba` and
+  `Chorus.timed_termination_tight_atMvba` derive it inside.
+* **"Above every view there is a correct-led one"** is implied by
+  `LeaderRotation` (§2.5) and needed by no proof of a claim in §1.
+  [Mvba.lean](../Cadence/Mvba.lean) does not assume it, so the MVBA's
+  safety claims hold for every leader schedule.
 
 Where a premise is a conjunction, the analysis sees the whole. The parts
 are accounted for in the "Used in" lines; the one part no termination
@@ -937,8 +968,8 @@ Things an auditor might expect to be assumed, and which are proven
 instead.
 
 * **The MVBA's termination.** Chorus's claims apply `Mvba.termination`
-  and `T.termination` to the run's MVBA steps; the former assumption
-  (A-mvba) is retired.
+  and `T.termination` to the run's MVBA steps, so no premise assumes that
+  the MVBA terminates.
 * **The MVBA's caller conditions, inside Cadence.** Chorus is the MVBA's
   caller, so its proofs derive them: every correct validator proposes
   (`eventually_input`), none abandons before deciding
@@ -1018,7 +1049,7 @@ it as stated.
     `d_tot = Δ` (`ConductorSchedule.d_tot_paper`, in
     `Conductor.totality`); in Recovery, both rows fire by their
     deadlines (`Conductor.row_window`), and `ℓ_chorus` is the paper's
-    (`ConductorSchedule.ℓchorus_paper`). *Paper:* modelling choice, decided
+    (`ConductorSchedule.ℓchorus_paper`). *Paper:* modelling choice
     ([ConductorBounds.md](ConductorBounds.md) §5).
   * **`τ_pos`, `p_lt_W`** — *Role:* slots are spaced, and the readiness
     threshold is a slot of the window. *Plausible:* the paper's ranges.
