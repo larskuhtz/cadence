@@ -59,8 +59,8 @@ anyway. Ten of the eleven had cells of 113 to 550 characters, so as tables
 they were paragraphs squeezed into columns.
 
 **Our workaround.** Moot, and deliberately so: those eleven were lists of
-labelled explanations wearing table syntax, and are now written as lists.
-Nothing in the published modules depends on this issue any more. It stays
+labelled explanations wearing table syntax, and are written as lists.
+Nothing in the published modules depends on this issue. It stays
 recorded because a future table would hit it.
 
 ## 2. Markdown list items are emitted without `<li>`

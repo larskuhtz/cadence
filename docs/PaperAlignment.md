@@ -19,8 +19,9 @@ single target".
 The development targets **one revision of the paper repository: `48cac9a`**
 (`48cac9a41efac2fb58f32f61ff21fd89db7c7d98`, branch `master`, committed
 2026-10-02 00:40 UTC). The target is
-the revision as a whole: the main body (`main.tex` and `src/*.tex`, the
-paper whose arXiv versions are `2607.02275v1`/`v2`) and the internal
+the revision as a whole: the main body (`main.tex` and `src/*.tex`, whose
+public versions `2607.02275v1` and `v2` on arXiv are earlier than the
+target; §3 reviews what changed since `v2`) and the internal
 supplement (`supplementary-internal.tex` with
 `src/supplementary-internal/`). Claims are stated about that revision, and
 a protocol bug found here is a bug in that revision.
@@ -184,7 +185,7 @@ modelled; **(c)** a statement or contract change
 | # | Change (anchor) | Class | Why, or what |
 |---|---|---|---|
 | M1 | Domain tags on the proposer's two signatures, `⟨Prop, s, j, H(payload)⟩` and `⟨Root, s, j, ρ⟩` (Algorithm 2 (`alg:proposer-dissemination`), Algorithm 6 (`alg:da`), Algorithm 5, line 8 (`line:fb-cast-entry`)'s `σ_p`, the prose of Appendix C (`section:slot_agreement`)) | (a) | Each model relation is per message type (`msg_proposer_signed`, `msg_fb_pos_sig`, …), so a signature of one type cannot stand for another in the model. The tags are how an implementation gets that. §5.1 |
-| M2 | Positional fragments: `Data(ρ)` holds `(r, d_r)`; `VerifyMerkle(ρ, r, H(r, d_r), π_r)`; `Decode` needs `f+1` distinct indices; Algorithm 6, line 24 (`line:da-reencode`) compares positional leaf hashes; `MerkleProof((…), r)` | (a) for the models | A chunk is `(assignee, proposer, root)` in the model, and `chunk_quorum` counts distinct assignees. The target's Algorithm 6 (`alg:da`) now says what the model assumed. §5.2 |
+| M2 | Positional fragments: `Data(ρ)` holds `(r, d_r)`; `VerifyMerkle(ρ, r, H(r, d_r), π_r)`; `Decode` needs `f+1` distinct indices; Algorithm 6, line 24 (`line:da-reencode`) compares positional leaf hashes; `MerkleProof((…), r)` | (a) for the models | A chunk is `(assignee, proposer, root)` in the model, and `chunk_quorum` counts distinct assignees. The target's Algorithm 6 (`alg:da`) says what the model assumes. §5.2 |
 | M3 | The same, for `Primitives.ErasureCoding` | (b) | `Decode : List fragment → Option cipher` and `decode_sound` count list entries, v2's unindexed reading. At the target `Decode` takes indexed fragments with `f+1` distinct indices. A Lean statement change in an uninstantiated class; no VC moves. §5.2 |
 | M4 | Slot checks: Algorithm 6 (`alg:da`) rejects a chunk whose header slot `s' ≠ s`; the decrypted proposal must be "for this slot"; `TIBE.Dec` checks slot and label | (a) | One Chorus model is one slot's instance. §5.3 |
 | M5 | Per-slot dispatch: "every message and signed object of Chorus carries its slot … messages for other slots go to their own instances" (Appendix C.3 (`subsection:chorus-protocol-overview`)) | (d) | This is the glue's slot-indexed `sc_state s` ([Cadence.lean](../Cadence/Cadence.lean)). One sentence there. §5.3 |
@@ -274,7 +275,7 @@ of Algorithm 6, line 24 (`line:da-reencode`) compares positional leaf hashes.
 
 Chorus identifies a chunk by `(assignee, proposer, root)`, and its
 decode threshold `chunk_quorum` counts distinct assignees. So the model
-already had the positional reading, and the target's Algorithm 6 (`alg:da`) now states
+already had the positional reading, and the target's Algorithm 6 (`alg:da`) states
 it. **Class (a)** for the models. `Primitives.MerkleTree` is already
 positional (`VerifyMerkle : root → Nat → leaf → proof → Bool`).
 `Primitives.ErasureCoding` is not. Its `decode_sound` holds for any list
@@ -412,7 +413,7 @@ that agreement needs already gives every recorded positive entry a vote
 quorum or a `FallbackQC`, so its chunks are on the network
 (`local_committed_pos_implies_decodable`). The contract's
 `certified_available` is not used by the safety proofs. Read in Chorus's
-vocabulary it is now a theorem, not a bridge, because `AvailReady` is a
+vocabulary it is a theorem, not a bridge, because `AvailReady` is a
 Chorus-driven input whose meaning Chorus proves (`avail_ready_chunks`).
 Liveness keeps the main body's route and the paper's bound. Proving a bound
 through the `CommitQC` route as well is optional; it would record how the
@@ -445,7 +446,7 @@ and the exclusivity invariants mirror that cascade.
 
 At the target, Supplement, Section 7.4 (`sec:fallback-transition`) (Part II) builds it from two
 validated witness chunks instead. Both rules fire only on a proposer's own
-signatures on distinct roots, so agreement and honest-proposer inclusion do
+signatures on distinct roots, so agreement and correct-proposer inclusion do
 not depend on the choice. The rule matters only for a Byzantine proposer's
 fate and for certifiability. Since Part II describes the implementation,
 **the main body's rule is the target's protocol**, and the models follow it.
@@ -455,7 +456,7 @@ an MVBA input is built from two conflicting positive fallback entries"
 (§6, P3).
 
 Two other Part II departures bear on fairness justifications. A signer of
-a positive fallback entry no longer re-encodes and sends each validator its
+a positive fallback entry does not re-encode and send each validator its
 chunk; ChunkSync pulls instead. Chunks are also disseminated
 unconditionally (Supplement, Section 8 (`sec:raptorcast`), "Disseminate
 assigned chunks unconditionally"). The model follows the main body's
@@ -526,6 +527,13 @@ findings concern statements, proofs, module interfaces and conventions, not
 the protocol: the properties above are proven of the modelled protocol, and
 where a finding names a condition the paper uses without stating it, they
 are proven under that condition.
+
+Codes such as F16 or C6 in a status point into the development's own
+design notes ([ConductorBounds.md](ConductorBounds.md) and
+[Bounds.md](Bounds.md)), for a reader who wants the formal detail; a finding
+reads without them. C1 and C2 are the two conditions Chorus takes from its
+caller: no abandoning before finalizing, and no participation before the
+deadline minus `Δ`.
 
 Each finding below quotes the paper and cites it as the rendered PDF shows
 it, with the LaTeX label in parentheses; a citation that starts with
@@ -614,7 +622,7 @@ commitment proofs.**
   conclusion of Proposition 5 (`prop:chorus-finalization-time`) still
   holds — a `FastQC` puts the chunks of `f+1` correct voters on the network,
   and under a `FallbackQC` the waiting validators re-broadcast — but the
-  proof relies on an Agreement the module no longer states. The third
+  proof relies on an Agreement the revised module does not state. The third
   commitment proof is a finalization route that the paper's agreement
   proof does not cover: the supplement's sentence is conditional, and it
   is not the fast-path argument the main body gives for its second case.
@@ -644,7 +652,7 @@ commitment proofs.**
   the first `2f+1` fallback votes; the supplement's replacement
   (Supplement, Section 7.4 (`sec:fallback-transition`),
   "Fallback-entry certifiability") needs entries evaluated continuously
-  over all votes, and witness chunks. Agreement and honest-proposer
+  over all votes, and witness chunks. Agreement and correct-proposer
   inclusion do not depend on the choice; a Byzantine proposer's fate and
   certifiability do.
 * *Status.* Open. The model follows the main body's rule, which is the
@@ -802,7 +810,7 @@ through state Module 3 (`mod:mvba`) does not expose.**
   input of the MVBA contract that Chorus drives, with its chunk wait as
   the guard. The untimed availability premise is derived from Chorus's
   fairness. The two premises that need the trigger read the MVBA's
-  internal accepted value at the system's instance, the honest form: the
+  internal accepted value at the system's instance, the correct form: the
   fairness owed to the availability report, and the validity bridge at a
   held value. The timed form of the assumption, (Δ-avail), is **derived**
   (`Chorus.availWithin_of_timedJustice`). It follows from
@@ -1086,8 +1094,8 @@ finding, unless the fact is the development's own stated bridge.
 | At most `f` Byzantine-attributed pairs in a decided ACS set | that the lower median meets the model's first-slot assumption `[acs_first_bracket]` (`Cadence.lowerMedian_first_assumptions`, through `Cadence.acs_median_bracket`) | no: Module 4 (`mod:acs`) bounds the set's size, not the pairs per validator; the contract adds the bound (`decided_unique`) | P16 |
 | The Orchestrator's `d_tot`-Totality of openings | Corollary 4 (`cor:chorus-correctness-within-cadence`); the Conductor's recovery (`Conductor.recovery`, through `Conductor.open_sync`) | not by Module 2 (`mod:orchestrator_2`), whose Totality is eventual; Lemma 15 (`lemma:conductor-totality`) proves it of the Conductor within Cadence, as does `Conductor.totality` | P15 |
 | The conditional completion guarantees of the Orchestrator's caller | the Conductor's Totality (`Conductor.totality`, through (R-tot)) and Recovery (`Conductor.recovery`, through (R-tot) and (R-term)) | no: Module 2 (`mod:orchestrator_2`)'s assumed-behaviour block is commented out, and is unconditional | P15 |
-| Unbounded starting times: whatever the time, some slot has not started (`StartsUnbounded`) | `Conductor.totality`, for the ACS proposal's `s*`, and `Conductor.recovery`, which also needs a window of the chain after GST | yes, implicitly: the slots are infinitely many and τ-spaced on the real line (Appendix A.1 (`subsection:mcp-preliminaries`)), and Algorithm 7, line 39 (`line:sstar-compute`)'s `s*` presumes one | none: the development's own statement first lacked it (F28) |
-| Every window has a successor (`WindowsUnbounded`) | `Conductor.recovery`: the chain of windows Propositions 15–19 run along | yes: the windows are the numbers `ω ∈ ℕ≥1`, one ACS instance for each `ω ≥ 2` (Algorithm 7, line 12 (`line:acs-instances`)) | none: the development's own statement first lacked it (F30) |
+| Unbounded starting times: whatever the time, some slot has not started (`StartsUnbounded`) | `Conductor.totality`, for the ACS proposal's `s*`, and `Conductor.recovery`, which also needs a window of the chain after GST | yes, implicitly: the slots are infinitely many and τ-spaced on the real line (Appendix A.1 (`subsection:mcp-preliminaries`)), and Algorithm 7, line 39 (`line:sstar-compute`)'s `s*` presumes one | none: the development states it as a premise (F28) |
+| Every window has a successor (`WindowsUnbounded`) | `Conductor.recovery`: the chain of windows Propositions 15–19 run along | yes: the windows are the numbers `ω ∈ ℕ≥1`, one ACS instance for each `ω ≥ 2` (Algorithm 7, line 12 (`line:acs-instances`)) | none: the development states it as a premise (F30) |
 | The ACS accepts its two inputs (`ACSTemporal.propose_enabled`, `abandon_enabled`) | the Conductor's timed claims, through its handlers' rows (`Conductor.totality`) | yes, implicitly: Module 4 (`mod:acs`)'s interface makes `propose(s)` and `abandon()` inputs, which the caller invokes, and the module formalism has no refusal; the proofs (Proposition 15 (`prop:enters-every-window`): "`p_j` proposes to `ACS[ω]`") rely on exactly that | none: the module convention states it, the contract spells it out (F26) |
 | Open-prefix agreement of the Orchestrator | the glue's safety | derived: the safety residue of Module 2 (`mod:orchestrator_2`)'s Totality and Monotonicity | — |
 | "A correct validator decides only after proposing", for the MVBA | nothing | not by Module 3 (`mod:mvba`); Module 4 (`mod:acs`)'s Integrity states it for the ACS | none: no claim uses it |

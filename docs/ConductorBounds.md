@@ -313,7 +313,7 @@ The standard reduction builds an ACS from the MVBA: each validator
 broadcasts its signed proposal, proposes a set of `2f + 1` signed proposals
 from distinct validators to an MVBA whose validity predicate checks the
 signatures, and takes the MVBA's decision as the ACS's. The target specifies
-none of these choices, so building it now would make a claim about *an* ACS
+none of these choices, so building it at this target would make a claim about *an* ACS
 and not the paper's, which the single-target rule forbids
 ([PaperAlignment.md](PaperAlignment.md) §0). Once a target revision
 specifies the ACS, the supplement's MVBA is the natural base, and its timed
@@ -433,7 +433,7 @@ previous one plus a δ-multiple. So the tolerance grows linearly in the
 window number. GST can be arbitrarily late, so arbitrarily many windows can
 pass before it, and no fixed `d_tot` bounds them all. Once the tolerance
 exceeds Δ, Chorus's `bounded_termination`, whose `SyncParticipation` is
-fixed at Δ, no longer applies at all. The paper's induction closes exactly
+fixed at Δ, does not apply at all. The paper's induction closes exactly
 because "both equal `Δ = d_tot`" (the paragraph before Definition 6
 (`def:window-synchronized`)).
 
@@ -536,7 +536,7 @@ Two remarks:
 
 ### 6.4 The rows
 
-The Conductor's and the glue's honest actions have rows in the style of
+The Conductor's and the glue's correct actions have rows in the style of
 [Bounds.md](Bounds.md) §6.4.2. All of them are local: none consumes a
 message, since the Conductor's only cross-validator channel is the ACS,
 whose timing comes in through `TA.Admissible`. The Conductor's are
@@ -699,7 +699,7 @@ with their proposals and closing records, is in
 
   The stutter is tested against `trans`, not `step`, and that matters.
   Chorus has no internal step that stays enabled once every correct
-  validator has abandoned the slot: its honest actions fire once, and its
+  validator has abandoned the slot: its correct actions fire once, and its
   phase markers end. What it has is the input `abandon`, re-issued to a
   validator that has already abandoned. Chorus's `abandon` only sets
   `abandoned i` and forwards to the MVBA's, which only sets the same flag,

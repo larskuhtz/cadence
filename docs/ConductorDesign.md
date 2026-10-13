@@ -158,7 +158,7 @@ fields, not substitutes for them.
   at most once, and window ω only after ω−1.
 * **Cross-window slot monotonicity** — the decided first slot of ACS[ω]
   is ≥ last slot of window ω−1 + 1 (paper: `s ≥ s' + W`). Via the ACS
-  oracle's agreement + the honest propose-guard (`s* > last[cw]`,
+  oracle's agreement + the correct propose-guard (`s* > last[cw]`,
   Algorithm 7, line 40 (`line:sstar-guard`)) + median range validity (see below).
 * **Window-assignment agreement** — any two correct validators that
   place slot s in a window place it in the same window; hence the same
@@ -287,9 +287,9 @@ Algorithm 1 (`algorithm:cadence`) is its own small Veil module:
 
 **Slot-indexed MCP safety, in the glue module (SMT):**
 
-* per-slot log agreement: honest i, j with `appended(i, s, v)` and
+* per-slot log agreement: correct i, j with `appended(i, s, v)` and
   `appended(j, s, v')` ⇒ `v = v'` (from the finalize oracle's agreement);
-* skip agreement: if honest i appended for s, no honest j that has
+* skip agreement: if correct i appended for s, no correct j that has
   resolved past s skipped s (from orchestrator totality+monotonicity —
   note the *safety-usable* residue of totality here is the paper's
   argument "j opened a higher slot without opening s ⇒ j never opens s,

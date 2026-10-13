@@ -119,7 +119,7 @@ consume. The _temporal level_ ({decl}`SlotConsensusTemporal`,
 {decl}`OrchestratorTemporal`, {decl}`MVBATemporal`, {decl}`ACSTemporal`)
 holds the properties over runs, termination and the timing bounds, stated
 over the fragment's own states and steps. The full contract, such as
-{decl}`SlotConsensus`, is the two joined.
+{decl}`SlotConsensus`, contains both levels.
 
 *An instance fills a contract.* Each implementing model proves its safety
 fragment from its own transition system ({decl}`Chorus.slotConsensusSafety`
@@ -133,9 +133,9 @@ instances, and Chorus's own MVBA contract filled by {decl}`Mvba.mvbaSafety`.
 glue's safety theorem with the instances plugged in:
 {decl}`Cadence.system_positional_log_safety` holds for every ACS meeting
 its contract. The timed claims run the glue, the Conductor and Chorus on
-one clock, and each condition a module's guarantees take from its caller is
-a theorem about the composed run rather than a premise: Chorus's conditions
-are discharged from the glue and the Conductor ({decl}`Composed.corollary4`),
+one clock. A module's guarantees hold only if its caller behaves in certain
+ways, and inside the composed system each of these caller conditions is
+proven: Chorus's from the glue and the Conductor ({decl}`Composed.corollary4`),
 and the Conductor's from Chorus ({decl}`Composed.caller_totality`,
 {decl}`Composed.caller_termination`).
 

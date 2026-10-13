@@ -249,8 +249,8 @@ cannot silently drift:
   statement, quotation, status box, diagram name and table is read from the
   compiled development or a checked file while the guide builds, and fails
   the build when it is stale. A renamed declaration, a vanished model
-  property, an axiom beyond the three, or an audit table that no longer
-  matches its model's actions each stop it.
+  property, an axiom beyond the three, or an audit table that does not
+  match its model's actions each stop it.
   [Documentation.md](../../../Documentation.md) § "The guide" lists each
   element and when it fails.
 * *The trust boundary page* is generated from the compiled development, and

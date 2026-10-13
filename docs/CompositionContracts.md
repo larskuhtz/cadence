@@ -183,7 +183,7 @@ obligation on the handlers.
 ### The Conductor ([Conductor.lean](../Cadence/Conductor.lean))
 
 `ACSSafety` is consumed the same way: one abstract ACS state per window
-(`function acs_state (w : window) : acsstate`), the honest `acs_propose`
+(`function acs_state (w : window) : acsstate`), the correct `acs_propose`
 driving the instance's `propose` input, an `acs_step` oracle action for the
 instance's internal steps (Byzantine proposals appearing, the decision
 itself — the contract constrains only correct validators' proposals), and
@@ -271,8 +271,8 @@ that no safety cell of Chorus reads are withheld from the solver
 (`veil_smt_ignore`: `decided_certified`, `decidedCert_certifies`,
 `accept_effect`, `accept_enabled`, `certified_valid`,
 `certified_available`). `Mvba.mvbaSafety`
-proves them, with `decide` as the instance's `accept`: the MVBA no longer
-decides on a transferred certificate by an internal step, so the oracle
+proves them, with `decide` as the instance's `accept`: the MVBA decides on
+a transferred certificate through that input, not by an internal step, so the oracle
 `mvba_step` cannot take it, and its timing is the caller's, derived from
 Chorus's handoff row ([Bounds.md](Bounds.md) §6.4.2, C15). Nothing was
 weakened and `MVBATemporal` is unchanged; `System.lean` needed no edit.
@@ -333,7 +333,7 @@ gives the availability report its chunks) — [Liveness.md](Liveness.md)
   in the fragment itself — the inputs, their observables (`proposed := input`,
   `abandoned`, `sent` by cases on `Mvba.Msg`), effects, frames, initial
   conditions and **Quiescence**, the last as the one-step fact `sent_new_tr`
-  (every honest send requires `∃ E, input i E` and `¬ abandoned i`).
+  (every correct send requires `∃ E, input i E` and `¬ abandoned i`).
 
 ### Discharging the two-state fields
 
@@ -717,7 +717,7 @@ question about witnesses. [Mvba.termination](../Cadence/Mvba/Liveness.lean)
 is that theorem for the MVBA, and `Chorus.termination` consumes it, which
 retires Chorus's (A-mvba) ([Architecture.md](Architecture.md) §4 item 2).
 
-Both are now done for the timed claims of the composed system. The
+Both are done for the timed claims of the composed system. The
 composition's premises are exhibited together in one model of the composed
 system itself, not in the modules' own models
 ([Composed/Witness.lean](../Cadence/Composed/Witness.lean),

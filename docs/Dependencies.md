@@ -147,7 +147,7 @@ consequence of it.
   describes both matchers.
   The rung's frame cells also share their setup (`veil.vc.frameBridge`, on
   by default). Every frame cell of an action began with the same local-WP
-  bridge, so `#prove_action` now proves that bridge once per action, as a
+  bridge, so `#prove_action` proves that bridge once per action, as a
   kernel-checked theorem over an abstract postcondition, and each cell
   instantiates it and closes by projection without simp. This roughly halves
   the cold CPU time of the proof families (measured in
@@ -325,6 +325,7 @@ consequence of it.
   hygienic, so an action parameter may take any name (`st'` included)
   without being captured by them.
 
+<!-- style-allow: figurative, and the heading's anchor is linked -->
 ### 7. Keeping the contract classes honest
 
 The two-level contract design ([CompositionContracts.md](CompositionContracts.md))
@@ -444,7 +445,7 @@ process, about ±1 GB of noise.
 | variant | peak | memory over time |
 |---|---|---|
 | as is (registry fix in) | 12.3 GB | climbs to the end |
-| `veil.gen.vcRegistry false` | 12.5 GB | the same climb: the registry is no longer a factor |
+| `veil.gen.vcRegistry false` | 12.5 GB | the same climb: the registry is not the factor |
 | info trees switched off for the whole file | 6.2 GB | flat at about 5.3 GB after the first minute |
 | … off for the declarations only | 10.4 GB | flat until `#gen_spec`, which then adds about 5 GB |
 | … off for `#gen_spec` only | 13.0 GB | the full climb |

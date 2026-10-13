@@ -70,7 +70,7 @@ docstring starts with the role line of this page.
 claims assume. Every condition one module needs from another is discharged
 inside the composition, so what remains is about the environment and the
 configuration: the network and the schedule, the fairness of each module's
-honest steps, the assumed ACS, and the seam between Chorus and the MVBA.
+correct steps, the assumed ACS, and the seam between Chorus and the MVBA.
 The premises are fixed and type-checked in
 [Composed/Schedule.lean](../Cadence/Composed/Schedule.lean). Each line
 names the Lean lemma that uses it, and the witness that satisfies it. The
@@ -1138,7 +1138,7 @@ it as stated.
 
 ### 9.3 The run: `Conductor.Sync`
 
-* **`TimedRows`** — *Role:* each honest handler (the ACS proposal, and
+* **`TimedRows`** — *Role:* each correct handler (the ACS proposal, and
   window entry with the interval computed from the validator's own
   decision) fires within `δ` of its gate. *Plausible:* the paper's handlers are instantaneous; a gate is the
   validator's own window, readiness and its own ACS output (F22).
