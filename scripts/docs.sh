@@ -296,6 +296,10 @@ bash scripts/site-links.sh table "$WORK/plan.txt" "${link_files[@]}" > "$WORK/li
 # not the map's, stops the build (`CLAUDE.md`, "Documentation rules").
 echo "    checking paper citations"
 bash scripts/paper-cites.sh
+# The style check: the recurring slips of the guide and the living documents
+# (history words, "honest", counts outside their home, Lean line citations).
+echo "    checking the documents' style"
+bash scripts/doc-style.sh
 jq -R -s 'split("\n") | map(select(. != "") | split("\t"))
           | reduce .[] as [$f, $h, $t] ({}; .[$f][$h] = $t)' \
   "$WORK/links.tsv" > "$WORK/links.json"

@@ -245,6 +245,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # The documents' style check (docs/Documentation.md, "The style
+      # check"): POSIX tools on the checkout only, so it runs before the pull
+      # and fails a pull request in seconds rather than after the merge, when
+      # the docs build would first see it.
+      - name: Check the documents' style
+        run: scripts/doc-style.sh
+
       - name: Log in to the container registry
         env:
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
