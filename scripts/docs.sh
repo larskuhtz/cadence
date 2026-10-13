@@ -311,6 +311,13 @@ echo "    $(wc -l < "$WORK/links.tsv" | tr -d ' ') distinct links"
 #
 # The pages carry `<base href>` at the sources root, so a page target drops
 # its `sources/` prefix.
+#
+# The same copy drops one false definition site: SubVerso marks the
+# constructor of a `cases … with | true =>` alternative as defined there, so
+# the renderer gave `Bool.true` an anchor in Cadence/Mvba/Progress.lean and
+# linked every `true` of every page to it (docs/VersoIssues.md §9). No module
+# of this project declares a name in Lean's core namespaces below, so a
+# definition site there is always this artefact; to delete with §9.
 : > "$WORK/map.txt"
 while IFS= read -r m; do
   [ -n "$m" ] || continue
@@ -319,6 +326,14 @@ while IFS= read -r m; do
   mkdir -p "$(dirname "$site")"
   jq -c --arg file "${m//.//}.lean" --slurpfile links "$WORK/links.json" '
     ($links[0][$file] // {}) as $t
+    | ["Bool", "Nat", "Int", "Option", "List", "Prod", "Sum", "Or", "And",
+       "Exists", "Eq", "Unit", "PUnit", "Sigma", "Subtype", "Fin"] as $core
+    | def core: . as $n | $core | index($n) != null;
+      .items.tokens |= with_entries(
+        if (.value.kind | type) == "object" and (.value.kind.const | type) == "object"
+           and .value.kind.const.isDef == true and (.value.kind.const.name[0] | core)
+        then .value.kind.const.isDef = false else . end)
+    | .items.items |= map(.defines |= map(select(split(".")[0] | core | not)))
     | walk(if type == "object" and has("a") and (.a | type == "array")
               and (.a[0] | type == "array")
            then (.a[0] | map(.normal? // "") | join("")) as $h
