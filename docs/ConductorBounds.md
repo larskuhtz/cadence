@@ -1222,11 +1222,13 @@ instantiates `acs_first` with that median.
 `enter_window i w w' f acs_next` requires that `i` is correct, in `w`, and
 ready; that `w'` is the successor of `w`; that `i`'s own `ACS[w']` has
 decided; and the `abandon` input. It requires
-`f = acs_first (acs_state w') i`, and that `f` lies beyond `i`'s own
-interval of `w`. That last guard reads only `i`'s own record and its own
-computed slot, and it removes no behaviour: `Conductor.entry_beyond` proves
-it at every reachable state from `[acs_first_bracket]`, `validity_genuine`
-and `[acs_proposal_above_prev]`. The action writes
+`f = acs_first (acs_state w') i`, and that `f` lies beyond every interval
+`i` holds. That last guard reads only `i`'s own records and its own
+computed slot, and it removes no behaviour: `Conductor.entry_beyond_all`
+proves it at every reachable state. For the current window, `entry_beyond`
+derives it from `[acs_first_bracket]`, `validity_genuine` and
+`[acs_proposal_above_prev]`; every other window `i` holds lies below the
+current one (`[win_bounds_ordered]`, `[entered_prefix]`). The action writes
 `local_bounds i w' f (win_boundary f) (win_last f)`, `entered i w'` and the
 ACS state.
 
@@ -1308,21 +1310,33 @@ holds, which the proofs read as the window's interval
 
 The Conductor's in-file sweep has no manual cells (Veil runs `#prove_vc`
 only outside the defining module), so a fact the solver keeps re-deriving
-is stated once instead: as the invariant `[first_agree]`, or as the
-derivable entry guard above. Stated as an invariant over
-`acs_first (acs_state w') i`, the entry guard's fact cost 146.2 s of 180 s
-on CI (run 37858531727): every step that moves an ACS state made the solver
-re-derive that `acs_first` is unchanged.
+is stated once instead: as an invariant (`[first_agree]`,
+`[bounds_below_entered]`), or as the derivable entry guard above. Stated as
+an invariant over `acs_first (acs_state w') i`, the entry guard's fact cost
+146.2 s of 180 s on CI (run 37858531727): every step that moves an ACS state
+made the solver re-derive that `acs_first` is unchanged.
 
-The slowest cells, cold on a development machine:
+Two cells were slow for a second reason, the window order.
 
-| cell | time |
-|---|---|
-| `enter_window × bounded_tail` | 3.6 s |
-| `open_slot × open_prefix_agreement` | 3.6 s |
-| `enter_window × open_local_order` | 3.3 s |
-| `enter_window × acs_proposal_above_prev` | 2.0 s |
+* `enter_window × bounded_tail` has to place the new window above every
+  window `i` has entered. While the guard named only the current window,
+  the solver re-derived the rest from `next_def`, `[entered_prefix]`,
+  `in_window` and `[win_bounds_ordered]`. On CI it took up to 110 s of 180 s.
+  The guard now names every interval `i` holds.
+* `open_slot × open_prefix_agreement` compares two validators' openings,
+  and through them two validators' windows. Its time depended on the order
+  in which the SMT query declares its symbols, which any edit to the model
+  reshuffles: 2.6 s to 13.9 s locally over equivalent phrasings of the
+  model. `[bounds_below_entered]` states the comparison once, and names no
+  ACS state.
 
-The one CI measurement of this model family gave a local-to-CI factor of up
-to 17 for these cells, about 60 s on CI, a third of the budget. The sweep's
-cell count is in [Architecture.md](Architecture.md) §2.
+The slowest cells, cold, one at a time on a development machine:
+
+| cell | before | after |
+|---|---|---|
+| `enter_window × bounded_tail` | 6.4 s | 1.2 s |
+| `open_slot × open_prefix_agreement` | 2.6–13.9 s (by declaration order) | 1.2–2.9 s |
+| `enter_window × bounds_below_entered` | — | 3.7 s |
+
+The local-to-CI factor for these cells has been up to 17. The sweep's cell
+count is in [Architecture.md](Architecture.md) §2.

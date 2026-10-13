@@ -509,12 +509,13 @@ action enter_window (i : node) (w : window) (w' : window) (f : slot)
   require ready_next i w
   -- The median of `i`'s decided set (Algorithm 7, line 48).
   require f = acs_first (acs_state w') i
-  -- The new window lies beyond `i`'s current one. Derivable, so it removes
-  -- no behaviour (`Conductor.entry_beyond`, at every reachable state):
-  -- `[acs_first_bracket]`'s lower pair is a correct proposal, which lies
-  -- beyond the current window (`[acs_proposal_above_prev]`). Stated so the
-  -- entry cells read it instead of re-deriving it.
-  require ∀ (f0 b0 l0 : slot), local_bounds i w f0 b0 l0 → slot_ord.lt l0 f
+  -- The new window lies beyond every interval `i` holds. Derivable, so it
+  -- removes no behaviour (`Conductor.entry_beyond_all`, at every reachable
+  -- state): `[acs_first_bracket]`'s lower pair is a correct proposal, which
+  -- lies beyond the current window (`[acs_proposal_above_prev]`), and every
+  -- other window `i` holds lies below the current one. Stated so the entry
+  -- cells read it instead of re-deriving the window order.
+  require ∀ (w0 : window) (f0 b0 l0 : slot), local_bounds i w0 f0 b0 l0 → slot_ord.lt l0 f
   -- `ACS[w'].abandon()`: an input transition of the instance's state.
   require acs.abandon (acs_state w') i acs_next
   local_bounds i w' f (win_boundary f) (win_last f) := true
@@ -691,6 +692,20 @@ invariant [win_bounds_ordered]
     ¬ fm.byz i ∧ win_ord.lt w w' ∧ local_bounds i w f b l ∧
     local_bounds i w' f' b' l' →
     slot_ord.lt l f'
+
+/-- A window that starts within reach of a correct validator's intervals has
+been entered by it: if a correct `j`'s interval of `w'` starts at or below
+the last slot of an interval a correct `i` holds, then `i` has entered
+`w'`. Windows are entered in order, their intervals are ordered, and every
+correct validator holds the same interval of a window, so a window `i` has
+not entered starts above every interval `i` holds. Stated so that the cells
+that compare two validators' openings read it instead of re-deriving the
+window order. -/
+invariant [bounds_below_entered]
+  ∀ (i j : node) (w w' : window) (f b l f' b' l' : slot),
+    ¬ fm.byz i ∧ ¬ fm.byz j ∧ local_bounds i w f b l ∧
+    local_bounds j w' f' b' l' ∧ slot_ord.le f' l →
+    entered i w'
 
 /-! ## Invariants — ACS proposals -/
 
@@ -894,9 +909,10 @@ default, for the same reason the proof files carry it
 slowest machine that runs cold, which is CI's 4-core runner. The sweep's
 cell times are in [ConductorBounds.md](../docs/ConductorBounds.md) §10.
 A cell that starts needing minutes is diverging, and wants the fact it
-re-derives stated once instead: as an invariant (`[first_agree]`), or as a
-derivable guard (`enter_window`'s "beyond the current window", proven to
-hold at every reachable state by `Conductor.entry_beyond`). File-level,
+re-derives stated once instead: as an invariant (`[first_agree]`,
+`[bounds_below_entered]`), or as a derivable guard (`enter_window`'s "beyond
+every interval the validator holds", proven to hold at every reachable state
+by `Conductor.entry_beyond_all`). File-level,
 before `#gen_spec`: solver options are captured there ([CLAUDE.md](../CLAUDE.md), "Build"). -/
 set_option veil.smt.timeout 180
 

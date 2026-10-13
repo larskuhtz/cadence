@@ -341,6 +341,37 @@ theorem entry_beyond
     Conductor.reachable_acs_proposal_above_prev hr r1 i w' s1 w f0 b0 l0 ⟨hr1, hp, hn, hi, hb⟩
   exact lt_of_lt_of_le hlt hs1
 
+/-- **The entry step's "beyond every interval the validator holds" guard
+removes no behaviour.** At every reachable state, a correct validator in
+window `w` that has decided in `ACS[w']` computes a first slot beyond every
+interval it holds. The current window's is `entry_beyond`. A window below it
+has its interval below the current one (`[win_bounds_ordered]`), and a
+window above it is at or above `w'` (`next_def`), which the validator has
+not entered (`InWindow`, `[entered_prefix]`), so it holds no interval of it
+(`[bounds_entered]`). So whenever `enter_window`'s other guards hold, this
+one does too. -/
+theorem entry_beyond_all
+    (hr : (Conductor.relationalTransitionSystem ℕ window time node acsstate).reachable th st)
+    {i : node} (hi : ¬ fm.byz i) {w w' : window} (hin : InWindow st i w)
+    (hn : win_ord.next w w') (hd : A.has_decided (st.acs_state w') i)
+    {w0 : window} {f0 b0 l0 : ℕ} (hb : Bounds st i w0 f0 b0 l0) :
+    l0 < th.acs_first (st.acs_state w') i := by
+  obtain ⟨fw, bw, lw, hbw⟩ := Conductor.reachable_entered_has_bounds hr i w ⟨hi, hin.1⟩
+  have hcur := entry_beyond hr hi hn hd hbw
+  rcases win_trichotomy w0 w with hlt | rfl | hgt
+  · have hsep := Conductor.reachable_win_bounds_ordered hr i w0 w f0 b0 l0 fw bw lw
+      ⟨hi, hlt, hb, hbw⟩
+    have hshape := Conductor.reachable_bounds_shape hr i w fw bw lw hbw
+    exact lt_trans (lt_of_lt_of_le hsep (le_trans hshape.1 hshape.2)) hcur
+  · exact entry_beyond hr hi hn hd hb
+  · have he0 := Conductor.reachable_bounds_entered hr i w0 f0 b0 l0 ⟨hi, hb⟩
+    have he' : st.entered i w' = true := by
+      rcases win_trichotomy w' w0 with h | rfl | h
+      · exact Conductor.reachable_entered_prefix hr i w' w0 ⟨hi, he0, h⟩
+      · exact he0
+      · exact (win_not_le_of_lt h (win_next_le_of_lt hn hgt)).elim
+    exact absurd he' (by rw [hin.2 w' hn]; decide)
+
 /-- **Correct validators agree on a window's interval**
 (`[window_assignment_agreement]`, Proposition 9 (`prop:window-agreement`)). -/
 theorem bounds_agree
@@ -550,3 +581,9 @@ info: 'Conductor.entry_beyond' depends on axioms: [propext, Classical.choice, Qu
 -/
 #guard_msgs in
 #print axioms Conductor.entry_beyond
+
+/--
+info: 'Conductor.entry_beyond_all' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Conductor.entry_beyond_all

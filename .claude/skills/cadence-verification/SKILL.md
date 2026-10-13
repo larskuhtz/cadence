@@ -209,15 +209,25 @@ never write one by hand.
   commands then list once per module.
 * When a solver search diverges at a handler, materialise the missing fact
   instead of hoping e-matching finds the invariant chain: as a helper
-  invariant that states it once (the Conductor's `[first_agree]`), or as a
-  derivable guard proven to hold at every reachable state (`enter_window`'s
-  "beyond the current window", `Conductor.entry_beyond`). An in-file sweep
+  invariant that states it once (the Conductor's `[first_agree]`,
+  `[bounds_below_entered]`), or as a derivable guard proven to hold at every
+  reachable state (`enter_window`'s "beyond every interval it holds",
+  `Conductor.entry_beyond_all`). An in-file sweep
   has no manual cells — `#prove_vc` refuses inside the defining module — so
   this is the remedy there. A helper invariant that names a sub-protocol
   output of the *current* state (`acs_first (acs_state w) i`) is costly at
   every step that moves that state: the solver re-derives the output's
   stability across the transition. CI measured 146 s of 180 s for one such
   cell that took 8 s locally.
+* **A cell's time can depend on the SMT declaration order**, which any
+  edit elsewhere in the model reshuffles: the query's symbols are emitted in
+  hash order over fresh names. Before trusting a fix, time the slow cells
+  in renamed scratch copies of the model under a few semantically null edits
+  (a duplicated `require`, an equivalent quantifier form) and read the
+  spread, not one number. `open_slot × open_prefix_agreement` ranged
+  2.6–13.9 s that way until `[bounds_below_entered]` stated the fact it
+  re-derived ([ConductorBounds.md](../../../docs/ConductorBounds.md) §10.5).
+  `veil.report.slowVCsMinMs 0` lists every cell's time.
 * [Conductor.lean](../../../Cadence/Conductor.lean) needs the raised `synthInstance` budgets that precede its
   `#gen_spec` even at 10 action parameters.
 

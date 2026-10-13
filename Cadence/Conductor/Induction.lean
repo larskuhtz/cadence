@@ -98,7 +98,7 @@ theorem enabled_enter_window {i : node} {w w' : window} {f : ℕ} {a : acsstate}
     (hi : ¬ fm.byz i) (hin : InWindow st i w) (hn : win_ord.next w w')
     (hdec : A.has_decided (st.acs_state w') i)
     (hrd : ReadyNext st i w) (hf : f = th.acs_first (st.acs_state w') i)
-    (hbey : ∀ f0 b0 l0, Bounds st i w f0 b0 l0 → l0 < f)
+    (hbey : ∀ w0 f0 b0 l0, Bounds st i w0 f0 b0 l0 → l0 < f)
     (hab : A.abandon (st.acs_state w') i a) :
     Enabled (Conductor.relationalTransitionSystem ℕ window time node acsstate) th st
       (.enter_window i w w' f a) := by
@@ -594,7 +594,7 @@ theorem entry_step (hsync : Sync sch TA r) (hΔ : TA.Δ = sch.Δ) {ω : window}
       TA.abandon_enabled _ j (Conductor.reachable_acs_reachable (r.reachable k) ω) hj
     exact ⟨.enter_window j w ω _ a', ⟨w, _, a', rfl⟩,
       enabled_enter_window hj hin' hnw hdjk hrd' rfl
-        (fun _ _ _ hb => entry_beyond (r.reachable k) hj hnw hdjk hb) ha'⟩)
+        (fun _ _ _ _ hb => entry_beyond_all (r.reachable k) hj hin' hnw hdjk hb) ha'⟩)
   obtain ⟨w0, f0, a0, hl0⟩ := hlx
   have htr0 := r.steps x
   rw [hl0] at htr0
