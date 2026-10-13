@@ -71,10 +71,12 @@ claims assume. Every condition one module needs from another is discharged
 inside the composition, so what remains is about the environment and the
 configuration: the network and the schedule, the fairness of each module's
 correct steps, the assumed ACS, and the seam between Chorus and the MVBA.
+
 The premises are fixed and type-checked in
 [Composed/Schedule.lean](../Cadence/Composed/Schedule.lean). Each line
-names the Lean lemma that uses it, and the witness that satisfies it. The
-whole list holds at once in one model of the composed system, the
+names the Lean lemma that uses it, and the witness that satisfies it.
+
+The whole list holds at once in one model of the composed system, the
 **composed witness** (§0.5): every line marked "not obvious" names the
 theorem of [Composed/Witness/](../Cadence/Composed/Witness/) that meets it
 there, and the four `…_premises_satisfiable` theorems meet them all
@@ -152,7 +154,7 @@ below; Liveness takes all of them.
 * **The slot has a proposer** (`hprop`, §2.10) — *Role:* forms Chorus's
   contract instance. *Used in:* only through that instance
   (`Chorus.chorusTemporal`'s `admissible_exists`); no step of the composed
-  proofs uses it. Reported, not removed. (C4) *Satisfiable:* obvious;
+  proofs uses it (§7). (C4) *Satisfiable:* obvious;
   validator 0.
 * **`ConductorSchedule`** (§9.2): one `Δ`, one `δ`, the MVBA's constants,
   the window parameters, the four parameter assumptions:
@@ -279,14 +281,17 @@ system meets every line of §0.2 and §0.3 together:
 
 *The model.* Four validators, validator 3 Byzantine and silent;
 validator 0 proposes in every slot; `Δ = τ = 1`, `δ = 0`, `ℓ_ACS = 2`,
-`p = 4`, `W = 36`; the ideal ACS. *The run.* Every clock reading `t` is one
+`p = 4`, `W = 36`; the ideal ACS.
+
+*The run.* Every clock reading `t` is one
 block of 61 steps: each correct validator opens slot `t`, participates,
 and validator 0 proposes, sending every validator its chunk; the correct
 validators record it. At `t + 1`, the slot's deadline, it takes the fast
 path, every correct validator finalizes it, completes it at the Conductor,
 abandons it, appends its vector, and receives the correct validators'
-votes; at `t + 2` and `t + 3` its arm markers fire on a quiet instance. At each window's readiness boundary
-`36k + 4`, every correct validator proposes slot `36(k + 1)` to the next
+votes; at `t + 2` and `t + 3` its arm markers fire on a quiet instance.
+
+At each window's readiness boundary `36k + 4`, every correct validator proposes slot `36(k + 1)` to the next
 window's ACS, which decides at once; the interval is recorded and everyone
 enters the window. Every window repeats the first, shifted by `Wτ` in time
 and `W` in slot number, and every slot the one before it, shifted by `τ`.

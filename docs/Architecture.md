@@ -282,13 +282,12 @@ enumerates the consumers and would expose an assumption that had crept in
 without being listed here. The
 locality rules (item 1) are the exception and the reason item 1 comes
 first: they live in [Locality.md](Locality.md) rather than in the code,
-and no tool checks them yet — it takes a human, with the audit table, to
-confirm each action follows them.
+and a human checks them, with the audit table, action by action.
 
 1. **The locality rules** ([Locality.md](Locality.md)): a model describes
    a distributed protocol, and safety in its monotone network implies
    safety under asynchrony ([ChorusDesign.md](ChorusDesign.md) §3.2), only
-   if every action follows them — a correct validator reads its own state,
+   if every action follows them. A correct validator reads its own state,
    messages positively (its own sends in either polarity), global time,
    configuration and its sub-protocol at its own index, and writes only its
    own state and messages under its own name; a Byzantine validator may do
@@ -321,13 +320,15 @@ confirm each action follows them.
      `termination`) to the run's MVBA steps, and derive that theorem's
      caller premises.
 3. **Primitive contracts as axioms**: `ThresholdIBE` (cryptographic
-   hiding — genuinely an assumption, as for any crypto primitive;
+   hiding — an assumption, as for any crypto primitive;
    [Cadence/Primitives.lean](../Cadence/Primitives.lean)) and the `ACS`
    module contract ([Cadence/Interfaces.lean](../Cadence/Interfaces.lean))
    — an assumed module: the target leaves the ACS unspecified (P17), so
    no protocol here implements it and every field is assumed. A plain-Lean
    ideal ACS (`Cadence.IdealAcs.acsSafety`, `acsTemporal`) shows the
-   contract satisfiable; it is a model, not a protocol. What *is*
+   contract satisfiable; it is a model, not a protocol.
+
+   What *is*
    machine-checked is the consumption side: the Conductor takes the ACS's
    two levels as class constraints and hypotheses, so it assumes exactly
    the class. The first slot each validator computes from its decided set
@@ -360,15 +361,17 @@ confirm each action follows them.
    Chorus's two assumptions about the entry-vector projections
    (`mval_pos_functional`, `mval_pos_neg_excl`) are theorems at the
    instantiation ([Cadence/System.lean](../Cadence/System.lean), `chorusTheory_assumptions`); the
-   one genuine hypothesis is that the abstract MVBA state Chorus starts
-   from is initial. Note what is *not* on this list:
+   one hypothesis is that the abstract MVBA state Chorus starts
+   from is initial.
+
+   Note what is *not* on this list:
    the `ByzNodeSet` quorum interface and its counting extension
    `ByzNodeSetCounting` are **not** an assumption gap — their axioms are
    Lean-proven for the concrete `byzNodeSetFin` instance family, which
    covers every deployment size `n = 3f+1` with any Byzantine set of size
-   `≤ f` (and `byzNodeSetFinGen`, every `n ≥ 3f+1`). The three liveness-side extensions are
-   not gaps either, and are deliberately *outside* the interfaces the
-   models instantiate, so that no safety theorem acquires them; each is
+   `≤ f` (and `byzNodeSetFinGen`, every `n ≥ 3f+1`). The three liveness-side extensions
+   lie outside the interfaces the models instantiate, so that no safety
+   theorem acquires them; each is
    discharged for a concrete witness, and a liveness theorem carries
    whichever it uses as a visible hypothesis. Two are in
    [Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean) — `ByzNodeSetEnum`
@@ -378,12 +381,14 @@ confirm each action follows them.
    [Cadence/ViewOrder.lean](../Cadence/ViewOrder.lean)'s `ViewOrderEnum`,
    the view dimension's counterpart, discharged for `Nat`: every view has
    an immediate successor, and the views at or below one are finitely many.
-   The successor field is not a proof convenience — the `Mvba.sync_view_*`
+   The successor field is needed: the `Mvba.sync_view_*`
    steps are guarded on `vord.next pv v`, so a view with nothing directly above it is
    a view no validator can leave, and no assumption about scheduling or the
    network would unstick it. An end-to-end example instantiation
    of the remaining class stack (a `ThresholdIBE` model instance) is open
-   work ([ChorusDesign.md](ChorusDesign.md) §9). Signatures are not a
+   work ([ChorusDesign.md](ChorusDesign.md) §9).
+
+   Signatures are not a
    class at all: each signed message type is its own network relation, so
    the models take for granted that a signature of one type cannot be
    presented as one of another. A deployment obtains that by the
@@ -412,6 +417,7 @@ confirm each action follows them.
    The ACS stays assumed: (A-acs-termination) and (A-acs-totality) are the
    `ACS` contract's fields, which no protocol in this development
    implements (the target leaves the ACS unspecified, P17).
+
    **Chorus's Termination, ℓ-termination and `d_tot`-totality are
    proven.** `SlotConsensusTemporal` and `SlotConsensusWithTotality` have instances,
    `Chorus.chorusTemporal` and `Chorus.chorusWithTotality`
@@ -421,7 +427,9 @@ confirm each action follows them.
    proven: Termination from `Chorus.termination`, the timed fields from
    `Chorus.timed_termination_atMvba` and `Chorus.totality`, Quiescence in
    Lemma 6 (`lemma:chorus-quiescence`)'s two parts. Its `Admissible` is the
-   claims' premises by name. **`MVBATemporal` has an instance**,
+   claims' premises by name.
+
+   **`MVBATemporal` has an instance**,
    `Mvba.mvbaTemporal`
    ([Cadence/Mvba/Temporal.lean](../Cadence/Mvba/Temporal.lean)), at
    `Mvba.mvbaSafety`, the fragment [Cadence/System.lean](../Cadence/System.lean) plugs into
@@ -451,20 +459,22 @@ confirm each action follows them.
 6. **Composition seams**: (a) that the modules' runs implement the glue's
    oracle steps is trace-level refinement, out of scope
    ([ChorusDesign.md](ChorusDesign.md) §10.1); the glue's own calls are
-   the contracts' input transitions, so no glue-side record of a call
-   remains; (b) the two fault patterns
+   the contracts' input transitions, so the glue keeps no record of a call
+   of its own; (b) the two fault patterns
    — the shared `FaultModel` and Chorus's `ByzNodeSet.is_byz` — meet in the
    hypothesis `hbyz` of `system_positional_log_safety`; (c) an
    implementation's `Admissible` execution model is data it defines
-   (non-vacuity is a class axiom, the definition is one line to read).
+   (non-vacuity is the class field `admissible_exists`; the definition is
+   one line to read).
    All three are named in [CompositionContracts.md](CompositionContracts.md) §7.
 7. **Trusted tooling**: Veil's VC generation and the concrete model
    checker are part of the trusted computing base everywhere (as is
    Lean's kernel). cvc5's `unsat` verdicts are *not* trusted — every
    sweep reconstructs its proofs kernel-checked (§6) — but its `sat`
    verdicts on the `sat trace` reachability sanity checks are (a wrong
-   model there could only make a non-vacuity check vacuous, never a
-   safety claim wrong). What sits inside that surface, and why an
+   verdict there could only make a sanity check pass wrongly, never a claim
+   wrong; that the claims' premises can hold is shown by kernel-checked
+   witness theorems). What sits inside that surface, and why an
    unrecognised action statement fails the build rather than being
    silently mistranslated, is
    [Dependencies.md](Dependencies.md) § "Trusted computing base".

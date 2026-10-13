@@ -111,9 +111,8 @@ Most conditions are frame obligations: the action writes nothing the property
 reads. Veil closes those with a short Lean proof and no solver. The others go
 to the SMT solver cvc5.
 
-Every model elaborates with `veil.smt.trust false`. With that setting a
-solver verdict is not accepted as a proof: cvc5 produces a proof certificate,
-Veil's solver bridge rebuilds it as a Lean proof term, and the kernel checks
+Every model elaborates with `veil.smt.trust false`. With that setting cvc5
+produces a proof certificate for each verdict, Veil's solver bridge rebuilds it as a Lean proof term, and the kernel checks
 that term like any other. A condition whose proof cannot be rebuilt fails the
 build. So cvc5 is a search procedure here: it finds proofs, and the kernel
 decides whether they are proofs.
@@ -229,7 +228,7 @@ Its accepted fixture also shows that the model's fast path reaches
 finalization, so Chorus's safety properties are not true merely because
 nothing is reachable. A mutation suite checks that corrupted traces are
 rejected at the right guard. The monitor stands in for the MVBA with a stub
-that never decides, so no fallback-path trace can be checked yet.
+that never decides, so fallback-path traces are outside its scope.
 [Monitor.md](../../../Monitor.md) has the design, the scope and the commands.
 
 # The documentation checks

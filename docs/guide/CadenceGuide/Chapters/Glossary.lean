@@ -103,6 +103,12 @@ _One sentence per term the guide uses, and a key to the codes in it and in the d
   validator finalizes. The fast path, the fallback path and the MVBA each
   produce one.
 
+: Practical Conductor
+
+  The supplement's deployable variant of the Conductor. The development
+  verifies the main body's Conductor; the practical one is outside the
+  verified surface.
+
 : Meta-block
 
   The value the MVBA agrees on: for each proposer, a root or no entry,

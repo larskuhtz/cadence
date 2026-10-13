@@ -126,7 +126,9 @@ which each validator has received some of the messages sent so far. In the
 model the network holds every message sent, and each validator acts on the
 ones it has received. A positive guard satisfied by fewer messages is
 satisfied by more, so every step a real validator takes is a step of the
-model. A negative guard over other validators' messages would break this:
+model.
+
+A negative guard over other validators' messages would break this:
 "nobody signed a conflicting vote" can be true of what a validator received
 and false of the network. The model also has runs the protocol lacks, such
 as a validator acting on a message the real network would deliver later;
@@ -167,7 +169,7 @@ can
 
 Its only guards are signatures that must exist: a positive fallback entry
 carries the proposer's signature, and a certificate has its signatures.
-Every other check is the correct receiver's: a vote counts only if it has
+Every other check is the correct receiver's. A vote counts only if it has
 an entry for every proposer and each positive entry carries the signer's
 chunk under a root its proposer signed, so the adversary may send a vote
 that fails the check, and no correct validator counts it. What the
@@ -243,7 +245,7 @@ actions, and what the rest of this chapter is for.
 3. *Writes.* The actor's own local rows; messages under its own name; the
    MVBA's state through an input at its index; auxiliary records, which no
    action reads.
-4. *The adversary.* Every message a Byzantine validator could send that an
+4. *The adversary.* Every message a Byzantine validator could send that a
    correct receiver would accept is the update of some `byz_*` action.
 5. *The paper.* The guards and updates are the rule the Paper column
    cites.

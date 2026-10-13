@@ -42,9 +42,9 @@ box in [CadenceGuide.lean](guide/CadenceGuide.lean), and chapters 1 and 2) and
 
 The target does not follow the paper repository's `master`. A later paper
 commit is a new target only when a session moves it, by running §1 against
-the new commit and modelling the difference, as the move to `48cac9a` did
-([History.md](History.md) § "The realignment to `48cac9a` (R14–R17), and
-its designs"). §9 lists the paper commits after the target that the next
+the new commit and modelling the difference ([History.md](History.md)
+§ "The realignment to `48cac9a` (R14–R17), and its designs" records the
+move to this target). §9 lists the paper commits after the target that the next
 cycle has to read.
 
 ## 1. The verified surface, and how to re-check it

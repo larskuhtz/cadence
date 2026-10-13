@@ -26,11 +26,14 @@ facts (who has voted, which messages exist, what a validator has decided)
 and whose steps are _actions_, each with guards that say when it may fire
 and updates that say what it changes. A model's safety properties are
 proven by induction: they hold in the initial states, and every action
-preserves them, so they hold in every reachable state. Each module's
-specification is a _contract_: a Lean class listing the properties the
+preserves them, so they hold in every reachable state.
+
+Each module's specification is a _contract_: a Lean class listing the properties the
 paper states for the module. A model that uses a module sees only its
 contract, so its proofs hold for any implementation of it; a model that
-implements a module proves its contract. Plain Lean then joins the pieces
+implements a module proves its contract.
+
+Plain Lean then joins the pieces
 into statements about the whole system, the timed ones included, which are
 proven over runs of the composed system.
 

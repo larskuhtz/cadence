@@ -29,8 +29,9 @@ sending them is open, and each stays open on the paper side until the authors
 resolve it. Two further items keep the development tied to the paper: a
 re-check at each new paper commit, by the procedure of
 [PaperAlignment.md](../../../PaperAlignment.md) §1, before that commit can
-become the target; and, once it stabilises, a check that the supplement's
-practical Conductor behaves as the verified Conductor's contract allows.
+become the target; and a check that the supplement's practical Conductor,
+its deployable variant of the Conductor, behaves as the verified
+Conductor's contract allows.
 
 *Soundness instruments.* Evidence a machine could add to what a human
 checks:

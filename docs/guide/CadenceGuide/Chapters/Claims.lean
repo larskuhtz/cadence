@@ -220,7 +220,7 @@ the development settles three of them by machine:
   proof, so none can be dropped without a replacement.
 * *Plausibility* is the auditor's judgement: whether the premises describe
   the runs a real network and a real implementation produce. No tool checks
-  it, and the premise ledger gives each premise a line on why it is
+  it, and [the premise ledger](../../../Premises.md) gives each premise a line on why it is
   plausible and which sentence of the paper it formalises.
 
 The figure shows the four for the liveness claim.
@@ -359,7 +359,7 @@ difference, with why it is plausible:
   contract. _Plausible_ as a standard primitive; that a message-passing
   protocol meets the contract, with the one-pair-per-validator bound of
   P16, is the open part ({chapter Contracts}[chapter 5]).
-* *The validity bridge*, (ValidBridge). The MVBA's validity check is
+* *The certificate bridge*, (ValidBridge). The MVBA's validity check is
   Chorus's certificate check. _Plausible:_ certificates are publicly
   verifiable, so a value is valid exactly when the certificates it carries
   verify.
@@ -368,8 +368,9 @@ difference, with why it is plausible:
 
 A premise set is non-vacuous when it can hold, and here that is a theorem.
 One model of the whole composed system meets every premise of Corollary 4,
-bounded concurrency, liveness and censorship resistance at once: four validators, one of them Byzantine and silent, the ideal
-ACS of {chapter Contracts}[chapter 5], and a run in which every slot is opened, proposed in,
+bounded concurrency, liveness and censorship resistance at once. It has four
+validators, one of them Byzantine and silent, the ideal ACS of
+{chapter Contracts}[chapter 5], and a run in which every slot is opened, proposed in,
 finalized and appended, and every window decided and entered. One theorem
 per claim proves that its premises hold there, and only the premises, never
 a conclusion:
@@ -456,8 +457,8 @@ groups:
 * *open question*: the paper leaves a rule, a convention or a choice
   unstated, and the model takes one reading;
 * *presentation*, *hygiene* or *slack*: the claims and their proofs stand
-  as written, and in two places the proof gives more than the statement
-  says, which the model confirms by proof.
+  as written, and where the proof gives more than the statement says, the
+  model confirms it by proof.
 
 The table is read from the findings' home when this guide is built.
 
