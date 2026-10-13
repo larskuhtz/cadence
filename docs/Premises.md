@@ -1096,7 +1096,7 @@ it as stated.
   enters. *Satisfiable:* the composed witness's first slot is that median
   (`Composed.Witness.cholds`). *Used in:* the model's separation and
   agreement invariants (`[first_agree]`, the entry guard proven by
-  `Conductor.entry_beyond`,
+  `Conductor.entry_beyond_all`,
   `[window_assignment_agreement]`), and Recovery's median brackets
   (`Conductor.recorded_bracket`, Propositions 16, 17 and 19). *Paper:*
   Algorithm 7, line 48 (`line:median-compute`), and "at most `f` of the

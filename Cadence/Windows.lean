@@ -5,58 +5,68 @@ import Mathlib.Tactic.Push
 /-! # Slot/window theory and the ACS median lemma
 
 Support theory for the Conductor orchestrator model
-([Conductor.lean](Conductor.lean)): the ordered slot/window structure
-and the order-statistics lemma justifying the median-range `require` of the
-Conductor's ACS-decide oracle action. Reference:
-[ConductorDesign.md](../docs/ConductorDesign.md) §3 ("Modelling ingredients
-beyond Chorus's", items 1–2) and Appendix D (`section:conductor-formal`) (Algorithm 7 (`algorithm:conductor`),
-Algorithm 7, line 48 (`line:median-compute`); median range validity is used in
-Proposition 7 (`prop:acs-nonoverlap`) and Proposition 16 (`prop:window-open-time`)).
+([Conductor.lean](Conductor.lean)): the ordered slot/window structure,
+and the order-statistics lemma behind the model's median bracket.
+Reference: [ConductorDesign.md](../docs/ConductorDesign.md) §3 ("Modelling
+ingredients beyond Chorus's", items 1–2) and Appendix D
+(`section:conductor-formal`) (Algorithm 7 (`algorithm:conductor`),
+Algorithm 7, line 48 (`line:median-compute`)). The bracket's lower half
+separates the windows (Proposition 7 (`prop:acs-nonoverlap`)); its upper
+half is read by recovery's timing (Proposition 17
+(`prop:window-progression`) and Proposition 19
+(`prop:first-post-gst-window-time`)).
 
 ## Why the slot/window theory splits static from dynamic
 
 The window→interval assignment **cannot be static theory** (uninterpreted
 `win_of : slot → window`, `win_first/win_last : window → slot` with Horn
 axioms, the obvious first encoding): a window's first slot is decided *at
-runtime* by `ACS[ω]` (Algorithm 7, line 48 (`line:median-compute`)), so the assignment is
-execution-dependent state. The design therefore splits:
+runtime* by `ACS[ω]` (Algorithm 7, line 48 (`line:median-compute`)), so the
+assignment is execution-dependent state. The design therefore splits:
 
-* **Static** — only the *index* structures:
+* **Static** — the *index* structures and the window width:
   - `slot` gets `TotalOrderWithMinimum` (Veil `Frontend/Std.lean`): a total
     order with strict variant, a least element (the paper's slot 1 — window
-    1's first slot), and a derived successor `next` (needed for the
-    Algorithm 7, line 41 (`line:sstar-update`) guard residue "strictly above the current window's
-    last slot"). No `+W` arithmetic enters the SMT layer.
+    1's first slot), and a derived successor `next`. No `+W` arithmetic
+    enters the SMT layer.
   - `window` gets `TotalOrderWithMinimum` likewise (least element = window
-    1; `next` = the `ω + 1` stepping of Algorithm 7, line 46 (`line:window-increment`)).
-  Both classes come with proven `Fin (n+1)` instances in
-  `Veil/Frontend/Std.lean`, so the axiom sets are demonstrably satisfiable
-  — the instance discipline established for `ByzNodeSet` — and **no new
-  axioms are introduced at all**.
-* **Dynamic** — the window *intervals* `[first(ω), last(ω)]` (and the
-  readiness boundary, the paper's "first `p` slots of the window") are
-  *oracle state* in [Conductor.lean](Conductor.lean): relations populated by the ACS-decide
-  oracle action, unique per window by its `require`s (= ACS agreement).
-  Cardinality facts ("exactly `W` slots wide", Proposition 11 (`prop:open-count-window`))
-  stay meta: the model states intervals, never cardinalities.
+    1; `next` = the `ω + 1` stepping of Algorithm 7, line 46
+    (`line:window-increment`)).
+  - A window's width is two immutable shift functions of its first slot,
+    `win_last` and `win_boundary`, which the instance at `slot := ℕ` fixes
+    to `+ (W − 1)` and `+ p`.
+  Both order classes come with proven `Fin (n+1)` instances in
+  `Veil/Frontend/Std.lean`, so their axiom sets are demonstrably
+  satisfiable — the instance discipline established for `ByzNodeSet` — and
+  the split introduces **no new axioms**.
+* **Dynamic** — the window *intervals* `[first(ω), last(ω)]` and the
+  readiness boundary are each validator's own state in
+  [Conductor.lean](Conductor.lean), `local_bounds`: a validator computes its
+  interval from its own ACS decision in its entry step (`enter_window`), and
+  every correct validator holding the same interval is the safety property
+  `[window_assignment_agreement]`. Cardinality facts ("exactly `W` slots
+  wide", Proposition 11 (`prop:open-count-window`)) stay outside the solver:
+  the model states intervals, never cardinalities.
 
-This also disposes of the one real risk in the encoding ("SMT behavior of
-the ordered-type theory"): the only background theory the Conductor's VCs
-carry is two `TotalOrderWithMinimum` instances and one `TotalOrder` (for
-the abstract clock), each a small Horn axiom set of the shape Veil's
-existing examples (NOPaxos `seq_t`) already exercise.
+The background theory the Conductor's VCs carry for slots, windows and the
+clock is two `TotalOrderWithMinimum` instances and one `TotalOrder`, each a
+small Horn axiom set of the shape Veil's existing examples (NOPaxos
+`seq_t`) already exercise.
 
 ## The median lemma
 
-Algorithm 7 (`algorithm:conductor`) opens window `ω` at the **median** of the slot
-numbers in the decided ACS set (Algorithm 7, line 48 (`line:median-compute`)). The paper's
-argument (stated after Proposition 6 (`lemma:window-entry`)): the decided set contains at
-least `2f + 1` pairs of which at most `f` are Byzantine, so the median
-lies between two *correct* proposals. The Conductor model imports the lower
-half of this consequence — the half its safety properties consume — as a
-`require` on its ACS-decide oracle action, with the correct witness pair
-as explicit action parameters (witness materialisation). This file proves
-the justifying lemma, both halves, in two layers:
+Algorithm 7 (`algorithm:conductor`) opens window `ω` at the **median** of
+the slot numbers in the decided ACS set (Algorithm 7, line 48
+(`line:median-compute`)). The paper's argument, in the paragraph before
+Algorithm 7: the decided set contains at least `2f + 1` pairs of which at
+most `f` are Byzantine, so the median lies between two *correct* proposals.
+The Conductor model leaves the first slot a validator computes abstract,
+`acs_first`, and takes that consequence as an assumption on it,
+`[acs_first_bracket]`, together with `[acs_first_local]` (the first slot is
+a function of the decided set alone). That the lower median meets both is
+`Cadence.lowerMedian_first_assumptions` ([AcsMedian.lean](AcsMedian.lean)),
+from the ACS contract and the fault bound. This file proves the
+order-statistics lemma that theorem rests on, both halves, in two layers:
 
 1. `IsMedian` — the abstract order-statistics property ("at least half the
    values are ≤ m, at least half are ≥ m") — and the bracketing lemma
@@ -64,17 +74,18 @@ the justifying lemma, both halves, in two layers:
    ≤ `f` are Byzantine-attributed is bracketed by two correct values.
    Stated over an abstract correctness predicate, *not* over cardinality
    of node sets — per the stake-weighting design rule of
-   [ConductorDesign.md](../docs/ConductorDesign.md) §6 (a weighted instance re-proves `IsMedian`
-   membership for its weighted median and inherits the bracketing).
+   [ConductorDesign.md](../docs/ConductorDesign.md) §6 (a weighted instance
+   re-proves `IsMedian` membership for its weighted median and inherits the
+   bracketing).
 2. `lowerMedian` — the deterministic sorted-middle median an
    implementation computes — and `lowerMedian_isMedian`, the instance
    proof that it satisfies `IsMedian`. (Any other conventional pick of the
    middle order statistic — upper median, min/max of the two — satisfies
-   `IsMedian` the same way; the Conductor model depends only on the
-   abstract property.)
+   `IsMedian` the same way; the bracket depends only on the abstract
+   property.)
 
-`lowerMedian_between_correct` packages the two for citation from
-[Conductor.lean](Conductor.lean).
+`lowerMedian_between_correct` packages the two for
+[AcsMedian.lean](AcsMedian.lean).
 -/
 
 namespace Cadence
@@ -227,8 +238,9 @@ theorem lowerMedian_isMedian {α : Type} [LinearOrder α]
   · have := hperm.countP_eq (fun x => decide (lowerMedian vals h ≤ x))
     omega
 
-/-- **The packaged median lemma** cited by the ACS-decide oracle action of
-[Conductor.lean](Conductor.lean): the sorted-middle median of the
+/-- **The packaged median lemma**, which
+[AcsMedian.lean](AcsMedian.lean)'s `Cadence.acs_median_bracket` applies to
+a decided ACS set: the sorted-middle median of the
 values of a decided ACS set (≥ `2f+1` pairs, ≤ `f` Byzantine-attributed —
 the quantitative half of ACS validity, Module 4 (`mod:acs`)) is bracketed by two
 correct entries' values. -/
