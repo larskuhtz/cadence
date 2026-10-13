@@ -24,38 +24,30 @@ open Lean Meta Elab Command
 /-- Lean's three standard classical axioms — the expected footprint. -/
 def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 
-/-- The end results, in the order [Cadence.lean](../Cadence.lean) pins them. -/
-def endResults : List Name :=
-  [``Chorus.invariants_of_reachable,
-   ``Chorus.slotConsensusSafety,
-   ``Chorus.slotConsensus_of_temporal,
-   ``Chorus.evidence_pigeonhole_of_reachable,
-   ``Chorus.fbcert_of_honest_fallback_votes,
-   ``Chorus.fbcommitqc_of_honest_commit_votes,
-   ``Chorus.commitqc_of_honest_fast_dominant,
-   ``Chorus.progress_dichotomy_of_saturation,
-   ``Chorus.build_totality_of_reachable,
-   ``Conductor.orchestratorSafety,
-   ``Conductor.orchestrator_of_temporal,
-   ``Cadence.positional_log_safety,
-   ``Cadence.system_positional_log_safety,
-   ``FallbackReceipt.invariants_of_reachable,
-   ``FallbackReceipt.build_totality_of_reachable,
-   ``Mvba.invariants_of_reachable,
-   ``Mvba.reachable_agreement,
-   ``Mvba.reachable_integrity,
-   ``Mvba.reachable_external_validity,
-   ``Mvba.mvbaSafety,
-   ``Mvba.mvba_of_temporal,
-   ``Mvba.termination,
-   ``Mvba.bounded_termination,
-   ``Mvba.aViewSync_of_sync,
-   ``Mvba.timed_termination,
-   ``Mvba.admissible_exists,
-   ``Mvba.mvbaTemporal,
-   ``Mvba.mvbaFull,
-   ``Mvba.timedTermination_premises_satisfiable,
-   ``Mvba.termination_premises_satisfiable]
+/-- The end results: every declaration [Cadence.lean](../Cadence.lean) pins
+with `#print axioms`, in its order. Read from the file rather than listed
+here, so the page covers whatever the audit root covers. -/
+def endResults : IO (List Name) := do
+  let names := (← IO.FS.lines "Cadence.lean").toList.filterMap fun line =>
+    match line.splitOn " " with
+    | ["#print", "axioms", n] => some n.toName
+    | _ => none
+  if names.isEmpty then
+    throw <| IO.userError "Cadence.lean pins no result: its `#print axioms` lines changed form"
+  return names
+
+/-- The headline results, shown first: the composed claims, and each module's
+full contract instance with Chorus's termination. Each must also be pinned in
+[Cadence.lean](../Cadence.lean), or the page is not built. -/
+def headlineResults : List Name :=
+  [``Cadence.system_positional_log_safety,
+   ``Composed.corollary4, ``Composed.corollary4_bounded_termination,
+   ``Composed.corollary4_totality,
+   ``Composed.boundedConcurrency,
+   ``Composed.liveness, ``Composed.liveness_sharp,
+   ``Composed.censorship, ``Composed.censorship_sharp,
+   ``Chorus.slotConsensusFull, ``Chorus.termination,
+   ``Conductor.conductorFull, ``Mvba.mvbaFull]
 
 /-- Contract classes to report on: the state-level fragment and the temporal
 level of each paper module. -/
@@ -278,13 +270,20 @@ run_cmd liftTermElabM do
 
   -- 1. Axiom footprint of every end result.
   o := p "<h2>1. What each end result rests on</h2>" o
-  o := p "<p>Lean's kernel records, for every theorem, the complete set of axioms
+  o := p "<p>The end results are every result the audit root,
+    <code>Cadence.lean</code>, pins; the headline results, the composed claims and
+    each module's contract instance, come first and are repeated in the full
+    list. Lean's kernel records, for every theorem, the complete set of axioms
     its proof term uses. The expected set is Lean's three standard classical
     axioms and nothing else — in particular no <code>sorryAx</code>, which is
     what an admitted or stubbed proof shows up as.</p>" o
-  o := p "<table><tr><th>Result</th><th>Module</th><th>Axiom footprint</th></tr>" o
-  let mut drift := 0
-  for r in endResults do
+  let all ← endResults
+  for h in headlineResults do
+    unless all.contains h do
+      throwError s!"{h} is a headline result but Cadence.lean does not pin it"
+  -- One row per result; the headline table repeats rows of the full one, so
+  -- drift is counted over the full list only.
+  let row (r : Name) : MetaM (String × Bool) := do
     let axs ← collectAxioms r
     let extra := axs.filter (fun a => !standardAxioms.contains a)
     let cell :=
@@ -292,12 +291,25 @@ run_cmd liftTermElabM do
       else
         let names := String.intercalate ", " (extra.toList.map (fun a => esc a.toString))
         s!"<span class=\"bad\">UNEXPECTED: {names}</span>"
-    if !extra.isEmpty then drift := drift + 1
     let m := (moduleOf env r).map toString |>.getD "—"
-    o := p s!"<tr><td>{declLink env anchors r}</td><td><code>{esc m}</code></td><td>{cell}</td></tr>" o
+    return (s!"<tr><td>{declLink env anchors r}</td><td><code>{esc m}</code></td><td>{cell}</td></tr>",
+      !extra.isEmpty)
+  let header := "<table><tr><th>Result</th><th>Module</th><th>Axiom footprint</th></tr>"
+  o := p "<h3>The headline results</h3>" o
+  o := p header o
+  for r in headlineResults do
+    o := p (← row r).1 o
+  o := p "</table>" o
+  o := p "<h3>Every result Cadence.lean pins, in its order</h3>" o
+  o := p header o
+  let mut drift := 0
+  for r in all do
+    let (html, bad) ← row r
+    if bad then drift := drift + 1
+    o := p html o
   o := p "</table>" o
   o := p (if drift == 0 then
-      s!"<p>All {endResults.length} results depend on exactly <code>propext</code>,
+      s!"<p>All {all.length} results depend on exactly <code>propext</code>,
          <code>Classical.choice</code> and <code>Quot.sound</code>. The SMT solver
          is not among them: every discharge is reconstructed as a proof term and
          re-checked by the kernel.</p>"
@@ -389,17 +401,23 @@ run_cmd liftTermElabM do
     derived. This page cannot certify them; they are listed so that the boundary
     is complete.</p>
     <ol>
-    <li><strong>The monotone-network contract.</strong> Network relations may be
-      consulted in positive position only. Veil does not enforce this, and a
-      violation would not fail the build — it is audited by hand
-      (<code>docs/ChorusDesign.md</code> §3.1.1).</li>
-    <li><strong>The two stated bridges</strong> — the ACS median range and the
-      MVBA decision's certificate check — each interpreting a class parameter in
-      the consumer's own vocabulary
-      (<code>docs/CompositionContracts.md</code> §7).</li>
+    <li><strong>The locality rules.</strong> A correct validator's action reads
+      its own records, messages in positive position only, global time and
+      configuration, and writes its own records and messages under its own
+      name. Veil does not enforce this, and a violation would not fail the
+      build; every action is checked against the rules by hand
+      (<code>docs/Locality.md</code>).</li>
+    <li><strong>The two bridges</strong>, the MVBA certificate bridge and the
+      ACS median bridge, each interpreting a contract's parameter in the
+      consumer's own vocabulary (<code>docs/CompositionContracts.md</code>
+      §7).</li>
     <li><strong>The tooling</strong>: Lean's kernel, Veil's verification-condition
-      generation, the model checker where it is used, and the solver's
-      <code>sat</code> verdicts on non-load-bearing reachability witnesses
+      generation, and the model checker where it is used. The solver's
+      <code>sat</code> verdicts are taken as given too, and only in the
+      <code>sat trace</code> sanity checks of the model files: a check that a
+      model can reach some state. No theorem uses them, and a wrong verdict
+      could only make such a check pass when it should not; that the claims'
+      premises can hold is shown by Lean-proven witness theorems
       (<code>docs/Architecture.md</code> §4 item 7).</li>
     </ol>" o
 

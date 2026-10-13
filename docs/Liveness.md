@@ -15,16 +15,16 @@ walk-through, step by step.
 
 ## 1. The shape of the claim
 
-The liveness claim — under the named assumptions below, every honest
+The liveness claim — under the named assumptions below, every correct
 validator eventually commits — factors into state-level facts and temporal
 steps. **Every state-level fact is a kernel-checked, axiom-pinned theorem**
 over reachable states, for every `n = 3f+1`:
 
 | Theorem | Says |
 |---|---|
-| `progress_dichotomy_of_saturation` ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)) | in any reachable state where every honest validator has cast its path vote, commitQCs exist for every proposer from honest votes alone, **or** the MVBA is invoked with per-proposer evidence in exactly the certificate form of the decision handlers' bridge and of `mvba_propose`'s validity guards |
-| `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)) | `2f+1` honest per-proposer fallback entries always yield a FallbackQC or an EquivCert |
-| `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)) | certificate formation: the honest population is itself the quorum; a supermajority of honest fast commit votes is a per-proposer commitQC |
+| `progress_dichotomy_of_saturation` ([Cadence/Chorus/Progress.lean](../Cadence/Chorus/Progress.lean)) | in any reachable state where every correct validator has cast its path vote, commitQCs exist for every proposer from correct votes alone, **or** the MVBA is invoked with per-proposer evidence in exactly the certificate form of the decision handlers' bridge and of `mvba_propose`'s validity guards |
+| `evidence_pigeonhole_of_reachable` ([Cadence/Chorus/Pigeonhole.lean](../Cadence/Chorus/Pigeonhole.lean)) | `2f+1` correct per-proposer fallback entries always yield a FallbackQC or an EquivCert |
+| `fbcert_of_honest_fallback_votes`, `fbcommitqc_of_honest_commit_votes`, `commitqc_of_honest_fast_dominant` ([Cadence/Chorus/Counting.lean](../Cadence/Chorus/Counting.lean)) | certificate formation: the correct population is itself the quorum; a supermajority of correct fast commit votes is a per-proposer commitQC |
 | `build_totality_of_reachable` (same file) | **any** supermajority of accepted receipts, Byzantine members included, yields a buildable fallback meta-block entry per proposer — "every correct validator can propose", at the state level |
 
 plus the fair-progress and enabledness invariants of the sweep (the
@@ -69,7 +69,7 @@ and at most `f` Byzantine, the system's Chorus configuration
 `Mvba.termination` takes. The bullets below give the detail, one premise
 each.
 
-* **(F-justice)** (`FJustice`) — honest actions are weakly fair, except the
+* **(F-justice)** (`FJustice`) — correct actions are weakly fair, except the
   module's three inputs (`participate`, `abandon`, `propose`), which the
   caller invokes. *Weakly fair* means: an action enabled at every point
   from some index on fires at some point from that index on
@@ -105,7 +105,7 @@ each.
   availability report `mvba_avail_ready` is a family in the same way. **This justification is
   specific to Chorus and does not generalise**: it holds because a slot is
   one-shot and its state purely accumulating. `Mvba` runs views, so nine of
-  its honest actions are guarded by the current view and eleven can be
+  its correct actions are guarded by the current view and eleven can be
   disabled outright; what replaces the argument there, and why the answer
   is still weak fairness but for a different reason, is
   [MvbaPlan.md](MvbaPlan.md) §3.1 and §3.2, with the disabling facts
@@ -126,7 +126,7 @@ each.
   timer as an **abstract phase marker** — `expire_timer`, the validator's
   own step, a clock with exactly one tick — and both timeout actions are
   guarded on it. With that
-  the timeouts are weakly fair like every other honest action, and the
+  the timeouts are weakly fair like every other correct action, and the
   third class contains the marker alone, governed by (A-viewsync): finite
   in every view below the good one, and in the good one not before a
   correct validator has decided. The MVBA's weak fairness is owed only for
@@ -151,7 +151,7 @@ each.
   content strictly stronger than deadlock freedom.
 * **The MVBA's scheduling** (`MvbaAdmissible`) — the run's MVBA steps,
   read as a run of the MVBA model, satisfy the two scheduling premises of
-  `Mvba.termination`: weak fairness of the MVBA's honest actions, and
+  `Mvba.termination`: weak fairness of the MVBA's correct actions, and
   (A-viewsync) (above, and §2.1). The premise says the run *has*
   such a reading: a labelling of its MVBA steps (the composed run records
   only the MVBA's states), and infinitely many of them
@@ -275,7 +275,7 @@ So the untimed model states partial synchrony as ordering constraints on
 the timer.
 
 **Chorus does have an (A-viewsync)-shaped premise; it is just somewhere
-else.** `all_honest_recorded` — "every honest validator recorded the positive
+else.** `all_honest_recorded` — "every correct validator recorded the positive
 entry", in the model's own words the protocol-level shadow of
 `s.deadline − Δ ≥ GST` — is exactly "the work finished before the marker
 advanced". It is carried as an **antecedent of the properties** (proposal
@@ -511,7 +511,7 @@ signature per proposer, or its fallback vote with a fallback signature per
 proposer. That is the hypothesis of `progress_dichotomy_of_saturation`, so
 `eventually_progress_dichotomy` follows. The chain: the phase reaches
 `post_mvba_arm` and stays there (the three `advance_to_*` actions are
-weakly fair); every correct validator votes; the honest quorum's votes are
+weakly fair); every correct validator votes; the correct quorum's votes are
 on the network (`voted_implies_cast`), and each correct validator receives
 them (`eventually_received`: `receive_vote_*` is owed for a correct voter);
 per proposer, `fb_sign_pos` or `fb_sign_neg` fires unless the validator has
@@ -526,7 +526,7 @@ step at which a flag holds (`commit_cast_sigs`, `fallback_sig_sigs`): a
 correct validator's fast commit vote carries a commit signature per
 proposer, and its fallback vote a fallback signature per proposer. A third,
 `path_fallback_sig`, says `local_path i` becomes `fallback` only in the step
-that casts the fallback vote. Each reads the one honest action that sets
+that casts the fallback vote. Each reads the one correct action that sets
 the flag off its transition body.
 
 **The commit route** (`eventually_committed_of_assignable`): from an index
@@ -557,7 +557,7 @@ validator's finalization re-broadcasts its proofs under its own name
   `local_entry_neg_mono`).
 * **Generic chains, concrete theorems.** The chains are generic in the
   quorum instance and the MVBA, with the finiteness they consume as
-  explicit hypotheses — a complete list of validators and an honest
+  explicit hypotheses — a complete list of validators and a correct
   supermajority — and the concrete theorems (`Fin n`, `byzNodeSetFin` at
   every `n = 3f+1`) supply `List.ofFn id` and `honest_supermajority`'s
   quorum. The reason is the generated instance regime: the generic lemmas

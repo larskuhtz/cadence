@@ -185,8 +185,8 @@ openings at their starting times. It abstracts:
   bracket it. The lower median meets both
   ({decl}`Cadence.lowerMedian_first_assumptions`).
 
-The Conductor has no Byzantine message surface of its own: Byzantine
-validators act through their ACS proposals.
+Byzantine validators act on the Conductor only through their ACS
+proposals.
 
 *The end result.* The Conductor meets the whole of
 {cite}`mod:orchestrator_2`, for every ACS that meets its contract:
@@ -219,8 +219,8 @@ glue holds and reads only through the contracts' observables. It abstracts:
   admits more behaviours, so every safety property holds of the atomic
   algorithm too.
 
-The glue has no network and no Byzantine actions: validators interact only
-inside the two sub-protocols.
+Validators interact only inside the two sub-protocols, so the glue has no
+network and no Byzantine actions of its own.
 
 *The end result.* MCP Safety, {cite}`def:safety`, for any orchestrator and
 slot consensus that meet the two contracts:

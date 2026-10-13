@@ -447,9 +447,6 @@ def model : BlockCommandOf ModelConfig
     let #[item] := hits
       | throwErrorAt modId "{hits.size} declarations of {mod} begin with `{header}`; expected one"
     let hl := Highlighted.seq (itemHighlighted item)
-    let range := match item.range with
-      | some (s, e) => s!"lines {s.line}–{e.line}"
-      | none => ""
     let cfg : Verso.Code.External.CodeConfig := { showProofStates := false, defSite := some false }
     let file := moduleFile mod
     -- The quoted item's own id when its command left a definition site, else
@@ -460,8 +457,9 @@ def model : BlockCommandOf ModelConfig
       | none, some (s, _) => sectionAt a mod s.line
       | none, none => none
     let url := moduleUrl mod ++ (frag.map ("#" ++ ·)).getD ""
-    let stated := s!"<dt>Stated in</dt><dd><code>{esc file}</code>, {range} — \
-      <a href=\"{url}\">in context</a></dd>"
+    -- Named by its declaration, not by line numbers, which drift.
+    let stated := s!"<dt>Stated in</dt><dd><code>{esc file}</code>, as \
+      <code>{esc header}</code> — <a href=\"{url}\">in context</a></dd>"
     let html ← match proven with
       | none => pure s!"<div class=\"cg-status cg-plain\"><dl>{stated}</dl></div>"
       | some p => do

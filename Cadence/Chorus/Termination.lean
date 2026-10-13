@@ -3420,7 +3420,7 @@ theorem terminates_of_mvba_arm (vfin : Cadence.ViewOrderEnum view vord)
 
 omit cnt in
 set_option maxHeartbeats 1600000 in
-/-- **Stage 5: Chorus terminates.** [Liveness.lean](Liveness.lean)'s `TerminationClaim`, proven:
+/-- **Chorus terminates.** [Liveness.lean](Liveness.lean)'s `TerminationClaim`, proven:
 at every `n = 3f+1` with at most `f` Byzantine validators, at the system's
 configurations `Cadence.chorusTheory` and `Cadence.mvbaTheory`, every run
 satisfying `FJustice`, `MvbaAdmissible`, `ValidBridge`, `AllParticipate`
@@ -3450,12 +3450,14 @@ The proof splits on an early finalization, as the paper's does
   route is open from correct senders (`eventually_mvba_route`): the MVBA
   arm finalizes everyone. The MVBA's premise that nobody is abandoned before
   deciding holds because nobody abandons at all. This branch does not
-  split on the progress dichotomy: the commit certificates of its left
+  split on the progress dichotomy (`progress_dichotomy_of_saturation`:
+  either commit certificates exist for every proposer, or the MVBA is
+  invoked with certified evidence): the commit certificates of its left
   disjunct may rest on Byzantine votes that nobody correct is owed, and
   the MVBA arm needs no such split.
 
-The split on the dichotomy alone no longer suffices, because a validator
-that finalizes on the fast path may then abandon, which also abandons the
+The split must be on early finalization, because a validator that
+finalizes on the fast path may then abandon, which also abandons the
 MVBA. `vfin`, the view order's enumeration, is the one further hypothesis,
 and like `Mvba.termination`'s it belongs to the proof, not to the claim.
 The quorum counting facts are the concrete family's own instance

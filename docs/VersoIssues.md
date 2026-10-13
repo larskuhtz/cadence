@@ -59,8 +59,8 @@ anyway. Ten of the eleven had cells of 113 to 550 characters, so as tables
 they were paragraphs squeezed into columns.
 
 **Our workaround.** Moot, and deliberately so: those eleven were lists of
-labelled explanations wearing table syntax, and are now written as lists.
-Nothing in the published modules depends on this issue any more. It stays
+labelled explanations wearing table syntax, and are written as lists.
+Nothing in the published modules depends on this issue. It stays
 recorded because a future table would hit it.
 
 ## 2. Markdown list items are emitted without `<li>`
@@ -216,6 +216,29 @@ page from the link table of all the guide's files together, and stops when
 one href goes to different places from two files
 ([Documentation.md](Documentation.md), "Links"). This one stays unless Verso
 records a part's source module.
+
+## 9. A constructor in a `cases` alternative becomes a definition site
+
+**Symptom.** On the rendered sources, every `true` in every module linked
+to `Cadence/Mvba/Progress/#Bool___true`, a theorem in an unrelated MVBA
+file.
+
+**Cause.** SubVerso, not the renderer. In
+`Mvba.voted_not_below_of_guard_disabled`, the alternative
+`cases hb : … with | true => …` produces a highlighted token for `Bool.true`
+with `isDef: true`, so the token stream reports the constructor as defined
+there. The literate renderer collects every `isDef` token into its
+definition table (`saveDef` in `VersoLiterateCode.lean`) and points every
+use of the name at that site.
+
+**Our workaround.** `scripts/docs.sh` clears `isDef` on any token, and drops
+the matching `defines` entry, whose name lies in one of Lean's core
+namespaces (`Bool`, `Nat`, `Option`, …), in the page-ready copy of each
+module's JSON. No module of this project declares a name there, so such a
+definition site is always this artefact. Delete the filter (the comment in
+`docs.sh` names this section) when SubVerso stops marking alternative
+patterns as definitions. Seen at the pinned `v4.32.0`; unlike §1–§8, not
+checked against Verso `main`.
 
 ## Not bugs, but sharp edges
 

@@ -2,7 +2,7 @@
 
 *Why the repository is arranged the way it is: who edits what, who maintains
 the proofs, and what an auditor is being asked to trust. This describes a target
-workflow. Parts of it are realised today — the model / proof-file split, the
+workflow. Parts of it are realised — the model / proof-file split, the
 machine-derived audit pins — and parts are not yet. For what is proven, read
 [the guide](https://larskuhtz.github.io/cadence/guide/).*
 

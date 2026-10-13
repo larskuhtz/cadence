@@ -111,9 +111,8 @@ Most conditions are frame obligations: the action writes nothing the property
 reads. Veil closes those with a short Lean proof and no solver. The others go
 to the SMT solver cvc5.
 
-Every model elaborates with `veil.smt.trust false`. With that setting a
-solver verdict is not accepted as a proof: cvc5 produces a proof certificate,
-Veil's solver bridge rebuilds it as a Lean proof term, and the kernel checks
+Every model elaborates with `veil.smt.trust false`. With that setting cvc5
+produces a proof certificate for each verdict, Veil's solver bridge rebuilds it as a Lean proof term, and the kernel checks
 that term like any other. A condition whose proof cannot be rebuilt fails the
 build. So cvc5 is a search procedure here: it finds proofs, and the kernel
 decides whether they are proofs.
@@ -130,6 +129,16 @@ whether those conditions say what the model means is a property of the tool,
 not of any one proof. [Architecture.md](../../../Architecture.md) §4 item 7
 states this, and [Dependencies.md](../../../Dependencies.md) § "Trusted
 computing base" says what is inside that surface.
+
+cvc5 answers one other kind of question, and there its answer is taken as
+given. A proof needs the solver to say `unsat`: no state breaks the
+property. A `sat trace` block in a model file asks the opposite, whether
+some run reaches a given state, as a sanity check that the model is not
+stuck, and `sat` comes with no proof to rebuild. Those verdicts carry no
+claim. No theorem uses them, so a wrong `sat` can only make that sanity
+check pass when it should not. That every claim's premises can hold is
+shown separately, by witness theorems the kernel checks
+({chapter Claims}[chapter 2]).
 
 # The axiom pins and the status pins
 
@@ -219,7 +228,7 @@ Its accepted fixture also shows that the model's fast path reaches
 finalization, so Chorus's safety properties are not true merely because
 nothing is reachable. A mutation suite checks that corrupted traces are
 rejected at the right guard. The monitor stands in for the MVBA with a stub
-that never decides, so no fallback-path trace can be checked yet.
+that never decides, so fallback-path traces are outside its scope.
 [Monitor.md](../../../Monitor.md) has the design, the scope and the commands.
 
 # The documentation checks
@@ -239,8 +248,8 @@ cannot silently drift:
   statement, quotation, status box, diagram name and table is read from the
   compiled development or a checked file while the guide builds, and fails
   the build when it is stale. A renamed declaration, a vanished model
-  property, an axiom beyond the three, or an audit table that no longer
-  matches its model's actions each stop it.
+  property, an axiom beyond the three, or an audit table that does not
+  match its model's actions each stop it.
   [Documentation.md](../../../Documentation.md) § "The guide" lists each
   element and when it fails.
 * *The trust boundary page* is generated from the compiled development, and

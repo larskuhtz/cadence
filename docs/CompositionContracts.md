@@ -183,7 +183,7 @@ obligation on the handlers.
 ### The Conductor ([Conductor.lean](../Cadence/Conductor.lean))
 
 `ACSSafety` is consumed the same way: one abstract ACS state per window
-(`function acs_state (w : window) : acsstate`), the honest `acs_propose`
+(`function acs_state (w : window) : acsstate`), the correct `acs_propose`
 driving the instance's `propose` input, an `acs_step` oracle action for the
 instance's internal steps (Byzantine proposals appearing, the decision
 itself — the contract constrains only correct validators' proposals), and
@@ -280,8 +280,8 @@ that no safety cell of Chorus reads are withheld from the solver
 (`veil_smt_ignore`: `decided_certified`, `decidedCert_certifies`,
 `accept_effect`, `accept_enabled`, `certified_valid`,
 `certified_available`). `Mvba.mvbaSafety`
-proves them, with `decide` as the instance's `accept`: the MVBA no longer
-decides on a transferred certificate by an internal step, so the oracle
+proves them, with `decide` as the instance's `accept`: the MVBA decides on
+a transferred certificate through that input, not by an internal step, so the oracle
 `mvba_step` cannot take it, and its timing is the caller's, derived from
 Chorus's handoff row ([Bounds.md](Bounds.md) §6.4.2, C15). Nothing was
 weakened and `MVBATemporal` is unchanged; `System.lean` needed no edit.
@@ -342,7 +342,7 @@ gives the availability report its chunks) — [Liveness.md](Liveness.md)
   in the fragment itself — the inputs, their observables (`proposed := input`,
   `abandoned`, `sent` by cases on `Mvba.Msg`), effects, frames, initial
   conditions and **Quiescence**, the last as the one-step fact `sent_new_tr`
-  (every honest send requires `∃ E, input i E` and `¬ abandoned i`).
+  (every correct send requires `∃ E, input i E` and `¬ abandoned i`).
 
 ### Discharging the two-state fields
 
@@ -494,13 +494,12 @@ configuration: the slot's proposer set is non-empty ([Bounds.md](Bounds.md)
 `SlotConsensusSafety`.
 
 **Quiescence is stated from a reachable state.** The contract's
-`quiescence` in `SlotConsensusTemporal` and in `ACSTemporal` quantified
-over every transition, reachable or not. That was our mis-statement of the
-paper's property, which is about executions: Chorus's MVBA half needs two
-facts that hold along the run (an MVBA proposal is made only while
-participating; an abandonment is forwarded), and at an unreachable state
-neither holds. Both fields now take `S.reachable st`, as the fragments'
-other run-level fields do. No consumer reads either. `MVBASafety`'s
+`quiescence` in `SlotConsensusTemporal` and in `ACSTemporal` takes
+`S.reachable st`, as the fragments' other run-level fields do, because the
+paper's property is about executions: Chorus's MVBA half needs two facts
+that hold along the run (an MVBA proposal is made only while
+participating; an abandonment is forwarded), and neither holds at an
+unreachable state. No consumer reads either. `MVBASafety`'s
 `quiescence` keeps the stronger form: the `Mvba` model proves it, its
 sending rules being gated on its own records, and Chorus's cells consume
 it.
@@ -560,7 +559,7 @@ and the MVBA: both are stated against `nset.is_byz`.
 Chorus's three `assumption`s enter as the `assumptions` conjunct of its
 instance's `init`. Two of them — the entry-vector projections
 `mval_pos_functional` and `mval_pos_neg_excl` — are theorems at the
-instantiation (`chorusTheory_assumptions`); the one genuine hypothesis among
+instantiation (`chorusTheory_assumptions`); the one hypothesis among
 them is that the abstract MVBA state Chorus starts from is initial.
 
 The MVBA's one `assumption` enters its own instance the same way, as the
@@ -606,8 +605,8 @@ premise left), Lemma 5 (`lemma:cadence-bounded-concurrency`) at `2W − p`
 (`def:censorship-resistance`)) at `2Wτ` and at `(W + p − 1)τ`
 (`Composed.liveness`, `Composed.censorship`, and their `_sharp` forms). The premise list, each with its use, is
 [Premises.md](Premises.md) §0. [System.lean](../Cadence/System.lean)'s
-safety theorem is unchanged; it stays generic in the slot order, the time
-and the fault-pattern transport, which the timed claims fix.
+safety theorem is generic in the slot order, the time and the
+fault-pattern transport, which the timed claims fix.
 
 ## 7. The remaining seams, named
 
@@ -622,10 +621,10 @@ and the fault-pattern transport, which the timed claims fix.
    in `mvba_propose`'s validity guards. It is sound in both directions that matter: it removes no
    behaviour of a correct MVBA (by `external_validity` plus public
    verifiability), and if the MVBA were wrong the handler would not fire,
-   which is safety-conservative. The liveness argument names its
-   *completeness* direction — that a decided entry's certificate is
-   network-visible, which is what enables the handler — as the premise
-   `Chorus.ValidBridge` of `Chorus.termination`.
+   which is safety-conservative. The premise `Chorus.ValidBridge` of
+   `Chorus.termination` states the bridge in both directions; liveness
+   needs its *completeness* direction, that a decided entry's certificate
+   is network-visible, which is what enables the handler.
 
    **The bridge is load-bearing for non-vacuity.** The MVBA *enforces*
    validity on `propose` (`require valid e` on `Mvba.propose`), so at the
@@ -647,21 +646,20 @@ and the fault-pattern transport, which the timed claims fix.
    The model's own `require valid e` keeps `Mvba.termination`'s premise list
    to fair scheduling and sentences of the supplement ([MvbaPlan.md](MvbaPlan.md)
    §3.5 step 4). The bridge is what makes Chorus's `mvba_propose` enabled at
-   the composed instance — the Chorus liveness leg's `Chorus.ValidBridge`
-   premise ([Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)).
+   the composed instance — the premise `Chorus.ValidBridge` of
+   `Chorus.termination` ([Cadence/Chorus/Liveness.lean](../Cadence/Chorus/Liveness.lean)).
 2. **The glue drives Chorus's inputs.** The three inputs are
    fields of `SlotConsensusSafety` and the glue's handlers give them (§3),
-   so the records the glue reads are the instance's own and the composed
-   system's Chorus is not inert. No glue-side copy of a call remains to
-   coincide with the instance's input. What stays out of scope is the
+   so the records the glue reads are the instance's own, and the glue
+   keeps no copy of a call. What stays out of scope is the
    general statement of [System.lean](../Cadence/System.lean)'s header: that the modules' runs
    implement the glue's oracle steps (trace-level refinement).
 3. **The ACS median bridge.** That two correct pairs of a validator's
-   decided set bracket the first slot it computes is not derived inside the
-   model: the model does not compute the median, and cardinality is
-   outside the first-order fragment. It is a model assumption on the first-slot function,
-   `[acs_first_bracket]`, together with `[acs_first_local]` (the first slot
-   is a function of the decided set alone). That the paper's lower median
+   decided set bracket the first slot it computes is a model assumption on
+   the first-slot function, `[acs_first_bracket]`, because the model
+   computes no median and cardinality is outside the first-order fragment.
+   Its companion is `[acs_first_local]`: the first slot is a function of
+   the decided set alone. That the paper's lower median
    meets both is a Lean theorem: `Cadence.lowerMedian_first_assumptions`
    ([AcsMedian.lean](../Cadence/AcsMedian.lean)), from
    `Cadence.acs_median_bracket`, which proves, for every ACS meeting the
@@ -715,7 +713,7 @@ and a property of the form "under every admissible input, something
 eventually happens" is liveness. The strengthened-contract route collapses
 into the liveness route rather than being an alternative to it.
 
-Two consequences, both practical. **A per-model non-vacuity witness does not
+Two consequences, both practical. **A per-model reachability trace does not
 certify the composition**, so the `sat trace` blocks in the module files are
 evidence about the modules and nothing more; a witness has to be exhibited
 for the composed system as well
@@ -723,10 +721,11 @@ for the composed system as well
 once a provider's own progress theorem is discharged and its consumer's
 corresponding assumption with it, non-vacuity along that path stops being a
 question about witnesses. [Mvba.termination](../Cadence/Mvba/Liveness.lean)
-is that theorem for the MVBA, and `Chorus.termination` consumes it, which
-retires Chorus's (A-mvba) ([Architecture.md](Architecture.md) §4 item 2).
+is that theorem for the MVBA, and `Chorus.termination` consumes it, so
+Chorus's termination takes no premise about the MVBA's progress
+([Architecture.md](Architecture.md) §4 item 2).
 
-Both are now done for the timed claims of the composed system. The
+The composed system has both. The
 composition's premises are exhibited together in one model of the composed
 system itself, not in the modules' own models
 ([Composed/Witness.lean](../Cadence/Composed/Witness.lean),

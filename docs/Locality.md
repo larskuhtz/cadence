@@ -88,7 +88,7 @@ Every action has exactly one actor.
 
 ## 4. The rules
 
-The rules read differently for the two kinds of validator, because
+The rules read differently for correct and Byzantine validators, because
 constraining each one moves the claims in opposite directions. A theorem
 about the models holds for every run they allow. Restricting a correct
 validator to what it can know and own makes those runs *more* like the real
@@ -154,8 +154,9 @@ carries valid signatures; one with an invalid signature is modelled as never
 sent, which is the same as a correct receiver discarding it. So B2 is the
 cryptographic assumption, part of the locality rules in the inventory of
 what has to be believed ([Architecture.md](Architecture.md) §4, item 1),
-not a restriction of the adversary's choices. A certificate's content is
-what its signatures determine: a timeout certificate's `highPrepQC` is the
+not a restriction of the adversary's choices.
+
+A certificate's content is what its signatures determine: a timeout certificate's `highPrepQC` is the
 highest certificate its members carry whose view is at most the view of
 the timeout carrying it (Supplement, Algorithm 1, line 4
 (`line:mvba:derived`)), which is why `byz_form_tc_lock` and
@@ -165,7 +166,7 @@ the timeout carrying it (Supplement, Algorithm 1, line 4
 **B4 marks a gap in the model.** A guard that stands for a
 receiver's check is equivalent to the check only while every correct
 receiver applies it, and it hides the check from the correct side, where
-the paper has it. None remain: every receiver check is a guard of the
+the paper has it. No model has one: every receiver check is a guard of the
 correct receiver, and only B1–B3 constrain the adversary. The table lists
 the B4 guards a model carries, and is empty:
 
@@ -251,8 +252,8 @@ again from the network by a later step.
 ## 7. The models against the rules
 
 Every model conforms to the rules. The tables list each model's auxiliary
-relations and local rows, and what conforming took where it is not
-evident.
+relations and local rows, and, where it is not evident, how each
+conforms.
 
 The auxiliary relations of every model:
 
