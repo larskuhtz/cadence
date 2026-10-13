@@ -131,6 +131,16 @@ not of any one proof. [Architecture.md](../../../Architecture.md) §4 item 7
 states this, and [Dependencies.md](../../../Dependencies.md) § "Trusted
 computing base" says what is inside that surface.
 
+cvc5 answers one other kind of question, and there its answer is taken as
+given. A proof needs the solver to say `unsat`: no state breaks the
+property. A `sat trace` block in a model file asks the opposite, whether
+some run reaches a given state, as a sanity check that the model is not
+stuck, and `sat` comes with no proof to rebuild. Those verdicts carry no
+claim. No theorem uses them, so a wrong `sat` can only make that sanity
+check pass when it should not. That every claim's premises can hold is
+shown separately, by witness theorems the kernel checks
+({chapter Claims}[chapter 2]).
+
 # The axiom pins and the status pins
 
 *Axiom pins.* Lean can list every axiom a proof depends on, by walking the

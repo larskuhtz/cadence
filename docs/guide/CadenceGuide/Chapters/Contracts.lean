@@ -127,7 +127,11 @@ One table per contract, read from the compiled class. *Says* is the first
 sentence of the field's description. *Level* is the safety fragment or the
 temporal level. *Proven by* is the declaration that provides the field: a
 protocol model, or, for the ACS, _assumed_, with the ideal model that shows
-the field can be met. A field without a description, or one that no protocol
+the field can be met. For an operation, such as {decl}`MVBASafety.certifies`
+or `Admissible`, the column also shows how the instance defines it: its
+clause from the source, and the first sentence of the definition the clause
+names. An operation is only as strong as that definition, so this is where
+to look for an escape hatch. A field without a description, or one that no protocol
 model provides in a contract that is not assumed, fails the guide's build,
 so these tables cannot fall behind the classes.
 

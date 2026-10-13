@@ -72,7 +72,7 @@ validator `x` reads
   "I have not cast my commit vote";
 * *R4* global time;
 * *R5* configuration, and the fault predicate only at `x`;
-* *R6* the MVBA class's operations at index `x`;
+* *R6* the MVBA class's inputs, outputs and records at index `x`;
 
 and writes
 
@@ -80,12 +80,23 @@ and writes
 * *W2* messages under its own name, only by adding them;
 * *W3* the MVBA's state, only through an input at index `x`.
 
+A certificate check through the class, such as
+`mvba.certifies mvba_st c e` in `commit_assign_pos_mvba`, carries no
+validator index: it is a read of a message the actor holds, rule *R2*, and
+holds exactly when the signatures it verifies are on the network
+([Locality.md](../../../Locality.md) §5). The class's signature takes the
+MVBA's whole state, so that a check reads only those signatures is a
+property of how the instance defines it; {chapter Contracts}[chapter 5]
+shows the definition, a commit certificate some validator sent.
+
 These rules are permissions: a correct step may do only what they allow.
 A Byzantine validator's rules are the opposite, prohibitions: it may do
 anything except forge a signature, write what it does not own, or change
 the MVBA other than through its contract (rules B1–B3 of
 [Locality.md](../../../Locality.md) §4.2), since any further restriction
-would weaken the claims. The environment reads and writes only global
+would weaken the claims. Locality.md's B4 names the one kind of gap such a
+rule set can hide, a correct receiver's check written as a guard on the
+Byzantine sender; no model has one. The environment reads and writes only global
 time. A read or a write by a correct step that fits no rule is a gap in the
 model, to be replaced by one that fits.
 
