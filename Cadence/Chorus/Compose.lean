@@ -194,7 +194,7 @@ noncomputable abbrev Recorded
     (r j : node) (m : merkle_root) : Prop :=
   @Veil.FieldRepresentation.get _ _ _ (afr% Chorus.State.Label.local_entry_pos) st.local_entry_pos r j m = true
 
-/-- The slot is past its deadline: the phase is no longer `pre_deadline`. -/
+/-- The slot is past its deadline: the phase is past `pre_deadline`. -/
 noncomputable abbrev DeadlinePassed
     (st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)) : Prop :=
   ¬ (@Veil.FieldRepresentation.get _ _ _ (afr% Chorus.State.Label.phase) st.phase = Phase_Enum.pre_deadline)

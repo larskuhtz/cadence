@@ -253,8 +253,9 @@ for entry `j` against Chorus's network, and marks the entry handled in its
 own row. Once every entry is handled, `mvba_terminate` records the decision
 as complete, and the fallback commit vote waits for that record.
 
-The certificate check is the *bridge*: the class's validity predicate is fixed before Chorus's
-network exists, so it cannot speak about Chorus's signatures, and the guard
+The certificate check is the *MVBA certificate bridge*, one of the
+composition's two bridges ({chapter Approach}[chapter 1]): the class's
+validity predicate is fixed before Chorus's network exists, so it cannot speak about Chorus's signatures, and the guard
 says what a valid certificate means there. For safety it can only remove
 behaviours, and only if the MVBA were wrong. Liveness needs the other
 direction, and that is a named premise, below.
@@ -312,7 +313,9 @@ two are conditions on the caller, and within Cadence the glue meets them.
 The MVBA's termination is not a premise: the proof applies the MVBA model's
 theorem. [Premises.md](../../../Premises.md) §3, §5 and §6 give each
 premise's role, why it is plausible, and the step that uses it. The timed
-form, with its bound of `5Δ + ℓ_MVBA`, is {decl}`Chorus.timed_termination`.
+form, with its bound of `5Δ + ℓ_MVBA + 9δ`, is
+{decl}`Chorus.timed_termination`; the tighter `4Δ + ℓ_MVBA + 9δ` is
+{decl}`Chorus.timed_termination_tight`.
 
 # Where the rest is
 

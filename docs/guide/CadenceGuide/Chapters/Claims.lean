@@ -231,7 +231,7 @@ The figure shows the four for the liveness claim.
 
 What the composed claims assume, simplified. Each premise has one name,
 used on the front page, here and in the premise ledger, followed by its tag
-where it has one, and by the Lean definitions that state it ("in the
+where it has one ({chapter Glossary}[the key to the tags]), and by the Lean definitions that state it ("in the
 statement"). A line marked _paper_ states something the paper states or
 works under; a line marked _not stated in the paper_ is a reading or a
 modelling choice the development adds, and each of those is either a

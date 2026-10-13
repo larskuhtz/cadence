@@ -32,8 +32,8 @@ re-check at each new paper commit, by the procedure of
 become the target; and, once it stabilises, a check that the supplement's
 practical Conductor behaves as the verified Conductor's contract allows.
 
-*Soundness instruments.* Evidence a machine could add to what a human checks
-today:
+*Soundness instruments.* Evidence a machine could add to what a human
+checks:
 
 * the locality rules of [Locality.md](../../../Locality.md): every action
   is checked against them by hand, as {chapter ModelIdioms}[chapter 4]'s
@@ -46,8 +46,8 @@ today:
   an instance, to show its assumptions are consistent;
 * a Chorus run through the MVBA path, so the certificate bridge between Chorus
   and the MVBA is shown satisfiable at the composed instance;
-* an in-build reachability trace for Chorus, which today the monitor's fixture
-  stands in for.
+* an in-build reachability trace for Chorus, for which the monitor's fixture
+  stands in.
 
 [ChorusDesign.md](../../../ChorusDesign.md) §9 is the home of the items
 specific to Chorus.
@@ -59,9 +59,9 @@ An external audit of the development, created by
 questions: whether the model implements the protocol faithfully, whether the
 paper's claims are covered, and whether the proofs and the documented
 arguments are sound. It audited revision `bfeee8c` of this repository in
-August 2026, against version 2 of the paper on arXiv. The report is frozen
-at that revision; notes under its
-findings record what has been closed since, and by which commit:
+August 2026, against version 2 of the paper on arXiv. The report is kept as
+it was written for that revision; a note under each finding says whether
+it is closed, and by which commit:
 [AuditReport.md](../../../AuditReport.md).
 
 # History

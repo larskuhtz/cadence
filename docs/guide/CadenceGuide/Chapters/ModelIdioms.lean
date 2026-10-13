@@ -249,12 +249,12 @@ actions, and what the rest of this chapter is for.
    cites.
 :::
 
-Today these checks are made by hand, and the table below records them.
-The V line is building a checker that computes the actor, read and write
-columns from the action bodies, by the rules of
-[Locality.md](../../../Locality.md). When it lands, the table takes those
-columns from it and keeps the Paper and Note columns from this file, and
-the other models get tables of their own.
+These checks are made by hand, and the table below records them. A checker
+that computes the actor, read and write columns from the action bodies, by
+the rules of [Locality.md](../../../Locality.md), is further work, the V line
+({chapter OpenIssues}[chapter 8]). The table is laid out to take those
+columns from such a checker and keep its Paper and Note columns, so that
+every model can have a table of its own.
 
 # The Chorus audit table
 

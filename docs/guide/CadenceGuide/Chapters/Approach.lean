@@ -139,16 +139,20 @@ are discharged from the glue and the Conductor ({decl}`Composed.corollary4`),
 and the Conductor's from Chorus ({decl}`Composed.caller_totality`,
 {decl}`Composed.caller_termination`).
 
-Where a consumer has to interpret a contract in its own vocabulary, the
-development states the interpretation as a _bridge_ and justifies it
-separately; Chorus's check of a decided MVBA value's certificates against
-its own network is one. {chapter Contracts}[Chapter 5] names each of them.
+Where a consumer has to interpret a contract's parameter in its own
+vocabulary, the development writes the interpretation down as a _bridge_
+and justifies it separately. There are two: Chorus's check of a decided
+MVBA value's certificates against its own network, and the Conductor's
+bracket on the first slot of a window, which stands in for the ACS's
+median. {chapter Contracts}[Chapter 5] reads both.
 
 # Where the paper fits
 
 The development targets one revision of the paper repository, `48cac9a`:
-the main body, the paper whose arXiv versions are 2607.02275 v1 and v2,
-together with the internal supplement, which specifies the MVBA. Claims
+the main body, whose public versions on arXiv (2607.02275 v1 and v2) are
+earlier than the target, together with the internal supplement, which
+specifies the MVBA. Auditors can obtain the sources at the target, the
+supplement included, and all of it is to be made public. Claims
 are stated about that revision, and a protocol bug found here is a bug in
 that revision. A later paper commit becomes the target only after its
 differences have been checked and modelled;
@@ -176,7 +180,8 @@ evidence. In each, the final check is Lean's kernel.
 *
   * Inductive invariants
   * A property holds in every reachable state of a model. Veil generates one
-    condition per action and property; the SMT solver cvc5 discharges each,
+    condition per action and property, a _verification condition_
+    ({chapter Glossary}[terms]); the SMT solver cvc5 discharges each,
     and its proof is rebuilt as a Lean proof the kernel checks. Used for the
     safety properties of every model, such as Chorus's agreement,
     {decl}`Chorus.reachable_agreement_pos`.

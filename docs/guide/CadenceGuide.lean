@@ -32,6 +32,7 @@ import CadenceGuide.Chapters.Contracts
 import CadenceGuide.Chapters.Components
 import CadenceGuide.Chapters.Checking
 import CadenceGuide.Chapters.OpenIssues
+import CadenceGuide.Chapters.Glossary
 
 open Verso.Genre Manual
 open CadenceGuide
@@ -166,7 +167,9 @@ the guide builds.
 
 The guide is one story, read front to back. Each chapter opens with a line
 saying what it covers and what it assumes, so you can stop where your
-question is answered or skip to the part you want to check.
+question is answered or skip to the part you want to check. The last
+chapter, {chapter Glossary}[Terms and codes], defines every term and code
+the guide uses in one sentence each.
 
 {chapterList}
 
@@ -185,3 +188,5 @@ question is answered or skip to the part you want to check.
 {include 1 CadenceGuide.Chapters.Checking}
 
 {include 1 CadenceGuide.Chapters.OpenIssues}
+
+{include 1 CadenceGuide.Chapters.Glossary}

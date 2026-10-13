@@ -215,10 +215,11 @@ So it shows that the contract is consistent: all of its fields hold together.
 Whether a message-passing protocol meets them is the open part, and the
 reason the front page names the ACS as an assumed module.
 
-# The bridges and the fault pattern
+# The two bridges and the fault pattern
 
-Three places in the composition are written down rather than derived, and an
-auditor reads each.
+The composition writes down two interpretations rather than deriving them,
+the two bridges, and takes one hypothesis about faults. An auditor reads
+each.
 
 * *The MVBA certificate bridge.* The paper's validity check on a meta-block
   verifies the certificates the meta-block carries. Chorus checks a decided
@@ -241,7 +242,7 @@ auditor reads each.
   at one fault pattern and need none.
 
 [CompositionContracts.md](../../../CompositionContracts.md#7-the-remaining-seams-named)
-§7 names every seam of the composition, these three included.
+§7 names every seam of the composition, these included.
 
 # What a machine check would need
 
