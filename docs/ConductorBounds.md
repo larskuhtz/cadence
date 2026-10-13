@@ -1322,7 +1322,7 @@ Two cells were slow for a second reason, the window order.
   window `i` has entered. While the guard named only the current window,
   the solver re-derived the rest from `next_def`, `[entered_prefix]`,
   `in_window` and `[win_bounds_ordered]`. On CI it took up to 110 s of 180 s.
-  The guard now names every interval `i` holds.
+  The guard names every interval `i` holds.
 * `open_slot × open_prefix_agreement` compares two validators' openings,
   and through them two validators' windows. Its time depended on the order
   in which the SMT query declares its symbols, which any edit to the model

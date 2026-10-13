@@ -72,13 +72,24 @@ validator `x` reads
   "I have not cast my commit vote";
 * *R4* global time;
 * *R5* configuration, and the fault predicate only at `x`;
-* *R6* the MVBA class's operations at index `x`;
+* *R6* the MVBA class's operations at index `x`: its decision, the
+  certificate it outputs, and its check of a certificate it received
+  (`mvba.certifies mvba_st x c e`);
 
 and writes
 
 * *W1* its own local rows;
 * *W2* messages under its own name, only by adding them;
 * *W3* the MVBA's state, only through an input at index `x`.
+
+Every operation of the class that a guard reads takes the actor's index,
+unless it is a pure function of its arguments, such as `mvba.entries`. The
+index fixes where a guard reads. It does not fix what the instance
+computes there: the operation still receives the MVBA's whole state, so
+that the check at `x` uses only what `x` holds is an obligation on the
+instance. The MVBA's instance meets it, since its check reads the network
+and the Mvba model follows these same rules
+([Locality.md](../../../Locality.md) §5).
 
 These rules are permissions: a correct step may do only what they allow.
 A Byzantine validator's rules are the opposite, prohibitions: it may do
@@ -240,8 +251,8 @@ actions, and what the rest of this chapter is for.
 2. *Reads.* The actor's own local rows, in either polarity; its own sends,
    in either polarity; other messages and the certificates over them, in
    positive position, and a chunk only as its recipient; the phase,
-   configuration, and the MVBA class at the actor's index, or its check of
-   a certificate the actor received.
+   configuration, and the MVBA class at the actor's index, its check of a
+   certificate the actor received included.
 3. *Writes.* The actor's own local rows; messages under its own name; the
    MVBA's state through an input at its index; auxiliary records, which no
    action reads.
