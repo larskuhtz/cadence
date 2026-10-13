@@ -28,6 +28,14 @@ veil_large_clump_budgets
 
 namespace Chorus.Proofs
 
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; a negative vote signature leaves every positive vote quorum as it was. -/
+#prove_vc Chorus byz_sign_vote_neg fb_neg_no_pos_quorum by
+  unveil_local
+  veil_inv_have h_old := fb_neg_no_pos_quorum
+  intro _hbyz hne1 hne2 hne3 hnie R J M hR hfb x hx
+  exact h_old hne1 (fun a b c h => (hne2 a b c h).2) hne3 hnie R J M hR hfb x hx
+
 #prove_action Chorus byz_sign_vote_neg
 
 end Chorus.Proofs

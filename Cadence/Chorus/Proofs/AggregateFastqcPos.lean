@@ -118,6 +118,63 @@ the budget on CI's runner; the two FastQCs' vote supermajorities meet in a corre
     · exact h_old I1 I2 J M1 M2 hI1 hI2 (h1 (fun e1 e2 e3 => n1 ⟨e1, e2, e3⟩))
         (h2 (fun e1 e2 e3 => n2 ⟨e1, e2, e3⟩))
 
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the new FastQC's vote supermajority meets the commit's backing, a vote quorum or a fallback entry's third. -/
+#prove_vc Chorus aggregate_fastqc_pos speculative_agreement_pos by
+  unveil_local
+  veil_inv_have h_old := speculative_agreement_pos
+  veil_inv_have h_cpb := local_committed_pos_backed
+  veil_inv_have h_votes := msg_commitqc_pos_votes
+  veil_inv_have h_mdpb := mvba_decided_pos_backed
+  veil_inv_have h_fbpb := msg_fb_pos_sig_backed
+  intro _hbyz hq_sup hq _hfresh hne1 hne2 hne3 hnie I1 I2 J M1 M2 h1 h2 hfq hcom
+  by_cases hnew : i = I1 ∧ j = J ∧ m = M1
+  · obtain ⟨rfl, rfl, rfl⟩ := hnew
+    have via_quorum : ∀ Q, nset.supermajority Q →
+        (∀ r, nset.member r Q = true → st.msg_vote_pos_sig r j M2 = true) → m = M2 := by
+      intro Q hQ_sup hQ
+      obtain ⟨b, hb1, hb2, -⟩ := nset.supermajorities_intersect_in_honest q Q hq_sup hQ_sup
+      exact hne1 b j m M2 (hq b hb1) (hQ b hb2)
+    rcases h_cpb I2 j M2 h2 hcom with ⟨C, hC⟩ | haux
+    · obtain ⟨Q, hQ_sup, hQ⟩ := h_votes C j M2 hC
+      exact via_quorum Q hQ_sup hQ
+    · rcases h_mdpb j M2 haux with ⟨Q, hQ_sup, hQ⟩ | ⟨⟨qf, hqf_gtt, hqf⟩, -⟩
+      · exact via_quorum Q hQ_sup hQ
+      · obtain ⟨rf, hrf_mem, hrf_hon⟩ := nset.greater_than_third_one_honest qf hqf_gtt
+        obtain ⟨qv, hqv_gtt, hqv⟩ :=
+          h_fbpb rf j M2 (Bool.eq_false_iff.mpr hrf_hon) (hqf rf hrf_mem)
+        obtain ⟨b, hb1, hb2⟩ := cnt.supermajority_meets_third q qv hq_sup hqv_gtt
+        exact hne1 b j m M2 (hq b hb1) (hqv b hb2).1
+  · exact h_old hne1 hne2 hne3 hnie I1 I2 J M1 M2 h1 h2
+      (hfq (fun e1 e2 e3 => hnew ⟨e1, e2, e3⟩)) hcom
+
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; the new FastQC's vote supermajority meets every source of a negative MVBA record. -/
+#prove_vc Chorus aggregate_fastqc_pos spec_fastqc_pos_no_mvba_neg by
+  unveil_local
+  veil_inv_have h_old := spec_fastqc_pos_no_mvba_neg
+  veil_inv_have h_mdnb := mvba_decided_neg_backed
+  veil_inv_have h_vupn := vote_unique_pos_neg
+  veil_inv_have h_fbn := fb_neg_no_pos_quorum
+  intro _hbyz hq_sup hq _hfresh hne1 hne2 hne3 hnie I J M hI hfq
+  by_cases hnew : i = I ∧ j = J ∧ m = M
+  · obtain ⟨rfl, rfl, rfl⟩ := hnew
+    cases hc : st.aux_mvba_decided_neg j
+    · rfl
+    · exfalso
+      rcases h_mdnb j hc with ⟨Qn, hQn_sup, hQn⟩ | ⟨⟨qn, hqn_gtt, hqn⟩ | ⟨m1, m2, hm12, hp1, hp2⟩, -⟩
+      · obtain ⟨b, hb1, hb2, hb_hon⟩ := nset.supermajorities_intersect_in_honest q Qn hq_sup hQn_sup
+        have hx := h_vupn b j m (Bool.eq_false_iff.mpr hb_hon) (hq b hb1)
+        have hy := hQn b hb2
+        rw [hx] at hy; simp at hy
+      · obtain ⟨a, ha_mem, ha_hon⟩ := nset.greater_than_third_one_honest qn hqn_gtt
+        obtain ⟨b, hb, hb_false⟩ :=
+          h_fbn hne1 hne2 hne3 hnie a j m (Bool.eq_false_iff.mpr ha_hon) (hqn a ha_mem) q hq_sup
+        have hy := hq b hb
+        rw [hb_false] at hy; simp at hy
+      · exact hm12 (hne3 j m1 m2 hp1 hp2)
+  · exact h_old hne1 hne2 hne3 hnie I J M hI (hfq (fun e1 e2 e3 => hnew ⟨e1, e2, e3⟩))
+
 #prove_action Chorus aggregate_fastqc_pos
 
 end Chorus.Proofs
