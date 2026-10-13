@@ -131,9 +131,9 @@ theorem Idle.not_decided {s : StateAtMvba slot node nodeset merkle_root view Pha
 omit [Inhabited slot] [Inhabited merkle_root] [Inhabited Phase] [Inhabited PathChoice] cnt Phase_Enum PathChoice_Enum in
 /-- Nobody holds a valid MVBA commit certificate at an idle state. -/
 theorem Idle.not_certified {s : StateAtMvba slot node nodeset merkle_root view Phase PathChoice}
-    (hI : Idle s) (c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
+    (hI : Idle s) {p : node} (c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root))
     (e : node → Option merkle_root) :
-    ¬ (Mvba.mvbaSafety thM).certifies s.mvba_st c e := by
+    ¬ (Mvba.mvbaSafety thM).certifies s.mvba_st p c e := by
   show ¬ Mvba.Certifies s.mvba_st c e
   cases c <;> simp [Mvba.Certifies, Veil.FieldRepresentation.get, hI.commitqc]
 

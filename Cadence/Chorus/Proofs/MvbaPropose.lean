@@ -45,7 +45,7 @@ runs up to the budget on CI's 4-core runner. -/
   have hreach := TransitionSystemSafety.reachable_trans _ _ h_mr htr
   have hI' : ¬ (ByzNodeSet.is_byz I = true) := by simp [hI]
   rcases h_rb I J hI hrec with ⟨M0, hpos⟩ | hneg
-  · rcases h_tp J M0 hpos with ⟨I0, hI0, V0, hdec0, hmv0⟩ | ⟨C, E, hcert, hmv0⟩
+  · rcases h_tp J M0 hpos with ⟨I0, hI0, V0, hdec0, hmv0⟩ | ⟨K, C, E, hcert, hmv0⟩
     · have heq := MVBASafety.agreement _ hreach I I0 V V0 hI' (by simp [hI0]) hdec
         (MVBASafety.decided_mono _ _ _ _ htr hdec0)
       refine ⟨fun hmv => ?_, fun hn => ?_⟩
@@ -53,21 +53,21 @@ runs up to the budget on CI's 4-core runner. -/
         rw [hfun _ J M M0 hmv hmv0]; exact hpos
       · rw [heq] at hn
         exact absurd ⟨hmv0, hn⟩ (hexcl _ J M0)
-    · have heq := MVBASafety.certified_decided _ hreach C E I V
-        (MVBASafety.certified_mono _ _ _ _ htr hcert) hI' hdec
+    · have heq := MVBASafety.certified_decided _ hreach K C E I V
+        (MVBASafety.certified_mono _ _ _ _ _ htr hcert) hI' hdec
       refine ⟨fun hmv => ?_, fun hn => ?_⟩
       · rw [heq] at hmv
         rw [hfun _ J M M0 hmv hmv0]; exact hpos
       · rw [heq] at hn
         exact absurd ⟨hmv0, hn⟩ (hexcl _ J M0)
-  · rcases h_tn J hneg with ⟨I0, hI0, V0, hdec0, hmv0⟩ | ⟨C, E, hcert, hmv0⟩
+  · rcases h_tn J hneg with ⟨I0, hI0, V0, hdec0, hmv0⟩ | ⟨K, C, E, hcert, hmv0⟩
     · have heq := MVBASafety.agreement _ hreach I I0 V V0 hI' (by simp [hI0]) hdec
         (MVBASafety.decided_mono _ _ _ _ htr hdec0)
       refine ⟨fun hmv => ?_, fun _ => hneg⟩
       rw [heq] at hmv
       exact absurd ⟨hmv, hmv0⟩ (hexcl _ J M)
-    · have heq := MVBASafety.certified_decided _ hreach C E I V
-        (MVBASafety.certified_mono _ _ _ _ htr hcert) hI' hdec
+    · have heq := MVBASafety.certified_decided _ hreach K C E I V
+        (MVBASafety.certified_mono _ _ _ _ _ htr hcert) hI' hdec
       refine ⟨fun hmv => ?_, fun _ => hneg⟩
       rw [heq] at hmv
       exact absurd ⟨hmv, hmv0⟩ (hexcl _ J M)

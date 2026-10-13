@@ -299,8 +299,8 @@ end StepFacts
 /-- **The commit availability condition, in Chorus's vocabulary**
 (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Commit availability
 condition": "the MVBA ensures that each correct Commit signer holds and
-broadcasts its assigned share before sending its vote"). A valid MVBA
-commit certificate for `e` has a supermajority each of whose correct members
+broadcasts its assigned share before sending its vote"). An MVBA commit
+certificate for `e` that passes any party's check has a supermajority each of whose correct members
 received its assigned chunk under every positive `FallbackQC` entry of a
 valid representation of `e` of its own. This is the contract's
 `certified_available` read through `avail_ready_chunks`: `AvailReady` is
@@ -309,12 +309,12 @@ the member's own, since two correct signers may hold different certificate
 kinds for one root (PaperAlignment §6, P2). -/
 theorem certified_available_chunks {st : Chorus.State (Chorus.FieldAbstractType slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice)}
     (hr : (Chorus.relationalTransitionSystem slot node nodeset merkle_root mstate mvalue mentries mmsg Phase PathChoice).reachable th st)
-    {c : mmsg} {e : mentries} (hc : mvba.certifies st.mvba_st c e) :
+    {r : node} {c : mmsg} {e : mentries} (hc : mvba.certifies st.mvba_st r c e) :
     ∃ q, nset.supermajority q ∧ ∀ p, nset.member p q = true → ¬ nset.is_byz p = true →
       ∃ v, mvba.entries v = e ∧ mvba.Valid v ∧
         ∀ J M, th.mval_pos e J M = true → th.mval_fb v J = true →
           ∃ k, st.msg_chunk k p J M = true := by
-  obtain ⟨q, hq, hall⟩ := mvba.certified_available _ (Chorus.reachable_mvba_reachable hr) c e hc
+  obtain ⟨q, hq, hall⟩ := mvba.certified_available _ (Chorus.reachable_mvba_reachable hr) r c e hc
   refine ⟨q, hq, fun p hp hpc => ?_⟩
   obtain ⟨v, hv, hval, hav⟩ := hall p hp hpc
   refine ⟨v, hv, hval, fun J M hM hfb => ?_⟩

@@ -155,7 +155,8 @@ noncomputable def Sent
 
 /-- `c` is a valid commitment proof for the entry vector `e`: a commit
 certificate on `e`, of some view, that some validator sent
-(`msg_commitqc s`: `2f+1` `Commit`s were aggregated). -/
+(`msg_commitqc s`: `2f+1` `Commit`s were aggregated). It reads the
+network only, so every party's check of a certificate is this one. -/
 noncomputable def Certifies
     (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) :
     Msg view value evec → evec → Prop
@@ -512,8 +513,8 @@ noncomputable def mvbaSafety :
     cases c <;> simp only [Accept] at h
     obtain ⟨_, _, -, h⟩ := h
     exact avail_frame_of_ne th (by intros; simp) h p v
-  certifies := Certifies
-  certified_mono _ _ c e hn h := certifies_mono_tr th hn.choose_spec c e h
+  certifies st _ c e := Certifies st c e
+  certified_mono _ _ _ c e hn h := certifies_mono_tr th hn.choose_spec c e h
   decidedCert := DecidedCert
   decided_certified _ hr i e hi hd := by
     obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed hr i e hi hd
@@ -532,30 +533,41 @@ noncomputable def mvbaSafety :
   accept_enabled _ _ _ _ hr hp hc hin hab hnd := accept_enabled_tr th hr hp hc hin hab hnd
   -- **What a certificate guarantees.** A certificate is a commit certificate
   -- on the wire; the model's certificate-level invariants say the rest.
-  certified_unique _ hr c c' e e' hc hc' := by
+  certified_unique _ hr _ _ c c' e e' hc hc' := by
     cases c <;> simp only [Certifies] at hc
     cases c' <;> simp only [Certifies] at hc'
     obtain ⟨rfl, s, h⟩ := hc
     obtain ⟨rfl, s', h'⟩ := hc'
     exact Mvba.reachable_commitqc_agree hr _ _ _ _ _ _ h h'
-  certified_decided _ hr c e p v hc hp hd := by
+  certified_decided _ hr _ c e p v hc hp hd := by
     cases c <;> simp only [Certifies] at hc
     obtain ⟨rfl, s, h⟩ := hc
     obtain ⟨V, hV⟩ := Mvba.reachable_decided_backed hr p v hp hd
     exact Mvba.reachable_commitqc_agree hr _ _ _ _ _ _
       (Mvba.reachable_decided_qc_sent hr p V _ hp hV) h
-  certified_valid _ hr c e hc := by
+  certified_valid _ hr _ c e hc := by
     cases c <;> simp only [Certifies] at hc
     obtain ⟨rfl, s, h⟩ := hc
     obtain ⟨x, hxv, hxe⟩ := Mvba.reachable_commitqc_valid hr _ _ _ h
     exact ⟨x, hxe, hxv⟩
-  certified_available _ hr c e hc := by
+  certified_available _ hr _ c e hc := by
     cases c <;> simp only [Certifies] at hc
     obtain ⟨rfl, s, h⟩ := hc
     obtain ⟨q, hq, hmem⟩ := Mvba.reachable_commitqc_backed hr _ _ _ h
     refine ⟨q, hq, fun p hp hpc => ?_⟩
     obtain ⟨-, x, hxe, hacc, hav⟩ := Mvba.reachable_honest_commit_accepted hr p _ _ hpc (hmem p hp)
     exact ⟨x, hxe, Mvba.reachable_accepted_valid hr p _ x hpc hacc, hav⟩
+
+/-- **Any party can check** (Supplement, Section 1.2
+(`subsec:mvba-protocol`), "Decision output and handoff"): a certificate that
+passes one party's check passes every party's, since the check reads only
+the network. The contract does not ask this of every instance; the
+consumers' liveness proofs, stated at this instance, read it. -/
+theorem certifies_transfer :
+    ∀ (st : Mvba.State (Mvba.FieldAbstractType node nodeset value evec view)) (p q : node)
+      (c : Msg view value evec) (e : evec),
+      (mvbaSafety th).certifies st p c e → (mvbaSafety th).certifies st q c e :=
+  fun _ _ _ _ _ h => h
 
 /-! ### The join toward the full `MVBA`
 
@@ -603,6 +615,12 @@ info: 'Mvba.mvbaSafety' depends on axioms: [propext, Classical.choice, Quot.soun
 -/
 #guard_msgs in
 #print axioms Mvba.mvbaSafety
+
+/--
+info: 'Mvba.certifies_transfer' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Mvba.certifies_transfer
 
 /--
 info: 'Mvba.mvba_of_temporal' depends on axioms: [propext, Classical.choice, Quot.sound]

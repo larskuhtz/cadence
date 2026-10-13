@@ -1373,10 +1373,12 @@ class MVBASafety (party value entryvec message state pset : Type)
   with a transferable certificate over its entries, and a transferred valid
   certificate is accepted. -/
 
-  /-- `c` is a valid commitment proof for the entry vector `e` at `st`: the
-      certificate a decision outputs, "an aggregate of `2f+1` Commit
-      signatures over `entries(x)`", which any party can check. -/
-  certifies : state → message → entryvec → Prop
+  /-- Party `p`'s check that `c` is a valid commitment proof for the entry
+      vector `e` at `st`: the certificate a decision outputs, "an aggregate
+      of `2f+1` Commit signatures over `entries(x)`", which any party can
+      check. The check is made at the checker's index, as every operation a
+      consumer's guard reads is ([Locality.md](../docs/Locality.md) R6). -/
+  certifies : state → party → message → entryvec → Prop
   /-- Output: the certificate `c` that `p`'s decision outputs, the `CommitQC`
       of `decide(x, CommitQC)` (Supplement, Section 1.2
       (`subsec:mvba-protocol`), "Decision output and handoff"). An output at
@@ -1387,10 +1389,10 @@ class MVBASafety (party value entryvec message state pset : Type)
   decided_certified : ∀ st, reachable st → ∀ p v, ¬ byz p → decided st p v →
     ∃ c, decidedCert st p c
   /-- **The output certificate commits the decision** — a certificate
-      output at `p` comes with `p`'s decision, and is valid for its
-      entries. -/
+      output at `p` comes with `p`'s decision, and passes `p`'s own check
+      for its entries. -/
   decidedCert_certifies : ∀ st, reachable st → ∀ p c, ¬ byz p →
-    decidedCert st p c → ∃ v, decided st p v ∧ certifies st c (entries v)
+    decidedCert st p c → ∃ v, decided st p v ∧ certifies st p c (entries v)
   /-- Input: the caller hands party `p` a transferred certificate `c`. -/
   accept : state → party → message → state → Prop
   /-- Accepting a transferred certificate is a transition of the module. -/
@@ -1398,15 +1400,15 @@ class MVBASafety (party value entryvec message state pset : Type)
   /-- Accepting a certificate leaves `availReady` unchanged. -/
   availReady_accept_frame : ∀ st q c st' p v, accept st q c st' →
     (availReady st' p v ↔ availReady st p v)
-  /-- Accepting a valid certificate for `e` decides a representation of `e`
-      (`Recover(e)`). -/
-  accept_effect : ∀ st p c st' e, accept st p c st' → certifies st c e →
+  /-- Accepting a certificate that passes the accepting party's check for
+      `e` decides a representation of `e` (`Recover(e)`). -/
+  accept_effect : ∀ st p c st' e, accept st p c st' → certifies st p c e →
     ∃ v, entries v = e ∧ decided st' p v
   /-- **A transferred valid certificate is accepted** — in the rely form: if
-      the caller hands a valid certificate to a correct party that has
-      proposed, is not abandoned and has not decided, the party can take
-      it. -/
-  accept_enabled : ∀ st p c e, reachable st → ¬ byz p → certifies st c e →
+      the caller hands a certificate that passes its check to a correct
+      party that has proposed, is not abandoned and has not decided, the
+      party can take it. -/
+  accept_enabled : ∀ st p c e, reachable st → ¬ byz p → certifies st p c e →
     (∃ v', proposed st p v') → ¬ abandoned st p → (∀ v', ¬ decided st p v') →
     ∃ st', accept st p c st'
 
@@ -1414,26 +1416,28 @@ class MVBASafety (party value entryvec message state pset : Type)
   any correct party decides — the adversary can aggregate the signatures —
   so these are not consequences of the decision-level fields. -/
 
-  /-- **A valid certificate stays valid** — what makes it a transferable
-      commitment proof. -/
-  certified_mono : ∀ st st' c e, trans st st' → certifies st c e → certifies st' c e
+  /-- **A valid certificate stays valid** — a certificate that passes a
+      party's check keeps passing it. -/
+  certified_mono : ∀ st st' p c e, trans st st' → certifies st p c e → certifies st' p c e
 
-  /-- **One certified entry vector** — two valid certificates certify the
-      same entries. -/
-  certified_unique : ∀ st, reachable st → ∀ c c' e e',
-    certifies st c e → certifies st c' e' → e = e'
-  /-- **A certified entry vector is the decided one** — every correct
-      party's decision has the certified entries. -/
-  certified_decided : ∀ st, reachable st → ∀ c e p v,
-    certifies st c e → ¬ byz p → decided st p v → entries v = e
-  /-- **A certified entry vector has a valid representation.** -/
-  certified_valid : ∀ st, reachable st → ∀ c e,
-    certifies st c e → ∃ v, entries v = e ∧ Valid v
+  /-- **One certified entry vector** — two certificates that pass two
+      parties' checks certify the same entries. -/
+  certified_unique : ∀ st, reachable st → ∀ p p' c c' e e',
+    certifies st p c e → certifies st p' c' e' → e = e'
+  /-- **A certified entry vector is the decided one** — whichever party
+      checked the certificate, every correct party's decision has the
+      certified entries. -/
+  certified_decided : ∀ st, reachable st → ∀ q c e p v,
+    certifies st q c e → ¬ byz p → decided st p v → entries v = e
+  /-- **A certified entry vector has a valid representation**, whichever
+      party checked the certificate. -/
+  certified_valid : ∀ st, reachable st → ∀ q c e,
+    certifies st q c e → ∃ v, entries v = e ∧ Valid v
   /-- **A certified entry vector is available** — the certificate's signers
       include a supermajority each of whose correct members was
       `AvailReady` for a valid representation of the certified entries
-      before signing. -/
-  certified_available : ∀ st, reachable st → ∀ c e, certifies st c e →
+      before signing, whichever party checked the certificate. -/
+  certified_available : ∀ st, reachable st → ∀ r c e, certifies st r c e →
     ∃ q, B.supermajority q ∧ ∀ p, B.member p q = true → ¬ byz p →
       ∃ v, entries v = e ∧ Valid v ∧ availReady st p v
 
