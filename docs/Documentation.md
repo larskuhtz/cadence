@@ -83,7 +83,7 @@ shared, and an edit to one rebuilds every chapter.
 |---|---|---|---|
 | `{decl}`X`` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a declaration name, linked into the sources where its module has a page (Lean's own declarations, such as `propext`, stay unlinked) | the name does not resolve |
 | `{claim X}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a theorem or instance: its docstring, a status box (the kernel's axioms, the contracts it is conditional on and what discharges them), the signature, collapsed | `X` has no docstring, or uses an axiom beyond Lean's standard three |
-| `{model M "safety [x]"}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a Veil model declaration, quoted from the rendered sources; `(proven := L)` adds `L`'s status box | the text matches no declaration of `M`, or more than one |
+| `{model M "safety [x]"}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | a Veil model declaration, or any declaration of a rendered module (`{model Cadence.Composed.Schedule "def SysSync"}`), quoted from the rendered sources and named by its declaration, not by line numbers; `(proven := L)` adds `L`'s status box | the text matches no declaration of `M`, or more than one |
 | `{contracts}` | [Audit.lean](guide/CadenceGuide/Audit.lean) | every contract class with what provides it | — (derived; an unprovided contract shows as assumed) |
 | `{pin "file" "command"}` | [Pin.lean](guide/CadenceGuide/Pin.lean) | a `#guard_msgs` pin quoted as written — the expected output, `#guard_msgs in`, the command — linked to its module's page | the file is not a module of the development, or has no pin of the command, or more than one |
 | `{cite}`label`` | [Cite.lean](guide/CadenceGuide/Cite.lean) | a paper citation, "Lemma 9 (`lemma:chorus-agreement`)", rendered from [paper-labels.tsv](paper-labels.tsv) | the label is not in the map |
@@ -92,7 +92,8 @@ shared, and an edit to one rebuilds every chapter.
 | `:::premises (claims := "A B …")` | [PremiseCover.lean](guide/CadenceGuide/PremiseCover.lean) | a plain-words list of the premises of the named claims, rendered as written | a named premise of one of the claims — the development's constant at the head of an explicit hypothesis, or a parameter whose structure carries conditions — is not mentioned by a `{decl}` inside the block |
 | `{chapterList}` | [ChapterList.lean](guide/CadenceGuide/ChapterList.lean) | the front page's chapter list: each chapter the root includes, numbered, its title linked to its page, and its opener; appendices left out | an included chapter is missing or has no title, address or opener; a chapter file is neither included nor an appendix |
 | `{chapter Claims}[text]` | [ChapterList.lean](guide/CadenceGuide/ChapterList.lean) | `text` linked to the chapter in `Chapters/Claims.lean`; with no text, the chapter's title | the chapter file does not exist |
-| `{contractFields C}` | [ContractFields.lean](guide/CadenceGuide/ContractFields.lean) | a contract's checklist: per field, its docstring's first sentence, its level (safety fragment or temporal) and what proves it (a protocol instance, or *assumed* with the consistency witnesses) | a field has no docstring; a field has no protocol instance and its class is not in `assumedContracts`; a module of `witnessModules` is gone |
+| `{contractFields C}` | [ContractFields.lean](guide/CadenceGuide/ContractFields.lean) | a contract's checklist: per field, its docstring's first sentence, its level (safety fragment or temporal) and what proves it (a protocol instance, or *assumed* with the consistency witnesses); for an operation, the instance's defining clause from its source, its names linked, and the first sentence of the definition the clause names | a field has no docstring; a field has no protocol instance and its class is not in `assumedContracts`; an operation's clause is not found in its instance's source; a module of `witnessModules` is gone |
+| `{findings}` | [Findings.lean](guide/CadenceGuide/Findings.lean) | the findings for the paper's authors, read from [PaperAlignment.md](PaperAlignment.md) §6's table, with whether each quotes the supplement | §6's table is missing, a row does not have five cells, or a finding has no *Quote* line |
 | `{auditTable M "file.tsv"}` | [AuditTable.lean](guide/CadenceGuide/AuditTable.lean) | a model's audit table, from its data file (below); `+sample` for a deliberate selection | an action is not a constructor of `M.Label`, has two rows, or (without `+sample`) has none; a relation named in a derived column is not part of `M`; a paper label is not in the map |
 
 In a chapter they read like this — a sketch of the forms that take options:
@@ -189,6 +190,37 @@ after one full `scripts/docs.sh` run — the fast loop for editing it. It
 re-elaborates the root and every chapter each time, because they read files
 lake does not track: the model quotations' JSON, the anchors, the diagrams,
 the audit tables.
+
+## The style check
+
+[doc-style.sh](../scripts/doc-style.sh) reads the guide's sources, the
+documents under `docs/` and the README for the slips a read-through keeps
+finding, and fails on any of them:
+
+| Rule | Catches | Instead |
+|---|---|---|
+| `history` | "no longer", "today", "retired", "when it lands", "decided <year>", "since R<n>", and "now" next to a verb | the current state, in the present tense; how it came to be goes to [History.md](History.md) | <!-- style-allow: the rule's own list -->
+| `correct` | "honest" for a validator that follows the protocol | "correct", the paper's word | <!-- style-allow: the rule's own list -->
+| `count` | a pin count ("N/N real"), a findings range ("P1–P<n>") or a findings count outside its home | a pointer to the home: the `#veil_status` pin, [PaperAlignment.md](PaperAlignment.md) §6; [Architecture.md](Architecture.md) and PaperAlignment.md are exempt |
+| `lineref` | a Lean file cited by line number | the declaration's name |
+
+It reads prose only: inline code spans and fenced code blocks are dropped,
+so a Lean name such as `all_honest_recorded`, or the Conductor's clock
+`now`, is not a hit. The records keep their history and are not read:
+[History.md](History.md), [AuditReport.md](AuditReport.md),
+[MvbaPlan.md](MvbaPlan.md) (a decision record), and the developers'
+[CLAUDE.md](../CLAUDE.md).
+
+**A justified use** carries the marker `style-allow` on the same line or
+the line before, in a comment, with the reason:
+`<!-- style-allow: figurative -->` in Markdown, `-- style-allow: …` in
+Lean. Keep the reason short and specific; the marker is for a use the
+rule's wording catches by accident, not for history.
+
+It runs in two places: in the `check` job of the verify workflow, on every
+pull request, right after the checkout, and in `scripts/docs.sh` beside the
+citation check. Run it locally as `scripts/doc-style.sh`, or on given
+files as `scripts/doc-style.sh FILE…`.
 
 ## Links
 
@@ -331,11 +363,11 @@ list items are emitted without `<li>`, maths is dropped, and a doc comment
 on an anonymous command keeps its opening `/--`. Each is small, each is
 still present upstream, and three of the four are worked around here.
 [VersoIssues.md](VersoIssues.md) is the record: symptom, cause, the fix,
-and which workaround to delete when it lands.
+and which workaround to delete once the fix is upstream.
 
 Two consequences worth stating here rather than there. **A block of raw HTML
 is passed through verbatim**, so an HTML `<table>` at the left margin of a
-header reaches the page — the one route to a real table today that needs no
+header reaches the page — the one route to a real table that needs no
 upstream change. And **maths has no rendering path at all**, so formulas
 cannot be written in these docstrings yet; mermaid is not supported by Verso
 either, while fenced code blocks are.

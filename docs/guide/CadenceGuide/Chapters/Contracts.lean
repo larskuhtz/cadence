@@ -127,11 +127,17 @@ One table per contract, read from the compiled class. *Says* is the first
 sentence of the field's description. *Level* is the safety fragment or the
 temporal level. *Proven by* is the declaration that provides the field: a
 protocol model, or, for the ACS, _assumed_, with the ideal model that shows
-the field can be met. A field without a description, or one that no protocol
-model provides in a contract that is not assumed, fails the guide's build,
-so these tables cannot fall behind the classes.
+the field can be met. For an operation, such as {decl}`MVBASafety.markAvail`
+or `Admissible`, the column also shows how the instance defines it: its
+clause from the source, and the first sentence of the definition the clause
+names. An operation is only as strong as that definition, so this is where
+to look for an escape hatch.
 
-The fields fall into two kinds. Most are *mechanical*: an input is a
+A field without a description, or a field of a contract other than the
+ACS's that no protocol model provides, fails the guide's build, so these
+tables cannot fall behind the classes.
+
+The fields fall into two groups. Most are *mechanical*: an input is a
 transition, a record only ever becomes true, an input records itself and
 nothing else, nothing is recorded initially. They make the interface exact
 and are quick to check. The rest are the paper's properties and the
@@ -205,23 +211,24 @@ question looks for:
 * *timing by definition*: its admissible runs are those in which its two
   timing guarantees hold whenever its two assumptions do;
 * *no adversary*: it sends no messages, and a Byzantine validator's proposal
-  is just another internal step.
+  is an internal step like any other.
 
 So it shows that the contract is consistent: all of its fields hold together.
 Whether a message-passing protocol meets them is the open part, and the
 reason the front page names the ACS as an assumed module.
 
-# The bridges and the fault pattern
+# The two bridges and the fault pattern
 
-Three places in the composition are written down rather than derived, and an
-auditor reads each.
+The composition writes down two interpretations rather than deriving them,
+the two bridges, and takes one hypothesis about faults. An auditor reads
+each.
 
 * *The MVBA certificate bridge.* The paper's validity check on a meta-block
   verifies the certificates the meta-block carries. Chorus checks a decided
   entry's certificate against its own network relations instead, because
   the MVBA's validity predicate is fixed before Chorus's state exists and
   cannot mention it. The check is stated at Chorus's decision handlers, and
-  its liveness direction is the premise {decl}`Chorus.ValidBridge`
+  the premise {decl}`Chorus.ValidBridge` states it in both directions
   ({chapter ReadingModel}[chapter 3] reads the handler).
 * *The ACS median bridge.* Each validator computes a new window's first
   slot from its own decided set, and the Conductor model states two model
@@ -237,7 +244,7 @@ auditor reads each.
   at one fault pattern and need none.
 
 [CompositionContracts.md](../../../CompositionContracts.md#7-the-remaining-seams-named)
-§7 names every seam of the composition, these three included.
+§7 names every seam of the composition, these included.
 
 # What a machine check would need
 

@@ -5,8 +5,8 @@ state categories of [ChorusDesign.md](../../ChorusDesign.md) §3.5.
 
 The rows are a data file, whose format [Documentation.md](../../Documentation.md)
 § "The guide" documents. The table is checked against the compiled model
-while the chapter elaborates, and fails the build when it no longer
-describes it:
+while the chapter elaborates, and fails the build when it does not
+describe it:
 
 * an action named in the file is not a constructor of the model's label
   type `M.Label`, or one of those constructors has no row (unless the table

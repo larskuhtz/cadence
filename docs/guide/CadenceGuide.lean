@@ -32,6 +32,7 @@ import CadenceGuide.Chapters.Contracts
 import CadenceGuide.Chapters.Components
 import CadenceGuide.Chapters.Checking
 import CadenceGuide.Chapters.OpenIssues
+import CadenceGuide.Chapters.Glossary
 
 open Verso.Genre Manual
 open CadenceGuide
@@ -62,12 +63,18 @@ composed system satisfies:
   never hold different entries at the same position of their logs. It
   holds in every reachable state, with no timing premise.
   {decl}`Cadence.system_positional_log_safety`
-* *{cite}`cor:chorus-correctness-within-cadence`*: within
-  Cadence, every slot's Chorus instance gets everything it needs from its
-  caller. So every slot is finalized by every correct validator within
-  `5Δ + ℓ_MVBA` after all correct validators have joined it, counted from
-  GST at the earliest, and within `Δ` of the first correct validator to
-  finalize it. {decl}`Composed.corollary4`
+* *{cite}`cor:chorus-correctness-within-cadence`*: within Cadence, every
+  slot's Chorus instance gets the three conditions it needs from its
+  caller: correct validators join it within `Δ` of each other, none leaves
+  it before finalizing, none joins before the slot starts.
+  {decl}`Composed.corollary4`. With them, every correct validator
+  finalizes the slot within `5Δ + ℓ_MVBA` after all correct validators
+  have joined it, counted from GST at the earliest
+  ({decl}`Composed.corollary4_bounded_termination`); for Chorus alone the
+  bound is also proven at `4Δ + ℓ_MVBA`
+  ([finding P5](../PaperAlignment.md#6-findings-for-the-papers-authors)). And within `Δ` of
+  the first correct validator to finalize it
+  ({decl}`Composed.corollary4_totality`).
 * *Bounded concurrency*, {cite}`lemma:cadence-bounded-concurrency`:
   no correct validator takes part in more than `2W − p` slot instances at
   once, where `W` and `p` are the Conductor's window parameters.
@@ -109,15 +116,18 @@ property proven:
   global knowledge and no adversary, shows that Module 4 can be met; a
   message-passing protocol that meets it is outside this development.
 * *Environment premises*, for every claim except MCP Safety: partial
-  synchrony, in which every step a correct validator owes after GST
-  happens within `Δ`; timers that fire on time; and the configuration's
+  synchrony, in which after GST a correct validator acts on a correct
+  validator's message within `Δ` of its sending; synchronized clocks, on
+  which every timer fires exactly at its landmark; and the configuration's
   constraints on the window parameters. The composed claims and the
-  Conductor's bounds also take local steps to need no time (`δ = 0`), as
-  the paper does; Chorus's bounds are proven with an explicit `δ` term
-  and are quoted above at `δ = 0`, and the MVBA's bound holds for any `δ`.
-  Censorship resistance also reads "by the deadline" as inclusive
-  ([finding P19](../PaperAlignment.md#6-findings-for-the-papers-authors)). The full list is one page, [Premises.md](../Premises.md) §0,
-  and one model of the composed system meets all of it at once.
+  Conductor's bounds take local steps to need no time (`δ = 0`), as the
+  paper does; Chorus's bounds carry an explicit `δ` term and are quoted
+  above at `δ = 0`, and the MVBA's hold for any `δ`. Censorship resistance
+  also counts a chunk that arrives exactly at the deadline as on time,
+  which the paper's proof relies on without stating it
+  ([finding P19](../PaperAlignment.md#6-findings-for-the-papers-authors)).
+  The full list is one page, [Premises.md](../Premises.md) §0, and one
+  model of the composed system meets all of it at once.
 * *Cryptography*, stated as assumptions: each signed message is
   attributed to its signer, so signatures cannot be forged; threshold
   encryption keeps a proposal hidden until the decryption shares are
@@ -157,7 +167,9 @@ the guide builds.
 
 The guide is one story, read front to back. Each chapter opens with a line
 saying what it covers and what it assumes, so you can stop where your
-question is answered or skip to the part you want to check.
+question is answered or skip to the part you want to check. The last
+chapter, {chapter Glossary}[Terms and codes], defines every term and code
+the guide uses in one sentence each.
 
 {chapterList}
 
@@ -176,3 +188,5 @@ question is answered or skip to the part you want to check.
 {include 1 CadenceGuide.Chapters.Checking}
 
 {include 1 CadenceGuide.Chapters.OpenIssues}
+
+{include 1 CadenceGuide.Chapters.Glossary}

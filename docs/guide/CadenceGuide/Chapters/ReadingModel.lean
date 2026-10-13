@@ -22,15 +22,14 @@ file := "reading-a-model"
 _How a Veil model states a protocol, taught on selected parts of Chorus; assumes chapter 1, no prior Lean._
 
 Chorus is the consensus that decides one slot of Cadence. Its model is the
-largest in the development, and it uses every kind of declaration a Veil
+largest in the development, and it uses every sort of declaration a Veil
 model has. This chapter reads a dozen of them closely: enough to read the
 rest of the file, and the other models, on your own. Every quotation below
 is the model's source as built, so what you read here is what was proven.
 
 # What a Veil model is
 
-A Veil model is a state machine, written as a list of declarations of four
-kinds.
+A Veil model is a state machine, written as four groups of declarations.
 
 * *State.* A `relation` is a set of tuples: a fact that holds or not for
   each combination of its arguments, such as "validator `i` recorded root
@@ -139,7 +138,7 @@ actions write its row.
 {model Cadence.Chorus "ghost relation vote_quorum_pos"}
 
 A FastQC: a supermajority `q` of validators all of whom signed the same
-positive entry. It is not stored. A certificate exists exactly when its
+positive entry, computed from the stored signatures: a certificate exists exactly when its
 signatures do, as in the protocol, where anyone holding the signatures can
 assemble it and any receiver can verify it. So it has no owner, and no
 validator index.
@@ -253,9 +252,11 @@ for entry `j` against Chorus's network, and marks the entry handled in its
 own row. Once every entry is handled, `mvba_terminate` records the decision
 as complete, and the fallback commit vote waits for that record.
 
-The certificate check is the *bridge*: the class's validity predicate is fixed before Chorus's
-network exists, so it cannot speak about Chorus's signatures, and the guard
-says what a valid certificate means there. For safety it can only remove
+The certificate check is the *MVBA certificate bridge*, one of the
+composition's two bridges ({chapter Approach}[chapter 1]). The class's
+validity predicate is fixed before Chorus's network exists, so it cannot
+speak about Chorus's signatures, and the guard says what a valid
+certificate means there. For safety it can only remove
 behaviours, and only if the MVBA were wrong. Liveness needs the other
 direction, and that is a named premise, below.
 
@@ -292,7 +293,7 @@ hypothesis of the theorem.
   * In plain words
 *
   * {decl}`Chorus.FJustice`
-  * A correct validator's step that stays possible eventually happens, for messages from correct senders: weak fairness, (F-justice). Byzantine steps get no fairness.
+  * A correct validator's step that stays possible eventually happens, for messages from correct senders: fair scheduling, (F-justice). Byzantine steps get no fairness.
 *
   * {decl}`Chorus.MvbaAdmissible`
   * The MVBA's steps inside the run are scheduled as the MVBA's own termination theorem asks.
@@ -312,7 +313,9 @@ two are conditions on the caller, and within Cadence the glue meets them.
 The MVBA's termination is not a premise: the proof applies the MVBA model's
 theorem. [Premises.md](../../../Premises.md) §3, §5 and §6 give each
 premise's role, why it is plausible, and the step that uses it. The timed
-form, with its bound of `5Δ + ℓ_MVBA`, is {decl}`Chorus.timed_termination`.
+form, with its bound of `5Δ + ℓ_MVBA + 9δ`, is
+{decl}`Chorus.timed_termination`; the tighter `4Δ + ℓ_MVBA + 9δ` is
+{decl}`Chorus.timed_termination_tight`.
 
 # Where the rest is
 

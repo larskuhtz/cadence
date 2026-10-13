@@ -310,8 +310,8 @@ from `max(t, gst)`.
 |---|---|---|---|
 | (F-byz) | — | nothing of `ByzLabel` | — |
 | (Δ-justice) | `BoundedJustice` | six clauses, each of the form: if `l` is **enabled** at every index `n ≥ N` with `clk n ≤ ref N + D` (and the clause's side condition holds there), then `l` fires within `D` of `N`. A local step at `D = δ`; a network step at `D = Δ` when its messages were sent at or after GST by correct validators and retained, or at `D = Δ + ρ` when they are retransmitted (tables below) | the termination setting before Supplement, Lemma 13 (`lem:decision-propagation`) (delivery within `Δ` of messages sent at or after GST; retransmission every `ρ`), Supplement, Section 10.3 (`sec:reliable-delivery`) (one-view retention), Supplement, Lemma 14 (`lem:view-sync`), Supplement, Lemma 15 (`lem:convergence`), Supplement, Lemma 13 (`lem:decision-propagation`); local computation within `δ` (the paper: instantaneous, `δ = 0`) |
-| (T-timer) | `TimerPunctual` | for honest `i`: (T1) `expire_timer i v` fires at `n` only if `clk m + τ v ≤ clk n` for some `m ≤ n` with `entered i v` at `m`; (T2) if `entered i v` at `m`, then `timer_expired i v` at some `n ≥ m` with `clk n ≤ clk m + τ v` | the local view timer, restarted on entry, expiring after exactly `τ v` |
-| (Δ-avail) | `AvailWithin` | for honest `i`: `accepted i v e` at `m` ⇒ `avail_ready i e` within `Δ_sync` of `m` | Supplement, Lemma 5 (`lem:avail-progress`)'s `Δ_sync` |
+| (T-timer) | `TimerPunctual` | for correct `i`: (T1) `expire_timer i v` fires at `n` only if `clk m + τ v ≤ clk n` for some `m ≤ n` with `entered i v` at `m`; (T2) if `entered i v` at `m`, then `timer_expired i v` at some `n ≥ m` with `clk n ≤ clk m + τ v` | the local view timer, restarted on entry, expiring after exactly `τ v` |
+| (Δ-avail) | `AvailWithin` | for correct `i`: `accepted i v e` at `m` ⇒ `avail_ready i e` within `Δ_sync` of `m` | Supplement, Lemma 5 (`lem:avail-progress`)'s `Δ_sync` |
 
 `hop`, the per-label kind, classifies the fourteen labels that carry a
 timed obligation by what the guard consumes:
@@ -621,7 +621,7 @@ not in the definitions a reader checks against the paper. No run predicate
 can express it, because it constrains the sort, just like the instance
 hypotheses of §6.2.5.
 
-**Only the leader and the honest quorum move through the good view.**
+**Only the leader and the correct quorum move through the good view.**
 §6.2.6's "every correct validator is in `W` / accepted" rows hold of every
 correct validator (the links are stated per validator), but the proof moves
 only `L` and `ByzNodeSetHonestQuorum`'s quorum through `W`. Decisions need
@@ -743,7 +743,7 @@ supermajorities (§6.2.4's second finding, answered in the model), and the
 view order is infinite by nature (`below vL`).
 
 **The halt, in the proofs.** A decided validator halts (§6.3.2), so every
-honest link needs its validator *active*: neither abandoned nor decided
+correct link needs its validator *active*: neither abandoned nor decided
 (`Mvba.Active`, in `SettledIn` and in the link hypotheses). The untimed
 proof already ran under "nobody has decided". The timed proof splits in
 `bounded_termination`: either a correct validator decides by the
@@ -844,7 +844,7 @@ before `max(t, GST) + ℓ`, which the claim's caller condition excludes, so
 the theorem said nothing about exactly the runs the supplement produces.
 
 **The fix** ([Cadence/Mvba.lean](../Cadence/Mvba.lean), "A decided
-validator halts"): every honest send also requires `∀ E, ¬ decided i E`.
+validator halts"): every correct send also requires `∀ E, ¬ decided i E`.
 After deciding, a validator sends nothing more, and in particular never
 times out, which subsumes the "no decision in view `v`" guard. The halt is
 kept apart from the caller's `abandoned`: the contract's Termination
@@ -1544,7 +1544,7 @@ With `t_M = M + 3Δ + 4δ` and `X_d = t_M + ℓ_MVBA`:
 | a correct decision's entries recorded (the handlers) | `within_recorded` | `X_d + δ` | 5 |
 | each correct validator's `local_mvba_complete` (its `mvba_terminate`) | `within_complete` | `X_d + 2δ` | 6 |
 | each fallback commit vote, under the validator's own `B′` | `within_fbcommit_sig` | `X_v = X_d + 3δ` | 7 |
-| the honest quorum's votes over the decided entries | (collapsed in `within_finalized_late`) | `X_v` | 7 |
+| the correct quorum's votes over the decided entries | (collapsed in `within_finalized_late`) | `X_v` | 7 |
 | the finalizer's own fallback commit certificate | `within_fbcommitqc_sent` | `X_v + Δ` | 7 |
 | every proposer's entry assigned, on that certificate (a local read) | `within_assigned_from` | `X_v + Δ + δ` | 8 |
 | finalized | `within_finalized`, `within_finalized_late` | `T₀ = M + 4Δ + ℓ_MVBA + 9δ` | 9 |
@@ -1893,7 +1893,7 @@ Counting only state-changing steps (TLA+'s `⟨A⟩_v`) would also be sound,
 but it resolves in the proof a scheduling non-determinism that an
 implementation resolves in its protocol logic.
 
-**Where the non-determinism was.** Most honest per-validator actions
+**Where the non-determinism was.** Most correct per-validator actions
 disable themselves after firing: `vote` (`¬ local_voted`), `send_commit`
 (`¬ commit_sent`), the timeouts (`¬ timed_out`), `decide`
 (`∀ E, ¬ decided`), the leader's proposal (`¬ proposed_in`), and
@@ -1926,7 +1926,7 @@ disable themselves after firing: `vote` (`¬ local_voted`), `send_commit`
   in a guard, as in `adopt_prepqc i v e q`). It sets a **local** record of
   what it formed, and a guard on that record's absence disables every
   `q`-variant at once. A negative read of the actor's *own local* state is
-  what every existing honest guard does; no network relation is read
+  what every existing correct guard does; no network relation is read
   negatively ([Locality.md](Locality.md) R1, R2). It also sets the network
   certificate relation, as `adopt_prepqc` sets `msg_prepqc`, where the
   certificate is carried on (timeouts, broadcasts).
@@ -1934,7 +1934,7 @@ disable themselves after firing: `vote` (`¬ local_voted`), `send_commit`
   adversary's capability to aggregate signatures it saw, so safety's
   adversary is unchanged. It moves into an unfair label class (with the
   `byz_*` family, or its own class, with a `not_justice_of_*` pin), and
-  has no hop-table row. Where an honest per-validator action replaces it
+  has no hop-table row. Where a correct per-validator action replaces it
   in a chain, the chain's link changes accordingly.
 * Where the effect record itself is the natural flag (`aggregate_fastqc_*`
   sets `local_fastqc_*`), the guard is its absence, and no new relation is
@@ -1970,7 +1970,7 @@ corollary for each member of the family. Both are pinned at
 fair action's firing sets a record its guard requires to be unset. The
 proof is one lemma per action, read off the transition body.
 
-*The inventory, as the lemma found it.* Every fair action that could stay enabled after firing now has a "not
+*The inventory, as the lemma found it.* Every fair action that could stay enabled after firing has a "not
 already" guard on a record it sets itself. All the reads are negative reads
 of the acting validator's own local state ([Locality.md](Locality.md)
 R1). No network relation is read negatively.
@@ -1978,7 +1978,7 @@ R1). No network relation is read negatively.
 | action | old guard, in words | new guard, in words |
 |---|---|---|
 | `aggregate_fastqc_pos/neg` | a supermajority signed | … and `i` does not hold this FastQC yet |
-| `broadcast_commitqc_pos/neg` | a correct and active collector, or any Byzantine one; `2f+1` cast commit votes | a correct and active collector that has not broadcast a certificate for `j` yet (`local_commitqc_sent c j`); the Byzantine branch is now `byz_broadcast_commitqc_*` |
+| `broadcast_commitqc_pos/neg` | a correct and active collector, or any Byzantine one; `2f+1` cast commit votes | a correct and active collector that has not broadcast a certificate for `j` yet (`local_commitqc_sent c j`); the Byzantine branch is `byz_broadcast_commitqc_*` |
 | `commit_sign_pos/neg` | `i` holds the FastQC and has not cast | … and has not signed an entry for `j` yet (`local_commit_entry i j`) |
 | `fb_sign_pos/neg` | the fallback-entry conditions | … and `i` has not signed its fallback entry for `j` yet (`local_fb_entry i j`) |
 | `on_mvba_decide_pos/neg` | `i` decided `v`, the entry is certified | … and `i` has not recorded entry `j` of its decision yet (`local_mvba_recorded i j`) |
@@ -2009,7 +2009,7 @@ What the lemma required:
   unconstrained, a label with a Byzantine sender would stay enabled after
   firing, which the lemma forbids. Guarding the Byzantine branch would
   constrain the adversary. This is the shape "The shape" gives the Mvba
-  assemblies: the adversary's forming stays and is not fair. The honest
+  assemblies: the adversary's forming stays and is not fair. The correct
   actions now require a correct sender. The termination links already used
   the validator itself as collector and sender.
 * **Flag granularity.** One record per actor and proposer, not per root or

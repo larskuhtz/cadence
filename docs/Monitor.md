@@ -33,7 +33,7 @@ hand-written assertions in an implementation test suite would not, and it
 reports them in the vocabulary of the proven properties.
 
 The fixture run is also a reachability check on the model:
-`traces/fast_path_positive.jsonl` drives three honest validators through the
+`traces/fast_path_positive.jsonl` drives three correct validators through the
 full fast path to `finalize_commit` against the model's extracted actions.
 CI runs the monitor suites on every commit (`scripts/container.sh monitor`,
 in [.github/workflows/verify.yml](../.github/workflows/verify.yml)), so an
@@ -210,14 +210,14 @@ them.
 
 `--node i` monitors one selected node in isolation, given a whole-system
 observable trace: node `i`'s own actions are **validated** under the
-all-honest instance (so the `2f+1` thresholds are the real ones), while every
+all-correct instance (so the `2f+1` thresholds are the real ones), while every
 other node's message is **admitted** from the trace by writing its facts
 through the model's own `byz_*` actions under that sender's own
 single-Byzantine instance — each a valid `|byz| ≤ f` instance.
 
 The per-instance cap does not bound the number of distinct senders admitted:
 `State` is independent of the Byzantine instance, so admitted facts accumulate
-in one threaded state while node `i`'s guards read them under the all-honest
+in one threaded state while node `i`'s guards read them under the all-correct
 instance. That makes `n = 3f+1` a pure quorum-threshold parameter, decoupled
 from the number of monitored nodes.
 
@@ -233,7 +233,7 @@ on the same mechanism.
 ## 8. Instance and scope of the current cut
 
 `n = 3f+1 = 4`, `f = 1`, a single slot, **empty** Byzantine set (all four
-nodes honest — the deployment the all-honest sim exercises), proposal index 0
+nodes correct — the deployment the all-correct sim exercises), proposal index 0
 mapped to model proposer node 0, and every root well-encoded
 (`well_encoded := fun _ => true` in the `Theory` instantiation — the
 fixtures' proposals are honestly encoded; an invalid-encoding trace would
@@ -300,7 +300,7 @@ inserts (`commit_sign_*`, `commit_assign_*`) carry their guards too, so the
 saturation of Stage B still reaches a fixpoint. Single-node mode admits
 another node's commit certificate through the adversary's assembly
 capability `byz_broadcast_commitqc_neg`, under that node's own
-single-Byzantine instance, since the collector's honest rule now requires a
+single-Byzantine instance, since the collector's correct rule now requires a
 correct collector. Both decoders learned the three new Byzantine labels
 (`byz_broadcast_commitqc_pos`, `byz_broadcast_commitqc_neg`,
 `byz_redisseminate_chunk`).

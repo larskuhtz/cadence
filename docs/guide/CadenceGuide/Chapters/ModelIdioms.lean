@@ -85,7 +85,9 @@ A Byzantine validator's rules are the opposite, prohibitions: it may do
 anything except forge a signature, write what it does not own, or change
 the MVBA other than through its contract (rules B1–B3 of
 [Locality.md](../../../Locality.md) §4.2), since any further restriction
-would weaken the claims. The environment reads and writes only global
+would weaken the claims. Locality.md's B4 names the one kind of gap such a
+rule set can hide, a correct receiver's check written as a guard on the
+Byzantine sender; no model has one. The environment reads and writes only global
 time. A read or a write by a correct step that fits no rule is a gap in the
 model, to be replaced by one that fits.
 
@@ -124,7 +126,9 @@ which each validator has received some of the messages sent so far. In the
 model the network holds every message sent, and each validator acts on the
 ones it has received. A positive guard satisfied by fewer messages is
 satisfied by more, so every step a real validator takes is a step of the
-model. A negative guard over other validators' messages would break this:
+model.
+
+A negative guard over other validators' messages would break this:
 "nobody signed a conflicting vote" can be true of what a validator received
 and false of the network. The model also has runs the protocol lacks, such
 as a validator acting on a message the real network would deliver later;
@@ -165,7 +169,7 @@ can
 
 Its only guards are signatures that must exist: a positive fallback entry
 carries the proposer's signature, and a certificate has its signatures.
-Every other check is the correct receiver's: a vote counts only if it has
+Every other check is the correct receiver's. A vote counts only if it has
 an entry for every proposer and each positive entry carries the signer's
 chunk under a root its proposer signed, so the adversary may send a vote
 that fails the check, and no correct validator counts it. What the
@@ -241,18 +245,18 @@ actions, and what the rest of this chapter is for.
 3. *Writes.* The actor's own local rows; messages under its own name; the
    MVBA's state through an input at its index; auxiliary records, which no
    action reads.
-4. *The adversary.* Every message a Byzantine validator could send that an
+4. *The adversary.* Every message a Byzantine validator could send that a
    correct receiver would accept is the update of some `byz_*` action.
 5. *The paper.* The guards and updates are the rule the Paper column
    cites.
 :::
 
-Today these checks are made by hand, and the table below records them.
-The V line is building a checker that computes the actor, read and write
-columns from the action bodies, by the rules of
-[Locality.md](../../../Locality.md). When it lands, the table takes those
-columns from it and keeps the Paper and Note columns from this file, and
-the other models get tables of their own.
+These checks are made by hand, and the table below records them. A checker
+that computes the actor, read and write columns from the action bodies, by
+the rules of [Locality.md](../../../Locality.md), is further work, the V line
+({chapter OpenIssues}[chapter 8]). The table is laid out to take those
+columns from such a checker and keep its Paper and Note columns, so that
+every model can have a table of its own.
 
 # The Chorus audit table
 

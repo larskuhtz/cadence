@@ -66,7 +66,7 @@ merkle_root   -- opaque commitment to an erasure-coded encrypted proposal.
 Modelling Merkle roots as an opaque token (rather than as a hash of the
 underlying chunks) is sufficient because the binding property we use is
 already captured at the signature level: a positive vote/commit entry
-for `(s, j, m)` is *only* produced by an honest validator that recorded
+for `(s, j, m)` is *only* produced by a correct validator that recorded
 *some* chunk under root `m`, and the proposer signature ties `m` to a
 unique payload via injectivity of the hash (cf.
 [Cadence/Primitives.lean](../Cadence/Primitives.lean) `HashFunction` and `MerkleTree`).
@@ -209,7 +209,7 @@ observes a message negatively (via `¬R`, `∀ R, R(…) → …`, an
 `if-then-else` whose `else` branch fires on `¬R`, or an update sensitive to
 `¬R`) at a row that is not the actor's own send, the SMT proofs may still
 go through but the claim that "safety in this model implies safety in an
-asynchronous network" silently no longer holds. Every action is therefore
+asynchronous network" silently fails. Every action is therefore
 checked by hand against [Locality.md](Locality.md), and the result is the
 audit table of the guide ([guide/audit/Chorus.tsv](guide/audit/Chorus.tsv)),
 one row per action with the rule each read and write follows. The rules
@@ -253,7 +253,7 @@ BFT consensus:
 * **Safety** holds in pure asynchrony. It needs only (a) signature
   unforgeability, (b) quorum intersection (`2/3 + 2/3 > 1`), (c)
   per-validator local consistency (no self-equivocation). All three
-  are captured in the Veil model: (a) by the honest/Byzantine action
+  are captured in the Veil model: (a) by the correct/Byzantine action
   split, (b) by `ByzNodeSet`, (c) by the `local_entry_*`,
   `vote_unique_*`, and `local_committed_pos_*` invariants.
 * **Liveness** is what requires partial synchrony / GST. Without it,
@@ -266,7 +266,7 @@ Chorus follows this pattern, and the paper's own agreement proof
 quorum intersection on commit votes; two MVBA decisions agree by the
 MVBA's agreement property; and a commitQC excludes any fallback-shaped
 MVBA decision because the `FBCert` every fallback meta-block carries
-is a second supermajority whose honest common member with the commitQC
+is a second supermajority whose correct common member with the commitQC
 would have had to cast both a fast commit vote and a fallback vote —
 excluded by `pathVote`. None of these arguments consults a clock, and
 all are discharged in this model from the `ByzNodeSet` intersection
@@ -278,7 +278,7 @@ establish, and prove the protocol consequence asynchronously:
 
 * **Proposal inclusion** — the paper's premise "a correct proposer
   disseminates at `s.deadline − Δ ≥ GST`" implies (in the real
-  protocol) that every honest validator records the positive entry
+  protocol) that every correct validator records the positive entry
   before the deadline. The model takes that consequence
   (`all_honest_recorded j m`) as the hypothesis and proves that no
   conflicting entry can ever be certified or committed.
@@ -321,7 +321,7 @@ establish, and prove the protocol consequence asynchronously:
   check's verdict is the immutable predicate `well_encoded m` — sound
   because encoding validity is a property of the whole committed set
   the root binds, identical at every validator
-  (Proposition 2 (`prop:recovery-consistency`)). Honest `propose` requires it (recovery
+  (Proposition 2 (`prop:recovery-consistency`)). Correct `propose` requires it (recovery
   guarantee (ii): a correct proposer encodes validly), `fb_sign_pos`
   requires it (the paper's fallback-yes caster reconstructs and
   re-encode-checks), and `fb_sign_neg`'s guard admits the
@@ -334,7 +334,7 @@ establish, and prove the protocol consequence asynchronously:
   deliver `f+1` mutually-inconsistent chunks — but the fallback layer
   sees the verdict the real DA would reach on them. Agreement and proposal
   inclusion do not depend on the check: agreement rests on quorum
-  intersection over root-opaque certificates, and an on-time honest
+  intersection over root-opaque certificates, and an on-time correct
   proposer's root passes the check by the encoding half of the
   `all_honest_recorded` premise.
 
@@ -423,7 +423,7 @@ write it.
 | `local_entry_pos i j m`, `local_entry_neg i j` | validator `i`'s per-proposer `Entry(pid)` (Algorithm 3 (`alg:voting`)). |
 | `local_voted i` | `i` has executed the deadline vote handler. |
 | `local_path i : PathChoice` | `i`'s `pathVote ∈ {none, fast, fallback}`. |
-| `local_fastqc_pos i j m`, `local_fastqc_neg i j` | `i` has aggregated `Ev(j)` as a FastQC (Algorithm 4, line 18 (`line:fast-formqc`)). Kept per-validator because an honest commit signature is justified by *the signer's own* FastQC observation. |
+| `local_fastqc_pos i j m`, `local_fastqc_neg i j` | `i` has aggregated `Ev(j)` as a FastQC (Algorithm 4, line 18 (`line:fast-formqc`)). Kept per-validator because a correct commit signature is justified by *the signer's own* FastQC observation. |
 | `local_vote_rcv_pos i r j m`, `local_vote_rcv_neg i r j` | `i` has received `r`'s vote, whose entry for `j` is positive on `m`, resp. negative: the received votes the fallback rule ranges over (Algorithm 5, line 8 (`line:fb-cast-entry`)). One entry per sender and proposer, the first received. |
 | `local_committed i`, `local_committed_pos i j m`, `local_committed_neg i j` | `i`'s finalization decision. |
 | `participating i`, `abandoned i` | `i` has invoked the slot-consensus inputs `participate()` / `abandon()` (Module 1 (`mod:slotconsensus`)); written only by the input actions of the same name. Named as the contract's observables rather than `local_*`. Every sending rule reads them at its own sender (the participation gate). |
@@ -503,7 +503,7 @@ is decodable too (`vote_pos_quorum_implies_decodable`) — the paper's own
 argument (Proposition 4 (`prop:chorus-totality`), the proof's FastQC case).
 
 The model-level DA safety theorem is
-`local_committed_pos_implies_decodable`: every honest positive commit
+`local_committed_pos_implies_decodable`: every correct positive commit
 has `f+1` validators that broadcast their chunk for the committed root —
 the counterpart of "`recoverProposals` does not block" (Algorithm 6,
 line 12 (`line:da-wait`)).
@@ -627,7 +627,7 @@ unpredictability and the random-oracle simulation argument
 threshold of correct shares. The protocol layer is proven in the model:
 `safety [hiding_until_deadline]` shows the share threshold cannot be
 reached while the slot is `pre_deadline`, because at most `f` shares
-are Byzantine and honest validators release shares only with their
+are Byzantine and correct validators release shares only with their
 deadline vote.
 
 ### The MVBA as a class constraint
@@ -731,9 +731,9 @@ by `external_validity` and public verifiability), and if the MVBA were
 wrong the handler would simply not fire — safety-conservative.
 `mvba_decided_pos_backed` / `mvba_decided_neg_backed` persist the
 evidence a record carried. The evidence conditions are deliberately
-certificate-checkable network predicates, *not* conditions on honest
+certificate-checkable network predicates, *not* conditions on correct
 validators' internal state: the MVBA can only verify what a proposal
-carries, so a gate referring to honest validators' aggregated FastQCs would
+carries, so a gate referring to correct validators' aggregated FastQCs would
 not be implementable. None is needed — with commitQC-based finalization the
 paper's own asynchronous agreement argument goes through (§6). The bridge is
 stated in five places and nowhere else: the two decision handlers and the
@@ -770,11 +770,11 @@ validator's decision alone. The paper's `mvbaInvoked` is the proposer's own
 flag, guarding its proposal and the forwarding of `abandon()` (Algorithm 5,
 line 48 (`line:fb-abandon`)); the decision handler does not read it, and
 the contract (Module 3 (`mod:mvba`)) does not order a decision after a
-proposal. The derived `mvba_invoked = fbcert ∨ (∃ honest I,
+proposal. The derived `mvba_invoked = fbcert ∨ (∃ correct I,
 complete_fast_metablock I)` is the run-level statement that one of the
 triggers holds, used by the progress dichotomy and read by no action. The
 case-(a) trigger is load-bearing for liveness in the *mixed* regime where
-between 1 and 2f honest validators took the fast path — there neither a
+between 1 and 2f correct validators took the fast path — there neither a
 commitQC nor an FBCert is guaranteed, and termination flows through MVBA
 proposals of fast meta-blocks (see §7).
 
@@ -820,13 +820,14 @@ of the correct validators' actions keeps every fair action fired-once
 
 The adversary is a family of per-relation actions — one per
 adversarial capability — rather than a single `transition byz_step`
-with a per-relation "pin honest"/"monotone Byzantine" body. That is not
+with a per-relation body that keeps correct validators' rows and grows
+Byzantine ones. That is not
 a stylistic choice: at ~30 relations the monolithic form's elaboration
 exceeds Lean's heartbeat budget. Each action requires `is_byz` and
 assigns one tuple; Veil's frame condition covers the rest. The two
 forms are semantically equivalent (any combined change decomposes into
 a sequence), except that Byzantine validators' own local state only
-grows monotonically — unobservable by honest invariants.
+grows monotonically — unobservable by correct invariants.
 
 ### Quorum axioms
 
@@ -839,12 +840,12 @@ hypotheses exactly like `ByzNodeSet`'s. Both are proven for the concrete
 the counting class in [Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean):
 
 * `supermajorities_intersect_in_honest` — two supermajorities share an
-  honest member (`2(2f+1) − (3f+1) = f+1 > f`).
-* `greater_than_third_one_honest` — an `f+1`-set contains an honest
+  correct member (`2(2f+1) − (3f+1) = f+1 > f`).
+* `greater_than_third_one_honest` — an `f+1`-set contains a correct
   member.
 * `honest_third_in_supermajority` — a supermajority
-  contains an *all-honest `f+1`-subset* (`2f+1 − f = f+1`). Used where
-  an honest sub-quorum is needed (e.g. pinning fallback entries under
+  contains an *all-correct `f+1`-subset* (`2f+1 − f = f+1`). Used where
+  a correct sub-quorum is needed (e.g. pinning fallback entries under
   the proposal-inclusion premise).
 * `supermajority_meets_third` — a supermajority and an
   `f+1`-set share a (possibly Byzantine) member
@@ -855,8 +856,8 @@ the counting class in [Cadence/ByzQuorum.lean](../Cadence/ByzQuorum.lean):
   supermajorities share an `f+1`-subset. Used to intersect a
   fallback signer's witnessed vote quorum with a FastQC's backing.
 
-Note the *honest* variant of `supermajority_meets_third` — "a supermajority and an
-`f+1`-set share an honest member" — is false in general (the single
+Note the *correct* variant of `supermajority_meets_third` — "a supermajority and an
+`f+1`-set share a correct member" — is false in general (the single
 guaranteed intersection element can be Byzantine); the speculative
 invariants work around it via `no_equivocation`.
 
@@ -886,7 +887,7 @@ quorum-completing updates — are discharged by manual `#prove_vc … by
 a statement check against the model's VC registry.
 
 **How agreement is proven (the paper's Proposition 1 (`prop:agreement-entries`)).**
-`local_committed_pos_backed` reduces every honest commit to a broadcast
+`local_committed_pos_backed` reduces every correct commit to a broadcast
 commitQC or a certified entry in `aux_mvba_decided_pos` — a commit on an
 `fbCommitQC` included, whose entries are certified (`fbcommitqc_entries`).
 Case commitQC–commitQC: `supermajorities_intersect_in_honest` +
@@ -895,17 +896,17 @@ proven from the MVBA
 contract's `agreement` at the reachable abstract state (§6.4). Case commitQC–MVBA
 (`commitqc_pos_mvba_consistent` and the two exclusion variants): by
 `mvba_decided_pos_backed`, the decision carried either a vote
-supermajority — which intersects the commitQC's honest member's own
-FastQC backing in an honest double-voter (`vote_unique_pos`) — or a
+supermajority — which intersects the commitQC's correct member's own
+FastQC backing in a correct double-voter (`vote_unique_pos`) — or a
 fallback certificate together with `fbcert` — which intersects the
-commitQC in an honest validator with both `msg_commit_cast` and
+commitQC in a correct validator with both `msg_commit_cast` and
 `msg_fallback_sig`, contradicting the `pathVote` exclusion
 (`commit_cast_fallback_sig_excl`). Pure quorum reasoning, valid under
 full asynchrony.
 
 *Correspondence with the paper's argument.* The paper's
 Proposition 1 (`prop:agreement-entries`) argues the fallback cases through the *commit
-round*: two `fbCommitQC`s intersect in an honest commit-voter, who
+round*: two `fbCommitQC`s intersect in a correct commit-voter, who
 commit-votes once, for the entries of its single MVBA decision (MVBA
 Integrity); an `fbCommitQC` and a `commitQC` intersect as in case 3
 above. The model reaches the same conclusion one layer lower: an
@@ -1007,10 +1008,10 @@ two hypotheses).
 
 ### 6.7 Fallback commit round
 
-`fbcommit_sig_backed` (an honest commit vote postdates the decision
+`fbcommit_sig_backed` (a correct commit vote postdates the decision
 vector it signs — Algorithm 5, line 37 (`line:fb-mvba-decide`) precedes Algorithm 5, line 41 (`line:fb-commitvote`)),
 `fbcommitqc_implies_mvba_complete` (an `fbCommitQC`
-certifies the decision vector: its `2f+1` votes contain an honest one),
+certifies the decision vector: its `2f+1` votes contain a correct one),
 and `mvba_decided_pos_proposer_signed` (filed under §6.4). Together
 with `mvba_decided_pos_chunks_decodable` and `mvba_decided_is_proposer`
 these are the backing and fair-progress content of the commit round —
@@ -1020,7 +1021,7 @@ comment in [Cadence/Chorus.lean](../Cadence/Chorus.lean).
 ## 7. Liveness
 
 > **(Liveness)** Under (F-justice), (F-byz), the MVBA's scheduling and the
-> validity bridge below, every honest validator eventually commits every
+> validity bridge below, every correct validator eventually commits every
 > slot.
 
 This is a theorem: `Chorus.termination`
@@ -1044,7 +1045,7 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
 
 **The chain** — how theorems and temporal steps alternate:
 
-1. *(temporal — (F-justice).)* Every honest validator reaches
+1. *(temporal — (F-justice).)* Every correct validator reaches
    **saturation**: it casts its path vote, fast or fallback, carrying
    the per-proposer entries that cast requires. On the way it receives
    every correct validator's vote (`receive_vote_*`, owed for a correct
@@ -1059,7 +1060,7 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
    fires it.
 2. *(theorem.)* `Chorus.progress_dichotomy_of_saturation`: in any
    reachable saturated state, either a commitQC exists for **every**
-   proposer from honest votes alone, or `mvba_invoked` holds together
+   proposer from correct votes alone, or `mvba_invoked` holds together
    with per-proposer evidence stated verbatim as the decision handlers'
    bridge `require` and `mvba_propose`'s validity guards. Its proof is
    the case split below.
@@ -1099,9 +1100,9 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
    correct signer sent every validator its assigned chunk when it signed
    (`fb_sign_pos`, Algorithm 5, line 12 (`line:fb-redisseminate`);
    `Chorus.fb_pos_sig_chunks`); `cast_fb_commit` is then enabled
-   (it has no phase gate); the `2f+1` honest
+   (it has no phase gate); the `2f+1` correct
    commit votes are a certificate outright
-   (`Chorus.fbcommitqc_of_honest_commit_votes` — the honest population
+   (`Chorus.fbcommitqc_of_honest_commit_votes` — the correct population
    is itself the quorum), a correct collector forms and broadcasts it
    (`broadcast_fbcommitqc`, Algorithm 5, lines 42–44
    (`line:fb-collect-commit`–`line:fb-commit-broadcast`)), and the
@@ -1113,7 +1114,7 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
 **The assumptions:**
 
 * **(F-justice)** — phase advancement, aggregation, and per-validator
-  honest actions are weakly fair; a step that consumes a message is owed
+  correct actions are weakly fair; a step that consumes a message is owed
   only for a correct sender's message. Weak fairness suffices *because* the
   model is monotone: enabledness itself is monotone, so the
   enable/disable flicker that strong fairness exists for cannot occur.
@@ -1142,8 +1143,8 @@ carried out over runs in [Cadence/Chorus/Termination.lean](../Cadence/Chorus/Ter
   Chorus's certificate check, in both directions: a certified meta-block is
   `Valid`, and a decided one is certified. This is the cryptographic seam
   of §4, not a fairness assumption.
-* **(A-mvba), retired.** The MVBA's termination used to be assumed here.
-  The two premises above replace it
+* **The MVBA's termination is a theorem, not a premise.** Chorus's proof
+  applies the MVBA's termination theorem, with the two premises above
   ([Architecture.md](Architecture.md) §4 item 2). The randomised
   primitive's probability-1 termination stays a paper-level argument
   ([Liveness.md](Liveness.md) §2); the instance this development runs is
@@ -1157,26 +1158,26 @@ discharged by the monotonicity audit (§3.1), not by SMT; stating it as
 invariants yields only tautologies of the form `… ∧ ¬X → ¬X`, so do
 not add them.
 
-**The case split** (the dichotomy's proof, on the number `x` of honest
+**The case split** (the dichotomy's proof, on the number `x` of correct
 validators that cast a fast commit vote):
 
-* `x ≥ 2f+1`: honest commit votes agree per proposer (FastQC
+* `x ≥ 2f+1`: correct commit votes agree per proposer (FastQC
   cross-uniqueness), so any `2f+1` of them are a commitQC
   (`Chorus.commitqc_of_honest_fast_dominant`) — no MVBA involved.
 * `1 ≤ x ≤ 2f` (mixed): neither commitQC nor FBCert is guaranteed
-  (Byzantine help is unfair; only `2f+1 − x` honest validators can
+  (Byzantine help is unfair; only `2f+1 − x` correct validators can
   still fallback-vote). The paper's case-(a) MVBA trigger closes the
   regime: any fast-path validator's FastQCs are backed by
   network-visible vote supermajorities
   (`fast_path_implies_vote_quorums`), which are at once the invocation
   trigger (a complete fast meta-block) and the per-proposer evidence.
-* `x = 0`: every honest validator casts fallback votes (per-proposer
+* `x = 0`: every correct validator casts fallback votes (per-proposer
   signing is enabled one way or the other —
   `progress_fallback_signing`), so `FBCert` exists outright
-  (`Chorus.fbcert_of_honest_fallback_votes` — the honest population is
+  (`Chorus.fbcert_of_honest_fallback_votes` — the correct population is
   itself the quorum), and the per-proposer evidence is the **evidence
   pigeonhole** (`Chorus.evidence_pigeonhole_of_reachable`): `2f+1`
-  honest per-proposer fallback entries split, by two-class counting,
+  correct per-proposer fallback entries split, by two-class counting,
   into an `f+1` negative sub-quorum (a negative FallbackQC), an `f+1`
   positive sub-quorum on one root (a positive FallbackQC), or positive
   entries on two roots — both proposer-signed, i.e. `equiv_evidence`.
@@ -1241,8 +1242,8 @@ first to the second, and two rules do it.
   Proposition 5 (`prop:chorus-finalization-time`).
 
 **Why the counting has to cover Byzantine votes.** The evidence
-pigeonhole of §7 splits the `2f+1` *honest* fallback entries globally,
-but a validator's `M_i` guarantees only `f+1` honest votes. Closing the
+pigeonhole of §7 splits the `2f+1` *correct* fallback entries globally,
+but a validator's `M_i` guarantees only `f+1` correct votes. Closing the
 argument per validator therefore counts the Byzantine votes' entries
 too, and the receipt restriction is what makes every accepted entry
 countable: an entry is a FastQC or a signed entry of its sender, so each
@@ -1271,7 +1272,7 @@ participation convention. The model tracks all three, and none of them
 contradicts a proven safety invariant. One guard is worth naming because
 the model depends on it: a correct receiver accepts a positive vote only
 if it carries its *sender's assigned* chunk (`vote_valid`, §3.5.3), which
-is what makes the fallback rules' reading of `isDecoded` honest — `f+1`
+is what makes the fallback rules' reading of `isDecoded` sound — `f+1`
 accepted positive votes pin `f+1` *distinct* chunks.
 
 ## 8. Abstractions worth flagging for review
@@ -1357,7 +1358,7 @@ items. The cross-cutting ones, the locality checker among them, are in
 3. **Multi-slot Chorus.** The model fixes one slot, and cross-slot
    independence is argued rather than modelled (§3.4).
 
-4. **An in-build `sat trace` for Chorus.** Chorus cannot carry one today:
+4. **An in-build `sat trace` for Chorus.** Chorus carries none:
    the trace pipeline needs the label enumeration that
    [Chorus.lean](../Cadence/Chorus.lean) disables for size, and every
    finalizing run passes through `vote`, whose bulk update uses a `decide`

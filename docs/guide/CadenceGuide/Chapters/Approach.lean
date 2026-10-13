@@ -26,11 +26,14 @@ facts (who has voted, which messages exist, what a validator has decided)
 and whose steps are _actions_, each with guards that say when it may fire
 and updates that say what it changes. A model's safety properties are
 proven by induction: they hold in the initial states, and every action
-preserves them, so they hold in every reachable state. Each module's
-specification is a _contract_: a Lean class listing the properties the
+preserves them, so they hold in every reachable state.
+
+Each module's specification is a _contract_: a Lean class listing the properties the
 paper states for the module. A model that uses a module sees only its
 contract, so its proofs hold for any implementation of it; a model that
-implements a module proves its contract. Plain Lean then joins the pieces
+implements a module proves its contract.
+
+Plain Lean then joins the pieces
 into statements about the whole system, the timed ones included, which are
 proven over runs of the composed system.
 
@@ -119,7 +122,7 @@ consume. The _temporal level_ ({decl}`SlotConsensusTemporal`,
 {decl}`OrchestratorTemporal`, {decl}`MVBATemporal`, {decl}`ACSTemporal`)
 holds the properties over runs, termination and the timing bounds, stated
 over the fragment's own states and steps. The full contract, such as
-{decl}`SlotConsensus`, is the two joined.
+{decl}`SlotConsensus`, contains both levels.
 
 *An instance fills a contract.* Each implementing model proves its safety
 fragment from its own transition system ({decl}`Chorus.slotConsensusSafety`
@@ -133,22 +136,26 @@ instances, and Chorus's own MVBA contract filled by {decl}`Mvba.mvbaSafety`.
 glue's safety theorem with the instances plugged in:
 {decl}`Cadence.system_positional_log_safety` holds for every ACS meeting
 its contract. The timed claims run the glue, the Conductor and Chorus on
-one clock, and each condition a module's guarantees take from its caller is
-a theorem about the composed run rather than a premise: Chorus's conditions
-are discharged from the glue and the Conductor ({decl}`Composed.corollary4`),
+one clock. A module's guarantees hold only if its caller behaves in certain
+ways, and inside the composed system each of these caller conditions is
+proven: Chorus's from the glue and the Conductor ({decl}`Composed.corollary4`),
 and the Conductor's from Chorus ({decl}`Composed.caller_totality`,
 {decl}`Composed.caller_termination`).
 
-Where a consumer has to interpret a contract in its own vocabulary, the
-development states the interpretation as a _bridge_ and justifies it
-separately; Chorus's check of a decided MVBA value's certificates against
-its own network is one. {chapter Contracts}[Chapter 5] names each of them.
+Where a consumer has to interpret a contract's parameter in its own
+vocabulary, the development writes the interpretation down as a _bridge_
+and justifies it separately. There are two: Chorus's check of a decided
+MVBA value's certificates against its own network, and the Conductor's
+bracket on the first slot of a window, which stands in for the ACS's
+median. {chapter Contracts}[Chapter 5] reads both.
 
 # Where the paper fits
 
 The development targets one revision of the paper repository, `48cac9a`:
-the main body, the paper whose arXiv versions are 2607.02275 v1 and v2,
-together with the internal supplement, which specifies the MVBA. Claims
+the main body, whose public versions on arXiv (2607.02275 v1 and v2) are
+earlier than the target, together with the internal supplement, which
+specifies the MVBA. Auditors can obtain the sources at the target, the
+supplement included, and all of it is to be made public. Claims
 are stated about that revision, and a protocol bug found here is a bug in
 that revision. A later paper commit becomes the target only after its
 differences have been checked and modelled;
@@ -176,7 +183,8 @@ evidence. In each, the final check is Lean's kernel.
 *
   * Inductive invariants
   * A property holds in every reachable state of a model. Veil generates one
-    condition per action and property; the SMT solver cvc5 discharges each,
+    condition per action and property, a _verification condition_
+    ({chapter Glossary}[terms]); the SMT solver cvc5 discharges each,
     and its proof is rebuilt as a Lean proof the kernel checks. Used for the
     safety properties of every model, such as Chorus's agreement,
     {decl}`Chorus.reachable_agreement_pos`.

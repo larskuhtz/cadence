@@ -12,7 +12,7 @@ What has been done, and when, is [History.md](History.md).
 
 ## The paper
 
-* **Send the findings page to the paper's authors** — P1–P20,
+* **Send the findings page to the paper's authors** —
   [PaperAlignment.md](PaperAlignment.md) §6. Each is open on the paper
   side; a finding the authors resolve is marked so at the next re-check.
 * **Re-check at the next paper commit** — run
