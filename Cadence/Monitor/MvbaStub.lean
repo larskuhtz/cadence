@@ -218,9 +218,9 @@ synthesis sees through its fields. -/
   availReady_propose_frame _ _ _ _ _ _ _ := Iff.rfl
   availReady_abandon_frame _ _ _ _ _ _ := Iff.rfl
   availReady_accept_frame _ _ _ _ _ _ _ := Iff.rfl
-  certified_mono _ _ _ _ _ h := h
+  certified_mono _ _ _ _ _ _ h := h
   -- The decision handoff: nothing is ever certified, so nothing is accepted.
-  certifies _ _ _ := False
+  certifies _ _ _ _ := False
   decidedCert _ _ _ := False
   decided_certified _ _ _ _ _ h := h.elim
   decidedCert_certifies _ _ _ _ _ h := h.elim
@@ -228,10 +228,10 @@ synthesis sees through its fields. -/
   accept_trans _ _ _ _ h := h.elim
   accept_effect _ _ _ _ _ h _ := h.elim
   accept_enabled _ _ _ _ _ _ h := h.elim
-  certified_unique _ _ _ _ _ _ h _ := h.elim
-  certified_decided _ _ _ _ _ _ h _ _ := h.elim
-  certified_valid _ _ _ _ h := h.elim
-  certified_available _ _ _ _ h := h.elim
+  certified_unique _ _ _ _ _ _ _ _ h _ := h.elim
+  certified_decided _ _ _ _ _ _ _ h _ _ := h.elim
+  certified_valid _ _ _ _ _ h := h.elim
+  certified_available _ _ _ _ _ h := h.elim
 
 /-! The guards of the MVBA actions, decidable at the silent instance. The
 extracted executor asks for these as instance arguments (Veil cannot decide
@@ -265,8 +265,8 @@ instance silentMvba.decDecidedCert {α pset : Type} {B : ByzNodeSet α pset} (by
 /-- Nothing is certified under the stub, so the `CommitQC` route's handlers
 are never enabled. -/
 instance silentMvba.decCertifies {α pset : Type} {B : ByzNodeSet α pset} (byz : α → Prop)
-    (st : Unit) (c : Unit) (e : ME) :
-    Decidable ((silentMvba (B := B) byz).certifies st c e) := isFalse id
+    (st : Unit) (i : α) (c : Unit) (e : ME) :
+    Decidable ((silentMvba (B := B) byz).certifies st i c e) := isFalse id
 /-- The stub has no availability input, so Chorus's availability report is
 never enabled under this monitor. -/
 instance silentMvba.decMarkAvail {α pset : Type} {B : ByzNodeSet α pset} (byz : α → Prop)

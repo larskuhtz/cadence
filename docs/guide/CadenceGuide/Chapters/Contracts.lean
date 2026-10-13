@@ -133,6 +133,13 @@ clause from the source, and the first sentence of the definition the clause
 names. An operation is only as strong as that definition, so this is where
 to look for an escape hatch.
 
+An operation that a consumer's guard reads takes the reader's index.
+{decl}`MVBASafety.certifies` is party `p`'s check of a certificate, and
+Chorus reads it at the acting validator. The index fixes where the guard
+reads. Whether the check at `p` uses only what `p` holds is in the
+definition shown: at the MVBA's instance it holds for a commit certificate
+that some validator sent on the MVBA's network, the same at every party.
+
 A field without a description, or a field of a contract other than the
 ACS's that no protocol model provides, fails the guide's build, so these
 tables cannot fall behind the classes.

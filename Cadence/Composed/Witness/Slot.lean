@@ -305,8 +305,8 @@ theorem not_decidedCert (m : Nat) (i : Fin 4) (c : Mvba.Msg ℕ V E) :
   cases c <;> simp [Mvba.DecidedCert, Veil.FieldRepresentation.get, mst]
 
 /-- Nobody ever holds a valid MVBA commit certificate: none is formed. -/
-theorem not_certified (m : Nat) (c : Mvba.Msg ℕ V E) (e : E) :
-    ¬ (Mvba.mvbaSafety thM).certifies (mst m) c e := by
+theorem not_certified (m : Nat) {p} (c : Mvba.Msg ℕ V E) (e : E) :
+    ¬ (Mvba.mvbaSafety thM).certifies (mst m) p c e := by
   show ¬ Mvba.Certifies (mst m) c e
   cases c <;> simp [Mvba.Certifies, Veil.FieldRepresentation.get, mst]
 

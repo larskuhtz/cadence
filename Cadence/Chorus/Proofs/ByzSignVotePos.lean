@@ -125,6 +125,15 @@ runs up to the budget on CI's 4-core runner. -/
   · exact Or.inl ⟨M, q, hq, fun r hr _ => hall r hr⟩
   · exact Or.inr hneg
 
+/- Written out: the solver took over 15 s on this cell locally, too close to
+the budget on CI's runner; a Byzantine write only adds network rows, so the old witness still backs every correct positive fallback entry. -/
+#prove_vc Chorus byz_sign_vote_pos msg_fb_pos_sig_backed by
+  unveil_local
+  veil_inv_have h_old := msg_fb_pos_sig_backed
+  intro _hbyz R J M hR hfb
+  obtain ⟨q, hq, hall⟩ := h_old R J M hR hfb
+  exact ⟨q, hq, fun r1 hr1 => ⟨fun _ => (hall r1 hr1).1, (hall r1 hr1).2⟩⟩
+
 #prove_action Chorus byz_sign_vote_pos
 
 end Chorus.Proofs

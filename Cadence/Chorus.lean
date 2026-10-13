@@ -348,8 +348,9 @@ relation msg_fbcommitqc (c : node) (e : mentries)
 /-- Sender `i` has broadcast the MVBA's commit certificate `c`: the
 certificate its own decision outputs (`decide(x, CommitQC)`, Supplement,
 Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"), or one
-it finalized on and re-broadcasts. A receiver checks it with the contract's
-validity predicate `mvba.certifies` and finalizes on the certified entries. -/
+it finalized on and re-broadcasts. A receiver checks it at its own index
+with the contract's validity predicate `mvba.certifies` and finalizes on the
+certified entries. -/
 relation msg_mvba_cert (i : node) (c : mmsg)
 
 /-! ## Per-validator certificate state
@@ -1612,8 +1613,9 @@ assignment comes in three routes:
 * `commit_assign_*_fb` — a fallback commit certificate
   `fbCommitQC = ⟨FallbackCommit, s, e, Σ⟩` whose entry vector `e` has the
   entry (Algorithm 5, line 45 (`line:fb-recv-commit`) / Algorithm 5, line 47 (`line:fb-finalize`));
-* `commit_assign_*_mvba` — the MVBA's own commit certificate, checked with
-  the contract's `mvba.certifies` against a representation `v` of the
+* `commit_assign_*_mvba` — the MVBA's own commit certificate, checked at
+  the validator's own index with the contract's `mvba.certifies`
+  ([Locality.md](../docs/Locality.md) R6) against a representation `v` of the
   entries it certifies, and with the bridge on the entry's certificate:
   "A correct validator that receives a valid such certificate re-broadcasts
   it and finalizes the certified outcome" (Supplement, Section 1.2
@@ -1684,7 +1686,7 @@ action commit_assign_pos_mvba (i : node) (j : node) (m : merkle_root) (s : node)
   require ¬ local_committed i
   require is_proposer j
   require msg_mvba_cert s c
-  require mvba.certifies mvba_st c (mvba.entries v)
+  require mvba.certifies mvba_st i c (mvba.entries v)
   require mval_pos (mvba.entries v) j m
   -- The bridge: the certificate `v` names for the entry verifies against
   -- the network.
@@ -1737,7 +1739,7 @@ action commit_assign_neg_mvba (i : node) (j : node) (s : node) (c : mmsg) (v : m
   require ¬ local_committed i
   require is_proposer j
   require msg_mvba_cert s c
-  require mvba.certifies mvba_st c (mvba.entries v)
+  require mvba.certifies mvba_st i c (mvba.entries v)
   require mval_neg (mvba.entries v) j
   -- The bridge, negative form.
   require vote_quorum_neg j ∨ ((fb_quorum_neg j ∨ equiv_evidence j) ∧ fbcert)
@@ -1922,8 +1924,8 @@ action byz_broadcast_fbcommitqc (r : node) (e : mentries) (q : nodeset) {
 }
 
 /- A Byzantine validator sends any MVBA message as a commit certificate
-under its own name: a receiver checks it (`mvba.certifies`, `mvba.accept`)
-before acting on it. -/
+under its own name: a receiver checks it at its own index (`mvba.certifies`,
+`mvba.accept`) before acting on it. -/
 action byz_send_mvba_cert (r : node) (c : mmsg) {
   require is_byz r
   msg_mvba_cert r c := true
@@ -2370,13 +2372,13 @@ invariant [mvba_decided_pos_tied]
   ∀ (J : node) (M : merkle_root),
     aux_mvba_decided_pos J M →
     (∃ I V, ¬ is_byz I ∧ mvba.decided mvba_st I V ∧ mval_pos (mvba.entries V) J M) ∨
-    (∃ C E, mvba.certifies mvba_st C E ∧ mval_pos E J M)
+    (∃ I C E, mvba.certifies mvba_st I C E ∧ mval_pos E J M)
 
 invariant [mvba_decided_neg_tied]
   ∀ (J : node),
     aux_mvba_decided_neg J →
     (∃ I V, ¬ is_byz I ∧ mvba.decided mvba_st I V ∧ mval_neg (mvba.entries V) J) ∨
-    (∃ C E, mvba.certifies mvba_st C E ∧ mval_neg E J)
+    (∃ I C E, mvba.certifies mvba_st I C E ∧ mval_neg E J)
 
 invariant [mvba_decided_pos_unique]
   ∀ (J : node) (M1 M2 : merkle_root),

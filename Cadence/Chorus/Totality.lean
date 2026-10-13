@@ -293,12 +293,12 @@ theorem within_assigned_from (sch : Schedule view time) {r : TChorusRun thS thM 
         (he' n hn) hme (hnp n hnot) (hnn n hnot)⟩)
       (fun n hn _ hnot => hact n hn hnot)
   · have hall := r.mono (P := fun st => st.msg_mvba_cert c cc = true ∧
-        (Mvba.mvbaSafety thM).certifies st.mvba_st cc (thM.ent v) ∧
+        (Mvba.mvbaSafety thM).certifies st.mvba_st j cc (thM.ent v) ∧
         ((¬ thS.mval_fb v J = true ∧ Chorus.vote_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS st) ∨
           (thS.mval_fb v J = true ∧ Chorus.fb_quorum_pos (nset := nset) (mvba := Mvba.mvbaSafety thM) J m thS st ∧
             Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS st)))
       (fun k ⟨h1, h2, h3⟩ => ⟨Chorus.msg_mvba_cert.mono (r.steps k) c cc h1,
-        certifies_step (r.steps k) h2, bridge_pos_step (r.steps k) h3⟩) ⟨hmsg, hcert, hb⟩
+        certifies_step (r.steps k) h2, bridge_pos_step (r.steps k) h3⟩) ⟨hmsg, Mvba.certifies_transfer thM _ c j cc _ hcert, hb⟩
     exact r.withinFrom_of_bufferedFair
       (hTJ.rows (.commit_assign_pos_mvba j J m c cc v) (rcvHop j c) rfl (fun h => h)) (le_max_left _ _) hB
       (fun _ _ h => Or.inl ⟨m, (commit_assign_pos_mvba_effect h).1⟩)
@@ -322,13 +322,13 @@ theorem within_assigned_from (sch : Schedule view time) {r : TChorusRun thS thM 
         (he' n hn) hme (hnp n hnot) (hnn n hnot)⟩)
       (fun n hn _ hnot => hact n hn hnot)
   · have hall := r.mono (P := fun st => st.msg_mvba_cert c cc = true ∧
-        (Mvba.mvbaSafety thM).certifies st.mvba_st cc (thM.ent v) ∧
+        (Mvba.mvbaSafety thM).certifies st.mvba_st j cc (thM.ent v) ∧
         (Chorus.vote_quorum_neg (nset := nset) (mvba := Mvba.mvbaSafety thM) J thS st ∨
           ((Chorus.fb_quorum_neg (nset := nset) (mvba := Mvba.mvbaSafety thM) J thS st ∨
             Chorus.equiv_evidence (nset := nset) (mvba := Mvba.mvbaSafety thM) J thS st) ∧
             Chorus.fbcert (nset := nset) (mvba := Mvba.mvbaSafety thM) thS st)))
       (fun k ⟨h1, h2, h3⟩ => ⟨Chorus.msg_mvba_cert.mono (r.steps k) c cc h1,
-        certifies_step (r.steps k) h2, bridge_neg_step (r.steps k) h3⟩) ⟨hmsg, hcert, hb⟩
+        certifies_step (r.steps k) h2, bridge_neg_step (r.steps k) h3⟩) ⟨hmsg, Mvba.certifies_transfer thM _ c j cc _ hcert, hb⟩
     exact r.withinFrom_of_bufferedFair
       (hTJ.rows (.commit_assign_neg_mvba j J c cc v) (rcvHop j c) rfl (fun h => h)) (le_max_left _ _) hB
       (fun _ _ h => Or.inr (Or.inl (commit_assign_neg_mvba_effect h).1))

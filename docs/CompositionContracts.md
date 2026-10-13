@@ -223,7 +223,8 @@ that handle a correct validator's decision `mvba.decided mvba_st i v`, entry
 by entry, in its own rows; and the **`CommitQC` route**: `send_mvba_cert`
 broadcasts the certificate a correct decision outputs, and
 `commit_assign_pos_mvba` / `commit_assign_neg_mvba` finalize on a received
-one, checked with `mvba.certifies mvba_st c (mvba.entries v)`, so that a
+one, checked at the validator's own index with `mvba.certifies mvba_st i c
+(mvba.entries v)` ([Locality.md](Locality.md) R6), so that a
 validator finalizes on the MVBA's own commit certificate (Supplement,
 Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"). **The value is the meta-block representation** (an entry vector
 and each positive entry's certificate kind,
@@ -246,21 +247,29 @@ decision or of a valid certificate.
 
 **The decision handoff** is the supplement's strengthened Module 3 (`mod:mvba`)
 interface (Supplement, Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"), and
-nothing else: `certifies st c e` (a valid commitment proof for the entry
-vector `e`, since the certificate is over entries), the output
+nothing else: `certifies st p c e` (party `p`'s check that `c` is a valid
+commitment proof for the entry vector `e`, since the certificate is over
+entries; read at the checker's index, like every operation a consumer's
+guard reads), the output
 `decidedCert st p c` (the certificate `p`'s decision outputs, at `p`'s
 index) with `decided_certified` (**decide exposes its certificate**) and
-`decidedCert_certifies` (it comes with the decision and certifies its
-entries), the input `accept`
+`decidedCert_certifies` (it comes with the decision and passes the
+decider's own check for its entries), the input `accept`
 with `accept_trans`, and `accept_effect`/`accept_enabled` (**a transferred
 valid certificate is accepted**, in the rely form, deciding a
-representation of the certified entries). Beside them sit the
-**certificate-level fields**: one certified entry vector
-(`certified_unique`), the one every correct party decides
+representation of the certified entries; both at the accepting party's
+check). Beside them sit the **certificate-level fields**, which hold
+whichever party checked the certificate: one certified entry vector
+(`certified_unique`, across two checkers), the one every correct party decides
 (`certified_decided`), with a valid representation (`certified_valid`) and
 with the availability its correct signers established
 (`certified_available`, over the observable `availReady`), and it stays
-valid (`certified_mono`: the certificate is transferable). **The
+valid (`certified_mono`, per checker). That a certificate passing one
+party's check passes every party's, the supplement's "any party can
+check", is not a field: no statement generic over the class needs it, and
+at the system's instance it is the lemma `Mvba.certifies_transfer`, which
+Chorus's commit route takes as a hypothesis where a receiver checks a
+certificate its sender checked. **The
 availability input** is `markAvail` with `markAvail_trans`,
 `markAvail_effect`, `availReady_markAvail_frame`, `init_availReady` and the
 four frames saying that no other transition changes `availReady`. The

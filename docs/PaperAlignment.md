@@ -1155,7 +1155,9 @@ vector is permitted, which is why Integrity is not "at most one
 representation" (§5.4). The commit certificate is over entries, "an
 aggregate of `2f+1` Commit signatures over `entries(x)`" (Supplement,
 Section 1.2 (`subsec:mvba-protocol`), "Decision output and handoff"):
-`certifies` takes an entry vector, a decision exposes a certificate for its
+`certifies` takes an entry vector, and the party making the check, which
+"any party can" (the check at the system's instance is the same at every
+party, `Mvba.certifies_transfer`); a decision exposes a certificate for its
 entries, and accepting a certificate decides some representation with
 those entries, the supplement's `Recover(e)`. The certificate-level fields
 (`certified_unique`, `certified_decided`, `certified_valid`,

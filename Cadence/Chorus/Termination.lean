@@ -805,7 +805,7 @@ theorem commit_assign_pos_fb_guard {i j c : node} {m : merkle_root} {e : mentrie
 theorem enabled_commit_assign_pos_mvba {i j r : node} {m : merkle_root} {c : mmsg} {v : mvalue}
     (hi : ¬ nset.is_byz i = true) (ha : Active s i) (hnc : ¬ s.local_committed i = true)
     (hj : th.is_proposer j = true) (hmsg : s.msg_mvba_cert r c = true)
-    (hc : mvba.certifies s.mvba_st c (mvba.entries v)) (hv : th.mval_pos (mvba.entries v) j m = true)
+    (hc : mvba.certifies s.mvba_st i c (mvba.entries v)) (hv : th.mval_pos (mvba.entries v) j m = true)
     (hb : (¬ th.mval_fb v j = true ∧ Chorus.vote_quorum_pos j m th s) ∨
       (th.mval_fb v j = true ∧ Chorus.fb_quorum_pos j m th s ∧ Chorus.fbcert th s))
     (hnp : ∀ m', ¬ s.local_committed_pos i j m' = true) (hnn : ¬ s.local_committed_neg i j = true) :
@@ -822,7 +822,7 @@ theorem commit_assign_pos_mvba_effect {i j r : node} {m : merkle_root} {c : mmsg
 
 theorem commit_assign_pos_mvba_guard {i j r : node} {m : merkle_root} {c : mmsg} {v : mvalue}
     (htr : (RTS).tr th s (.commit_assign_pos_mvba i j m r c v) s') :
-    mvba.certifies s.mvba_st c (mvba.entries v) ∧ th.mval_pos (mvba.entries v) j m = true ∧
+    mvba.certifies s.mvba_st i c (mvba.entries v) ∧ th.mval_pos (mvba.entries v) j m = true ∧
       ((¬ th.mval_fb v j = true ∧ Chorus.vote_quorum_pos j m th s) ∨
         (th.mval_fb v j = true ∧ Chorus.fb_quorum_pos j m th s ∧ Chorus.fbcert th s)) := by
   chorus_tr htr
@@ -869,7 +869,7 @@ theorem commit_assign_neg_fb_guard {i j c : node} {e : mentries}
 theorem enabled_commit_assign_neg_mvba {i j r : node} {c : mmsg} {v : mvalue}
     (hi : ¬ nset.is_byz i = true) (ha : Active s i) (hnc : ¬ s.local_committed i = true)
     (hj : th.is_proposer j = true) (hmsg : s.msg_mvba_cert r c = true)
-    (hc : mvba.certifies s.mvba_st c (mvba.entries v)) (hv : th.mval_neg (mvba.entries v) j = true)
+    (hc : mvba.certifies s.mvba_st i c (mvba.entries v)) (hv : th.mval_neg (mvba.entries v) j = true)
     (hb : Chorus.vote_quorum_neg j th s ∨
       ((Chorus.fb_quorum_neg j th s ∨ Chorus.equiv_evidence j th s) ∧ Chorus.fbcert th s))
     (hnp : ∀ m', ¬ s.local_committed_pos i j m' = true) (hnn : ¬ s.local_committed_neg i j = true) :
@@ -886,7 +886,7 @@ theorem commit_assign_neg_mvba_effect {i j r : node} {c : mmsg} {v : mvalue}
 
 theorem commit_assign_neg_mvba_guard {i j r : node} {c : mmsg} {v : mvalue}
     (htr : (RTS).tr th s (.commit_assign_neg_mvba i j r c v) s') :
-    mvba.certifies s.mvba_st c (mvba.entries v) ∧ th.mval_neg (mvba.entries v) j = true ∧
+    mvba.certifies s.mvba_st i c (mvba.entries v) ∧ th.mval_neg (mvba.entries v) j = true ∧
       (Chorus.vote_quorum_neg j th s ∨
         ((Chorus.fb_quorum_neg j th s ∨ Chorus.equiv_evidence j th s) ∧ Chorus.fbcert th s)) := by
   chorus_tr htr
@@ -995,12 +995,12 @@ theorem send_mvba_cert_guard {i : node} {c : mmsg}
   exact ⟨hi, hd⟩
 
 /-- **The certificate `send_mvba_cert` sends is valid**, at a reachable MVBA
-state: the decision's output certificate certifies the decided entries
-(`decidedCert_certifies`). -/
+state: the decision's output certificate passes the decider's own check for
+the decided entries (`decidedCert_certifies`). -/
 theorem send_mvba_cert_certifies {i : node} {c : mmsg}
     (hr : mvba.reachable s.mvba_st)
     (htr : (RTS).tr th s (.send_mvba_cert i c) s') :
-    ∃ e, mvba.certifies s'.mvba_st c e := by
+    ∃ e, mvba.certifies s'.mvba_st i c e := by
   obtain ⟨hi, hd⟩ := send_mvba_cert_guard htr
   obtain ⟨v, -, hc⟩ := mvba.decidedCert_certifies _ hr i c hi hd
   refine ⟨mvba.entries v, ?_⟩
@@ -1117,7 +1117,7 @@ MVBA commit certificate. -/
 theorem mvba_cert_sent_flip {l} {i : node}
     (hr : mvba.reachable s.mvba_st) (htr : (RTS).tr th s l s')
     (h0 : ¬ s.local_mvba_cert_sent i = true) (h1 : s'.local_mvba_cert_sent i = true) :
-    ∃ c e, mvba.certifies s'.mvba_st c e ∧ s'.msg_mvba_cert i c = true := by
+    ∃ c e, mvba.certifies s'.mvba_st i c e ∧ s'.msg_mvba_cert i c = true := by
   cases l
   case send_mvba_cert i' c =>
     obtain rfl : i' = i := by
@@ -1135,12 +1135,12 @@ set_option maxHeartbeats 1000000 in
 /-- **A correct validator sends only valid MVBA commit certificates**: the
 step that sets `msg_mvba_cert i c` for a correct `i` is its
 `send_mvba_cert` or the re-broadcast of a finalization on `c`
-(`commit_assign_*_mvba`), each of which checks `c` (`mvba.certifies`). -/
+(`commit_assign_*_mvba`), each of which checks `c` at `i` (`mvba.certifies`). -/
 theorem mvba_cert_flip {l} {i : node} {c : mmsg}
     (hr : mvba.reachable s.mvba_st)
     (htr : (RTS).tr th s l s') (hi : ¬ nset.is_byz i = true)
     (h0 : ¬ s.msg_mvba_cert i c = true) (h1 : s'.msg_mvba_cert i c = true) :
-    ∃ e, mvba.certifies s'.mvba_st c e := by
+    ∃ e, mvba.certifies s'.mvba_st i c e := by
   cases l
   case send_mvba_cert i' c' =>
     obtain ⟨rfl, rfl⟩ : i' = i ∧ c' = c := by
@@ -1325,34 +1325,34 @@ set_option maxHeartbeats 1000000 in
 /-- **A valid MVBA certificate stays valid** across every step: an MVBA
 transition keeps it (`certified_mono`), and every other action frames the
 MVBA's state. -/
-theorem certifies_step {l} (htr : (RTS).tr th s l s') {c : mmsg} {e : mentries}
-    (hc : mvba.certifies s.mvba_st c e) : mvba.certifies s'.mvba_st c e := by
+theorem certifies_step {l} (htr : (RTS).tr th s l s') {p : node} {c : mmsg} {e : mentries}
+    (hc : mvba.certifies s.mvba_st p c e) : mvba.certifies s'.mvba_st p c e := by
   cases l
   case mvba_step =>
     chorus_tr htr
     obtain ⟨hst, rfl⟩ := htr
     chorus_field_simp
-    exact mvba.certified_mono _ _ c e (mvba.step_trans _ _ hst) hc
+    exact mvba.certified_mono _ _ p c e (mvba.step_trans _ _ hst) hc
   case mvba_propose =>
     chorus_tr htr
     obtain ⟨-, -, -, -, -, -, -, hp, rfl⟩ := htr
     chorus_field_simp
-    exact mvba.certified_mono _ _ c e (mvba.propose_trans _ _ _ _ hp) hc
+    exact mvba.certified_mono _ _ p c e (mvba.propose_trans _ _ _ _ hp) hc
   case accept_mvba_commitqc =>
     chorus_tr htr
     obtain ⟨-, -, -, hacc, rfl⟩ := htr
     chorus_field_simp
-    exact mvba.certified_mono _ _ c e (mvba.accept_trans _ _ _ _ hacc) hc
+    exact mvba.certified_mono _ _ p c e (mvba.accept_trans _ _ _ _ hacc) hc
   case mvba_avail_ready =>
     chorus_tr htr
     obtain ⟨-, -, -, hav, rfl⟩ := htr
     chorus_field_simp
-    exact mvba.certified_mono _ _ c e (mvba.markAvail_trans _ _ _ _ hav) hc
+    exact mvba.certified_mono _ _ p c e (mvba.markAvail_trans _ _ _ _ hav) hc
   case abandon =>
     chorus_tr htr
     obtain ⟨hab, rfl⟩ := htr
     chorus_field_simp
-    exact mvba.certified_mono _ _ c e (mvba.abandon_trans _ _ _ hab) hc
+    exact mvba.certified_mono _ _ p c e (mvba.abandon_trans _ _ _ hab) hc
   frame_rest htr mvba_st hfr => exact hfr ▸ hc
 
 /-! ### Commitment proofs, with their senders
@@ -1375,7 +1375,7 @@ def CertPos (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue ment
     (c j : node) (m : merkle_root) : Prop :=
   st.msg_commitqc_pos c j m = true ∨
   (∃ e, st.msg_fbcommitqc c e = true ∧ th.mval_pos e j m = true) ∨
-  (∃ cc v, st.msg_mvba_cert c cc = true ∧ mvba.certifies st.mvba_st cc (mvba.entries v) ∧
+  (∃ cc v, st.msg_mvba_cert c cc = true ∧ mvba.certifies st.mvba_st c cc (mvba.entries v) ∧
     th.mval_pos (mvba.entries v) j m = true ∧
     ((¬ th.mval_fb v j = true ∧ Chorus.vote_quorum_pos j m th st) ∨
       (th.mval_fb v j = true ∧ Chorus.fb_quorum_pos j m th st ∧ Chorus.fbcert th st)))
@@ -1386,7 +1386,7 @@ def CertNeg (th : Chorus.Theory slot node nodeset merkle_root mstate mvalue ment
     (c j : node) : Prop :=
   st.msg_commitqc_neg c j = true ∨
   (∃ e, st.msg_fbcommitqc c e = true ∧ th.mval_neg e j = true) ∨
-  (∃ cc v, st.msg_mvba_cert c cc = true ∧ mvba.certifies st.mvba_st cc (mvba.entries v) ∧
+  (∃ cc v, st.msg_mvba_cert c cc = true ∧ mvba.certifies st.mvba_st c cc (mvba.entries v) ∧
     th.mval_neg (mvba.entries v) j = true ∧
     (Chorus.vote_quorum_neg j th st ∨
       ((Chorus.fb_quorum_neg j th st ∨ Chorus.equiv_evidence j th st) ∧ Chorus.fbcert th st)))
@@ -1640,9 +1640,9 @@ theorem fbcommit_voted_sig (r : CRun th) {i : node} :
 validator sent. -/
 theorem mvba_cert_sent_msg (r : CRun th) {i : node} :
     ∀ n, (r.at' n).local_mvba_cert_sent i = true →
-      ∃ c e, mvba.certifies (r.at' n).mvba_st c e ∧ (r.at' n).msg_mvba_cert i c = true :=
+      ∃ c e, mvba.certifies (r.at' n).mvba_st i c e ∧ (r.at' n).msg_mvba_cert i c = true :=
   record_backed r (F := fun st => st.local_mvba_cert_sent i = true)
-    (Q := fun st => ∃ c e, mvba.certifies st.mvba_st c e ∧ st.msg_mvba_cert i c = true)
+    (Q := fun st => ∃ c e, mvba.certifies st.mvba_st i c e ∧ st.msg_mvba_cert i c = true)
     (by simp [Chorus.local_mvba_cert_sent.init r.starts i])
     (fun n h0 h1 => mvba_cert_sent_flip (Chorus.reachable_mvba_reachable (r.reachable n))
       (r.steps n) h0 h1)
@@ -1652,9 +1652,9 @@ theorem mvba_cert_sent_msg (r : CRun th) {i : node} :
 /-- **A correct validator's MVBA commit certificate is valid**, at every point
 of the run (`mvba_cert_flip`; a valid certificate stays valid). -/
 theorem mvba_cert_valid (r : CRun th) {i : node} {c : mmsg} (hi : ¬ nset.is_byz i = true) :
-    ∀ n, (r.at' n).msg_mvba_cert i c = true → ∃ e, mvba.certifies (r.at' n).mvba_st c e :=
+    ∀ n, (r.at' n).msg_mvba_cert i c = true → ∃ e, mvba.certifies (r.at' n).mvba_st i c e :=
   record_backed r (F := fun st => st.msg_mvba_cert i c = true)
-    (Q := fun st => ∃ e, mvba.certifies st.mvba_st c e)
+    (Q := fun st => ∃ e, mvba.certifies st.mvba_st i c e)
     (by simp [Chorus.msg_mvba_cert.init r.starts i c])
     (fun n h0 h1 => mvba_cert_flip (Chorus.reachable_mvba_reachable (r.reachable n))
       (r.steps n) hi h0 h1)
@@ -2185,6 +2185,7 @@ the other validators: this is what lets the early-finalization branch of
 `termination` use it. -/
 theorem eventually_committed_of_assignable (r : CRun th)
     (hfj : PerLabel r)
+    (htransfer : ∀ st p q c e, mvba.certifies st p c e → mvba.certifies st q c e)
     (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {N : Nat}
     (hA : ∀ j, th.is_proposer j = true →
       (∃ m c, ¬ nset.is_byz c = true ∧ CertPos (mvba := mvba) th (r.at' N) c j m) ∨
@@ -2241,11 +2242,11 @@ theorem eventually_committed_of_assignable (r : CRun th)
           (he' n (by omega)) hme (hnp n (by omega)) (hnn n (by omega)))
       exact hna ⟨n + 1, by omega, Or.inl ⟨m, (commit_assign_pos_fb_effect (hfire ▸ r.steps n)).1⟩⟩
     · have hall := r.mono (P := fun st => st.msg_mvba_cert c cc = true ∧
-          mvba.certifies st.mvba_st cc (mvba.entries v) ∧
+          mvba.certifies st.mvba_st i cc (mvba.entries v) ∧
           ((¬ th.mval_fb v j = true ∧ Chorus.vote_quorum_pos j m th st) ∨
             (th.mval_fb v j = true ∧ Chorus.fb_quorum_pos j m th st ∧ Chorus.fbcert th st)))
         (fun k ⟨h1, h2, h3⟩ => ⟨Chorus.msg_mvba_cert.mono (r.steps k) c cc h1,
-          certifies_step (r.steps k) h2, bridge_pos_step (r.steps k) h3⟩) ⟨hmsg, hcert, hb⟩
+          certifies_step (r.steps k) h2, bridge_pos_step (r.steps k) h3⟩) ⟨hmsg, htransfer _ c i cc _ hcert, hb⟩
       obtain ⟨n, hn, hfire⟩ := (hfj (.commit_assign_pos_mvba i j m c cc v) ⟨fun h => h, fun h => h, fun h => h⟩
           (fun h => h)).fires (max N P) (fun _ _ => hc)
         (fun n hn => enabled_commit_assign_pos_mvba hi (hact n (by omega)) (hnc n) hj
@@ -2267,11 +2268,11 @@ theorem eventually_committed_of_assignable (r : CRun th)
           (he' n (by omega)) hme (hnp n (by omega)) (hnn n (by omega)))
       exact hna ⟨n + 1, by omega, Or.inr (commit_assign_neg_fb_effect (hfire ▸ r.steps n)).1⟩
     · have hall := r.mono (P := fun st => st.msg_mvba_cert c cc = true ∧
-          mvba.certifies st.mvba_st cc (mvba.entries v) ∧
+          mvba.certifies st.mvba_st i cc (mvba.entries v) ∧
           (Chorus.vote_quorum_neg j th st ∨
             ((Chorus.fb_quorum_neg j th st ∨ Chorus.equiv_evidence j th st) ∧ Chorus.fbcert th st)))
         (fun k ⟨h1, h2, h3⟩ => ⟨Chorus.msg_mvba_cert.mono (r.steps k) c cc h1,
-          certifies_step (r.steps k) h2, bridge_neg_step (r.steps k) h3⟩) ⟨hmsg, hcert, hb⟩
+          certifies_step (r.steps k) h2, bridge_neg_step (r.steps k) h3⟩) ⟨hmsg, htransfer _ c i cc _ hcert, hb⟩
       obtain ⟨n, hn, hfire⟩ := (hfj (.commit_assign_neg_mvba i j c cc v) ⟨fun h => h, fun h => h, fun h => h⟩
           (fun h => h)).fires (max N P) (fun _ _ => hc)
         (fun n hn => enabled_commit_assign_neg_mvba hi (hact n (by omega)) (hnc n) hj
@@ -2319,13 +2320,14 @@ early-finalization branch of `termination`, and it needs none of the MVBA
 premises. -/
 theorem eventually_committed_of_finalized (r : CRun th)
     (hfj : PerLabel r)
+    (htransfer : ∀ st p q c e, mvba.certifies st p c e → mvba.certifies st q c e)
     (nodes : List node) (hnodes : ∀ a, a ∈ nodes) {n0 : Nat} {i0 : node}
     (hi0 : ¬ nset.is_byz i0 = true) (hc0 : (r.at' n0).local_committed i0 = true)
     {i : node} (hi : ¬ nset.is_byz i = true)
     (hpart : ∃ P, (r.at' P).participating i = true)
     (hab : ∀ n, (r.at' n).abandoned i = true → (r.at' n).local_committed i = true) :
     ∃ n, n0 ≤ n ∧ (r.at' n).local_committed i = true :=
-  eventually_committed_of_assignable r hfj nodes hnodes (proofs_of_finalized r hi0 hc0) hi hpart hab
+  eventually_committed_of_assignable r hfj htransfer nodes hnodes (proofs_of_finalized r hi0 hc0) hi hpart hab
 
 /-- **The gate from the caller premises, on the late branch.** If no correct
 validator ever finalizes, none ever abandons (`hab`), and since every one
@@ -2539,12 +2541,12 @@ theorem decidedCert_persists (r : ChorusRun (nset := nset) thS thM)
     (fun n h => mvba_st_step r _ (fun _ _ _ htr h => Mvba.decidedCert_mono_tr thM htr j c h) n h) hc
 
 /-- A valid MVBA certificate stands in the composed run. -/
-theorem certifies_persists (r : ChorusRun (nset := nset) thS thM)
+theorem certifies_persists (r : ChorusRun (nset := nset) thS thM) {p : node}
     {c : Mvba.Msg view (MetaBlock node merkle_root) (node → Option merkle_root)}
     {e : node → Option merkle_root} {k : Nat}
-    (hc : (Mvba.mvbaSafety (nset := nset) thM).certifies (r.at' k).mvba_st c e) :
-    ∀ n, k ≤ n → (Mvba.mvbaSafety (nset := nset) thM).certifies (r.at' n).mvba_st c e :=
-  r.mono (P := fun st => (Mvba.mvbaSafety (nset := nset) thM).certifies st.mvba_st c e)
+    (hc : (Mvba.mvbaSafety (nset := nset) thM).certifies (r.at' k).mvba_st p c e) :
+    ∀ n, k ≤ n → (Mvba.mvbaSafety (nset := nset) thM).certifies (r.at' n).mvba_st p c e :=
+  r.mono (P := fun st => (Mvba.mvbaSafety (nset := nset) thM).certifies st.mvba_st p c e)
     (fun n h => mvba_st_step r _ (fun _ _ _ htr h => Mvba.certifies_mono_tr thM htr c e h) n h) hc
 
 /-- **A validator that has handed over a certificate has decided**, at every
@@ -2608,7 +2610,7 @@ theorem eventually_cert_sent (r : ChorusRun (nset := nset) thS thM) (hfj : PerLa
     {A : Nat} (hact : ActiveFrom r A) {j : node} (hj : ¬ nset.is_byz j = true)
     {k : Nat} {v : MetaBlock node merkle_root}
     (hd : (Mvba.mvbaSafety (nset := nset) thM).decided (r.at' k).mvba_st j v) :
-    ∃ n c e, (Mvba.mvbaSafety (nset := nset) thM).certifies (r.at' n).mvba_st c e ∧
+    ∃ n c e, (Mvba.mvbaSafety (nset := nset) thM).certifies (r.at' n).mvba_st j c e ∧
       (r.at' n).msg_mvba_cert j c = true := by
   mvba_inst
   have hdec := decided_persists r hd
@@ -2653,7 +2655,7 @@ theorem fRelay_of_fJustice (r : ChorusRun (nset := nset) thS thM) (hfj : FJustic
   obtain ⟨hj, hdj⟩ := (htrans _ le_rfl).1
   set j := j₀
   obtain ⟨n1, c, e1, hc1, hm1⟩ := eventually_cert_sent r hfj.1 hact hj (v := e) hdj
-  have hc : ∀ n, n1 ≤ n → (Mvba.mvbaSafety (nset := nset) thM).certifies (r.at' n).mvba_st c e1 :=
+  have hc : ∀ n, n1 ≤ n → (Mvba.mvbaSafety (nset := nset) thM).certifies (r.at' n).mvba_st j c e1 :=
     certifies_persists r hc1
   have hm : ∀ n, n1 ≤ n → (r.at' n).msg_mvba_cert j c = true :=
     r.mono (P := fun st => st.msg_mvba_cert j c = true)
@@ -3159,7 +3161,7 @@ theorem eventually_committed_of_mvba_arm [Fintype node]
   obtain ⟨G, hFG, hG⟩ := eventually_fbcommitqc_sent r hfj.1 hact hi0 hi0 hd0 hq
   -- It carries an entry for every proposer: the decided vector is certified.
   obtain ⟨-, -, htot⟩ := hbr.2.1 k0 i0 v0 hi0 hd0
-  obtain ⟨n, hn, h⟩ := eventually_committed_of_assignable r hfj.1 _ hnodes (N := G)
+  obtain ⟨n, hn, h⟩ := eventually_committed_of_assignable r hfj.1 (Mvba.certifies_transfer thM) _ hnodes (N := G)
     (fun j hj => by
       rcases htot j hj with ⟨M, hM⟩ | hM
       · exact Or.inl ⟨M, i0, hi0, Or.inr (Or.inl ⟨_, hG, hM⟩)⟩
@@ -3469,7 +3471,8 @@ theorem termination (vfin : Cadence.ViewOrderEnum view vord) :
       (r.at' k).local_committed i = true
   · obtain ⟨k0, i0, hi0, hc0⟩ := hearly
     intro i hi
-    obtain ⟨k, -, hk⟩ := eventually_committed_of_finalized r hfj.1 _ hnodes hi0 hc0 hi
+    obtain ⟨k, -, hk⟩ := eventually_committed_of_finalized r hfj.1
+      (Mvba.certifies_transfer (nset := byzNodeSetFin n f hf is_byz hbyz) thMC) _ hnodes hi0 hc0 hi
       (hpart i hi) (hab i hi)
     exact ⟨k, hk⟩
   · have hnever : ∀ k i, ¬ (byzNodeSetFin n f hf is_byz hbyz).is_byz i = true →
